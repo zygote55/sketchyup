@@ -49,13 +49,14 @@ are covered in the [traceability table](#scope-to-pr-coverage).
 R001 is in [PR #2](https://github.com/zygote55/sketchyup/pull/2). The native
 spike is in [PR #3](https://github.com/zygote55/sketchyup/pull/3), based on #2.
 The R002.b viewport follow-up is in [PR #4](https://github.com/zygote55/sketchyup/pull/4), based on #3.
+The R002.c desktop follow-up is in [PR #5](https://github.com/zygote55/sketchyup/pull/5), based on #4.
 The planning PR #1 is merged. No M0 parent row is yet Verified.
 
 | Slice | Boundary | Required follow-up before parent completion |
 | --- | --- | --- |
 | R002.a | Native window, shader viewport, picking, input and instancing evidence | Rendering follow-up in R002.b; desktop acceptance in R002.c |
 | R002.b | Persistent buffers, transparency/clipping pixel tests, context recreation, physical-output checks, independent-triangle benchmark ([evidence](verification/R002-viewport.md)) | Review/merge; full editor performance remains later work |
-| R002.c | Native dialogs and cross-window pointer capture acceptance; requires R002.b | Planned; parent R002 remains open |
+| R002.c | Native dialogs and cross-window pointer capture acceptance; requires R002.b | Save/overwrite and pointer-loss fixes, native-enabled dialog/event tests ([evidence](verification/R002-desktop.md)); physical compositor acceptance remains open |
 | R003.a | Loop/vertex topology, holes, radial adjacency and isolated extrusion corpus | R003.b stable edge IDs/maps, arrangement and precision experiments |
 | R004.a | Identity/revision, staged edits, bounded history, experimental JSON and atomic-save tests | R004.b container benchmarks, journal/outcome and migration contracts |
 | R005 | Vendor-source research and explicit unsupported SKP/DWG decisions | Review evidence; compatibility delivery remains conditional |

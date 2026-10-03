@@ -47,6 +47,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void message(const QString &text);
 
   protected:
+    bool event(QEvent *) override;
     void initializeGL() override;
     void paintGL() override;
     void mousePressEvent(QMouseEvent *) override;

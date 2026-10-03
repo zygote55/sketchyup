@@ -394,6 +394,7 @@ void Viewport::cancel() {
     anchor_.reset();
     cursor_.reset();
     dragging_ = false;
+    dragButton_ = Qt::NoButton;
     update();
 }
 void Viewport::fit() {
@@ -476,6 +477,16 @@ void Viewport::measurements(const QString &text) {
         emit message(e.what());
     }
 }
+bool Viewport::event(QEvent *event) {
+    // A compositor can end an implicit pointer grab without delivering release.
+    // Keep a drawing preview when focus moves to Measurements, but end navigation.
+    if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::WindowDeactivate ||
+        event->type() == QEvent::Hide || event->type() == QEvent::FocusOut) {
+        dragging_ = false;
+        dragButton_ = Qt::NoButton;
+    }
+    return QOpenGLWidget::event(event);
+}
 void Viewport::mousePressEvent(QMouseEvent *e) {
     setFocus();
     previous_ = e->position();
@@ -503,6 +514,10 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
                           : "Select an isolated face to extrude");
 }
 void Viewport::mouseMoveEvent(QMouseEvent *e) {
+    if (dragging_ && !e->buttons().testFlag(dragButton_)) {
+        dragging_ = false;
+        dragButton_ = Qt::NoButton;
+    }
     auto delta = e->position() - previous_;
     previous_ = e->position();
     if (dragging_) {
@@ -519,7 +534,9 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
         cursor_ = ground(e->position());
     update();
 }
-void Viewport::mouseReleaseEvent(QMouseEvent *) {
+void Viewport::mouseReleaseEvent(QMouseEvent *e) {
+    if (e->button() != dragButton_)
+        return;
     dragging_ = false;
     dragButton_ = Qt::NoButton;
 }

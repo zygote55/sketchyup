@@ -286,14 +286,29 @@ void Window::sync() {
 }
 bool Window::save(bool saveAs) {
     auto target = path_;
-    if (saveAs || target.isEmpty())
-        target = QFileDialog::getSaveFileName(this, "Save model",
-                                              target.isEmpty() ? "Untitled.sketchyup" : target,
-                                              "SketchyUp models (*.sketchyup)");
+    if (saveAs || target.isEmpty()) {
+        QFileDialog dialog(this, "Save model", target.isEmpty() ? "Untitled.sketchyup" : target,
+                           "SketchyUp models (*.sketchyup)");
+        dialog.setObjectName("saveModelDialog");
+        dialog.setAcceptMode(QFileDialog::AcceptSave);
+        dialog.setDefaultSuffix("sketchyup");
+        // Confirm the final path ourselves, including suffix normalization. Native
+        // backends differ in when they append defaultSuffix during confirmation.
+        dialog.setOption(QFileDialog::DontConfirmOverwrite);
+        if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty())
+            return false;
+        target = dialog.selectedFiles().front();
+        if (!target.endsWith(".sketchyup", Qt::CaseInsensitive))
+            target += ".sketchyup";
+        if (QFileInfo::exists(target) &&
+            QMessageBox::question(this, "Replace model?",
+                                  QString("Replace the existing file %1?").arg(target),
+                                  QMessageBox::Yes | QMessageBox::Cancel,
+                                  QMessageBox::Cancel) != QMessageBox::Yes)
+            return false;
+    }
     if (target.isEmpty())
         return false;
-    if (!target.endsWith(".sketchyup"))
-        target += ".sketchyup";
     try {
         saveDocument(doc_, target);
         path_ = target;
