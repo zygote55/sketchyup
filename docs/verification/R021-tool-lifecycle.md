@@ -44,3 +44,9 @@ These tests use native windows with generated Qt input. They do not replace the
 later physical-device gesture/accessibility acceptance matrix. Preview generation
 is synchronous and bounded by command limits; large-scene interactive latency
 remains part of the performance work.
+
+The first Xvfb CI run exposed a fixture precondition: the test window was exposed
+but never explicitly activated, so the expected FocusOut event was absent. The
+fixture now activates and waits for the window and asserts focus ownership on
+both sides of the transfer. The same test passes in the pinned Arch image under
+Xvfb/llvmpipe. No product event handler was changed for this correction.

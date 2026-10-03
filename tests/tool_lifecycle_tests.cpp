@@ -68,6 +68,8 @@ int main(int argc, char **argv) {
         layout.addWidget(field);
         host.show();
         check(QTest::qWaitForWindowExposed(&host), "Lifecycle viewport exposed");
+        host.activateWindow();
+        check(QTest::qWaitForWindowActive(&host, 5000), "Lifecycle test window active");
         view->standardView(1);
         view->setTool(Viewport::Tool::Rectangle);
         auto start = view->project({0, 0, 0}).toPoint(), end = view->project({2, 1, 0}).toPoint();
@@ -125,8 +127,10 @@ int main(int argc, char **argv) {
               "Pointer cancellation prevents late-release commit");
         QTest::mousePress(view, Qt::LeftButton, {}, start);
         move(*view, end, Qt::LeftButton);
+        check(view->hasFocus(), "Viewport owns focus before simulated focus loss");
         field->setFocus();
         QCoreApplication::processEvents();
+        check(field->hasFocus(), "Measurements receives focus during held gesture");
         QTest::mouseRelease(view, Qt::LeftButton, {}, end);
         check(doc.bodies().empty() && view->operationAnchor().has_value(),
               "Focus loss stops drag commit while preserving the editable anchor");
