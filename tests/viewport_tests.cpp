@@ -10,6 +10,7 @@
 #include <QSurfaceFormat>
 #include <QTest>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 #include <QWindow>
 #include <iostream>
 using namespace sketchy;
@@ -137,6 +138,7 @@ int main(int argc, char **argv) {
         check(rejected, "Invalid clipping normal is rejected");
         check(encodeDocument(doc) == saved, "Viewport controls never mutate the model");
         const auto generation = view->renderStats().contextGeneration;
+        const auto meshesBeforeContext = view->renderStats().bodyMeshBuilds;
         QPointer<QOpenGLContext> oldContext = view->context();
         firstLayout.removeWidget(view);
         view->setParent(&second);
@@ -149,6 +151,8 @@ int main(int argc, char **argv) {
         check(oldContext.isNull(), "Reparenting destroyed the old GL context");
         check(view->renderStats().contextGeneration > generation && view->rendererReady(),
               "Reparenting recreated GL resources");
+        check(view->renderStats().bodyMeshBuilds == meshesBeforeContext,
+              "Context recreation reuses immutable CPU meshes");
         nearColor(sample(view, probe), opaque, "Context recreation preserves rendered pixels");
         check(view->pick(view->project(probe)).first == front,
               "Picking survives context recreation");
@@ -203,6 +207,40 @@ int main(int argc, char **argv) {
               "Edits immediately invalidate picking before repaint");
         frame(view);
         check(view->renderStats().glError == 0, "Edit uploads succeed");
+        const auto beforePaint = view->renderStats();
+        doc.paint(back, {.2f, .2f, .8f});
+        frame(view);
+        check(view->renderStats().bodyUploads == beforePaint.bodyUploads + 1 &&
+                  view->renderStats().bodyMeshBuilds == beforePaint.bodyMeshBuilds,
+              "Painting updates one body GPU cache without retriangulating unchanged geometry");
+        const auto beforeMove = view->renderStats();
+        doc.move(back, {1, 0, 0});
+        frame(view);
+        check(view->renderStats().bodyUploads == beforeMove.bodyUploads + 1 &&
+                  view->renderStats().bodyWorldUpdates == beforeMove.bodyWorldUpdates + 1 &&
+                  view->renderStats().bodyMeshBuilds == beforeMove.bodyMeshBuilds,
+              "Transform updates only affected world/GPU cache");
+        const auto beforeZoom = view->renderStats();
+        const auto beforeProjection = view->project(probe);
+        const auto center = view->rect().center();
+        QWheelEvent wheel(center, view->mapToGlobal(center), QPoint(0, 15), QPoint(), Qt::NoButton,
+                          Qt::NoModifier, Qt::ScrollUpdate, false);
+        QApplication::sendEvent(view, &wheel);
+        frame(view);
+        check(view->project(probe) != beforeProjection &&
+                  view->renderStats().bodyUploads == beforeZoom.bodyUploads,
+              "Pixel-delta wheel zoom changes camera without body uploads");
+        const auto beforeAdd = view->renderStats();
+        auto extra = doc.addFace({{{0, 0, 2}, {1, 0, 2}, {0, 1, 2}}});
+        frame(view);
+        check(view->renderStats().bodyMeshBuilds == beforeAdd.bodyMeshBuilds + 1 &&
+                  view->renderStats().bodyUploads == beforeAdd.bodyUploads + 1,
+              "Adding geometry builds only its body cache");
+        doc.erase(extra);
+        frame(view);
+        check(view->renderStats().cachedBodies == doc.bodies().size() &&
+                  view->renderStats().bodyUploads == beforeAdd.bodyUploads + 1,
+              "Deleting a body releases its cache without reuploading survivors");
         auto mirrored = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {0, 2, 0}}});
         doc.paint(mirrored, {.1f, .9f, .1f});
         doc.transform(mirrored,
@@ -221,6 +259,21 @@ int main(int argc, char **argv) {
         doc.undo();
         check(view->pick(view->project(nestedProbe)).first == mirrored,
               "Undo of parent transform invalidates picking immediately");
+        frame(view);
+        doc.redo();
+        frame(view);
+        const auto beforeAncestorMove = view->renderStats();
+        doc.move(mirrored, {1, 0, 0});
+        frame(view);
+        check(view->renderStats().bodyWorldUpdates == beforeAncestorMove.bodyWorldUpdates + 2 &&
+                  view->renderStats().bodyUploads == beforeAncestorMove.bodyUploads + 2 &&
+                  view->renderStats().bodyMeshBuilds == beforeAncestorMove.bodyMeshBuilds,
+              "Parent motion updates parent and descendant caches only");
+        auto tiny = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+        doc.transform(tiny, Transform::scaling({.0001, .0001, .0001}));
+        frame(view);
+        check(view->rendererReady() && view->renderStats().glError == 0,
+              "Small transformed faces do not disable renderer");
         QJsonArray screens;
         for (auto *screen : QGuiApplication::screens())
             screens.append(
@@ -230,10 +283,14 @@ int main(int argc, char **argv) {
             {"platform", QGuiApplication::platformName()},
             {"scale", view->devicePixelRatioF()},
             {"contextGenerations", int(view->renderStats().contextGeneration)},
+            {"bodyMeshBuilds", qint64(view->renderStats().bodyMeshBuilds)},
+            {"bodyUploads", qint64(view->renderStats().bodyUploads)},
+            {"cachedBodies", int(view->renderStats().cachedBodies)},
             {"outputTransitions", transitions},
             {"screens", screens},
             {"checks", "depth, transparency, sort order, clipping/picking, buffer reuse, context "
-                       "recreation, hide/show, resize, immutable document"}};
+                       "recreation, hide/show, resize, immutable document, incremental body "
+                       "caches, pixel-delta zoom"}};
         std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
         return 0;
     } catch (const std::exception &e) {
