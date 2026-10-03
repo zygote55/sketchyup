@@ -1,0 +1,2 @@
+# Dated package repository used only inside the isolated build container.
+Server = https://archive.archlinux.org/repos/2026/10/02/$repo/os/$arch

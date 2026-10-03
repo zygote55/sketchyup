@@ -2,6 +2,7 @@
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QDialog>
@@ -15,7 +16,6 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QStyleHints>
-#include <QApplication>
 #include <QToolBar>
 #include <QVBoxLayout>
 namespace sketchy {
@@ -207,14 +207,19 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     auto *themeGroup = new QActionGroup(this);
     const QStringList themeNames{"System theme", "Light theme", "Dark theme"};
     for (int mode = 0; mode < themeNames.size(); ++mode) {
-        auto *entry = action(themeNames[mode], {}, [this, mode] { themeMode_ = mode; applyTheme(); });
+        auto *entry = action(themeNames[mode], {}, [this, mode] {
+            themeMode_ = mode;
+            applyTheme();
+        });
         entry->setCheckable(true);
         entry->setChecked(mode == 0);
         themeGroup->addAction(entry);
         themes->addAction(entry);
     }
-    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
-            this, [this] { if (themeMode_ == 0) applyTheme(); });
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this] {
+        if (themeMode_ == 0)
+            applyTheme();
+    });
     action("Commands…", QKeySequence("Ctrl+K"), [this] { palette(); });
     // Single-letter modeling shortcuts must never consume typing in text fields.
     for (auto *a : publicActions_)
@@ -242,8 +247,9 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     sync();
 }
 void Window::applyTheme() {
-    const bool dark = themeMode_ == 2 || (themeMode_ == 0 &&
-        QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark);
+    const bool dark =
+        themeMode_ == 2 ||
+        (themeMode_ == 0 && QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark);
     const auto colors = themeColors(dark);
     auto style = QStringLiteral(R"(
 QMainWindow,QWidget {background:$surface;color:$ink;font-family:'DejaVu Sans';font-size:12px;}
@@ -290,8 +296,9 @@ void Window::tool(Viewport::Tool t, const QString &text) {
 }
 void Window::sync() {
     viewport_->refresh();
-    title_->setText((path_.isEmpty() ? "Untitled" : QFileInfo(path_).fileName()) +
-                    (path_.isEmpty() ? "  ·  Not saved" : (doc_.dirty() ? "  •  Edited" : "  ·  Saved")));
+    title_->setText(
+        (path_.isEmpty() ? "Untitled" : QFileInfo(path_).fileName()) +
+        (path_.isEmpty() ? "  ·  Not saved" : (doc_.dirty() ? "  •  Edited" : "  ·  Saved")));
     undo_->setEnabled(doc_.canUndo());
     redo_->setEnabled(doc_.canRedo());
     QSignalBlocker block(outliner_);
@@ -311,7 +318,7 @@ void Window::sync() {
                                                             .arg(b.surface.faces.size());
         if (b.surface.faces.contains(viewport_->selectedFace()))
             text += QString("\nFace area %1 m²")
-                        .arg(b.surface.area(viewport_->selectedFace()), 0, 'f', 3);
+                        .arg(doc_.worldArea(b.id, viewport_->selectedFace()), 0, 'f', 3);
         info_->setText(text);
     } else
         info_->setText(
@@ -334,10 +341,9 @@ bool Window::save(bool saveAs) {
         if (!target.endsWith(".sketchyup", Qt::CaseInsensitive))
             target += ".sketchyup";
         if (QFileInfo::exists(target) &&
-            QMessageBox::question(this, "Replace model?",
-                                  QString("Replace the existing file %1?").arg(target),
-                                  QMessageBox::Yes | QMessageBox::Cancel,
-                                  QMessageBox::Cancel) != QMessageBox::Yes)
+            QMessageBox::question(
+                this, "Replace model?", QString("Replace the existing file %1?").arg(target),
+                QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes)
             return false;
     }
     if (target.isEmpty())
@@ -388,8 +394,10 @@ void Window::resizeEvent(QResizeEvent *e) {
     QMainWindow::resizeEvent(e);
     if (tray_)
         tray_->setVisible(width() >= 800);
-    setProperty("layoutClass", width() < 800 ? "compact" : width() < 1100 ? "standard" :
-                width() < 1500 ? "expanded" : "wide");
+    setProperty("layoutClass", width() < 800    ? "compact"
+                               : width() < 1100 ? "standard"
+                               : width() < 1500 ? "expanded"
+                                                : "wide");
 }
 void Window::palette() {
     QDialog dialog(this);

@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: implementation started; no milestone gate has passed. Updated: 2026-10-03.
+Status: M0 decision/feasibility gate passed; M1 foundation in progress. Updated: 2026-10-03.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -46,27 +46,20 @@ are covered in the [traceability table](#scope-to-pr-coverage).
 
 ## Active implementation slices
 
-R001 is in [PR #2](https://github.com/zygote55/sketchyup/pull/2). The native
-spike is in [PR #3](https://github.com/zygote55/sketchyup/pull/3), based on #2.
-The R002.b viewport follow-up is in [PR #4](https://github.com/zygote55/sketchyup/pull/4), based on #3.
-The R002.c desktop follow-up is in [PR #5](https://github.com/zygote55/sketchyup/pull/5), based on #4.
-The R003.b arrangement experiment is in [PR #6](https://github.com/zygote55/sketchyup/pull/6), based on #5.
-The R004.b persistence contract is in [PR #7](https://github.com/zygote55/sketchyup/pull/7), based on #6.
-The planning PR #1 is merged. No M0 parent row is yet Verified.
+Planning and M0 implementation PRs [#1](https://github.com/zygote55/sketchyup/pull/1),
+[#2](https://github.com/zygote55/sketchyup/pull/2), [#3](https://github.com/zygote55/sketchyup/pull/3),
+[#4](https://github.com/zygote55/sketchyup/pull/4), [#5](https://github.com/zygote55/sketchyup/pull/5),
+[#6](https://github.com/zygote55/sketchyup/pull/6), [#7](https://github.com/zygote55/sketchyup/pull/7),
+and [#8](https://github.com/zygote55/sketchyup/pull/8) are merged in dependency order.
+The [M0 gate record](verification/M0.md) identifies accepted evidence and the
+implementation/platform boundaries carried into later milestones.
 
-| Slice | Boundary | Required follow-up before parent completion |
-| --- | --- | --- |
-| R002.a | Native window, shader viewport, picking, input and instancing evidence | Rendering follow-up in R002.b; desktop acceptance in R002.c |
-| R002.b | Persistent buffers, transparency/clipping pixel tests, context recreation, physical-output checks, independent-triangle benchmark ([evidence](verification/R002-viewport.md)) | Review/merge; full editor performance remains later work |
-| R002.c | Native dialogs and cross-window pointer capture acceptance; requires R002.b | Save/overwrite and pointer-loss fixes, native-enabled dialog/event tests ([evidence](verification/R002-desktop.md)); physical compositor acceptance remains open |
-| R003.a | Loop/vertex topology, holes, radial adjacency and isolated extrusion corpus | R003.b stable edge IDs/maps, arrangement and precision experiments |
-| R003.b | Isolated planar partitions, hole reconstruction, stable edge and split/merge identity experiment ([evidence](verification/R003-arrangements.md)) | Review/merge; production topology propagation and persistence remain M2 |
-| R004.a | Identity/revision, staged edits, bounded history, experimental JSON and atomic-save tests | R004.b container benchmarks, journal/outcome and migration contracts |
-| R004.b | Codec benchmark and explicit versioned-container, journal, outcome-retention and migration contracts ([ADR](decisions/0005-document-protocol.md)) | Review/merge; container/recovery implementation remains M1/M4/M5 |
-| R005 | Vendor-source research and explicit unsupported SKP/DWG decisions | Review evidence; compatibility delivery remains conditional |
+R007/R008 foundation work is in progress: pinned Arch builds, scene transforms,
+properties, revision persistence and original-schema migration. See
+[foundation evidence](verification/R007-R008-foundation.md). M1 remains open.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
-not bypass the M0 gate or mark those later requirements delivered.
+not mark all M1 requirements delivered.
 
 ## Implementation clarifications for the supplied UX
 
@@ -92,8 +85,7 @@ not native runtime verification, and their sample entity counts are illustrative
 Each gate includes every planned entry listed in its phase plus the exit criteria
 in BUILD_PLAN.md. Keep an evidence record in `docs/verification/Mx.md` when the
 phase actually completes: revision, PRs, fixtures, commands, platform versions,
-manual outcomes, measured budgets and remaining issues. These records do not
-exist yet. A gate cannot pass with unresolved required acceptance failures.
+manual outcomes, measured budgets and remaining issues. The M0 record exists; later gate records are added only after completion. A gate cannot pass with unresolved required acceptance failures.
 
 | Gate | Planned PRs | Review focus | Release/checkpoint |
 | --- | --- | --- | --- |
@@ -150,7 +142,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R001 — Freeze the reference workflows and decision register
 
-**Status:** In progress. **Evidence:** [R001](verification/R001.md). **Track:** Planning. **Scope:** N01, D01, A01. **UX:** —.
+**Status:** Verified (M0 scope; see gate record). **Evidence:** [R001](verification/R001.md). **Track:** Planning. **Scope:** N01, D01, A01. **UX:** —.
 
 **Requires:** Planning documentation; milestone gate rule above.
 
@@ -162,7 +154,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R002 — Prove the native viewport and desktop integration
 
-**Status:** In progress. **Evidence:** [native spike](verification/native-spike.md), [viewport follow-up](verification/R002-viewport.md). **Track:** Desktop. **Scope:** N01, N03, N04. **UX:** §2, §3, §7.
+**Status:** Verified (M0 scope; see gate record). **Evidence:** [native spike](verification/native-spike.md), [viewport follow-up](verification/R002-viewport.md). **Track:** Desktop. **Scope:** N01, N03, N04. **UX:** §2, §3, §7.
 
 **Requires:** [R001](#r001); milestone gate rule above.
 
@@ -174,7 +166,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R003 — Choose topology representation and geometry algorithms
 
-**Status:** In progress. **Evidence:** [native spike](verification/native-spike.md). **Track:** Geometry. **Scope:** G01, G02, E01, E07, E09. **UX:** —.
+**Status:** Verified (M0 scope; see gate record). **Evidence:** [native spike](verification/native-spike.md). **Track:** Geometry. **Scope:** G01, G02, E01, E07, E09. **UX:** —.
 
 **Requires:** [R001](#r001); milestone gate rule above.
 
@@ -186,7 +178,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R004 — Specify the document, persistence and command contracts
 
-**Status:** In progress. **Evidence:** [native spike](verification/native-spike.md). **Track:** Core. **Scope:** D01, D02, D03, D04, A01, X06. **UX:** —.
+**Status:** Verified (M0 scope; see gate record). **Evidence:** [native spike](verification/native-spike.md). **Track:** Core. **Scope:** D01, D02, D03, D04, A01, X06. **UX:** —.
 
 **Requires:** [R003](#r003); milestone gate rule above.
 
@@ -198,7 +190,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R005 — Investigate Linux SKP and DWG feasibility early
 
-**Status:** In progress. **Evidence:** [native spike](verification/native-spike.md). **Track:** Interchange. **Scope:** C01, C05. **UX:** —.
+**Status:** Verified (M0 scope; see gate record). **Evidence:** [native spike](verification/native-spike.md). **Track:** Interchange. **Scope:** C01, C05. **UX:** —.
 
 **Requires:** [R001](#r001); milestone gate rule above.
 
@@ -210,7 +202,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R006 — Reconcile interaction contracts and responsive designs
 
-**Status:** In progress. **Evidence:** [interaction contracts](decisions/0006-interaction-contracts.md). **Track:** Desktop. **Scope:** N03, N04, N05, D03, D04, A03, A04. **UX:** §3–§4, §6, §8, §10.
+**Status:** Verified (M0 scope; see gate record). **Evidence:** [interaction contracts](decisions/0006-interaction-contracts.md). **Track:** Desktop. **Scope:** N03, N04, N05, D03, D04, A03, A04. **UX:** §3–§4, §6, §8, §10.
 
 **Requires:** [R002](#r002), [R004](#r004); milestone gate rule above.
 
@@ -224,7 +216,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R007 — Establish the native build and headless CI
 
-**Status:** Planned. **Track:** Core. **Scope:** N01, N02. **UX:** —.
+**Status:** In progress. **Evidence:** [foundation](verification/R007-R008-foundation.md). **Track:** Core. **Scope:** N01, N02. **UX:** —.
 
 **Requires:** [R002](#r002), [R003](#r003), [R004](#r004); milestone gate rule above.
 
@@ -236,7 +228,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R008 — Implement document identity, units and scene records
 
-**Status:** Planned. **Track:** Core. **Scope:** D01, D02, O06. **UX:** —.
+**Status:** In progress. **Evidence:** [foundation](verification/R007-R008-foundation.md). **Track:** Core. **Scope:** D01, D02, O06. **UX:** —.
 
 **Requires:** [R007](#r007); milestone gate rule above.
 

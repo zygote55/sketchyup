@@ -9,11 +9,11 @@ namespace sketchy {
 namespace {
 constexpr qint64 fileLimit = 32 * 1024 * 1024;
 QString sid(Id id) { return QString::number(id); }
-Id readId(const QJsonValue &v) {
+Id readId(const QJsonValue &v, bool allowZero = false) {
     bool ok = false;
     auto s = v.toString();
     auto id = s.toULongLong(&ok);
-    if (!v.isString() || !ok || id == 0 || QString::number(id) != s)
+    if (!v.isString() || !ok || (!allowZero && id == 0) || QString::number(id) != s)
         throw std::runtime_error("Invalid stable ID");
     return id;
 }
@@ -51,7 +51,24 @@ QByteArray encodeDocument(const Document &doc) {
         }
         for (auto w : b->surface.wires)
             wires.append(QJsonArray{sid(w[0]), sid(w[1])});
+        QJsonArray transform;
+        for (auto value : b->transform.m)
+            transform.append(value);
+        QJsonObject properties;
+        for (const auto &[key, value] : b->properties)
+            std::visit(
+                [&](const auto &v) {
+                    using T = std::decay_t<decltype(v)>;
+                    if constexpr (std::is_same_v<T, std::string>)
+                        properties[QString::fromStdString(key)] = QString::fromStdString(v);
+                    else
+                        properties[QString::fromStdString(key)] = v;
+                },
+                value);
         bodies.append(QJsonObject{{"id", sid(id)},
+                                  {"parent", sid(b->parent)},
+                                  {"transform", transform},
+                                  {"properties", properties},
                                   {"name", QString::fromStdString(b->name)},
                                   {"color", QJsonArray{b->color[0], b->color[1], b->color[2]}},
                                   {"nextId", sid(b->surface.nextId)},
@@ -60,7 +77,8 @@ QByteArray encodeDocument(const Document &doc) {
                                   {"wires", wires}});
     }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 1},
+                                           {"version", 2},
+                                           {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
                                            {"documentId", QString::fromStdString(doc.identity())},
@@ -80,7 +98,8 @@ Document decodeDocument(const QByteArray &bytes) {
         throw std::runtime_error("Invalid JSON document");
     auto root = json.object();
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
-        root["version"].toDouble() != 1 || root["units"] != "m" || root["up"] != "Z")
+        (root["version"].toDouble() != 1 && root["version"].toDouble() != 2) ||
+        root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
     auto records = array(root["bodies"]);
@@ -100,6 +119,26 @@ Document decodeDocument(const QByteArray &bytes) {
             throw std::runtime_error("Invalid color");
         for (int i = 0; i < 3; ++i)
             b->color[i] = number(color[i]);
+        if (root["version"].toInt() == 2) {
+            b->parent = readId(o["parent"], true);
+            auto transform = array(o["transform"]);
+            if (transform.size() != 16)
+                throw std::runtime_error("Invalid affine matrix size");
+            for (int i = 0; i < 16; ++i)
+                b->transform.m[i] = number(transform[i]);
+            auto properties = object(o["properties"]);
+            for (auto it = properties.begin(); it != properties.end(); ++it) {
+                auto key = it.key().toStdString();
+                if (it->isBool())
+                    b->properties[key] = it->toBool();
+                else if (it->isDouble())
+                    b->properties[key] = number(*it);
+                else if (it->isString())
+                    b->properties[key] = it->toString().toStdString();
+                else
+                    throw std::runtime_error("Unsupported entity property value");
+            }
+        }
         b->surface.nextId = readId(o["nextId"]);
         auto vertices = array(o["vertices"]), faces = array(o["faces"]), wires = array(o["wires"]);
         totalVertices += vertices.size();
@@ -140,7 +179,8 @@ Document decodeDocument(const QByteArray &bytes) {
         throw std::runtime_error("Missing document ID");
     Document doc;
     doc.restore(root["documentId"].toString().toStdString(), readId(root["nextId"]),
-                std::move(bodies));
+                std::move(bodies),
+                root["version"].toInt() == 2 ? readId(root["revision"], true) : 0);
     return doc;
 }
 void saveDocument(Document &doc, const QString &path) {

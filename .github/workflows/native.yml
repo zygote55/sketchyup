@@ -7,11 +7,13 @@ permissions:
 jobs:
   arch:
     runs-on: ubuntu-latest
-    container: archlinux:base-devel
+    container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     steps:
       - uses: actions/checkout@v4
       - name: Install build and software-rendering dependencies
-        run: pacman -Syu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          pacman -Syyuu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Configure and build

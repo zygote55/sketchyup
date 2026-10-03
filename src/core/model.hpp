@@ -1,15 +1,20 @@
 #pragma once
+#include "core/transform.hpp"
 #include "geometry/surface.hpp"
 #include <deque>
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 namespace sketchy {
 struct Body {
     Id id{};
     std::string name{"Face"};
     std::array<float, 3> color{0.73f, 0.79f, 0.73f};
     Surface surface;
+    Transform transform;
+    Id parent{};
+    std::map<std::string, std::variant<bool, double, std::string>> properties;
     bool operator==(const Body &) const = default;
 };
 using BodyPtr = std::shared_ptr<const Body>;
@@ -40,11 +45,16 @@ class Document {
     void move(Id body, Vec3 delta);
     void erase(Id body);
     void paint(Id body, std::array<float, 3> color);
+    Transform worldTransform(Id body) const;
+    std::vector<Triangle> worldTriangles(Id body) const;
+    double worldArea(Id body, Id face) const;
+    void transform(Id body, Transform local, Id parent = 0);
     void apply(Edit edit, std::uint64_t expectedRevision);
     void undo();
     void redo();
     void markSaved() { savedState_ = state_; }
-    void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies);
+    void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
+                 std::uint64_t revision = 0);
 
   private:
     std::string identity_;

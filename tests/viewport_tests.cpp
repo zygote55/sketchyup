@@ -203,6 +203,24 @@ int main(int argc, char **argv) {
               "Edits immediately invalidate picking before repaint");
         frame(view);
         check(view->renderStats().glError == 0, "Edit uploads succeed");
+        auto mirrored = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {0, 2, 0}}});
+        doc.paint(mirrored, {.1f, .9f, .1f});
+        doc.transform(mirrored,
+                      Transform::translation({-3, 0, 3}) * Transform::scaling({-1, 1, 1}));
+        auto nested = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+        doc.paint(nested, {.1f, .1f, .9f});
+        doc.transform(nested, Transform::translation({0, 0, 1}), mirrored);
+        view->standardView(1);
+        view->fit();
+        const Vec3 nestedProbe{-3.2, .2, 4};
+        check(view->pick(view->project(nestedProbe)).first == nested,
+              "Immediate picking uses nested mirrored world transform");
+        const auto nestedPixel = sample(view, nestedProbe);
+        check(nestedPixel.blue() > nestedPixel.red() * 3,
+              "Nested mirrored geometry renders at picked position");
+        doc.undo();
+        check(view->pick(view->project(nestedProbe)).first == mirrored,
+              "Undo of parent transform invalidates picking immediately");
         QJsonArray screens;
         for (auto *screen : QGuiApplication::screens())
             screens.append(
