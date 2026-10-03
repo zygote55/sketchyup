@@ -38,3 +38,9 @@ jobs:
           cmake --preset sanitize
           cmake --build --preset sanitize --parallel 2
           ctest --preset sanitize
+      - name: Disposable Arch package acceptance
+        run: |
+          useradd --create-home builder
+          scripts/package-source.sh /work/package
+          cp packaging/arch/verify-package.sh /work/package/
+          SKETCHYUP_PACKAGE_SANDBOX=1 bash /work/package/verify-package.sh

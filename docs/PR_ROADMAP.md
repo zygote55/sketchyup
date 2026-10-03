@@ -59,7 +59,8 @@ properties, revision persistence and original-schema migration. See
 [foundation evidence](verification/R007-R008-foundation.md).
 R009/R010/R013 are in merged [PR #10](https://github.com/zygote55/sketchyup/pull/10).
 R011 incremental viewport work is merged in [PR #11](https://github.com/zygote55/sketchyup/pull/11).
-R012 durable container work is verified locally; R014 packaging remains before M1 acceptance.
+R012 durable container work is merged in [PR #12](https://github.com/zygote55/sketchyup/pull/12).
+R014 clean-package acceptance passes; the [M1 gate record](verification/M1.md) awaits its PR merge.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -303,7 +304,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R014 — Package the native development application for Arch
 
-**Status:** Planned. **Track:** Release. **Scope:** N02. **UX:** —.
+**Status:** Verified (development package scope). **Evidence:** [Arch package acceptance](verification/R014-package.md). **Track:** Release. **Scope:** N02. **UX:** —.
 
 **Requires:** [R007](#r007), [R010](#r010), [R012](#r012); milestone gate rule above.
 
