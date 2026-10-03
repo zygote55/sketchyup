@@ -1,0 +1,10 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {"name":"dev", "generator":"Ninja", "binaryDir":"${sourceDir}/build/dev", "cacheVariables":{"CMAKE_BUILD_TYPE":"Debug"}},
+    {"name":"headless", "inherits":"dev", "binaryDir":"${sourceDir}/build/headless", "cacheVariables":{"SKETCHYUP_BUILD_DESKTOP":"OFF","SKETCHYUP_BUILD_CLI":"OFF"}},
+    {"name":"sanitize", "inherits":"headless", "binaryDir":"${sourceDir}/build/sanitize", "cacheVariables":{"SKETCHYUP_SANITIZE":"ON"}}
+  ],
+  "buildPresets":[{"name":"dev","configurePreset":"dev"},{"name":"headless","configurePreset":"headless"},{"name":"sanitize","configurePreset":"sanitize"}],
+  "testPresets":[{"name":"dev","configurePreset":"dev","output":{"outputOnFailure":true}},{"name":"headless","configurePreset":"headless","output":{"outputOnFailure":true}},{"name":"sanitize","configurePreset":"sanitize","output":{"outputOnFailure":true}}]
+}

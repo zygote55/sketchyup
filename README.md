@@ -1,30 +1,94 @@
 # SketchyUp
 
-A planned native Linux 3D modeler with SketchUp-style editing, AI-assisted model
-creation and modification, and optional Blender rendering. Arch Linux with
-Omarchy is the primary desktop target.
+An independent native Linux 3D modeler in development. C++20, Qt 6 and OpenGL;
+ordinary editing runs locally without an account or browser runtime. Own code
+is MIT licensed. Arch/Omarchy is the primary development environment.
 
-## Project status
+## Current build
 
-The native application described here is a proposal, not a released product.
-An early local prototype uses Electron and Three.js under the name Formline;
-that prototype is not included in this documentation change. Neither native
-feature parity nor AI and Blender integration has been implemented by this PR.
+**Working native spike, not a complete editor or release.** Draw ground-plane
+rectangles and circles, select faces, extrude an isolated face, translate and
+color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain
+editable loops and holes. A headless driver uses the same core operations.
 
-## Build documentation
+The [108-entry roadmap](docs/PR_ROADMAP.md) is still in progress. Adjacent-face
+push/pull, automatic face merging, components, inference, recovery, AI providers,
+Blender integration and exchange formats are not implemented. Circle geometry is
+currently a 48-sided polygon. Surface topology and file format remain experimental.
+Save explicitly: there is no autosave or recovery journal.
 
-- [PR roadmap](docs/PR_ROADMAP.md): 108 sequenced implementation/research entries,
-  dependencies, acceptance criteria, and coverage of every scope item.
-- [UX design and mockups](docs/UX_DESIGN.md): native window layout, drawing
-  interactions, assistant previews, rendering, and document safety.
-- [Build plan](docs/BUILD_PLAN.md): product goals, architecture, milestones,
-  dependencies, validation, packaging, risks, and release gates.
-- [Scope and acceptance matrix](docs/SCOPE.md): the complete proposed feature
-  inventory, target milestones, and observable completion criteria.
-- [AI modeling contract and guide](docs/AI_MODELING.md): proposed tools,
-  transaction semantics, model inspection, editing instructions, examples,
-  provider integration, and evaluation requirements.
+## Build and run
 
-These documents use **SketchyUp** as the working name. Application licensing,
-final branding, geometry dependencies, and compatibility commitments are
-explicit decisions in the build plan.
+Requires CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ base/Wayland development
+packages and OpenGL 3.3. Verified locally with Qt 6.11.2 on Wayland and X11.
+The pinned geometry dependency is included in `third_party/`; CMake does not
+download code. See [measured evidence and limitations](docs/verification/native-spike.md).
+
+```sh
+cmake --preset dev
+cmake --build --preset dev --parallel 4
+ctest --preset dev
+./build/dev/sketchyup --demo
+```
+
+On Arch, build dependencies are `cmake ninja gcc qt6-base qt6-wayland`.
+For the core alone, with no Qt or graphical session:
+
+```sh
+cmake --preset headless
+cmake --build --preset headless
+ctest --preset headless
+```
+
+## Modeling
+
+- `R`: rectangle. Click the first corner, then the second; or enter `width, depth`
+  in Measurements and press Enter. Values are meters; pointer snapping is 0.1 m.
+- `C`: circle. Click center, then radius; or enter the radius.
+- `Space`: select. `P`: select an isolated face, enter extrusion distance.
+- `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
+- Middle drag or `O`: orbit. Right drag or `H`: pan. Wheel: zoom. `Shift+Z`: fit.
+- `1/2/3`: perspective/top/front. `Escape`: cancel drawing.
+- `Ctrl+Z` / `Ctrl+Shift+Z`: undo/redo. `Ctrl+K`: commands.
+- `Ctrl+O` / `Ctrl+S`: native open/save dialogs. Unsaved changes prompt before replacement or close.
+
+## Headless commands
+
+```sh
+./build/dev/sketchyup-cli --capabilities
+./build/dev/sketchyup-cli --script examples/room-shell.json --output /tmp/room.sketchyup
+./build/dev/sketchyup-cli --input /tmp/room.sketchyup
+./build/dev/sketchyup /tmp/room.sketchyup
+```
+
+A script is a local JSON array, validated and committed as one batch. The in-process
+API checks document identity and revision; failed batches change nothing. This is
+an experimental local driver, not yet the durable AI/MCP protocol. The example's
+IDs are specific to its empty-document fixture. Query live IDs before editing an
+existing document; do not reuse them across documents.
+
+## Development package
+
+```sh
+./scripts/package-source.sh /tmp/sketchyup-package
+cd /tmp/sketchyup-package
+makepkg -s
+```
+
+The script creates a source archive and writes its checksum into the generated
+PKGBUILD. Package output contains the native app, CLI, desktop entry, icon, MIME
+definition and license notices. Clean-system install/upgrade/remove acceptance
+remains pending; creating a package is not a release approval.
+
+## Design and delivery
+
+- [Build plan](docs/BUILD_PLAN.md) and [scope matrix](docs/SCOPE.md)
+- [PR roadmap](docs/PR_ROADMAP.md)
+- [UX design and mockups](docs/UX_DESIGN.md)
+- [AI modeling contract](docs/AI_MODELING.md) — proposed future behavior
+- [Baseline/license decision](docs/decisions/0001-baseline.md)
+- [Native architecture experiments](docs/decisions/0002-native-spikes.md)
+- [Compatibility gaps](docs/decisions/0003-compatibility-gaps.md)
+
+The original local Formline/Electron prototype remains separate and untouched.
+SketchyUp is not affiliated with SketchUp or Trimble.

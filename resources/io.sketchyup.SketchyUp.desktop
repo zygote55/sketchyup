@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=SketchyUp
+Comment=Experimental native 3D modeler
+Exec=sketchyup %f
+Icon=io.sketchyup.SketchyUp
+Terminal=false
+Categories=Graphics;3DGraphics;
+MimeType=application/x-sketchyup;
+StartupWMClass=sketchyup

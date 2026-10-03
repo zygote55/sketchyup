@@ -1,0 +1,12 @@
+[
+  {
+    "command": "geometry.face",
+    "name": "Room walls",
+    "loops": [
+      [[0,0,0],[6,0,0],[6,4,0],[0,4,0]],
+      [[0.2,0.2,0],[0.2,3.8,0],[5.8,3.8,0],[5.8,0.2,0]]
+    ]
+  },
+  {"command":"geometry.extrude_isolated","body":"1","face":"9","distance":2.7},
+  {"command":"material.color","body":"1","color":[0.84,0.80,0.71]}
+]

@@ -1,0 +1,62 @@
+#pragma once
+#include "geometry/surface.hpp"
+#include <deque>
+#include <memory>
+#include <optional>
+#include <string>
+namespace sketchy {
+struct Body {
+    Id id{};
+    std::string name{"Face"};
+    std::array<float, 3> color{0.73f, 0.79f, 0.73f};
+    Surface surface;
+    bool operator==(const Body &) const = default;
+};
+using BodyPtr = std::shared_ptr<const Body>;
+struct Change {
+    Id id;
+    BodyPtr before, after;
+};
+struct Edit {
+    std::string label;
+    std::vector<Change> changes;
+    size_t bytes{};
+    Id nextIdFloor{};
+};
+class Document {
+  public:
+    const std::map<Id, BodyPtr> &bodies() const { return bodies_; }
+    std::uint64_t revision() const { return revision_; }
+    Id nextId() const { return nextId_; }
+    const std::string &identity() const { return identity_; }
+    bool dirty() const { return state_ != savedState_; }
+    bool canUndo() const { return !undo_.empty(); }
+    bool canRedo() const { return !redo_.empty(); }
+    size_t historyBytes() const { return historyBytes_; }
+    static constexpr size_t historyLimit = 64 * 1024 * 1024;
+    Document();
+    Id addFace(const std::vector<std::vector<Vec3>> &loops, std::string name = "Face");
+    void extrude(Id body, Id face, double distance);
+    void move(Id body, Vec3 delta);
+    void erase(Id body);
+    void paint(Id body, std::array<float, 3> color);
+    void apply(Edit edit, std::uint64_t expectedRevision);
+    void undo();
+    void redo();
+    void markSaved() { savedState_ = state_; }
+    void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies);
+
+  private:
+    std::string identity_;
+    std::map<Id, BodyPtr> bodies_;
+    Id nextId_{1};
+    std::uint64_t revision_{0}, state_{0}, savedState_{0}, stateCounter_{0};
+    struct History {
+        Edit edit;
+        std::uint64_t before, after;
+    };
+    std::deque<History> undo_, redo_;
+    size_t historyBytes_{};
+    void update(Edit edit, bool forward);
+};
+} // namespace sketchy

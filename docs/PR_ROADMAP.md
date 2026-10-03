@@ -1,13 +1,13 @@
 # Pull request roadmap
 
-Status: proposed, all implementation entries Planned. Updated: 2026-10-03.
+Status: implementation started; no milestone gate has passed. Updated: 2026-10-03.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
 [AI contract](AI_MODELING.md). The docs planning PR is
 [GitHub PR #1](https://github.com/zygote55/sketchyup/pull/1).
 **R001 and subsequent IDs are roadmap identifiers, not existing GitHub PR numbers.**
-No implementation PRs, issues, releases or completed capabilities are implied.
+Implementation evidence is linked below. Roadmap identifiers are never GitHub PR numbers; no milestone or released capability is implied by starting a row.
 
 ## How to execute this roadmap
 
@@ -43,6 +43,22 @@ No implementation PRs, issues, releases or completed capabilities are implied.
 This roadmap contains 108 entries: 89 through the 1.0 gate and
 19 for expanded workflows/conditional compatibility. All 73 scope rows
 are covered in the [traceability table](#scope-to-pr-coverage).
+
+## Active implementation slices
+
+R001 is in [PR #2](https://github.com/zygote55/sketchyup/pull/2). The native
+spike follows on its branch; implementation PR links are recorded when opened.
+The planning PR #1 is merged. No M0 parent row is yet Verified.
+
+| Slice | Boundary | Required follow-up before parent completion |
+| --- | --- | --- |
+| R002.a | Native window, shader viewport, picking, input and instancing evidence | R002.b transparency/clipping, context lifecycle, mixed-monitor transitions and representative mesh benchmark |
+| R003.a | Loop/vertex topology, holes, radial adjacency and isolated extrusion corpus | R003.b stable edge IDs/maps, arrangement and precision experiments |
+| R004.a | Identity/revision, staged edits, bounded history, experimental JSON and atomic-save tests | R004.b container benchmarks, journal/outcome and migration contracts |
+| R005 | Vendor-source research and explicit unsupported SKP/DWG decisions | Review evidence; compatibility delivery remains conditional |
+
+Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
+not bypass the M0 gate or mark those later requirements delivered.
 
 ## Implementation clarifications for the supplied UX
 
@@ -117,7 +133,7 @@ one path is not evidence that the other path works.
 ## Proposed PRs
 
 The suggested PR title is the heading after each stable roadmap ID. Every entry
-starts **Planned**. “Verify” is its minimum acceptance evidence; shared invariants
+starts **Planned** and is updated as work begins. “Verify” is its minimum acceptance evidence; shared invariants
 and the linked scope requirements apply even when not repeated in the entry.
 
 ### M0 — Decisions and feasibility
@@ -138,7 +154,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R002 — Prove the native viewport and desktop integration
 
-**Status:** Planned. **Track:** Desktop. **Scope:** N01, N03, N04. **UX:** §2, §3, §7.
+**Status:** In progress. **Evidence:** [native spike](verification/native-spike.md). **Track:** Desktop. **Scope:** N01, N03, N04. **UX:** §2, §3, §7.
 
 **Requires:** [R001](#r001); milestone gate rule above.
 
@@ -150,7 +166,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R003 — Choose topology representation and geometry algorithms
 
-**Status:** Planned. **Track:** Geometry. **Scope:** G01, G02, E01, E07, E09. **UX:** —.
+**Status:** In progress. **Evidence:** [native spike](verification/native-spike.md). **Track:** Geometry. **Scope:** G01, G02, E01, E07, E09. **UX:** —.
 
 **Requires:** [R001](#r001); milestone gate rule above.
 
@@ -162,7 +178,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R004 — Specify the document, persistence and command contracts
 
-**Status:** Planned. **Track:** Core. **Scope:** D01, D02, D03, D04, A01, X06. **UX:** —.
+**Status:** In progress. **Evidence:** [native spike](verification/native-spike.md). **Track:** Core. **Scope:** D01, D02, D03, D04, A01, X06. **UX:** —.
 
 **Requires:** [R003](#r003); milestone gate rule above.
 
@@ -174,7 +190,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R005 — Investigate Linux SKP and DWG feasibility early
 
-**Status:** Planned. **Track:** Interchange. **Scope:** C01, C05. **UX:** —.
+**Status:** In progress. **Evidence:** [native spike](verification/native-spike.md). **Track:** Interchange. **Scope:** C01, C05. **UX:** —.
 
 **Requires:** [R001](#r001); milestone gate rule above.
 

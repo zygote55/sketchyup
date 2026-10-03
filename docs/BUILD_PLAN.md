@@ -1,6 +1,6 @@
 # SketchyUp native Linux build plan
 
-Status: proposed implementation plan. Updated: 2026-10-03.
+Status: implementation begun; native spikes and remaining gates are recorded in [the roadmap](PR_ROADMAP.md). Updated: 2026-10-03.
 
 This document defines intended behavior and acceptance gates. It does not claim
 that the native application, proposed commands, packages, or integrations exist.
