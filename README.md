@@ -67,6 +67,15 @@ an experimental local driver, not yet the durable AI/MCP protocol. The example's
 IDs are specific to its empty-document fixture. Query live IDs before editing an
 existing document; do not reuse them across documents.
 
+## Viewport verification
+
+The [viewport follow-up](docs/verification/R002-viewport.md) records native pixel,
+picking, GPU-cache and context-recreation checks, including both physical display
+scales. Run `build/dev/viewport_tests` in a graphical session. The `--benchmark`
+option now measures independent triangle buffers; add `--instanced` for the
+original repeated-triangle comparison. Transparency and clipping are currently
+renderer test APIs, not finished material or section tools.
+
 ## Development package
 
 ```sh
@@ -90,5 +99,7 @@ remains pending; creating a package is not a release approval.
 - [Native architecture experiments](docs/decisions/0002-native-spikes.md)
 - [Compatibility gaps](docs/decisions/0003-compatibility-gaps.md)
 
-The original local Formline/Electron prototype remains separate and untouched.
+The original local Formline/Electron prototype was removed at the owner’s request.
+The native application now lives in the main project checkout; supplied UX design
+references remain preserved.
 SketchyUp is not affiliated with SketchUp or Trimble.

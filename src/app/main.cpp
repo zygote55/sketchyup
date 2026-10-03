@@ -22,8 +22,11 @@ int main(int argc, char **argv) {
     parser.addOption({"demo", "Open original courtyard example"});
     parser.addOption({"smoke", "Run native graphics/picking smoke check and exit"});
     parser.addOption({"capture", "Save application screenshot", "path"});
+    parser.addOption({"benchmark",
+                      "Render independent triangle buffers and report GPU frame timing",
+                      "triangles"});
     parser.addOption(
-        {"benchmark", "Render repeated triangles and report frame timing", "triangles"});
+        {"instanced", "Use repeated-triangle instancing instead of independent triangles"});
     parser.addPositionalArgument("model", "Optional .sketchyup file");
     parser.process(app);
     sketchy::Window window;
@@ -42,43 +45,67 @@ int main(int argc, char **argv) {
         int n = parser.value("benchmark").toInt(&ok);
         if (!ok || n < 1 || n > 1000000)
             return 2;
-        window.viewport()->benchmark(n);
+        window.viewport()->benchmark(n, parser.isSet("instanced"));
     }
     if (parser.isSet("smoke") || parser.isSet("capture") || parser.isSet("benchmark")) {
         auto *timer = new QTimer(&window);
         auto frames = std::make_shared<int>(0);
         auto total = std::make_shared<double>(0);
-        QObject::connect(timer, &QTimer::timeout, &window, [&, frames, total, timer] {
-            window.viewport()->update();
-            ++*frames;
-            if (*frames > 5)
-                *total += window.viewport()->lastFrameMs();
-            if (*frames < 25)
-                return;
-            timer->stop();
-            bool valid = window.viewport()->rendererReady();
-            // Face center selected through logical-pixel projection at the actual device scale.
-            auto hit = window.viewport()->pick(window.viewport()->project({0, -.05, .8}));
-            if (parser.isSet("smoke"))
-                valid = valid && hit.first == 6;
-            bool capture = true;
-            if (parser.isSet("capture"))
-                capture = window.grab().save(parser.value("capture"));
-            QJsonObject result{{"platform", QGuiApplication::platformName()},
-                               {"devicePixelRatio", window.devicePixelRatioF()},
-                               {"graphics", window.viewport()->graphicsDescription()},
-                               {"pickingBody", int(hit.first)},
-                               {"rendererReady", window.viewport()->rendererReady()},
-                               {"meanFrameMs", *total / 20},
-                               {"timing", parser.isSet("benchmark")
-                                              ? "GPU-complete repeated-triangle instancing"
-                                              : "CPU submission only"},
-                               {"benchmarkTriangles", parser.value("benchmark").toInt()},
-                               {"captureSaved", capture},
-                               {"passed", valid && capture}};
-            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
-            app.exit(valid && capture ? 0 : 1);
-        });
+        auto ticks = std::make_shared<int>(0);
+        auto lastRenderedFrame = std::make_shared<std::uint64_t>(0);
+        QObject::connect(
+            timer, &QTimer::timeout, &window, [&, frames, total, ticks, lastRenderedFrame, timer] {
+                window.viewport()->update();
+                auto stats = window.viewport()->renderStats();
+                if (++*ticks > 250) {
+                    timer->stop();
+                    std::cerr << "Timed out waiting for rendered frames\n";
+                    app.exit(1);
+                    return;
+                }
+                if (stats.frames == *lastRenderedFrame)
+                    return;
+                *lastRenderedFrame = stats.frames;
+                ++*frames;
+                if (*frames > 5)
+                    *total += window.viewport()->lastFrameMs();
+                if (*frames < 25)
+                    return;
+                timer->stop();
+                bool valid = window.viewport()->rendererReady() && stats.glError == 0;
+                // Face center selected through logical-pixel projection at the actual device scale.
+                auto hit = window.viewport()->pick(window.viewport()->project({0, -.05, .8}));
+                if (parser.isSet("smoke"))
+                    valid = valid && hit.first == 6;
+                bool capture = true;
+                if (parser.isSet("capture"))
+                    capture = window.grab().save(parser.value("capture"));
+                QJsonObject result{
+                    {"platform", QGuiApplication::platformName()},
+                    {"devicePixelRatio", window.devicePixelRatioF()},
+                    {"graphics", window.viewport()->graphicsDescription()},
+                    {"pickingBody", int(hit.first)},
+                    {"rendererReady", window.viewport()->rendererReady()},
+                    {"meanFrameMs", *total / 20},
+                    {"sampledFrames", 20},
+                    {"warmupFrames", 5},
+                    {"timing",
+                     parser.isSet("benchmark")
+                         ? (parser.isSet("instanced") ? "GPU-complete repeated-triangle instancing"
+                                                      : "GPU-complete independent triangles")
+                         : "CPU submission only"},
+                    {"benchmarkTriangles", parser.value("benchmark").toInt()},
+                    {"geometryUploads", double(stats.geometryUploads)},
+                    {"uploadedBytes", double(stats.uploadedBytes)},
+                    {"frames", double(stats.frames)},
+                    {"contextGeneration", int(stats.contextGeneration)},
+                    {"glError", int(stats.glError)},
+                    {"captureSaved", capture},
+                    {"passed", valid && capture}};
+                std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString()
+                          << '\n';
+                app.exit(valid && capture ? 0 : 1);
+            });
         timer->start(40);
     }
     return app.exec();

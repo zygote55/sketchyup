@@ -1,0 +1,225 @@
+#include "app/viewport.hpp"
+#include "io/document_io.hpp"
+#include <QApplication>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QOpenGLContext>
+#include <QPointer>
+#include <QScreen>
+#include <QSurfaceFormat>
+#include <QTest>
+#include <QVBoxLayout>
+#include <QWindow>
+#include <iostream>
+using namespace sketchy;
+namespace {
+void check(bool value, const char *message) {
+    if (!value)
+        throw std::runtime_error(message);
+}
+QImage frame(Viewport *view) {
+    QCoreApplication::processEvents();
+    auto image = view->grabFramebuffer();
+    check(!image.isNull(), "Framebuffer capture failed");
+    return image;
+}
+QColor sample(Viewport *view, Vec3 p) {
+    auto image = frame(view);
+    auto logical = view->project(p);
+    auto physical = QPoint(qRound(logical.x() * image.width() / view->width()),
+                           qRound(logical.y() * image.height() / view->height()));
+    check(image.rect().contains(physical), "Sample is inside viewport");
+    return image.pixelColor(physical);
+}
+void nearColor(QColor a, QColor b, const char *message) {
+    if (std::abs(a.red() - b.red()) >= 6 || std::abs(a.green() - b.green()) >= 6 ||
+        std::abs(a.blue() - b.blue()) >= 6)
+        std::cerr << message << ": actual " << a.name().toStdString() << " expected "
+                  << b.name().toStdString() << '\n';
+    check(std::abs(a.red() - b.red()) < 6 && std::abs(a.green() - b.green()) < 6 &&
+              std::abs(a.blue() - b.blue()) < 6,
+          message);
+}
+QColor blend(QColor front, QColor back, double alpha) {
+    return QColor(qRound(front.red() * alpha + back.red() * (1 - alpha)),
+                  qRound(front.green() * alpha + back.green() * (1 - alpha)),
+                  qRound(front.blue() * alpha + back.blue() * (1 - alpha)));
+}
+} // namespace
+int main(int argc, char **argv) {
+    QSurfaceFormat format;
+    format.setVersion(3, 3);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    format.setDepthBufferSize(24);
+    format.setSamples(0);
+    QSurfaceFormat::setDefaultFormat(format);
+    QApplication app(argc, argv);
+    try {
+        Document doc;
+        auto makeFace = [&](double z, std::array<float, 3> color) {
+            auto id = doc.addFace({{{-2, -2, z}, {2, -2, z}, {2, 2, z}, {-2, 2, z}}});
+            doc.paint(id, color);
+            return id;
+        };
+        // Deliberately insert the nearest layer first, opposite the needed blend order.
+        auto front = makeFace(1, {.9f, .1f, .1f});
+        auto back = makeFace(.4, {.1f, .1f, .9f});
+        auto saved = encodeDocument(doc);
+        QWidget first, second;
+        first.resize(720, 640);
+        second.resize(720, 640);
+        QVBoxLayout firstLayout(&first), secondLayout(&second);
+        auto *view = new Viewport(doc);
+        firstLayout.addWidget(view);
+        first.show();
+        check(QTest::qWaitForWindowExposed(&first), "First viewport window exposed");
+        QTest::qWait(100);
+        view->standardView(1);
+        view->fit();
+        frame(view);
+        check(view->rendererReady(), "Renderer initialized");
+        Vec3 probe{-.6, .4, 1};
+        auto opaque = sample(view, probe);
+        check(opaque.red() > opaque.blue() * 3, "Near opaque face occludes the far face");
+        check(view->pick(view->project(probe)).first == front, "Nearest opaque face is picked");
+        view->setBodyOpacity(front, 0);
+        check(view->pick(view->project(probe)).first == back,
+              "Opacity immediately affects picking before repaint");
+        auto behind = sample(view, probe);
+        check(behind.blue() > behind.red() * 3, "Zero opacity exposes far face");
+        check(view->pick(view->project(probe)).first == back, "Invisible front body is not picked");
+        view->setBodyOpacity(front, .5);
+        nearColor(sample(view, probe), blend(opaque, behind, .5),
+                  "Transparency blends over opaque geometry");
+        check(view->pick(view->project(probe)).first == front,
+              "Visible transparent front face is picked");
+        view->setBodyOpacity(front, 0);
+        view->setBodyOpacity(back, 0);
+        auto background = sample(view, probe);
+        view->setBodyOpacity(front, .5);
+        view->setBodyOpacity(back, .5);
+        nearColor(sample(view, probe), blend(opaque, blend(behind, background, .5), .5),
+                  "Transparent layers sort back to front");
+        auto uploads = view->renderStats();
+        frame(view);
+        frame(view);
+        check(view->renderStats().geometryUploads == uploads.geometryUploads &&
+                  view->renderStats().transparencyUploads == uploads.transparencyUploads,
+              "Stationary frames reuse GPU buffers");
+        view->standardView(0);
+        frame(view);
+        auto navigated = view->renderStats();
+        check(navigated.geometryUploads == uploads.geometryUploads &&
+                  navigated.transparencyUploads > uploads.transparencyUploads,
+              "Camera movement only reorders transparency");
+        view->standardView(1);
+        view->setBodyOpacity(front, 1);
+        view->setBodyOpacity(back, 1);
+        view->setClipPlane(std::array<double, 4>{0, 0, -1, .7});
+        nearColor(sample(view, probe), behind, "Clipping removes front fragments");
+        check(view->pick(view->project(probe)).first == back,
+              "Clipped front face cannot intercept picking");
+        view->setClipPlane(std::array<double, 4>{1, 0, 0, 0});
+        frame(view);
+        check(view->pick(view->project(probe)).first == 0,
+              "Half-face clipping rejects the removed half");
+        check(view->pick(view->project({.6, .4, 1})).first == front,
+              "Half-face clipping keeps the visible half selectable");
+        view->setClipPlane(std::nullopt);
+        nearColor(sample(view, probe), opaque, "Disabling clipping restores geometry");
+        bool rejected = false;
+        try {
+            view->setClipPlane(std::array<double, 4>{0, 0, 0, 0});
+        } catch (const std::exception &) {
+            rejected = true;
+        }
+        check(rejected, "Invalid clipping normal is rejected");
+        check(encodeDocument(doc) == saved, "Viewport controls never mutate the model");
+        const auto generation = view->renderStats().contextGeneration;
+        QPointer<QOpenGLContext> oldContext = view->context();
+        firstLayout.removeWidget(view);
+        view->setParent(&second);
+        secondLayout.addWidget(view);
+        second.show();
+        view->show();
+        check(QTest::qWaitForWindowExposed(&second), "Reparented viewport exposed");
+        QTest::qWait(100);
+        frame(view);
+        check(oldContext.isNull(), "Reparenting destroyed the old GL context");
+        check(view->renderStats().contextGeneration > generation && view->rendererReady(),
+              "Reparenting recreated GL resources");
+        nearColor(sample(view, probe), opaque, "Context recreation preserves rendered pixels");
+        check(view->pick(view->project(probe)).first == front,
+              "Picking survives context recreation");
+        second.hide();
+        second.show();
+        check(QTest::qWaitForWindowExposed(&second), "Viewport reshown");
+        nearColor(sample(view, probe), opaque, "Hide/show preserves geometry");
+        for (int width : {640, 900, 1200, 1600}) {
+            view->setFixedSize(width, 480);
+            frame(view);
+            check(view->pick(view->project(probe)).first == front,
+                  "Picking survives logical viewport resize");
+        }
+        check(view->renderStats().glError == 0,
+              "No OpenGL errors after lifecycle and render tests");
+        // Optional hardware run: ask the compositor to place a fullscreen test
+        // window on each output and verify the actual output and effective scale.
+        // No monitor settings or window rules are modified.
+        QJsonArray transitions;
+        if (app.arguments().contains("--screens")) {
+            view->setMinimumSize(160, 160);
+            view->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+            for (auto *screen : QGuiApplication::screens()) {
+                QWidget output;
+                QVBoxLayout layout(&output);
+                secondLayout.removeWidget(view);
+                view->setParent(&output);
+                layout.addWidget(view);
+                output.winId();
+                output.windowHandle()->setScreen(screen);
+                output.showFullScreen();
+                view->show();
+                check(QTest::qWaitForWindowExposed(&output), "Output test window exposed");
+                QTest::qWait(300);
+                frame(view);
+                check(output.windowHandle()->screen() == screen,
+                      "Compositor used the requested output");
+                nearColor(sample(view, probe), opaque, "Pixels preserved across output transition");
+                check(view->pick(view->project(probe)).first == front,
+                      "Picking aligned on target output");
+                check(view->renderStats().glError == 0, "No GL error across output transition");
+                transitions.append(QJsonObject{{"screen", screen->name()},
+                                               {"effectiveScale", view->devicePixelRatioF()}});
+                layout.removeWidget(view);
+                view->setParent(&second);
+                secondLayout.addWidget(view);
+                view->show();
+            }
+        }
+        doc.move(front, {10, 0, 0});
+        check(view->pick(view->project(probe)).first == back,
+              "Edits immediately invalidate picking before repaint");
+        frame(view);
+        check(view->renderStats().glError == 0, "Edit uploads succeed");
+        QJsonArray screens;
+        for (auto *screen : QGuiApplication::screens())
+            screens.append(
+                QJsonObject{{"name", screen->name()}, {"scale", screen->devicePixelRatio()}});
+        QJsonObject result{
+            {"passed", true},
+            {"platform", QGuiApplication::platformName()},
+            {"scale", view->devicePixelRatioF()},
+            {"contextGenerations", int(view->renderStats().contextGeneration)},
+            {"outputTransitions", transitions},
+            {"screens", screens},
+            {"checks", "depth, transparency, sort order, clipping/picking, buffer reuse, context "
+                       "recreation, hide/show, resize, immutable document"}};
+        std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+        return 0;
+    } catch (const std::exception &e) {
+        std::cerr << e.what() << '\n';
+        return 1;
+    }
+}
