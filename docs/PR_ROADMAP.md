@@ -48,6 +48,7 @@ are covered in the [traceability table](#scope-to-pr-coverage).
 
 R001 is in [PR #2](https://github.com/zygote55/sketchyup/pull/2). The native
 spike is in [PR #3](https://github.com/zygote55/sketchyup/pull/3), based on #2.
+The R002.b viewport follow-up is in [PR #4](https://github.com/zygote55/sketchyup/pull/4), based on #3.
 The planning PR #1 is merged. No M0 parent row is yet Verified.
 
 | Slice | Boundary | Required follow-up before parent completion |
