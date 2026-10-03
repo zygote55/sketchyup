@@ -12,7 +12,7 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation gates; editable topology is in progress. Components,
+M1 native foundation and M2 editable geometry gates; drawing interaction is in progress. Components,
 inference, recovery, AI providers,
 Blender integration and exchange formats are not implemented. Circle geometry is
 currently a 48-sided polygon. Surface topology and file format remain experimental.
@@ -48,10 +48,11 @@ ctest --preset headless
 
 ## Modeling
 
+- `L`: line. Click–move–click or press–drag–release; Escape cancels the pending edge.
 - `R`: rectangle. Click the first corner, then the second; or enter `width, depth`
   in Measurements and press Enter. Values are meters; pointer snapping is 0.1 m.
 - `C`: circle. Click center, then radius; or enter the radius.
-- `Space`: select. `P`: select a face, enter signed push/pull distance along its local normal.
+- `Space`: select. `P`: select a face, move to preview, then click/drag to finish or enter a signed distance along its local normal.
 - `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
 - Middle drag or `O`: orbit. Right drag or `H`: pan. Wheel: zoom. `Shift+Z`: fit.
 - `1/2/3`: perspective/top/front. `Escape`: cancel drawing.

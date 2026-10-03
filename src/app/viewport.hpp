@@ -1,5 +1,6 @@
 #pragma once
 #include "app/theme.hpp"
+#include "app/tool_session.hpp"
 #include "core/model.hpp"
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
@@ -16,9 +17,20 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   public:
     explicit Viewport(Document &doc, QWidget *parent = nullptr);
     ~Viewport() override;
-    enum class Tool { Select = 0, Rectangle = 1, Circle = 2, Extrude = 3, Orbit = 4, Pan = 5 };
+    enum class Tool {
+        Select = 0,
+        Rectangle = 1,
+        Circle = 2,
+        Extrude = 3,
+        Orbit = 4,
+        Pan = 5,
+        Line = 6
+    };
     void setTool(Tool tool);
     Tool tool() const { return tool_; }
+    ToolSession::Phase interactionPhase() const { return session_.phase(); }
+    std::optional<Vec3> operationAnchor() const { return anchor_; }
+    bool previewValid() const { return previewValid_; }
     void setSelection(Id body, Id face = 0);
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
@@ -53,6 +65,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     double lastFrameMs() const { return frameMs_; }
   signals:
     void selected(qulonglong body, qulonglong face);
+    void toolChanged(int tool);
     void changed();
     void message(const QString &text);
 
@@ -71,6 +84,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         float x, y, z, r, g, b, a{1};
     };
     Document &doc_;
+    ToolSession session_;
     ThemeColors colors_{themeColors(false)};
     Tool tool_{Tool::Select};
     struct GpuBatch {
@@ -119,6 +133,12 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     Qt::MouseButton dragButton_{Qt::NoButton};
     QPointF previous_;
     std::optional<Vec3> anchor_, cursor_;
+    bool toolPressed_{false}, dragCommit_{false}, previewValid_{false};
+    QPointF toolPressPosition_;
+    Vec3 extrusionAxis_{};
+    double extrusionScale_{1}, previewDistance_{};
+    QString previewError_;
+    std::vector<std::array<Vec3, 2>> previewEdges_;
     QVector3D target_{0, 0, 0};
     float yaw_{-45}, pitch_{35}, distance_{14};
     bool ortho_{false};
@@ -136,5 +156,11 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void sortTransparent(const QMatrix4x4 &matrix);
     bool clipped(Vec3 point) const;
     void finishShape(Vec3 end);
+    QJsonObject shapeCommand(Vec3 end) const;
+    QJsonObject extrusionCommand(double distance) const;
+    void previewCommand(const QJsonObject &command);
+    void updateToolPreview(QPointF point);
+    void finishExtrusion(double distance);
+    void clearPreview();
 };
 } // namespace sketchy

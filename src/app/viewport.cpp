@@ -15,7 +15,8 @@ QVector3D qv(Vec3 p) { return {float(p.x), float(p.y), float(p.z)}; }
 Vec3 vec(QVector3D p) { return {p.x(), p.y(), p.z()}; }
 constexpr float degreesToRadians = std::numbers::pi_v<float> / 180;
 } // namespace
-Viewport::Viewport(Document &doc, QWidget *parent) : QOpenGLWidget(parent), doc_(doc) {
+Viewport::Viewport(Document &doc, QWidget *parent)
+    : QOpenGLWidget(parent), doc_(doc), session_(doc) {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
     setMinimumSize(160, 160);
@@ -604,25 +605,33 @@ void Viewport::paintScene() {
     p.drawText(20, 28, ortho_ ? "ORTHOGRAPHIC  /  METERS" : "PERSPECTIVE  /  METERS");
     p.setPen(colors_.muted);
     p.drawText(20, height() - 22, "Z up   ·   Grid 1 m   ·   Snap 0.1 m");
-    if (anchor_ && cursor_) {
-        p.setPen(QPen(QColor("#b9762f"), 2, Qt::DashLine));
-        p.setBrush(QBrush(QColor(190, 130, 65, 45), Qt::BDiagPattern));
-        QPolygonF poly;
-        if (tool_ == Tool::Circle) {
-            double r = length(*cursor_ - *anchor_);
-            for (int i = 0; i < 48; ++i) {
-                double a = i * 2 * std::numbers::pi / 48;
-                poly << project(*anchor_ + Vec3{r * std::cos(a), r * std::sin(a), 0});
-            }
-        } else {
-            auto a = *anchor_, b = *cursor_;
-            for (auto v : {a, Vec3{b.x, a.y, 0}, b, Vec3{a.x, b.y, 0}})
-                poly << project(v);
+    if (session_.active()) {
+        p.setPen(QPen(previewValid_ ? QColor("#b9762f") : QColor("#bc4343"), 2, Qt::DashLine));
+        for (const auto &edge : previewEdges_)
+            p.drawLine(project(edge[0]), project(edge[1]));
+        if (anchor_) {
+            p.setBrush(colors_.canvas);
+            p.drawEllipse(project(*anchor_), 4, 4);
+            if (cursor_ && previewEdges_.empty())
+                p.drawLine(project(*anchor_), project(*cursor_));
         }
-        p.drawPolygon(poly);
+        if (!previewError_.isEmpty()) {
+            const auto boxWidth = std::min(360, width() - 24);
+            const QRectF box(
+                std::clamp(previous_.x() + 12, 12.0, double(width() - boxWidth - 12)),
+                std::clamp(previous_.y() + 12, 40.0, double(std::max(40, height() - 92))), boxWidth,
+                72);
+            p.fillRect(box, colors_.surface);
+            p.setPen(colors_.ink);
+            p.drawText(box.adjusted(6, 4, -6, -4), Qt::TextWordWrap, previewError_);
+        }
     }
 }
 void Viewport::refresh() {
+    if (session_.active() && !session_.current()) {
+        cancel();
+        emit message("Document changed; the uncommitted operation was canceled");
+    }
     if (selectionDocument_ != doc_.identity()) {
         selected_ = selectedFace_ = 0;
         selectionDocument_ = doc_.identity();
@@ -647,14 +656,24 @@ void Viewport::setSelection(Id body, Id face) {
 void Viewport::setTool(Tool tool) {
     cancel();
     tool_ = tool;
+    emit toolChanged(int(tool));
     setCursor(tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
 }
-void Viewport::cancel() {
+void Viewport::clearPreview() {
     anchor_.reset();
     cursor_.reset();
+    previewEdges_.clear();
+    previewError_.clear();
+    previewValid_ = false;
+    toolPressed_ = false;
+    dragCommit_ = false;
+    update();
+}
+void Viewport::cancel() {
+    session_.cancel();
+    clearPreview();
     dragging_ = false;
     dragButton_ = Qt::NoButton;
-    update();
 }
 void Viewport::fit() {
     if (doc_.bodies().empty()) {
@@ -692,30 +711,121 @@ void Viewport::standardView(int view) {
     pitch_ = view == 1 ? 89.99f : (view == 2 ? .01f : 35);
     update();
 }
-void Viewport::finishShape(Vec3 end) {
+QJsonObject Viewport::shapeCommand(Vec3 end) const {
     if (!anchor_)
-        return;
-    auto a = *anchor_;
-    std::vector<Vec3> loop;
+        throw std::runtime_error("Choose a first point");
+    const auto a = *anchor_;
+    auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
+    if (tool_ == Tool::Line)
+        return {{"command", "geometry.insert_edges"},
+                {"body", "0"},
+                {"origin", QJsonArray{0, 0, 0}},
+                {"normal", QJsonArray{0, 0, 1}},
+                {"edges", QJsonArray{QJsonArray{point(a), point(end)}}}};
+    QJsonArray loop;
     if (tool_ == Tool::Circle) {
-        double r = length(end - a);
+        const auto radius = length(end - a);
         for (int i = 0; i < 48; ++i) {
-            double angle = i * 2 * std::numbers::pi / 48;
-            loop.push_back(a + Vec3{r * std::cos(angle), r * std::sin(angle), 0});
+            const auto angle = i * 2 * std::numbers::pi / 48;
+            loop.append(point(a + Vec3{radius * std::cos(angle), radius * std::sin(angle), 0}));
         }
     } else {
-        double x = std::min(a.x, end.x), y = std::min(a.y, end.y), w = std::abs(a.x - end.x),
-               h = std::abs(a.y - end.y);
-        loop = {{x, y, 0}, {x + w, y, 0}, {x + w, y + h, 0}, {x, y + h, 0}};
+        const auto x = std::min(a.x, end.x), y = std::min(a.y, end.y);
+        const auto w = std::abs(end.x - a.x), h = std::abs(end.y - a.y);
+        for (auto p : {Vec3{x, y, 0}, Vec3{x + w, y, 0}, Vec3{x + w, y + h, 0}, Vec3{x, y + h, 0}})
+            loop.append(point(p));
     }
+    return {{"command", "geometry.face"},
+            {"loops", QJsonArray{loop}},
+            {"name", tool_ == Tool::Circle ? "Circle" : "Rectangle"}};
+}
+QJsonObject Viewport::extrusionCommand(double distance) const {
+    return {{"command", "geometry.push_pull"},
+            {"body", QString::number(selected_)},
+            {"face", QString::number(selectedFace_)},
+            {"distance", distance}};
+}
+void Viewport::previewCommand(const QJsonObject &command) {
+    previewValid_ = false;
+    previewEdges_.clear();
     try {
-        auto id = doc_.addFace({loop}, tool_ == Tool::Circle ? "Circle" : "Rectangle");
-        cancel();
-        setSelection(id, doc_.bodies().at(id)->surface.faces.begin()->first);
+        const auto result = session_.preview(command);
+        const auto geometry = result["geometry"].toObject();
+        for (auto it = geometry.begin(); it != geometry.end(); ++it) {
+            const auto id = it.key().toULongLong();
+            const auto world = doc_.bodies().contains(id) ? doc_.worldTransform(id) : Transform{};
+            std::map<QString, Vec3> vertices;
+            const auto body = it.value().toObject();
+            for (const auto &value : body["vertices"].toArray()) {
+                const auto vertex = value.toObject();
+                const auto p = vertex["point"].toArray();
+                vertices[vertex["id"].toString()] =
+                    world.point({p[0].toDouble(), p[1].toDouble(), p[2].toDouble()});
+            }
+            for (const auto &value : body["edges"].toArray()) {
+                const auto edge = value.toObject()["vertices"].toArray();
+                previewEdges_.push_back(
+                    {vertices.at(edge[0].toString()), vertices.at(edge[1].toString())});
+            }
+        }
+        previewValid_ = true;
+        previewError_.clear();
+    } catch (const std::exception &error) {
+        const auto text = QString::fromUtf8(error.what());
+        if (previewError_ != text)
+            emit message(text);
+        previewError_ = text;
+    }
+    update();
+}
+void Viewport::updateToolPreview(QPointF point) {
+    if (!session_.active() || !anchor_)
+        return;
+    if (tool_ == Tool::Extrude) {
+        const auto [origin, direction] = ray(point);
+        const auto w = origin - *anchor_;
+        const auto b = dot(direction, extrusionAxis_);
+        const auto denominator = 1 - b * b;
+        if (denominator < 1e-6) {
+            previewValid_ = false;
+            previewEdges_.clear();
+            previewError_ = "Orbit away from the face normal or enter a distance";
+            update();
+            return;
+        }
+        previewDistance_ = std::round((dot(extrusionAxis_, w) - b * dot(direction, w)) /
+                                      denominator / extrusionScale_ * 10) /
+                           10;
+        previewCommand(extrusionCommand(previewDistance_));
+    } else if (auto end = ground(point)) {
+        cursor_ = end;
+        previewCommand(shapeCommand(*end));
+    }
+}
+void Viewport::finishShape(Vec3 end) {
+    try {
+        const auto result = session_.commit(shapeCommand(end));
+        const auto created = result["created"].toArray();
+        const auto id = created.empty() ? Id{0} : created[0].toString().toULongLong();
+        clearPreview();
+        if (id)
+            setSelection(id, doc_.bodies().at(id)->surface.faces.empty()
+                                 ? 0
+                                 : doc_.bodies().at(id)->surface.faces.begin()->first);
         emit changed();
     } catch (const std::exception &e) {
-        emit message(e.what());
+        previewError_ = QString::fromUtf8(e.what());
+        previewValid_ = false;
+        emit message(previewError_);
+        update();
     }
+}
+void Viewport::finishExtrusion(double distance) {
+    session_.commit(extrusionCommand(distance));
+    clearPreview();
+    refresh();
+    emit changed();
+    emit message("Pushed/pulled face. Ctrl+Z undoes this edit.");
 }
 void Viewport::setTheme(const ThemeColors &colors) {
     if (colors_.dark != colors.dark)
@@ -738,13 +848,12 @@ bool Viewport::measurements(const QString &text) {
     }
     try {
         if (tool_ == Tool::Extrude && selected_ && selectedFace_ && values.size() == 1) {
-            doc_.pushPull(selected_, selectedFace_, values[0]);
-            refresh();
-            emit changed();
-            emit message("Extruded face. Ctrl+Z undoes this edit.");
+            finishExtrusion(values[0]);
             return true;
         }
         if (anchor_ && tool_ == Tool::Rectangle && values.size() == 2)
+            finishShape(*anchor_ + Vec3{values[0], values[1], 0});
+        else if (anchor_ && tool_ == Tool::Line && values.size() == 2)
             finishShape(*anchor_ + Vec3{values[0], values[1], 0});
         else if (anchor_ && tool_ == Tool::Circle && values.size() == 1 && values[0] > 0)
             finishShape(*anchor_ + Vec3{values[0], 0, 0});
@@ -759,47 +868,80 @@ bool Viewport::measurements(const QString &text) {
 bool Viewport::event(QEvent *event) {
     if (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut)
         update();
-    // A compositor can end an implicit pointer grab without delivering release.
-    // Keep a drawing preview when focus moves to Measurements, but end navigation.
-    if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::WindowDeactivate ||
-        event->type() == QEvent::Hide || event->type() == QEvent::FocusOut) {
+    if (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::Hide ||
+        event->type() == QEvent::TouchCancel) {
+        cancel();
+    } else if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::FocusOut) {
+        // Keep the anchor when focus moves to Measurements. End every button
+        // gesture so a late release cannot publish an unintended edit.
         dragging_ = false;
         dragButton_ = Qt::NoButton;
+        toolPressed_ = false;
+        dragCommit_ = false;
     }
     return QOpenGLWidget::event(event);
 }
 void Viewport::mousePressEvent(QMouseEvent *e) {
     setFocus();
     previous_ = e->position();
-    dragButton_ = e->button();
     if (e->button() != Qt::LeftButton || tool_ == Tool::Orbit || tool_ == Tool::Pan ||
         e->modifiers().testFlag(Qt::AltModifier)) {
         dragging_ = true;
+        dragButton_ = e->button();
+        toolPressed_ = false;
+        dragCommit_ = false;
         return;
     }
-    if (tool_ == Tool::Rectangle || tool_ == Tool::Circle) {
-        if (auto p = ground(e->position())) {
-            if (!anchor_) {
-                anchor_ = p;
-                cursor_ = p;
-                emit message("Click the second point or type measurements below · Esc cancels");
+    toolPressed_ = true;
+    dragCommit_ = false;
+    toolPressPosition_ = e->position();
+    if (tool_ == Tool::Rectangle || tool_ == Tool::Circle || tool_ == Tool::Line) {
+        if (auto point = ground(e->position())) {
+            if (!session_.active()) {
+                clearPreview();
+                session_.begin();
+                anchor_ = point;
+                cursor_ = point;
+                toolPressed_ = true;
+                toolPressPosition_ = e->position();
+                emit message("Click the endpoint, drag, or enter measurements · Esc cancels");
             } else
-                finishShape(*p);
+                finishShape(*point);
         }
+        return;
+    }
+    if (tool_ == Tool::Extrude && session_.active()) {
+        updateToolPreview(e->position());
+        if (previewValid_) {
+            try {
+                finishExtrusion(previewDistance_);
+            } catch (const std::exception &error) {
+                emit message(error.what());
+            }
+        }
+        toolPressed_ = false;
         return;
     }
     auto [body, face] = pick(e->position());
     setSelection(body, face);
-    if (tool_ == Tool::Extrude)
-        emit message(body ? "Enter extrusion distance in meters, then press Enter"
-                          : "Select a face to push/pull");
+    if (tool_ == Tool::Extrude && body && face) {
+        session_.begin();
+        const auto [origin, direction] = ray(e->position());
+        anchor_ = origin + direction * nearestFace(e->position()).distance;
+        const auto vector =
+            doc_.worldTransform(body).vector(doc_.bodies().at(body)->surface.normal(face));
+        extrusionScale_ = length(vector);
+        extrusionAxis_ = vector * (1 / extrusionScale_);
+        emit message("Move to preview, click or drag to finish, or enter a distance · Esc cancels");
+    }
+    update();
 }
 void Viewport::mouseMoveEvent(QMouseEvent *e) {
     if (dragging_ && !e->buttons().testFlag(dragButton_)) {
         dragging_ = false;
         dragButton_ = Qt::NoButton;
     }
-    auto delta = e->position() - previous_;
+    const auto delta = e->position() - previous_;
     previous_ = e->position();
     if (dragging_) {
         if (tool_ == Tool::Pan || dragButton_ == Qt::RightButton ||
@@ -811,15 +953,38 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
             yaw_ -= delta.x() * .4f;
             pitch_ = std::clamp(pitch_ + float(delta.y()) * .4f, -89.f, 89.f);
         }
-    } else if (anchor_)
-        cursor_ = ground(e->position());
+    } else if (session_.active()) {
+        if (toolPressed_ && e->buttons().testFlag(Qt::LeftButton) &&
+            (e->position() - toolPressPosition_).manhattanLength() >= 4)
+            dragCommit_ = true;
+        updateToolPreview(e->position());
+    }
     update();
 }
 void Viewport::mouseReleaseEvent(QMouseEvent *e) {
-    if (e->button() != dragButton_)
+    if (e->button() == dragButton_) {
+        dragging_ = false;
+        dragButton_ = Qt::NoButton;
         return;
-    dragging_ = false;
-    dragButton_ = Qt::NoButton;
+    }
+    if (e->button() != Qt::LeftButton)
+        return;
+    const auto finish = toolPressed_ && dragCommit_ && session_.active();
+    toolPressed_ = false;
+    dragCommit_ = false;
+    if (finish) {
+        updateToolPreview(e->position());
+        if (!previewValid_)
+            return;
+        if (tool_ == Tool::Extrude) {
+            try {
+                finishExtrusion(previewDistance_);
+            } catch (const std::exception &error) {
+                emit message(error.what());
+            }
+        } else if (cursor_)
+            finishShape(*cursor_);
+    }
 }
 void Viewport::wheelEvent(QWheelEvent *e) {
     const auto steps =
@@ -830,8 +995,13 @@ void Viewport::wheelEvent(QWheelEvent *e) {
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
     if (e->key() == Qt::Key_Escape) {
-        cancel();
-        emit message("Operation canceled");
+        if (session_.active()) {
+            cancel();
+            emit message("Operation canceled");
+        } else {
+            setTool(Tool::Select);
+            emit message("Select a face");
+        }
     } else
         QOpenGLWidget::keyPressEvent(e);
 }
