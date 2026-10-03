@@ -1,6 +1,6 @@
 # R019: face push/pull and through openings
 
-Date: 2026-10-03. Local checks passed; PR merge pending.
+Date: 2026-10-03. Local and pinned CI checks passed; merged in [PR #18](https://github.com/zygote55/sketchyup/pull/18).
 
 `geometry.push_pull` and the desktop P/Measurements workflow share one staged core
 operation. Distances follow the selected face's local normal. Isolated profiles

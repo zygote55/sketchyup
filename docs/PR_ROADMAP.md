@@ -66,7 +66,8 @@ merged in [PR #14](https://github.com/zygote55/sketchyup/pull/14); R016 is merge
 [PR #15](https://github.com/zygote55/sketchyup/pull/15). R017 tessellation/picking
 associations are merged in [PR #16](https://github.com/zygote55/sketchyup/pull/16).
 R018 erase/healing and scoped cleanup are merged in [PR #17](https://github.com/zygote55/sketchyup/pull/17).
-R019 face push/pull and through openings are locally verified; the M2 regression gate is next.
+R019 face push/pull and through openings are merged in [PR #18](https://github.com/zygote55/sketchyup/pull/18).
+R020 regression checks pass locally; [M2 acceptance](verification/M2.md) awaits its CI/merge.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -384,7 +385,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R020 — Establish the geometry regression and fuzzing gate
 
-**Status:** Planned. **Track:** Quality. **Scope:** D06, G01, G02, E01, E09. **UX:** —.
+**Status:** Verified locally; CI/merge pending. **Evidence:** [geometry regression gate](verification/R020-geometry-gate.md). **Track:** Quality. **Scope:** D06, G01, G02, E01, E09. **UX:** —.
 
 **Requires:** [R019](#r019); milestone gate rule above.
 
