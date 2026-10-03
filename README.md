@@ -16,7 +16,10 @@ the native foundation is in progress. Adjacent-face
 push/pull, automatic face merging, components, inference, recovery, AI providers,
 Blender integration and exchange formats are not implemented. Circle geometry is
 currently a 48-sided polygon. Surface topology and file format remain experimental.
-Save explicitly: there is no autosave or recovery journal. Light, Dark and System
+Save explicitly: there is no autosave or recovery journal. Explicit saves use a
+checksummed container and preserve the previous valid file as `.sketchyup.bak`.
+Files and the containing directory are synced before showing Saved. Open a backup
+through the file dialog's all-files filter or the CLI if you need the previous save. Light, Dark and System
 themes are available in View. The experimental scene records support nested/mirrored
 transforms through the headless command API; component editing UI remains planned.
 

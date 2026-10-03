@@ -164,7 +164,7 @@ void Document::update(Edit edit, bool forward) {
     bodies_.swap(next);
 }
 void Document::apply(Edit edit, std::uint64_t expected) {
-    if (revision_ == UINT64_MAX || stateCounter_ == UINT64_MAX)
+    if (revision_ == UINT64_MAX)
         throw std::runtime_error("Document revision space exhausted");
     if (expected != revision_)
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
@@ -226,7 +226,7 @@ void Document::apply(Edit edit, std::uint64_t expected) {
     for (const auto &change : edit.changes)
         reachable.insert(change.id);
     std::erase_if(floors, [&](const auto &entry) { return !reachable.contains(entry.first); });
-    History h{std::move(edit), state_, stateCounter_ + 1};
+    History h{std::move(edit), state_, std::make_shared<State>()};
     undo_.push_back(h); // Allocation can still fail before any committed change.
     for (const auto &r : redo_)
         historyBytes_ -= r.edit.bytes;
@@ -235,7 +235,7 @@ void Document::apply(Edit edit, std::uint64_t expected) {
     bodies_.swap(updated);
     nextId_ = next;
     surfaceFloors_.swap(floors);
-    state_ = ++stateCounter_;
+    state_ = h.after;
     ++revision_;
     while (historyBytes_ > historyLimit && undo_.size() > 1) {
         historyBytes_ -= undo_.front().edit.bytes;
@@ -276,6 +276,18 @@ void Document::redo() {
     state_ = h.after;
     ++revision_;
 }
+Document::SaveStamp Document::saveStamp() const {
+    SaveStamp stamp;
+    stamp.session = session_;
+    stamp.state = state_;
+    return stamp;
+}
+bool Document::markSaved(const SaveStamp &stamp) {
+    if (!owns(stamp))
+        return false;
+    savedState_ = stamp.state;
+    return true;
+}
 void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
                        std::uint64_t revision) {
     if (identity.size() != 32 ||
@@ -292,6 +304,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         floors.emplace(id, b->surface.nextId);
     }
     validateDocumentSize(bodies);
+    auto fresh = std::make_shared<State>();
+    auto session = std::make_shared<State>();
     identity_ = std::move(identity);
     nextId_ = next;
     bodies_ = std::move(bodies);
@@ -300,7 +314,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     redo_.clear();
     historyBytes_ = 0;
     revision_ = revision;
-    state_ = ++stateCounter_;
+    session_ = std::move(session);
+    state_ = std::move(fresh);
     savedState_ = state_;
 }
 } // namespace sketchy
