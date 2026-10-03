@@ -129,8 +129,9 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         }
     }));
     file->addAction(action("file.open", "Open…", QKeySequence::Open, [this] {
-        auto p =
-            QFileDialog::getOpenFileName(this, "Open model", {}, "SketchyUp models (*.sketchyup)");
+        auto p = QFileDialog::getOpenFileName(
+            this, "Open model", {},
+            "SketchyUp models (*.sketchyup);;Previous saves (*.sketchyup.bak);;All files (*)");
         if (!p.isEmpty())
             openPath(p);
     }));
