@@ -30,6 +30,12 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void setTheme(const ThemeColors &colors);
     QPointF project(Vec3 p) const;
     std::pair<Id, Id> pick(QPointF point) const;
+    std::pair<Id, Id> pickEdge(QPointF point, double radius = 6) const;
+    struct Bounds {
+        Vec3 minimum{}, maximum{};
+        bool valid{};
+    };
+    Bounds bodyBounds(Id body) const;
     bool rendererReady() const { return ready_; }
     QString graphicsDescription() const { return graphics_; }
     // Feasibility controls are view-only; they do not alter saved materials or topology.
@@ -64,10 +70,6 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     struct Vertex {
         float x, y, z, r, g, b, a{1};
     };
-    struct HitTriangle {
-        Triangle triangle;
-        Id body;
-    };
     Document &doc_;
     ThemeColors colors_{themeColors(false)};
     Tool tool_{Tool::Select};
@@ -81,7 +83,12 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         BodyPtr record;
         Transform world;
         std::vector<Triangle> localTriangles, worldTriangles;
-        std::vector<Vec3> localEdges;
+        struct MeshEdge {
+            Vec3 a, b;
+            Id id;
+        };
+        std::vector<MeshEdge> localEdges, worldEdges;
+        Bounds bounds;
         std::vector<Vertex> opaque, lines;
         std::vector<std::array<Vertex, 3>> transparent;
         GpuBatch opaqueGpu, linesGpu;
@@ -96,13 +103,17 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     std::vector<Vertex> benchmarkVertices_;
     std::vector<std::array<Vertex, 3>> transparent_;
     std::map<Id, float> opacity_;
-    std::string cachedDocument_;
+    std::string cachedDocument_, selectionDocument_;
     std::uint64_t cachedRevision_{};
     std::optional<std::array<double, 4>> clipPlane_;
     QMatrix4x4 sortedMatrix_;
     bool transparentDirty_{true}, benchmarkDirty_{true};
     RenderStats stats_;
-    std::vector<HitTriangle> picking_;
+    struct FaceHit {
+        Id body{}, face{};
+        double distance{INFINITY};
+    };
+    FaceHit nearestFace(QPointF point) const;
     Id selected_{}, selectedFace_{};
     bool ready_{false}, cacheDirty_{true}, dragging_{false};
     Qt::MouseButton dragButton_{Qt::NoButton};
