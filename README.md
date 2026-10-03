@@ -50,15 +50,24 @@ ctest --preset headless
 
 - `L`: line. Click–move–click or press–drag–release; Escape cancels the pending edge.
 - `R`: rectangle. Click the first corner, then the second; or enter `width, depth`
-  in Measurements and press Enter. Values are meters; pointer snapping is 0.1 m.
+  in Measurements and press Enter. Values default to meters; `mm`, `cm`, `ft`, `in`,
+  feet/inches and fractions override units. Pointer snapping is 0.1 m.
 - `C`: circle. Click center, then radius; or enter the radius.
 - `Space`: select. `P`: select a face, move to preview, then click/drag to finish or enter a signed distance along its local normal.
 - `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
 - Middle drag or `O`: orbit. Right drag or `H`: pan. Wheel: zoom. `Shift+Z`: fit.
-- `1/2/3`: perspective/top/front. `Escape`: cancel drawing.
+- `1/2/3` with Select active: perspective/top/front. `Escape`: cancel drawing.
 - `Ctrl+Z` / `Ctrl+Shift+Z`: undo/redo. `Ctrl+K`: commands, objects and recent files.
 - `F6` / `Shift+F6`: move between window regions. `Ctrl+Shift+T`: toggle the Model panel.
 - `Ctrl+O` / `Ctrl+S`: native open/save dialogs. Unsaved changes prompt before replacement or close.
+
+With a drawing tool active, typing a digit or `[` sends input to Measurements.
+`[x,y,z]` sets an absolute point; `<x,y,z>` sets a relative point. Comma-decimal
+locales use semicolons between dimensions/coordinates. The current drawing plane
+is Z=0. Entering another value immediately after completion revises that operation
+as one undo item; an intervening edit or undo/redo invalidates re-entry. Escape in
+Measurements returns focus to the viewport. Invalid input remains selected and
+marked with an explanation.
 
 ## Headless commands
 

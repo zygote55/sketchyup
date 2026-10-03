@@ -1,4 +1,5 @@
 #include "app/viewport.hpp"
+#include "automation/measurements.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -671,6 +672,9 @@ void Viewport::clearPreview() {
 }
 void Viewport::cancel() {
     session_.cancel();
+    committedAnchor_.reset();
+    committedEnd_.reset();
+    committedBody_ = committedFace_ = 0;
     clearPreview();
     dragging_ = false;
     dragButton_ = Qt::NoButton;
@@ -712,9 +716,11 @@ void Viewport::standardView(int view) {
     update();
 }
 QJsonObject Viewport::shapeCommand(Vec3 end) const {
-    if (!anchor_)
+    const auto origin =
+        anchor_ ? anchor_ : (session_.canRevise() ? committedAnchor_ : std::nullopt);
+    if (!origin)
         throw std::runtime_error("Choose a first point");
-    const auto a = *anchor_;
+    const auto a = *origin;
     auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
     if (tool_ == Tool::Line)
         return {{"command", "geometry.insert_edges"},
@@ -741,8 +747,8 @@ QJsonObject Viewport::shapeCommand(Vec3 end) const {
 }
 QJsonObject Viewport::extrusionCommand(double distance) const {
     return {{"command", "geometry.push_pull"},
-            {"body", QString::number(selected_)},
-            {"face", QString::number(selectedFace_)},
+            {"body", QString::number(session_.canRevise() ? committedBody_ : selected_)},
+            {"face", QString::number(session_.canRevise() ? committedFace_ : selectedFace_)},
             {"distance", distance}};
 }
 void Viewport::previewCommand(const QJsonObject &command) {
@@ -797,14 +803,25 @@ void Viewport::updateToolPreview(QPointF point) {
                                       denominator / extrusionScale_ * 10) /
                            10;
         previewCommand(extrusionCommand(previewDistance_));
+        emit measurementPreview(QLocale().toString(previewDistance_, 'g', 8));
     } else if (auto end = ground(point)) {
         cursor_ = end;
         previewCommand(shapeCommand(*end));
+        const auto delta = *end - *anchor_;
+        const auto locale = QLocale();
+        emit measurementPreview(tool_ == Tool::Rectangle
+                                    ? locale.toString(std::abs(delta.x), 'g', 8) +
+                                          (locale.decimalPoint() == "," ? "; " : ", ") +
+                                          locale.toString(std::abs(delta.y), 'g', 8)
+                                    : locale.toString(length(delta), 'g', 8));
     }
 }
 void Viewport::finishShape(Vec3 end) {
     try {
+        const auto origin = anchor_ ? anchor_ : committedAnchor_;
         const auto result = session_.commit(shapeCommand(end));
+        committedAnchor_ = origin;
+        committedEnd_ = end;
         const auto created = result["created"].toArray();
         const auto id = created.empty() ? Id{0} : created[0].toString().toULongLong();
         clearPreview();
@@ -821,7 +838,11 @@ void Viewport::finishShape(Vec3 end) {
     }
 }
 void Viewport::finishExtrusion(double distance) {
+    const auto body = session_.canRevise() ? committedBody_ : selected_;
+    const auto face = session_.canRevise() ? committedFace_ : selectedFace_;
     session_.commit(extrusionCommand(distance));
+    committedBody_ = body;
+    committedFace_ = face;
     clearPreview();
     refresh();
     emit changed();
@@ -835,37 +856,80 @@ void Viewport::setTheme(const ThemeColors &colors) {
 }
 bool Viewport::measurements(const QString &text) {
     const auto revision = doc_.revision();
-    auto parts = text.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
-    std::vector<double> values;
-    for (auto part : parts) {
-        bool ok = false;
-        double d = part.toDouble(&ok);
-        if (!ok || !std::isfinite(d)) {
-            emit message("Enter finite measurements in meters");
-            return false;
-        }
-        values.push_back(d);
-    }
     try {
-        if (tool_ == Tool::Extrude && selected_ && selectedFace_ && values.size() == 1) {
+        const auto input = parseMeasurements(text, "m", QLocale());
+        const auto &values = input.values;
+        if (input.kind == MeasurementKind::Segments || input.kind == MeasurementKind::Copies ||
+            input.kind == MeasurementKind::Divisions)
+            throw std::runtime_error("This tool expects a length, dimensions or coordinates");
+        if (tool_ == Tool::Extrude) {
+            if (input.kind != MeasurementKind::Values || values.size() != 1)
+                throw std::runtime_error("Push/pull expects one signed distance");
             finishExtrusion(values[0]);
             return true;
         }
-        if (anchor_ && tool_ == Tool::Rectangle && values.size() == 2)
-            finishShape(*anchor_ + Vec3{values[0], values[1], 0});
-        else if (anchor_ && tool_ == Tool::Line && values.size() == 2)
-            finishShape(*anchor_ + Vec3{values[0], values[1], 0});
-        else if (anchor_ && tool_ == Tool::Circle && values.size() == 1 && values[0] > 0)
-            finishShape(*anchor_ + Vec3{values[0], 0, 0});
-        else
-            emit message("Rectangle: click first corner, enter width, depth. Circle: enter radius. "
-                         "Extrude: select a face, enter distance.");
-    } catch (const std::exception &e) {
-        emit message(e.what());
+        if (tool_ != Tool::Rectangle && tool_ != Tool::Circle && tool_ != Tool::Line)
+            throw std::runtime_error("Choose a drawing tool before entering geometry");
+        if (session_.phase() == ToolSession::Phase::Committed && !session_.canRevise())
+            throw std::runtime_error("Another edit changed the document; start a new operation");
+        auto origin = anchor_ ? anchor_ : (session_.canRevise() ? committedAnchor_ : std::nullopt);
+        if (input.kind == MeasurementKind::AbsolutePoint ||
+            input.kind == MeasurementKind::RelativePoint) {
+            auto point = Vec3{values[0], values[1], values[2]};
+            if (input.kind == MeasurementKind::RelativePoint)
+                point = point + origin.value_or(Vec3{});
+            checkPoint(point);
+            if (std::abs(point.z) > tolerance)
+                throw std::runtime_error("The current drawing plane is Z=0");
+            point.z = 0;
+            if (!origin) {
+                clearPreview();
+                session_.begin();
+                anchor_ = point;
+                cursor_ = point;
+                emit message("First point set · Enter the endpoint or dimensions");
+                update();
+                return true;
+            }
+            finishShape(point);
+        } else {
+            if (!origin)
+                throw std::runtime_error("Choose the first point or enter [x,y,z]");
+            if (tool_ == Tool::Rectangle && values.size() == 2) {
+                if (values[0] <= 0 || values[1] <= 0)
+                    throw std::runtime_error("Rectangle dimensions must be greater than zero");
+                finishShape(*origin + Vec3{values[0], values[1], 0});
+            } else if (tool_ == Tool::Circle && values.size() == 1) {
+                if (values[0] <= 0)
+                    throw std::runtime_error("Radius must be greater than zero");
+                finishShape(*origin + Vec3{values[0], 0, 0});
+            } else if (tool_ == Tool::Line && values.size() == 2) {
+                finishShape(*origin + Vec3{values[0], values[1], 0});
+            } else if (tool_ == Tool::Line && values.size() == 1 && (cursor_ || committedEnd_)) {
+                if (values[0] <= 0)
+                    throw std::runtime_error("Length must be greater than zero");
+                finishShape(*origin + normalized(cursor_.value_or(committedEnd_.value_or(*origin)) -
+                                                 *origin) *
+                                          values[0]);
+            } else
+                throw std::runtime_error("Rectangle: two dimensions. Circle: radius. Line: length "
+                                         "along preview or coordinates.");
+        }
+    } catch (const std::exception &error) {
+        emit message(error.what());
     }
     return doc_.revision() != revision;
 }
 bool Viewport::event(QEvent *event) {
+    if (event->type() == QEvent::ShortcutOverride) {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
+            !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
+            !key->text().isEmpty() && QString("0123456789.+-[<").contains(key->text()[0])) {
+            event->accept();
+            return true;
+        }
+    }
     if (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut)
         update();
     if (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::Hide ||
@@ -994,6 +1058,13 @@ void Viewport::wheelEvent(QWheelEvent *e) {
     e->accept();
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
+    if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
+        !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
+        !e->text().isEmpty() && QString("0123456789.+-[<").contains(e->text()[0])) {
+        emit measurementsRequested(e->text());
+        e->accept();
+        return;
+    }
     if (e->key() == Qt::Key_Escape) {
         if (session_.active()) {
             cancel();

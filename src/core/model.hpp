@@ -5,6 +5,7 @@
 #include "geometry/push_pull.hpp"
 #include "geometry/topology.hpp"
 #include <deque>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -43,6 +44,11 @@ class Document {
         friend class Document;
         StatePtr session, state;
     };
+    class AmendStamp {
+        friend class Document;
+        StatePtr session, state;
+        std::uint64_t revision{};
+    };
     const std::map<Id, BodyPtr> &bodies() const { return bodies_; }
     std::uint64_t revision() const { return revision_; }
     Id nextId() const { return nextId_; }
@@ -72,6 +78,9 @@ class Document {
     ChangeReport eraseEdge(Id context, Id edge);
     ChangeReport healFace(Id context, Id edge, Vec3 origin, Vec3 normal);
     ChangeReport cleanup(Id context);
+    AmendStamp amendmentStamp() const;
+    bool canAmend(const AmendStamp &stamp) const;
+    ChangeReport amendLast(const AmendStamp &stamp, const std::function<void(Document &)> &replace);
     void undo();
     void redo();
     SaveStamp saveStamp() const;

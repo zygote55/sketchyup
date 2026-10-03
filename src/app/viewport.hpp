@@ -66,6 +66,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   signals:
     void selected(qulonglong body, qulonglong face);
     void toolChanged(int tool);
+    void measurementsRequested(const QString &text);
+    void measurementPreview(const QString &text);
     void changed();
     void message(const QString &text);
 
@@ -132,7 +134,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     bool ready_{false}, cacheDirty_{true}, dragging_{false};
     Qt::MouseButton dragButton_{Qt::NoButton};
     QPointF previous_;
-    std::optional<Vec3> anchor_, cursor_;
+    std::optional<Vec3> anchor_, cursor_, committedAnchor_, committedEnd_;
+    Id committedBody_{}, committedFace_{};
     bool toolPressed_{false}, dragCommit_{false}, previewValid_{false};
     QPointF toolPressPosition_;
     Vec3 extrusionAxis_{};
