@@ -1,0 +1,91 @@
+{
+    "build": "debug",
+    "compiler": "16.2.1 20260810",
+    "kernel": "7.2.5-3-omarchy",
+    "peakRssKiB": 77836,
+    "platform": "Omarchy",
+    "qt": "6.11.2",
+    "results": [
+        {
+            "bodies": 1,
+            "bytes": 965,
+            "codec": "json",
+            "decodeMs": 0.036765,
+            "encodeMs": 0.031401200000000004,
+            "fixtureSha256": "91199e141798ca894515073cd743b8f1f5c9b809fcd8b1ac50430541998a764e",
+            "validateMs": 0.478371
+        },
+        {
+            "bodies": 1,
+            "bytes": 760,
+            "codec": "cbor",
+            "decodeMs": 0.13708559999999997,
+            "encodeMs": 0.326677,
+            "fixtureSha256": "91199e141798ca894515073cd743b8f1f5c9b809fcd8b1ac50430541998a764e",
+            "validateMs": 0.573795
+        },
+        {
+            "bodies": 1,
+            "bytes": 384,
+            "codec": "compressed-json",
+            "decodeMs": 0.0734428,
+            "encodeMs": 0.17764919999999998,
+            "fixtureSha256": "91199e141798ca894515073cd743b8f1f5c9b809fcd8b1ac50430541998a764e",
+            "validateMs": 0.541099
+        },
+        {
+            "bodies": 100,
+            "bytes": 87231,
+            "codec": "json",
+            "decodeMs": 4.091647399999999,
+            "encodeMs": 3.9232265999999996,
+            "fixtureSha256": "925dd014ada8c264b5186ff873bda5b9cf0b954d6421eed0c68e69c59464943e",
+            "validateMs": 58.415888
+        },
+        {
+            "bodies": 100,
+            "bytes": 66927,
+            "codec": "cbor",
+            "decodeMs": 12.819158400000001,
+            "encodeMs": 1.7052070000000001,
+            "fixtureSha256": "925dd014ada8c264b5186ff873bda5b9cf0b954d6421eed0c68e69c59464943e",
+            "validateMs": 57.259788
+        },
+        {
+            "bodies": 100,
+            "bytes": 6382,
+            "codec": "compressed-json",
+            "decodeMs": 4.2636684,
+            "encodeMs": 6.962166600000001,
+            "fixtureSha256": "925dd014ada8c264b5186ff873bda5b9cf0b954d6421eed0c68e69c59464943e",
+            "validateMs": 58.018506
+        },
+        {
+            "bodies": 1000,
+            "bytes": 888793,
+            "codec": "json",
+            "decodeMs": 40.212059800000006,
+            "encodeMs": 43.431994,
+            "fixtureSha256": "363b2ad4272da5936b279894643b80efab03c6cad34d9a780f21d16b718cec4b",
+            "validateMs": 421.715523
+        },
+        {
+            "bodies": 1000,
+            "bytes": 677250,
+            "codec": "cbor",
+            "decodeMs": 77.2449436,
+            "encodeMs": 9.7498428,
+            "fixtureSha256": "363b2ad4272da5936b279894643b80efab03c6cad34d9a780f21d16b718cec4b",
+            "validateMs": 362.634945
+        },
+        {
+            "bodies": 1000,
+            "bytes": 59696,
+            "codec": "compressed-json",
+            "decodeMs": 39.2258892,
+            "encodeMs": 71.720989,
+            "fixtureSha256": "363b2ad4272da5936b279894643b80efab03c6cad34d9a780f21d16b718cec4b",
+            "validateMs": 597.729299
+        }
+    ]
+}
