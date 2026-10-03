@@ -22,6 +22,11 @@ int main(int argc, char **argv) {
     window.show();
     if (!QTest::qWaitForWindowExposed(&window, 5000))
         return 2;
+    window.activateWindow();
+    if (!QTest::qWaitForWindowActive(&window, 5000)) {
+        std::cerr << "Native interaction test requires an active test window\n";
+        return 2;
+    }
     try {
         auto *view = window.viewport();
         auto *field = window.findChild<QLineEdit *>("measurements");
@@ -29,6 +34,8 @@ int main(int argc, char **argv) {
         QTest::qWait(300);
         check(view->rendererReady(), "Native GL context initialized");
         view->setFocus();
+        QCoreApplication::processEvents();
+        check(view->hasFocus(), "Viewport owns keyboard focus");
         QTest::keyClick(view, Qt::Key_R);
         check(view->tool() == Viewport::Tool::Rectangle, "Rectangle shortcut");
         QTest::mouseClick(view, Qt::LeftButton, {}, view->project({0, 0, 0}).toPoint());
@@ -61,6 +68,8 @@ int main(int argc, char **argv) {
         check(view->tool() == Viewport::Tool::Extrude, "Text field did not change tool");
         field->clear();
         view->setFocus();
+        QCoreApplication::processEvents();
+        check(view->hasFocus(), "Viewport owns keyboard focus");
         QTest::keyClick(view, Qt::Key_R);
         QTest::mouseClick(view, Qt::LeftButton, {}, view->project({-2, -2, 0}).toPoint());
         QTest::keyClick(view, Qt::Key_Escape);

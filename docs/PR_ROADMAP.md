@@ -47,7 +47,7 @@ are covered in the [traceability table](#scope-to-pr-coverage).
 ## Active implementation slices
 
 R001 is in [PR #2](https://github.com/zygote55/sketchyup/pull/2). The native
-spike follows on its branch; implementation PR links are recorded when opened.
+spike is in [PR #3](https://github.com/zygote55/sketchyup/pull/3), based on #2.
 The planning PR #1 is merged. No M0 parent row is yet Verified.
 
 | Slice | Boundary | Required follow-up before parent completion |
