@@ -1,6 +1,7 @@
 #include "app/window.hpp"
 #include "io/document_io.hpp"
 #include <QApplication>
+#include <QMouseEvent>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSurfaceFormat>
@@ -89,6 +90,37 @@ int main(int argc, char **argv) {
         QTest::mouseRelease(view, Qt::MiddleButton, {}, QPoint(160, 130));
         check(encodeDocument(window.document()) == saved,
               "Camera navigation does not mutate document");
+        const Vec3 probe{2, 1, 1};
+        auto move = [&](QPointF point, Qt::MouseButtons buttons) {
+            QMouseEvent event(QEvent::MouseMove, point, view->mapToGlobal(point),
+                              Qt::NoButton, buttons, Qt::NoModifier);
+            QApplication::sendEvent(view, &event);
+        };
+        // Release outside the widget must end the implicit grab's navigation.
+        QTest::mousePress(view, Qt::MiddleButton, {}, QPoint(100, 100));
+        auto beforeDrag = view->project(probe);
+        move(QPointF(-80, 150), Qt::MiddleButton);
+        check(view->project(probe) != beforeDrag, "Drag continues beyond viewport boundary");
+        QTest::mouseRelease(view, Qt::MiddleButton, {}, QPoint(-80, 150));
+        auto afterDrag = view->project(probe);
+        move(QPointF(100, 100), Qt::NoButton);
+        check(view->project(probe) == afterDrag, "Outside release ends navigation");
+        for (auto type : {QEvent::UngrabMouse, QEvent::WindowDeactivate, QEvent::FocusOut,
+                          QEvent::Hide}) {
+            QTest::mousePress(view, Qt::MiddleButton, {}, QPoint(100, 100));
+            QEvent lost(type);
+            QApplication::sendEvent(view, &lost);
+            auto before = view->project(probe);
+            move(QPointF(200, 200), Qt::MiddleButton);
+            check(view->project(probe) == before, "Lost input cancels navigation");
+            QTest::mouseRelease(view, Qt::MiddleButton, {}, QPoint(200, 200));
+        }
+        QTest::mousePress(view, Qt::MiddleButton, {}, QPoint(100, 100));
+        auto beforeLostRelease = view->project(probe);
+        move(QPointF(200, 200), Qt::NoButton);
+        check(view->project(probe) == beforeLostRelease, "Missing button recovers lost release");
+        QTest::mouseRelease(view, Qt::MiddleButton, {}, QPoint(200, 200));
+        check(encodeDocument(window.document()) == saved, "Input loss never edits geometry");
         // Window manager may constrain top-level dimensions: nested viewport checks
         // still use actual logical coordinates; report actual window size below.
         window.resize(640, 600);
