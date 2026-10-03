@@ -16,6 +16,7 @@ class Window : public QMainWindow {
     void openPath(const QString &path);
 
   protected:
+    bool eventFilter(QObject *, QEvent *) override;
     void closeEvent(QCloseEvent *) override;
     void resizeEvent(QResizeEvent *) override;
 
@@ -33,6 +34,7 @@ class Window : public QMainWindow {
     QAction *redo_{};
     std::vector<QAction *> publicActions_;
     void sync();
+    void measurementError(bool invalid);
     void applyTheme();
     int themeMode_{0}; // System, light, dark.
     void run(const std::function<void()> &action);

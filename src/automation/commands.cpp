@@ -350,6 +350,34 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             {"changes", changes},
             {"document", describe(doc)}};
 }
+QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
+                         const QJsonObject &request) {
+    QJsonObject result;
+    const auto report = doc.amendLast(
+        stamp, [&](Document &candidate) { result = executeBatch(candidate, request); });
+    QJsonObject changes;
+    for (const auto &[context, change] : report)
+        changes[QString::number(context)] =
+            QJsonObject{{"vertices", entityChanges(change.vertices)},
+                        {"edges", entityChanges(change.edges)},
+                        {"faces", entityChanges(change.faces)}};
+    result["changes"] = changes;
+    result["amended"] = true;
+    return result;
+}
+QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
+                         const QJsonObject &request) {
+    Document candidate = doc;
+    auto result = executeAmend(candidate, stamp, request);
+    result["status"] = "preview";
+    result["baseRevision"] = QString::number(doc.revision());
+    QJsonObject geometry;
+    for (const auto &[id, body] : candidate.bodies())
+        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body)
+            geometry[QString::number(id)] = topologyDescription(candidate, id);
+    result["geometry"] = geometry;
+    return result;
+}
 QJsonObject previewBatch(const Document &doc, const QJsonObject &request) {
     Document candidate = doc;
     auto result = executeBatch(candidate, request);

@@ -11,12 +11,14 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QKeyEvent>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QStyle>
 #include <QStyleHints>
 #include <QToolBar>
 #include <QVBoxLayout>
@@ -111,6 +113,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     bottomLayout->addWidget(new QLabel("Measurements · m"));
     measurements_ = new QLineEdit;
     measurements_->setObjectName("measurements");
+    measurements_->installEventFilter(this);
     measurements_->setFixedWidth(150);
     measurements_->setPlaceholderText("width, depth");
     measurements_->setAccessibleName("Measurements in meters");
@@ -282,14 +285,26 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     connect(viewport_, &Viewport::changed, this, &Window::sync);
     connect(viewport_, &Viewport::message, status_, &QLabel::setText);
     connect(viewport_, &Viewport::selected, this, [this](qulonglong, qulonglong) { sync(); });
+    connect(viewport_, &Viewport::measurementsRequested, this, [this](const QString &text) {
+        measurements_->setFocus();
+        measurements_->setText(text);
+        measurements_->setCursorPosition(text.size());
+    });
+    connect(viewport_, &Viewport::measurementPreview, this, [this](const QString &text) {
+        if (!measurements_->hasFocus())
+            measurements_->setText(text);
+    });
     connect(measurements_, &QLineEdit::returnPressed, this, [this] {
         if (viewport_->measurements(measurements_->text())) {
+            measurementError(false);
             measurements_->clear();
             viewport_->setFocus();
         } else {
+            measurementError(true);
             measurements_->selectAll();
         }
     });
+    connect(measurements_, &QLineEdit::textEdited, this, [this] { measurementError(false); });
     connect(outliner_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *item) {
         if (item)
             viewport_->setSelection(item->data(Qt::UserRole).toULongLong());
@@ -316,6 +331,7 @@ QToolButton:hover,QPushButton:hover {background:$hover;}
 QPushButton {border:1px solid $border;padding:7px 11px;border-radius:4px;}
 QLineEdit {background:$input;border:1px solid $border;border-radius:4px;padding:7px;selection-background-color:$accent;}
 QLineEdit:focus {border:1px solid $accent;}
+QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 QListWidget {border:0;background:transparent;}
 QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
 )");
@@ -337,6 +353,22 @@ void Window::run(const std::function<void()> &fn) {
         status_->setText(e.what());
         QMessageBox::warning(this, "Could not complete edit", e.what());
     }
+}
+void Window::measurementError(bool invalid) {
+    measurements_->setProperty("invalid", invalid);
+    measurements_->setAccessibleDescription(invalid ? status_->text() : QString{});
+    measurements_->style()->unpolish(measurements_);
+    measurements_->style()->polish(measurements_);
+}
+bool Window::eventFilter(QObject *object, QEvent *event) {
+    if (object == measurements_ && event->type() == QEvent::KeyPress &&
+        static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+        measurements_->clear();
+        measurementError(false);
+        viewport_->setFocus();
+        return true;
+    }
+    return QMainWindow::eventFilter(object, event);
 }
 void Window::tool(Viewport::Tool t, const QString &text) {
     viewport_->setTool(t);

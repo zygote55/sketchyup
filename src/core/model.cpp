@@ -398,6 +398,70 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     }
     return report;
 }
+Document::AmendStamp Document::amendmentStamp() const {
+    AmendStamp stamp;
+    if (!undo_.empty() && undo_.back().after == state_) {
+        stamp.session = session_;
+        stamp.state = state_;
+        stamp.revision = revision_;
+    }
+    return stamp;
+}
+bool Document::canAmend(const AmendStamp &stamp) const {
+    return stamp.session == session_ && stamp.state == state_ && stamp.revision == revision_ &&
+           !undo_.empty() && undo_.back().after == state_;
+}
+ChangeReport Document::amendLast(const AmendStamp &stamp,
+                                 const std::function<void(Document &)> &replace) {
+    if (!canAmend(stamp))
+        throw std::runtime_error("The most recent operation can no longer be revised");
+    std::set<Id> contexts;
+    size_t createdContexts = 0;
+    for (const auto &change : undo_.back().edit.changes) {
+        contexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdContexts;
+    }
+    Document staged = *this;
+    staged.undo();
+    const auto baseline = staged.bodies_;
+    // Rewind only the private candidate. A replacement publishes one revision,
+    // and retains the pre-operation history entry and monotonic allocator floors.
+    staged.revision_ = revision_;
+    replace(staged);
+    if (staged.identity_ != identity_ || staged.session_ != session_ ||
+        staged.revision_ != revision_ + 1 || staged.undo_.empty() || staged.state_ == state_)
+        throw std::runtime_error("Replacement must commit exactly one atomic operation");
+    for (const auto &[id, body] : baseline)
+        if (!contexts.contains(id) &&
+            (!staged.bodies_.contains(id) || staged.bodies_.at(id) != body))
+            throw std::runtime_error("Replacement cannot change another editing context");
+    size_t newContexts = 0;
+    for (const auto &[id, body] : staged.bodies_)
+        if (!baseline.contains(id))
+            ++newContexts;
+    if (newContexts != createdContexts)
+        throw std::runtime_error(
+            "Replacement must preserve the operation's context creation count");
+    ChangeReport report;
+    std::set<Id> ids;
+    for (const auto &[id, body] : bodies_)
+        ids.insert(id);
+    for (const auto &[id, body] : staged.bodies_)
+        ids.insert(id);
+    const Body empty;
+    for (auto id : ids) {
+        auto before = bodies_.contains(id) ? bodies_.at(id) : nullptr;
+        auto after = staged.bodies_.contains(id) ? staged.bodies_.at(id) : nullptr;
+        if (before != after)
+            report.emplace(id, compareTopology(before ? before->surface : empty.surface,
+                                               before ? before->topology : empty.topology,
+                                               after ? after->surface : empty.surface,
+                                               after ? after->topology : empty.topology));
+    }
+    *this = std::move(staged);
+    return report;
+}
 void Document::undo() {
     if (undo_.empty())
         return;

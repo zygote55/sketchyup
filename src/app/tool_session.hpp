@@ -8,6 +8,7 @@ class ToolSession {
     explicit ToolSession(Document &document) : document_(document) {}
     Phase phase() const { return phase_; }
     bool active() const { return phase_ == Phase::Anchored || phase_ == Phase::Preview; }
+    bool canRevise() const { return phase_ == Phase::Committed && document_.canAmend(amendment_); }
     bool current() const {
         return identity_ == document_.identity() && revision_ == document_.revision();
     }
@@ -21,6 +22,7 @@ class ToolSession {
     Phase phase_{Phase::Ready};
     std::string identity_;
     std::uint64_t revision_{};
+    Document::AmendStamp amendment_;
     QJsonObject request(const QJsonObject &command) const;
 };
 } // namespace sketchy

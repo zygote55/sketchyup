@@ -68,7 +68,8 @@ associations are merged in [PR #16](https://github.com/zygote55/sketchyup/pull/1
 R018 erase/healing and scoped cleanup are merged in [PR #17](https://github.com/zygote55/sketchyup/pull/17).
 R019 face push/pull and through openings are merged in [PR #18](https://github.com/zygote55/sketchyup/pull/18).
 R020 is merged in [PR #19](https://github.com/zygote55/sketchyup/pull/19), and the [M2 gate](verification/M2.md) passes.
-R021 tool lifecycle and camera interleaving are locally verified.
+R021 tool lifecycle and camera interleaving are merged in [PR #20](https://github.com/zygote55/sketchyup/pull/20).
+R022 numeric input and guarded operation revision are locally verified.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -400,7 +401,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R021 — Implement tool lifecycle and camera interleaving
 
-**Status:** Verified locally. **Evidence:** [tool lifecycle](verification/R021-tool-lifecycle.md). **Track:** Desktop. **Scope:** N03, G03, E01. **UX:** §4.1–§4.2.
+**Status:** Verified. **Evidence:** [tool lifecycle](verification/R021-tool-lifecycle.md). **Track:** Desktop. **Scope:** N03, G03, E01. **UX:** §4.1–§4.2.
 
 **Requires:** [R013](#r013), [R011](#r011), [R019](#r019); milestone gate rule above.
 
@@ -412,7 +413,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R022 — Implement numeric entry and guarded operation revision
 
-**Status:** Planned. **Track:** Desktop. **Scope:** D01, D03, G10. **UX:** §4.2–§4.3.
+**Status:** Verified locally. **Evidence:** [numeric entry and amendment](verification/R022-numeric-amend.md). **Track:** Desktop. **Scope:** D01, D03, G10. **UX:** §4.2–§4.3.
 
 **Requires:** [R021](#r021); milestone gate rule above.
 

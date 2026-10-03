@@ -1,6 +1,6 @@
 # R021: tool lifecycle and camera interleaving
 
-Date: 2026-10-03. Local verification passed; PR merge pending.
+Date: 2026-10-03. Local and pinned CI verification passed; merged in [PR #20](https://github.com/zygote55/sketchyup/pull/20).
 
 A view-only ToolSession records Ready, Anchored, Preview and Committed states. Its
 requests bind document identity and revision at the first point/face. Preview runs
