@@ -1,6 +1,7 @@
 #include "app/window.hpp"
 #include "io/document_io.hpp"
 #include <QApplication>
+#include <QAction>
 #include <QMouseEvent>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -41,6 +42,10 @@ int main(int argc, char **argv) {
         check(view->tool() == Viewport::Tool::Rectangle, "Rectangle shortcut");
         QTest::mouseClick(view, Qt::LeftButton, {}, view->project({0, 0, 0}).toPoint());
         field->setFocus();
+        QTest::keyClicks(field, "invalid");
+        QTest::keyClick(field, Qt::Key_Return);
+        check(field->text() == "invalid" && field->hasFocus() && window.document().bodies().empty(),
+              "Invalid measurements remain editable without mutating model");
         QTest::keyClicks(field, "4, 3");
         QTest::keyClick(field, Qt::Key_Return);
         QTest::qWait(100);
@@ -78,6 +83,10 @@ int main(int argc, char **argv) {
         QTest::keyClicks(field, "1, 1");
         QTest::keyClick(field, Qt::Key_Return);
         check(window.document().bodies().size() == 1, "Escape cancels uncommitted rectangle");
+        check(field->text() == "1, 1", "Canceled preview rejects measurements without discarding text");
+        field->clear();
+        view->setFocus();
+        QCoreApplication::processEvents();
         QTest::keyClick(view, Qt::Key_C);
         QTest::mouseClick(view, Qt::LeftButton, {}, view->project({-3, -3, 0}).toPoint());
         field->setFocus();
@@ -121,6 +130,19 @@ int main(int argc, char **argv) {
         check(view->project(probe) == beforeLostRelease, "Missing button recovers lost release");
         QTest::mouseRelease(view, Qt::MiddleButton, {}, QPoint(200, 200));
         check(encodeDocument(window.document()) == saved, "Input loss never edits geometry");
+        const auto revisionBeforeTheme = window.document().revision();
+        auto setTheme = [&](const QString &name) {
+            for (auto *action : window.findChildren<QAction *>())
+                if (action->text() == name) { action->trigger(); return; }
+            throw std::runtime_error("Theme action missing");
+        };
+        setTheme("Dark theme");
+        check(window.styleSheet().contains("#202923"), "Dark tokens applied");
+        setTheme("Light theme");
+        check(window.styleSheet().contains("#f7f7f2"), "Light tokens applied");
+        setTheme("System theme");
+        check(window.document().revision() == revisionBeforeTheme &&
+              encodeDocument(window.document()) == saved, "Theme changes are view-only");
         // Window manager may constrain top-level dimensions: nested viewport checks
         // still use actual logical coordinates; report actual window size below.
         window.resize(640, 600);

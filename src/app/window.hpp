@@ -33,6 +33,8 @@ class Window : public QMainWindow {
     QAction *redo_{};
     std::vector<QAction *> publicActions_;
     void sync();
+    void applyTheme();
+    int themeMode_{0}; // System, light, dark.
     void run(const std::function<void()> &action);
     bool save(bool saveAs = false);
     bool canReplace();

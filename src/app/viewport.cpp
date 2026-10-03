@@ -189,7 +189,8 @@ void Viewport::rebuild() {
         return Vertex{float(p.x), float(p.y), float(p.z), c[0], c[1], c[2]};
     };
     for (int i = -50; i <= 50; ++i) {
-        const float shade = (i % 5 == 0) ? .79f : .87f;
+        const float shade = colors_.dark ? ((i % 5 == 0) ? .27f : .21f)
+                                         : ((i % 5 == 0) ? .79f : .87f);
         for (auto p : {Vec3{double(i), -50, 0}, Vec3{double(i), 50, 0}, Vec3{-50, double(i), 0},
                        Vec3{50, double(i), 0}})
             lines_.push_back(vertex(p, {shade, shade, shade}));
@@ -299,7 +300,7 @@ void Viewport::paintGL() {
         return;
     QElapsedTimer timer;
     timer.start();
-    glClearColor(.94f, .945f, .925f, 1);
+    glClearColor(colors_.canvas.redF(), colors_.canvas.greenF(), colors_.canvas.blueF(), 1);
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
@@ -349,9 +350,9 @@ void Viewport::paintGL() {
     frameMs_ = timer.nsecsElapsed() / 1e6;
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
-    p.setPen(QColor("#4b5a54"));
+    p.setPen(colors_.ink);
     p.drawText(20, 28, ortho_ ? "ORTHOGRAPHIC  /  METERS" : "PERSPECTIVE  /  METERS");
-    p.setPen(QColor("#79827b"));
+    p.setPen(colors_.muted);
     p.drawText(20, height() - 22, "Z up   ·   Grid 1 m   ·   Snap 0.1 m");
     if (anchor_ && cursor_) {
         p.setPen(QPen(QColor("#b9762f"), 2, Qt::DashLine));
@@ -446,7 +447,12 @@ void Viewport::finishShape(Vec3 end) {
         emit message(e.what());
     }
 }
-void Viewport::measurements(const QString &text) {
+void Viewport::setTheme(const ThemeColors &colors) {
+    colors_ = colors;
+    refresh();
+}
+bool Viewport::measurements(const QString &text) {
+    const auto revision = doc_.revision();
     auto parts = text.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
     std::vector<double> values;
     for (auto part : parts) {
@@ -454,7 +460,7 @@ void Viewport::measurements(const QString &text) {
         double d = part.toDouble(&ok);
         if (!ok || !std::isfinite(d)) {
             emit message("Enter finite measurements in meters");
-            return;
+            return false;
         }
         values.push_back(d);
     }
@@ -464,7 +470,7 @@ void Viewport::measurements(const QString &text) {
             refresh();
             emit changed();
             emit message("Extruded face. Ctrl+Z undoes this edit.");
-            return;
+            return true;
         }
         if (anchor_ && tool_ == Tool::Rectangle && values.size() == 2)
             finishShape(*anchor_ + Vec3{values[0], values[1], 0});
@@ -476,6 +482,7 @@ void Viewport::measurements(const QString &text) {
     } catch (const std::exception &e) {
         emit message(e.what());
     }
+    return doc_.revision() != revision;
 }
 bool Viewport::event(QEvent *event) {
     // A compositor can end an implicit pointer grab without delivering release.

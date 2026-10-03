@@ -1,5 +1,6 @@
 #pragma once
 #include "core/model.hpp"
+#include "app/theme.hpp"
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_3_3_Core>
@@ -25,7 +26,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void fit();
     void standardView(int view);
     void cancel();
-    void measurements(const QString &value);
+    bool measurements(const QString &value);
+    void setTheme(const ThemeColors &colors);
     QPointF project(Vec3 p) const;
     std::pair<Id, Id> pick(QPointF point) const;
     bool rendererReady() const { return ready_; }
@@ -65,6 +67,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Id body;
     };
     Document &doc_;
+    ThemeColors colors_{themeColors(false)};
     Tool tool_{Tool::Select};
     struct GpuBatch {
         QOpenGLBuffer buffer{QOpenGLBuffer::VertexBuffer};
