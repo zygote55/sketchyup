@@ -103,3 +103,11 @@ face coverage are validated before publication; stable face ancestry composes
 through command batches. Resource and near-parallel limits are explicit in the
 [R016 evidence](../verification/R016-planar-faces.md). This bounded implementation
 does not claim general solid intersection or the later spatial-index performance.
+
+## M2 tolerance regression
+
+R020 found that normalizing a Newell face-area vector through the generic linear
+direction threshold rejected valid submillimeter faces. Face normal construction
+now compares its magnitude with twice the squared 1e-7 m tolerance. The
+[regression gate](../verification/R020-geometry-gate.md) records the tested scale
+range and reproducible corpus. Screen-space acquisition remains independent.

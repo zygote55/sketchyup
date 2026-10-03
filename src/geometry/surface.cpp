@@ -64,7 +64,12 @@ Vec3 Surface::normal(Id id) const {
     for (size_t i = 0; i < loop.size(); ++i)
         n = n +
             cross(vertices.at(loop[i]) - origin, vertices.at(loop[(i + 1) % loop.size()]) - origin);
-    return normalized(n);
+    // Newell's vector has area units. Comparing it with a linear tolerance
+    // incorrectly rejected small valid faces (e.g. a 0.1 mm square).
+    const auto magnitude = length(n);
+    if (!std::isfinite(magnitude) || magnitude < 2 * tolerance * tolerance)
+        throw std::runtime_error("Face area is below tolerance");
+    return n * (1 / magnitude);
 }
 std::vector<Triangle> Surface::triangulate(Id id) const {
     using namespace Clipper2Lib;
