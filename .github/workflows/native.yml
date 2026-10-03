@@ -1,0 +1,35 @@
+name: Native build
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build and software-rendering dependencies
+        run: pacman -Syu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth
+      - name: Record toolchain
+        run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
+      - name: Configure and build
+        run: |
+          cmake --preset dev
+          cmake --build --preset dev --parallel 2
+      - name: Geometry, document and persistence tests
+        run: ctest --preset dev
+      - name: Native interaction and OpenGL tests
+        run: |
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 build/dev/interaction_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 build/dev/sketchyup --smoke
+      - name: Headless recipe
+        run: |
+          build/dev/sketchyup-cli --script examples/room-shell.json --output /tmp/room.sketchyup
+          build/dev/sketchyup-cli --input /tmp/room.sketchyup
+      - name: Sanitized core without Qt
+        run: |
+          cmake --preset sanitize
+          cmake --build --preset sanitize --parallel 2
+          ctest --preset sanitize

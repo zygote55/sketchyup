@@ -1,0 +1,26 @@
+# Development archive package. Generate the source archive with scripts/package-source.sh.
+pkgname=sketchyup
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Experimental native Linux face modeler'
+arch=('x86_64')
+url='https://github.com/zygote55/sketchyup'
+license=('MIT' 'BSL-1.0')
+depends=('qt6-base' 'qt6-wayland')
+makedepends=('cmake' 'ninja' 'gcc')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('REPLACE_WITH_SOURCE_SHA256') # Filled by package-source.sh.
+
+build() {
+  cmake -S "$srcdir/$pkgname-$pkgver" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+check() {
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}
