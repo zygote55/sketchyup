@@ -37,6 +37,31 @@ int main(int argc, char **argv) {
         check(encodeDocument(source) == beforeQueries, "Queries never mutate model or revision");
         rejects(
             [&] { executeQuery(source, {{"query", "document.describe"}, {"mutation", true}}); });
+        const QJsonObject sweep{
+            {"apiVersion", 1},
+            {"documentId", QString::fromStdString(source.identity())},
+            {"expectedRevision", QString::number(source.revision())},
+            {"commands", QJsonArray{QJsonObject{{"command", "geometry.push_pull"},
+                                                {"body", "1"},
+                                                {"face", "5"},
+                                                {"distance", 2}}}}};
+        const auto historyBefore = source.historyBytes();
+        auto preview = executeQuery(source, {{"query", "geometry.preview"}, {"batch", sweep}});
+        check(preview["status"] == "preview" &&
+                  preview["geometry"].toObject()["1"].toObject()["faces"].toArray().size() == 6,
+              "Preview includes prospective topology");
+        check(encodeDocument(source) == beforeQueries && source.historyBytes() == historyBefore,
+              "Preview never changes source records, revision or history");
+        auto committed = source;
+        auto applied = executeBatch(committed, sweep);
+        check(applied["changes"] == preview["changes"] &&
+                  applied["document"] == preview["document"],
+              "Preview and commit agree at the same revision");
+        auto previewReopened = decodeContainer(encodeContainer(committed));
+        check(encodeDocument(previewReopened) == encodeDocument(committed),
+              "Push/pull container round trip");
+        committed.undo();
+        rejects([&] { previewBatch(committed, sweep); });
         QJsonArray matrix;
         for (auto value : Transform::translation({2, 0, 0}).m)
             matrix.append(value);
@@ -64,6 +89,8 @@ int main(int argc, char **argv) {
                         {"origin", QJsonArray{0, 0, 0}},
                         {"normal", QJsonArray{0, 0, 1}}},
             QJsonObject{{"command", "geometry.cleanup"}, {"body", "1"}},
+            QJsonObject{
+                {"command", "geometry.push_pull"}, {"body", "1"}, {"face", "5"}, {"distance", 2}},
             QJsonObject{{"command", "geometry.extrude_isolated"},
                         {"body", "1"},
                         {"face", "5"},

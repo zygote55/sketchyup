@@ -7,13 +7,13 @@ is MIT licensed. Arch/Omarchy is the primary development environment.
 ## Current build
 
 **Working native spike, not a complete editor or release.** Draw ground-plane
-rectangles and circles, select faces, extrude an isolated face, translate and
+rectangles and circles, select faces, push/pull planar regions, translate and
 color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation gates; editable topology is in progress. Adjacent-face
-push/pull, components, inference, recovery, AI providers,
+M1 native foundation gates; editable topology is in progress. Components,
+inference, recovery, AI providers,
 Blender integration and exchange formats are not implemented. Circle geometry is
 currently a 48-sided polygon. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
@@ -51,7 +51,7 @@ ctest --preset headless
 - `R`: rectangle. Click the first corner, then the second; or enter `width, depth`
   in Measurements and press Enter. Values are meters; pointer snapping is 0.1 m.
 - `C`: circle. Click center, then radius; or enter the radius.
-- `Space`: select. `P`: select an isolated face, enter extrusion distance.
+- `Space`: select. `P`: select a face, enter signed push/pull distance along its local normal.
 - `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
 - Middle drag or `O`: orbit. Right drag or `H`: pan. Wheel: zoom. `Shift+Z`: fit.
 - `1/2/3`: perspective/top/front. `Escape`: cancel drawing.
@@ -70,6 +70,7 @@ ctest --preset headless
 ./build/dev/sketchyup-cli --input /tmp/room.sketchyup --query geometry.inspect --context 1
 ./build/dev/sketchyup-cli --script examples/split-wire.json --output /tmp/wire.sketchyup
 ./build/dev/sketchyup-cli --script examples/planar-grid.json --output /tmp/grid.sketchyup
+./build/dev/sketchyup-cli --preview --script examples/through-opening.json
 ```
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
@@ -77,6 +78,10 @@ adjacency. The wire recipe demonstrates a loose edge and a propagated edge split
 these operations currently have command paths while direct edge tools are in progress.
 The planar-grid recipe forms four editable faces from finite segments. Planar insertion
 handles intersections, overlaps and holes within the documented arrangement limits.
+`geometry.push_pull` supports isolated profiles, complete prism caps, recessed face
+regions and push-to-opposite-face openings. Unsupported intersections reject before
+committing. Use `--preview --script recipe.json` to inspect prospective geometry and
+lineage without changing the input document; preview cannot save an output file.
 
 A script is a local JSON array, validated and committed as one batch. The in-process
 API checks document identity and revision; failed batches change nothing. This is

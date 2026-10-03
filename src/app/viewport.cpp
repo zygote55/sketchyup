@@ -738,7 +738,7 @@ bool Viewport::measurements(const QString &text) {
     }
     try {
         if (tool_ == Tool::Extrude && selected_ && selectedFace_ && values.size() == 1) {
-            doc_.extrude(selected_, selectedFace_, values[0]);
+            doc_.pushPull(selected_, selectedFace_, values[0]);
             refresh();
             emit changed();
             emit message("Extruded face. Ctrl+Z undoes this edit.");
@@ -792,7 +792,7 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     setSelection(body, face);
     if (tool_ == Tool::Extrude)
         emit message(body ? "Enter extrusion distance in meters, then press Enter"
-                          : "Select an isolated face to extrude");
+                          : "Select a face to push/pull");
 }
 void Viewport::mouseMoveEvent(QMouseEvent *e) {
     if (dragging_ && !e->buttons().testFlag(dragButton_)) {

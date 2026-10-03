@@ -1,6 +1,6 @@
 # R018: erase, explicit healing and scoped cleanup
 
-Date: 2026-10-03. Local implementation checks passed; PR merge pending.
+Date: 2026-10-03. Local and pinned CI checks passed; merged in [PR #17](https://github.com/zygote55/sketchyup/pull/17).
 
 Face erase removes only the face and keeps unsupported boundary edges as wires.
 Erasing a divider between exactly two coplanar faces joins their coverage into a
