@@ -39,6 +39,11 @@ int main(int argc, char **argv) {
                     else {
                         dialog->setDirectory(directory.path());
                         dialog->selectFile("model");
+                        // The QWidget fallback ignores selectFile while its filename
+                        // editor owns focus; exercise that editor directly.
+                        if (auto *field = dialog->findChild<QLineEdit *>("fileNameEdit");
+                            field && field->isVisible())
+                            field->setText("model");
                         QMetaObject::invokeMethod(dialog, "accept", Qt::DirectConnection);
                     }
                 } else if (auto *box = qobject_cast<QMessageBox *>(widget)) {
