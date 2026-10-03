@@ -18,5 +18,5 @@ struct PlanarResult {
 // Rebuild finite coplanar arrangements atomically. Existing explicit holes remain
 // void. Newly closed regions form faces; unrelated open networks remain wires.
 PlanarResult insertPlanarEdges(const Surface &source, Vec3 origin, Vec3 normal,
-                               const std::vector<std::array<Vec3, 2>> &edges);
+                               const std::vector<std::array<Vec3, 2>> &edges, bool heal = false);
 } // namespace sketchy

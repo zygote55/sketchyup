@@ -1,6 +1,6 @@
 # R017: tessellation and persistent picking associations
 
-Date: 2026-10-03. Local implementation checks passed; PR merge pending.
+Date: 2026-10-03. Local and pinned CI checks passed; merged in [PR #16](https://github.com/zygote55/sketchyup/pull/16).
 
 Per-body snapshots retain face IDs on derived triangles and persistent edge IDs
 on local/world edge segments. World bounds derive from authoritative vertices and

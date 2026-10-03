@@ -42,7 +42,8 @@ struct TopologyChanges {
     EntityChanges vertices, edges, faces;
 };
 TopologyChanges compareTopology(const Surface &before, const Topology &beforeTopology,
-                                const Surface &after, const Topology &afterTopology);
+                                const Surface &after, const Topology &afterTopology,
+                                bool inferEdges = true);
 // Split one edge in every incident oriented loop and loose wire, atomically.
 Id splitEdge(Surface &surface, const EdgeRecord &edge, double fraction);
 } // namespace sketchy

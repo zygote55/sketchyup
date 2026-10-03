@@ -114,7 +114,7 @@ QJsonObject capabilities() {
                                    {"bodies", 10000},
                                    {"vertices", 100000},
                                    {"batchCommands", 100}}},
-            {"limitations", QJsonArray{"No adjacent-face push/pull or automatic face merging",
+            {"limitations", QJsonArray{"No adjacent-face push/pull",
                                        "No durable transaction outcomes or remote retry protocol",
                                        "No AI provider or Blender integration"}}};
 }
@@ -171,10 +171,45 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         throw std::runtime_error("Batch must contain 1–100 commands");
     Document staged = doc;
     QJsonArray created;
-    std::map<Id, std::map<Id, std::vector<Id>>> faceLineage;
-    for (const auto &[context, body] : doc.bodies())
-        for (const auto &[face, record] : body->surface.faces)
-            faceLineage[context][face] = {face};
+    struct Lineage {
+        std::map<Id, std::vector<Id>> faces, vertices, edges;
+    };
+    std::map<Id, Lineage> lineages;
+    auto compose = [&](const ChangeReport &report) {
+        for (const auto &[context, changes] : report) {
+            if (!doc.bodies().contains(context))
+                continue;
+            if (!lineages.contains(context)) {
+                auto &initial = lineages[context];
+                const auto &body = *doc.bodies().at(context);
+                for (const auto &[id, record] : body.surface.faces)
+                    initial.faces[id] = {id};
+                for (const auto &[id, record] : body.surface.vertices)
+                    initial.vertices[id] = {id};
+                for (const auto &[id, record] : body.topology.edges)
+                    initial.edges[id] = {id};
+            }
+            auto update = [](auto &mapping, const EntityChanges &step) {
+                for (auto &[source, descendants] : mapping) {
+                    std::vector<Id> next;
+                    for (auto id : descendants) {
+                        const auto found = step.descendants.find(id);
+                        if (found == step.descendants.end())
+                            next.push_back(id);
+                        else
+                            next.insert(next.end(), found->second.begin(), found->second.end());
+                    }
+                    std::sort(next.begin(), next.end());
+                    next.erase(std::unique(next.begin(), next.end()), next.end());
+                    descendants = std::move(next);
+                }
+            };
+            auto &mapping = lineages.at(context);
+            update(mapping.faces, changes.faces);
+            update(mapping.vertices, changes.vertices);
+            update(mapping.edges, changes.edges);
+        }
+    };
     for (const auto &value : commands) {
         if (!value.isObject())
             throw std::runtime_error("Expected command object");
@@ -213,27 +248,23 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                 edges.push_back({point(edge[0]), point(edge[1])});
             }
             const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
-            const auto report = staged.insertEdges(context, point(command["origin"]),
-                                                   point(command["normal"]), edges);
-            for (const auto &[body, changes] : report)
-                for (auto &[source, descendants] : faceLineage[body]) {
-                    std::vector<Id> next;
-                    for (auto face : descendants) {
-                        auto found = changes.faces.descendants.find(face);
-                        if (found == changes.faces.descendants.end())
-                            next.push_back(face);
-                        else
-                            next.insert(next.end(), found->second.begin(), found->second.end());
-                    }
-                    std::sort(next.begin(), next.end());
-                    next.erase(std::unique(next.begin(), next.end()), next.end());
-                    descendants = std::move(next);
-                }
+            compose(staged.insertEdges(context, point(command["origin"]), point(command["normal"]),
+                                       edges));
         } else if (name == "geometry.wire") {
             const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
             staged.addWire(context, point(command["start"]), point(command["end"]));
         } else if (name == "geometry.split_edge") {
-            staged.splitEdge(id(command["body"]), id(command["edge"]), number(command["fraction"]));
+            compose(staged.splitEdge(id(command["body"]), id(command["edge"]),
+                                     number(command["fraction"])));
+        } else if (name == "geometry.erase_face") {
+            compose(staged.eraseFace(id(command["body"]), id(command["face"])));
+        } else if (name == "geometry.erase_edge") {
+            compose(staged.eraseEdge(id(command["body"]), id(command["edge"])));
+        } else if (name == "geometry.heal_face") {
+            compose(staged.healFace(id(command["body"]), id(command["edge"]),
+                                    point(command["origin"]), point(command["normal"])));
+        } else if (name == "geometry.cleanup") {
+            compose(staged.cleanup(id(command["body"])));
         } else if (name == "geometry.extrude_isolated") {
             fields(command, {"command", "body", "face", "distance"});
             staged.extrude(id(command["body"]), id(command["face"]), number(command["distance"]));
@@ -275,12 +306,18 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         auto before = doc.bodies().contains(id) ? doc.bodies().at(id) : nullptr;
         auto after = staged.bodies().contains(id) ? staged.bodies().at(id) : nullptr;
         if (before != after) {
-            auto lineage = faceLineage[id];
-            for (auto &[source, targets] : lineage)
-                std::erase_if(targets, [&](Id target) {
-                    return !after || !after->surface.faces.contains(target);
-                });
-            edit.changes.push_back({id, before, after, std::move(lineage)});
+            auto mapping = lineages.contains(id) ? lineages.at(id) : Lineage{};
+            auto prune = [](auto &map, const auto &records) {
+                for (auto &[source, targets] : map)
+                    std::erase_if(targets, [&](Id target) { return !records.contains(target); });
+            };
+            const Body empty;
+            const auto &body = after ? *after : empty;
+            prune(mapping.faces, body.surface.faces);
+            prune(mapping.vertices, body.surface.vertices);
+            prune(mapping.edges, body.topology.edges);
+            edit.changes.push_back({id, before, after, std::move(mapping.faces),
+                                    std::move(mapping.vertices), std::move(mapping.edges)});
         }
     }
     if (edit.changes.empty())

@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QJsonDocument>
 #include <iostream>
+#include <set>
 using namespace sketchy;
 void check(bool value, const char *message) {
     if (!value)
@@ -55,6 +56,14 @@ int main(int argc, char **argv) {
                         {"end", QJsonArray{1, 1, 1}}},
             QJsonObject{
                 {"command", "geometry.split_edge"}, {"body", "1"}, {"edge", "1"}, {"fraction", .5}},
+            QJsonObject{{"command", "geometry.erase_face"}, {"body", "1"}, {"face", "5"}},
+            QJsonObject{{"command", "geometry.erase_edge"}, {"body", "1"}, {"edge", "1"}},
+            QJsonObject{{"command", "geometry.heal_face"},
+                        {"body", "1"},
+                        {"edge", "1"},
+                        {"origin", QJsonArray{0, 0, 0}},
+                        {"normal", QJsonArray{0, 0, 1}}},
+            QJsonObject{{"command", "geometry.cleanup"}, {"body", "1"}},
             QJsonObject{{"command", "geometry.extrude_isolated"},
                         {"body", "1"},
                         {"face", "5"},
@@ -79,6 +88,16 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"] == "geometry.heal_face")
+                doc.eraseFace(1, 5);
+            if (command["command"] == "geometry.cleanup") {
+                auto before = doc.bodies().at(1);
+                auto body = std::make_shared<Body>(*before);
+                const auto duplicate = body->surface.nextId++;
+                body->surface.vertices[duplicate] = body->surface.vertices.begin()->second;
+                doc.apply({"Duplicate fixture", {{1, before, body}}}, doc.revision());
+            }
+            const auto baseline = doc;
             const auto original = encodeDocument(doc);
             for (auto key : schema["required"].toArray()) {
                 auto missing = command;
@@ -94,12 +113,12 @@ int main(int argc, char **argv) {
             executeBatch(doc, request(doc, command));
             check(doc.revision() == revision + 1, "Registered command commits once");
             doc.undo();
-            auto expectedBody = *source.bodies().at(1);
+            auto expectedBody = *baseline.bodies().at(1);
             check(doc.bodies().at(1)->surface.nextId >= expectedBody.surface.nextId,
                   "Undo retains surface allocator high-water mark");
             expectedBody.surface.nextId = doc.bodies().at(1)->surface.nextId;
             expectedBody.topology.nextId = doc.bodies().at(1)->topology.nextId;
-            check(doc.bodies().size() == source.bodies().size() &&
+            check(doc.bodies().size() == baseline.bodies().size() &&
                       *doc.bodies().at(1) == expectedBody,
                   "Registered command undo restores source geometry and metadata");
         }
@@ -149,6 +168,57 @@ int main(int argc, char **argv) {
         });
         check(encodeDocument(subdivided) == beforeFailure,
               "Invalid later insertion rolls back the whole batch");
+        Document seam;
+        auto body = std::make_shared<Body>();
+        body->id = 1;
+        body->surface.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}});
+        const auto adjacent = body->surface.addFace({{{2, 0, 0}, {4, 0, 0}, {4, 2, 0}, {2, 2, 0}}});
+        std::set<Id> duplicated;
+        for (auto &vertex : body->surface.faces.at(adjacent).loops[0])
+            if (body->surface.vertices.at(vertex).x == 2) {
+                const auto copy = body->surface.nextId++;
+                body->surface.vertices[copy] = body->surface.vertices.at(vertex);
+                duplicated.insert(copy);
+                vertex = copy;
+            }
+        seam.apply({"Seam fixture", {{1, nullptr, body}}}, seam.revision());
+        auto seamBefore = seam.bodies().at(1);
+        Id keptEdge = 0, duplicateEdge = 0;
+        for (const auto &[id, edge] : seamBefore->topology.edges)
+            if (seamBefore->surface.vertices.at(edge.a).x == 2 &&
+                seamBefore->surface.vertices.at(edge.b).x == 2) {
+                if (duplicated.contains(edge.a))
+                    duplicateEdge = id;
+                else
+                    keptEdge = id;
+            }
+        check(keptEdge && duplicateEdge, "Seam edge fixture");
+        const auto seamResult = executeBatch(
+            seam,
+            {{"apiVersion", 1},
+             {"documentId", QString::fromStdString(seam.identity())},
+             {"expectedRevision", QString::number(seam.revision())},
+             {"commands", QJsonArray{QJsonObject{{"command", "geometry.cleanup"}, {"body", "1"}},
+                                     QJsonObject{{"command", "geometry.split_edge"},
+                                                 {"body", "1"},
+                                                 {"edge", QString::number(keptEdge)},
+                                                 {"fraction", .5}}}}});
+        const auto descendants = seamResult["changes"]
+                                     .toObject()["1"]
+                                     .toObject()["edges"]
+                                     .toObject()["descendants"]
+                                     .toObject();
+        check(descendants[QString::number(duplicateEdge)].toArray().size() == 2 &&
+                  descendants[QString::number(duplicateEdge)] ==
+                      descendants[QString::number(keptEdge)],
+              "Cleanup-to-retained-edge lineage composes with subsequent split");
+        const auto persisted = decodeContainer(encodeContainer(seam));
+        check(*persisted.bodies().at(1) == *seam.bodies().at(1),
+              "Cleanup/split batch persists exact merged topology");
+        seam.undo();
+        check(seam.bodies().at(1)->topology.edges == seamBefore->topology.edges &&
+                  seam.bodies().at(1)->surface.vertices == seamBefore->surface.vertices,
+              "Cleanup/split batch is one reversible operation");
         Document color = source;
         rejects([&] {
             executeBatch(
