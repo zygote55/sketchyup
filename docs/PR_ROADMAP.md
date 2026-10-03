@@ -58,6 +58,7 @@ The planning PR #1 is merged. No M0 parent row is yet Verified.
 | R002.b | Persistent buffers, transparency/clipping pixel tests, context recreation, physical-output checks, independent-triangle benchmark ([evidence](verification/R002-viewport.md)) | Review/merge; full editor performance remains later work |
 | R002.c | Native dialogs and cross-window pointer capture acceptance; requires R002.b | Save/overwrite and pointer-loss fixes, native-enabled dialog/event tests ([evidence](verification/R002-desktop.md)); physical compositor acceptance remains open |
 | R003.a | Loop/vertex topology, holes, radial adjacency and isolated extrusion corpus | R003.b stable edge IDs/maps, arrangement and precision experiments |
+| R003.b | Isolated planar partitions, hole reconstruction, stable edge and split/merge identity experiment ([evidence](verification/R003-arrangements.md)) | Review/merge; production topology propagation and persistence remain M2 |
 | R004.a | Identity/revision, staged edits, bounded history, experimental JSON and atomic-save tests | R004.b container benchmarks, journal/outcome and migration contracts |
 | R005 | Vendor-source research and explicit unsupported SKP/DWG decisions | Review evidence; compatibility delivery remains conditional |
 
