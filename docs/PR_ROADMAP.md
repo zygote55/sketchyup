@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0 and M1 gates passed; M2 topology in progress. Updated: 2026-10-03.
+Status: M0–M2 gates passed; M3 drawing interaction in progress. Updated: 2026-10-03.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -67,7 +67,8 @@ merged in [PR #14](https://github.com/zygote55/sketchyup/pull/14); R016 is merge
 associations are merged in [PR #16](https://github.com/zygote55/sketchyup/pull/16).
 R018 erase/healing and scoped cleanup are merged in [PR #17](https://github.com/zygote55/sketchyup/pull/17).
 R019 face push/pull and through openings are merged in [PR #18](https://github.com/zygote55/sketchyup/pull/18).
-R020 regression checks pass locally; [M2 acceptance](verification/M2.md) awaits its CI/merge.
+R020 is merged in [PR #19](https://github.com/zygote55/sketchyup/pull/19), and the [M2 gate](verification/M2.md) passes.
+R021 tool lifecycle and camera interleaving are locally verified.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -385,7 +386,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R020 — Establish the geometry regression and fuzzing gate
 
-**Status:** Verified locally; CI/merge pending. **Evidence:** [geometry regression gate](verification/R020-geometry-gate.md). **Track:** Quality. **Scope:** D06, G01, G02, E01, E09. **UX:** —.
+**Status:** Verified. **Evidence:** [geometry regression gate](verification/R020-geometry-gate.md). **Track:** Quality. **Scope:** D06, G01, G02, E01, E09. **UX:** —.
 
 **Requires:** [R019](#r019); milestone gate rule above.
 
@@ -399,7 +400,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R021 — Implement tool lifecycle and camera interleaving
 
-**Status:** Planned. **Track:** Desktop. **Scope:** N03, G03, E01. **UX:** §4.1–§4.2.
+**Status:** Verified locally. **Evidence:** [tool lifecycle](verification/R021-tool-lifecycle.md). **Track:** Desktop. **Scope:** N03, G03, E01. **UX:** §4.1–§4.2.
 
 **Requires:** [R013](#r013), [R011](#r011), [R019](#r019); milestone gate rule above.
 

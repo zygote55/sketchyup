@@ -24,6 +24,7 @@ jobs:
         run: ctest --preset dev
       - name: Native interaction and OpenGL tests
         run: |
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/tool_lifecycle_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/interaction_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/sketchyup --smoke
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/viewport_tests

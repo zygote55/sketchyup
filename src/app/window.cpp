@@ -209,11 +209,12 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     };
     addTool("Select", "Space", Viewport::Tool::Select, "Select a face · Delete removes its object")
         ->setChecked(true);
+    addTool("Line", "L", Viewport::Tool::Line, "Click first point · Click or drag to endpoint");
     addTool("Rectangle", "R", Viewport::Tool::Rectangle,
             "Click first corner · Then click opposite corner or enter width, depth");
     addTool("Circle", "C", Viewport::Tool::Circle,
             "Click center · Then click radius or enter a radius");
-    addTool("Extrude", "P", Viewport::Tool::Extrude,
+    addTool("Push/pull", "P", Viewport::Tool::Extrude,
             "Select a face · Enter push/pull distance in meters");
     tools->addSeparator();
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
@@ -274,6 +275,10 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             removeAction(a);
             viewport_->addAction(a);
         }
+    connect(viewport_, &Viewport::toolChanged, this, [this](int mode) {
+        if (auto *toolAction = findChild<QAction *>("tool." + QString::number(mode)))
+            toolAction->setChecked(true);
+    });
     connect(viewport_, &Viewport::changed, this, &Window::sync);
     connect(viewport_, &Viewport::message, status_, &QLabel::setText);
     connect(viewport_, &Viewport::selected, this, [this](qulonglong, qulonglong) { sync(); });

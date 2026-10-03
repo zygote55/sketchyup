@@ -1,6 +1,6 @@
 # R020: geometry regression and seeded edit gate
 
-Date: 2026-10-03. Local gate checks passed; pinned CI and merge pending.
+Date: 2026-10-03. Local and pinned CI checks passed; merged in [PR #19](https://github.com/zygote55/sketchyup/pull/19).
 
 The default deterministic corpus runs 48 seeds with 24 edit attempts each. It
 mixes edge subdivision, face push/pull, transforms, face erase, explicit healing,
