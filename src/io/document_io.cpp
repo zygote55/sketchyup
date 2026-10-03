@@ -1,9 +1,7 @@
 #include "io/document_io.hpp"
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 #include <limits>
 namespace sketchy {
 namespace {
@@ -31,6 +29,11 @@ QJsonObject object(const QJsonValue &v) {
     if (!v.isObject())
         throw std::runtime_error("Expected object");
     return v.toObject();
+}
+void supportedFields(const QJsonObject &record, const QStringList &allowed) {
+    for (auto it = record.begin(); it != record.end(); ++it)
+        if (!allowed.contains(it.key()))
+            throw std::runtime_error("Unsupported document field: " + it.key().toStdString());
 }
 } // namespace
 QByteArray encodeDocument(const Document &doc) {
@@ -102,6 +105,8 @@ Document decodeDocument(const QByteArray &bytes) {
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
+    supportedFields(
+        root, {"format", "version", "revision", "units", "up", "documentId", "nextId", "bodies"});
     auto records = array(root["bodies"]);
     if (records.size() > 10000)
         throw std::runtime_error("Too many bodies");
@@ -109,6 +114,8 @@ Document decodeDocument(const QByteArray &bytes) {
     size_t totalVertices = 0, totalFaces = 0;
     for (auto record : records) {
         auto o = object(record);
+        supportedFields(o, {"id", "name", "color", "parent", "transform", "properties", "nextId",
+                            "vertices", "faces", "wires"});
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
         if (!o["name"].isString())
@@ -160,6 +167,7 @@ Document decodeDocument(const QByteArray &bytes) {
         }
         for (auto face : faces) {
             auto f = object(face);
+            supportedFields(f, {"id", "loops"});
             Face out;
             out.id = readId(f["id"]);
             for (auto loop : array(f["loops"])) {
@@ -186,24 +194,5 @@ Document decodeDocument(const QByteArray &bytes) {
                 std::move(bodies),
                 root["version"].toInt() == 2 ? readId(root["revision"], true) : 0);
     return doc;
-}
-void saveDocument(Document &doc, const QString &path) {
-    const auto bytes = encodeDocument(doc);
-    QSaveFile file(path);
-    file.setDirectWriteFallback(false);
-    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
-        throw std::runtime_error(("Could not save: " + file.errorString()).toStdString());
-    doc.markSaved();
-}
-Document loadDocument(const QString &path) {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        throw std::runtime_error(f.errorString().toStdString());
-    if (f.size() > fileLimit)
-        throw std::runtime_error("Document exceeds the 32 MiB file limit");
-    auto bytes = f.read(fileLimit + 1);
-    if (f.error() != QFileDevice::NoError)
-        throw std::runtime_error(f.errorString().toStdString());
-    return decodeDocument(bytes);
 }
 } // namespace sketchy

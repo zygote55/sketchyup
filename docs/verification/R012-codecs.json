@@ -1,0 +1,118 @@
+{
+    "build": "debug",
+    "compiler": "16.2.1 20260810",
+    "kernel": "7.2.5-3-omarchy",
+    "peakRssKiB": 87952,
+    "platform": "Omarchy",
+    "qt": "6.11.2",
+    "results": [
+        {
+            "bodies": 1,
+            "bytes": 1055,
+            "codec": "json",
+            "decodeMs": 0.0818742,
+            "encodeMs": 0.064334,
+            "fixtureSha256": "6feffef600fe50fd00f605f15da8a9172397e745e495d75bd2666d73bf5a5d07",
+            "validateMs": 0.72417
+        },
+        {
+            "bodies": 1,
+            "bytes": 819,
+            "codec": "cbor",
+            "decodeMs": 0.1653914,
+            "encodeMs": 0.0288572,
+            "fixtureSha256": "6feffef600fe50fd00f605f15da8a9172397e745e495d75bd2666d73bf5a5d07",
+            "validateMs": 0.728245
+        },
+        {
+            "bodies": 1,
+            "bytes": 421,
+            "codec": "compressed-json",
+            "decodeMs": 0.084784,
+            "encodeMs": 0.19722900000000002,
+            "fixtureSha256": "6feffef600fe50fd00f605f15da8a9172397e745e495d75bd2666d73bf5a5d07",
+            "validateMs": 0.696995
+        },
+        {
+            "bodies": 1,
+            "bytes": 1436,
+            "codec": "container-v2",
+            "decodeMs": 1.1429434,
+            "encodeMs": 0.35713800000000007,
+            "fixtureSha256": "6feffef600fe50fd00f605f15da8a9172397e745e495d75bd2666d73bf5a5d07",
+            "validateMs": 0.635606
+        },
+        {
+            "bodies": 100,
+            "bytes": 94746,
+            "codec": "json",
+            "decodeMs": 3.8520716,
+            "encodeMs": 3.6861465999999994,
+            "fixtureSha256": "0414ce5fc7ba545f1fec39eeaee27a2a7e9a638a825dfa3012819f33d18a4c60",
+            "validateMs": 50.802526
+        },
+        {
+            "bodies": 100,
+            "bytes": 71738,
+            "codec": "cbor",
+            "decodeMs": 11.850902399999999,
+            "encodeMs": 1.6291148,
+            "fixtureSha256": "0414ce5fc7ba545f1fec39eeaee27a2a7e9a638a825dfa3012819f33d18a4c60",
+            "validateMs": 50.784622
+        },
+        {
+            "bodies": 100,
+            "bytes": 6456,
+            "codec": "compressed-json",
+            "decodeMs": 3.944779799999999,
+            "encodeMs": 5.986198,
+            "fixtureSha256": "0414ce5fc7ba545f1fec39eeaee27a2a7e9a638a825dfa3012819f33d18a4c60",
+            "validateMs": 52.050508
+        },
+        {
+            "bodies": 100,
+            "bytes": 96113,
+            "codec": "container-v2",
+            "decodeMs": 72.6136686,
+            "encodeMs": 13.352737600000001,
+            "fixtureSha256": "0414ce5fc7ba545f1fec39eeaee27a2a7e9a638a825dfa3012819f33d18a4c60",
+            "validateMs": 53.498108
+        },
+        {
+            "bodies": 1000,
+            "bytes": 963808,
+            "codec": "json",
+            "decodeMs": 39.306282599999996,
+            "encodeMs": 39.291929,
+            "fixtureSha256": "a4014370ef05fea056f6bba54616eb057b522e0de15dab3fd843acf711af9ef4",
+            "validateMs": 523.296487
+        },
+        {
+            "bodies": 1000,
+            "bytes": 725261,
+            "codec": "cbor",
+            "decodeMs": 110.45978840000001,
+            "encodeMs": 15.272687000000001,
+            "fixtureSha256": "a4014370ef05fea056f6bba54616eb057b522e0de15dab3fd843acf711af9ef4",
+            "validateMs": 441.809032
+        },
+        {
+            "bodies": 1000,
+            "bytes": 60052,
+            "codec": "compressed-json",
+            "decodeMs": 39.40678079999999,
+            "encodeMs": 63.60688699999999,
+            "fixtureSha256": "a4014370ef05fea056f6bba54616eb057b522e0de15dab3fd843acf711af9ef4",
+            "validateMs": 537.574776
+        },
+        {
+            "bodies": 1000,
+            "bytes": 975078,
+            "codec": "container-v2",
+            "decodeMs": 1008.7748562,
+            "encodeMs": 182.257676,
+            "fixtureSha256": "a4014370ef05fea056f6bba54616eb057b522e0de15dab3fd843acf711af9ef4",
+            "validateMs": 853.608732
+        }
+    ]
+}

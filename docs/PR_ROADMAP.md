@@ -58,7 +58,8 @@ R007/R008 foundation work is merged in [PR #9](https://github.com/zygote55/sketc
 properties, revision persistence and original-schema migration. See
 [foundation evidence](verification/R007-R008-foundation.md).
 R009/R010/R013 are in merged [PR #10](https://github.com/zygote55/sketchyup/pull/10).
-R011 incremental viewport work is in progress. M1 remains open.
+R011 incremental viewport work is merged in [PR #11](https://github.com/zygote55/sketchyup/pull/11).
+R012 durable container work is verified locally; R014 packaging remains before M1 acceptance.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -278,7 +279,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R012 — Implement native save/load and truthful save state
 
-**Status:** Planned. **Track:** Core. **Scope:** D02, D04. **UX:** §6.1–§6.2.
+**Status:** Verified (foundation scope). **Evidence:** [durable container and save](verification/R012-durable-save.md). **Track:** Core. **Scope:** D02, D04. **UX:** §6.1–§6.2.
 
 **Requires:** [R009](#r009), [R010](#r010); milestone gate rule above.
 

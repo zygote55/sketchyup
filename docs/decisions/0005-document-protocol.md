@@ -1,7 +1,8 @@
 # ADR 0005: document, container and durable command contracts
 
 Date: 2026-10-03. R004.b. Status: selected contract for implementation; the current
-v1 JSON spike does not implement this container or recovery protocol.
+R012 implements the bounded single-document container and explicit durable save.
+Journal recovery and durable remote outcomes remain future work.
 
 ## Identity and coordinates
 
@@ -70,7 +71,7 @@ Chunk offsets are relative to the payload region. Manifest contains document ID,
 epoch, revision, writer version, units/up, required feature set, allocator floors,
 and chunk descriptors `{kind, encoding, offset, bytes, sha256}`. Integers that
 could exceed JSON's exact range are decimal strings. Exactly one `document`
-chunk is required. Its initial encoding is `json-v1`; asset chunks use `raw`.
+chunk is required. Its initial encoding is `json-v2`; asset chunks use `raw`.
 An optional thumbnail is non-authoritative. Chunk SHA-256 covers the exact bytes.
 
 Readers reject overflow, overlapping ranges, duplicate required chunks, bad
@@ -81,12 +82,21 @@ name is a filesystem path. Initial limits: 1 MiB manifest, 32 MiB document chunk
 256 MiB total file, 4096 chunks, 64 MiB per asset, 128 MiB aggregate assets. Limits
 are checked before allocating or decoding. R033 revisits these with real assets.
 
-The experimental raw JSON v1 is recognized explicitly and migrated in memory to
+The experimental raw JSON v1 and raw schema v2 are recognized explicitly and migrated in memory to
 the envelope model. Migrations run on a copy, preserve IDs and original source,
 and require an explicit successful save before replacing any file. Forward
 migration chains are versioned fixture-tested functions. No downgrade or silent
 unknown-required-field dropping. A file requiring persistent edges cannot claim
 it is readable by the original spike reader.
+
+R012 supports exactly one document chunk, manifest ≤1 MiB and document ≤32 MiB
+(total ≤16 + 1 MiB + 32 MiB). It rejects additional chunks and unknown manifest,
+chunk or document fields rather than discarding data. The larger asset budgets
+above are reserved for R033. Epoch is fixed at `"1"` until the recovery protocol
+introduces epoch rotation. No remote at-most-once or cross-session replay guarantee
+is implied by this initial envelope. Schema v2 contains transform/property records;
+raw v1 migrates those to identity transforms/empty properties. The allocator floor
+manifest repeats body/live-surface high-water marks and must agree with the payload.
 
 ## Save and recovery ordering
 

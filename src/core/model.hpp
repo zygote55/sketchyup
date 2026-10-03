@@ -29,7 +29,14 @@ struct Edit {
     Id nextIdFloor{};
 };
 class Document {
+    struct State {};
+    using StatePtr = std::shared_ptr<const State>;
+
   public:
+    class SaveStamp {
+        friend class Document;
+        StatePtr session, state;
+    };
     const std::map<Id, BodyPtr> &bodies() const { return bodies_; }
     std::uint64_t revision() const { return revision_; }
     Id nextId() const { return nextId_; }
@@ -52,6 +59,9 @@ class Document {
     void apply(Edit edit, std::uint64_t expectedRevision);
     void undo();
     void redo();
+    SaveStamp saveStamp() const;
+    bool owns(const SaveStamp &stamp) const { return stamp.session == session_; }
+    bool markSaved(const SaveStamp &stamp);
     void markSaved() { savedState_ = state_; }
     void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
                  std::uint64_t revision = 0);
@@ -61,10 +71,12 @@ class Document {
     std::map<Id, BodyPtr> bodies_;
     Id nextId_{1};
     std::map<Id, Id> surfaceFloors_;
-    std::uint64_t revision_{0}, state_{0}, savedState_{0}, stateCounter_{0};
+    std::uint64_t revision_{0};
+    StatePtr session_{std::make_shared<State>()};
+    StatePtr state_{std::make_shared<State>()}, savedState_{state_};
     struct History {
         Edit edit;
-        std::uint64_t before, after;
+        StatePtr before, after;
     };
     std::deque<History> undo_, redo_;
     size_t historyBytes_{};
