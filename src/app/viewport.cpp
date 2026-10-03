@@ -26,10 +26,15 @@ void Viewport::cleanupGL() {
     disconnect(contextCleanup_);
     if (context()) {
         makeCurrent();
-        for (auto *batch : {&opaqueGpu_, &linesGpu_, &transparentGpu_, &benchmarkGpu_}) {
+        for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_}) {
             batch->buffer.destroy();
             batch->count = 0;
         }
+        for (auto &[id, cache] : bodyCaches_)
+            for (auto *batch : {&cache->opaqueGpu, &cache->linesGpu}) {
+                batch->buffer.destroy();
+                batch->count = 0;
+            }
         vao_.destroy();
         shader_.reset();
         doneCurrent();
@@ -38,6 +43,7 @@ void Viewport::cleanupGL() {
     cacheDirty_ = true;
     transparentDirty_ = true;
     benchmarkDirty_ = true;
+    gridDirty_ = true;
 }
 void Viewport::initializeGL() {
     ready_ = false;
@@ -81,7 +87,7 @@ void main() {
         emit message("Could not create the viewport vertex array");
         return;
     }
-    for (auto *batch : {&opaqueGpu_, &linesGpu_, &transparentGpu_, &benchmarkGpu_}) {
+    for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_}) {
         if (!batch->buffer.create()) {
             emit message("Could not create a viewport buffer");
             return;
@@ -93,6 +99,7 @@ void main() {
     transparentDirty_ = true;
     benchmarkDirty_ = true;
     ready_ = true;
+    gridDirty_ = true;
 }
 QMatrix4x4 Viewport::matrix() const {
     QMatrix4x4 projection, view;
@@ -176,71 +183,143 @@ std::pair<Id, Id> Viewport::pick(QPointF p) const {
     return hit;
 }
 void Viewport::rebuild() {
-    triangles_.clear();
-    lines_.clear();
     picking_.clear();
     transparent_.clear();
     if (cachedDocument_ != doc_.identity()) {
         opacity_.clear();
+        bodyCaches_.clear(); // Rebuild runs with the owning GL context current.
         cachedDocument_ = doc_.identity();
+        transparentDirty_ = true;
     }
     std::erase_if(opacity_, [&](const auto &item) { return !doc_.bodies().contains(item.first); });
+    std::erase_if(bodyCaches_, [&](const auto &item) {
+        if (doc_.bodies().contains(item.first))
+            return false;
+        if (!item.second->transparent.empty())
+            transparentDirty_ = true;
+        return true;
+    });
     auto vertex = [](Vec3 p, std::array<float, 3> c) {
         return Vertex{float(p.x), float(p.y), float(p.z), c[0], c[1], c[2]};
     };
-    for (int i = -50; i <= 50; ++i) {
-        const float shade =
-            colors_.dark ? ((i % 5 == 0) ? .27f : .21f) : ((i % 5 == 0) ? .79f : .87f);
-        for (auto p : {Vec3{double(i), -50, 0}, Vec3{double(i), 50, 0}, Vec3{-50, double(i), 0},
-                       Vec3{50, double(i), 0}})
-            lines_.push_back(vertex(p, {shade, shade, shade}));
-    }
-    for (const auto &[id, b] : doc_.bodies()) {
-        float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
-        if (alpha == 0)
-            continue;
-        for (auto t : doc_.worldTriangles(id)) {
-            picking_.push_back({t, id});
-            auto n = normalized(cross(t.b - t.a, t.c - t.a));
-            float light = .64f + .36f * std::abs(dot(n, normalized({.3, -.5, .8})));
-            auto color = b->color;
-            if (id == selected_)
-                color = {.83f, .66f, .40f};
-            if (id == selected_ && t.face == selectedFace_)
-                color = {.94f, .72f, .38f};
-            for (auto &c : color)
-                c *= light;
-            std::array<Vertex, 3> triangle{vertex(t.a, color), vertex(t.b, color),
-                                           vertex(t.c, color)};
-            for (auto &v : triangle)
-                v.a = alpha;
-            if (alpha < 1)
-                transparent_.push_back(triangle);
-            else
-                triangles_.insert(triangles_.end(), triangle.begin(), triangle.end());
+    if (gridDirty_) {
+        std::vector<Vertex> grid;
+        for (int i = -50; i <= 50; ++i) {
+            const float shade =
+                colors_.dark ? ((i % 5 == 0) ? .27f : .21f) : ((i % 5 == 0) ? .79f : .87f);
+            for (auto p : {Vec3{double(i), -50, 0}, Vec3{double(i), 50, 0}, Vec3{-50, double(i), 0},
+                           Vec3{50, double(i), 0}})
+                grid.push_back(vertex(p, {shade, shade, shade}));
         }
-        const auto world = doc_.worldTransform(id);
-        for (auto e : b->surface.edges())
-            for (auto p : {b->surface.vertices.at(e.a), b->surface.vertices.at(e.b)})
-                lines_.push_back(vertex(world.point(p), {.19f, .24f, .23f}));
+        auto axis = [&](Vec3 a, Vec3 b, std::array<float, 3> color) {
+            grid.push_back(vertex(a, color));
+            grid.push_back(vertex(b, color));
+        };
+        axis({0, 0, .002}, {8, 0, .002}, {.72f, .30f, .26f});
+        axis({0, 0, .002}, {0, 8, .002}, {.29f, .52f, .35f});
+        axis({0, 0, 0}, {0, 0, 5}, {.29f, .46f, .70f});
+        upload(gridGpu_, grid);
+        gridDirty_ = false;
     }
-    auto line = [&](Vec3 a, Vec3 b, std::array<float, 3> c) {
-        lines_.push_back(vertex(a, c));
-        lines_.push_back(vertex(b, c));
-    };
-    line({0, 0, .002}, {8, 0, .002}, {.72f, .30f, .26f});
-    line({0, 0, .002}, {0, 8, .002}, {.29f, .52f, .35f});
-    line({0, 0, 0}, {0, 0, 5}, {.29f, .46f, .70f});
-    upload(opaqueGpu_, triangles_);
-    upload(linesGpu_, lines_);
+    for (const auto &[id, body] : doc_.bodies()) {
+        if (!bodyCaches_.contains(id))
+            bodyCaches_.emplace(id, std::make_unique<BodyCache>());
+        auto &cache = *bodyCaches_.at(id);
+        const auto world = doc_.worldTransform(id);
+        const float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
+        const bool selected = selected_ == id;
+        const auto selectedFace = selected ? selectedFace_ : 0;
+        const bool meshChanged =
+            !cache.record || (cache.record != body && cache.record->surface != body->surface);
+        const bool worldChanged = meshChanged || !cache.record || cache.world != world;
+        const bool appearanceChanged = worldChanged || !cache.record ||
+                                       cache.record->color != body->color || cache.alpha != alpha ||
+                                       cache.selected != selected ||
+                                       cache.selectedFace != selectedFace;
+        if (meshChanged) {
+            cache.localTriangles = body->surface.triangles();
+            cache.localEdges.clear();
+            for (const auto &edge : body->surface.edges()) {
+                cache.localEdges.push_back(body->surface.vertices.at(edge.a));
+                cache.localEdges.push_back(body->surface.vertices.at(edge.b));
+            }
+            ++stats_.bodyMeshBuilds;
+        }
+        if (worldChanged) {
+            cache.worldTriangles = cache.localTriangles;
+            for (auto &triangle : cache.worldTriangles) {
+                triangle.a = world.point(triangle.a);
+                triangle.b = world.point(triangle.b);
+                triangle.c = world.point(triangle.c);
+            }
+            ++stats_.bodyWorldUpdates;
+        }
+        if (appearanceChanged) {
+            if (!cache.transparent.empty() || (alpha > 0 && alpha < 1))
+                transparentDirty_ = true;
+            cache.opaque.clear();
+            cache.lines.clear();
+            cache.transparent.clear();
+            if (alpha > 0) {
+                for (const auto &triangle : cache.worldTriangles) {
+                    const auto crossProduct =
+                        cross(triangle.b - triangle.a, triangle.c - triangle.a);
+                    const auto magnitude = length(crossProduct);
+                    if (magnitude == 0)
+                        continue;
+                    const auto normal = crossProduct * (1 / magnitude);
+                    const float light =
+                        .64f + .36f * std::abs(dot(normal, normalized({.3, -.5, .8})));
+                    auto color = body->color;
+                    if (selected)
+                        color = {.83f, .66f, .40f};
+                    if (selected && triangle.face == selectedFace)
+                        color = {.94f, .72f, .38f};
+                    for (auto &component : color)
+                        component *= light;
+                    std::array<Vertex, 3> vertices{vertex(triangle.a, color),
+                                                   vertex(triangle.b, color),
+                                                   vertex(triangle.c, color)};
+                    for (auto &v : vertices)
+                        v.a = alpha;
+                    if (alpha < 1)
+                        cache.transparent.push_back(vertices);
+                    else
+                        cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
+                }
+                for (auto point : cache.localEdges)
+                    cache.lines.push_back(vertex(world.point(point), {.19f, .24f, .23f}));
+            }
+        }
+        if (appearanceChanged || !cache.opaqueGpu.buffer.isCreated() ||
+            !cache.linesGpu.buffer.isCreated()) {
+            upload(cache.opaqueGpu, cache.opaque);
+            upload(cache.linesGpu, cache.lines);
+            ++stats_.bodyUploads;
+        }
+        cache.record = body;
+        cache.world = world;
+        cache.alpha = alpha;
+        cache.selected = selected;
+        cache.selectedFace = selectedFace;
+        if (alpha > 0)
+            for (const auto &triangle : cache.worldTriangles)
+                picking_.push_back({triangle, id});
+        transparent_.insert(transparent_.end(), cache.transparent.begin(), cache.transparent.end());
+    }
+    stats_.cachedBodies = bodyCaches_.size();
     stats_.meshTriangles = picking_.size();
-    transparentDirty_ = true;
     cachedRevision_ = doc_.revision();
     cacheDirty_ = false;
 }
 void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent) {
     if (vertices.size() > size_t(std::numeric_limits<int>::max()) / sizeof(Vertex))
         throw std::runtime_error("Viewport buffer exceeds the supported size");
+    if (!batch.buffer.isCreated()) {
+        if (!batch.buffer.create())
+            throw std::runtime_error("Could not create viewport buffer");
+        batch.buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    }
     batch.buffer.bind();
     batch.buffer.allocate(vertices.data(), int(vertices.size() * sizeof(Vertex)));
     batch.buffer.release();
@@ -297,6 +376,16 @@ void Viewport::sortTransparent(const QMatrix4x4 &transform) {
     transparentDirty_ = false;
 }
 void Viewport::paintGL() {
+    try {
+        paintScene();
+    } catch (const std::exception &error) {
+        ready_ = false;
+        if (shader_)
+            shader_->release();
+        emit message(QString("Viewport unavailable: %1").arg(error.what()));
+    }
+}
+void Viewport::paintScene() {
     if (!ready_)
         return;
     QElapsedTimer timer;
@@ -328,7 +417,8 @@ void Viewport::paintGL() {
             rebuild();
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1, 1);
-        draw(opaqueGpu_, GL_TRIANGLES);
+        for (auto &[id, cache] : bodyCaches_)
+            draw(cache->opaqueGpu, GL_TRIANGLES);
         sortTransparent(transform);
         if (transparentGpu_.count) {
             glEnable(GL_BLEND);
@@ -341,7 +431,9 @@ void Viewport::paintGL() {
             glDisable(GL_BLEND);
         }
         glDisable(GL_POLYGON_OFFSET_FILL);
-        draw(linesGpu_, GL_LINES);
+        draw(gridGpu_, GL_LINES);
+        for (auto &[id, cache] : bodyCaches_)
+            draw(cache->linesGpu, GL_LINES);
     }
     shader_->release();
     glDisable(GL_DEPTH_TEST);
@@ -466,6 +558,8 @@ void Viewport::finishShape(Vec3 end) {
     }
 }
 void Viewport::setTheme(const ThemeColors &colors) {
+    if (colors_.dark != colors.dark)
+        gridDirty_ = true;
     colors_ = colors;
     refresh();
 }
@@ -568,7 +662,9 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     dragButton_ = Qt::NoButton;
 }
 void Viewport::wheelEvent(QWheelEvent *e) {
-    distance_ = std::clamp(distance_ * std::exp(-e->angleDelta().y() * .001f), .05f, 1e7f);
+    const auto steps =
+        e->pixelDelta().isNull() ? e->angleDelta().y() / 120.f : e->pixelDelta().y() / 15.f;
+    distance_ = std::clamp(distance_ * std::exp(-steps * .12f), .05f, 1e7f);
     update();
     e->accept();
 }

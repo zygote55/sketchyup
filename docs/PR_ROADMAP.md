@@ -56,7 +56,9 @@ implementation/platform boundaries carried into later milestones.
 
 R007/R008 foundation work is merged in [PR #9](https://github.com/zygote55/sketchyup/pull/9): pinned Arch builds, scene transforms,
 properties, revision persistence and original-schema migration. See
-[foundation evidence](verification/R007-R008-foundation.md). M1 remains open.
+[foundation evidence](verification/R007-R008-foundation.md).
+R009/R010/R013 are in merged [PR #10](https://github.com/zygote55/sketchyup/pull/10).
+R011 incremental viewport work is in progress. M1 remains open.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -240,7 +242,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R009 — Implement typed commands and atomic history
 
-**Status:** In progress. **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Core. **Scope:** D03, A01. **UX:** —.
+**Status:** Verified (foundation scope). **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Core. **Scope:** D03, A01. **UX:** —.
 
 **Requires:** [R008](#r008); milestone gate rule above.
 
@@ -252,7 +254,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R010 — Build the responsive native window and theme system
 
-**Status:** In progress. **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Desktop. **Scope:** N01, N03, N04, N05. **UX:** §2–§3, §7, §10.
+**Status:** Verified (foundation scope). **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Desktop. **Scope:** N01, N03, N04, N05. **UX:** §2–§3, §7, §10.
 
 **Requires:** [R007](#r007), [R006](#r006); milestone gate rule above.
 
@@ -264,7 +266,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R011 — Connect the document to viewport caches and navigation
 
-**Status:** Planned. **Track:** Desktop. **Scope:** N01, G09. **UX:** §3.1, §4.1.
+**Status:** In progress. **Evidence:** [incremental viewport](verification/R011-incremental-viewport.md). **Track:** Desktop. **Scope:** N01, G09. **UX:** §3.1, §4.1.
 
 **Requires:** [R010](#r010), [R008](#r008); milestone gate rule above.
 
@@ -288,7 +290,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R013 — Connect menus, shortcuts and palette to public actions
 
-**Status:** In progress. **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Desktop. **Scope:** N03, N05, A01. **UX:** §3.2, §4.2.
+**Status:** Verified (foundation scope). **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Desktop. **Scope:** N03, N05, A01. **UX:** §3.2, §4.2.
 
 **Requires:** [R009](#r009), [R010](#r010), [R011](#r011); milestone gate rule above.
 

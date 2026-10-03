@@ -38,6 +38,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void benchmark(int triangles, bool instanced = false);
     struct RenderStats {
         std::uint64_t frames{}, geometryUploads{}, transparencyUploads{}, uploadedBytes{};
+        std::uint64_t bodyMeshBuilds{}, bodyWorldUpdates{}, bodyUploads{};
+        size_t cachedBodies{};
         unsigned contextGeneration{}, glError{};
         size_t meshTriangles{};
     };
@@ -74,10 +76,24 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         int count{};
     };
     std::unique_ptr<QOpenGLShaderProgram> shader_;
-    GpuBatch opaqueGpu_, linesGpu_, transparentGpu_, benchmarkGpu_;
+    GpuBatch gridGpu_, transparentGpu_, benchmarkGpu_;
+    struct BodyCache {
+        BodyPtr record;
+        Transform world;
+        std::vector<Triangle> localTriangles, worldTriangles;
+        std::vector<Vec3> localEdges;
+        std::vector<Vertex> opaque, lines;
+        std::vector<std::array<Vertex, 3>> transparent;
+        GpuBatch opaqueGpu, linesGpu;
+        float alpha{1};
+        bool selected{};
+        Id selectedFace{};
+    };
+    std::map<Id, std::unique_ptr<BodyCache>> bodyCaches_;
+    bool gridDirty_{true};
     QMetaObject::Connection contextCleanup_;
     QOpenGLVertexArrayObject vao_;
-    std::vector<Vertex> triangles_, lines_, benchmarkVertices_;
+    std::vector<Vertex> benchmarkVertices_;
     std::vector<std::array<Vertex, 3>> transparent_;
     std::map<Id, float> opacity_;
     std::string cachedDocument_;
@@ -102,6 +118,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     std::pair<Vec3, Vec3> ray(QPointF p) const;
     std::optional<Vec3> ground(QPointF p) const;
     void rebuild();
+    void paintScene();
     void cleanupGL();
     void upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent = false);
     void draw(GpuBatch &batch, GLenum mode, int instances = 1);
