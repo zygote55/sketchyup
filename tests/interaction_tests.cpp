@@ -88,6 +88,18 @@ int main(int argc, char **argv) {
         QTest::keyClick(view, Qt::Key_Z, Qt::ControlModifier | Qt::ShiftModifier);
         check(window.document().bodies().begin()->second->surface.faces.size() == 6,
               "Keyboard redo");
+        QTest::mouseClick(view, Qt::LeftButton, {}, view->project({2, 1.5, 2}).toPoint());
+        const auto cap = view->selectedFace();
+        check(window.document().bodies().begin()->second->surface.normal(cap).z > .99,
+              "Adjacent prism cap picked for push/pull");
+        field->setFocus();
+        QTest::keyClicks(field, "1");
+        QTest::keyClick(field, Qt::Key_Return);
+        auto extended = window.document().bodies().begin()->second;
+        for (auto vertex : extended->surface.faces.at(cap).loops[0])
+            check(std::abs(extended->surface.vertices.at(vertex).z - 3) < 1e-8,
+                  "Measurements pushes the existing prism cap");
+        QTest::keyClick(view, Qt::Key_Z, Qt::ControlModifier);
         // Editing a text field must not invoke rectangle/circle/camera shortcuts.
         field->setFocus();
         QTest::keyClicks(field, "rco123");

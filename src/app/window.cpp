@@ -214,7 +214,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     addTool("Circle", "C", Viewport::Tool::Circle,
             "Click center · Then click radius or enter a radius");
     addTool("Extrude", "P", Viewport::Tool::Extrude,
-            "Select an isolated face · Enter extrusion distance in meters");
+            "Select a face · Enter push/pull distance in meters");
     tools->addSeparator();
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");

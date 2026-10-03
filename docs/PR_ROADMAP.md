@@ -65,7 +65,8 @@ The [M1 gate record](verification/M1.md) passes. R015 persistent topology is
 merged in [PR #14](https://github.com/zygote55/sketchyup/pull/14); R016 is merged in
 [PR #15](https://github.com/zygote55/sketchyup/pull/15). R017 tessellation/picking
 associations are merged in [PR #16](https://github.com/zygote55/sketchyup/pull/16).
-R018 erase/healing and scoped cleanup are locally verified; face push/pull is next.
+R018 erase/healing and scoped cleanup are merged in [PR #17](https://github.com/zygote55/sketchyup/pull/17).
+R019 face push/pull and through openings are locally verified; the M2 regression gate is next.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -371,7 +372,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R019 — Implement face push/pull and through openings
 
-**Status:** Planned. **Track:** Geometry. **Scope:** E01, G01. **UX:** —.
+**Status:** Verified (bounded sweeps, command preview and desktop numeric input). **Evidence:** [push/pull](verification/R019-push-pull.md). **Track:** Geometry. **Scope:** E01, G01. **UX:** —.
 
 **Requires:** [R018](#r018); milestone gate rule above.
 

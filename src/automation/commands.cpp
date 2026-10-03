@@ -102,8 +102,8 @@ QJsonObject capabilities() {
                  return names;
              }()},
             {"commandSchemas", commandCatalog()},
-            {"queries", QJsonArray{"document.describe", "geometry.inspect", "commands.describe",
-                                   "capabilities"}},
+            {"queries", QJsonArray{"document.describe", "geometry.inspect", "geometry.preview",
+                                   "commands.describe", "capabilities"}},
             {"transactionContract",
              QJsonObject{{"atomic", true},
                          {"history", "one undo item per batch"},
@@ -114,7 +114,8 @@ QJsonObject capabilities() {
                                    {"bodies", 10000},
                                    {"vertices", 100000},
                                    {"batchCommands", 100}}},
-            {"limitations", QJsonArray{"No adjacent-face push/pull",
+            {"limitations", QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
+                                       "sweeps; general solid booleans are unavailable",
                                        "No durable transaction outcomes or remote retry protocol",
                                        "No AI provider or Blender integration"}}};
 }
@@ -142,6 +143,12 @@ QJsonObject describe(const Document &doc) {
 }
 QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     const auto name = request["query"].toString();
+    if (name == "geometry.preview") {
+        fields(request, {"query", "batch"});
+        if (!request["batch"].isObject())
+            throw std::runtime_error("Preview requires a batch object");
+        return previewBatch(doc, request["batch"].toObject());
+    }
     if (name == "commands.describe") {
         fields(request, {"query", "name"});
         return commandDescription(request["name"].toString());
@@ -265,6 +272,9 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                                     point(command["origin"]), point(command["normal"])));
         } else if (name == "geometry.cleanup") {
             compose(staged.cleanup(id(command["body"])));
+        } else if (name == "geometry.push_pull") {
+            compose(staged.pushPull(id(command["body"]), id(command["face"]),
+                                    number(command["distance"])));
         } else if (name == "geometry.extrude_isolated") {
             fields(command, {"command", "body", "face", "distance"});
             staged.extrude(id(command["body"]), id(command["face"]), number(command["distance"]));
@@ -339,5 +349,17 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             {"created", created},
             {"changes", changes},
             {"document", describe(doc)}};
+}
+QJsonObject previewBatch(const Document &doc, const QJsonObject &request) {
+    Document candidate = doc;
+    auto result = executeBatch(candidate, request);
+    result["status"] = "preview";
+    result["baseRevision"] = QString::number(doc.revision());
+    QJsonObject geometry;
+    for (const auto &[id, body] : candidate.bodies())
+        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body)
+            geometry[QString::number(id)] = topologyDescription(candidate, id);
+    result["geometry"] = geometry;
+    return result;
 }
 } // namespace sketchy

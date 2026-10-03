@@ -15,9 +15,14 @@ int main(int argc, char **argv) {
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption({"output", "Save the resulting model", "path"});
+    parser.addOption(
+        {"preview", "Validate a script and return prospective geometry without committing"});
     parser.addOption({"script", "Read a command array from a local JSON file", "path"});
     parser.process(app);
     try {
+        if (parser.isSet("preview") && (!parser.isSet("script") || parser.isSet("output")))
+            throw std::runtime_error(
+                "Preview requires --script and cannot be combined with --output");
         if (parser.isSet("capabilities")) {
             std::cout << QJsonDocument(sketchy::capabilities()).toJson().toStdString();
             return 0;
@@ -47,11 +52,12 @@ int main(int argc, char **argv) {
             auto json = QJsonDocument::fromJson(file.read(1024 * 1024 + 1), &error);
             if (error.error != QJsonParseError::NoError || !json.isArray())
                 throw std::runtime_error("Recipe must be a JSON command array");
-            result =
-                sketchy::executeBatch(doc, {{"apiVersion", 1},
-                                            {"documentId", QString::fromStdString(doc.identity())},
-                                            {"expectedRevision", QString::number(doc.revision())},
-                                            {"commands", json.array()}});
+            const QJsonObject batch{{"apiVersion", 1},
+                                    {"documentId", QString::fromStdString(doc.identity())},
+                                    {"expectedRevision", QString::number(doc.revision())},
+                                    {"commands", json.array()}};
+            result = parser.isSet("preview") ? sketchy::previewBatch(doc, batch)
+                                             : sketchy::executeBatch(doc, batch);
         } else
             result = sketchy::describe(doc);
         if (parser.isSet("output")) {

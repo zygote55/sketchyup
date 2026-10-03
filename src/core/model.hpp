@@ -2,6 +2,7 @@
 #include "core/transform.hpp"
 #include "geometry/cleanup.hpp"
 #include "geometry/planar.hpp"
+#include "geometry/push_pull.hpp"
 #include "geometry/topology.hpp"
 #include <deque>
 #include <memory>
@@ -54,6 +55,7 @@ class Document {
     Document();
     Id addFace(const std::vector<std::vector<Vec3>> &loops, std::string name = "Face");
     void extrude(Id body, Id face, double distance);
+    ChangeReport pushPull(Id body, Id face, double distance);
     void move(Id body, Vec3 delta);
     void erase(Id body);
     void paint(Id body, std::array<float, 3> color);
