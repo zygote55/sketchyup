@@ -60,6 +60,14 @@ int main(int argc, char **argv) {
         }
         std::cout << QJsonDocument(result).toJson().toStdString();
         return 0;
+    } catch (const sketchy::PlanarError &e) {
+        std::cerr << QJsonDocument(QJsonObject{{"status", "failed"},
+                                               {"code", QString::fromStdString(e.code())},
+                                               {"error", e.what()}})
+                         .toJson(QJsonDocument::Compact)
+                         .toStdString()
+                  << '\n';
+        return 1;
     } catch (const std::exception &e) {
         std::cerr << QJsonDocument(QJsonObject{{"status", "failed"}, {"error", e.what()}})
                          .toJson(QJsonDocument::Compact)

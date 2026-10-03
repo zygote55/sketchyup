@@ -13,7 +13,7 @@ editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
 M1 native foundation gates; editable topology is in progress. Adjacent-face
-push/pull, automatic face merging, components, inference, recovery, AI providers,
+push/pull, components, inference, recovery, AI providers,
 Blender integration and exchange formats are not implemented. Circle geometry is
 currently a 48-sided polygon. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
@@ -69,11 +69,14 @@ ctest --preset headless
 ./build/dev/sketchyup /tmp/room.sketchyup
 ./build/dev/sketchyup-cli --input /tmp/room.sketchyup --query geometry.inspect --context 1
 ./build/dev/sketchyup-cli --script examples/split-wire.json --output /tmp/wire.sketchyup
+./build/dev/sketchyup-cli --script examples/planar-grid.json --output /tmp/grid.sketchyup
 ```
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
 adjacency. The wire recipe demonstrates a loose edge and a propagated edge split;
 these operations currently have command paths while direct edge tools are in progress.
+The planar-grid recipe forms four editable faces from finite segments. Planar insertion
+handles intersections, overlaps and holes within the documented arrangement limits.
 
 A script is a local JSON array, validated and committed as one batch. The in-process
 API checks document identity and revision; failed batches change nothing. This is

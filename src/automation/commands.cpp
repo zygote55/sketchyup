@@ -171,6 +171,10 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         throw std::runtime_error("Batch must contain 1–100 commands");
     Document staged = doc;
     QJsonArray created;
+    std::map<Id, std::map<Id, std::vector<Id>>> faceLineage;
+    for (const auto &[context, body] : doc.bodies())
+        for (const auto &[face, record] : body->surface.faces)
+            faceLineage[context][face] = {face};
     for (const auto &value : commands) {
         if (!value.isObject())
             throw std::runtime_error("Expected command object");
@@ -196,6 +200,35 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             }
             auto createdId = staged.addFace(loops, command["name"].toString("Face").toStdString());
             created.append(QString::number(createdId));
+        } else if (name == "geometry.insert_edges") {
+            std::vector<std::array<Vec3, 2>> edges;
+            const auto edgeValues = array(command["edges"]);
+            if (edgeValues.empty() || edgeValues.size() > 1024)
+                throw PlanarError("ARRANGEMENT_LIMIT", "Insert between 1 and 1024 finite edges");
+            for (const auto &value : edgeValues) {
+                const auto edge = array(value);
+                if (edge.size() != 2)
+                    throw PlanarError("INVALID_EDGE",
+                                      "Each inserted edge needs exactly two endpoints");
+                edges.push_back({point(edge[0]), point(edge[1])});
+            }
+            const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
+            const auto report = staged.insertEdges(context, point(command["origin"]),
+                                                   point(command["normal"]), edges);
+            for (const auto &[body, changes] : report)
+                for (auto &[source, descendants] : faceLineage[body]) {
+                    std::vector<Id> next;
+                    for (auto face : descendants) {
+                        auto found = changes.faces.descendants.find(face);
+                        if (found == changes.faces.descendants.end())
+                            next.push_back(face);
+                        else
+                            next.insert(next.end(), found->second.begin(), found->second.end());
+                    }
+                    std::sort(next.begin(), next.end());
+                    next.erase(std::unique(next.begin(), next.end()), next.end());
+                    descendants = std::move(next);
+                }
         } else if (name == "geometry.wire") {
             const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
             staged.addWire(context, point(command["start"]), point(command["end"]));
@@ -241,8 +274,14 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     for (Id id : all) {
         auto before = doc.bodies().contains(id) ? doc.bodies().at(id) : nullptr;
         auto after = staged.bodies().contains(id) ? staged.bodies().at(id) : nullptr;
-        if (before != after)
-            edit.changes.push_back({id, before, after});
+        if (before != after) {
+            auto lineage = faceLineage[id];
+            for (auto &[source, targets] : lineage)
+                std::erase_if(targets, [&](Id target) {
+                    return !after || !after->surface.faces.contains(target);
+                });
+            edit.changes.push_back({id, before, after, std::move(lineage)});
+        }
     }
     if (edit.changes.empty())
         throw std::runtime_error("Batch has no committed changes");
