@@ -1,5 +1,6 @@
 #pragma once
 #include "core/transform.hpp"
+#include "geometry/cleanup.hpp"
 #include "geometry/planar.hpp"
 #include "geometry/topology.hpp"
 #include <deque>
@@ -23,7 +24,7 @@ using BodyPtr = std::shared_ptr<const Body>;
 struct Change {
     Id id;
     BodyPtr before, after;
-    std::map<Id, std::vector<Id>> faceDescendants{};
+    std::map<Id, std::vector<Id>> faceDescendants{}, vertexDescendants{}, edgeDescendants{};
 };
 struct Edit {
     std::string label;
@@ -64,7 +65,11 @@ class Document {
     Id addWire(Id context, Vec3 a, Vec3 b);
     ChangeReport insertEdges(Id context, Vec3 origin, Vec3 normal,
                              const std::vector<std::array<Vec3, 2>> &edges);
-    void splitEdge(Id context, Id edge, double fraction);
+    ChangeReport splitEdge(Id context, Id edge, double fraction);
+    ChangeReport eraseFace(Id context, Id face);
+    ChangeReport eraseEdge(Id context, Id edge);
+    ChangeReport healFace(Id context, Id edge, Vec3 origin, Vec3 normal);
+    ChangeReport cleanup(Id context);
     void undo();
     void redo();
     SaveStamp saveStamp() const;

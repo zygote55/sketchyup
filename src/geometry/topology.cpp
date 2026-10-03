@@ -105,7 +105,8 @@ Adjacency Topology::adjacency(const Surface &surface) const {
     return result;
 }
 TopologyChanges compareTopology(const Surface &before, const Topology &beforeTopology,
-                                const Surface &after, const Topology &afterTopology) {
+                                const Surface &after, const Topology &afterTopology,
+                                bool inferEdges) {
     if (before == after && beforeTopology == afterTopology)
         return {};
     TopologyChanges result{compare(before.vertices, after.vertices),
@@ -126,6 +127,8 @@ TopologyChanges compareTopology(const Surface &before, const Topology &beforeTop
     result.edges.modified.erase(
         std::unique(result.edges.modified.begin(), result.edges.modified.end()),
         result.edges.modified.end());
+    if (!inferEdges)
+        return result;
     constexpr size_t lineagePairLimit = 1000000;
     if (!result.edges.deleted.empty() &&
         result.edges.created.size() > lineagePairLimit / result.edges.deleted.size())

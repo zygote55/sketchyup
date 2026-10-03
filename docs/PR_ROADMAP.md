@@ -64,7 +64,8 @@ R014 is merged in [PR #13](https://github.com/zygote55/sketchyup/pull/13).
 The [M1 gate record](verification/M1.md) passes. R015 persistent topology is
 merged in [PR #14](https://github.com/zygote55/sketchyup/pull/14); R016 is merged in
 [PR #15](https://github.com/zygote55/sketchyup/pull/15). R017 tessellation/picking
-associations are locally verified; erase/healing is next.
+associations are merged in [PR #16](https://github.com/zygote55/sketchyup/pull/16).
+R018 erase/healing and scoped cleanup are locally verified; face push/pull is next.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -358,7 +359,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R018 — Implement erase, face healing and local cleanup
 
-**Status:** Planned. **Track:** Geometry. **Scope:** G02, D03. **UX:** —.
+**Status:** Verified (core and command APIs). **Evidence:** [erase/heal and cleanup](verification/R018-erase-heal.md). **Track:** Geometry. **Scope:** G02, D03. **UX:** —.
 
 **Requires:** [R016](#r016), [R017](#r017); milestone gate rule above.
 

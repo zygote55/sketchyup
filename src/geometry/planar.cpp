@@ -98,7 +98,7 @@ std::vector<std::vector<Id>> canonical(const Face &face) {
     return result;
 }
 PlanarResult build(const Surface &source, Vec3 origin, Vec3 normal,
-                   const std::vector<std::array<Vec3, 2>> &inserted) {
+                   const std::vector<std::array<Vec3, 2>> &inserted, bool heal) {
     source.validate();
     checkPoint(origin);
     checkPoint(normal);
@@ -327,7 +327,7 @@ PlanarResult build(const Surface &source, Vec3 origin, Vec3 normal,
         for (const auto &loop : candidate.loops)
             for (size_t j = 0; j < loop.size(); ++j)
                 newBoundary |= graph.at(key(loop[j], loop[(j + 1) % loop.size()]));
-        if (covering.empty() && (inHole || !newBoundary))
+        if (covering.empty() && ((inHole && !heal) || !newBoundary))
             continue;
         Id retained = 0;
         const auto shape = canonical(candidate);
@@ -386,9 +386,9 @@ PlanarResult build(const Surface &source, Vec3 origin, Vec3 normal,
 }
 } // namespace
 PlanarResult insertPlanarEdges(const Surface &source, Vec3 origin, Vec3 normal,
-                               const std::vector<std::array<Vec3, 2>> &edges) {
+                               const std::vector<std::array<Vec3, 2>> &edges, bool heal) {
     try {
-        return build(source, origin, normal, edges);
+        return build(source, origin, normal, edges, heal);
     } catch (const PlanarError &) {
         throw;
     } catch (const std::exception &error) {

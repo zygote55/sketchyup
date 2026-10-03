@@ -126,11 +126,52 @@ ChangeReport Document::insertEdges(Id context, Vec3 origin, Vec3 normal,
     return apply({"Insert planar edges", {{body->id, old, body, std::move(result.faces)}}},
                  revision_);
 }
-void Document::splitEdge(Id context, Id edge, double fraction) {
+ChangeReport Document::splitEdge(Id context, Id edge, double fraction) {
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);
     sketchy::splitEdge(body->surface, old->topology.edges.at(edge), fraction);
-    apply({"Split edge", {{context, old, body}}}, revision_);
+    return apply({"Split edge", {{context, old, body}}}, revision_);
+}
+ChangeReport Document::eraseFace(Id context, Id face) {
+    const auto old = bodies_.at(context);
+    auto body = std::make_shared<Body>(*old);
+    auto result = sketchy::eraseFace(old->surface, face);
+    body->surface = std::move(result.surface);
+    return apply({"Erase face", {{context, old, body, std::move(result.faces)}}}, revision_);
+}
+ChangeReport Document::eraseEdge(Id context, Id edge) {
+    const auto old = bodies_.at(context);
+    auto body = std::make_shared<Body>(*old);
+    auto result = sketchy::eraseEdge(old->surface, old->topology, edge);
+    body->surface = std::move(result.surface);
+    return apply({"Erase edge", {{context, old, body, std::move(result.faces)}}}, revision_);
+}
+ChangeReport Document::healFace(Id context, Id edge, Vec3 origin, Vec3 normal) {
+    const auto old = bodies_.at(context);
+    auto body = std::make_shared<Body>(*old);
+    if (!old->topology.edges.contains(edge))
+        throw std::runtime_error("Healing boundary edge does not exist");
+    const auto boundary = old->topology.edges.at(edge);
+    auto result = insertPlanarEdges(
+        old->surface, origin, normal,
+        {{old->surface.vertices.at(boundary.a), old->surface.vertices.at(boundary.b)}}, true);
+    if (result.surface.faces.size() <= old->surface.faces.size())
+        throw PlanarError("NO_CLOSED_REGION",
+                          "This edge does not bound a missing closed planar face");
+    body->surface = std::move(result.surface);
+    return apply({"Heal face", {{context, old, body, std::move(result.faces)}}}, revision_);
+}
+ChangeReport Document::cleanup(Id context) {
+    const auto old = bodies_.at(context);
+    auto body = std::make_shared<Body>(*old);
+    auto result = cleanupCoincident(old->surface, old->topology);
+    if (result.surface == old->surface)
+        return {};
+    body->surface = std::move(result.surface);
+    return apply({"Merge coincident topology",
+                  {{context, old, body, std::move(result.faces), std::move(result.vertices),
+                    std::move(result.edges)}}},
+                 revision_);
 }
 void Document::extrude(Id id, Id face, double distance) {
     auto old = bodies_.at(id);
@@ -276,22 +317,38 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     const Topology emptyTopology;
     for (const auto &change : edit.changes) {
         edit.bytes += sizeof(Change) + bytes(change.before) + bytes(change.after);
-        for (const auto &[id, targets] : change.faceDescendants)
-            edit.bytes += 96 + targets.size() * sizeof(Id);
+        for (const auto *mapping :
+             {&change.faceDescendants, &change.vertexDescendants, &change.edgeDescendants})
+            for (const auto &[id, targets] : *mapping)
+                edit.bytes += 96 + targets.size() * sizeof(Id);
         auto changes = compareTopology(change.before ? change.before->surface : emptySurface,
                                        change.before ? change.before->topology : emptyTopology,
                                        change.after ? change.after->surface : emptySurface,
-                                       change.after ? change.after->topology : emptyTopology);
-        for (const auto &[old, descendants] : change.faceDescendants) {
-            if (!change.before || !change.before->surface.faces.contains(old))
-                throw std::runtime_error("Face lineage source does not exist");
-            std::set<Id> unique;
-            for (auto id : descendants)
-                if (!change.after || !change.after->surface.faces.contains(id) ||
-                    !unique.insert(id).second)
-                    throw std::runtime_error("Invalid face lineage target");
-            changes.faces.descendants[old] = descendants;
-        }
+                                       change.after ? change.after->topology : emptyTopology,
+                                       change.edgeDescendants.empty());
+        auto mapEntities = [&](const auto &mapping, const auto &before, const auto &after,
+                               EntityChanges &entities) {
+            for (const auto &[old, descendants] : mapping) {
+                if (!before.contains(old))
+                    throw std::runtime_error("Topology lineage source does not exist");
+                std::set<Id> unique;
+                for (auto id : descendants)
+                    if (!after.contains(id) || !unique.insert(id).second)
+                        throw std::runtime_error("Invalid topology lineage target");
+                entities.descendants[old] = descendants;
+            }
+        };
+        mapEntities(change.faceDescendants,
+                    change.before ? change.before->surface.faces : emptySurface.faces,
+                    change.after ? change.after->surface.faces : emptySurface.faces, changes.faces);
+        mapEntities(change.vertexDescendants,
+                    change.before ? change.before->surface.vertices : emptySurface.vertices,
+                    change.after ? change.after->surface.vertices : emptySurface.vertices,
+                    changes.vertices);
+        mapEntities(change.edgeDescendants,
+                    change.before ? change.before->topology.edges : emptyTopology.edges,
+                    change.after ? change.after->topology.edges : emptyTopology.edges,
+                    changes.edges);
         report.emplace(change.id, std::move(changes));
     }
     if (edit.bytes > historyLimit)
