@@ -2,7 +2,10 @@
 
 Status: proposed; all rows are **Planned**, not implemented or verified by this PR.
 Updated: 2026-10-03. See the [build plan](BUILD_PLAN.md) for gate definitions and
-[AI contract](AI_MODELING.md) for automation semantics.
+[AI contract](AI_MODELING.md) for automation semantics. The
+[PR roadmap coverage table](PR_ROADMAP.md#scope-to-pr-coverage) maps all 73 rows
+to proposed implementation/research PRs; the [UX design](UX_DESIGN.md) maps
+interaction behavior to the same scope IDs.
 
 ## Reading this matrix
 

@@ -13,6 +13,10 @@ feature parity nor AI and Blender integration has been implemented by this PR.
 
 ## Build documentation
 
+- [PR roadmap](docs/PR_ROADMAP.md): 108 sequenced implementation/research entries,
+  dependencies, acceptance criteria, and coverage of every scope item.
+- [UX design and mockups](docs/UX_DESIGN.md): native window layout, drawing
+  interactions, assistant previews, rendering, and document safety.
 - [Build plan](docs/BUILD_PLAN.md): product goals, architecture, milestones,
   dependencies, validation, packaging, risks, and release gates.
 - [Scope and acceptance matrix](docs/SCOPE.md): the complete proposed feature

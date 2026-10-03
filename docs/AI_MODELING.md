@@ -3,7 +3,9 @@
 Status: proposed API and instructions, not an executable interface today.
 Updated: 2026-10-03. Implementation starts with the command registry at M1 and
 reaches an end-to-end assistant at M5. See [BUILD_PLAN.md](BUILD_PLAN.md) and
-[scope rows A01–A08](SCOPE.md#automation-and-ai).
+[scope rows A01–A08](SCOPE.md#automation-and-ai). Implementation sequencing is
+in the [PR roadmap](PR_ROADMAP.md); assistant interactions are illustrated in
+the [UX design](UX_DESIGN.md#8-ai-assistant).
 
 ## 1. Purpose and delivery
 
@@ -56,7 +58,7 @@ requires a solid, or affects a component definition.
 | Inspection | `selection.get`, `entities.query`, `entity.describe`, `topology.query` | IDs, context paths, hierarchy, connectivity, bounds, transforms, material assignments and semantic attributes |
 | Measurement | `measure.distance`, `measure.angle`, `measure.area`, `measure.volume` | Typed values, coordinate frame, validity and tolerance; volume requires a suitable closed solid |
 | View feedback | `view.capture`, `view.set`, `selection.set` | Framed screenshots and named/explicit cameras; changing the view is distinct from editing geometry |
-| Transactions | `transaction.begin`, `transaction.preview`, `transaction.commit`, `transaction.abort` | Private staged edits, optimistic revision checking, atomic commit, bounded lifetime and one undo entry |
+| Transactions | `transaction.begin`, `transaction.preview`, `transaction.commit`, `transaction.abort`, `transaction.status` | Private staged edits, optimistic revision checking, atomic commit, outcome reconciliation, bounded lifetime and one undo entry |
 | Geometry creation | `geometry.polyline`, `geometry.face`, `geometry.arc`, `geometry.circle` | Explicit planes/coordinates and loop orientation; reject invalid faces with structured reasons |
 | Geometry editing | `geometry.push_pull`, `geometry.transform`, `geometry.offset`, `geometry.sweep`, `geometry.intersect`, `solid.boolean`, `geometry.delete` | Context-aware operations, preconditions, output mappings and validation; no renderer-only changes |
 | Organization | `group.create`, `component.create`, `component.instance`, `component.make_unique`, `entity.set_properties` | Explicit instance/definition scope, local transforms, metadata and hierarchy invariants |
@@ -90,6 +92,12 @@ meshes behind a semantic tool name.
 8. Retrying a request with the same idempotency key returns its recorded outcome
    within a documented retention period. After that period, return an explicit
    unknown outcome and require inspection; never assume it is safe to repeat.
+9. `transaction.status` resolves a request/transaction identity to pending,
+   committed (including revision and undo entry), aborted, or unknown. Retain
+   commit outcomes durably for the documented retry window. A lost connection
+   after commit is not evidence of failure: reconcile before displaying “Nothing
+   was applied” or retrying. If the outcome is unknown, say so and inspect the
+   document instead of asserting that it is unchanged.
 
 A canceled render is not an undo of geometry. Saving/exporting/rendering are
 external effects with their own status and cannot be reversed by geometry undo.
@@ -121,6 +129,8 @@ context alongside the discovered command schemas.
 1. Begin a transaction against the revision you inspected.
 2. Operate in the correct context and coordinate frame. Prefer reusable components
    for repeated assemblies; use explicit make-unique for instance-only changes.
+   An unambiguous request to change only one instance authorizes that operation;
+   report it without asking again. Ask when intended definition scope is unclear.
 3. Construct connected editable geometry and maintain semantic relationships.
    Derive numeric coordinates from measurements; do not eyeball an exact request.
 4. Use IDs and mappings returned by each operation. Requery after topology changes

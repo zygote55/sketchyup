@@ -6,6 +6,9 @@ This document defines intended behavior and acceptance gates. It does not claim
 that the native application, proposed commands, packages, or integrations exist.
 Changes to this plan should preserve traceability to the
 [scope matrix](SCOPE.md) and [AI modeling contract](AI_MODELING.md).
+The [PR roadmap](PR_ROADMAP.md) breaks the gates into reviewable implementation
+steps; the [UX design](UX_DESIGN.md) and its mockups provide the interaction
+reference. Roadmap clarifications C1–C6 resolve the identified UX edge cases.
 
 ## 1. Product objective
 
@@ -314,6 +317,10 @@ Do not derive delivery dates by counting toolbar buttons. At M0, estimate M1–M
 from measured spikes and split work into reviewable issues with dependencies.
 Re-estimate after M2 (topology) and M5 (complete workflow), then forecast M6–M9.
 Calendar dates and staffing remain uncommitted until those estimates exist.
+
+Use the stable Rxxx IDs in [PR_ROADMAP.md](PR_ROADMAP.md) when opening work;
+these are planning IDs, not GitHub PR numbers. The roadmap maps every scope row
+to proposed PRs and defines their dependencies and acceptance evidence.
 
 Each implementation issue should include scope IDs, user-visible behavior,
 preconditions, a fixture or example model, test expectations, file/API impacts,
