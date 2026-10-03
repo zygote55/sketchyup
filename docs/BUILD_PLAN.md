@@ -399,7 +399,7 @@ Optional AI and Blender features must fail independently of core editing. Verify
 upgrade from the previous release using real documents and preservation of user
 preferences. Older binaries must reject unsupported newer documents safely.
 
-No application license has been selected. M0 must select one and check the exact
+Application code uses MIT (owner decision, ADR 0001). M0 must check the exact
 Qt modules, geometry dependencies, importer libraries and distributed assets
 against it before implementation depends on them. Track third-party notices and
 source obligations as release artifacts. This plan does not make a legal claim
