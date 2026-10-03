@@ -143,15 +143,14 @@ std::optional<Vec3> Viewport::ground(QPointF p) const {
     v.z = 0;
     return v;
 }
-std::pair<Id, Id> Viewport::pick(QPointF p) const {
+Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
     auto [o, d] = ray(p);
-    double nearest = INFINITY;
-    std::pair<Id, Id> hit{};
+    FaceHit hit;
     auto intersect = [&](const Triangle &t, Id body) {
         auto e1 = t.b - t.a, e2 = t.c - t.a;
         auto h = cross(d, e2);
         double a = dot(e1, h);
-        if (std::abs(a) < 1e-10)
+        if (std::abs(a) <= length(e1) * length(e2) * 1e-12)
             return;
         double f = 1 / a;
         auto s = o - t.a;
@@ -163,9 +162,11 @@ std::pair<Id, Id> Viewport::pick(QPointF p) const {
         if (v < 0 || u + v > 1)
             return;
         double distance = f * dot(e2, q);
-        if (distance > 0 && distance < nearest && !clipped(o + d * distance)) {
-            nearest = distance;
-            hit = {body, t.face};
+        const bool nearer = distance < hit.distance - tolerance;
+        const bool tied = std::abs(distance - hit.distance) <= tolerance &&
+                          std::pair{body, t.face} > std::pair{hit.body, hit.face};
+        if (distance > 0 && (nearer || tied) && !clipped(o + d * distance)) {
+            hit = {body, t.face, distance};
         }
     };
     if (cacheDirty_ || cachedDocument_ != doc_.identity() || cachedRevision_ != doc_.revision()) {
@@ -178,12 +179,148 @@ std::pair<Id, Id> Viewport::pick(QPointF p) const {
                 intersect(triangle, id);
         }
     } else
-        for (const auto &item : picking_)
-            intersect(item.triangle, item.body);
+        for (const auto &[id, cache] : bodyCaches_) {
+            if (cache->alpha == 0 || !cache->bounds.valid)
+                continue;
+            double low = 0, high = INFINITY;
+            for (auto values :
+                 {std::array<double, 4>{o.x, d.x, cache->bounds.minimum.x, cache->bounds.maximum.x},
+                  std::array<double, 4>{o.y, d.y, cache->bounds.minimum.y, cache->bounds.maximum.y},
+                  std::array<double, 4>{o.z, d.z, cache->bounds.minimum.z,
+                                        cache->bounds.maximum.z}}) {
+                if (std::abs(values[1]) < 1e-15) {
+                    if (values[0] < values[2] - tolerance || values[0] > values[3] + tolerance)
+                        high = -1;
+                } else {
+                    auto a = (values[2] - tolerance - values[0]) / values[1],
+                         b = (values[3] + tolerance - values[0]) / values[1];
+                    if (a > b)
+                        std::swap(a, b);
+                    low = std::max(low, a);
+                    high = std::min(high, b);
+                }
+            }
+            if (high < low || low > hit.distance + tolerance)
+                continue;
+            for (const auto &triangle : cache->worldTriangles)
+                intersect(triangle, id);
+        }
+    return hit;
+}
+std::pair<Id, Id> Viewport::pick(QPointF point) const {
+    const auto hit = nearestFace(point);
+    return {hit.body, hit.face};
+}
+Viewport::Bounds Viewport::bodyBounds(Id id) const {
+    if (!cacheDirty_ && cachedDocument_ == doc_.identity() && cachedRevision_ == doc_.revision() &&
+        bodyCaches_.contains(id) && bodyCaches_.at(id)->record == doc_.bodies().at(id))
+        return bodyCaches_.at(id)->bounds;
+    Bounds bounds;
+    const auto world = doc_.worldTransform(id);
+    for (const auto &[vertex, local] : doc_.bodies().at(id)->surface.vertices) {
+        const auto point = world.point(local);
+        if (!bounds.valid) {
+            bounds.minimum = bounds.maximum = point;
+            bounds.valid = true;
+        } else {
+            bounds.minimum = {std::min(bounds.minimum.x, point.x),
+                              std::min(bounds.minimum.y, point.y),
+                              std::min(bounds.minimum.z, point.z)};
+            bounds.maximum = {std::max(bounds.maximum.x, point.x),
+                              std::max(bounds.maximum.y, point.y),
+                              std::max(bounds.maximum.z, point.z)};
+        }
+    }
+    return bounds;
+}
+std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
+    if (!std::isfinite(radius) || radius < 0 || radius > 64)
+        throw std::runtime_error("Edge pick radius must be between 0 and 64 logical pixels");
+    std::pair<Id, Id> hit{};
+    double best = radius * radius, nearest = INFINITY;
+    const auto transform = matrix();
+    auto candidate = [&](Id body, Id edge, Vec3 a, Vec3 b) {
+        auto ca = transform * QVector4D(qv(a), 1), cb = transform * QVector4D(qv(b), 1);
+        double first = 0, last = 1;
+        auto clip = [&](double fa, double fb) {
+            if (fa < 0 && fb < 0)
+                return false;
+            if (fa < 0)
+                first = std::max(first, -fa / (fb - fa));
+            if (fb < 0)
+                last = std::min(last, -fa / (fb - fa));
+            return first <= last;
+        };
+        for (int axis = 0; axis < 3; ++axis)
+            if (!clip(ca.w() + ca[axis], cb.w() + cb[axis]) ||
+                !clip(ca.w() - ca[axis], cb.w() - cb[axis]))
+                return;
+        if (clipPlane_) {
+            const auto &p = *clipPlane_;
+            if (!clip(p[0] * a.x + p[1] * a.y + p[2] * a.z + p[3],
+                      p[0] * b.x + p[1] * b.y + p[2] * b.z + p[3]))
+                return;
+        }
+        const auto delta = b - a;
+        b = a + delta * last;
+        a = a + delta * first;
+        ca = transform * QVector4D(qv(a), 1);
+        cb = transform * QVector4D(qv(b), 1);
+        if (ca.w() <= 0 || cb.w() <= 0)
+            return;
+        const auto pa = project(a), pb = project(b), screen = pb - pa;
+        const auto lengthSquared = QPointF::dotProduct(screen, screen);
+        const auto fraction =
+            lengthSquared > 0
+                ? std::clamp(QPointF::dotProduct(point - pa, screen) / lengthSquared, 0.0, 1.0)
+                : 0.0;
+        const auto nearestPixel = pa + screen * fraction;
+        const auto gap = point - nearestPixel;
+        const auto distanceSquared = QPointF::dotProduct(gap, gap);
+        if (distanceSquared > best)
+            return;
+        const auto weight = (fraction / cb.w()) / ((1 - fraction) / ca.w() + fraction / cb.w());
+        const auto worldPoint = a + (b - a) * weight;
+        const auto [origin, direction] = ray(nearestPixel);
+        const auto depth = dot(worldPoint - origin, direction);
+        if (depth < 0)
+            return;
+        if (std::abs(distanceSquared - best) < 1e-9 &&
+            (depth > nearest + tolerance ||
+             (std::abs(depth - nearest) <= tolerance && std::pair{body, edge} <= hit)))
+            return;
+        const auto face = nearestFace(nearestPixel);
+        // A small depth tolerance accommodates the float projection and edge bias.
+        if (face.body && face.distance < depth - std::max(1e-5, depth * 1e-5))
+            return;
+        best = distanceSquared;
+        nearest = depth;
+        hit = {body, edge};
+    };
+    if (cacheDirty_ || cachedDocument_ != doc_.identity() || cachedRevision_ != doc_.revision()) {
+        for (const auto &[id, body] : doc_.bodies()) {
+            if (cachedDocument_ == doc_.identity() && opacity_.contains(id) && opacity_.at(id) == 0)
+                continue;
+            const auto world = doc_.worldTransform(id);
+            for (const auto &[edge, record] : body->topology.edges)
+                candidate(id, edge, world.point(body->surface.vertices.at(record.a)),
+                          world.point(body->surface.vertices.at(record.b)));
+        }
+    } else
+        for (const auto &[id, cache] : bodyCaches_) {
+            if (cache->alpha == 0)
+                continue;
+            for (const auto &edge : cache->worldEdges)
+                candidate(id, edge.id, edge.a, edge.b);
+        }
     return hit;
 }
 void Viewport::rebuild() {
-    picking_.clear();
+    if (selectionDocument_ != doc_.identity()) {
+        selected_ = selectedFace_ = 0;
+        selectionDocument_ = doc_.identity();
+    }
+    stats_.meshTriangles = 0;
     transparent_.clear();
     if (cachedDocument_ != doc_.identity()) {
         opacity_.clear();
@@ -231,21 +368,25 @@ void Viewport::rebuild() {
         const auto selectedFace = selected ? selectedFace_ : 0;
         const bool meshChanged =
             !cache.record || (cache.record != body && cache.record->surface != body->surface);
+        const bool topologyChanged =
+            meshChanged || !cache.record || cache.record->topology.edges != body->topology.edges;
         const bool worldChanged = meshChanged || !cache.record || cache.world != world;
-        const bool appearanceChanged = worldChanged || !cache.record ||
+        const bool appearanceChanged = worldChanged || topologyChanged || !cache.record ||
                                        cache.record->color != body->color || cache.alpha != alpha ||
                                        cache.selected != selected ||
                                        cache.selectedFace != selectedFace;
         if (meshChanged) {
             cache.localTriangles = body->surface.triangles();
-            cache.localEdges.clear();
-            for (const auto &edge : body->surface.edges()) {
-                cache.localEdges.push_back(body->surface.vertices.at(edge.a));
-                cache.localEdges.push_back(body->surface.vertices.at(edge.b));
-            }
             ++stats_.bodyMeshBuilds;
         }
+        if (topologyChanged) {
+            cache.localEdges.clear();
+            for (const auto &[edge, record] : body->topology.edges)
+                cache.localEdges.push_back({body->surface.vertices.at(record.a),
+                                            body->surface.vertices.at(record.b), edge});
+        }
         if (worldChanged) {
+            cache.bounds = bodyBounds(id);
             cache.worldTriangles = cache.localTriangles;
             for (auto &triangle : cache.worldTriangles) {
                 triangle.a = world.point(triangle.a);
@@ -253,6 +394,13 @@ void Viewport::rebuild() {
                 triangle.c = world.point(triangle.c);
             }
             ++stats_.bodyWorldUpdates;
+        }
+        if (worldChanged || topologyChanged) {
+            cache.worldEdges = cache.localEdges;
+            for (auto &edge : cache.worldEdges) {
+                edge.a = world.point(edge.a);
+                edge.b = world.point(edge.b);
+            }
         }
         if (appearanceChanged) {
             if (!cache.transparent.empty() || (alpha > 0 && alpha < 1))
@@ -287,8 +435,10 @@ void Viewport::rebuild() {
                     else
                         cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
                 }
-                for (auto point : cache.localEdges)
-                    cache.lines.push_back(vertex(world.point(point), {.19f, .24f, .23f}));
+                for (const auto &edge : cache.worldEdges) {
+                    cache.lines.push_back(vertex(edge.a, {.19f, .24f, .23f}));
+                    cache.lines.push_back(vertex(edge.b, {.19f, .24f, .23f}));
+                }
             }
         }
         if (appearanceChanged || !cache.opaqueGpu.buffer.isCreated() ||
@@ -303,12 +453,11 @@ void Viewport::rebuild() {
         cache.selected = selected;
         cache.selectedFace = selectedFace;
         if (alpha > 0)
-            for (const auto &triangle : cache.worldTriangles)
-                picking_.push_back({triangle, id});
+            stats_.meshTriangles += cache.worldTriangles.size();
         transparent_.insert(transparent_.end(), cache.transparent.begin(), cache.transparent.end());
     }
     stats_.cachedBodies = bodyCaches_.size();
-    stats_.meshTriangles = picking_.size();
+
     cachedRevision_ = doc_.revision();
     cacheDirty_ = false;
 }
@@ -415,6 +564,10 @@ void Viewport::paintScene() {
     } else {
         if (cacheDirty_ || cachedRevision_ != doc_.revision() || cachedDocument_ != doc_.identity())
             rebuild();
+        // Reference grid does not write depth or shine through coplanar opaque faces.
+        glDepthMask(GL_FALSE);
+        draw(gridGpu_, GL_LINES);
+        glDepthMask(GL_TRUE);
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1, 1);
         for (auto &[id, cache] : bodyCaches_)
@@ -431,7 +584,6 @@ void Viewport::paintScene() {
             glDisable(GL_BLEND);
         }
         glDisable(GL_POLYGON_OFFSET_FILL);
-        draw(gridGpu_, GL_LINES);
         for (auto &[id, cache] : bodyCaches_)
             draw(cache->linesGpu, GL_LINES);
     }
@@ -471,18 +623,26 @@ void Viewport::paintScene() {
     }
 }
 void Viewport::refresh() {
+    if (selectionDocument_ != doc_.identity()) {
+        selected_ = selectedFace_ = 0;
+        selectionDocument_ = doc_.identity();
+    }
     if (!doc_.bodies().contains(selected_)) {
         selected_ = 0;
         selectedFace_ = 0;
     }
+    if (selected_ && selectedFace_ &&
+        !doc_.bodies().at(selected_)->surface.faces.contains(selectedFace_))
+        selectedFace_ = 0;
     cacheDirty_ = true;
     update();
 }
 void Viewport::setSelection(Id body, Id face) {
+    selectionDocument_ = doc_.identity();
     selected_ = body;
     selectedFace_ = face;
     refresh();
-    emit selected(body, face);
+    emit selected(selected_, selectedFace_);
 }
 void Viewport::setTool(Tool tool) {
     cancel();

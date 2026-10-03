@@ -14,6 +14,7 @@
 #include <QWindow>
 #include <iostream>
 using namespace sketchy;
+void checkTopologyViewport();
 namespace {
 void check(bool value, const char *message) {
     if (!value)
@@ -278,6 +279,7 @@ int main(int argc, char **argv) {
         for (auto *screen : QGuiApplication::screens())
             screens.append(
                 QJsonObject{{"name", screen->name()}, {"scale", screen->devicePixelRatio()}});
+        checkTopologyViewport();
         QJsonObject result{
             {"passed", true},
             {"platform", QGuiApplication::platformName()},
