@@ -23,10 +23,12 @@ and discarded on Escape. Native Wayland and X11 interaction results are in
 [the evidence record](../verification/native-spike.md).
 
 This is an adapter feasibility result, not the final rendering architecture.
-Current updates rebuild all meshes; uploads occur per draw. The benchmark tests
+The initial implementation rebuilt all meshes and uploaded them per draw. The benchmark tests
 repeated-triangle instancing, not million-triangle editing, selection acceleration
-or incremental caches. Transparent materials, section clipping, context-loss
-recovery, mixed-monitor drag transitions and screen-reader behavior remain open.
+or incremental caches. [R002.b](../verification/R002-viewport.md) adds persistent buffers, pixel-tested
+transparency/clipping, context recreation and controlled transitions across both
+physical displays. Full materials/section workflows, manual monitor dragging,
+native dialog acceptance and screen-reader behavior remain open.
 The UI currently uses a light palette. System/dark themes remain R006/R010 work.
 
 ## Surface representation and alternatives

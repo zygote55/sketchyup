@@ -73,6 +73,13 @@ This is a capture of the running C++ application, not the planning HTML mockup.
 
 ![Native courtyard example](native-spike.png)
 
+## Follow-up
+
+[R002.b](R002-viewport.md) now records persistent buffers, transparency/clipping,
+context recreation and physical-output verification. Its owner-authorized
+prototype-retirement note supersedes the earlier preservation status. The
+remaining-parent list below records the original spike boundary.
+
 ## Remaining parent gates
 
 R002.b: transparency, section clipping, graphics context recreation, mixed-monitor

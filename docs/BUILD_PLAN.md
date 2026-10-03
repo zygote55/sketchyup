@@ -49,16 +49,17 @@ binary/file/plugin compatibility is a separately tracked engineering problem.
 
 ### Current baseline
 
-The committed baseline when this plan was written is a minimal README. A local,
-uncommitted Formline prototype contains an Electron/Three.js viewport, boxes and
+The committed baseline when this plan was written was a minimal README. A local,
+uncommitted Formline prototype contained an Electron/Three.js viewport, boxes and
 cylinders, simple transforms, JSON save/load, OBJ export, and snapshot undo.
 Its JavaScript checks and three model/history tests have passed locally. That
 is not verification of GUI behavior, packaging, or the proposed native engine.
 
-Preserve the prototype for interaction reference and migration fixtures. Treat
-its boxes/cylinders as importable source data; do not make its object schema the
-new topology model. Audit and commit any reusable prototype assets separately
-before relying on them in a native build.
+The owner subsequently authorized removal of the old prototype. Its untracked
+runtime has been removed; the native source now occupies the main checkout.
+Preserve the supplied UX references and documented format conventions, and use
+original synthetic migration fixtures. Treat Formline boxes/cylinders as importable
+source data, not the native topology model. See [retirement and viewport evidence](verification/R002-viewport.md).
 
 ## 2. Architectural decisions
 

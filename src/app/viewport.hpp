@@ -30,7 +30,16 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     std::pair<Id, Id> pick(QPointF point) const;
     bool rendererReady() const { return ready_; }
     QString graphicsDescription() const { return graphics_; }
-    void benchmark(int triangles);
+    // Feasibility controls are view-only; they do not alter saved materials or topology.
+    void setBodyOpacity(Id body, float opacity);
+    void setClipPlane(std::optional<std::array<double, 4>> plane);
+    void benchmark(int triangles, bool instanced = false);
+    struct RenderStats {
+        std::uint64_t frames{}, geometryUploads{}, transparencyUploads{}, uploadedBytes{};
+        unsigned contextGeneration{}, glError{};
+        size_t meshTriangles{};
+    };
+    RenderStats renderStats() const { return stats_; }
     double lastFrameMs() const { return frameMs_; }
   signals:
     void selected(qulonglong body, qulonglong face);
@@ -48,7 +57,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
 
   private:
     struct Vertex {
-        float x, y, z, r, g, b;
+        float x, y, z, r, g, b, a{1};
     };
     struct HitTriangle {
         Triangle triangle;
@@ -56,10 +65,23 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     };
     Document &doc_;
     Tool tool_{Tool::Select};
-    QOpenGLShaderProgram shader_;
-    QOpenGLBuffer buffer_{QOpenGLBuffer::VertexBuffer};
+    struct GpuBatch {
+        QOpenGLBuffer buffer{QOpenGLBuffer::VertexBuffer};
+        int count{};
+    };
+    std::unique_ptr<QOpenGLShaderProgram> shader_;
+    GpuBatch opaqueGpu_, linesGpu_, transparentGpu_, benchmarkGpu_;
+    QMetaObject::Connection contextCleanup_;
     QOpenGLVertexArrayObject vao_;
-    std::vector<Vertex> triangles_, lines_;
+    std::vector<Vertex> triangles_, lines_, benchmarkVertices_;
+    std::vector<std::array<Vertex, 3>> transparent_;
+    std::map<Id, float> opacity_;
+    std::string cachedDocument_;
+    std::uint64_t cachedRevision_{};
+    std::optional<std::array<double, 4>> clipPlane_;
+    QMatrix4x4 sortedMatrix_;
+    bool transparentDirty_{true}, benchmarkDirty_{true};
+    RenderStats stats_;
     std::vector<HitTriangle> picking_;
     Id selected_{}, selectedFace_{};
     bool ready_{false}, cacheDirty_{true}, dragging_{false};
@@ -69,14 +91,18 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QVector3D target_{0, 0, 0};
     float yaw_{-45}, pitch_{35}, distance_{14};
     bool ortho_{false};
-    int instances_{0};
+    int instances_{0}, benchmarkTriangles_{0};
     double frameMs_{};
     QString graphics_;
     QMatrix4x4 matrix() const;
     std::pair<Vec3, Vec3> ray(QPointF p) const;
     std::optional<Vec3> ground(QPointF p) const;
     void rebuild();
-    void draw(const std::vector<Vertex> &vertices, GLenum mode, int instances = 1);
+    void cleanupGL();
+    void upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent = false);
+    void draw(GpuBatch &batch, GLenum mode, int instances = 1);
+    void sortTransparent(const QMatrix4x4 &matrix);
+    bool clipped(Vec3 point) const;
     void finishShape(Vec3 end);
 };
 } // namespace sketchy

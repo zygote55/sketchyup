@@ -24,6 +24,7 @@ jobs:
         run: |
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 build/dev/interaction_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 build/dev/sketchyup --smoke
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 build/dev/viewport_tests
       - name: Headless recipe
         run: |
           build/dev/sketchyup-cli --script examples/room-shell.json --output /tmp/room.sketchyup
