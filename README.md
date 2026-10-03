@@ -11,11 +11,14 @@ rectangles and circles, select faces, extrude an isolated face, translate and
 color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain
 editable loops and holes. A headless driver uses the same core operations.
 
-The [108-entry roadmap](docs/PR_ROADMAP.md) is still in progress. Adjacent-face
+The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility gate;
+the native foundation is in progress. Adjacent-face
 push/pull, automatic face merging, components, inference, recovery, AI providers,
 Blender integration and exchange formats are not implemented. Circle geometry is
 currently a 48-sided polygon. Surface topology and file format remain experimental.
-Save explicitly: there is no autosave or recovery journal.
+Save explicitly: there is no autosave or recovery journal. Light, Dark and System
+themes are available in View. The experimental scene records support nested/mirrored
+transforms through the headless command API; component editing UI remains planned.
 
 ## Build and run
 

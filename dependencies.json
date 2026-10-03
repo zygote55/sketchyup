@@ -1,0 +1,14 @@
+{
+  "application": {"license": "MIT", "language": "C++20"},
+  "build": {
+    "cmakeMinimum": "3.25",
+    "archSnapshot": "2026/10/02",
+    "container": "archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3"
+  },
+  "dependencies": [
+    {"name": "Qt Base", "minimum": "6.8", "linkage": "dynamic", "license": "LGPL-3.0-only", "source": "Arch qt6-base package"},
+    {"name": "Qt Wayland", "minimum": "6.8", "linkage": "dynamic", "license": "LGPL-3.0-only", "source": "Arch qt6-wayland package"},
+    {"name": "Clipper2", "version": "2.0.1", "commit": "21ebba05db8894f0c7217ad35ea518080f324946", "linkage": "static", "license": "BSL-1.0", "source": "third_party/clipper2"},
+    {"name": "OpenGL", "minimum": "3.3", "linkage": "system driver", "source": "system Mesa or supported vendor driver"}
+  ]
+}

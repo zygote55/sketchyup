@@ -36,6 +36,61 @@ int main(int argc, char **argv) {
         auto copy = decodeDocument(bytes);
         require(encodeDocument(copy) == bytes, "Exact identity and topology roundtrip");
         require(!copy.dirty(), "Loaded state clean");
+        require(copy.revision() == d.revision(), "Content revision survives save/load");
+        Document nested;
+        auto parent = nested.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+        auto nestedId = nested.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+        nested.transform(parent,
+                         Transform::translation({4, 0, 0}) * Transform::scaling({-1, 2, 1}));
+        nested.transform(nestedId, Transform::translation({1, 0, 2}), parent);
+        auto old = nested.bodies().at(nestedId);
+        auto properties = std::make_shared<Body>(*old);
+        properties->properties = {
+            {"description", std::string("Window")}, {"width", 1.2}, {"locked", true}};
+        nested.apply({"Metadata", {{nestedId, old, properties}}}, nested.revision());
+        auto nestedBytes = encodeDocument(nested);
+        auto nestedCopy = decodeDocument(nestedBytes);
+        require(encodeDocument(nestedCopy) == nestedBytes &&
+                    nestedCopy.worldTransform(nestedId) == nested.worldTransform(nestedId),
+                "Nested mirrored transforms and typed properties roundtrip");
+        QJsonArray matrix;
+        for (auto value : Transform::translation({2, 0, 2}).m)
+            matrix.append(value);
+        auto transformRequest = [&](QString parentId) {
+            return QJsonObject{
+                {"apiVersion", 1},
+                {"documentId", QString::fromStdString(nested.identity())},
+                {"expectedRevision", QString::number(nested.revision())},
+                {"commands", QJsonArray{QJsonObject{{"command", "scene.transform"},
+                                                    {"body", QString::number(nestedId)},
+                                                    {"matrix", matrix},
+                                                    {"parent", parentId}}}}};
+        };
+        rejects([&] { executeBatch(nested, transformRequest(QString::number(nestedId))); });
+        require(encodeDocument(nested) == nestedBytes, "Cyclic transform batch is atomic");
+        executeBatch(nested, transformRequest(QString::number(parent)));
+        require(nested.worldTransform(nestedId).point({0, 0, 0}) == Vec3{2, 0, 2},
+                "Transform command updates world coordinates");
+        nested.undo();
+        require(*nested.bodies().at(nestedId) == *nestedCopy.bodies().at(nestedId),
+                "Transform command is one undo step");
+        auto legacy = QJsonDocument::fromJson(bytes).object();
+        legacy["version"] = 1;
+        legacy.remove("revision");
+        auto legacyBodies = legacy["bodies"].toArray();
+        for (int i = 0; i < legacyBodies.size(); ++i) {
+            auto record = legacyBodies[i].toObject();
+            record.remove("parent");
+            record.remove("transform");
+            record.remove("properties");
+            legacyBodies[i] = record;
+        }
+        legacy["bodies"] = legacyBodies;
+        auto migrated = decodeDocument(QJsonDocument(legacy).toJson());
+        require(migrated.identity() == d.identity() &&
+                    migrated.bodies().at(id)->surface == d.bodies().at(id)->surface &&
+                    migrated.bodies().at(id)->transform == Transform{} && migrated.revision() == 0,
+                "V1 migration preserves IDs and geometry with identity transform");
         QTemporaryDir dir;
         require(dir.isValid(), "Temporary directory");
         auto path = dir.filePath("model.sketchyup");
@@ -49,11 +104,11 @@ int main(int argc, char **argv) {
         require(encodeDocument(loadDocument(path)) == encodeDocument(d), "Atomic replacement");
         rejects([&] { decodeDocument(bytes.left(bytes.size() / 2)); });
         auto root = QJsonDocument::fromJson(bytes).object();
-        root["version"] = 2;
+        root["version"] = 999;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 1.5;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
-        root["version"] = 1;
+        root["version"] = 2;
         root["nextId"] = "1";
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["nextId"] = "2";

@@ -1,0 +1,5 @@
+FROM archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+COPY packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+RUN pacman -Syyuu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth
+RUN useradd --create-home builder
+WORKDIR /work

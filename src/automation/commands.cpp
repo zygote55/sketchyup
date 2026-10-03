@@ -34,19 +34,20 @@ void fields(const QJsonObject &object, std::initializer_list<QString> allowed) {
 }
 } // namespace
 QJsonObject capabilities() {
-    return {{"apiVersion", 1},
-            {"status", "experimental"},
-            {"units", "m"},
-            {"up", "Z"},
-            {"commands", QJsonArray{"geometry.face", "geometry.extrude_isolated",
-                                    "geometry.translate", "geometry.delete", "material.color"}},
-            {"limits", QJsonObject{{"fileBytes", 32 * 1024 * 1024},
-                                   {"bodies", 10000},
-                                   {"vertices", 100000},
-                                   {"batchCommands", 100}}},
-            {"limitations", QJsonArray{"No adjacent-face push/pull or automatic face merging",
-                                       "No durable transaction outcomes or remote retry protocol",
-                                       "No AI provider or Blender integration"}}};
+    return {
+        {"apiVersion", 1},
+        {"status", "experimental"},
+        {"units", "m"},
+        {"up", "Z"},
+        {"commands", QJsonArray{"geometry.face", "geometry.extrude_isolated", "geometry.translate",
+                                "geometry.delete", "material.color", "scene.transform"}},
+        {"limits", QJsonObject{{"fileBytes", 32 * 1024 * 1024},
+                               {"bodies", 10000},
+                               {"vertices", 100000},
+                               {"batchCommands", 100}}},
+        {"limitations", QJsonArray{"No adjacent-face push/pull or automatic face merging",
+                                   "No durable transaction outcomes or remote retry protocol",
+                                   "No AI provider or Blender integration"}}};
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies;
@@ -54,9 +55,14 @@ QJsonObject describe(const Document &doc) {
         QJsonArray faces;
         for (const auto &[fid, f] : b->surface.faces)
             faces.append(QJsonObject{{"id", QString::number(fid)},
-                                     {"area", b->surface.area(fid)},
+                                     {"area", doc.worldArea(id, fid)},
                                      {"loops", int(f.loops.size())}});
+        QJsonArray world;
+        for (auto value : doc.worldTransform(id).m)
+            world.append(value);
         bodies.append(QJsonObject{{"id", QString::number(id)},
+                                  {"parent", QString::number(b->parent)},
+                                  {"worldTransform", world},
                                   {"name", QString::fromStdString(b->name)},
                                   {"vertices", int(b->surface.vertices.size())},
                                   {"faces", faces}});
@@ -102,6 +108,19 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         } else if (name == "geometry.translate") {
             fields(command, {"command", "body", "delta"});
             staged.move(id(command["body"]), point(command["delta"]));
+        } else if (name == "scene.transform") {
+            fields(command, {"command", "body", "matrix", "parent"});
+            auto matrix = array(command["matrix"]);
+            if (matrix.size() != 16)
+                throw std::runtime_error("Expected 16 matrix coefficients");
+            Transform transform;
+            for (int i = 0; i < 16; ++i)
+                transform.m[i] = number(matrix[i]);
+            const auto target = id(command["body"]);
+            Id parent = staged.bodies().at(target)->parent;
+            if (command.contains("parent"))
+                parent = command["parent"] == "0" ? 0 : id(command["parent"]);
+            staged.transform(target, transform, parent);
         } else if (name == "geometry.delete") {
             fields(command, {"command", "body"});
             staged.erase(id(command["body"]));

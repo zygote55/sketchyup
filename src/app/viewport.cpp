@@ -13,7 +13,7 @@ namespace sketchy {
 namespace {
 QVector3D qv(Vec3 p) { return {float(p.x), float(p.y), float(p.z)}; }
 Vec3 vec(QVector3D p) { return {p.x(), p.y(), p.z()}; }
-constexpr float radians = std::numbers::pi_v<float> / 180;
+constexpr float degreesToRadians = std::numbers::pi_v<float> / 180;
 } // namespace
 Viewport::Viewport(Document &doc, QWidget *parent) : QOpenGLWidget(parent), doc_(doc) {
     setFocusPolicy(Qt::StrongFocus);
@@ -103,9 +103,9 @@ QMatrix4x4 Viewport::matrix() const {
     else
         projection.perspective(45, aspect, std::max(.001f, distance_ / 10000),
                                std::max(1000.f, distance_ * 10));
-    QVector3D direction(std::cos(pitch_ * radians) * std::cos(yaw_ * radians),
-                        std::cos(pitch_ * radians) * std::sin(yaw_ * radians),
-                        std::sin(pitch_ * radians));
+    QVector3D direction(std::cos(pitch_ * degreesToRadians) * std::cos(yaw_ * degreesToRadians),
+                        std::cos(pitch_ * degreesToRadians) * std::sin(yaw_ * degreesToRadians),
+                        std::sin(pitch_ * degreesToRadians));
     view.lookAt(target_ + direction * distance_, target_, {0, 0, 1});
     return projection * view;
 }
@@ -167,7 +167,7 @@ std::pair<Id, Id> Viewport::pick(QPointF p) const {
         for (const auto &[id, body] : doc_.bodies()) {
             if (cachedDocument_ == doc_.identity() && opacity_.contains(id) && opacity_.at(id) == 0)
                 continue;
-            for (const auto &triangle : body->surface.triangles())
+            for (const auto &triangle : doc_.worldTriangles(id))
                 intersect(triangle, id);
         }
     } else
@@ -189,8 +189,8 @@ void Viewport::rebuild() {
         return Vertex{float(p.x), float(p.y), float(p.z), c[0], c[1], c[2]};
     };
     for (int i = -50; i <= 50; ++i) {
-        const float shade = colors_.dark ? ((i % 5 == 0) ? .27f : .21f)
-                                         : ((i % 5 == 0) ? .79f : .87f);
+        const float shade =
+            colors_.dark ? ((i % 5 == 0) ? .27f : .21f) : ((i % 5 == 0) ? .79f : .87f);
         for (auto p : {Vec3{double(i), -50, 0}, Vec3{double(i), 50, 0}, Vec3{-50, double(i), 0},
                        Vec3{50, double(i), 0}})
             lines_.push_back(vertex(p, {shade, shade, shade}));
@@ -199,7 +199,7 @@ void Viewport::rebuild() {
         float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
         if (alpha == 0)
             continue;
-        for (auto t : b->surface.triangles()) {
+        for (auto t : doc_.worldTriangles(id)) {
             picking_.push_back({t, id});
             auto n = normalized(cross(t.b - t.a, t.c - t.a));
             float light = .64f + .36f * std::abs(dot(n, normalized({.3, -.5, .8})));
@@ -219,9 +219,10 @@ void Viewport::rebuild() {
             else
                 triangles_.insert(triangles_.end(), triangle.begin(), triangle.end());
         }
+        const auto world = doc_.worldTransform(id);
         for (auto e : b->surface.edges())
             for (auto p : {b->surface.vertices.at(e.a), b->surface.vertices.at(e.b)})
-                lines_.push_back(vertex(p, {.19f, .24f, .23f}));
+                lines_.push_back(vertex(world.point(p), {.19f, .24f, .23f}));
     }
     auto line = [&](Vec3 a, Vec3 b, std::array<float, 3> c) {
         lines_.push_back(vertex(a, c));
@@ -277,9 +278,9 @@ void Viewport::sortTransparent(const QMatrix4x4 &transform) {
     // Centroid depth sorting is a feasibility path for non-intersecting layers.
     // Intersecting transparent surfaces need order-independent transparency later.
     auto sorted = transparent_;
-    QVector3D direction(std::cos(pitch_ * radians) * std::cos(yaw_ * radians),
-                        std::cos(pitch_ * radians) * std::sin(yaw_ * radians),
-                        std::sin(pitch_ * radians));
+    QVector3D direction(std::cos(pitch_ * degreesToRadians) * std::cos(yaw_ * degreesToRadians),
+                        std::cos(pitch_ * degreesToRadians) * std::sin(yaw_ * degreesToRadians),
+                        std::sin(pitch_ * degreesToRadians));
     auto depth = [&](const auto &t) {
         QVector3D center((t[0].x + t[1].x + t[2].x) / 3, (t[0].y + t[1].y + t[2].y) / 3,
                          (t[0].z + t[1].z + t[2].z) / 3);
@@ -406,12 +407,24 @@ void Viewport::fit() {
         return;
     }
     QVector3D lo(1e9, 1e9, 1e9), hi(-1e9, -1e9, -1e9);
-    for (const auto &[id, b] : doc_.bodies())
-        for (auto [vid, p] : b->surface.vertices)
+    bool hasVertices = false;
+    for (const auto &[id, b] : doc_.bodies()) {
+        const auto world = doc_.worldTransform(id);
+        for (auto [vid, local] : b->surface.vertices) {
+            hasVertices = true;
+            const auto point = qv(world.point(local));
             for (int i = 0; i < 3; ++i) {
-                lo[i] = std::min(lo[i], qv(p)[i]);
-                hi[i] = std::max(hi[i], qv(p)[i]);
+                lo[i] = std::min(lo[i], point[i]);
+                hi[i] = std::max(hi[i], point[i]);
             }
+        }
+    }
+    if (!hasVertices) {
+        target_ = {0, 0, 0};
+        distance_ = 14;
+        update();
+        return;
+    }
     target_ = (lo + hi) / 2;
     distance_ = std::max(2.f, (hi - lo).length() * 1.7f);
     update();
