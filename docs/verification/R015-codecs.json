@@ -1,0 +1,118 @@
+{
+    "build": "debug",
+    "compiler": "16.2.1 20260810",
+    "kernel": "7.2.5-3-omarchy",
+    "peakRssKiB": 127972,
+    "platform": "Omarchy",
+    "qt": "6.11.2",
+    "results": [
+        {
+            "bodies": 1,
+            "bytes": 1602,
+            "codec": "json",
+            "decodeMs": 0.0431884,
+            "encodeMs": 0.07197139999999999,
+            "fixtureSha256": "fd6a598fde9b710b4cb9cd218355487c451583e8cc388c903b5d88d23913cf73",
+            "validateMs": 0.58432
+        },
+        {
+            "bodies": 1,
+            "bytes": 1072,
+            "codec": "cbor",
+            "decodeMs": 0.12472519999999998,
+            "encodeMs": 0.023689599999999998,
+            "fixtureSha256": "fd6a598fde9b710b4cb9cd218355487c451583e8cc388c903b5d88d23913cf73",
+            "validateMs": 0.549907
+        },
+        {
+            "bodies": 1,
+            "bytes": 541,
+            "codec": "compressed-json",
+            "decodeMs": 0.055457400000000004,
+            "encodeMs": 0.1424578,
+            "fixtureSha256": "fd6a598fde9b710b4cb9cd218355487c451583e8cc388c903b5d88d23913cf73",
+            "validateMs": 0.569481
+        },
+        {
+            "bodies": 1,
+            "bytes": 2016,
+            "codec": "container-v2",
+            "decodeMs": 0.8584549999999999,
+            "encodeMs": 0.2524462,
+            "fixtureSha256": "fd6a598fde9b710b4cb9cd218355487c451583e8cc388c903b5d88d23913cf73",
+            "validateMs": 0.51041
+        },
+        {
+            "bodies": 100,
+            "bytes": 149446,
+            "codec": "json",
+            "decodeMs": 2.5472432,
+            "encodeMs": 2.2549977999999995,
+            "fixtureSha256": "8ff388220d97b06412cdbe6dc3f0fd20767dddb21666487fc48b15d8b5003323",
+            "validateMs": 40.366984
+        },
+        {
+            "bodies": 100,
+            "bytes": 97038,
+            "codec": "cbor",
+            "decodeMs": 8.252222800000002,
+            "encodeMs": 1.1310741999999998,
+            "fixtureSha256": "8ff388220d97b06412cdbe6dc3f0fd20767dddb21666487fc48b15d8b5003323",
+            "validateMs": 31.708105
+        },
+        {
+            "bodies": 100,
+            "bytes": 7026,
+            "codec": "compressed-json",
+            "decodeMs": 2.2524664000000003,
+            "encodeMs": 3.2606768,
+            "fixtureSha256": "8ff388220d97b06412cdbe6dc3f0fd20767dddb21666487fc48b15d8b5003323",
+            "validateMs": 29.852905
+        },
+        {
+            "bodies": 100,
+            "bytes": 151830,
+            "codec": "container-v2",
+            "decodeMs": 43.482207599999995,
+            "encodeMs": 9.068107399999999,
+            "fixtureSha256": "8ff388220d97b06412cdbe6dc3f0fd20767dddb21666487fc48b15d8b5003323",
+            "validateMs": 32.939603
+        },
+        {
+            "bodies": 1000,
+            "bytes": 1510808,
+            "codec": "json",
+            "decodeMs": 23.363476799999997,
+            "encodeMs": 23.128347,
+            "fixtureSha256": "f31895d600bbeeb61a668cb3fd0c8b3fdc1a9107aeb81ff1041f1df12850f0b3",
+            "validateMs": 281.912009
+        },
+        {
+            "bodies": 1000,
+            "bytes": 978261,
+            "codec": "cbor",
+            "decodeMs": 72.8556926,
+            "encodeMs": 8.8777712,
+            "fixtureSha256": "f31895d600bbeeb61a668cb3fd0c8b3fdc1a9107aeb81ff1041f1df12850f0b3",
+            "validateMs": 277.572395
+        },
+        {
+            "bodies": 1000,
+            "bytes": 64528,
+            "codec": "compressed-json",
+            "decodeMs": 21.7199504,
+            "encodeMs": 33.9447578,
+            "fixtureSha256": "f31895d600bbeeb61a668cb3fd0c8b3fdc1a9107aeb81ff1041f1df12850f0b3",
+            "validateMs": 278.845675
+        },
+        {
+            "bodies": 1000,
+            "bytes": 1532996,
+            "codec": "container-v2",
+            "decodeMs": 388.13271480000003,
+            "encodeMs": 81.668899,
+            "fixtureSha256": "f31895d600bbeeb61a668cb3fd0c8b3fdc1a9107aeb81ff1041f1df12850f0b3",
+            "validateMs": 281.14921
+        }
+    ]
+}

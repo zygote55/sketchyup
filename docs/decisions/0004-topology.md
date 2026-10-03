@@ -80,3 +80,14 @@ rendering normal is not curve provenance. R023/R024 implement this contract.
 Clipper2 remains an interchangeable BSL-1.0 adapter. No new third-party code or
 license was introduced. Arbitrary 3D solid Boolean support is not inferred from
 this planar experiment; Manifold and other candidates remain separate adapters.
+
+## R015 persistent topology implementation
+
+Body-owned edge records now persist alongside vertex/face loops. Each edge has a
+context-scoped stable ID and canonical endpoint IDs; a separate monotonic edge
+allocator survives undo and explicit persistence. Oriented uses and radial adjacency
+derive from the persistent coverage. Shared-edge splits propagate to all incident
+loops and wires, including non-manifold radial fans. The original EdgeIdentityIndex
+remains a feasibility fixture, while production records use `geometry/topology.*`.
+Finite coplanar arrangement/face formation remains R016; this does not promote the
+infinite-plane partition experiment into a general editing tool.

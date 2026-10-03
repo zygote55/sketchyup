@@ -11,8 +11,8 @@ rectangles and circles, select faces, extrude an isolated face, translate and
 color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain
 editable loops and holes. A headless driver uses the same core operations.
 
-The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility gate;
-the native foundation is in progress. Adjacent-face
+The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
+M1 native foundation gates; editable topology is in progress. Adjacent-face
 push/pull, automatic face merging, components, inference, recovery, AI providers,
 Blender integration and exchange formats are not implemented. Circle geometry is
 currently a 48-sided polygon. Surface topology and file format remain experimental.
@@ -67,7 +67,13 @@ ctest --preset headless
 ./build/dev/sketchyup-cli --script examples/room-shell.json --output /tmp/room.sketchyup
 ./build/dev/sketchyup-cli --input /tmp/room.sketchyup
 ./build/dev/sketchyup /tmp/room.sketchyup
+./build/dev/sketchyup-cli --input /tmp/room.sketchyup --query geometry.inspect --context 1
+./build/dev/sketchyup-cli --script examples/split-wire.json --output /tmp/wire.sketchyup
 ```
+
+The topology query exposes stable context-scoped edges, oriented loops and radial
+adjacency. The wire recipe demonstrates a loose edge and a propagated edge split;
+these operations currently have command paths while direct edge tools are in progress.
 
 A script is a local JSON array, validated and committed as one batch. The in-process
 API checks document identity and revision; failed batches change nothing. This is

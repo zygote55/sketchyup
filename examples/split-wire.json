@@ -1,0 +1,4 @@
+[
+  {"command":"geometry.wire","body":"0","start":[0,0,0],"end":[4,0,0]},
+  {"command":"geometry.split_edge","body":"1","edge":"1","fraction":0.5}
+]

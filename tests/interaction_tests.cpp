@@ -58,12 +58,28 @@ int main(int argc, char **argv) {
         auto body = window.document().bodies().begin()->second;
         auto face = body->surface.faces.begin()->first;
         check(std::abs(body->surface.area(face) - 12) < 1e-8, "Exact rectangle dimensions");
+        if (!view->hasFocus() || !window.isActiveWindow())
+            std::cerr << "Focus before extrude: "
+                      << (QApplication::focusWidget()
+                              ? QApplication::focusWidget()->metaObject()->className()
+                              : "none")
+                      << " active=" << window.isActiveWindow() << '\n';
         QTest::keyClick(view, Qt::Key_P);
+        check(view->tool() == Viewport::Tool::Extrude, "Extrude shortcut has viewport focus");
         QTest::mouseClick(view, Qt::LeftButton, {}, view->project({2, 1.5, 0}).toPoint());
+        check(view->selectedBody() == body->id && view->selectedFace() == face,
+              "Projected face picked for extrusion");
+        QString extrusionMessage;
+        auto messageConnection =
+            QObject::connect(view, &Viewport::message, &window,
+                             [&](const QString &text) { extrusionMessage = text; });
         field->setFocus();
         QTest::keyClicks(field, "2");
         QTest::keyClick(field, Qt::Key_Return);
         QTest::qWait(100);
+        QObject::disconnect(messageConnection);
+        if (window.document().bodies().begin()->second->surface.faces.size() != 6)
+            std::cerr << "Extrusion message: " << extrusionMessage.toStdString() << '\n';
         check(window.document().bodies().begin()->second->surface.faces.size() == 6,
               "Picked face extrusion");
         QTest::keyClick(view, Qt::Key_Z, Qt::ControlModifier);

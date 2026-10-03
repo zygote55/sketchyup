@@ -32,6 +32,62 @@ void fields(const QJsonObject &object, std::initializer_list<QString> allowed) {
         if (std::find(allowed.begin(), allowed.end(), it.key()) == allowed.end())
             throw std::runtime_error(("Unknown field: " + it.key()).toStdString());
 }
+QJsonArray ids(const std::vector<Id> &values) {
+    QJsonArray result;
+    for (auto value : values)
+        result.append(QString::number(value));
+    return result;
+}
+QJsonObject entityChanges(const EntityChanges &changes) {
+    QJsonObject mappings;
+    for (const auto &[id, targets] : changes.descendants)
+        mappings[QString::number(id)] = ids(targets);
+    return {{"created", ids(changes.created)},
+            {"deleted", ids(changes.deleted)},
+            {"modified", ids(changes.modified)},
+            {"descendants", mappings}};
+}
+QJsonObject topologyDescription(const Document &doc, Id context) {
+    const auto &body = *doc.bodies().at(context);
+    const auto adjacency = body.topology.adjacency(body.surface);
+    QJsonArray vertices, edges, faces;
+    for (const auto &[id, point] : body.surface.vertices)
+        vertices.append(QJsonObject{{"id", QString::number(id)},
+                                    {"point", QJsonArray{point.x, point.y, point.z}},
+                                    {"edges", ids(adjacency.vertexEdges.at(id))}});
+    for (const auto &[id, edge] : body.topology.edges) {
+        QJsonArray incidence;
+        for (const auto &item : adjacency.edgeFaces.at(id))
+            incidence.append(QJsonObject{{"face", QString::number(item.face)},
+                                         {"loop", qint64(item.loop)},
+                                         {"position", qint64(item.position)},
+                                         {"reversed", item.reversed}});
+        edges.append(
+            QJsonObject{{"id", QString::number(id)},
+                        {"vertices", QJsonArray{QString::number(edge.a), QString::number(edge.b)}},
+                        {"wire", edge.wire},
+                        {"incidence", incidence}});
+    }
+    for (const auto &[id, face] : body.surface.faces) {
+        QJsonArray loops;
+        for (const auto &loop : adjacency.faceLoops.at(id)) {
+            QJsonArray oriented;
+            for (const auto &edge : loop)
+                oriented.append(
+                    QJsonObject{{"edge", QString::number(edge.edge)}, {"reversed", edge.reversed}});
+            loops.append(oriented);
+        }
+        faces.append(QJsonObject{{"id", QString::number(id)}, {"loops", loops}});
+    }
+    return {{"documentId", QString::fromStdString(doc.identity())},
+            {"context", QString::number(context)},
+            {"revision", QString::number(doc.revision())},
+            {"vertices", vertices},
+            {"edges", edges},
+            {"faces", faces},
+            {"nextId", QString::number(body.surface.nextId)},
+            {"nextEdgeId", QString::number(body.topology.nextId)}};
+}
 } // namespace
 QJsonObject capabilities() {
     return {{"apiVersion", 1},
@@ -46,13 +102,15 @@ QJsonObject capabilities() {
                  return names;
              }()},
             {"commandSchemas", commandCatalog()},
-            {"queries", QJsonArray{"document.describe", "commands.describe", "capabilities"}},
+            {"queries", QJsonArray{"document.describe", "geometry.inspect", "commands.describe",
+                                   "capabilities"}},
             {"transactionContract",
              QJsonObject{{"atomic", true},
                          {"history", "one undo item per batch"},
                          {"precondition", "document identity and expected content revision"},
                          {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
-            {"limits", QJsonObject{{"fileBytes", 32 * 1024 * 1024},
+            {"limits", QJsonObject{{"fileBytes", 16 + 33 * 1024 * 1024},
+                                   {"documentBytes", 32 * 1024 * 1024},
                                    {"bodies", 10000},
                                    {"vertices", 100000},
                                    {"batchCommands", 100}}},
@@ -87,6 +145,10 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     if (name == "commands.describe") {
         fields(request, {"query", "name"});
         return commandDescription(request["name"].toString());
+    }
+    if (name == "geometry.inspect") {
+        fields(request, {"query", "body"});
+        return topologyDescription(doc, id(request["body"]));
     }
     fields(request, {"query"});
     if (name == "document.describe")
@@ -134,6 +196,11 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             }
             auto createdId = staged.addFace(loops, command["name"].toString("Face").toStdString());
             created.append(QString::number(createdId));
+        } else if (name == "geometry.wire") {
+            const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
+            staged.addWire(context, point(command["start"]), point(command["end"]));
+        } else if (name == "geometry.split_edge") {
+            staged.splitEdge(id(command["body"]), id(command["edge"]), number(command["fraction"]));
         } else if (name == "geometry.extrude_isolated") {
             fields(command, {"command", "body", "face", "distance"});
             staged.extrude(id(command["body"]), id(command["face"]), number(command["distance"]));
@@ -184,10 +251,17 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     for (const auto &change : edit.changes)
         if (!change.before && change.after)
             created.append(QString::number(change.id));
-    doc.apply(std::move(edit), doc.revision());
+    const auto report = doc.apply(std::move(edit), doc.revision());
+    QJsonObject changes;
+    for (const auto &[context, change] : report)
+        changes[QString::number(context)] =
+            QJsonObject{{"vertices", entityChanges(change.vertices)},
+                        {"edges", entityChanges(change.edges)},
+                        {"faces", entityChanges(change.faces)}};
     return {{"status", "committed"},
             {"revision", QString::number(doc.revision())},
             {"created", created},
+            {"changes", changes},
             {"document", describe(doc)}};
 }
 } // namespace sketchy

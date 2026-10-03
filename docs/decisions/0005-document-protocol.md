@@ -98,6 +98,15 @@ is implied by this initial envelope. Schema v2 contains transform/property recor
 raw v1 migrates those to identity transforms/empty properties. The allocator floor
 manifest repeats body/live-surface high-water marks and must agree with the payload.
 
+R015 advances the document chunk to `json-v3` and requires `topology-v1` alongside
+`scene-v2`. Each body persists `nextEdgeId` and edge records `[id, a, b, wire]`.
+The manifest adds per-context edge allocator floors. Readers still accept the
+original raw v1/v2 and envelope/scene-v2 files; deterministic boundary indexing
+adds initial edge IDs on migration. New readers reject inconsistent edge coverage,
+duplicate/retired allocators and feature/encoding mismatches. Original readers reject
+the new required feature. Context is currently a body ID; component definitions
+extend this ownership model in M4. Epoch and durability boundaries remain unchanged.
+
 ## Save and recovery ordering
 
 Explicit Save serializes a validated immutable snapshot, writes a sibling temp

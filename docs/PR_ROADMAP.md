@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0 decision/feasibility gate passed; M1 foundation in progress. Updated: 2026-10-03.
+Status: M0 and M1 gates passed; M2 topology in progress. Updated: 2026-10-03.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -60,7 +60,9 @@ properties, revision persistence and original-schema migration. See
 R009/R010/R013 are in merged [PR #10](https://github.com/zygote55/sketchyup/pull/10).
 R011 incremental viewport work is merged in [PR #11](https://github.com/zygote55/sketchyup/pull/11).
 R012 durable container work is merged in [PR #12](https://github.com/zygote55/sketchyup/pull/12).
-R014 clean-package acceptance passes; the [M1 gate record](verification/M1.md) awaits its PR merge.
+R014 is merged in [PR #13](https://github.com/zygote55/sketchyup/pull/13).
+The [M1 gate record](verification/M1.md) passes. R015 persistent topology is
+implemented with [verification evidence](verification/R015-topology.md); R016 face formation is next.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -318,7 +320,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R015 — Implement editable surface topology and entity mappings
 
-**Status:** Planned. **Track:** Geometry. **Scope:** G01, D02, D03. **UX:** —.
+**Status:** Verified (topology records and propagated edge splits). **Evidence:** [persistent topology](verification/R015-topology.md). **Track:** Geometry. **Scope:** G01, D02, D03. **UX:** —.
 
 **Requires:** [R008](#r008), [R009](#r009); milestone gate rule above.
 
