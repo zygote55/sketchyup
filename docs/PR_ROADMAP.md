@@ -50,6 +50,7 @@ R001 is in [PR #2](https://github.com/zygote55/sketchyup/pull/2). The native
 spike is in [PR #3](https://github.com/zygote55/sketchyup/pull/3), based on #2.
 The R002.b viewport follow-up is in [PR #4](https://github.com/zygote55/sketchyup/pull/4), based on #3.
 The R002.c desktop follow-up is in [PR #5](https://github.com/zygote55/sketchyup/pull/5), based on #4.
+The R003.b arrangement experiment is in [PR #6](https://github.com/zygote55/sketchyup/pull/6), based on #5.
 The planning PR #1 is merged. No M0 parent row is yet Verified.
 
 | Slice | Boundary | Required follow-up before parent completion |
@@ -60,6 +61,7 @@ The planning PR #1 is merged. No M0 parent row is yet Verified.
 | R003.a | Loop/vertex topology, holes, radial adjacency and isolated extrusion corpus | R003.b stable edge IDs/maps, arrangement and precision experiments |
 | R003.b | Isolated planar partitions, hole reconstruction, stable edge and split/merge identity experiment ([evidence](verification/R003-arrangements.md)) | Review/merge; production topology propagation and persistence remain M2 |
 | R004.a | Identity/revision, staged edits, bounded history, experimental JSON and atomic-save tests | R004.b container benchmarks, journal/outcome and migration contracts |
+| R004.b | Codec benchmark and explicit versioned-container, journal, outcome-retention and migration contracts ([ADR](decisions/0005-document-protocol.md)) | Review/merge; container/recovery implementation remains M1/M4/M5 |
 | R005 | Vendor-source research and explicit unsupported SKP/DWG decisions | Review evidence; compatibility delivery remains conditional |
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
