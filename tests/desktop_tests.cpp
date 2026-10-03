@@ -91,6 +91,17 @@ int main(int argc, char **argv) {
                     migrated.bodies().at(id)->surface == d.bodies().at(id)->surface &&
                     migrated.bodies().at(id)->transform == Transform{} && migrated.revision() == 0,
                 "V1 migration preserves IDs and geometry with identity transform");
+        Document retired;
+        const auto retiredBody = retired.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+        const auto retiredFace = retired.bodies().at(retiredBody)->surface.faces.begin()->first;
+        retired.extrude(retiredBody, retiredFace, 1);
+        const auto floor = retired.bodies().at(retiredBody)->surface.nextId;
+        retired.undo();
+        auto reopened = decodeDocument(encodeDocument(retired));
+        reopened.extrude(retiredBody, retiredFace, 2);
+        for (const auto &[id, face] : reopened.bodies().at(retiredBody)->surface.faces)
+            require(id == retiredFace || id >= floor,
+                    "Retired surface ID floor survives explicit persistence");
         QTemporaryDir dir;
         require(dir.isValid(), "Temporary directory");
         auto path = dir.filePath("model.sketchyup");

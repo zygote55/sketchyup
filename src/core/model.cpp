@@ -127,12 +127,13 @@ std::vector<Triangle> Document::worldTriangles(Id id) const {
     return triangles;
 }
 double Document::worldArea(Id id, Id face) const {
-    if (!bodies_.at(id)->surface.faces.contains(face))
-        throw std::runtime_error("Missing face");
+    const auto world = worldTransform(id);
     double area = 0;
-    for (const auto &triangle : worldTriangles(id))
-        if (triangle.face == face)
-            area += length(cross(triangle.b - triangle.a, triangle.c - triangle.a)) * .5;
+    for (const auto &triangle : bodies_.at(id)->surface.triangulate(face)) {
+        const auto a = world.point(triangle.a), b = world.point(triangle.b),
+                   c = world.point(triangle.c);
+        area += length(cross(b - a, c - a)) * .5;
+    }
     return area;
 }
 void Document::transform(Id id, Transform local, Id parent) {
@@ -148,9 +149,16 @@ void Document::update(Edit edit, bool forward) {
     auto next = bodies_;
     for (const auto &c : edit.changes) {
         auto p = forward ? c.after : c.before;
-        if (p)
-            next[c.id] = p;
-        else
+        if (p) {
+            const auto floor =
+                surfaceFloors_.contains(c.id) ? surfaceFloors_.at(c.id) : p->surface.nextId;
+            if (p->surface.nextId < floor) {
+                auto restored = std::make_shared<Body>(*p);
+                restored->surface.nextId = floor;
+                next[c.id] = std::move(restored);
+            } else
+                next[c.id] = p;
+        } else
             next.erase(c.id);
     }
     bodies_.swap(next);
@@ -164,6 +172,7 @@ void Document::apply(Edit edit, std::uint64_t expected) {
         throw std::runtime_error("Empty edit");
     std::set<Id> ids;
     Id next = std::max(nextId_, edit.nextIdFloor);
+    auto floors = surfaceFloors_;
     edit.bytes = sizeof(Edit) + edit.label.size();
     for (const auto &c : edit.changes) {
         if (!c.id || !ids.insert(c.id).second || (!c.before && !c.after))
@@ -177,6 +186,14 @@ void Document::apply(Edit edit, std::uint64_t expected) {
             if (c.after->id != c.id || c.id == UINT64_MAX)
                 throw std::runtime_error("Identity mismatch");
             validate(*c.after);
+            const auto floor = floors.contains(c.id) ? floors.at(c.id) : Id{1};
+            for (const auto &[id, vertex] : c.after->surface.vertices)
+                if (id < floor && (!c.before || !c.before->surface.vertices.contains(id)))
+                    throw std::runtime_error("Retired vertex ID cannot be reused");
+            for (const auto &[id, face] : c.after->surface.faces)
+                if (id < floor && (!c.before || !c.before->surface.faces.contains(id)))
+                    throw std::runtime_error("Retired face ID cannot be reused");
+            floors[c.id] = std::max(floor, c.after->surface.nextId);
             next = std::max(next, c.id + 1);
         }
         edit.bytes += sizeof(Change) + bytes(c.before) + bytes(c.after);
@@ -185,8 +202,11 @@ void Document::apply(Edit edit, std::uint64_t expected) {
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     // Freeze caller-owned mutable records before storing them as const pointers.
     for (auto &c : edit.changes)
-        if (c.after)
-            c.after = std::make_shared<const Body>(*c.after);
+        if (c.after) {
+            auto frozen = std::make_shared<Body>(*c.after);
+            frozen->surface.nextId = floors.at(c.id);
+            c.after = std::move(frozen);
+        }
     auto updated = bodies_;
     for (const auto &c : edit.changes) {
         if (c.after)
@@ -195,6 +215,17 @@ void Document::apply(Edit edit, std::uint64_t expected) {
             updated.erase(c.id);
     }
     validateDocumentSize(updated);
+    // Keep floors for live contexts and contexts reachable from retained history.
+    // Redo is about to be discarded. Floors of permanently retired bodies are unnecessary.
+    std::set<Id> reachable;
+    for (const auto &[id, body] : updated)
+        reachable.insert(id);
+    for (const auto &entry : undo_)
+        for (const auto &change : entry.edit.changes)
+            reachable.insert(change.id);
+    for (const auto &change : edit.changes)
+        reachable.insert(change.id);
+    std::erase_if(floors, [&](const auto &entry) { return !reachable.contains(entry.first); });
     History h{std::move(edit), state_, stateCounter_ + 1};
     undo_.push_back(h); // Allocation can still fail before any committed change.
     for (const auto &r : redo_)
@@ -203,6 +234,7 @@ void Document::apply(Edit edit, std::uint64_t expected) {
     historyBytes_ += h.edit.bytes;
     bodies_.swap(updated);
     nextId_ = next;
+    surfaceFloors_.swap(floors);
     state_ = ++stateCounter_;
     ++revision_;
     while (historyBytes_ > historyLimit && undo_.size() > 1) {
@@ -251,16 +283,19 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
         !next || bodies.size() > 10000)
         throw std::runtime_error("Invalid document metadata");
+    std::map<Id, Id> floors;
     for (auto &[id, b] : bodies) {
         if (!b || id != b->id || id >= next)
             throw std::runtime_error("Invalid body ID allocator");
         validate(*b);
         b = std::make_shared<const Body>(*b);
+        floors.emplace(id, b->surface.nextId);
     }
     validateDocumentSize(bodies);
     identity_ = std::move(identity);
     nextId_ = next;
     bodies_ = std::move(bodies);
+    surfaceFloors_ = std::move(floors);
     undo_.clear();
     redo_.clear();
     historyBytes_ = 0;

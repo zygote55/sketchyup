@@ -60,6 +60,7 @@ class Document {
     std::string identity_;
     std::map<Id, BodyPtr> bodies_;
     Id nextId_{1};
+    std::map<Id, Id> surfaceFloors_;
     std::uint64_t revision_{0}, state_{0}, savedState_{0}, stateCounter_{0};
     struct History {
         Edit edit;

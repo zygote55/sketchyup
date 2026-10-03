@@ -1,6 +1,6 @@
 #pragma once
-#include "core/model.hpp"
 #include "app/theme.hpp"
+#include "core/model.hpp"
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_3_3_Core>
@@ -16,7 +16,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   public:
     explicit Viewport(Document &doc, QWidget *parent = nullptr);
     ~Viewport() override;
-    enum class Tool { Select, Rectangle, Circle, Extrude, Orbit, Pan };
+    enum class Tool { Select = 0, Rectangle = 1, Circle = 2, Extrude = 3, Orbit = 4, Pan = 5 };
     void setTool(Tool tool);
     Tool tool() const { return tool_; }
     void setSelection(Id body, Id face = 0);

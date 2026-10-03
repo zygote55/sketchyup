@@ -34,20 +34,31 @@ void fields(const QJsonObject &object, std::initializer_list<QString> allowed) {
 }
 } // namespace
 QJsonObject capabilities() {
-    return {
-        {"apiVersion", 1},
-        {"status", "experimental"},
-        {"units", "m"},
-        {"up", "Z"},
-        {"commands", QJsonArray{"geometry.face", "geometry.extrude_isolated", "geometry.translate",
-                                "geometry.delete", "material.color", "scene.transform"}},
-        {"limits", QJsonObject{{"fileBytes", 32 * 1024 * 1024},
-                               {"bodies", 10000},
-                               {"vertices", 100000},
-                               {"batchCommands", 100}}},
-        {"limitations", QJsonArray{"No adjacent-face push/pull or automatic face merging",
-                                   "No durable transaction outcomes or remote retry protocol",
-                                   "No AI provider or Blender integration"}}};
+    return {{"apiVersion", 1},
+            {"status", "experimental"},
+            {"units", "m"},
+            {"up", "Z"},
+            {"commands",
+             [] {
+                 QJsonArray names;
+                 for (const auto &item : commandCatalog())
+                     names.append(item.toObject()["name"]);
+                 return names;
+             }()},
+            {"commandSchemas", commandCatalog()},
+            {"queries", QJsonArray{"document.describe", "commands.describe", "capabilities"}},
+            {"transactionContract",
+             QJsonObject{{"atomic", true},
+                         {"history", "one undo item per batch"},
+                         {"precondition", "document identity and expected content revision"},
+                         {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
+            {"limits", QJsonObject{{"fileBytes", 32 * 1024 * 1024},
+                                   {"bodies", 10000},
+                                   {"vertices", 100000},
+                                   {"batchCommands", 100}}},
+            {"limitations", QJsonArray{"No adjacent-face push/pull or automatic face merging",
+                                       "No durable transaction outcomes or remote retry protocol",
+                                       "No AI provider or Blender integration"}}};
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies;
@@ -71,6 +82,19 @@ QJsonObject describe(const Document &doc) {
             {"revision", QString::number(doc.revision())},
             {"bodies", bodies}};
 }
+QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
+    const auto name = request["query"].toString();
+    if (name == "commands.describe") {
+        fields(request, {"query", "name"});
+        return commandDescription(request["name"].toString());
+    }
+    fields(request, {"query"});
+    if (name == "document.describe")
+        return describe(doc);
+    if (name == "capabilities")
+        return capabilities();
+    throw std::runtime_error("Unavailable query");
+}
 QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     fields(request, {"apiVersion", "documentId", "expectedRevision", "commands"});
     if (!request["apiVersion"].isDouble() || request["apiVersion"].toDouble() != 1)
@@ -90,6 +114,14 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             throw std::runtime_error("Expected command object");
         auto command = value.toObject();
         auto name = command["command"].toString();
+        const auto schema = commandDescription(name)["parameters"].toObject();
+        const auto allowed = schema["properties"].toObject();
+        for (auto it = command.begin(); it != command.end(); ++it)
+            if (!allowed.contains(it.key()))
+                throw std::runtime_error("Unknown command parameter");
+        for (const auto &required : schema["required"].toArray())
+            if (!command.contains(required.toString()))
+                throw std::runtime_error("Missing command parameter");
         if (name == "geometry.face") {
             fields(command, {"command", "loops", "name"});
             if (command.contains("name") && !command["name"].isString())
@@ -127,6 +159,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         } else if (name == "material.color") {
             fields(command, {"command", "body", "color"});
             auto c = point(command["color"]);
+            if (c.x < 0 || c.x > 1 || c.y < 0 || c.y > 1 || c.z < 0 || c.z > 1)
+                throw std::runtime_error("Color components must be between zero and one");
             staged.paint(id(command["body"]), {float(c.x), float(c.y), float(c.z)});
         } else
             throw std::runtime_error("Unavailable command");

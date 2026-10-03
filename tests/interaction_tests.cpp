@@ -1,12 +1,15 @@
 #include "app/window.hpp"
 #include "io/document_io.hpp"
-#include <QApplication>
 #include <QAction>
-#include <QMouseEvent>
+#include <QApplication>
+#include <QDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMouseEvent>
 #include <QSurfaceFormat>
+#include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 #include <iostream>
 using namespace sketchy;
 void check(bool ok, const char *message) {
@@ -19,6 +22,8 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     QSurfaceFormat::setDefaultFormat(format);
+    QTemporaryDir preferences;
+    qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
     QApplication app(argc, argv);
     Window window;
     window.show();
@@ -83,7 +88,8 @@ int main(int argc, char **argv) {
         QTest::keyClicks(field, "1, 1");
         QTest::keyClick(field, Qt::Key_Return);
         check(window.document().bodies().size() == 1, "Escape cancels uncommitted rectangle");
-        check(field->text() == "1, 1", "Canceled preview rejects measurements without discarding text");
+        check(field->text() == "1, 1",
+              "Canceled preview rejects measurements without discarding text");
         field->clear();
         view->setFocus();
         QCoreApplication::processEvents();
@@ -101,8 +107,8 @@ int main(int argc, char **argv) {
               "Camera navigation does not mutate document");
         const Vec3 probe{2, 1, 1};
         auto move = [&](QPointF point, Qt::MouseButtons buttons) {
-            QMouseEvent event(QEvent::MouseMove, point, view->mapToGlobal(point),
-                              Qt::NoButton, buttons, Qt::NoModifier);
+            QMouseEvent event(QEvent::MouseMove, point, view->mapToGlobal(point), Qt::NoButton,
+                              buttons, Qt::NoModifier);
             QApplication::sendEvent(view, &event);
         };
         // Release outside the widget must end the implicit grab's navigation.
@@ -114,8 +120,8 @@ int main(int argc, char **argv) {
         auto afterDrag = view->project(probe);
         move(QPointF(100, 100), Qt::NoButton);
         check(view->project(probe) == afterDrag, "Outside release ends navigation");
-        for (auto type : {QEvent::UngrabMouse, QEvent::WindowDeactivate, QEvent::FocusOut,
-                          QEvent::Hide}) {
+        for (auto type :
+             {QEvent::UngrabMouse, QEvent::WindowDeactivate, QEvent::FocusOut, QEvent::Hide}) {
             QTest::mousePress(view, Qt::MiddleButton, {}, QPoint(100, 100));
             QEvent lost(type);
             QApplication::sendEvent(view, &lost);
@@ -133,7 +139,10 @@ int main(int argc, char **argv) {
         const auto revisionBeforeTheme = window.document().revision();
         auto setTheme = [&](const QString &name) {
             for (auto *action : window.findChildren<QAction *>())
-                if (action->text() == name) { action->trigger(); return; }
+                if (action->text() == name) {
+                    action->trigger();
+                    return;
+                }
             throw std::runtime_error("Theme action missing");
         };
         setTheme("Dark theme");
@@ -142,7 +151,8 @@ int main(int argc, char **argv) {
         check(window.styleSheet().contains("#f7f7f2"), "Light tokens applied");
         setTheme("System theme");
         check(window.document().revision() == revisionBeforeTheme &&
-              encodeDocument(window.document()) == saved, "Theme changes are view-only");
+                  encodeDocument(window.document()) == saved,
+              "Theme changes are view-only");
         // Window manager may constrain top-level dimensions: nested viewport checks
         // still use actual logical coordinates; report actual window size below.
         window.resize(640, 600);
@@ -150,6 +160,46 @@ int main(int argc, char **argv) {
         check(field->isVisible() &&
                   window.rect().contains(field->mapTo(&window, field->rect().bottomRight())),
               "Measurements remain inside narrow window");
+        window.activateWindow();
+        check(QTest::qWaitForWindowActive(&window, 5000),
+              "Window active after resize and input-loss checks");
+        field->setFocus();
+        QCoreApplication::processEvents();
+        check(field->hasFocus(), "Measurements owns focus before region traversal");
+        QTest::keyClick(field, Qt::Key_F6);
+        check(QApplication::focusWidget() == window.findChild<QWidget *>("commandSearch"),
+              "F6 wraps from Measurements to command search");
+        QTest::keyClick(QApplication::focusWidget(), Qt::Key_F6);
+        check(QApplication::focusWidget() == window.findChild<QWidget *>("toolRail"),
+              "F6 reaches tool rail");
+        QTest::keyClick(QApplication::focusWidget(), Qt::Key_F6);
+        check(view->hasFocus(), "F6 reaches viewport");
+        QTest::keyClick(view, Qt::Key_F6, Qt::ShiftModifier);
+        check(QApplication::focusWidget() == window.findChild<QWidget *>("toolRail"),
+              "Shift F6 reverses region order");
+        check(encodeDocument(window.document()) == saved, "Focus navigation never edits model");
+        view->setSelection(0);
+        check(!window.findChild<QAction *>("edit.move")->isEnabled(), "Move requires selection");
+        bool entityResult = false;
+        QTimer::singleShot(50, [&] {
+            auto *palette = window.findChild<QDialog *>("commandPalette");
+            if (!palette)
+                return;
+            auto *query = palette->findChild<QLineEdit *>("paletteQuery");
+            auto *results = palette->findChild<QListWidget *>("paletteResults");
+            query->setText(QString("face 1/%1").arg(face));
+            entityResult = results->count() == 1;
+            if (entityResult)
+                QTest::keyClick(query, Qt::Key_Return);
+            else
+                palette->reject();
+        });
+        window.findChild<QAction *>("view.commands")->trigger();
+        check(entityResult && view->selectedBody() == 1 && view->selectedFace() == face,
+              "Palette resolves scoped face identity");
+        check(window.findChild<QAction *>("edit.move")->isEnabled(),
+              "Selection enables public action");
+        check(encodeDocument(window.document()) == saved, "Palette selection never edits model");
         QJsonObject result{{"passed", true},
                            {"platform", QGuiApplication::platformName()},
                            {"scale", window.devicePixelRatioF()},

@@ -67,6 +67,56 @@ int main() {
         body->properties["width"] = 4.0;
         check(std::get<double>(doc.bodies().at(child)->properties.at("width")) == 1.2,
               "Properties frozen with authoritative records");
+        Document identities;
+        auto identityBody = identities.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+        auto identityFace = identities.bodies().at(identityBody)->surface.faces.begin()->first;
+        identities.extrude(identityBody, identityFace, 1);
+        auto retiredFloor = identities.bodies().at(identityBody)->surface.nextId;
+        identities.undo();
+        identities.undo();
+        identities.redo();
+        check(identities.bodies().at(identityBody)->surface.nextId >= retiredFloor,
+              "Undo/redo of context creation preserves retired surface IDs");
+        identities.extrude(identityBody, identityFace, 2);
+        for (const auto &[id, face] : identities.bodies().at(identityBody)->surface.faces)
+            check(id == identityFace || id >= retiredFloor,
+                  "New faces cannot reuse IDs from undone extrusion");
+        identities.undo();
+        auto identityBefore = identities.bodies().at(identityBody);
+        auto reuse = std::make_shared<Body>(*identityBefore);
+        reuse->surface.nextId = 6;
+        reuse->surface.extrude(identityFace, 3);
+        rejects([&] {
+            identities.apply({"Invalid reuse", {{identityBody, identityBefore, reuse}}},
+                             identities.revision());
+        });
+        Document bounded;
+        auto boundedId = bounded.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+        auto beforeProperties = bounded.bodies().at(boundedId);
+        auto payload = std::make_shared<Body>(*beforeProperties);
+        for (int i = 0; i < 128; ++i)
+            payload->properties["property" + std::to_string(i)] = std::string(2048, 'x');
+        bounded.apply({"Bounded metadata", {{boundedId, beforeProperties, payload}}},
+                      bounded.revision());
+        for (int i = 0; i < 160; ++i)
+            bounded.paint(boundedId, {float(i % 10) / 10, .2f, .3f});
+        check(bounded.historyBytes() <= Document::historyLimit,
+              "History evicts to its allocation budget");
+        auto finalBody = *bounded.bodies().at(boundedId);
+        int undoCount = 0;
+        while (bounded.canUndo()) {
+            bounded.undo();
+            ++undoCount;
+        }
+        check(undoCount > 0 && undoCount < 162, "Budget eviction removes oldest undo entries");
+        while (bounded.canRedo())
+            bounded.redo();
+        check(*bounded.bodies().at(boundedId) == finalBody,
+              "Evicted history still redoes retained edits exactly");
+        bounded.undo();
+        bounded.paint(boundedId, {.4f, .5f, .6f});
+        check(!bounded.canRedo() && bounded.historyBytes() <= Document::historyLimit,
+              "New edit releases redo branch within budget");
         Document exhausted;
         exhausted.restore(exhausted.identity(), 1, {}, UINT64_MAX);
         rejects([&] { exhausted.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}}); });
