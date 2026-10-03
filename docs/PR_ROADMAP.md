@@ -51,6 +51,7 @@ spike is in [PR #3](https://github.com/zygote55/sketchyup/pull/3), based on #2.
 The R002.b viewport follow-up is in [PR #4](https://github.com/zygote55/sketchyup/pull/4), based on #3.
 The R002.c desktop follow-up is in [PR #5](https://github.com/zygote55/sketchyup/pull/5), based on #4.
 The R003.b arrangement experiment is in [PR #6](https://github.com/zygote55/sketchyup/pull/6), based on #5.
+The R004.b persistence contract is in [PR #7](https://github.com/zygote55/sketchyup/pull/7), based on #6.
 The planning PR #1 is merged. No M0 parent row is yet Verified.
 
 | Slice | Boundary | Required follow-up before parent completion |
@@ -209,7 +210,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R006 — Reconcile interaction contracts and responsive designs
 
-**Status:** Planned. **Track:** Desktop. **Scope:** N03, N04, N05, D03, D04, A03, A04. **UX:** §3–§4, §6, §8, §10.
+**Status:** In progress. **Evidence:** [interaction contracts](decisions/0006-interaction-contracts.md). **Track:** Desktop. **Scope:** N03, N04, N05, D03, D04, A03, A04. **UX:** §3–§4, §6, §8, §10.
 
 **Requires:** [R002](#r002), [R004](#r004); milestone gate rule above.
 

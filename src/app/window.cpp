@@ -14,6 +14,8 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QStyleHints>
+#include <QApplication>
 #include <QToolBar>
 #include <QVBoxLayout>
 namespace sketchy {
@@ -201,6 +203,18 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         action("Perspective", QKeySequence("1"), [this] { viewport_->standardView(0); }));
     view->addAction(action("Top", QKeySequence("2"), [this] { viewport_->standardView(1); }));
     view->addAction(action("Front", QKeySequence("3"), [this] { viewport_->standardView(2); }));
+    auto *themes = view->addMenu("Theme");
+    auto *themeGroup = new QActionGroup(this);
+    const QStringList themeNames{"System theme", "Light theme", "Dark theme"};
+    for (int mode = 0; mode < themeNames.size(); ++mode) {
+        auto *entry = action(themeNames[mode], {}, [this, mode] { themeMode_ = mode; applyTheme(); });
+        entry->setCheckable(true);
+        entry->setChecked(mode == 0);
+        themeGroup->addAction(entry);
+        themes->addAction(entry);
+    }
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
+            this, [this] { if (themeMode_ == 0) applyTheme(); });
     action("Commands…", QKeySequence("Ctrl+K"), [this] { palette(); });
     // Single-letter modeling shortcuts must never consume typing in text fields.
     for (auto *a : publicActions_)
@@ -213,31 +227,50 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     connect(viewport_, &Viewport::message, status_, &QLabel::setText);
     connect(viewport_, &Viewport::selected, this, [this](qulonglong, qulonglong) { sync(); });
     connect(measurements_, &QLineEdit::returnPressed, this, [this] {
-        viewport_->measurements(measurements_->text());
-        measurements_->clear();
-        viewport_->setFocus();
+        if (viewport_->measurements(measurements_->text())) {
+            measurements_->clear();
+            viewport_->setFocus();
+        } else {
+            measurements_->selectAll();
+        }
     });
     connect(outliner_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *item) {
         if (item)
             viewport_->setSelection(item->data(Qt::UserRole).toULongLong());
     });
-    setStyleSheet(R"(
-QMainWindow,QWidget {background:#f7f7f2;color:#263a32;font-family:'DejaVu Sans';font-size:12px;}
-QMenuBar {padding:5px;background:#f7f7f2;border-bottom:1px solid #d7ddd4;}
-QMenuBar::item {padding:5px 10px;} QMenuBar::item:selected,QMenu::item:selected {background:#dce7dc;}
-QMenu {border:1px solid #cbd3c9;padding:5px;} QMenu::item {padding:7px 22px;}
-#header {border-bottom:1px solid #d5dcd2;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
-#tray {border-left:1px solid #d5dcd2;} #section {font-size:10px;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
-#hint {color:#718076;font-size:11px;padding:12px 0;} #footer {border-top:1px solid #d5dcd2;}
-QToolBar {border:0;border-right:1px solid #d5dcd2;spacing:6px;padding:10px 5px;}
-QToolButton {padding:12px 5px;border-radius:4px;} QToolButton:checked {background:#dce6d7;color:#31543b;}
-QToolButton:hover,QPushButton:hover {background:#e6ebdf;}
-QPushButton {border:1px solid #cdd6c9;padding:7px 11px;border-radius:4px;}
-QLineEdit {background:#fff;border:1px solid #c9d4c5;border-radius:4px;padding:7px;selection-background-color:#618566;}
-QLineEdit:focus {border:1px solid #547858;}
-QListWidget {border:0;background:transparent;outline:0;} QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:#e0e9da;color:#2e4e36;}
-)");
+    applyTheme();
     sync();
+}
+void Window::applyTheme() {
+    const bool dark = themeMode_ == 2 || (themeMode_ == 0 &&
+        QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark);
+    const auto colors = themeColors(dark);
+    auto style = QStringLiteral(R"(
+QMainWindow,QWidget {background:$surface;color:$ink;font-family:'DejaVu Sans';font-size:12px;}
+QMenuBar {padding:5px;background:$surface;border-bottom:1px solid $border;}
+QMenuBar::item {padding:5px 10px;} QMenuBar::item:selected,QMenu::item:selected {background:$selected;}
+QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
+#header {border-bottom:1px solid $border;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
+#tray {border-left:1px solid $border;} #section {font-size:10px;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
+#hint {color:$muted;font-size:11px;padding:12px 0;} #footer {border-top:1px solid $border;}
+QToolBar {border:0;border-right:1px solid $border;spacing:6px;padding:10px 5px;}
+QToolButton {padding:12px 5px;border-radius:4px;} QToolButton:checked {background:$selected;color:$ink;}
+QToolButton:hover,QPushButton:hover {background:$hover;}
+QPushButton {border:1px solid $border;padding:7px 11px;border-radius:4px;}
+QLineEdit {background:$input;border:1px solid $border;border-radius:4px;padding:7px;selection-background-color:$accent;}
+QLineEdit:focus {border:1px solid $accent;}
+QListWidget {border:0;background:transparent;outline:0;} QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
+)");
+    style.replace("$surface", colors.surface.name());
+    style.replace("$ink", colors.ink.name());
+    style.replace("$border", colors.border.name());
+    style.replace("$selected", colors.selected.name());
+    style.replace("$muted", colors.muted.name());
+    style.replace("$hover", colors.hover.name());
+    style.replace("$input", colors.input.name());
+    style.replace("$accent", colors.accent.name());
+    setStyleSheet(style);
+    viewport_->setTheme(colors);
 }
 void Window::run(const std::function<void()> &fn) {
     try {
@@ -258,7 +291,7 @@ void Window::tool(Viewport::Tool t, const QString &text) {
 void Window::sync() {
     viewport_->refresh();
     title_->setText((path_.isEmpty() ? "Untitled" : QFileInfo(path_).fileName()) +
-                    (doc_.dirty() ? "  •  Edited" : "  ·  Saved"));
+                    (path_.isEmpty() ? "  ·  Not saved" : (doc_.dirty() ? "  •  Edited" : "  ·  Saved")));
     undo_->setEnabled(doc_.canUndo());
     redo_->setEnabled(doc_.canRedo());
     QSignalBlocker block(outliner_);
@@ -354,7 +387,9 @@ void Window::closeEvent(QCloseEvent *e) {
 void Window::resizeEvent(QResizeEvent *e) {
     QMainWindow::resizeEvent(e);
     if (tray_)
-        tray_->setVisible(width() >= 1000);
+        tray_->setVisible(width() >= 800);
+    setProperty("layoutClass", width() < 800 ? "compact" : width() < 1100 ? "standard" :
+                width() < 1500 ? "expanded" : "wide");
 }
 void Window::palette() {
     QDialog dialog(this);

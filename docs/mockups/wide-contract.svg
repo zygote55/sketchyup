@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<title>1600 logical pixel interaction contract: simultaneous Tray and Assistant</title>
+<desc>Design reference, not a runtime screenshot. The assistant reconciles a lost commit response; Measurements remain visible.</desc>
+<style>text{font-family:sans-serif;fill:#263a32;font-size:15px}.small{font-size:13px;fill:#617266}.bold{font-weight:bold}.line{stroke:#c9d4c5;fill:none}</style>
+<rect width="1600" height="900" fill="#f7f7f2"/>
+<path d="M0 55H1600 M0 850H1600 M64 55V850 M985 55V850 M1225 55V850" class="line"/>
+<text x="20" y="32" class="bold">SKETCHYUP</text><text x="240" y="32">room · Edited</text>
+<text x="1300" y="32">Commands  Ctrl+K</text>
+<text x="12" y="95">Select</text><text x="12" y="140">Line</text><text x="12" y="185">Rect.</text>
+<text x="12" y="230">Circle</text><text x="12" y="275">Pull</text><text x="12" y="320">Move</text>
+<text x="12" y="365">Orbit</text><text x="12" y="410">Pan</text>
+<rect x="65" y="56" width="919" height="793" fill="#e9ede3"/>
+<text x="90" y="88">Model › Room</text>
+<path d="M185 470L545 290L840 440L480 640Z M185 470V300L545 120L840 270V440 M545 120V290 M480 640V470L185 300 M480 470L840 270" fill="#d1d8c8" stroke="#263a32" stroke-width="2"/>
+<path d="M575 420L695 351V449L575 518Z" fill="#a2bdc1" stroke="#476cba" stroke-width="3"/>
+<rect x="185" y="690" width="660" height="80" rx="8" fill="#fff4d4" stroke="#ad7b2a"/>
+<text x="205" y="720" class="bold">Checking whether the edit was applied…</text>
+<text x="205" y="746">The response was interrupted. We are checking the recorded result.</text>
+<text x="1005" y="90" class="bold">TRAY</text><text x="1005" y="130">Selected: Window #2</text>
+<text x="1005" y="172">Context: Room</text><text x="1005" y="206">Definition: Window</text>
+<text x="1005" y="256" class="bold">Outliner</text><text x="1020" y="292">Room</text>
+<text x="1040" y="325">Window #1</text><text x="1040" y="358">Window #2</text>
+<text x="1005" y="430" class="small">Selection remains inspectable</text>
+<text x="1245" y="90" class="bold">ASSISTANT</text><text x="1245" y="124" class="small">Remote provider · What is sent</text>
+<rect x="1240" y="153" width="340" height="75" rx="6" fill="#e6ebdf"/>
+<text x="1254" y="182">Widen only Window #2 by 20 cm,</text><text x="1254" y="206">keeping it centered.</text>
+<text x="1245" y="274" class="bold">Result pending reconciliation</text>
+<text x="1245" y="312">Request: window-width-001</text><text x="1245" y="344">Expected revision: 42</text>
+<text x="1245" y="388">A timeout does not tell us whether</text><text x="1245" y="412">the edit committed.</text>
+<rect x="1245" y="444" width="310" height="40" rx="4" fill="#dce7dc"/>
+<text x="1260" y="470">Check recorded outcome</text>
+<text x="1245" y="526" class="small">Duplicate Apply is disabled until resolved.</text>
+<text x="1245" y="560" class="small">If committed: report actual revision,</text><text x="1245" y="583" class="small">make-unique result and one Undo action.</text>
+<text x="90" y="883">Select · Inspecting Window #2</text><text x="1280" y="883">Measurements</text>
+<rect x="1410" y="863" width="170" height="26" rx="4" fill="white" stroke="#c9d4c5"/>
+<text x="95" y="817" class="small">Design reference · Future workflow · Not a native runtime capture</text>
+</svg>
