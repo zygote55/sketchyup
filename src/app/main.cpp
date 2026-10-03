@@ -3,6 +3,7 @@
 #include <QCommandLineParser>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRawFont>
 #include <QSurfaceFormat>
 #include <QTimer>
 #include <iostream>
@@ -72,7 +73,10 @@ int main(int argc, char **argv) {
                 if (*frames < 25)
                     return;
                 timer->stop();
-                bool valid = window.viewport()->rendererReady() && stats.glError == 0;
+                const auto font = QRawFont::fromFont(QApplication::font());
+                const bool textReady =
+                    font.isValid() && font.supportsCharacter('A') && font.supportsCharacter(0x2026);
+                bool valid = window.viewport()->rendererReady() && stats.glError == 0 && textReady;
                 // Face center selected through logical-pixel projection at the actual device scale.
                 auto hit = window.viewport()->pick(window.viewport()->project({0, -.05, .8}));
                 if (parser.isSet("smoke"))
@@ -81,11 +85,15 @@ int main(int argc, char **argv) {
                 if (parser.isSet("capture"))
                     capture = window.grab().save(parser.value("capture"));
                 QJsonObject result{
+                    {"documentId", QString::fromStdString(window.document().identity())},
+                    {"revision", QString::number(window.document().revision())},
+                    {"bodies", int(window.document().bodies().size())},
                     {"platform", QGuiApplication::platformName()},
                     {"devicePixelRatio", window.devicePixelRatioF()},
                     {"graphics", window.viewport()->graphicsDescription()},
                     {"pickingBody", int(hit.first)},
                     {"rendererReady", window.viewport()->rendererReady()},
+                    {"textReady", textReady},
                     {"meanFrameMs", *total / 20},
                     {"sampledFrames", 20},
                     {"warmupFrames", 5},

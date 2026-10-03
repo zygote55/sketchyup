@@ -94,8 +94,10 @@ makepkg -s
 
 The script creates a source archive and writes its checksum into the generated
 PKGBUILD. Package output contains the native app, CLI, desktop entry, icon, MIME
-definition and license notices. Clean-system install/upgrade/remove acceptance
-remains pending; creating a package is not a release approval.
+definition and license notices. [Clean Arch acceptance](docs/verification/R014-package.md)
+covers install, desktop launch, upgrade/reopen and removal. See the
+[package workflow](packaging/arch/README.md) for reproduction. This remains an
+experimental development package.
 
 ## Design and delivery
 

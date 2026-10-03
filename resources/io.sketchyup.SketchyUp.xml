@@ -3,5 +3,8 @@
   <mime-type type="application/x-sketchyup">
     <comment>SketchyUp experimental model</comment>
     <glob pattern="*.sketchyup"/>
+    <magic priority="80">
+      <match type="string" value="SKUPDOC\0" offset="0"/>
+    </magic>
   </mime-type>
 </mime-info>
