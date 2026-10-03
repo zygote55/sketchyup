@@ -111,6 +111,21 @@ Id Document::addWire(Id context, Vec3 a, Vec3 b) {
     apply({"Draw edge", {{body->id, old, body}}}, revision_);
     return body->id;
 }
+ChangeReport Document::insertEdges(Id context, Vec3 origin, Vec3 normal,
+                                   const std::vector<std::array<Vec3, 2>> &edges) {
+    BodyPtr old = context ? bodies_.at(context) : nullptr;
+    auto body = old ? std::make_shared<Body>(*old) : std::make_shared<Body>();
+    if (!old) {
+        body->id = nextId_;
+        body->name = "Planar geometry";
+    }
+    auto result = insertPlanarEdges(body->surface, origin, normal, edges);
+    if (old && result.surface == old->surface)
+        return {};
+    body->surface = std::move(result.surface);
+    return apply({"Insert planar edges", {{body->id, old, body, std::move(result.faces)}}},
+                 revision_);
+}
 void Document::splitEdge(Id context, Id edge, double fraction) {
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);

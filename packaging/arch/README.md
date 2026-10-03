@@ -17,7 +17,7 @@ sudo pacman -U sketchyup-0.1.0-2-x86_64.pkg.tar.zst
 The source archive contains no Git credentials, build outputs or developer config.
 `package-source.sh` writes the exact archive checksum into PKGBUILD. Build parallelism
 defaults to four; override `CMAKE_BUILD_PARALLEL_LEVEL` if needed. The package check
-phase runs all six noninteractive CTest targets. Runtime requires system Qt base,
+phase runs all noninteractive CTest targets. Runtime requires system Qt base,
 Qt Wayland, the shared MIME database and DejaVu fonts (so a minimal install has
 readable UI text). The desktop launcher accepts one local
 file (`%f`); native file dialogs and CLI provide other entry points.

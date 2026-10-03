@@ -1,5 +1,6 @@
 #pragma once
 #include "core/transform.hpp"
+#include "geometry/planar.hpp"
 #include "geometry/topology.hpp"
 #include <deque>
 #include <memory>
@@ -61,6 +62,8 @@ class Document {
     void transform(Id body, Transform local, Id parent = 0);
     ChangeReport apply(Edit edit, std::uint64_t expectedRevision);
     Id addWire(Id context, Vec3 a, Vec3 b);
+    ChangeReport insertEdges(Id context, Vec3 origin, Vec3 normal,
+                             const std::vector<std::array<Vec3, 2>> &edges);
     void splitEdge(Id context, Id edge, double fraction);
     void undo();
     void redo();

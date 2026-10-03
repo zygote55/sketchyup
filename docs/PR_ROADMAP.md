@@ -62,7 +62,8 @@ R011 incremental viewport work is merged in [PR #11](https://github.com/zygote55
 R012 durable container work is merged in [PR #12](https://github.com/zygote55/sketchyup/pull/12).
 R014 is merged in [PR #13](https://github.com/zygote55/sketchyup/pull/13).
 The [M1 gate record](verification/M1.md) passes. R015 persistent topology is
-implemented with [verification evidence](verification/R015-topology.md); R016 face formation is next.
+merged in [PR #14](https://github.com/zygote55/sketchyup/pull/14). R016 finite planar
+face formation is locally verified; R017 tessellation/picking associations follow.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -332,7 +333,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R016 — Form and split planar faces from intersecting edges
 
-**Status:** Planned. **Track:** Geometry. **Scope:** G01, G02. **UX:** —.
+**Status:** Verified (bounded planar insertion). **Evidence:** [finite arrangements](verification/R016-planar-faces.md). **Track:** Geometry. **Scope:** G01, G02. **UX:** —.
 
 **Requires:** [R015](#r015); milestone gate rule above.
 

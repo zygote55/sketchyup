@@ -43,6 +43,12 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "geometry.face"},
                         {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{1, 0, 0},
                                                         QJsonArray{0, 1, 0}}}}},
+            QJsonObject{
+                {"command", "geometry.insert_edges"},
+                {"body", "1"},
+                {"origin", QJsonArray{0, 0, 0}},
+                {"normal", QJsonArray{0, 0, 1}},
+                {"edges", QJsonArray{QJsonArray{QJsonArray{0, .5, 0}, QJsonArray{1, .5, 0}}}}},
             QJsonObject{{"command", "geometry.wire"},
                         {"body", "0"},
                         {"start", QJsonArray{0, 0, 0}},
@@ -97,6 +103,52 @@ int main(int argc, char **argv) {
                       *doc.bodies().at(1) == expectedBody,
                   "Registered command undo restores source geometry and metadata");
         }
+        Document subdivided = source;
+        const auto originalBody = *subdivided.bodies().at(1);
+        auto insertion = [](QJsonArray first, QJsonArray last) {
+            return QJsonObject{{"command", "geometry.insert_edges"},
+                               {"body", "1"},
+                               {"origin", QJsonArray{0, 0, 0}},
+                               {"normal", QJsonArray{0, 0, 1}},
+                               {"edges", QJsonArray{QJsonArray{first, last}}}};
+        };
+        auto request = [&](QJsonArray commands) {
+            return QJsonObject{{"apiVersion", 1},
+                               {"documentId", QString::fromStdString(subdivided.identity())},
+                               {"expectedRevision", QString::number(subdivided.revision())},
+                               {"commands", commands}};
+        };
+        const auto initialRevision = subdivided.revision();
+        auto outcome = executeBatch(subdivided, request({insertion({0, .5, 0}, {1, .5, 0}),
+                                                         insertion({.5, 0, 0}, {.5, 1, 0})}));
+        check(subdivided.revision() == initialRevision + 1 &&
+                  subdivided.bodies().at(1)->surface.faces.size() == 4,
+              "Two staged arrangements commit once");
+        const auto mappings = outcome["changes"]
+                                  .toObject()["1"]
+                                  .toObject()["faces"]
+                                  .toObject()["descendants"]
+                                  .toObject();
+        check(mappings["5"].toArray().size() == 4,
+              "Face lineage composes through a multi-operation batch");
+        const auto encoded = encodeContainer(subdivided);
+        const auto reopened = decodeContainer(encoded);
+        check(*reopened.bodies().at(1) == *subdivided.bodies().at(1),
+              "Arrangement persists exact topology");
+        subdivided.undo();
+        check(subdivided.bodies().at(1)->surface.faces == originalBody.surface.faces &&
+                  subdivided.bodies().at(1)->topology.edges == originalBody.topology.edges,
+              "Arrangement batch undo restores original connectivity");
+        subdivided.redo();
+        check(subdivided.bodies().at(1)->surface == reopened.bodies().at(1)->surface,
+              "Arrangement batch redo restores result");
+        const auto beforeFailure = encodeDocument(subdivided);
+        rejects([&] {
+            executeBatch(subdivided, request({insertion({0, .25, 0}, {1, .25, 0}),
+                                              insertion({0, 0, 0}, {1, 1, .1})}));
+        });
+        check(encodeDocument(subdivided) == beforeFailure,
+              "Invalid later insertion rolls back the whole batch");
         Document color = source;
         rejects([&] {
             executeBatch(

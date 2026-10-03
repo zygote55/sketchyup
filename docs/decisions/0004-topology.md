@@ -91,3 +91,15 @@ loops and wires, including non-manifold radial fans. The original EdgeIdentityIn
 remains a feasibility fixture, while production records use `geometry/topology.*`.
 Finite coplanar arrangement/face formation remains R016; this does not promote the
 infinite-plane partition experiment into a general editing tool.
+
+## R016 finite arrangements
+
+The production finite-segment adapter now performs local-plane intersection/overlap
+splitting, iterative bridge removal for loop discovery, angular region traversal
+and nested-loop containment. It preserves explicit old holes and does not fill
+unrelated closed wire networks. Existing edge subdivisions propagate to every
+incident face, including faces outside the plane. Candidate topology and original
+face coverage are validated before publication; stable face ancestry composes
+through command batches. Resource and near-parallel limits are explicit in the
+[R016 evidence](../verification/R016-planar-faces.md). This bounded implementation
+does not claim general solid intersection or the later spatial-index performance.
