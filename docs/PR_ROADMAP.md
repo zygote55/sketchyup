@@ -126,7 +126,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R001 — Freeze the reference workflows and decision register
 
-**Status:** Planned. **Track:** Planning. **Scope:** N01, D01, A01. **UX:** —.
+**Status:** In progress. **Evidence:** [R001](verification/R001.md). **Track:** Planning. **Scope:** N01, D01, A01. **UX:** —.
 
 **Requires:** Planning documentation; milestone gate rule above.
 
