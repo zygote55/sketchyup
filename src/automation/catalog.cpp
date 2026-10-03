@@ -1,0 +1,61 @@
+#include "automation/commands.hpp"
+namespace sketchy {
+namespace {
+QJsonObject number() { return {{"type", "number"}}; }
+QJsonObject stableId(bool zero = false) {
+    return {{"type", "string"},
+            {"pattern", zero ? "^(0|[1-9][0-9]*)$" : "^[1-9][0-9]*$"},
+            {"maxLength", 20},
+            {"description", "Canonical uint64 decimal string"}};
+}
+QJsonObject list(QJsonObject items, int minimum, int maximum) {
+    return {{"type", "array"}, {"items", items}, {"minItems", minimum}, {"maxItems", maximum}};
+}
+QJsonObject spec(QString name, QString label, QString category, QJsonObject properties,
+                 QJsonArray required) {
+    properties["command"] = QJsonObject{{"const", name}};
+    required.append("command");
+    return {{"name", name},
+            {"label", label},
+            {"category", category},
+            {"parameters", QJsonObject{{"$schema", "https://json-schema.org/draft/2020-12/schema"},
+                                       {"type", "object"},
+                                       {"properties", properties},
+                                       {"required", required},
+                                       {"additionalProperties", false}}},
+            {"validation", "Schema plus authoritative geometry, document and resource validation"},
+            {"undo", "one batch history item"}};
+}
+} // namespace
+QJsonArray commandCatalog() {
+    auto coordinate = QJsonObject{
+        {"type", "number"}, {"minimum", -coordinateLimit}, {"maximum", coordinateLimit}};
+    auto point = list(coordinate, 3, 3);
+    return {
+        spec("geometry.face", "Draw face", "Geometry",
+             {{"loops", list(list(point, 3, 10000), 1, 10000)},
+              {"name", QJsonObject{{"type", "string"}, {"maxLength", 1024}}}},
+             {"loops"}),
+        spec("geometry.extrude_isolated", "Extrude isolated face", "Geometry",
+             {{"body", stableId()}, {"face", stableId()}, {"distance", number()}},
+             {"body", "face", "distance"}),
+        spec("geometry.translate", "Move selection", "Geometry",
+             {{"body", stableId()}, {"delta", point}}, {"body", "delta"}),
+        spec("geometry.delete", "Delete selection", "Geometry", {{"body", stableId()}}, {"body"}),
+        spec("material.color", "Paint selection", "Materials",
+             {{"body", stableId()},
+              {"color", list({{"type", "number"}, {"minimum", 0}, {"maximum", 1}}, 3, 3)}},
+             {"body", "color"}),
+        spec("scene.transform", "Set object transform", "Scene",
+             {{"body", stableId()}, {"matrix", list(number(), 16, 16)}, {"parent", stableId(true)}},
+             {"body", "matrix"})};
+}
+QJsonObject commandDescription(const QString &name) {
+    for (const auto &item : commandCatalog()) {
+        const auto command = item.toObject();
+        if (command["name"] == name)
+            return command;
+    }
+    throw std::runtime_error("Unavailable command");
+}
+} // namespace sketchy

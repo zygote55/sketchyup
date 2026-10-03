@@ -54,7 +54,7 @@ and [#8](https://github.com/zygote55/sketchyup/pull/8) are merged in dependency 
 The [M0 gate record](verification/M0.md) identifies accepted evidence and the
 implementation/platform boundaries carried into later milestones.
 
-R007/R008 foundation work is in progress: pinned Arch builds, scene transforms,
+R007/R008 foundation work is merged in [PR #9](https://github.com/zygote55/sketchyup/pull/9): pinned Arch builds, scene transforms,
 properties, revision persistence and original-schema migration. See
 [foundation evidence](verification/R007-R008-foundation.md). M1 remains open.
 
@@ -216,7 +216,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R007 — Establish the native build and headless CI
 
-**Status:** In progress. **Evidence:** [foundation](verification/R007-R008-foundation.md). **Track:** Core. **Scope:** N01, N02. **UX:** —.
+**Status:** Verified (foundation scope). **Evidence:** [foundation](verification/R007-R008-foundation.md). **Track:** Core. **Scope:** N01, N02. **UX:** —.
 
 **Requires:** [R002](#r002), [R003](#r003), [R004](#r004); milestone gate rule above.
 
@@ -228,7 +228,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R008 — Implement document identity, units and scene records
 
-**Status:** In progress. **Evidence:** [foundation](verification/R007-R008-foundation.md). **Track:** Core. **Scope:** D01, D02, O06. **UX:** —.
+**Status:** Verified (foundation scope). **Evidence:** [foundation](verification/R007-R008-foundation.md). **Track:** Core. **Scope:** D01, D02, O06. **UX:** —.
 
 **Requires:** [R007](#r007); milestone gate rule above.
 
@@ -240,7 +240,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R009 — Implement typed commands and atomic history
 
-**Status:** Planned. **Track:** Core. **Scope:** D03, A01. **UX:** —.
+**Status:** In progress. **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Core. **Scope:** D03, A01. **UX:** —.
 
 **Requires:** [R008](#r008); milestone gate rule above.
 
@@ -252,7 +252,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R010 — Build the responsive native window and theme system
 
-**Status:** Planned. **Track:** Desktop. **Scope:** N01, N03, N04, N05. **UX:** §2–§3, §7, §10.
+**Status:** In progress. **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Desktop. **Scope:** N01, N03, N04, N05. **UX:** §2–§3, §7, §10.
 
 **Requires:** [R007](#r007), [R006](#r006); milestone gate rule above.
 
@@ -288,7 +288,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R013 — Connect menus, shortcuts and palette to public actions
 
-**Status:** Planned. **Track:** Desktop. **Scope:** N03, N05, A01. **UX:** §3.2, §4.2.
+**Status:** In progress. **Evidence:** [command and shell foundation](verification/R009-R013-actions.md). **Track:** Desktop. **Scope:** N03, N05, A01. **UX:** §3.2, §4.2.
 
 **Requires:** [R009](#r009), [R010](#r010), [R011](#r011); milestone gate rule above.
 

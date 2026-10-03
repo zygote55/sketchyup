@@ -39,8 +39,12 @@ class Window : public QMainWindow {
     bool save(bool saveAs = false);
     bool canReplace();
     void palette();
+    void focusRegion(bool previous = false);
+    void rememberPath(const QString &path);
+    QStringList recentFiles_;
+    std::vector<QWidget *> focusRegions_;
     void tool(Viewport::Tool tool, const QString &instruction);
-    QAction *action(const QString &title, const QKeySequence &shortcut,
+    QAction *action(const QString &id, const QString &title, const QKeySequence &shortcut,
                     const std::function<void()> &fn);
 };
 } // namespace sketchy

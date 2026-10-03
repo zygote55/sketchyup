@@ -351,6 +351,11 @@ void Viewport::paintGL() {
     frameMs_ = timer.nsecsElapsed() / 1e6;
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
+    if (hasFocus()) {
+        p.setPen(QPen(colors_.accent, 2));
+        p.setBrush(Qt::NoBrush);
+        p.drawRect(rect().adjusted(1, 1, -1, -1));
+    }
     p.setPen(colors_.ink);
     p.drawText(20, 28, ortho_ ? "ORTHOGRAPHIC  /  METERS" : "PERSPECTIVE  /  METERS");
     p.setPen(colors_.muted);
@@ -498,6 +503,8 @@ bool Viewport::measurements(const QString &text) {
     return doc_.revision() != revision;
 }
 bool Viewport::event(QEvent *event) {
+    if (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut)
+        update();
     // A compositor can end an implicit pointer grab without delivering release.
     // Keep a drawing preview when focus moves to Measurements, but end navigation.
     if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::WindowDeactivate ||

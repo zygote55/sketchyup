@@ -117,8 +117,12 @@ Document decodeDocument(const QByteArray &bytes) {
         auto color = array(o["color"]);
         if (color.size() != 3)
             throw std::runtime_error("Invalid color");
-        for (int i = 0; i < 3; ++i)
-            b->color[i] = number(color[i]);
+        for (int i = 0; i < 3; ++i) {
+            const auto component = number(color[i]);
+            if (component < 0 || component > 1)
+                throw std::runtime_error("Color component outside range");
+            b->color[i] = component;
+        }
         if (root["version"].toInt() == 2) {
             b->parent = readId(o["parent"], true);
             auto transform = array(o["transform"]);

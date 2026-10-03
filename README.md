@@ -52,13 +52,15 @@ ctest --preset headless
 - `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
 - Middle drag or `O`: orbit. Right drag or `H`: pan. Wheel: zoom. `Shift+Z`: fit.
 - `1/2/3`: perspective/top/front. `Escape`: cancel drawing.
-- `Ctrl+Z` / `Ctrl+Shift+Z`: undo/redo. `Ctrl+K`: commands.
+- `Ctrl+Z` / `Ctrl+Shift+Z`: undo/redo. `Ctrl+K`: commands, objects and recent files.
+- `F6` / `Shift+F6`: move between window regions. `Ctrl+Shift+T`: toggle the Model panel.
 - `Ctrl+O` / `Ctrl+S`: native open/save dialogs. Unsaved changes prompt before replacement or close.
 
 ## Headless commands
 
 ```sh
 ./build/dev/sketchyup-cli --capabilities
+./build/dev/sketchyup-cli --describe-command geometry.translate
 ./build/dev/sketchyup-cli --script examples/room-shell.json --output /tmp/room.sketchyup
 ./build/dev/sketchyup-cli --input /tmp/room.sketchyup
 ./build/dev/sketchyup /tmp/room.sketchyup

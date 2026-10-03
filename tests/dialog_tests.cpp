@@ -1,10 +1,10 @@
 #include "app/window.hpp"
 #include "io/document_io.hpp"
-#include <QAction>
 #include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
-#include <QFileDialog>
 #include <QFile>
+#include <QFileDialog>
 #include <QMessageBox>
 #include <QTemporaryDir>
 #include <QTest>
@@ -12,15 +12,19 @@
 #include <iostream>
 using namespace sketchy;
 void check(bool ok, const char *message) {
-    if (!ok) throw std::runtime_error(message);
+    if (!ok)
+        throw std::runtime_error(message);
 }
 int main(int argc, char **argv) {
+    QTemporaryDir preferences;
+    qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
     QApplication app(argc, argv);
     QTemporaryDir directory;
     QDir::setCurrent(directory.path());
     Window window;
     window.show();
-    if (!QTest::qWaitForWindowExposed(&window, 5000)) return 2;
+    if (!QTest::qWaitForWindowExposed(&window, 5000))
+        return 2;
     try {
         window.demo();
         const auto original = encodeDocument(window.document());
@@ -32,10 +36,12 @@ int main(int argc, char **argv) {
         driver.setInterval(200);
         QObject::connect(&driver, &QTimer::timeout, [&] {
             for (auto *widget : QApplication::topLevelWidgets()) {
-                if (!widget->isVisible()) continue;
+                if (!widget->isVisible())
+                    continue;
                 if (auto *dialog = qobject_cast<QFileDialog *>(widget)) {
                     ++dialogs;
-                    if (cancelDialog) dialog->reject();
+                    if (cancelDialog)
+                        dialog->reject();
                     else {
                         dialog->setDirectory(directory.path());
                         dialog->selectFile("model");
@@ -55,7 +61,10 @@ int main(int argc, char **argv) {
         driver.start();
         auto saveAs = [&] {
             for (auto *action : window.findChildren<QAction *>()) {
-                if (action->text() == "Save as…") { action->trigger(); return; }
+                if (action->text() == "Save as…") {
+                    action->trigger();
+                    return;
+                }
             }
             throw std::runtime_error("Save as action missing");
         };
@@ -70,7 +79,8 @@ int main(int argc, char **argv) {
         check(encodeDocument(loadDocument(target)) == original, "Saved native model roundtrip");
         QFile sentinel(target);
         check(sentinel.open(QIODevice::WriteOnly), "Open replacement fixture");
-        sentinel.write("existing file"); sentinel.close();
+        sentinel.write("existing file");
+        sentinel.close();
         saveAs();
         check(confirmations == 1, "Suffix-normalized collision requires confirmation");
         check(sentinel.open(QIODevice::ReadOnly), "Read replacement fixture");
@@ -79,10 +89,12 @@ int main(int argc, char **argv) {
         replace = true;
         saveAs();
         check(confirmations == 2, "Explicit replacement confirmed");
-        check(encodeDocument(loadDocument(target)) == original, "Replacement writes complete model");
+        check(encodeDocument(loadDocument(target)) == original,
+              "Replacement writes complete model");
         cancelDialog = true;
         for (auto *action : window.findChildren<QAction *>())
-            if (action->text() == "Open…") action->trigger();
+            if (action->text() == "Open…")
+                action->trigger();
         check(encodeDocument(window.document()) == original, "Open cancellation preserves model");
         window.document().move(window.document().bodies().begin()->first, {1, 0, 0});
         const auto changed = encodeDocument(window.document());
@@ -93,16 +105,35 @@ int main(int argc, char **argv) {
         const auto invalid = directory.filePath("invalid.sketchyup");
         QFile bad(invalid);
         check(bad.open(QIODevice::WriteOnly), "Create invalid fixture");
-        bad.write("broken"); bad.close();
+        bad.write("broken");
+        bad.close();
         const auto beforeInvalid = confirmations;
         bool rejected = false;
-        try { window.openPath(invalid); } catch (const std::exception &) { rejected = true; }
+        try {
+            window.openPath(invalid);
+        } catch (const std::exception &) {
+            rejected = true;
+        }
         check(rejected && confirmations == beforeInvalid &&
-              encodeDocument(window.document()) == changed,
+                  encodeDocument(window.document()) == changed,
               "Invalid open rejected before asking to discard edits");
         window.document().markSaved();
         driver.stop();
-        std::cout << "Native dialog adapter: cancel, default suffix, replace cancel/accept passed; platform="
+        bool recentFound = false;
+        QTimer::singleShot(50, [&] {
+            auto *palette = window.findChild<QDialog *>("commandPalette");
+            if (!palette)
+                return;
+            auto *query = palette->findChild<QLineEdit *>("paletteQuery");
+            auto *results = palette->findChild<QListWidget *>("paletteResults");
+            query->setText("model.sketchyup");
+            recentFound = results->count() == 1 && results->item(0)->text().contains(target);
+            palette->reject();
+        });
+        window.findChild<QAction *>("view.commands")->trigger();
+        check(recentFound, "Successfully saved document is discoverable in recent-file search");
+        std::cout << "Native dialog adapter: cancel, default suffix, replace cancel/accept passed; "
+                     "platform="
                   << QGuiApplication::platformName().toStdString() << '\n';
         return 0;
     } catch (const std::exception &error) {
