@@ -39,7 +39,7 @@ void supportedFields(const QJsonObject &record, const QStringList &allowed) {
 QByteArray encodeDocument(const Document &doc) {
     QJsonArray bodies;
     for (const auto &[id, b] : doc.bodies()) {
-        QJsonArray vertices, faces, wires;
+        QJsonArray vertices, faces, wires, edges;
         for (auto [vid, p] : b->surface.vertices)
             vertices.append(QJsonArray{sid(vid), p.x, p.y, p.z});
         for (const auto &[fid, f] : b->surface.faces) {
@@ -54,6 +54,8 @@ QByteArray encodeDocument(const Document &doc) {
         }
         for (auto w : b->surface.wires)
             wires.append(QJsonArray{sid(w[0]), sid(w[1])});
+        for (const auto &[edgeId, edge] : b->topology.edges)
+            edges.append(QJsonArray{sid(edgeId), sid(edge.a), sid(edge.b), edge.wire});
         QJsonArray transform;
         for (auto value : b->transform.m)
             transform.append(value);
@@ -75,12 +77,14 @@ QByteArray encodeDocument(const Document &doc) {
                                   {"name", QString::fromStdString(b->name)},
                                   {"color", QJsonArray{b->color[0], b->color[1], b->color[2]}},
                                   {"nextId", sid(b->surface.nextId)},
+                                  {"nextEdgeId", sid(b->topology.nextId)},
+                                  {"edges", edges},
                                   {"vertices", vertices},
                                   {"faces", faces},
                                   {"wires", wires}});
     }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 2},
+                                           {"version", 3},
                                            {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
@@ -101,7 +105,8 @@ Document decodeDocument(const QByteArray &bytes) {
         throw std::runtime_error("Invalid JSON document");
     auto root = json.object();
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
-        (root["version"].toDouble() != 1 && root["version"].toDouble() != 2) ||
+        (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
+         root["version"].toDouble() != 3) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -114,8 +119,12 @@ Document decodeDocument(const QByteArray &bytes) {
     size_t totalVertices = 0, totalFaces = 0;
     for (auto record : records) {
         auto o = object(record);
-        supportedFields(o, {"id", "name", "color", "parent", "transform", "properties", "nextId",
-                            "vertices", "faces", "wires"});
+        QStringList allowed{"id", "name", "color", "nextId", "vertices", "faces", "wires"};
+        if (root["version"].toInt() >= 2)
+            allowed += {"parent", "transform", "properties"};
+        if (root["version"].toInt() >= 3)
+            allowed += {"nextEdgeId", "edges"};
+        supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
         if (!o["name"].isString())
@@ -130,7 +139,7 @@ Document decodeDocument(const QByteArray &bytes) {
                 throw std::runtime_error("Color component outside range");
             b->color[i] = component;
         }
-        if (root["version"].toInt() == 2) {
+        if (root["version"].toInt() >= 2) {
             b->parent = readId(o["parent"], true);
             auto transform = array(o["transform"]);
             if (transform.size() != 16)
@@ -184,6 +193,25 @@ Document decodeDocument(const QByteArray &bytes) {
                 throw std::runtime_error("Invalid wire record");
             b->surface.wires.push_back({readId(a[0]), readId(a[1])});
         }
+        if (root["version"].toInt() >= 3) {
+            b->topology.nextId = readId(o["nextEdgeId"]);
+            const auto edges = array(o["edges"]);
+            if (size_t(edges.size()) > Topology::edgeLimit)
+                throw std::runtime_error("Too many topology edges");
+            for (auto edge : edges) {
+                const auto record = array(edge);
+                if (record.size() != 4 || !record[3].isBool())
+                    throw std::runtime_error("Invalid edge record");
+                if (!b->topology.edges
+                         .emplace(
+                             readId(record[0]),
+                             EdgeRecord{readId(record[1]), readId(record[2]), record[3].toBool()})
+                         .second)
+                    throw std::runtime_error("Duplicate edge ID");
+            }
+            b->topology.validate(b->surface);
+        } else
+            b->topology = Topology::rebuild(b->surface, {});
         if (!bodies.emplace(b->id, b).second)
             throw std::runtime_error("Duplicate body ID");
     }
@@ -192,7 +220,7 @@ Document decodeDocument(const QByteArray &bytes) {
     Document doc;
     doc.restore(root["documentId"].toString().toStdString(), readId(root["nextId"]),
                 std::move(bodies),
-                root["version"].toInt() == 2 ? readId(root["revision"], true) : 0);
+                root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0);
     return doc;
 }
 } // namespace sketchy

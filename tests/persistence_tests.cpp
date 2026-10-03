@@ -89,16 +89,36 @@ int main(int argc, char **argv) {
     try {
         QTemporaryDir dir;
         require(dir.isValid(), "Temporary directory");
+        for (const auto &name :
+             {"container-scene-v2.sketchyup", "raw-scene-v2.json", "raw-scene-v1.json"}) {
+            const auto fixture = read(QString(SKETCHYUP_TEST_FIXTURES) + "/" + name);
+            auto old = decodeContainer(fixture);
+            require(old.bodies().size() == 1 &&
+                        !old.bodies().begin()->second->topology.edges.empty(),
+                    "Historical fixture builds persistent edge IDs");
+            const auto roundtrip = decodeContainer(encodeContainer(old));
+            require(roundtrip.bodies().begin()->second->topology ==
+                        old.bodies().begin()->second->topology,
+                    "Migrated edge IDs survive current container");
+        }
         Document doc;
         auto id = doc.addFace({{{0, 0, 0}, {3, 0, 0}, {0, 2, 0}}});
         auto bytes = encodeContainer(doc);
         require(bytes.startsWith(QByteArray("SKUPDOC\0", 8)), "Binary envelope");
         require(encodeContainer(decodeContainer(bytes)) == bytes, "Exact container roundtrip");
         require(encodeDocument(decodeContainer(encodeDocument(doc))) == encodeDocument(doc),
-                "Raw v2 migration");
+                "Raw current-schema roundtrip");
         auto legacy = QJsonDocument::fromJson(encodeDocument(doc)).object();
         legacy["version"] = 1;
         legacy.remove("revision");
+        auto records = legacy["bodies"].toArray();
+        for (int i = 0; i < records.size(); ++i) {
+            auto body = records[i].toObject();
+            for (const auto &key : {"parent", "transform", "properties", "nextEdgeId", "edges"})
+                body.remove(key);
+            records[i] = body;
+        }
+        legacy["bodies"] = records;
         auto legacyBytes = QJsonDocument(legacy).toJson();
         auto path = dir.filePath("model.sketchyup");
         write(path, legacyBytes);
@@ -249,6 +269,24 @@ int main(int argc, char **argv) {
         write(path, "invalid existing document");
         saveDocument(doc, path);
         require(read(path + ".bak") == previous, "Invalid target never overwrites verified backup");
+        const auto edge = doc.bodies().at(id)->topology.edges.begin()->first;
+        doc.splitEdge(id, edge, .5);
+        const auto edgeFloor = doc.bodies().at(id)->topology.nextId;
+        doc.undo();
+        auto restoredTopology = decodeContainer(encodeContainer(doc));
+        require(restoredTopology.bodies().at(id)->topology == doc.bodies().at(id)->topology,
+                "Exact edge records and allocator survive save after undo");
+        restoredTopology.splitEdge(id, edge, .4);
+        for (const auto &[newId, record] : restoredTopology.bodies().at(id)->topology.edges)
+            require(doc.bodies().at(id)->topology.edges.contains(newId) || newId >= edgeFloor,
+                    "Reopened edge split never reuses retired IDs");
+        auto invalid = QJsonDocument::fromJson(encodeDocument(doc)).object();
+        auto invalidBodies = invalid["bodies"].toArray();
+        auto invalidBody = invalidBodies[0].toObject();
+        invalidBody["nextEdgeId"] = "1";
+        invalidBodies[0] = invalidBody;
+        invalid["bodies"] = invalidBodies;
+        rejects([&] { decodeDocument(QJsonDocument(invalid).toJson()); });
         // A symlink save syncs/replaces its actual target and leaves the link intact.
         const auto link = dir.filePath("alias.sketchyup");
         require(QFile::link(path, link), "Symlink fixture");

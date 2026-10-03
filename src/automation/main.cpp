@@ -11,7 +11,8 @@ int main(int argc, char **argv) {
     parser.addHelpOption();
     parser.addOption({"capabilities", "Print supported local commands"});
     parser.addOption({"describe-command", "Print a command parameter schema", "name"});
-    parser.addOption({"query", "Run a read-only document.describe or capabilities query", "name"});
+    parser.addOption({"query", "Run a read-only document or geometry query", "name"});
+    parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption({"output", "Save the resulting model", "path"});
     parser.addOption({"script", "Read a command array from a local JSON file", "path"});
@@ -34,7 +35,10 @@ int main(int argc, char **argv) {
         if (parser.isSet("query") && parser.isSet("script"))
             throw std::runtime_error("Choose either a query or an editing script");
         if (parser.isSet("query")) {
-            result = sketchy::executeQuery(doc, {{"query", parser.value("query")}});
+            QJsonObject query{{"query", parser.value("query")}};
+            if (parser.isSet("context"))
+                query["body"] = parser.value("context");
+            result = sketchy::executeQuery(doc, query);
         } else if (parser.isSet("script")) {
             QFile file(parser.value("script"));
             if (!file.open(QIODevice::ReadOnly) || file.size() > 1024 * 1024)

@@ -27,11 +27,16 @@ void fields(const QJsonObject &object, const QStringList &expected) {
     if (object.size() != expected.size())
         throw std::runtime_error("Missing container field");
 }
-QJsonObject floors(const Document &doc) {
-    QJsonObject surfaces;
-    for (const auto &[id, body] : doc.bodies())
+QJsonObject floors(const Document &doc, bool topology = true) {
+    QJsonObject surfaces, edges;
+    for (const auto &[id, body] : doc.bodies()) {
         surfaces[QString::number(id)] = QString::number(body->surface.nextId);
-    return {{"body", QString::number(doc.nextId())}, {"surfaces", surfaces}};
+        edges[QString::number(id)] = QString::number(body->topology.nextId);
+    }
+    QJsonObject result{{"body", QString::number(doc.nextId())}, {"surfaces", surfaces}};
+    if (topology)
+        result["edges"] = edges;
+    return result;
 }
 } // namespace
 QByteArray encodeContainer(const Document &doc) {
@@ -43,11 +48,11 @@ QByteArray encodeContainer(const Document &doc) {
                                   {"writer", "SketchyUp/0.1.0"},
                                   {"units", "m"},
                                   {"up", "Z"},
-                                  {"requiredFeatures", QJsonArray{"scene-v2"}},
+                                  {"requiredFeatures", QJsonArray{"scene-v2", "topology-v1"}},
                                   {"allocatorFloors", floors(doc)},
                                   {"chunks", QJsonArray{QJsonObject{
                                                  {"kind", "document"},
-                                                 {"encoding", "json-v2"},
+                                                 {"encoding", "json-v3"},
                                                  {"offset", "0"},
                                                  {"bytes", QString::number(payload.size())},
                                                  {"sha256", hash(payload)}}}}})
@@ -80,16 +85,18 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto manifest = json.object();
     fields(manifest, {"documentId", "epoch", "revision", "writer", "units", "up",
                       "requiredFeatures", "allocatorFloors", "chunks"});
+    const bool topology = manifest["requiredFeatures"] == QJsonArray{"scene-v2", "topology-v1"} ||
+                          manifest["requiredFeatures"] == QJsonArray{"topology-v1", "scene-v2"};
     // Epoch rotation/recovery and assets are later capabilities. Never discard their data.
     if (manifest["epoch"] != "1" || manifest["units"] != "m" || manifest["up"] != "Z" ||
         !manifest["writer"].isString() || manifest["writer"].toString().size() > 256 ||
-        manifest["requiredFeatures"] != QJsonArray{"scene-v2"})
+        (!topology && manifest["requiredFeatures"] != QJsonArray{"scene-v2"}))
         throw std::runtime_error("Unsupported required document features");
     if (!manifest["chunks"].isArray() || manifest["chunks"].toArray().size() != 1)
         throw std::runtime_error("This reader requires exactly one document chunk");
     const auto chunk = manifest["chunks"].toArray().first().toObject();
     fields(chunk, {"kind", "encoding", "offset", "bytes", "sha256"});
-    if (chunk["kind"] != "document" || chunk["encoding"] != "json-v2" ||
+    if (chunk["kind"] != "document" || chunk["encoding"] != (topology ? "json-v3" : "json-v2") ||
         integer(chunk["offset"]) != 0 || integer(chunk["bytes"]) > documentLimit ||
         integer(chunk["bytes"]) != quint64(bytes.size() - 16 - length))
         throw std::runtime_error("Invalid, unsupported or truncated chunk range");
@@ -97,12 +104,12 @@ Document decodeContainer(const QByteArray &bytes) {
     if (chunk["sha256"] != hash(payload))
         throw std::runtime_error("Document checksum mismatch");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != 2)
+    if (payloadTree["version"] != (topology ? 3 : 2))
         throw std::runtime_error("Document chunk encoding mismatch");
     auto doc = decodeDocument(payload);
     if (manifest["documentId"] != QString::fromStdString(doc.identity()) ||
         integer(manifest["revision"]) != doc.revision() ||
-        manifest["allocatorFloors"] != floors(doc))
+        manifest["allocatorFloors"] != floors(doc, topology))
         throw std::runtime_error("Container metadata disagrees with document");
     return doc;
 }

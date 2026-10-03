@@ -23,6 +23,9 @@ int main(int argc, char **argv) {
         Document source;
         source.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
         const auto beforeQueries = encodeDocument(source);
+        auto topology = executeQuery(source, {{"query", "geometry.inspect"}, {"body", "1"}});
+        check(topology["edges"].toArray().size() == 4 && topology["context"] == "1",
+              "Topology query exposes context-scoped edge records");
         check(executeQuery(source, {{"query", "document.describe"}}).contains("bodies"),
               "Document query registered");
         check(executeQuery(source, {{"query", "capabilities"}}).contains("commandSchemas"),
@@ -40,6 +43,12 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "geometry.face"},
                         {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{1, 0, 0},
                                                         QJsonArray{0, 1, 0}}}}},
+            QJsonObject{{"command", "geometry.wire"},
+                        {"body", "0"},
+                        {"start", QJsonArray{0, 0, 0}},
+                        {"end", QJsonArray{1, 1, 1}}},
+            QJsonObject{
+                {"command", "geometry.split_edge"}, {"body", "1"}, {"edge", "1"}, {"fraction", .5}},
             QJsonObject{{"command", "geometry.extrude_isolated"},
                         {"body", "1"},
                         {"face", "5"},
@@ -83,6 +92,7 @@ int main(int argc, char **argv) {
             check(doc.bodies().at(1)->surface.nextId >= expectedBody.surface.nextId,
                   "Undo retains surface allocator high-water mark");
             expectedBody.surface.nextId = doc.bodies().at(1)->surface.nextId;
+            expectedBody.topology.nextId = doc.bodies().at(1)->topology.nextId;
             check(doc.bodies().size() == source.bodies().size() &&
                       *doc.bodies().at(1) == expectedBody,
                   "Registered command undo restores source geometry and metadata");

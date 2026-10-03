@@ -10,7 +10,8 @@ size_t bytes(const BodyPtr &b) {
     if (!b)
         return 0;
     size_t n = sizeof(Body) + b->name.size() + b->surface.vertices.size() * (sizeof(Vec3) + 64) +
-               b->surface.wires.size() * sizeof(std::array<Id, 2>);
+               b->surface.wires.size() * sizeof(std::array<Id, 2>) +
+               b->topology.edges.size() * (sizeof(EdgeRecord) + 64);
     for (const auto &[id, f] : b->surface.faces) {
         n += sizeof(Face) + 64;
         for (const auto &l : f.loops)
@@ -38,16 +39,18 @@ Transform worldTransformIn(const std::map<Id, BodyPtr> &bodies, Id id) {
     return result;
 }
 void validateDocumentSize(const std::map<Id, BodyPtr> &bodies) {
-    size_t vertices = 0, faces = 0, wires = 0;
+    size_t vertices = 0, faces = 0, wires = 0, edges = 0;
     for (const auto &[id, b] : bodies) {
         vertices += b->surface.vertices.size();
         faces += b->surface.faces.size();
         wires += b->surface.wires.size();
+        edges += b->topology.edges.size();
         const auto world = worldTransformIn(bodies, id);
         for (const auto &[vertex, point] : b->surface.vertices)
             checkPoint(world.point(point));
     }
-    if (bodies.size() > 10000 || vertices > 100000 || faces > 100000 || wires > 100000)
+    if (bodies.size() > 10000 || vertices > 100000 || faces > 100000 || wires > 100000 ||
+        edges > Topology::edgeLimit)
         throw std::runtime_error("Document complexity exceeds editing limits");
 }
 void validate(const Body &b) {
@@ -93,6 +96,26 @@ Id Document::addFace(const std::vector<std::vector<Vec3>> &loops, std::string na
     b->surface.addFace(loops);
     apply({"Draw face", {{b->id, nullptr, b}}}, revision_);
     return b->id;
+}
+Id Document::addWire(Id context, Vec3 a, Vec3 b) {
+    BodyPtr old = context ? bodies_.at(context) : nullptr;
+    auto body = old ? std::make_shared<Body>(*old) : std::make_shared<Body>();
+    if (!old) {
+        body->id = nextId_;
+        body->name = "Edges";
+    }
+    const auto first = body->surface.vertex(a), second = body->surface.vertex(b);
+    if (first == second)
+        throw std::runtime_error("Edge endpoints coincide");
+    body->surface.wires.push_back({first, second});
+    apply({"Draw edge", {{body->id, old, body}}}, revision_);
+    return body->id;
+}
+void Document::splitEdge(Id context, Id edge, double fraction) {
+    const auto old = bodies_.at(context);
+    auto body = std::make_shared<Body>(*old);
+    sketchy::splitEdge(body->surface, old->topology.edges.at(edge), fraction);
+    apply({"Split edge", {{context, old, body}}}, revision_);
 }
 void Document::extrude(Id id, Id face, double distance) {
     auto old = bodies_.at(id);
@@ -152,9 +175,12 @@ void Document::update(Edit edit, bool forward) {
         if (p) {
             const auto floor =
                 surfaceFloors_.contains(c.id) ? surfaceFloors_.at(c.id) : p->surface.nextId;
-            if (p->surface.nextId < floor) {
+            const auto edgeFloor =
+                edgeFloors_.contains(c.id) ? edgeFloors_.at(c.id) : p->topology.nextId;
+            if (p->surface.nextId < floor || p->topology.nextId < edgeFloor) {
                 auto restored = std::make_shared<Body>(*p);
                 restored->surface.nextId = floor;
+                restored->topology.nextId = edgeFloor;
                 next[c.id] = std::move(restored);
             } else
                 next[c.id] = p;
@@ -163,7 +189,7 @@ void Document::update(Edit edit, bool forward) {
     }
     bodies_.swap(next);
 }
-void Document::apply(Edit edit, std::uint64_t expected) {
+ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (revision_ == UINT64_MAX)
         throw std::runtime_error("Document revision space exhausted");
     if (expected != revision_)
@@ -173,6 +199,7 @@ void Document::apply(Edit edit, std::uint64_t expected) {
     std::set<Id> ids;
     Id next = std::max(nextId_, edit.nextIdFloor);
     auto floors = surfaceFloors_;
+    auto edgeFloors = edgeFloors_;
     edit.bytes = sizeof(Edit) + edit.label.size();
     for (const auto &c : edit.changes) {
         if (!c.id || !ids.insert(c.id).second || (!c.before && !c.after))
@@ -198,15 +225,62 @@ void Document::apply(Edit edit, std::uint64_t expected) {
         }
         edit.bytes += sizeof(Change) + bytes(c.before) + bytes(c.after);
     }
-    if (edit.bytes > historyLimit)
-        throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     // Freeze caller-owned mutable records before storing them as const pointers.
     for (auto &c : edit.changes)
         if (c.after) {
             auto frozen = std::make_shared<Body>(*c.after);
             frozen->surface.nextId = floors.at(c.id);
+            const auto edgeFloor = edgeFloors.contains(c.id) ? edgeFloors.at(c.id) : Id{1};
+            bool indexed = true;
+            try {
+                frozen->topology.validate(frozen->surface);
+            } catch (const std::runtime_error &) {
+                indexed = false;
+            }
+            if (!indexed)
+                frozen->topology =
+                    Topology::rebuild(frozen->surface, c.before ? c.before->topology : Topology{},
+                                      std::max(edgeFloor, frozen->topology.nextId));
+            for (const auto &[id, edge] : frozen->topology.edges) {
+                if (c.before && c.before->topology.edges.contains(id)) {
+                    const auto &previous = c.before->topology.edges.at(id);
+                    if (edge.a != previous.a || edge.b != previous.b)
+                        throw std::runtime_error(
+                            "An edge ID cannot be reassigned to unrelated endpoints");
+                } else if (id < edgeFloor)
+                    throw std::runtime_error("Retired edge ID cannot be reused");
+            }
+            frozen->topology.nextId = std::max(frozen->topology.nextId, edgeFloor);
+            frozen->topology.validate(frozen->surface);
+            edgeFloors[c.id] = frozen->topology.nextId;
             c.after = std::move(frozen);
         }
+    edit.bytes = sizeof(Edit) + edit.label.size();
+    ChangeReport report;
+    const Surface emptySurface;
+    const Topology emptyTopology;
+    for (const auto &change : edit.changes) {
+        edit.bytes += sizeof(Change) + bytes(change.before) + bytes(change.after);
+        for (const auto &[id, targets] : change.faceDescendants)
+            edit.bytes += 96 + targets.size() * sizeof(Id);
+        auto changes = compareTopology(change.before ? change.before->surface : emptySurface,
+                                       change.before ? change.before->topology : emptyTopology,
+                                       change.after ? change.after->surface : emptySurface,
+                                       change.after ? change.after->topology : emptyTopology);
+        for (const auto &[old, descendants] : change.faceDescendants) {
+            if (!change.before || !change.before->surface.faces.contains(old))
+                throw std::runtime_error("Face lineage source does not exist");
+            std::set<Id> unique;
+            for (auto id : descendants)
+                if (!change.after || !change.after->surface.faces.contains(id) ||
+                    !unique.insert(id).second)
+                    throw std::runtime_error("Invalid face lineage target");
+            changes.faces.descendants[old] = descendants;
+        }
+        report.emplace(change.id, std::move(changes));
+    }
+    if (edit.bytes > historyLimit)
+        throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     auto updated = bodies_;
     for (const auto &c : edit.changes) {
         if (c.after)
@@ -226,6 +300,7 @@ void Document::apply(Edit edit, std::uint64_t expected) {
     for (const auto &change : edit.changes)
         reachable.insert(change.id);
     std::erase_if(floors, [&](const auto &entry) { return !reachable.contains(entry.first); });
+    std::erase_if(edgeFloors, [&](const auto &entry) { return !reachable.contains(entry.first); });
     History h{std::move(edit), state_, std::make_shared<State>()};
     undo_.push_back(h); // Allocation can still fail before any committed change.
     for (const auto &r : redo_)
@@ -235,12 +310,14 @@ void Document::apply(Edit edit, std::uint64_t expected) {
     bodies_.swap(updated);
     nextId_ = next;
     surfaceFloors_.swap(floors);
+    edgeFloors_.swap(edgeFloors);
     state_ = h.after;
     ++revision_;
     while (historyBytes_ > historyLimit && undo_.size() > 1) {
         historyBytes_ -= undo_.front().edit.bytes;
         undo_.pop_front();
     }
+    return report;
 }
 void Document::undo() {
     if (undo_.empty())
@@ -295,12 +372,17 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
         !next || bodies.size() > 10000)
         throw std::runtime_error("Invalid document metadata");
-    std::map<Id, Id> floors;
+    std::map<Id, Id> floors, edgeFloors;
     for (auto &[id, b] : bodies) {
         if (!b || id != b->id || id >= next)
             throw std::runtime_error("Invalid body ID allocator");
         validate(*b);
-        b = std::make_shared<const Body>(*b);
+        auto restored = std::make_shared<Body>(*b);
+        if (restored->topology.edges.empty() && restored->topology.nextId == 1)
+            restored->topology = Topology::rebuild(restored->surface, {});
+        restored->topology.validate(restored->surface);
+        edgeFloors.emplace(id, restored->topology.nextId);
+        b = std::move(restored);
         floors.emplace(id, b->surface.nextId);
     }
     validateDocumentSize(bodies);
@@ -310,6 +392,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     nextId_ = next;
     bodies_ = std::move(bodies);
     surfaceFloors_ = std::move(floors);
+    edgeFloors_ = std::move(edgeFloors);
     undo_.clear();
     redo_.clear();
     historyBytes_ = 0;

@@ -1,6 +1,6 @@
 #pragma once
 #include "core/transform.hpp"
-#include "geometry/surface.hpp"
+#include "geometry/topology.hpp"
 #include <deque>
 #include <memory>
 #include <optional>
@@ -12,6 +12,7 @@ struct Body {
     std::string name{"Face"};
     std::array<float, 3> color{0.73f, 0.79f, 0.73f};
     Surface surface;
+    Topology topology;
     Transform transform;
     Id parent{};
     std::map<std::string, std::variant<bool, double, std::string>> properties;
@@ -21,6 +22,7 @@ using BodyPtr = std::shared_ptr<const Body>;
 struct Change {
     Id id;
     BodyPtr before, after;
+    std::map<Id, std::vector<Id>> faceDescendants{};
 };
 struct Edit {
     std::string label;
@@ -28,6 +30,7 @@ struct Edit {
     size_t bytes{};
     Id nextIdFloor{};
 };
+using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
     struct State {};
     using StatePtr = std::shared_ptr<const State>;
@@ -56,7 +59,9 @@ class Document {
     std::vector<Triangle> worldTriangles(Id body) const;
     double worldArea(Id body, Id face) const;
     void transform(Id body, Transform local, Id parent = 0);
-    void apply(Edit edit, std::uint64_t expectedRevision);
+    ChangeReport apply(Edit edit, std::uint64_t expectedRevision);
+    Id addWire(Id context, Vec3 a, Vec3 b);
+    void splitEdge(Id context, Id edge, double fraction);
     void undo();
     void redo();
     SaveStamp saveStamp() const;
@@ -70,7 +75,7 @@ class Document {
     std::string identity_;
     std::map<Id, BodyPtr> bodies_;
     Id nextId_{1};
-    std::map<Id, Id> surfaceFloors_;
+    std::map<Id, Id> surfaceFloors_, edgeFloors_;
     std::uint64_t revision_{0};
     StatePtr session_{std::make_shared<State>()};
     StatePtr state_{std::make_shared<State>()}, savedState_{state_};
