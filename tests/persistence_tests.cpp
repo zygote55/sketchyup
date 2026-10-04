@@ -101,6 +101,46 @@ int main(int argc, char **argv) {
                         old.bodies().begin()->second->topology,
                     "Migrated edge IDs survive current container");
         }
+        for (const auto &name : {"container-topology-v3.sketchyup", "raw-topology-v3.json"}) {
+            const auto fixture = read(QString(SKETCHYUP_TEST_FIXTURES) + "/" + name);
+            const auto old = decodeContainer(fixture);
+            require(old.bodies().size() == 3, "Historical topology fixture contexts");
+            const auto migrated = decodeContainer(encodeContainer(old));
+            for (const auto &[id, body] : old.bodies()) {
+                require(body->curves.empty() && migrated.bodies().at(id)->curves.empty(),
+                        "Migration does not invent analytic curves");
+                require(*body == *migrated.bodies().at(id), "Version-3 topology IDs preserved");
+            }
+        }
+        Document curved;
+        curved.addCurve(0, centerCurve(CurveKind::Circle, {}, 2, 0, 2 * std::acos(-1), 24));
+        curved.addCurve(0, twoPointArc({3, 0, 0}, {5, 0, 0}, {0, 0, 1}, .5, 12));
+        const auto curvedBytes = encodeContainer(curved);
+        require(encodeContainer(decodeContainer(curvedBytes)) == curvedBytes,
+                "Curves exact container roundtrip");
+        auto corruptCurve = [&](auto mutate) {
+            auto root = QJsonDocument::fromJson(encodeDocument(curved)).object();
+            auto bodies = root["bodies"].toArray();
+            auto body = bodies[0].toObject();
+            auto curves = body["curves"].toArray();
+            auto curve = curves[0].toObject();
+            mutate(curve);
+            curves[0] = curve;
+            body["curves"] = curves;
+            bodies[0] = body;
+            root["bodies"] = bodies;
+            try {
+                decodeDocument(QJsonDocument(root).toJson());
+            } catch (const std::exception &) {
+                return;
+            }
+            throw std::runtime_error("Malformed curve accepted");
+        };
+        corruptCurve([](auto &c) { c["radius"] = 3; });
+        corruptCurve([](auto &c) { c["id"] = "1"; });
+        corruptCurve([](auto &c) { c["segments"] = 1.5; });
+        corruptCurve([](auto &c) { c["edges"] = QJsonArray{}; });
+        corruptCurve([](auto &c) { c["kind"] = "spline"; });
         Document doc;
         auto id = doc.addFace({{{0, 0, 0}, {3, 0, 0}, {0, 2, 0}}});
         auto bytes = encodeContainer(doc);
@@ -114,7 +154,8 @@ int main(int argc, char **argv) {
         auto records = legacy["bodies"].toArray();
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();
-            for (const auto &key : {"parent", "transform", "properties", "nextEdgeId", "edges"})
+            for (const auto &key :
+                 {"parent", "transform", "properties", "nextEdgeId", "edges", "curves"})
                 body.remove(key);
             records[i] = body;
         }

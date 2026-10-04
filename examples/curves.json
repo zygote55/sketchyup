@@ -1,0 +1,110 @@
+[
+  {
+    "command": "geometry.circle",
+    "body": "0",
+    "center": [
+      0,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      0.5,
+      1
+    ],
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "radius": 2,
+    "segments": 24
+  },
+  {
+    "command": "geometry.arc_center",
+    "body": "0",
+    "center": [
+      5,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      0.5,
+      1
+    ],
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "radius": 2,
+    "segments": 24,
+    "startAngle": 0,
+    "sweepAngle": 4.71238898038469
+  },
+  {
+    "command": "geometry.pie",
+    "body": "0",
+    "center": [
+      10,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      0.5,
+      1
+    ],
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "radius": 2,
+    "segments": 24,
+    "startAngle": 0,
+    "sweepAngle": 1.5707963267948966
+  },
+  {
+    "command": "geometry.arc_two_points",
+    "body": "0",
+    "start": [
+      0,
+      5,
+      0
+    ],
+    "end": [
+      4,
+      5,
+      0
+    ],
+    "normal": [
+      0,
+      0,
+      1
+    ],
+    "bulge": 1,
+    "segments": 16
+  },
+  {
+    "command": "geometry.arc_three_points",
+    "body": "0",
+    "start": [
+      6,
+      5,
+      0
+    ],
+    "through": [
+      8,
+      7,
+      0
+    ],
+    "end": [
+      10,
+      5,
+      0
+    ],
+    "segments": 24
+  }
+]

@@ -16,7 +16,7 @@ The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
 M1 native foundation and M2 editable geometry gates; drawing interaction is in progress. Components,
 inference, recovery, AI providers,
 Blender integration and exchange formats are not implemented. Circle geometry is
-currently a 48-sided polygon. Surface topology and file format remain experimental.
+currently a 48-sided polygon in the UI; the command API now stores analytic circles, arcs and pie sectors. Native curve tools are the next slice. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
 checksummed container and preserve the previous valid file as `.sketchyup.bak`.
 Files and the containing directory are synced before showing Saved. Open a backup
@@ -88,10 +88,13 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --script examples/planar-grid.json --output /tmp/grid.sketchyup
 ./build/dev/sketchyup-cli --preview --script examples/through-opening.json
 ./build/dev/sketchyup-cli --script examples/tilted-drawing.json --output /tmp/tilted.sketchyup
+./build/dev/sketchyup-cli --script examples/curves.json --output /tmp/curves.sketchyup
 ```
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
-adjacency. The wire recipe demonstrates a loose edge and a propagated edge split;
+adjacency, plus analytic curve parameters and ordered derived-edge references.
+Curve command angles use radians; segment counts are bounded to 256. Curve
+metadata survives edge splits and retires when an edit breaks its outline. The wire recipe demonstrates a loose edge and a propagated edge split;
 these operations currently have command paths while direct edge tools are in progress.
 The planar-grid recipe forms four editable faces from finite segments. Planar insertion
 handles intersections, overlaps and holes within the documented arrangement limits.

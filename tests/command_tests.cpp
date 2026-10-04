@@ -97,6 +97,52 @@ int main(int argc, char **argv) {
         rejects([&] { executeBatch(transformedDrawing, worldRequest(malformedRectangle)); });
         check(encodeDocument(transformedDrawing) == drawingBefore,
               "Invalid drawing space rejects atomically");
+        QJsonObject circle{{"command", "geometry.circle"},
+                           {"body", "1"},
+                           {"space", "world"},
+                           {"center", QJsonArray{9, 11, 7}},
+                           {"normal", QJsonArray{0, 0, 1}},
+                           {"xAxis", QJsonArray{1, 0, 0}},
+                           {"radius", 1},
+                           {"segments", 24}};
+        const auto circleRequest = worldRequest(circle);
+        const auto circlePreview = previewBatch(transformedDrawing, circleRequest);
+        const auto circleResult = executeBatch(transformedDrawing, circleRequest);
+        check(circlePreview["changes"] == circleResult["changes"],
+              "Curve preview and commit agree");
+        auto curveBody = transformedDrawing.bodies().at(1);
+        check(curveBody->curves.size() == 1, "World circle creates one analytic record");
+        const auto &curve = curveBody->curves.begin()->second;
+        const auto transform = transformedDrawing.worldTransform(1);
+        for (unsigned i = 0; i <= 24; ++i)
+            check(std::abs(length(transform.point(curve.point(i * 2 * std::acos(-1) / 24)) -
+                                  Vec3{9, 11, 7}) -
+                           1) < tolerance,
+                  "Affine local frame retains world circle radius under nonuniform transform");
+        const auto queried =
+            executeQuery(transformedDrawing, {{"query", "geometry.inspect"}, {"body", "1"}});
+        check(queried["curves"].toArray().size() == 1,
+              "Inspection publishes curve parameters and edges");
+        const auto oldCurveId = curveBody->curves.begin()->first;
+        circle["radius"] = 1.5;
+        const auto amended = executeAmend(transformedDrawing, transformedDrawing.amendmentStamp(),
+                                          worldRequest(circle));
+        check(transformedDrawing.bodies().at(1)->curves.size() == 1 &&
+                  transformedDrawing.bodies().at(1)->curves.begin()->first > oldCurveId,
+              "Curve amendment keeps one record and reserves retired IDs");
+        check(amended["changes"]
+                  .toObject()["1"]
+                  .toObject()["curves"]
+                  .toObject()["deleted"]
+                  .toArray()
+                  .contains(QString::number(oldCurveId)),
+              "Amendment reports retired curve identity");
+        check(encodeDocument(decodeContainer(encodeContainer(transformedDrawing))) ==
+                  encodeDocument(transformedDrawing),
+              "Transformed analytic curve persists exactly");
+        transformedDrawing.undo();
+        check(transformedDrawing.bodies().at(1)->curves.empty(),
+              "Amended curve remains one undo item");
         QJsonArray matrix;
         for (auto value : Transform::translation({2, 0, 0}).m)
             matrix.append(value);
@@ -131,6 +177,44 @@ int main(int argc, char **argv) {
                         {"points",
                          QJsonArray{QJsonArray{0, 0, 1}, QJsonArray{2, 0, 1}, QJsonArray{2, 1, 1}}},
                         {"closed", false}},
+            QJsonObject{{"command", "geometry.circle"},
+                        {"body", "0"},
+                        {"center", QJsonArray{0, 0, 0}},
+                        {"normal", QJsonArray{0, 0, 1}},
+                        {"xAxis", QJsonArray{1, 0, 0}},
+                        {"radius", 2},
+                        {"segments", 24}},
+            QJsonObject{{"command", "geometry.arc_center"},
+                        {"body", "0"},
+                        {"center", QJsonArray{0, 0, 0}},
+                        {"normal", QJsonArray{0, 0, 1}},
+                        {"xAxis", QJsonArray{1, 0, 0}},
+                        {"radius", 2},
+                        {"startAngle", 0},
+                        {"sweepAngle", 1.5},
+                        {"segments", 24}},
+            QJsonObject{{"command", "geometry.arc_two_points"},
+                        {"body", "0"},
+                        {"start", QJsonArray{-1, 0, 0}},
+                        {"end", QJsonArray{1, 0, 0}},
+                        {"normal", QJsonArray{0, 0, 1}},
+                        {"bulge", 0.5},
+                        {"segments", 24}},
+            QJsonObject{{"command", "geometry.arc_three_points"},
+                        {"body", "0"},
+                        {"start", QJsonArray{1, 0, 0}},
+                        {"through", QJsonArray{0, 1, 0}},
+                        {"end", QJsonArray{-1, 0, 0}},
+                        {"segments", 24}},
+            QJsonObject{{"command", "geometry.pie"},
+                        {"body", "0"},
+                        {"center", QJsonArray{0, 0, 0}},
+                        {"normal", QJsonArray{0, 0, 1}},
+                        {"xAxis", QJsonArray{1, 0, 0}},
+                        {"radius", 2},
+                        {"startAngle", 0},
+                        {"sweepAngle", 1.5},
+                        {"segments", 24}},
             QJsonObject{{"command", "geometry.wire"},
                         {"body", "0"},
                         {"start", QJsonArray{0, 0, 0}},

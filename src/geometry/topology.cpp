@@ -111,7 +111,8 @@ TopologyChanges compareTopology(const Surface &before, const Topology &beforeTop
         return {};
     TopologyChanges result{compare(before.vertices, after.vertices),
                            compare(beforeTopology.edges, afterTopology.edges),
-                           compare(before.faces, after.faces)};
+                           compare(before.faces, after.faces),
+                           {}};
     const auto oldAdjacency = beforeTopology.adjacency(before);
     const auto nextAdjacency = afterTopology.adjacency(after);
     for (const auto &[id, edge] : beforeTopology.edges) {

@@ -107,6 +107,16 @@ duplicate/retired allocators and feature/encoding mismatches. Original readers r
 the new required feature. Context is currently a body ID; component definitions
 extend this ownership model in M4. Epoch and durability boundaries remain unchanged.
 
+R024.a advances the chunk to `json-v4` with `curves-v1`. Each body stores curve
+kind, center, affine parameter axes, radius, start/sweep angles (radians), segment
+count and ordered `[edgeId, reversed]` associations. Curve IDs share the monotonic
+vertex/face allocator; all three entity kinds must have disjoint IDs. Existing
+surface floors therefore cover curve retirement and undo without a new allocator.
+Readers retain v1/v2/v3 migrations and never infer analytic metadata for old
+polygons. Required-feature sets are order independent but reject duplicates,
+unknown features and mismatched encodings. Curve parameters and edge associations
+must agree on load; malformed metadata cannot silently disappear.
+
 ## Save and recovery ordering
 
 Explicit Save serializes a validated immutable snapshot, writes a sibling temp

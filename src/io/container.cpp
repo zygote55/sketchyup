@@ -4,6 +4,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QtEndian>
+#include <set>
 namespace sketchy {
 namespace {
 constexpr qsizetype manifestLimit = 1024 * 1024;
@@ -42,20 +43,21 @@ QJsonObject floors(const Document &doc, bool topology = true) {
 QByteArray encodeContainer(const Document &doc) {
     const auto payload = encodeDocument(doc);
     const auto manifest =
-        QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
-                                  {"epoch", "1"},
-                                  {"revision", QString::number(doc.revision())},
-                                  {"writer", "SketchyUp/0.1.0"},
-                                  {"units", "m"},
-                                  {"up", "Z"},
-                                  {"requiredFeatures", QJsonArray{"scene-v2", "topology-v1"}},
-                                  {"allocatorFloors", floors(doc)},
-                                  {"chunks", QJsonArray{QJsonObject{
-                                                 {"kind", "document"},
-                                                 {"encoding", "json-v3"},
-                                                 {"offset", "0"},
-                                                 {"bytes", QString::number(payload.size())},
-                                                 {"sha256", hash(payload)}}}}})
+        QJsonDocument(
+            QJsonObject{
+                {"documentId", QString::fromStdString(doc.identity())},
+                {"epoch", "1"},
+                {"revision", QString::number(doc.revision())},
+                {"writer", "SketchyUp/0.1.0"},
+                {"units", "m"},
+                {"up", "Z"},
+                {"requiredFeatures", QJsonArray{"scene-v2", "topology-v1", "curves-v1"}},
+                {"allocatorFloors", floors(doc)},
+                {"chunks", QJsonArray{QJsonObject{{"kind", "document"},
+                                                  {"encoding", "json-v4"},
+                                                  {"offset", "0"},
+                                                  {"bytes", QString::number(payload.size())},
+                                                  {"sha256", hash(payload)}}}}})
             .toJson(QJsonDocument::Compact);
     if (manifest.size() > manifestLimit)
         throw std::runtime_error("Container manifest exceeds 1 MiB");
@@ -85,8 +87,14 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto manifest = json.object();
     fields(manifest, {"documentId", "epoch", "revision", "writer", "units", "up",
                       "requiredFeatures", "allocatorFloors", "chunks"});
-    const bool topology = manifest["requiredFeatures"] == QJsonArray{"scene-v2", "topology-v1"} ||
-                          manifest["requiredFeatures"] == QJsonArray{"topology-v1", "scene-v2"};
+    std::set<QString> features;
+    if (!manifest["requiredFeatures"].isArray())
+        throw std::runtime_error("Missing required features");
+    for (const auto &value : manifest["requiredFeatures"].toArray())
+        if (!value.isString() || !features.insert(value.toString()).second)
+            throw std::runtime_error("Invalid required features");
+    const bool curves = features == std::set<QString>{"scene-v2", "topology-v1", "curves-v1"};
+    const bool topology = curves || features == std::set<QString>{"scene-v2", "topology-v1"};
     // Epoch rotation/recovery and assets are later capabilities. Never discard their data.
     if (manifest["epoch"] != "1" || manifest["units"] != "m" || manifest["up"] != "Z" ||
         !manifest["writer"].isString() || manifest["writer"].toString().size() > 256 ||
@@ -96,7 +104,10 @@ Document decodeContainer(const QByteArray &bytes) {
         throw std::runtime_error("This reader requires exactly one document chunk");
     const auto chunk = manifest["chunks"].toArray().first().toObject();
     fields(chunk, {"kind", "encoding", "offset", "bytes", "sha256"});
-    if (chunk["kind"] != "document" || chunk["encoding"] != (topology ? "json-v3" : "json-v2") ||
+    if (chunk["kind"] != "document" ||
+        chunk["encoding"] != (curves     ? "json-v4"
+                              : topology ? "json-v3"
+                                         : "json-v2") ||
         integer(chunk["offset"]) != 0 || integer(chunk["bytes"]) > documentLimit ||
         integer(chunk["bytes"]) != quint64(bytes.size() - 16 - length))
         throw std::runtime_error("Invalid, unsupported or truncated chunk range");
@@ -104,7 +115,7 @@ Document decodeContainer(const QByteArray &bytes) {
     if (chunk["sha256"] != hash(payload))
         throw std::runtime_error("Document checksum mismatch");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != (topology ? 3 : 2))
+    if (payloadTree["version"] != (curves ? 4 : topology ? 3 : 2))
         throw std::runtime_error("Document chunk encoding mismatch");
     auto doc = decodeDocument(payload);
     if (manifest["documentId"] != QString::fromStdString(doc.identity()) ||

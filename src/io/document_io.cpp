@@ -36,10 +36,28 @@ void supportedFields(const QJsonObject &record, const QStringList &allowed) {
             throw std::runtime_error("Unsupported document field: " + it.key().toStdString());
 }
 } // namespace
+QJsonObject encodeCurve(Id id, const Curve &curve) {
+    auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
+    QJsonArray edges;
+    for (auto edge : curve.edges)
+        edges.append(QJsonArray{sid(edge.edge), edge.reversed});
+    return {{"id", sid(id)},
+            {"kind", curve.kind == CurveKind::Circle ? "circle"
+                     : curve.kind == CurveKind::Arc  ? "arc"
+                                                     : "pie"},
+            {"center", point(curve.center)},
+            {"xAxis", point(curve.xAxis)},
+            {"yAxis", point(curve.yAxis)},
+            {"radius", curve.radius},
+            {"startAngle", curve.startAngle},
+            {"sweepAngle", curve.sweepAngle},
+            {"segments", int(curve.segments)},
+            {"edges", edges}};
+}
 QByteArray encodeDocument(const Document &doc) {
     QJsonArray bodies;
     for (const auto &[id, b] : doc.bodies()) {
-        QJsonArray vertices, faces, wires, edges;
+        QJsonArray vertices, faces, wires, edges, curves;
         for (auto [vid, p] : b->surface.vertices)
             vertices.append(QJsonArray{sid(vid), p.x, p.y, p.z});
         for (const auto &[fid, f] : b->surface.faces) {
@@ -56,6 +74,8 @@ QByteArray encodeDocument(const Document &doc) {
             wires.append(QJsonArray{sid(w[0]), sid(w[1])});
         for (const auto &[edgeId, edge] : b->topology.edges)
             edges.append(QJsonArray{sid(edgeId), sid(edge.a), sid(edge.b), edge.wire});
+        for (const auto &[curveId, curve] : b->curves)
+            curves.append(encodeCurve(curveId, curve));
         QJsonArray transform;
         for (auto value : b->transform.m)
             transform.append(value);
@@ -79,12 +99,13 @@ QByteArray encodeDocument(const Document &doc) {
                                   {"nextId", sid(b->surface.nextId)},
                                   {"nextEdgeId", sid(b->topology.nextId)},
                                   {"edges", edges},
+                                  {"curves", curves},
                                   {"vertices", vertices},
                                   {"faces", faces},
                                   {"wires", wires}});
     }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 3},
+                                           {"version", 4},
                                            {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
@@ -106,7 +127,7 @@ Document decodeDocument(const QByteArray &bytes) {
     auto root = json.object();
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
         (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
-         root["version"].toDouble() != 3) ||
+         root["version"].toDouble() != 3 && root["version"].toDouble() != 4) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -124,6 +145,8 @@ Document decodeDocument(const QByteArray &bytes) {
             allowed += {"parent", "transform", "properties"};
         if (root["version"].toInt() >= 3)
             allowed += {"nextEdgeId", "edges"};
+        if (root["version"].toInt() >= 4)
+            allowed.append("curves");
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
@@ -212,6 +235,52 @@ Document decodeDocument(const QByteArray &bytes) {
             b->topology.validate(b->surface);
         } else
             b->topology = Topology::rebuild(b->surface, {});
+        if (root["version"].toInt() >= 4) {
+            const auto curves = array(o["curves"]);
+            if (curves.size() > 1024)
+                throw std::runtime_error("Too many curve records");
+            auto point = [](const QJsonValue &value) {
+                const auto p = array(value);
+                if (p.size() != 3)
+                    throw std::runtime_error("Invalid curve vector");
+                return Vec3{number(p[0]), number(p[1]), number(p[2])};
+            };
+            for (const auto &value : curves) {
+                const auto c = object(value);
+                supportedFields(c, {"id", "kind", "center", "xAxis", "yAxis", "radius",
+                                    "startAngle", "sweepAngle", "segments", "edges"});
+                Curve curve;
+                if (c["kind"] == "circle")
+                    curve.kind = CurveKind::Circle;
+                else if (c["kind"] == "arc")
+                    curve.kind = CurveKind::Arc;
+                else if (c["kind"] == "pie")
+                    curve.kind = CurveKind::Pie;
+                else
+                    throw std::runtime_error("Unknown curve kind");
+                curve.center = point(c["center"]);
+                curve.xAxis = point(c["xAxis"]);
+                curve.yAxis = point(c["yAxis"]);
+                curve.radius = number(c["radius"]);
+                curve.startAngle = number(c["startAngle"]);
+                curve.sweepAngle = number(c["sweepAngle"]);
+                const auto count = number(c["segments"]);
+                if (count < 1 || count > 256 || count != std::floor(count))
+                    throw std::runtime_error("Invalid curve segment count");
+                curve.segments = unsigned(count);
+                const auto edges = array(c["edges"]);
+                if (size_t(edges.size()) > Topology::edgeLimit)
+                    throw std::runtime_error("Too many curve edges");
+                for (const auto &value : edges) {
+                    const auto e = array(value);
+                    if (e.size() != 2 || !e[1].isBool())
+                        throw std::runtime_error("Invalid oriented curve edge");
+                    curve.edges.push_back({readId(e[0]), e[1].toBool()});
+                }
+                if (!b->curves.emplace(readId(c["id"]), std::move(curve)).second)
+                    throw std::runtime_error("Duplicate curve ID");
+            }
+        }
         if (!bodies.emplace(b->id, b).second)
             throw std::runtime_error("Duplicate body ID");
     }

@@ -1,8 +1,10 @@
 #pragma once
 #include "core/model.hpp"
 #include <QByteArray>
+#include <QJsonObject>
 #include <QString>
 namespace sketchy {
+QJsonObject encodeCurve(Id id, const Curve &curve);
 QByteArray encodeDocument(const Document &doc);
 Document decodeDocument(const QByteArray &bytes);
 QByteArray encodeContainer(const Document &doc);
