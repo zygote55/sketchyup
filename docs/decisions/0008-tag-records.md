@@ -20,8 +20,9 @@ while any scene or canonical member uses it; folders must be empty before remova
 
 Consolidation partitions raw records by their complete inherited tag sets. This
 keeps different visibility assignments separate; each compatible partition can
-still weld in a single compound undo item. Removing a group boundary removes its
+still weld in a single compound undo item. Deleting an empty group boundary removes its
 boundary tag along with its name/properties; member assignments remain intact.
+If the group owns geometry, its record becomes raw geometry and retains its tag.
 
 The table is bounded to 1,024 tags/folders, a 32-node ancestor chain and 1,024-byte
 nonempty names. Exact sibling names are unique across tags and folders. Names

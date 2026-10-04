@@ -588,7 +588,7 @@ Implementation split: R033.a records, transactions and persistence; R033.b share
 
 #### R034 — Implement Outliner, tags and hierarchy operations
 
-**Status:** In progress. Tag records, history, persistence and public commands are implemented locally; native Outliner/tag controls remain. **Track:** Desktop. **Scope:** O04, N05. **UX:** §5, §10.
+**Status:** In progress. Tag records and persistence are in [PR #41](https://github.com/zygote55/sketchyup/pull/41), with CI pending. Native Outliner/tag controls pass all local development and native X11/Wayland checks; their CI remains open. **Track:** Desktop. **Scope:** O04, N05. **UX:** §5, §10.
 
 **Requires:** [R033](#r033), [R010](#r010); milestone gate rule above.
 
@@ -596,7 +596,7 @@ Implementation split: R033.a records, transactions and persistence; R033.b share
 
 **Verify:** Keyboard operations match pointer actions; world transforms survive reparenting; visibility changes preserve topology and scene ownership.
 
-Implementation split: R034.a tag records, visibility, public commands and persistence; R034.b searchable Outliner, tag controls and pointer/keyboard hierarchy operations. R034 remains open until both pass. [Record decision](decisions/0008-tag-records.md). [Foundation evidence](verification/R034a-tag-records.md).
+Implementation split: R034.a tag records, visibility, public commands and persistence; R034.b searchable Outliner, tag controls and pointer/keyboard hierarchy operations. R034 remains open until both pass. [Record decision](decisions/0008-tag-records.md). [Foundation evidence](verification/R034a-tag-records.md). [Native evidence](verification/R034b-native-organization.md).
 
 <a id="r035"></a>
 

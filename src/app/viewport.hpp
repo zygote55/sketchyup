@@ -88,6 +88,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void placeComponent(Id definition, Vec3 position);
     void changeComponentAxes(Transform axes);
     void paintSelection(std::array<float, 3> color);
+    void organize(const QJsonArray &commands);
     void setPersistentState(bool hide, bool lock);
     void revealPersistentEntities();
     void unlockPersistentEntities();

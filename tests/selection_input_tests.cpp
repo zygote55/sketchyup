@@ -91,9 +91,9 @@ int main(int argc, char **argv) {
         click(*view, {.4, .4, 0}, Qt::ShiftModifier);
         check(view->selectionState().entities() == SelectionSet{*edge},
               "Shift toggles a single entity");
-        auto *outliner = window.findChild<QListWidget *>();
+        auto *outliner = window.findChild<QTreeWidget *>("outlinerTree");
         check(outliner && outliner->selectedItems().size() == 1 &&
-                  outliner->selectedItems()[0]->data(Qt::UserRole).toULongLong() == 3,
+                  outliner->selectedItems()[0]->data(0, Qt::UserRole).toULongLong() == 3,
               "Outliner mirrors viewport entity selection");
         QTest::mouseDClick(view, Qt::LeftButton, {}, view->project({.4, .4, 0}).toPoint());
         check(view->selectionState().entities() == view->selectionState().boundary(doc, *face) &&
@@ -242,20 +242,20 @@ int main(int argc, char **argv) {
                   doc.bodies().at(3)->topology.edges.size() == 1,
               "One native undo restores the mixed selection deletion");
         view->setSelection(0);
-        QListWidgetItem *first = nullptr, *second = nullptr;
-        for (int i = 0; i < outliner->count(); ++i) {
-            if (outliner->item(i)->data(Qt::UserRole).toULongLong() == 1)
-                first = outliner->item(i);
-            if (outliner->item(i)->data(Qt::UserRole).toULongLong() == 2)
-                second = outliner->item(i);
+        QTreeWidgetItem *first = nullptr, *second = nullptr;
+        for (int i = 0; i < outliner->topLevelItemCount(); ++i) {
+            if (outliner->topLevelItem(i)->data(0, Qt::UserRole).toULongLong() == 1)
+                first = outliner->topLevelItem(i);
+            if (outliner->topLevelItem(i)->data(0, Qt::UserRole).toULongLong() == 2)
+                second = outliner->topLevelItem(i);
         }
         check(first && second, "Outliner contexts present");
         const auto firstRow = outliner->visualItemRect(first).center();
         QTest::mouseClick(outliner->viewport(), Qt::LeftButton, {}, firstRow);
         // Synchronization rebuilds the list, so resolve the second row afresh.
-        for (int i = 0; i < outliner->count(); ++i)
-            if (outliner->item(i)->data(Qt::UserRole).toULongLong() == 2)
-                second = outliner->item(i);
+        for (int i = 0; i < outliner->topLevelItemCount(); ++i)
+            if (outliner->topLevelItem(i)->data(0, Qt::UserRole).toULongLong() == 2)
+                second = outliner->topLevelItem(i);
         QTest::mouseClick(outliner->viewport(), Qt::LeftButton, Qt::ControlModifier,
                           outliner->visualItemRect(second).center());
         check(view->selectionState().entities().size() == 2 &&
