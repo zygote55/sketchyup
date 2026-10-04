@@ -94,18 +94,22 @@ void Viewport::initializeGL() {
     const char *vertex = R"(#version 330 core
 layout(location=0) in vec3 position;
 layout(location=1) in vec4 color;
+layout(location=2) in vec4 backColor;
 uniform mat4 mvp;
 uniform int instanced;
 uniform vec2 pixelOffset;
 out vec4 tint;
+out vec4 backTint;
 out vec3 worldPosition;
 void main() {
   vec3 p=position;
   if(instanced!=0) p+=vec3(float(gl_InstanceID%1000)*1.2,float(gl_InstanceID/1000)*1.2,0);
-  gl_Position=mvp*vec4(p,1.0);gl_Position.xy+=pixelOffset*gl_Position.w;tint=color;worldPosition=p;
+  gl_Position=mvp*vec4(p,1.0);gl_Position.xy+=pixelOffset*gl_Position.w;tint=color;backTint=backColor;worldPosition=p;
 })";
     const char *fragment = R"(#version 330 core
 in vec4 tint;
+in vec4 backTint;
+uniform int surfacePass;
 in vec3 worldPosition;
 uniform int clipEnabled;
 uniform vec4 clipPlane;
@@ -115,7 +119,11 @@ out vec4 fragment;
 void main() {
   if(clipEnabled!=0 && dot(clipPlane,vec4(worldPosition,1.0))<0.0) discard;
   if(stipple!=0 && (mod(floor(gl_FragCoord.x/pixelRatio),4.0)>0.0 || mod(floor(gl_FragCoord.y/pixelRatio),4.0)>0.0)) discard;
-  fragment=tint;
+  vec4 color=gl_FrontFacing ? tint : backTint;
+  if(surfacePass==1 && color.a<1.0) discard;
+  if(surfacePass==2 && (color.a<=0.0 || color.a>=1.0)) discard;
+  if(surfacePass==3 && color.a<=0.0) discard;
+  fragment=surfacePass==3 ? vec4(color.rgb,1.0) : color;
 })";
     shader_ = std::make_unique<QOpenGLShaderProgram>();
     if (!shader_->addShaderFromSourceCode(QOpenGLShader::Vertex, vertex) ||
@@ -397,6 +405,10 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
         const bool tied = std::abs(distance - hit.distance) <= tolerance &&
                           std::pair{body, t.face} > std::pair{hit.body, hit.face};
         if (distance > 0 && (nearer || tied) && !clipped(o + d * distance)) {
+            const bool back = (a < 0) != (doc_.worldTransform(body).determinant() < 0);
+            if (surfaceAppearance(doc_.materials(), *doc_.bodies().at(body), t.face, back)
+                    .opacity == 0)
+                return;
             hit = {body, t.face, distance};
         }
     };
@@ -610,9 +622,19 @@ void Viewport::rebuild() {
         const bool topologyChanged =
             meshChanged || !cache.record || cache.record->topology.edges != body->topology.edges;
         const bool worldChanged = meshChanged || !cache.record || cache.world != world;
+        MaterialRecords materials;
+        auto remember = [&](MaterialSides sides) {
+            for (const auto material : {sides.front, sides.back})
+                if (material)
+                    materials.emplace(material, doc_.materials().at(material));
+        };
+        for (const auto &[face, record] : body->surface.faces)
+            remember(faceMaterials(*body, face));
         const bool appearanceChanged =
             worldChanged || topologyChanged || !cache.record ||
             cache.record->color != body->color || cache.record->faceColors != body->faceColors ||
+            cache.record->materials != body->materials ||
+            cache.record->faceMaterials != body->faceMaterials || cache.materials != materials ||
             cache.alpha != alpha || cache.presentationRevision != presentationRevision_;
         if (meshChanged) {
             cache.localTriangles = body->surface.triangles();
@@ -651,8 +673,6 @@ void Viewport::rebuild() {
                     const SelectedEntity entity{id, SelectionKind::Face, triangle.face};
                     if (!visible(entity))
                         continue;
-                    const auto faceAlpha =
-                        selection_.hidden(doc_, entity) ? std::min(alpha, .18f) : alpha;
                     const auto crossProduct =
                         cross(triangle.b - triangle.a, triangle.c - triangle.a);
                     const auto magnitude = length(crossProduct);
@@ -661,24 +681,43 @@ void Viewport::rebuild() {
                     const auto normal = crossProduct * (1 / magnitude);
                     const float light =
                         .64f + .36f * std::abs(dot(normal, normalized({.3, -.5, .8})));
-                    auto color = faceColor(*body, triangle.face);
-                    if (!selection_.inActiveHierarchy(doc_, id) || selection_.locked(doc_, id)) {
-                        const std::array<float, 3> background{float(colors_.canvas.redF()),
-                                                              float(colors_.canvas.greenF()),
-                                                              float(colors_.canvas.blueF())};
-                        for (size_t i = 0; i < 3; ++i)
-                            color[i] = color[i] * .35f + background[i] * .65f;
+                    auto front = surfaceAppearance(doc_.materials(), *body, triangle.face);
+                    auto back = surfaceAppearance(doc_.materials(), *body, triangle.face, true);
+                    // A reflected placement preserves the physical front of a face.
+                    if (world.determinant() < 0)
+                        std::swap(front, back);
+                    for (auto *side : {&front, &back}) {
+                        side->opacity *= alpha;
+                        if (selection_.hidden(doc_, entity))
+                            side->opacity = std::min(side->opacity, .18f);
+                        if (!selection_.inActiveHierarchy(doc_, id) ||
+                            selection_.locked(doc_, id)) {
+                            const std::array<float, 3> background{float(colors_.canvas.redF()),
+                                                                  float(colors_.canvas.greenF()),
+                                                                  float(colors_.canvas.blueF())};
+                            for (size_t i = 0; i < 3; ++i)
+                                side->color[i] = side->color[i] * .35f + background[i] * .65f;
+                        }
+                        for (auto &component : side->color)
+                            component *= light;
                     }
-                    for (auto &component : color)
-                        component *= light;
-                    std::array<Vertex, 3> vertices{vertex(triangle.a, color),
-                                                   vertex(triangle.b, color),
-                                                   vertex(triangle.c, color)};
-                    for (auto &v : vertices)
-                        v.a = faceAlpha;
-                    if (faceAlpha < 1)
+                    std::array<Vertex, 3> vertices;
+                    size_t index = 0;
+                    for (auto point : {triangle.a, triangle.b, triangle.c}) {
+                        auto &v = vertices[index++];
+                        v = vertex(point, front.color);
+                        v.a = front.opacity;
+                        v.br = back.color[0];
+                        v.bg = back.color[1];
+                        v.bb = back.color[2];
+                        v.ba = back.opacity;
+                    }
+                    // Mixed sides enter both passes; the shader discards the other side.
+                    // Only the visible opaque side writes depth.
+                    if ((front.opacity > 0 && front.opacity < 1) ||
+                        (back.opacity > 0 && back.opacity < 1))
                         cache.transparent.push_back(vertices);
-                    else
+                    if (front.opacity == 1 || back.opacity == 1)
                         cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
                 }
                 for (const auto &edge : cache.worldEdges) {
@@ -701,6 +740,7 @@ void Viewport::rebuild() {
             ++stats_.bodyUploads;
         }
         cache.record = body;
+        cache.materials = std::move(materials);
         cache.world = world;
         cache.alpha = alpha;
         cache.presentationRevision = presentationRevision_;
@@ -738,9 +778,12 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count) {
     batch.buffer.bind();
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), nullptr);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                           reinterpret_cast<void *>(3 * sizeof(float)));
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                          reinterpret_cast<void *>(7 * sizeof(float)));
     if (count > 1)
         glDrawArraysInstanced(mode, 0, batch.count, count);
     else
@@ -804,6 +847,7 @@ void Viewport::paintScene() {
     shader_->setUniformValue("mvp", transform);
     shader_->setUniformValue("instanced", instances_ > 0 ? 1 : 0);
     shader_->setUniformValue("stipple", 0);
+    shader_->setUniformValue("surfacePass", 0);
     shader_->setUniformValue("pixelOffset", QVector2D{});
     shader_->setUniformValue("clipEnabled", clipPlane_ ? 1 : 0);
     if (clipPlane_) {
@@ -826,6 +870,7 @@ void Viewport::paintScene() {
         glDepthMask(GL_TRUE);
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1, 1);
+        shader_->setUniformValue("surfacePass", 1);
         for (auto &[id, cache] : bodyCaches_)
             draw(cache->opaqueGpu, GL_TRIANGLES);
         sortTransparent(transform);
@@ -835,11 +880,13 @@ void Viewport::paintScene() {
             glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
                                 GL_ONE_MINUS_SRC_ALPHA);
             glDepthMask(GL_FALSE);
+            shader_->setUniformValue("surfacePass", 2);
             draw(transparentGpu_, GL_TRIANGLES);
             glDepthMask(GL_TRUE);
             glDisable(GL_BLEND);
         }
         glDisable(GL_POLYGON_OFFSET_FILL);
+        shader_->setUniformValue("surfacePass", 0);
         for (auto &[id, cache] : bodyCaches_)
             draw(cache->linesGpu, GL_LINES);
         drawSelectionOverlay();

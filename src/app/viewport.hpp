@@ -176,7 +176,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QJsonObject commitCommands(const QJsonArray &commands, bool shared = true);
     Id selectedComponent() const;
     struct Vertex {
-        float x, y, z, r, g, b, a{1};
+        float x{}, y{}, z{}, r{}, g{}, b{}, a{1};
+        float br{r}, bg{g}, bb{b}, ba{a};
     };
     Document &doc_;
     ToolSession session_;
@@ -222,6 +223,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     std::optional<SelectedEntity> pickEntity(QRgb color) const;
     struct BodyCache {
         BodyPtr record;
+        MaterialRecords materials;
         Transform world;
         std::vector<Triangle> localTriangles, worldTriangles;
         struct MeshEdge {
