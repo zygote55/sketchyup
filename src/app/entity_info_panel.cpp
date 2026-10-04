@@ -78,7 +78,7 @@ EntityInfoPanel::EntityInfoPanel(Document &doc, Viewport &view, QWidget *parent)
     position_->setToolTip("Entity origin: x · y · z in the selected frame");
     dimensions_->setToolTip("Axis-aligned bounds: x · y · z in the selected frame");
     tag_ = value(form, "Tag", "entityInfoTag");
-    color_ = value(form, "Color", "entityInfoColor");
+    color_ = value(form, "Materials", "entityInfoColor");
     properties_ = value(form, "Semantic properties", "entityInfoProperties");
     scroll->setWidget(content);
     layout->addWidget(scroll, 1);
@@ -147,11 +147,22 @@ void EntityInfoPanel::refresh() {
             QString("%1 · %2 faces · %3 edges").arg(kind).arg(measured.faces).arg(measured.edges));
         tag_->setText(body.tag ? QString::fromStdString(doc_.tags().at(body.tag)->name)
                                : "Untagged");
-        const auto rgb =
-            entity.kind == SelectionKind::Face && body.faceColors.contains(entity.entity)
-                ? body.faceColors.at(entity.entity)
-                : body.color;
-        color_->setText(QColor::fromRgbF(rgb[0], rgb[1], rgb[2]).name());
+        auto sideText = [&](bool back) {
+            const auto appearance =
+                surfaceAppearance(doc_.materials(), body,
+                                  entity.kind == SelectionKind::Face ? entity.entity : 0, back);
+            const auto &rgb = appearance.color;
+            return (appearance.material
+                        ? QString::fromStdString(doc_.materials().at(appearance.material)->name) +
+                              " · "
+                        : QString{}) +
+                   QColor::fromRgbF(rgb[0], rgb[1], rgb[2]).name() +
+                   QString(" · %1%").arg(qRound(appearance.opacity * 100));
+        };
+        color_->setText("Front: " + sideText(false) + "\nBack: " + sideText(true) +
+                        (entity.kind == SelectionKind::Body && !body.faceMaterials.empty()
+                             ? "\nIndividual faces have overrides"
+                             : ""));
         Vec3 origin = frame_->currentIndex() == 0   ? measured.worldOrigin
                       : frame_->currentIndex() == 1 ? measured.parentOrigin
                                                     : Vec3{};

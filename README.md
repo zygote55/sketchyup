@@ -208,7 +208,7 @@ from scene ownership. Tag `"0"` means Untagged. Folder visibility affects its
 descendant tags; hiding a tag preserves geometry and transforms. `tags.describe`
 reports local and effective visibility. Component placement tags are local;
 member assignments use shared component scope. `scene.rename` names an entity.
-The Model panel offers Outliner, Tags and Info tabs. Search filters the entity
+The Model panel offers Outliner, Tags, Info and Materials tabs. Search filters the entity
 hierarchy while retaining matching ancestors. Enter/double-click opens a context;
 Escape closes it. F2 renames, Space toggles visibility, Ctrl+Shift+L toggles an
 entity lock, Ctrl+Shift+M opens Move to, and Ctrl+Alt+T assigns a tag. Buttons
@@ -231,8 +231,11 @@ edits remain document-wide. `materials.describe` lists swatches and
 colors and opacity, including mirrored placements. Fully transparent sides pass
 face picking through; topology edges remain visible. Editing a swatch refreshes
 only dependent appearance buffers. Intersecting transparent surfaces retain the
-centroid-sorting limitation. Native swatches and paint/sample controls follow in
-R036.d. See the [rendering contract](docs/decisions/0012-material-rendering.md).
+centroid-sorting limitation. The Materials tab edits named swatches and offers local presets through New.
+Choose Front, Back or Both sides; Apply paints selected faces. B activates Paint;
+Alt-click samples the visible side. Open a group/component before painting its
+contents. Swatch edits affect every use; assignments in an opened component
+remain shared. See the [rendering contract](docs/decisions/0012-material-rendering.md).
 
 `asset.import` stores canonical base64 bytes; `asset.missing` retains an explicit
 missing-resource record. `asset.replace` resolves/replaces bytes under the same
@@ -244,7 +247,9 @@ their bytes and survive relocation without the source files. Asset paths are
 fixed logical keys, never filesystem extraction paths. Limits are 16 MiB per
 asset, 64 MiB per document and 1,024 records. See the
 [asset contract](docs/decisions/0011-managed-assets.md). Stored images do not yet
-have UV mapping or texture rendering.
+have UV mapping or texture rendering. Materials offers Attach file, Replace file
+(including missing-resource resolution), Detach file and undoable Clean files
+for unused resources. New/edit dialogs can also bind an existing stored file.
 
 `entity.inspect` reports world, parent and intrinsic bounds, lengths and areas.
 Volume is present only after bounded single-shell solid validation; open, invalid,

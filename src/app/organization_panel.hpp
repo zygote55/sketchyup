@@ -6,11 +6,13 @@
 #include <QTreeWidget>
 namespace sketchy {
 class EntityInfoPanel;
+class MaterialsPanel;
 class OrganizationPanel : public QWidget {
   public:
     OrganizationPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
     QTreeWidget *outliner() const { return outliner_; }
     void refresh();
+    void showMaterials();
 
   private:
     Document &doc_;
@@ -20,6 +22,7 @@ class OrganizationPanel : public QWidget {
     QLabel *error_{};
     QTabWidget *tabs_{};
     EntityInfoPanel *info_{};
+    MaterialsPanel *materials_{};
     bool syncing_{};
     std::set<Id> knownBodies_, knownTags_;
     Document::SaveStamp session_;

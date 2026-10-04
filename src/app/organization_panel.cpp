@@ -1,5 +1,6 @@
 #include "app/organization_panel.hpp"
 #include "app/entity_info_panel.hpp"
+#include "app/materials_panel.hpp"
 #include "core/groups.hpp"
 #include <QAction>
 #include <QComboBox>
@@ -244,9 +245,14 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tabs_->addTab(tagPage, "Tags");
     info_ = new EntityInfoPanel(doc_, view_);
     tabs_->addTab(info_, "Info");
+    materials_ = new MaterialsPanel(doc_, view_);
+    tabs_->addTab(materials_, "Materials");
     setFocusProxy(outliner_);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
-        setFocusProxy(index == 2 ? static_cast<QWidget *>(info_) : index ? tags_ : outliner_);
+        setFocusProxy(index == 3   ? static_cast<QWidget *>(materials_)
+                      : index == 2 ? static_cast<QWidget *>(info_)
+                      : index      ? tags_
+                                   : outliner_);
     });
     connect(search_, &QLineEdit::textChanged, this, [this] { filter(); });
     connect(outliner_, &QTreeWidget::itemSelectionChanged, this, [this] {
@@ -467,6 +473,7 @@ void OrganizationPanel::filter() {
             item->setExpanded(true);
     }
 }
+void OrganizationPanel::showMaterials() { tabs_->setCurrentWidget(materials_); }
 void OrganizationPanel::refresh() {
     if (syncing_)
         return;
@@ -568,5 +575,6 @@ void OrganizationPanel::refresh() {
     filter();
     syncing_ = false;
     info_->refresh();
+    materials_->refresh();
 }
 } // namespace sketchy

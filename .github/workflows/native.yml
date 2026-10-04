@@ -24,6 +24,8 @@ jobs:
         run: ctest --preset dev
       - name: Native interaction and OpenGL tests
         run: |
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/entity_info_input_tests
@@ -59,6 +61,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/shell_tests
       - name: Isolated Wayland interaction and rendering
         run: |
+          scripts/test-wayland.sh build/dev/material_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_input_tests
           scripts/test-wayland.sh build/dev/material_viewport_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_viewport_tests
           scripts/test-wayland.sh build/dev/entity_info_input_tests

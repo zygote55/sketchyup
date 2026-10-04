@@ -44,7 +44,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Zoom = 16,
         Move = 17,
         Rotate = 18,
-        Scale = 19
+        Scale = 19,
+        Paint = 20
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -89,6 +90,11 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void changeComponentAxes(Transform axes);
     void paintSelection(std::array<float, 3> color);
     void organize(const QJsonArray &commands);
+    Id paintMaterial() const;
+    int paintSide() const { return paintSide_; }
+    void setPaintMaterial(Id material, int side);
+    void editMaterials(const QJsonArray &commands);
+    void applyMaterialToSelection();
     void setPersistentState(bool hide, bool lock);
     void revealPersistentEntities();
     void unlockPersistentEntities();
@@ -149,6 +155,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     RenderStats renderStats() const { return stats_; }
     double lastFrameMs() const { return frameMs_; }
   signals:
+    void materialChanged();
     void selected(qulonglong body, qulonglong face);
     void toolChanged(int tool);
     void guideCreationChanged(bool enabled);
@@ -175,6 +182,10 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   private:
     QJsonObject commitCommands(const QJsonArray &commands, bool shared = true);
     Id selectedComponent() const;
+    void paintAt(QPointF point, bool sample);
+    Id paintMaterial_{};
+    int paintSide_{2};
+    Document::SaveStamp paintSession_;
     struct Vertex {
         float x{}, y{}, z{}, r{}, g{}, b{}, a{1};
         float br{r}, bg{g}, bb{b}, ba{a};

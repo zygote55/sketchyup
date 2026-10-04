@@ -239,7 +239,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     edit->addAction(action("edit.move", "Move selection", {}, [this] {
         tool(Viewport::Tool::Move, "Choose a pivot and destination · Ctrl: copy");
     }));
-    edit->addAction(action("edit.paint", "Paint selection…", QKeySequence("B"), [this] {
+    edit->addAction(action("edit.paint", "Set original face color…", {}, [this] {
         auto id = viewport_->selectedBody();
         if (!id)
             return;
@@ -265,6 +265,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     addTool("Select", "Space", Viewport::Tool::Select,
             "Click an entity · Ctrl adds · Shift toggles · Drag to select a window")
         ->setChecked(true);
+    addTool("Paint", "B", Viewport::Tool::Paint,
+            "Choose a material · Click a face · Alt-click samples the visible side");
     addTool("Line", "L", Viewport::Tool::Line, "Click first point · Click or drag to endpoint");
     addTool("Rectangle", "R", Viewport::Tool::Rectangle,
             "Click first corner · Then click opposite corner or enter width, depth");
@@ -504,6 +506,9 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             viewport_->addAction(a);
         }
     connect(viewport_, &Viewport::toolChanged, this, [this](int mode) {
+        measurements_->setEnabled(mode != int(Viewport::Tool::Paint));
+        if (mode == int(Viewport::Tool::Paint))
+            organization_->showMaterials();
         if (auto *toolAction = findChild<QAction *>("tool." + QString::number(mode)))
             toolAction->setChecked(true);
     });
@@ -601,7 +606,8 @@ void Window::tool(Viewport::Tool t, const QString &text) {
     viewport_->setFocus();
     status_->setText(text);
     measurements_->setPlaceholderText(
-        t == Viewport::Tool::Move         ? "distance, dx,dy,dz or [x,y,z]"
+        t == Viewport::Tool::Paint        ? "Choose a material and side"
+        : t == Viewport::Tool::Move       ? "distance, dx,dy,dz or [x,y,z]"
         : t == Viewport::Tool::Rotate     ? "angle (deg) or [pivot / reference]"
         : t == Viewport::Tool::Scale      ? "factor or x,y,z factors"
         : t == Viewport::Tool::Tape       ? "distance or [x,y,z]"
