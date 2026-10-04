@@ -28,7 +28,7 @@ void fields(const QJsonObject &object, const QStringList &expected) {
     if (object.size() != expected.size())
         throw std::runtime_error("Missing container field");
 }
-QJsonObject floors(const Document &doc, bool topology = true) {
+QJsonObject floors(const Document &doc, bool topology = true, bool components = false) {
     QJsonObject surfaces, edges;
     for (const auto &[id, body] : doc.bodies()) {
         surfaces[QString::number(id)] = QString::number(body->surface.nextId);
@@ -37,6 +37,19 @@ QJsonObject floors(const Document &doc, bool topology = true) {
     QJsonObject result{{"body", QString::number(doc.nextId())}, {"surfaces", surfaces}};
     if (topology)
         result["edges"] = edges;
+    if (components) {
+        QJsonObject definitions;
+        for (const auto &[id, definition] : doc.definitions()) {
+            QJsonObject members;
+            for (const auto &[member, body] : definition->members)
+                members[QString::number(member)] = QJsonArray{
+                    QString::number(body->surface.nextId), QString::number(body->topology.nextId)};
+            definitions[QString::number(id)] = QJsonObject{
+                {"nextMemberId", QString::number(definition->nextMemberId)}, {"geometry", members}};
+        }
+        result["nextDefinitionId"] = QString::number(doc.nextDefinitionId());
+        result["definitions"] = definitions;
+    }
     return result;
 }
 } // namespace
@@ -52,10 +65,10 @@ QByteArray encodeContainer(const Document &doc) {
                 {"units", "m"},
                 {"up", "Z"},
                 {"requiredFeatures", QJsonArray{"scene-v2", "topology-v1", "curves-v1", "guides-v1",
-                                                "groups-v1", "face-colors-v1"}},
-                {"allocatorFloors", floors(doc)},
+                                                "groups-v1", "face-colors-v1", "components-v1"}},
+                {"allocatorFloors", floors(doc, true, true)},
                 {"chunks", QJsonArray{QJsonObject{{"kind", "document"},
-                                                  {"encoding", "json-v7"},
+                                                  {"encoding", "json-v8"},
                                                   {"offset", "0"},
                                                   {"bytes", QString::number(payload.size())},
                                                   {"sha256", hash(payload)}}}}})
@@ -94,9 +107,12 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
+    const bool components =
+        features == std::set<QString>{"scene-v2",  "topology-v1",    "curves-v1",    "guides-v1",
+                                      "groups-v1", "face-colors-v1", "components-v1"};
     const bool faceColors =
-        features == std::set<QString>{"scene-v2",  "topology-v1", "curves-v1",
-                                      "guides-v1", "groups-v1",   "face-colors-v1"};
+        components || features == std::set<QString>{"scene-v2",  "topology-v1", "curves-v1",
+                                                    "guides-v1", "groups-v1",   "face-colors-v1"};
     const bool groups =
         faceColors || features == std::set<QString>{"scene-v2", "topology-v1", "curves-v1",
                                                     "guides-v1", "groups-v1"};
@@ -115,12 +131,13 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto chunk = manifest["chunks"].toArray().first().toObject();
     fields(chunk, {"kind", "encoding", "offset", "bytes", "sha256"});
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (faceColors ? "json-v7"
-                              : groups   ? "json-v6"
-                              : guides   ? "json-v5"
-                              : curves   ? "json-v4"
-                              : topology ? "json-v3"
-                                         : "json-v2") ||
+        chunk["encoding"] != (components   ? "json-v8"
+                              : faceColors ? "json-v7"
+                              : groups     ? "json-v6"
+                              : guides     ? "json-v5"
+                              : curves     ? "json-v4"
+                              : topology   ? "json-v3"
+                                           : "json-v2") ||
         integer(chunk["offset"]) != 0 || integer(chunk["bytes"]) > documentLimit ||
         integer(chunk["bytes"]) != quint64(bytes.size() - 16 - length))
         throw std::runtime_error("Invalid, unsupported or truncated chunk range");
@@ -128,17 +145,18 @@ Document decodeContainer(const QByteArray &bytes) {
     if (chunk["sha256"] != hash(payload))
         throw std::runtime_error("Document checksum mismatch");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != (faceColors ? 7
-                                   : groups   ? 6
-                                   : guides   ? 5
-                                   : curves   ? 4
-                                   : topology ? 3
-                                              : 2))
+    if (payloadTree["version"] != (components   ? 8
+                                   : faceColors ? 7
+                                   : groups     ? 6
+                                   : guides     ? 5
+                                   : curves     ? 4
+                                   : topology   ? 3
+                                                : 2))
         throw std::runtime_error("Document chunk encoding mismatch");
     auto doc = decodeDocument(payload);
     if (manifest["documentId"] != QString::fromStdString(doc.identity()) ||
         integer(manifest["revision"]) != doc.revision() ||
-        manifest["allocatorFloors"] != floors(doc, topology))
+        manifest["allocatorFloors"] != floors(doc, topology, components))
         throw std::runtime_error("Container metadata disagrees with document");
     return doc;
 }

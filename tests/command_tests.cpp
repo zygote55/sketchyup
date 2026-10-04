@@ -443,6 +443,43 @@ int main(int argc, char **argv) {
             explodeRequest({{"command", "group.explode"}, {"body", "3"}, {"merge", false}}));
         check(exploded.bodies().size() == 2 && exploded.bodies().at(1)->surface.faces.size() == 1,
               "Boundary-only explode is explicitly available");
+        Document componentCopy = source;
+        createGroup(componentCopy, {1});
+        auto definition = std::make_shared<ComponentDefinition>();
+        definition->id = 1;
+        definition->root = 2;
+        definition->nextMemberId = 3;
+        definition->members = componentCopy.bodies();
+        auto binding = std::make_shared<ComponentInstance>();
+        binding->definition = 1;
+        binding->members = {{1, 1}, {2, 2}};
+        Edit bind{"Bind public component fixture", {}};
+        bind.definitions.push_back({1, nullptr, definition});
+        bind.instances.push_back({2, nullptr, binding});
+        componentCopy.apply(bind, componentCopy.revision());
+        const auto description = executeQuery(componentCopy, {{"query", "document.describe"}});
+        check(description["definitions"].toArray().size() == 1 &&
+                  description["instances"].toArray()[0].toObject()["definition"] == "1",
+              "Document query exposes canonical definitions and instance bindings");
+        const QJsonObject componentArray{
+            {"apiVersion", 1},
+            {"documentId", QString::fromStdString(componentCopy.identity())},
+            {"expectedRevision", QString::number(componentCopy.revision())},
+            {"commands", QJsonArray{QJsonObject{
+                {"command", "geometry.array_selection"}, {"mode", "linear"}, {"count", 2},
+                {"delta", QJsonArray{2, 0, 0}},
+                {"entities", QJsonArray{QJsonObject{{"body", "2"}, {"kind", "context"},
+                                                    {"entity", "0"}}}}}}}};
+        const auto componentPreview = previewBatch(componentCopy, componentArray);
+        check(componentCopy.instances().size() == 1 &&
+                  componentPreview["document"].toObject()["instances"].toArray().size() == 3,
+              "Component array preview includes bindings without publishing");
+        executeBatch(componentCopy, componentArray);
+        check(componentCopy.instances().size() == 3 && componentCopy.definitions().size() == 1,
+              "Public array publication retains shared component definitions");
+        componentCopy.undo();
+        check(componentCopy.instances().size() == 1,
+              "Public component array undoes bindings and scene records together");
         const QJsonArray cases{
             QJsonObject{{"command", "geometry.merge_context"}, {"context", "0"}},
             QJsonObject{{"command", "group.selection"},

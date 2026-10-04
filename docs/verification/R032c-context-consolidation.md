@@ -1,6 +1,6 @@
 # R032.c: context consolidation and appearance-preserving explode
 
-Date: 2026-10-04. Local validation passed; CI pending.
+Date: 2026-10-04. Merged in [PR #37](https://github.com/zygote55/sketchyup/pull/37); both CI jobs passed.
 Requires merged R032.b, PR #36.
 
 `geometry.merge_context` combines eligible raw records in the model (`context:

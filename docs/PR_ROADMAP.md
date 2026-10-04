@@ -551,7 +551,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R032 — Implement groups and nested editing contexts
 
-**Status:** Native grouped editing merged; final consolidation layer passes local checks, CI pending. **Track:** Core. **Scope:** O01, G08. **UX:** §4.6, §5.
+**Status:** Complete; all three implementation layers merged with passing CI. **Track:** Core. **Scope:** O01, G08. **UX:** §4.6, §5.
 
 **Requires:** [R030](#r030), [R012](#r012); milestone gate rule above.
 
@@ -566,21 +566,23 @@ Implementation split:
   v1–v5 migration. [Evidence](verification/R032a-group-records.md).
 - **R032.b — Native grouped editing:** Merged in [PR #36](https://github.com/zygote55/sketchyup/pull/36); both CI jobs passed. Raw selection grouping, protected picking,
   scoped drawing/inference, dimming, open/close/escape and breadcrumbs. Requires R032.a. [Evidence](verification/R032b-native-groups.md).
-- **R032.c — Context geometry consolidation:** Local checks passed; CI pending. Merge separate raw records in one active context
+- **R032.c — Context geometry consolidation:** Merged in [PR #37](https://github.com/zygote55/sketchyup/pull/37); both CI jobs passed. Merge separate raw records in one active context
   and combine promoted geometry on explode while preserving appearance and identities.
-  Requires R032.b; complete before claiming the R032 gate. [Evidence](verification/R032c-context-consolidation.md).
+  Requires R032.b; completes the R032 gate. [Evidence](verification/R032c-context-consolidation.md).
 
 <a id="r033"></a>
 
 #### R033 — Implement component definitions and instances
 
-**Status:** Planned. **Track:** Core. **Scope:** O02, E03. **UX:** §4.6, §5.
+**Status:** Record/transaction foundation passes local checks; CI pending. Shared mutation and native component scope remain open. **Track:** Core. **Scope:** O02, E03. **UX:** §4.6, §5.
 
 **Requires:** [R032](#r032), [R031](#r031); milestone gate rule above.
 
 **Build:** Add shared definitions, instance transforms, insertion/local axes, replacement and make-unique. Show shared-definition scope in the viewport banner and mutation preconditions.
 
 **Verify:** Definition edits propagate to all instances; make-unique isolates exactly one; mirror/scale/nesting and cyclic-definition rejection pass with undo/persistence.
+
+Implementation split: R033.a records, transactions and persistence; R033.b shared mutation, instance operations and public commands; R033.c native context workflow and scope feedback. Each child requires its predecessor; R033 remains open until all pass. [Record decision](decisions/0007-component-records.md). [Foundation evidence](verification/R033a-component-records.md).
 
 <a id="r034"></a>
 

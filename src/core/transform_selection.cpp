@@ -218,6 +218,14 @@ TransformResult transformSelected(Document &doc, const TransformTargets &targets
             body->parent = result.copies.at(body->parent);
             edit.changes.push_back({newId, nullptr, body});
         }
+    if (copy)
+        for (const auto &[root, instance] : doc.instances())
+            if (result.copies.contains(root)) {
+                auto binding = std::make_shared<ComponentInstance>(*instance);
+                for (auto &[member, target] : binding->members)
+                    target = result.copies.at(target);
+                edit.instances.push_back({result.copies.at(root), nullptr, binding});
+            }
     if (!edit.changes.empty())
         result.changes = doc.apply(std::move(edit), doc.revision());
     return result;

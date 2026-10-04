@@ -58,6 +58,7 @@ ArrayResult copyArraySelected(Document &doc, const TransformTargets &targets,
         result.instances.push_back(
             transformSelected(staged, targets, matrices[i], pivot, space, true));
     Edit edit{"Copy array", {}};
+    appendComponentChanges(edit, doc, staged);
     edit.nextIdFloor = staged.nextId();
     for (const auto &[id, body] : staged.bodies()) {
         const auto old = doc.bodies().contains(id) ? doc.bodies().at(id) : nullptr;

@@ -179,9 +179,11 @@ space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
 queries for world-coordinate points. `geometry.infer` accepts `includeGuides`
 (default true) and an optional direction reference with `body` plus `guide`
 in place of `edge`; results identify both sources of mixed intersections.
-The current file schema is version 7; versions 1–6 migrate without invented
-per-face color overrides. Earlier migrations preserve the absence of group,
-visibility/lock and guide state.
+The current file schema is version 8. It stores canonical component definitions
+and stable instance-member bindings; versions 1–7 migrate with no invented
+components. Version 7 face colors and earlier group/guide records retain their
+previous migration behavior. Component records are a foundation: shared edit
+commands and the native definition-scope banner remain under development.
 
 `group.create` groups sibling context IDs while preserving their geometry, colors
 and world placement. `group.explode` removes one group boundary and merges eligible
