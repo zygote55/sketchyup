@@ -1782,7 +1782,7 @@ bool Viewport::event(QEvent *event) {
             transformControlPending_ = false;
         }
         if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
-            tool_ != Tool::Zoom &&
+            tool_ != Tool::Zoom && tool_ != Tool::Paint &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
             !key->text().isEmpty() && QString("0123456789.+-[<xX/").contains(key->text()[0])) {
             event->accept();
@@ -1815,6 +1815,14 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     pushControlPending_ = false;
     transformControlPending_ = false;
     previous_ = e->position();
+    if (tool_ == Tool::Paint && e->button() == Qt::LeftButton) {
+        try {
+            paintAt(e->position(), e->modifiers().testFlag(Qt::AltModifier));
+        } catch (const std::exception &error) {
+            emit message(error.what());
+        }
+        return;
+    }
     if (e->button() != Qt::LeftButton || tool_ == Tool::Orbit || tool_ == Tool::Pan ||
         tool_ == Tool::Zoom || e->modifiers().testFlag(Qt::AltModifier)) {
         dragging_ = true;
@@ -2033,7 +2041,7 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
         return;
     }
     if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
-        tool_ != Tool::Zoom &&
+        tool_ != Tool::Zoom && tool_ != Tool::Paint &&
         !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
         !e->text().isEmpty() && QString("0123456789.+-[<xX/").contains(e->text()[0])) {
         emit measurementsRequested(e->text());
