@@ -19,3 +19,10 @@ including the retained-history stress fixture. CLI navigation/query cases pass.
 Existing native X11 numeric editing, shared components and recovery regressions
 pass. Native history controls and M4 integrated acceptance remain the next slices;
 this record does not mark R039 or M4 complete.
+
+CI run 37238923333 failed at the older DPR 2 Wayland pointer-scale test's
+exact floating-point equality assertion. Ten consecutive local DPR 2 Wayland
+runs passed, so the original discrepancy was not reproduced or measured. The
+assertion now uses the model's geometric tolerance (as its adjacent rotation
+check does) and prints all coordinates at full double precision on failure.
+This does not change modeling behavior; subsequent CI must validate the result.
