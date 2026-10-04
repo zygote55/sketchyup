@@ -59,8 +59,9 @@ Mixed placement/member batches reject rather than hiding their scope.
   refresh is now deferred until the input event returns. Selection/context
   handlers also preserve Qt's in-flight row pointers.
 
-The physical Hyprland/output-scale checkpoint remains with the M4 integrated
-acceptance. No independent human acceptance is claimed.
+The actual Hyprland/output-scale checkpoint passes at DPR 2 in the [M4 integrated
+record](M4.md), using synthetic native events. No independent human acceptance
+or physical-device coverage is claimed.
 
 ![Searchable hierarchy and shared scope](R034b-organization-x11.png)
 

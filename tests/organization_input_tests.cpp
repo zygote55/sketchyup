@@ -128,6 +128,10 @@ int main(int argc, char **argv) {
         auto *tags = window.findChild<QTreeWidget *>("tagTree");
         auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
         auto *search = window.findChild<QLineEdit *>("outlinerSearch");
+        window.findChild<QAction *>("view.history")->trigger();
+        tabs->setCurrentIndex(0);
+        check(QTest::qWaitFor([&] { return tree->isVisible(); }),
+              "Outliner is visible in compositor-selected window");
         check(row(tree, a)->parent() == row(tree, group), "Outliner represents actual ownership");
         view->setSelection(group);
         check(tree->selectedItems().size() == 1 && tree->selectedItems()[0] == row(tree, group),

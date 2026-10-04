@@ -24,6 +24,8 @@ jobs:
         run: ctest --preset dev
       - name: Native interaction and OpenGL tests
         run: |
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/m4_workflow_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/m4_workflow_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/units_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/units_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/history_input_tests
@@ -69,6 +71,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/shell_tests
       - name: Isolated Wayland interaction and rendering
         run: |
+          scripts/test-wayland.sh build/dev/m4_workflow_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m4_workflow_tests
           scripts/test-wayland.sh build/dev/units_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/units_input_tests
           scripts/test-wayland.sh build/dev/history_input_tests
@@ -98,6 +102,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sketchyup --smoke
       - name: Headless recipe
         run: |
+          build/dev/sketchyup-cli --input examples/m4-room-study.sketchyup --query document.describe
           build/dev/sketchyup-cli --script examples/document-units.json --output /tmp/units.sketchyup
           build/dev/sketchyup-cli --input /tmp/units.sketchyup --query document.describe
           build/dev/sketchyup-cli --import-formline tests/fixtures/formline-v1.formline --output /tmp/formline.sketchyup

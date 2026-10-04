@@ -82,7 +82,8 @@ Recovery storage is merged in [PR #50](https://github.com/zygote55/sketchyup/pul
 native scheduling/selection is merged in [PR #51](https://github.com/zygote55/sketchyup/pull/51).
 The labeled history API is [PR #52](https://github.com/zygote55/sketchyup/pull/52);
 native History controls are [PR #53](https://github.com/zygote55/sketchyup/pull/53).
-Document unit data/API/persistence are [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences are implemented locally and the M4 gate follows.
+Document unit data/API/persistence are [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences are [PR #55](https://github.com/zygote55/sketchyup/pull/55).
+The integrated [M4 workflow](verification/M4.md) passes locally; dependency merges and CI remain pending.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -663,7 +664,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R039 — Expose history and integrated M4 editing workflows
 
-**Status:** In progress. R039.a implements bounded labels/task metadata and guarded history navigation; 42 development and 29 sanitizer suites plus native regressions pass; R039.b adds native History navigation, labeled menus and focus handling. R039.c adds per-document units with schema 12, atomic edits and save/recovery preservation; R039.d adds first-run/default units and native input/readout integration. The integrated M4 fixture follows. [Units decision](decisions/0018-document-units.md). [Units evidence](verification/R039c-document-units.md). [Native units evidence](verification/R039d-native-units.md). [History decision](decisions/0017-labeled-history.md). [API evidence](verification/R039a-labeled-history.md). [Native evidence](verification/R039b-native-history.md). **Track:** Desktop. **Scope:** D03, N03, O01, O02. **UX:** §4.2, §5–§6.
+**Status:** In progress. R039.a implements bounded labels/task metadata and guarded history navigation; 42 development and 29 sanitizer suites plus native regressions pass; R039.b adds native History navigation, labeled menus and focus handling. R039.c adds per-document units with schema 12, atomic edits and save/recovery preservation; R039.d adds first-run/default units and native input/readout integration. R039.e verifies the integrated room, shared/unique windows and killed-writer recovery on X11/Weston and actual Hyprland. Local validation passes; dependency merges/CI remain pending. [M4 evidence](verification/M4.md). [Units decision](decisions/0018-document-units.md). [Units evidence](verification/R039c-document-units.md). [Native units evidence](verification/R039d-native-units.md). [History decision](decisions/0017-labeled-history.md). [API evidence](verification/R039a-labeled-history.md). [Native evidence](verification/R039b-native-history.md). **Track:** Desktop. **Scope:** D03, N03, O01, O02. **UX:** §4.2, §5–§6.
 
 **Requires:** [R038](#r038), [R034](#r034); milestone gate rule above.
 

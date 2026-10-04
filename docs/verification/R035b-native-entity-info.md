@@ -54,3 +54,6 @@ The screenshot is implementation-agent evidence, not independent human
 acceptance or physical Hyprland output-scale verification. Both child PRs passed CI and R035 is complete.
 
 ![Native Entity info in explicit world coordinates](R035b-info-x11.png)
+
+The later [M4 integrated checkpoint](M4.md) verifies this Info fixture on the
+actual Hyprland desktop at reported DPR 2, with synthetic native events.

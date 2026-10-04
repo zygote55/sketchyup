@@ -83,6 +83,10 @@ int main(int argc, char **argv) {
         check(QTest::qWaitFor([&] { return !controller->busy(); }, 10000),
               "History recovery baseline captured");
         window.findChild<QAction *>("view.history")->trigger();
+        // A tiled compositor can begin with the tray hidden; fit after its layout settles.
+        QCoreApplication::processEvents();
+        view->fit();
+        QTest::qWait(50);
         auto *tree = window.findChild<QTreeWidget *>("historySteps");
         auto *details = window.findChild<QPlainTextEdit *>("historyDetails");
         check(tree && tree->isVisible() && tree->topLevelItemCount() == 4,
