@@ -58,6 +58,10 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
     }
     InferenceQuery query{camera,     queryPoint.x(),       queryPoint.y(), 8,
                          queryPlane, selection_.context(), guidesVisible_};
+    // Group contexts can contain several raw records. The eligibility predicate
+    // below enforces their shared boundary; an exact record filter would omit them.
+    if (query.context && doc_.bodies().at(query.context)->kind == BodyKind::Group)
+        query.context = 0;
     query.visible = [&](Id body, InferenceEntity type, Id entity) {
         if (type == InferenceEntity::Face)
             return visible({body, SelectionKind::Face, entity});
@@ -68,7 +72,7 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
         return visible({body, SelectionKind::Body, 0});
     };
     query.eligible = [&](Id body, InferenceEntity, Id) {
-        return selection_.inContext(body) && !selection_.locked(doc_, body);
+        return selection_.inContext(doc_, body) && !selection_.locked(doc_, body);
     };
     inference_ = index ? index->query(query) : InferenceResult{};
     std::erase_if(inference_.candidates, [&](const auto &candidate) {

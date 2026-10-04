@@ -1,4 +1,5 @@
 #include "app/window.hpp"
+#include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
@@ -258,6 +259,33 @@ int main(int argc, char **argv) {
         check(view->selectionState().entities().size() == 2 &&
                   view->selectionSummary() == "2 contexts",
               "Outliner additive selection updates the typed viewport model");
+        view->setSelection(0);
+        const auto visibleImage = view->grabFramebuffer();
+        setEntityState(doc, 2, true, {});
+        QMetaObject::invokeMethod(view, "changed");
+        const auto hiddenImage = view->grabFramebuffer();
+        const auto afterHide = view->selectionAt(view->project({2, 1.25, 1}));
+        check(afterHide && afterHide->body == 1 && hiddenImage != visibleImage,
+              "Persistent visibility updates appearance and picking without a camera change");
+        setEntityState(doc, 1, {}, true);
+        QMetaObject::invokeMethod(view, "changed");
+        view->selectEntities({*face});
+        check(view->selectionState().entities().empty() &&
+                  !view->selectionAt(view->project({.4, .4, 0})),
+              "Persistent lock updates native selection eligibility");
+        setEntityState(doc, 1, {}, false);
+        setEntityState(doc, 2, false, {});
+        const auto group = createGroup(doc, {1, 2, 3}, "Assembly");
+        QMetaObject::invokeMethod(view, "changed");
+        view->selectEntities({*face});
+        check(view->selectionState().entities().empty(),
+              "Closed group protects native raw selection");
+        view->enterContext(group);
+        view->selectEntities({*face});
+        check(view->selectionState().entities() == SelectionSet{*face},
+              "Open group exposes native raw selection");
+        view->leaveContext();
+        check(view->selectionState().context() == 0, "Group closes to the model");
         check(!view->renderStats().glError, "Selection rendering and ID passes leave no GL errors");
         std::cout << "Native hover, typed/modifier/window/crossing selection, holes, occlusion, "
                      "click expansion, view guards, keyboard/Outliner, framebuffer and atomic "

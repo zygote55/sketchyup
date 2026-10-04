@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "core/copy_array.hpp"
+#include "core/groups.hpp"
 #include "core/selection.hpp"
 #include "core/transform_selection.hpp"
 #include "geometry/constraints.hpp"
@@ -153,6 +154,9 @@ QJsonObject describe(const Document &doc) {
             world.append(value);
         bodies.append(QJsonObject{{"id", QString::number(id)},
                                   {"parent", QString::number(b->parent)},
+                                  {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
+                                  {"hidden", b->hidden},
+                                  {"locked", b->locked},
                                   {"worldTransform", world},
                                   {"name", QString::fromStdString(b->name)},
                                   {"vertices", int(b->surface.vertices.size())},
@@ -700,6 +704,28 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             if (command.contains("parent"))
                 parent = command["parent"] == "0" ? 0 : id(command["parent"]);
             staged.transform(target, transform, parent);
+        } else if (name == "group.create") {
+            std::set<Id> members;
+            for (const auto &value : array(command["members"]))
+                if (!members.insert(id(value)).second)
+                    throw std::runtime_error("Duplicate group member");
+            if (command.contains("name") && !command["name"].isString())
+                throw std::runtime_error("Group name must be a string");
+            createGroup(staged, members, command.value("name").toString("Group").toStdString());
+        } else if (name == "group.explode") {
+            compose(explodeGroup(staged, id(command["body"])));
+        } else if (name == "scene.reparent") {
+            compose(reparentPreservingWorld(staged, id(command["body"]),
+                                            command["parent"] == "0" ? 0 : id(command["parent"])));
+        } else if (name == "scene.state") {
+            auto flag = [&](const char *key) -> std::optional<bool> {
+                if (!command.contains(key))
+                    return {};
+                if (!command[key].isBool())
+                    throw std::runtime_error("Entity state flags must be boolean");
+                return command[key].toBool();
+            };
+            compose(setEntityState(staged, id(command["body"]), flag("hidden"), flag("locked")));
         } else if (name == "geometry.delete") {
             fields(command, {"command", "body"});
             staged.erase(id(command["body"]));

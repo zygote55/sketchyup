@@ -72,6 +72,8 @@ void validate(const Body &b) {
     for (float c : b.color)
         if (!std::isfinite(c) || c < 0 || c > 1)
             throw std::runtime_error("Invalid material color");
+    if (b.kind != BodyKind::Geometry && b.kind != BodyKind::Group)
+        throw std::runtime_error("Unknown entity kind");
     b.transform.validate();
     if (b.properties.size() > 128)
         throw std::runtime_error("Too many entity properties");
@@ -468,6 +470,39 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             updated.erase(c.id);
     }
     validateDocumentSize(updated);
+    // A lock is authoritative across every command path. Changing only visibility
+    // or lock flags is allowed so a locked entity can always be revealed/unlocked.
+    auto lockedIn = [](const auto &records, Id id) {
+        for (; id && records.contains(id); id = records.at(id)->parent)
+            if (records.at(id)->locked)
+                return true;
+        return false;
+    };
+    for (const auto &change : edit.changes) {
+        bool stateOnly = false;
+        if (change.before && change.after) {
+            auto comparable = *change.after;
+            comparable.hidden = change.before->hidden;
+            comparable.locked = change.before->locked;
+            stateOnly = comparable == *change.before;
+        }
+        if (!stateOnly && (lockedIn(bodies_, change.id) ||
+                           (change.after && lockedIn(bodies_, change.after->parent))))
+            throw std::runtime_error("Cannot edit a locked entity or its contents");
+    }
+    for (const auto &[id, body] : bodies_) {
+        if (!body->locked)
+            continue;
+        // Even an unchanged locked child cannot be moved, reparented or deleted
+        // indirectly by an ancestor edit. Compare ancestry, not just world points.
+        for (auto ancestor = id; ancestor; ancestor = bodies_.at(ancestor)->parent) {
+            const auto &before = *bodies_.at(ancestor);
+            if (!updated.contains(ancestor) || updated.at(ancestor)->parent != before.parent ||
+                updated.at(ancestor)->transform != before.transform ||
+                updated.at(ancestor)->kind != before.kind)
+                throw std::runtime_error("Cannot restructure a locked descendant");
+        }
+    }
     // Keep floors for live contexts and contexts reachable from retained history.
     // Redo is about to be discarded. Floors of permanently retired bodies are unnecessary.
     std::set<Id> reachable;

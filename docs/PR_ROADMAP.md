@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0–M3 gates passed; M4 editing and organization in progress. Updated: 2026-10-03.
+Status: M0–M3 gates passed; M4 editing and organization in progress. Updated: 2026-10-04.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -539,7 +539,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R031 — Implement linear and radial copy arrays
 
-**Status:** Local development, sanitizer, X11 and isolated Wayland checks passed; CI pending. **Evidence:** [copy arrays](verification/R031-copy-arrays.md). **Track:** Geometry. **Scope:** E03. **UX:** §4.3.
+**Status:** Local development, sanitizer, X11 and isolated Wayland checks passed; [PR #34](https://github.com/zygote55/sketchyup/pull/34) in CI. **Evidence:** [copy arrays](verification/R031-copy-arrays.md). **Track:** Geometry. **Scope:** E03. **UX:** §4.3.
 
 **Requires:** [R030](#r030); milestone gate rule above.
 
@@ -551,13 +551,21 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R032 — Implement groups and nested editing contexts
 
-**Status:** Planned. **Track:** Core. **Scope:** O01, G08. **UX:** §4.6, §5.
+**Status:** In progress; core/persistence first, native context workflow next. **Track:** Core. **Scope:** O01, G08. **UX:** §4.6, §5.
 
 **Requires:** [R030](#r030), [R012](#r012); milestone gate rule above.
 
 **Build:** Add create/open/close/explode groups, locking/hiding and context-local geometry merging. Connect dimming and clickable breadcrumbs; validate reparented transforms.
 
 **Verify:** Edits cannot merge into inactive groups; nested escape navigation and save/undo work; locked descendants cannot be mutated indirectly.
+
+Implementation split:
+
+- **R032.a — Group records and hierarchy operations:** Persistent typed groups,
+  sibling grouping, world-preserving reparent/explode, authoritative locks and
+  v1–v5 migration. [Evidence](verification/R032a-group-records.md).
+- **R032.b — Native grouped editing:** Raw selection grouping, protected picking,
+  scoped drawing/inference, dimming, open/close/escape and breadcrumbs. Requires R032.a.
 
 <a id="r033"></a>
 

@@ -1,3 +1,4 @@
+#include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QDir>
@@ -188,6 +189,34 @@ int main(int argc, char **argv) {
         corruptCurve([](auto &c) { c["segments"] = 1.5; });
         corruptCurve([](auto &c) { c["edges"] = QJsonArray{}; });
         corruptCurve([](auto &c) { c["kind"] = "spline"; });
+        const auto v5 = decodeContainer(
+            read(QString(SKETCHYUP_TEST_FIXTURES) + "/container-guides-v5.sketchyup"));
+        for (const auto &[id, body] : v5.bodies())
+            require(body->kind == BodyKind::Geometry && !body->locked && !body->hidden,
+                    "Version-5 migration retains raw context behavior");
+        Document grouped = v5;
+        std::set<Id> members;
+        for (const auto &[id, body] : grouped.bodies())
+            members.insert(id);
+        const auto groupId = createGroup(grouped, members, "Assembly");
+        setEntityState(grouped, groupId, true, true);
+        const auto groupBytes = encodeContainer(grouped);
+        const auto groupReopened = decodeContainer(groupBytes);
+        require(encodeContainer(groupReopened) == groupBytes &&
+                    groupReopened.bodies().at(groupId)->kind == BodyKind::Group &&
+                    groupReopened.bodies().at(groupId)->hidden &&
+                    groupReopened.bodies().at(groupId)->locked,
+                "Persistent group kind, visibility, lock and member identities roundtrip exactly");
+        auto invalidGroup = QJsonDocument::fromJson(encodeDocument(grouped)).object();
+        for (const auto &key : {"kind", "hidden", "locked"}) {
+            auto invalid = invalidGroup;
+            auto records = invalid["bodies"].toArray();
+            auto body = records[0].toObject();
+            body[key] = 42;
+            records[0] = body;
+            invalid["bodies"] = records;
+            rejects([&] { decodeDocument(QJsonDocument(invalid).toJson()); });
+        }
         Document doc;
         auto id = doc.addFace({{{0, 0, 0}, {3, 0, 0}, {0, 2, 0}}});
         auto bytes = encodeContainer(doc);
@@ -201,8 +230,8 @@ int main(int argc, char **argv) {
         auto records = legacy["bodies"].toArray();
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();
-            for (const auto &key :
-                 {"parent", "transform", "properties", "nextEdgeId", "edges", "curves", "guides"})
+            for (const auto &key : {"parent", "transform", "properties", "nextEdgeId", "edges",
+                                    "curves", "guides", "kind", "hidden", "locked"})
                 body.remove(key);
             records[i] = body;
         }

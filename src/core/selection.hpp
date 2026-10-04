@@ -25,7 +25,7 @@ class Selection {
     bool exists(const Document &doc, SelectedEntity entity) const;
     bool hidden(const Document &doc, SelectedEntity entity) const;
     bool locked(const Document &doc, Id body) const;
-    bool inContext(Id body) const { return !context_ || body == context_; }
+    bool inContext(const Document &doc, Id body) const;
     bool selectable(const Document &doc, SelectedEntity entity) const;
     bool apply(const Document &doc, const SelectionSet &entities, SelectionMode mode);
     void clear() { entities_.clear(); }

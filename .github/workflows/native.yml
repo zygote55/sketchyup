@@ -49,6 +49,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/shell_tests
       - name: Isolated Wayland interaction and rendering
         run: |
+          scripts/test-wayland.sh build/dev/selection_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/selection_input_tests
           scripts/test-wayland.sh build/dev/transform_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/transform_input_tests
           scripts/test-wayland.sh build/dev/array_input_tests
@@ -58,6 +60,8 @@ jobs:
         run: |
           build/dev/sketchyup-cli --script examples/room-shell.json --output /tmp/room.sketchyup
           build/dev/sketchyup-cli --input /tmp/room.sketchyup
+          build/dev/sketchyup-cli --script examples/groups.json --output /tmp/groups.sketchyup
+          build/dev/sketchyup-cli --input /tmp/groups.sketchyup
           build/dev/sketchyup-cli --script examples/copy-arrays.json --output /tmp/arrays.sketchyup
           build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
           build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1

@@ -242,7 +242,7 @@ QString Viewport::nextPointHint() const {
 void Viewport::setDrawingPlane(std::optional<DrawingPlane> plane, Id context) {
     if (context && !doc_.bodies().contains(context))
         throw std::runtime_error("Drawing context does not exist");
-    if (context && (!selection_.inContext(context) || selection_.locked(doc_, context)))
+    if (context && (!selection_.inContext(doc_, context) || selection_.locked(doc_, context)))
         throw std::runtime_error("Drawing context is inactive or locked");
     if (plane)
         *plane = DrawingPlane::make(plane->origin, plane->normal, plane->xAxis);
@@ -277,7 +277,7 @@ void Viewport::choosePlane(QPointF point) {
     if (configuredPlane_) {
         if (configuredContext_ && !doc_.bodies().contains(configuredContext_))
             throw std::runtime_error("Locked drawing context no longer exists");
-        if (configuredContext_ && (!selection_.inContext(configuredContext_) ||
+        if (configuredContext_ && (!selection_.inContext(doc_, configuredContext_) ||
                                    selection_.locked(doc_, configuredContext_)))
             throw std::runtime_error(
                 "Locked drawing plane belongs to an inactive or locked context");
@@ -301,7 +301,7 @@ void Viewport::choosePlane(QPointF point) {
     }
     const auto fallback = !candidate && inferencePending_ ? pick(point) : std::pair<Id, Id>{};
     const auto context = candidate ? candidate->body : fallback.first;
-    if (!context || !selection_.inContext(context) || selection_.locked(doc_, context))
+    if (!context || !selection_.inContext(doc_, context) || selection_.locked(doc_, context))
         return;
     const auto &body = *doc_.bodies().at(context);
     const auto world = doc_.worldTransform(context);
@@ -659,7 +659,7 @@ void Viewport::rebuild() {
                     const float light =
                         .64f + .36f * std::abs(dot(normal, normalized({.3, -.5, .8})));
                     auto color = body->color;
-                    if (!selection_.inContext(id) || selection_.locked(doc_, id)) {
+                    if (!selection_.inContext(doc_, id) || selection_.locked(doc_, id)) {
                         const std::array<float, 3> background{float(colors_.canvas.redF()),
                                                               float(colors_.canvas.greenF()),
                                                               float(colors_.canvas.blueF())};
@@ -683,7 +683,7 @@ void Viewport::rebuild() {
                     if (!visible(entity))
                         continue;
                     const std::array<float, 3> color =
-                        selection_.hidden(doc_, entity) || !selection_.inContext(id)
+                        selection_.hidden(doc_, entity) || !selection_.inContext(doc_, id)
                             ? std::array<float, 3>{.56f, .58f, .60f}
                             : std::array<float, 3>{.19f, .24f, .23f};
                     cache.lines.push_back(vertex(edge.a, color));
@@ -1602,7 +1602,7 @@ bool Viewport::measurements(const QString &text) {
             if (!drawingContext_)
                 drawingContext_ = selection_.context();
             if (drawingContext_ && (!doc_.bodies().contains(drawingContext_) ||
-                                    !selection_.inContext(drawingContext_) ||
+                                    !selection_.inContext(doc_, drawingContext_) ||
                                     selection_.locked(doc_, drawingContext_)))
                 throw std::runtime_error("Drawing context is missing, inactive or locked");
         }
