@@ -1,6 +1,6 @@
 # R023: lines, freehand, rectangles and polygons on drawing planes
 
-Date: 2026-10-03. Local verification passed; PR merge pending.
+Date: 2026-10-03. Merged in [PR #22](https://github.com/zygote55/sketchyup/pull/22); both pinned CI jobs passed.
 
 The Line tool continues from the previous endpoint after pointer movement. Closing
 a chain forms the same planar engine face as automation; Escape disconnects the

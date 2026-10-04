@@ -82,6 +82,7 @@ int main(int argc, char **argv) {
             auto record = legacyBodies[i].toObject();
             record.remove("edges");
             record.remove("nextEdgeId");
+            record.remove("curves");
             record.remove("parent");
             record.remove("transform");
             record.remove("properties");
@@ -121,7 +122,7 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 1.5;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
-        root["version"] = 3;
+        root["version"] = 4;
         root["nextId"] = "1";
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["nextId"] = "2";

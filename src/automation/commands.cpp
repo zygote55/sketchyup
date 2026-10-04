@@ -1,7 +1,9 @@
 #include "automation/commands.hpp"
 #include "geometry/drawing.hpp"
+#include "io/document_io.hpp"
 #include <QString>
 #include <algorithm>
+#include <numbers>
 #include <set>
 namespace sketchy {
 namespace {
@@ -51,7 +53,7 @@ QJsonObject entityChanges(const EntityChanges &changes) {
 QJsonObject topologyDescription(const Document &doc, Id context) {
     const auto &body = *doc.bodies().at(context);
     const auto adjacency = body.topology.adjacency(body.surface);
-    QJsonArray vertices, edges, faces;
+    QJsonArray vertices, edges, faces, curves;
     for (const auto &[id, point] : body.surface.vertices)
         vertices.append(QJsonObject{{"id", QString::number(id)},
                                     {"point", QJsonArray{point.x, point.y, point.z}},
@@ -80,12 +82,15 @@ QJsonObject topologyDescription(const Document &doc, Id context) {
         }
         faces.append(QJsonObject{{"id", QString::number(id)}, {"loops", loops}});
     }
+    for (const auto &[id, curve] : body.curves)
+        curves.append(encodeCurve(id, curve));
     return {{"documentId", QString::fromStdString(doc.identity())},
             {"context", QString::number(context)},
             {"revision", QString::number(doc.revision())},
             {"vertices", vertices},
             {"edges", edges},
             {"faces", faces},
+            {"curves", curves},
             {"nextId", QString::number(body.surface.nextId)},
             {"nextEdgeId", QString::number(body.topology.nextId)}};
 }
@@ -306,6 +311,45 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             }
             compose(staged.insertEdges(context, localOrigin, localNormal,
                                        polylineEdges(points, closed), label));
+        } else if (name == "geometry.circle" || name == "geometry.arc_center" ||
+                   name == "geometry.arc_two_points" || name == "geometry.arc_three_points" ||
+                   name == "geometry.pie") {
+            const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
+            const auto count = number(command["segments"]);
+            if (count < 1 || count > 256 || count != std::floor(count))
+                throw std::runtime_error("Curve segments must be an integer from 1 to 256");
+            Curve curve;
+            if (name == "geometry.arc_two_points")
+                curve = twoPointArc(point(command["start"]), point(command["end"]),
+                                    point(command["normal"]), number(command["bulge"]),
+                                    unsigned(count));
+            else if (name == "geometry.arc_three_points")
+                curve = threePointArc(point(command["start"]), point(command["through"]),
+                                      point(command["end"]), unsigned(count));
+            else {
+                const auto kind = name == "geometry.circle" ? CurveKind::Circle
+                                  : name == "geometry.pie"  ? CurveKind::Pie
+                                                            : CurveKind::Arc;
+                curve = centerCurve(kind,
+                                    DrawingPlane::make(point(command["center"]),
+                                                       point(command["normal"]),
+                                                       point(command["xAxis"])),
+                                    number(command["radius"]),
+                                    kind == CurveKind::Circle ? 0 : number(command["startAngle"]),
+                                    kind == CurveKind::Circle ? 2 * std::numbers::pi
+                                                              : number(command["sweepAngle"]),
+                                    unsigned(count));
+            }
+            if (command.contains("space") && command["space"] != "local" &&
+                command["space"] != "world")
+                throw std::runtime_error("Drawing space must be local or world");
+            if (command["space"] == "world" && context) {
+                const auto inverse = staged.worldTransform(context).inverse();
+                curve.center = inverse.point(curve.center);
+                curve.xAxis = inverse.vector(curve.xAxis);
+                curve.yAxis = inverse.vector(curve.yAxis);
+            }
+            compose(staged.addCurve(context, std::move(curve)));
         } else if (name == "geometry.wire") {
             const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
             staged.addWire(context, point(command["start"]), point(command["end"]));
@@ -392,7 +436,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         changes[QString::number(context)] =
             QJsonObject{{"vertices", entityChanges(change.vertices)},
                         {"edges", entityChanges(change.edges)},
-                        {"faces", entityChanges(change.faces)}};
+                        {"faces", entityChanges(change.faces)},
+                        {"curves", entityChanges(change.curves)}};
     return {{"status", "committed"},
             {"revision", QString::number(doc.revision())},
             {"created", created},
@@ -409,7 +454,8 @@ QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
         changes[QString::number(context)] =
             QJsonObject{{"vertices", entityChanges(change.vertices)},
                         {"edges", entityChanges(change.edges)},
-                        {"faces", entityChanges(change.faces)}};
+                        {"faces", entityChanges(change.faces)},
+                        {"curves", entityChanges(change.curves)}};
     result["changes"] = changes;
     result["amended"] = true;
     return result;

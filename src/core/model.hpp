@@ -1,6 +1,7 @@
 #pragma once
 #include "core/transform.hpp"
 #include "geometry/cleanup.hpp"
+#include "geometry/curves.hpp"
 #include "geometry/planar.hpp"
 #include "geometry/push_pull.hpp"
 #include "geometry/topology.hpp"
@@ -17,6 +18,7 @@ struct Body {
     std::array<float, 3> color{0.73f, 0.79f, 0.73f};
     Surface surface;
     Topology topology;
+    std::map<Id, Curve> curves;
     Transform transform;
     Id parent{};
     std::map<std::string, std::variant<bool, double, std::string>> properties;
@@ -74,6 +76,7 @@ class Document {
     ChangeReport insertEdges(Id context, Vec3 origin, Vec3 normal,
                              const std::vector<std::array<Vec3, 2>> &edges,
                              std::string name = "Planar geometry");
+    ChangeReport addCurve(Id context, Curve curve);
     ChangeReport splitEdge(Id context, Id edge, double fraction);
     ChangeReport eraseFace(Id context, Id face);
     ChangeReport eraseEdge(Id context, Id edge);
