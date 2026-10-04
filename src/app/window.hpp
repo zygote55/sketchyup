@@ -3,6 +3,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include "app/organization_panel.hpp"
 #include <QMainWindow>
 #include <QMenu>
 #include <functional>
@@ -24,7 +25,8 @@ class Window : public QMainWindow {
   private:
     Document doc_;
     Viewport *viewport_{};
-    QListWidget *outliner_{};
+    QTreeWidget *outliner_{};
+    OrganizationPanel *organization_{};
     QLabel *info_{};
     QLabel *status_{};
     QLabel *title_{};

@@ -18,6 +18,31 @@ QJsonObject Viewport::commitCommands(const QJsonArray &commands, bool shared) {
                 scope ? QJsonArray{componentScopeCommand(doc_, scope, commands)} : commands}});
     return componentScopeResult(result, scope);
 }
+void Viewport::organize(const QJsonArray &commands) {
+    const auto scope = componentScope();
+    bool globalTags = false, entities = false, root = false, members = false;
+    for (auto value : commands) {
+        const auto command = value.toObject();
+        const auto name = command.value("command").toString();
+        if (name.startsWith("tag.") && name != "tag.assign") {
+            globalTags = true;
+        } else {
+            if (name != "tag.assign" && name != "scene.rename" && name != "scene.state" &&
+                name != "scene.reparent")
+                throw std::runtime_error("Unsupported organization operation");
+            entities = true;
+            const auto body = command.value("body").toString().toULongLong();
+            root |= scope && body == scope;
+            members |= scope && body != scope;
+        }
+    }
+    if ((globalTags && entities) || (root && members))
+        throw std::runtime_error("Edit placement state and shared members separately");
+    cancel();
+    commitCommands(commands, !globalTags && !root);
+    refresh();
+    emit changed();
+}
 Id Viewport::selectedComponent() const {
     if (selection_.entities().size() == 1) {
         const auto entity = *selection_.entities().begin();

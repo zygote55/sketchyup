@@ -112,15 +112,10 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     info_ = new QLabel("Draw a face to begin.");
     info_->setWordWrap(true);
     trayLayout->addWidget(info_);
-    auto *outlinerLabel = new QLabel("OUTLINER");
-    outlinerLabel->setObjectName("section");
-    trayLayout->addWidget(outlinerLabel);
-    outliner_ = new QListWidget;
-    outliner_->setAccessibleName("Model contexts");
-    outliner_->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    outliner_->installEventFilter(this);
+    organization_ = new OrganizationPanel(doc_, *viewport_);
+    outliner_ = organization_->outliner();
     info_->setAccessibleName("Selection summary");
-    trayLayout->addWidget(outliner_, 1);
+    trayLayout->addWidget(organization_, 1);
     auto *hint = new QLabel("Manual drawing development build\n\nDraw a face → select → "
                             "Extrude → enter distance.\n\nMiddle drag: orbit\nRight drag: "
                             "pan\nWheel: zoom\n\nSave explicitly. Recovery is not implemented.");
@@ -481,7 +476,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             applyTheme();
     });
     action("view.commands", "Commands…", QKeySequence("Ctrl+K"), [this] { palette(); });
-    focusRegions_ = {search, tools, viewport_, outliner_, measurements_};
+    focusRegions_ = {search, tools, viewport_, organization_, measurements_};
     for (const auto &binding :
          std::vector<std::pair<QString, QString>>{{"edit.move", "geometry.transform_selection"},
                                                   {"edit.paint", "material.color"},
@@ -535,19 +530,6 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         }
     });
     connect(measurements_, &QLineEdit::textEdited, this, [this] { measurementError(false); });
-    connect(outliner_, &QListWidget::itemSelectionChanged, this, [this] {
-        SelectionSet entities;
-        for (auto *item : outliner_->selectedItems())
-            entities.insert({item->data(Qt::UserRole).toULongLong(), SelectionKind::Body, 0});
-        viewport_->selectEntities(entities);
-    });
-    connect(outliner_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
-        if (item)
-            run([&] {
-                viewport_->enterContext(item->data(Qt::UserRole).toULongLong());
-                viewport_->setFocus();
-            });
-    });
     applyTheme();
     sync();
 }
@@ -571,7 +553,9 @@ QPushButton {border:1px solid $border;padding:7px 11px;border-radius:4px;}
 QLineEdit {background:$input;border:1px solid $border;border-radius:4px;padding:7px;selection-background-color:$accent;}
 QLineEdit:focus {border:1px solid $accent;}
 QLineEdit[invalid="true"] {border:2px solid #bc4343;}
-QListWidget {border:0;background:transparent;}
+QListWidget,QTreeWidget {border:0;background:transparent;}
+QTreeWidget:focus {border:1px solid $accent;} QTreeWidget::item {padding:3px 1px;}
+QTreeWidget::item:selected {background:$selected;color:$ink;}
 QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
 )");
     style.replace("$surface", colors.surface.name());
@@ -603,23 +587,6 @@ void Window::measurementError(bool invalid) {
     measurements_->style()->polish(measurements_);
 }
 bool Window::eventFilter(QObject *object, QEvent *event) {
-    if (object == outliner_ && event->type() == QEvent::KeyPress) {
-        const auto *key = static_cast<QKeyEvent *>(event);
-        if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
-            if (auto *item = outliner_->currentItem()) {
-                const auto id = item->data(Qt::UserRole).toULongLong();
-                run([&] {
-                    viewport_->enterContext(id);
-                    viewport_->setFocus();
-                });
-            }
-            return true;
-        }
-        if (key->key() == Qt::Key_Delete) {
-            run([&] { viewport_->deleteSelection(); });
-            return true;
-        }
-    }
     if (object == measurements_ && event->type() == QEvent::KeyPress &&
         static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
         measurements_->clear();
@@ -688,27 +655,7 @@ void Window::sync() {
     breadcrumb_->adjustSize();
     breadcrumb_->raise();
     syncComponentActions();
-    QSignalBlocker block(outliner_);
-    outliner_->clear();
-    std::set<Id> selectedBodies;
-    for (auto e : viewport_->selectionState().entities())
-        selectedBodies.insert(e.body);
-    for (const auto &[id, b] : doc_.bodies()) {
-        const bool locked = viewport_->selectionState().locked(doc_, id);
-        const bool hidden = viewport_->selectionState().hidden(doc_, {id, SelectionKind::Body, 0});
-        auto *item =
-            new QListWidgetItem(QString::fromStdString(b->name) + " #" + QString::number(id) +
-                                    (locked ? " · Locked" : "") + (hidden ? " · Hidden" : ""),
-                                outliner_);
-        item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(id));
-        if (!viewport_->selectionState().selectable(doc_, {id, SelectionKind::Body, 0}))
-            item->setFlags(item->flags() & ~(Qt::ItemIsSelectable | Qt::ItemIsEnabled));
-        if (selectedBodies.contains(id)) {
-            item->setSelected(true);
-            if (!outliner_->currentItem())
-                outliner_->setCurrentItem(item, QItemSelectionModel::NoUpdate);
-        }
-    }
+    organization_->refresh();
     QString text = viewport_->selectionSummary();
     if (viewport_->selectionState().context())
         text += QString("\nEditing context #%1").arg(viewport_->selectionState().context());

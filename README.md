@@ -205,7 +205,16 @@ from scene ownership. Tag `"0"` means Untagged. Folder visibility affects its
 descendant tags; hiding a tag preserves geometry and transforms. `tags.describe`
 reports local and effective visibility. Component placement tags are local;
 member assignments use shared component scope. `scene.rename` names an entity.
-Native tag controls are the next R034 step.
+The Model panel now offers Outliner and Tags tabs. Search filters the entity
+hierarchy while retaining matching ancestors. Enter/double-click opens a context;
+Escape closes it. F2 renames, Space toggles visibility, Ctrl+Shift+L toggles an
+entity lock, Ctrl+Shift+M opens Move to, and Ctrl+Alt+T assigns a tag. Buttons
+provide the same operations. Drag onto a group/folder to reparent, or onto empty
+space to move to the root; world placement is preserved. Tags offers folder and
+tag creation, visibility checkboxes, rename, move, assignment and unused deletion.
+Hidden/locked rows remain available for inspection and reveal/unlock. Shared
+member edits still require opening their component context. See the
+[native organization evidence](docs/verification/R034b-native-organization.md).
 
 `component.create` converts a geometry/group root into a reusable definition;
 `component.selection` converts typed selected faces, edges, guides or contexts;
