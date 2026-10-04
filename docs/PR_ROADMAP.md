@@ -71,7 +71,8 @@ R020 is merged in [PR #19](https://github.com/zygote55/sketchyup/pull/19), and t
 R021 tool lifecycle and camera interleaving are merged in [PR #20](https://github.com/zygote55/sketchyup/pull/20).
 R022 numeric input and guarded operation revision are merged in [PR #21](https://github.com/zygote55/sketchyup/pull/21).
 R023 plane-aware drawing tools merged in [PR #22](https://github.com/zygote55/sketchyup/pull/22).
-R024 is split into persistent records/commands and native tool interaction.
+R024 curve records and native tools merged in PRs #23–24.
+R025 indexed inference is locally verified.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -439,7 +440,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R024 — Ship circles, arc variants and pie tools
 
-**Status:** In progress; parent remains open until both child slices pass. **Track:** Geometry. **Scope:** G05. **UX:** §4.2–§4.4.
+**Status:** Merged in [PR #23](https://github.com/zygote55/sketchyup/pull/23) and [PR #24](https://github.com/zygote55/sketchyup/pull/24); both child slices passed CI. **Track:** Geometry. **Scope:** G05. **UX:** §4.2–§4.4.
 
 **Requires:** [R023](#r023); milestone gate rule above.
 
@@ -447,14 +448,14 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 **Verify:** Radius, angle, tangent and segment-count fixtures pass across arbitrary planes; invalid constraints explain failure without changing committed geometry.
 
-- **R024.a — Curve records, commands and persistence:** [PR #23](https://github.com/zygote55/sketchyup/pull/23), locally verified; [evidence](verification/R024a-curve-records.md). Analytic circle/arc/pie parameters, derived edge associations, undo, inspection and version-4 migration.
-- **R024.b — Native circle, arc and pie interaction:** locally verified; [evidence](verification/R024b-native-curves.md). Pointer phases, configurable segmentation, typed radius/angle/bulge, amendment, cancellation and native fixtures. Requires R024.a.
+- **R024.a — Curve records, commands and persistence:** [PR #23](https://github.com/zygote55/sketchyup/pull/23), merged; [evidence](verification/R024a-curve-records.md). Analytic circle/arc/pie parameters, derived edge associations, undo, inspection and version-4 migration.
+- **R024.b — Native circle, arc and pie interaction:** [PR #24](https://github.com/zygote55/sketchyup/pull/24), merged; [evidence](verification/R024b-native-curves.md). Pointer phases, configurable segmentation, typed radius/angle/bulge, amendment, cancellation and native fixtures. Requires R024.a.
 
 <a id="r025"></a>
 
 #### R025 — Implement point and surface inference
 
-**Status:** Planned. **Track:** Geometry. **Scope:** G06. **UX:** §4.4.
+**Status:** Verified locally. **Evidence:** [indexed inference](verification/R025-inference.md). **Track:** Geometry. **Scope:** G06. **UX:** §4.4.
 
 **Requires:** [R024](#r024), [R011](#r011); milestone gate rule above.
 

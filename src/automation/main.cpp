@@ -12,6 +12,7 @@ int main(int argc, char **argv) {
     parser.addOption({"capabilities", "Print supported local commands"});
     parser.addOption({"describe-command", "Print a command parameter schema", "name"});
     parser.addOption({"query", "Run a read-only document or geometry query", "name"});
+    parser.addOption({"query-file", "Run a read-only query object from a JSON file", "path"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption({"output", "Save the resulting model", "path"});
@@ -37,9 +38,20 @@ int main(int argc, char **argv) {
         auto doc = parser.isSet("input") ? sketchy::loadDocument(parser.value("input"))
                                          : sketchy::Document();
         QJsonObject result;
-        if (parser.isSet("query") && parser.isSet("script"))
+        if (int(parser.isSet("query")) + int(parser.isSet("query-file")) +
+                int(parser.isSet("script")) >
+            1)
             throw std::runtime_error("Choose either a query or an editing script");
-        if (parser.isSet("query")) {
+        if (parser.isSet("query-file")) {
+            QFile file(parser.value("query-file"));
+            if (!file.open(QIODevice::ReadOnly) || file.size() > 1024 * 1024)
+                throw std::runtime_error("Cannot read query or query exceeds 1 MiB");
+            QJsonParseError error;
+            const auto json = QJsonDocument::fromJson(file.read(1024 * 1024 + 1), &error);
+            if (error.error != QJsonParseError::NoError || !json.isObject())
+                throw std::runtime_error("Query file must contain one JSON object");
+            result = sketchy::executeQuery(doc, json.object());
+        } else if (parser.isSet("query")) {
             QJsonObject query{{"query", parser.value("query")}};
             if (parser.isSet("context"))
                 query["body"] = parser.value("context");

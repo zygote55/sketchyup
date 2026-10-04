@@ -1,7 +1,7 @@
 # R024.b: native circle, arc and pie tools
 
-Date: 2026-10-03. Local verification passed; CI/merge pending. Depends on R024.a.
-The parent R024 becomes accepted when both child PRs merge with passing checks.
+Date: 2026-10-03. Merged in [PR #24](https://github.com/zygote55/sketchyup/pull/24); both pinned CI jobs passed.
+R024.a / PR #23 is also merged with passing checks; the parent R024 is accepted.
 
 Circle now commits `geometry.circle` and stores analytic provenance. The Draw
 menu adds center arc, two-point arc, three-point arc and pie. All use the shared

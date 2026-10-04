@@ -30,6 +30,9 @@ int main(int argc, char **argv) {
         QVBoxLayout layout(&host);
         auto *view = new Viewport(doc);
         layout.addWidget(view);
+        QString lastMessage;
+        QObject::connect(view, &Viewport::message,
+                         [&](const QString &message) { lastMessage = message; });
         host.show();
         check(QTest::qWaitForWindowExposed(&host), "Drawing viewport exposed");
         host.activateWindow();
@@ -150,8 +153,9 @@ int main(int argc, char **argv) {
               "First hovered face sets drawing plane");
         move(*view, view->project({3, 3, 2}));
         click({3, 3, 2});
-        check(doc.bodies().size() == 1 && doc.bodies().at(block)->surface.faces.size() == 7,
-              "Rectangle on hovered face subdivides its context");
+        if (doc.bodies().size() != 1 || doc.bodies().at(block)->surface.faces.size() != 7)
+            throw std::runtime_error("Rectangle on hovered face subdivides its context: " +
+                                     lastMessage.toStdString());
         std::cout << "Chained/disconnected lines, freehand, rotated/tilted rectangles, polygons "
                      "and hovered planes passed\n";
         return 0;

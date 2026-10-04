@@ -6,6 +6,7 @@
 #include <QOpenGLContext>
 #include <QPainter>
 #include <QRegularExpression>
+#include <QTimer>
 #include <QWheelEvent>
 #include <algorithm>
 #include <limits>
@@ -22,6 +23,32 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     setMouseTracking(true);
     setMinimumSize(160, 160);
     setAccessibleName("3D model viewport");
+    inferenceWorker_.request(doc_);
+    auto *inferenceTimer = new QTimer(this);
+    inferenceTimer->setInterval(25);
+    connect(inferenceTimer, &QTimer::timeout, this, [this] {
+        if (!inferencePending_)
+            return;
+        if (inferenceReady()) {
+            inferencePending_ = false;
+            if (drawingTool() && tool_ != Tool::Freehand) {
+                try {
+                    if (session_.active())
+                        updateToolPreview(inferencePointer_);
+                    else
+                        acquireInference(inferencePointer_, false);
+                } catch (const std::exception &error) {
+                    emit message(error.what());
+                }
+            }
+            update();
+        } else if (const auto error = inferenceWorker_.error(doc_); !error.empty()) {
+            inferencePending_ = false;
+            emit message(QString::fromStdString(error));
+            update();
+        }
+    });
+    inferenceTimer->start();
 }
 Viewport::~Viewport() { cleanupGL(); }
 void Viewport::cleanupGL() {
@@ -132,7 +159,61 @@ std::pair<Vec3, Vec3> Viewport::ray(QPointF p) const {
          b = (inv * QVector4D(x, y, 1, 1)).toVector3DAffine();
     return {vec(a), normalized(vec(b - a))};
 }
-std::optional<Vec3> Viewport::ground(QPointF point) const {
+InferenceCamera Viewport::inferenceCamera() const {
+    InferenceCamera camera;
+    const auto projection = matrix();
+    const auto inverse = projection.inverted();
+    for (int i = 0; i < 16; ++i) {
+        camera.clipFromWorld[i] = projection.constData()[i];
+        camera.worldFromClip[i] = inverse.constData()[i];
+    }
+    camera.width = width();
+    camera.height = height();
+    return camera;
+}
+std::optional<InferenceCandidate> Viewport::acquiredInference() const {
+    if (inferenceChoice_ >= inference_.candidates.size())
+        return {};
+    return inference_.candidates[inferenceChoice_];
+}
+void Viewport::acquireInference(QPointF point, bool constrainPlane) {
+    inferenceWorker_.request(doc_);
+    const auto index = inferenceWorker_.ready(doc_);
+    if (!index) {
+        inference_ = {};
+        inferenceChoice_ = 0;
+        inferencePointer_ = point;
+        inferencePending_ = true;
+        return;
+    }
+    inferencePending_ = false;
+    const auto previous = acquiredInference();
+    const auto preserve = (point - inferencePointer_).manhattanLength() < 2;
+    inference_ =
+        index->query({inferenceCamera(), point.x(), point.y(), 8,
+                      constrainPlane ? std::optional<DrawingPlane>{plane_} : configuredPlane_, 0});
+    std::erase_if(inference_.candidates,
+                  [&](const auto &candidate) { return clipped(candidate.point); });
+    inferenceChoice_ = 0;
+    if (preserve && previous)
+        for (size_t i = 0; i < inference_.candidates.size(); ++i) {
+            const auto &c = inference_.candidates[i];
+            if (c.kind == previous->kind && c.body == previous->body &&
+                c.entity == previous->entity && c.otherBody == previous->otherBody &&
+                c.otherEntity == previous->otherEntity) {
+                inferenceChoice_ = i;
+                break;
+            }
+        }
+    inferencePointer_ = point;
+}
+std::optional<Vec3> Viewport::ground(QPointF point) {
+    if (tool_ != Tool::Freehand) {
+        acquireInference(point, true);
+        if (const auto candidate = acquiredInference())
+            return candidate->point;
+    }
+
     const auto [origin, direction] = ray(point);
     const auto denominator = dot(direction, plane_.normal);
     if (std::abs(denominator) < 1e-7)
@@ -207,19 +288,59 @@ void Viewport::choosePlane(QPointF point) {
     }
     plane_ = DrawingPlane{};
     drawingContext_ = 0;
-    const auto hit = pick(point);
-    if (!hit.first || !hit.second)
+    acquireInference(point, false);
+    const auto candidate = acquiredInference();
+    // The small-scene face fallback keeps drawing available during preparation.
+    // A large document waits for its index instead of scanning all triangles.
+    size_t faces = 0;
+    if (!candidate && inferencePending_) {
+        for (const auto &[id, body] : doc_.bodies())
+            faces += body->surface.faces.size();
+        if (faces > 5000)
+            throw std::runtime_error(
+                "Preparing inference; choose the point when indexing finishes");
+    }
+    const auto fallback = !candidate && inferencePending_ ? pick(point) : std::pair<Id, Id>{};
+    const auto context = candidate ? candidate->body : fallback.first;
+    if (!context)
         return;
-    const auto &body = *doc_.bodies().at(hit.first);
-    const auto world = doc_.worldTransform(hit.first);
-    const auto &loop = body.surface.faces.at(hit.second).loops[0];
+    const auto &body = *doc_.bodies().at(context);
+    const auto world = doc_.worldTransform(context);
+    Id face = fallback.second;
+    if (candidate && candidate->kind == InferenceKind::OnFace)
+        face = candidate->entity;
+    else if (candidate) {
+        const auto adjacency = body.topology.adjacency(body.surface);
+        std::vector<Id> edges;
+        if (candidate->entityType == InferenceEntity::Vertex) {
+            if (adjacency.vertexEdges.contains(candidate->entity))
+                edges = adjacency.vertexEdges.at(candidate->entity);
+        } else if (candidate->kind == InferenceKind::Center &&
+                   body.curves.contains(candidate->entity)) {
+            for (auto edge : body.curves.at(candidate->entity).edges)
+                edges.push_back(edge.edge);
+        } else if (body.topology.edges.contains(candidate->entity))
+            edges.push_back(candidate->entity);
+        for (auto edge : edges) {
+            const auto &incidence = adjacency.edgeFaces.at(edge);
+            if (!incidence.empty()) {
+                face = incidence.front().face;
+                break;
+            }
+        }
+    }
+    drawingContext_ = context;
+    if (!face) {
+        plane_ = DrawingPlane::make(candidate->point, {0, 0, 1}, {1, 0, 0});
+        return;
+    }
+    const auto &loop = body.surface.faces.at(face).loops[0];
     const auto local =
-        DrawingPlane::make(body.surface.vertices.at(loop[0]), body.surface.normal(hit.second),
+        DrawingPlane::make(body.surface.vertices.at(loop[0]), body.surface.normal(face),
                            body.surface.vertices.at(loop[1]) - body.surface.vertices.at(loop[0]));
     plane_ = DrawingPlane::make(world.point(local.origin),
                                 cross(world.vector(local.xAxis), world.vector(local.yAxis)),
                                 world.vector(local.xAxis));
-    drawingContext_ = hit.first;
 }
 void Viewport::beginChain() {
     if (!chainPending_ || !committedEnd_)
@@ -631,6 +752,8 @@ void Viewport::paintGL() {
 void Viewport::paintScene() {
     if (!ready_)
         return;
+    QPainter p(this);
+    p.beginNativePainting();
     QElapsedTimer timer;
     timer.start();
     glClearColor(colors_.canvas.redF(), colors_.canvas.greenF(), colors_.canvas.blueF(), 1);
@@ -687,7 +810,7 @@ void Viewport::paintScene() {
         stats_.glError = error;
     ++stats_.frames;
     frameMs_ = timer.nsecsElapsed() / 1e6;
-    QPainter p(this);
+    p.endNativePainting();
     p.setRenderHint(QPainter::Antialiasing);
     if (hasFocus()) {
         p.setPen(QPen(colors_.accent, 2));
@@ -697,7 +820,11 @@ void Viewport::paintScene() {
     p.setPen(colors_.ink);
     p.drawText(20, 28, ortho_ ? "ORTHOGRAPHIC  /  METERS" : "PERSPECTIVE  /  METERS");
     p.setPen(colors_.muted);
-    p.drawText(20, height() - 22, "Z up   ·   Grid 1 m   ·   Snap 0.1 m");
+    p.drawText(20, height() - 22, "Z up   ·   Inference 8 px   ·   Grid fallback 0.1 m");
+    if (inferencePending_) {
+        p.setPen(colors_.muted);
+        p.drawText(20, 48, "Preparing inference · grid fallback available");
+    }
     if (session_.active()) {
         p.setPen(QPen(previewValid_ ? QColor("#b9762f") : QColor("#bc4343"), 2, Qt::DashLine));
         for (const auto &edge : previewEdges_)
@@ -719,8 +846,59 @@ void Viewport::paintScene() {
             p.drawText(box.adjusted(6, 4, -6, -4), Qt::TextWordWrap, previewError_);
         }
     }
+    if (const auto candidate = acquiredInference(); candidate && drawingTool()) {
+        const auto pos = project(candidate->point);
+        p.setPen(QPen(colors_.accent, 2));
+        p.setBrush(colors_.accent);
+        switch (candidate->kind) {
+        case InferenceKind::Endpoint:
+            p.drawEllipse(pos, 4, 4);
+            break;
+        case InferenceKind::Midpoint:
+            p.drawPolygon(
+                QPolygonF{pos + QPointF(0, -5), pos + QPointF(5, 4), pos + QPointF(-5, 4)});
+            break;
+        case InferenceKind::Center:
+            p.setBrush(Qt::NoBrush);
+            p.drawEllipse(pos, 6, 6);
+            p.setBrush(colors_.accent);
+            p.drawEllipse(pos, 1.5, 1.5);
+            break;
+        case InferenceKind::OnEdge:
+            p.setBrush(Qt::NoBrush);
+            p.drawRect(QRectF(pos - QPointF(4, 4), QSizeF(8, 8)));
+            break;
+        case InferenceKind::OnFace:
+            p.setBrush(Qt::NoBrush);
+            p.drawPolygon(QPolygonF{pos + QPointF(0, -5), pos + QPointF(5, 0), pos + QPointF(0, 5),
+                                    pos + QPointF(-5, 0)});
+            break;
+        case InferenceKind::Intersection:
+            p.drawLine(pos + QPointF(-5, -5), pos + QPointF(5, 5));
+            p.drawLine(pos + QPointF(-5, 5), pos + QPointF(5, -5));
+            break;
+        }
+        auto label = QString::fromUtf8(inferenceLabel(candidate->kind));
+        if (inference_.candidates.size() > 1)
+            label += QString(" · Tab %1/%2%3")
+                         .arg(inferenceChoice_ + 1)
+                         .arg(inference_.candidates.size())
+                         .arg(inference_.truncated ? "+" : "");
+        const auto extent = p.fontMetrics().boundingRect(label).adjusted(-6, -4, 6, 4);
+        const auto labelWidth = std::min(extent.width(), std::max(1, width() - 24));
+        const auto box =
+            QRectF(std::clamp(pos.x() + 12, 12., double(std::max(12, width() - labelWidth - 12))),
+                   std::clamp(pos.y() - 30, 40., double(std::max(40, height() - 50))), labelWidth,
+                   extent.height());
+        p.fillRect(box, colors_.surface);
+        p.setPen(colors_.ink);
+        p.drawText(box, Qt::AlignCenter, label);
+    }
 }
 void Viewport::refresh() {
+    inferenceWorker_.request(doc_);
+    inference_ = {};
+    inferenceChoice_ = 0;
     if (session_.active() && !session_.current()) {
         cancel();
         emit message("Document changed; the uncommitted operation was canceled");
@@ -775,6 +953,8 @@ void Viewport::clearPreview() {
 }
 void Viewport::cancel() {
     session_.cancel();
+    inference_ = {};
+    inferenceChoice_ = 0;
     chainPending_ = false;
     chainContext_ = 0;
     committedBaseline_.reset();
@@ -1272,6 +1452,20 @@ bool Viewport::measurements(const QString &text) {
     return doc_.revision() != revision;
 }
 bool Viewport::event(QEvent *event) {
+    if (event->type() == QEvent::KeyPress) {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() == Qt::Key_Tab && !key->modifiers() && drawingTool() &&
+            !inference_.candidates.empty()) {
+            inferenceChoice_ = (inferenceChoice_ + 1) % inference_.candidates.size();
+            if (session_.active())
+                updateToolPreview(inferencePointer_);
+            if (const auto candidate = acquiredInference())
+                emit message(QString::fromUtf8(inferenceLabel(candidate->kind)));
+            update();
+            event->accept();
+            return true;
+        }
+    }
     if (event->type() == QEvent::ShortcutOverride) {
         const auto *key = static_cast<QKeyEvent *>(event);
         if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
@@ -1407,7 +1601,16 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
             (e->position() - toolPressPosition_).manhattanLength() >= 4)
             dragCommit_ = true;
         updateToolPreview(e->position());
+    } else if (drawingTool() && tool_ != Tool::Freehand) {
+        try {
+            acquireInference(e->position(), false);
+        } catch (const std::exception &error) {
+            inference_ = {};
+            emit message(error.what());
+        }
     }
+    if (dragging_)
+        inference_ = {};
     update();
 }
 void Viewport::mouseReleaseEvent(QMouseEvent *e) {
@@ -1442,6 +1645,7 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     }
 }
 void Viewport::wheelEvent(QWheelEvent *e) {
+    inference_ = {};
     const auto steps =
         e->pixelDelta().isNull() ? e->angleDelta().y() / 120.f : e->pixelDelta().y() / 15.f;
     distance_ = std::clamp(distance_ * std::exp(-steps * .12f), .05f, 1e7f);

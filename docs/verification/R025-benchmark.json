@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-03",
+  "configuration": "development/debug",
+  "bodies": 1000,
+  "triangles": 100000,
+  "primitives": 458000,
+  "initialPreparationMs": 2248.16,
+  "queries": 200,
+  "queryP95Ms": 2.72862,
+  "meanVisitedPrimitives": 949,
+  "budgetP95Ms": 50,
+  "source": "build/dev/inference_tests --benchmark",
+  "note": "Independently transformed bodies; component instancing is not implemented."
+}
