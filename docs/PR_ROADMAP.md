@@ -602,7 +602,7 @@ Implementation split: R034.a tag records, visibility, public commands and persis
 
 #### R035 — Implement Entity info and measured properties
 
-**Status:** In progress. Measurement queries, conservative solid-volume checks and framed edit commands in [PR #43](https://github.com/zygote55/sketchyup/pull/43) pass local core and sanitizer validation. The native Info tab and unit-aware editor in [PR #44](https://github.com/zygote55/sketchyup/pull/44) pass local interaction checks; CI remains open. **Track:** Core. **Scope:** O06, D01. **UX:** §5.
+**Status:** Completed. Core measurements and conservative solid validation merged in [PR #43](https://github.com/zygote55/sketchyup/pull/43); native Info and unit-aware editing merged in [PR #44](https://github.com/zygote55/sketchyup/pull/44). Both CI jobs passed for each PR. **Track:** Core. **Scope:** O06, D01. **UX:** §5.
 
 **Requires:** [R034](#r034), [R015](#r015); milestone gate rule above.
 
@@ -616,7 +616,7 @@ Implementation split: R035.a core measurements, solid classification and public 
 
 #### R036 — Implement materials and managed asset storage
 
-**Status:** In progress. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and native swatch/paint controls remain. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
+**Status:** In progress. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and packaged manifests pass focused checks; full validation is running. Native swatch/paint controls remain. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
 
 **Requires:** [R033](#r033), [R012](#r012); milestone gate rule above.
 
@@ -624,7 +624,7 @@ Implementation split: R035.a core measurements, solid classification and public 
 
 **Verify:** Assignments survive split/transform/undo/save; copied documents resolve packaged assets; missing assets are explicit and imported paths cannot escape the container.
 
-Implementation split: R036.a material records, assignments, public commands and persistence; R036.b managed assets and container manifests; R036.c native swatches, paint/sample and opacity rendering. [Material decision](decisions/0010-material-records.md). [Foundation evidence](verification/R036a-material-records.md).
+Implementation split: R036.a material records, assignments, public commands and persistence; R036.b managed assets and container manifests; R036.c native swatches, paint/sample and opacity rendering. [Material decision](decisions/0010-material-records.md). [Foundation evidence](verification/R036a-material-records.md). [Asset decision](decisions/0011-managed-assets.md). [Asset evidence](verification/R036b-managed-assets.md).
 
 <a id="r037"></a>
 

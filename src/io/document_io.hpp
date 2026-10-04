@@ -8,8 +8,9 @@ namespace sketchy {
 QJsonObject encodeCurve(Id id, const Curve &curve);
 QJsonObject encodeGuide(Id id, const Guide &guide);
 QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records);
-QByteArray encodeDocument(const Document &doc);
-Document decodeDocument(const QByteArray &bytes);
+enum class AssetStorage { Inline, External };
+QByteArray encodeDocument(const Document &doc, AssetStorage assets = AssetStorage::Inline);
+Document decodeDocument(const QByteArray &bytes, const AssetPayloads &assets = {});
 QByteArray encodeContainer(const Document &doc);
 Document decodeContainer(const QByteArray &bytes);
 // Capture on the document thread. Bytes and stamp remain immutable while edits continue.

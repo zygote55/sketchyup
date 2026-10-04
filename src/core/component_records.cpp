@@ -24,6 +24,8 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
     edit.nextTagFloor = after.nextTagId();
     difference(before.materials(), after.materials(), edit.materials);
     edit.nextMaterialFloor = after.nextMaterialId();
+    difference(before.assets(), after.assets(), edit.assets);
+    edit.nextAssetFloor = after.nextAssetId();
 }
 namespace {
 void bounded(const ComponentSize &size) {
@@ -76,11 +78,10 @@ bool projected(const Body &expected, const Body &actual) {
     return comparable == expected;
 }
 } // namespace
-std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefinitions &definitions,
-                                                         Id nextDefinitionId,
-                                                         const TagRecords &tags, Id nextTagId,
-                                                         const MaterialRecords &materials,
-                                                         Id nextMaterialId) {
+std::map<Id, ComponentSize>
+validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDefinitionId,
+                             const TagRecords &tags, Id nextTagId, const MaterialRecords &materials,
+                             Id nextMaterialId, const AssetRecords &assets, Id nextAssetId) {
     if (!nextDefinitionId || definitions.size() > 1024)
         throw std::runtime_error("Invalid component definition allocator or count");
     ComponentSize stored;
@@ -102,7 +103,7 @@ std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefiniti
         Document canonical;
         canonical.restore("00000000000000000000000000000000", definition->nextMemberId,
                           definition->members, 0, {}, {}, 1, tags, nextTagId, materials,
-                          nextMaterialId);
+                          nextMaterialId, assets, nextAssetId);
         for (const auto &[member, body] : definition->members) {
             if (canonical.bodies().at(member)->topology != body->topology)
                 throw std::runtime_error("Component prototype requires explicit valid topology");

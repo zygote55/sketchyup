@@ -84,6 +84,9 @@ int main(int argc, char **argv) {
         legacy.remove("nextTagId");
         legacy.remove("materials");
         legacy.remove("nextMaterialId");
+        legacy.remove("assets");
+        legacy.remove("nextAssetId");
+        legacy.remove("assetStorage");
         auto legacyBodies = legacy["bodies"].toArray();
         for (int i = 0; i < legacyBodies.size(); ++i) {
             auto record = legacyBodies[i].toObject();
@@ -137,7 +140,7 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 1.5;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
-        root["version"] = 10;
+        root["version"] = 11;
         root["nextId"] = "1";
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["nextId"] = "2";

@@ -395,8 +395,16 @@ void Document::update(Edit edit, bool forward) {
     auto next = bodies_;
     auto definitions = definitions_;
     auto instances = instances_;
+    auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
+    for (const auto &change : edit.assets) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            assets[change.id] = target;
+        else
+            assets.erase(change.id);
+    }
     for (const auto &change : edit.materials) {
         const auto target = forward ? change.after : change.before;
         if (target)
@@ -447,6 +455,7 @@ void Document::update(Edit edit, bool forward) {
     instances_.swap(instances);
     tags_.swap(tags);
     materials_.swap(materials);
+    assets_.swap(assets);
 }
 ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (revision_ == UINT64_MAX)
@@ -454,10 +463,28 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (expected != revision_)
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
-        edit.tags.empty() && edit.materials.empty())
+        edit.tags.empty() && edit.materials.empty() && edit.assets.empty())
         throw std::runtime_error("Empty edit");
+    auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
+    Id nextAsset = std::max(nextAssetId_, edit.nextAssetFloor);
+    std::set<Id> assetIds;
+    for (auto &change : edit.assets) {
+        if (!change.id || change.id == UINT64_MAX || !assetIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (assets_.contains(change.id) ? assets_.at(change.id) : nullptr) != change.before)
+            throw std::runtime_error("Invalid or stale asset change");
+        if (!change.before && change.id < nextAssetId_)
+            throw std::runtime_error("Retired asset ID cannot be reused");
+        if (change.after) {
+            change.after = std::make_shared<AssetRecord>(*change.after);
+            assets[change.id] = change.after;
+            nextAsset = std::max(nextAsset, change.id + 1);
+        } else
+            assets.erase(change.id);
+    }
+    validateAssetRecords(assets, nextAsset);
     Id nextMaterial = std::max(nextMaterialId_, edit.nextMaterialFloor);
     std::set<Id> materialIds;
     for (auto &change : edit.materials) {
@@ -475,6 +502,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             materials.erase(change.id);
     }
     validateMaterialRecords(materials, nextMaterial);
+    validateMaterialAssets(materials, assets);
     Id nextTag = std::max(nextTagId_, edit.nextTagFloor);
     std::set<Id> tagIds;
     for (auto &change : edit.tags) {
@@ -700,6 +728,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             sizeof(MaterialChange) +
             (change.before ? sizeof(MaterialRecord) + change.before->name.size() + 64 : 0) +
             (change.after ? sizeof(MaterialRecord) + change.after->name.size() + 64 : 0);
+    for (const auto &change : edit.assets)
+        edit.bytes += sizeof(AssetChange) + assetBytes(change.before) + assetBytes(change.after);
     if (edit.bytes > historyLimit)
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     auto updated = bodies_;
@@ -713,7 +743,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     validateTagAssignments(tags, updated);
     validateMaterialAssignments(materials, updated);
     validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
-                                 nextMaterial);
+                                 nextMaterial, assets, nextAsset);
     validateComponentInstances(definitions, instances, updated);
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
@@ -802,8 +832,10 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     nextDefinitionId_ = nextDefinition;
     tags_.swap(tags);
     materials_.swap(materials);
+    assets_.swap(assets);
     nextTagId_ = nextTag;
     nextMaterialId_ = nextMaterial;
+    nextAssetId_ = nextAsset;
     nextId_ = next;
     surfaceFloors_.swap(floors);
     edgeFloors_.swap(edgeFloors);
@@ -837,7 +869,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("The most recent operation can no longer be revised");
     std::set<Id> contexts;
     std::set<Id> definitionContexts;
-    std::set<Id> tagContexts, materialContexts;
+    std::set<Id> tagContexts, materialContexts, assetContexts;
+    size_t createdAssets = 0;
     size_t createdMaterials = 0;
     size_t createdContexts = 0;
     size_t createdDefinitions = 0;
@@ -864,6 +897,11 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!change.before && change.after)
             ++createdMaterials;
     }
+    for (const auto &change : undo_.back().edit.assets) {
+        assetContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdAssets;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
@@ -871,6 +909,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineInstances = staged.instances_;
     const auto baselineTags = staged.tags_;
     const auto baselineMaterials = staged.materials_;
+    const auto baselineAssets = staged.assets_;
     // Rewind only the private candidate. A replacement publishes one revision,
     // and retains the pre-operation history entry and monotonic allocator floors.
     staged.revision_ = revision_;
@@ -909,6 +948,15 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         newMaterials += !baselineMaterials.contains(id);
     if (newMaterials != createdMaterials)
         throw std::runtime_error("Replacement must preserve material creation count");
+    for (const auto &[id, asset] : baselineAssets)
+        if (!assetContexts.contains(id) &&
+            (!staged.assets_.contains(id) || staged.assets_.at(id) != asset))
+            throw std::runtime_error("Replacement cannot change another asset");
+    size_t newAssets = 0;
+    for (const auto &[id, asset] : staged.assets_)
+        newAssets += !baselineAssets.contains(id);
+    if (newAssets != createdAssets)
+        throw std::runtime_error("Replacement must preserve asset creation count");
     for (const auto &[root, instance] : baselineInstances)
         if (!contexts.contains(root) &&
             (!staged.instances_.contains(root) || staged.instances_.at(root) != instance))
@@ -997,7 +1045,8 @@ bool Document::markSaved(const SaveStamp &stamp) {
 void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
                        std::uint64_t revision, ComponentDefinitions definitions,
                        ComponentInstances instances, Id nextDefinitionId, TagRecords tags,
-                       Id nextTagId, MaterialRecords materials, Id nextMaterialId) {
+                       Id nextTagId, MaterialRecords materials, Id nextMaterialId,
+                       AssetRecords assets, Id nextAssetId) {
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
@@ -1020,10 +1069,12 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     validateDocumentSize(bodies);
     validateTagRecords(tags, nextTagId);
     validateTagAssignments(tags, bodies);
+    validateAssetRecords(assets, nextAssetId);
     validateMaterialRecords(materials, nextMaterialId);
+    validateMaterialAssets(materials, assets);
     validateMaterialAssignments(materials, bodies);
     validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
-                                 nextMaterialId);
+                                 nextMaterialId, assets, nextAssetId);
     validateComponentInstances(definitions, instances, bodies);
     std::map<Id, DefinitionFloor> definitionFloors;
     for (auto &[id, definition] : definitions) {
@@ -1039,6 +1090,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         tag = std::make_shared<TagRecord>(*tag);
     for (auto &[id, material] : materials)
         material = std::make_shared<MaterialRecord>(*material);
+    for (auto &[id, asset] : assets)
+        asset = std::make_shared<AssetRecord>(*asset);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -1052,6 +1105,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     nextTagId_ = nextTagId;
     materials_ = std::move(materials);
     nextMaterialId_ = nextMaterialId;
+    assets_ = std::move(assets);
+    nextAssetId_ = nextAssetId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     undo_.clear();

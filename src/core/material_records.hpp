@@ -6,6 +6,7 @@ struct MaterialRecord {
     std::string name;
     std::array<float, 3> color{0.73f, 0.79f, 0.73f};
     float opacity{1};
+    Id asset{};
     bool operator==(const MaterialRecord &) const = default;
 };
 using MaterialPtr = std::shared_ptr<const MaterialRecord>;

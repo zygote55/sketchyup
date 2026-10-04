@@ -1,6 +1,7 @@
 # R035.a: entity measurements and validated edits
 
-Date: 2026-10-04. Local checks passed; CI pending.
+Date: 2026-10-04. Local checks and both CI jobs passed; merged in
+[PR #43](https://github.com/zygote55/sketchyup/pull/43).
 Requires the native organization work in [PR #42](https://github.com/zygote55/sketchyup/pull/42).
 
 `entity.inspect` reports names, ownership/type, tag/color, typed semantic fields,
@@ -15,7 +16,7 @@ Three commands extend the catalog to 52 entries: `entity.position`,
 meters in explicit world or parent coordinates. Geometry and transforms change
 through existing atomic operations; they are not display overrides. Semantic
 fields retain boolean/number/string types and existing persistence limits.
-Native unit-aware field editing follows in R035.b.
+Native unit-aware field editing is recorded in [R035.b](R035b-native-entity-info.md).
 
 ## Validation
 
@@ -46,5 +47,4 @@ Native unit-aware field editing follows in R035.b.
   Its query returns 208 m² area, 72 m edge length, 192 m³ volume and exact typed
   semantic fields. CI executes and reopens this recipe.
 
-R035 remains open until the native Entity info adapter and its unit-aware input
-checks pass. This is implementation evidence, not independent human acceptance.
+R035 completed when the native Entity info adapter in PR #44 also passed both CI jobs. This is implementation evidence, not independent human acceptance.

@@ -1,0 +1,9 @@
+[
+  {"command":"geometry.face","loops":[[[0,0,0],[2,0,0],[2,3,0],[0,3,0]]]},
+  {"command":"asset.import","name":"Embedded pixel.png","mediaType":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jH1sAAAAASUVORK5CYII="},
+  {"command":"asset.missing","name":"Missing reference.png","mediaType":"image/png"},
+  {"command":"material.create","name":"Stored image","color":[0.8,0.3,0.2],"asset":"1"},
+  {"command":"material.create","name":"Missing image","color":[0.2,0.4,0.8],"opacity":0.5,"asset":"2"},
+  {"command":"material.assign","body":"1","face":"5","material":"1","side":"front"},
+  {"command":"material.assign","body":"1","face":"5","material":"2","side":"back"}
+]
