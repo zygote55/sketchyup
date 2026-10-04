@@ -11,6 +11,10 @@
 #include <variant>
 namespace sketchy {
 enum class BodyKind { Geometry, Group };
+struct MaterialSides {
+    Id front{}, back{};
+    bool operator==(const MaterialSides &) const = default;
+};
 struct Body {
     Id id{};
     std::string name{"Face"};
@@ -18,6 +22,8 @@ struct Body {
     Surface surface;
     Topology topology;
     std::map<Id, std::array<float, 3>> faceColors;
+    MaterialSides materials;
+    std::map<Id, MaterialSides> faceMaterials;
     std::map<Id, Curve> curves;
     std::map<Id, Guide> guides;
     Transform transform;

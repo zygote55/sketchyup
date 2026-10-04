@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
+#include "core/materials.hpp"
 #include "core/tags.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
@@ -667,7 +668,45 @@ int main(int argc, char **argv) {
         });
         check(encodeDocument(info) == infoBytes,
               "Invalid dimension batch rolls back its earlier placement change");
+        const auto swatch = createMaterial(info, "Query glass", {.2f, .4f, .6f}, .5f);
+        assignMaterial(info, infoBody, Id{5}, swatch, false, true);
+        const auto sampleStamp = info.saveStamp();
+        const auto sample =
+            executeQuery(info, {{"query", "material.sample"}, {"body", "1"}, {"face", "5"}});
+        check(sample["front"].toObject()["material"] == "0" &&
+                  sample["back"].toObject()["material"] == QString::number(swatch) &&
+                  sample["back"].toObject()["opacity"] == .5 && info.isCurrentSnapshot(sampleStamp),
+              "Material sampling is read-only and distinguishes sides");
+        check(executeQuery(info, {{"query", "materials.describe"}})["materials"].toArray().size() ==
+                  1,
+              "Swatch query exposes in-model material table");
+        const auto beforeMaterialFailure = encodeDocument(info);
+        rejects([&] {
+            executeBatch(info,
+                         {{"apiVersion", 1},
+                          {"documentId", QString::fromStdString(info.identity())},
+                          {"expectedRevision", QString::number(info.revision())},
+                          {"commands", QJsonArray{QJsonObject{{"command", "material.edit"},
+                                                              {"material", QString::number(swatch)},
+                                                              {"opacity", .8}},
+                                                  QJsonObject{{"command", "material.assign"},
+                                                              {"body", "1"},
+                                                              {"material", "999"}}}}});
+        });
+        check(encodeDocument(info) == beforeMaterialFailure,
+              "Rejected assignment rolls back earlier global swatch edits");
         const QJsonArray cases{
+            QJsonObject{{"command", "material.create"},
+                        {"name", "Glass"},
+                        {"color", QJsonArray{.2, .4, .6}},
+                        {"opacity", .5}},
+            QJsonObject{{"command", "material.edit"}, {"material", "1"}, {"opacity", .25}},
+            QJsonObject{{"command", "material.delete"}, {"material", "1"}},
+            QJsonObject{{"command", "material.assign"},
+                        {"body", "1"},
+                        {"face", "5"},
+                        {"material", "1"},
+                        {"side", "back"}},
             QJsonObject{
                 {"command", "entity.position"}, {"body", "1"}, {"position", QJsonArray{2, 3, 4}}},
             QJsonObject{{"command", "entity.dimensions"},
@@ -853,6 +892,9 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("material.") &&
+                command["command"] != "material.create" && command["command"] != "material.color")
+                createMaterial(doc, "Paint", {.7f, .2f, .3f});
             if (command["command"].toString().startsWith("tag.") &&
                 command["command"] != "tag.create")
                 createTag(doc, "Tag");
@@ -912,6 +954,8 @@ int main(int argc, char **argv) {
                       *doc.bodies().at(1) == expectedBody,
                   "Registered command undo restores source geometry and metadata");
             check(doc.tags() == baseline.tags(), "Registered command undo restores tag records");
+            check(doc.materials() == baseline.materials(),
+                  "Registered command undo restores material records");
         }
         Document groupedBatch = source;
         Document taggedMerge;

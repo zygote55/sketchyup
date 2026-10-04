@@ -5,6 +5,7 @@
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
 #include "core/groups.hpp"
+#include "core/materials.hpp"
 #include "core/selection.hpp"
 #include "core/tags.hpp"
 #include "core/transform_selection.hpp"
@@ -165,7 +166,8 @@ QJsonObject capabilities() {
              }()},
             {"commandSchemas", commandCatalog()},
             {"queries", QJsonArray{"document.describe", "entity.inspect", "tags.describe",
-                                   "component.inspect", "geometry.inspect", "geometry.infer",
+                                   "materials.describe", "material.sample", "component.inspect",
+                                   "geometry.inspect", "geometry.infer",
                                    "geometry.measure_distance", "geometry.measure_angle",
                                    "geometry.preview", "commands.describe", "capabilities"}},
             {"transactionContract",
@@ -177,6 +179,7 @@ QJsonObject capabilities() {
                                    {"documentBytes", 32 * 1024 * 1024},
                                    {"bodies", 10000},
                                    {"componentDefinitions", 1024},
+                                   {"materials", 1024},
                                    {"vertices", 100000},
                                    {"guides", 10000},
                                    {"guidesPerContext", 1024},
@@ -259,6 +262,38 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                                        : kind == "edge"  ? SelectionKind::Edge
                                                          : SelectionKind::Guide,
                                        entity});
+    }
+    if (name == "materials.describe") {
+        fields(request, {"query"});
+        QJsonArray records;
+        for (const auto &[id, material] : doc.materials())
+            records.append(QJsonObject{
+                {"id", QString::number(id)},
+                {"name", QString::fromStdString(material->name)},
+                {"color", QJsonArray{material->color[0], material->color[1], material->color[2]}},
+                {"opacity", material->opacity}});
+        return {{"documentId", QString::fromStdString(doc.identity())},
+                {"revision", QString::number(doc.revision())},
+                {"materials", records},
+                {"nextMaterialId", QString::number(doc.nextMaterialId())}};
+    }
+    if (name == "material.sample") {
+        fields(request, {"query", "body", "face"});
+        const auto body = doc.bodies().at(id(request["body"]));
+        const auto face = request.contains("face") ? id(request["face"]) : Id{};
+        if (face && !body->surface.faces.contains(face))
+            throw std::runtime_error("Unknown face");
+        auto appearance = [&](bool back) {
+            const auto result = surfaceAppearance(doc.materials(), *body, face, back);
+            return QJsonObject{
+                {"material", QString::number(result.material)},
+                {"color", QJsonArray{result.color[0], result.color[1], result.color[2]}},
+                {"opacity", result.opacity}};
+        };
+        return {{"documentId", QString::fromStdString(doc.identity())},
+                {"revision", QString::number(doc.revision())},
+                {"front", appearance(false)},
+                {"back", appearance(true)}};
     }
     if (name == "tags.describe") {
         fields(request, {"query"});
@@ -516,7 +551,47 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name == "entity.position" || name == "entity.dimensions") {
+        if (name == "material.create" || name == "material.edit" || name == "material.delete" ||
+            name == "material.assign") {
+            if (command.contains("name") && !command["name"].isString())
+                throw std::runtime_error("Material name must be a string");
+            auto color = [&] {
+                const auto value = point(command["color"]);
+                for (auto component : {value.x, value.y, value.z})
+                    if (component < 0 || component > 1)
+                        throw std::runtime_error("Invalid material color");
+                return std::array<float, 3>{float(value.x), float(value.y), float(value.z)};
+            };
+            auto opacity = [&] {
+                const auto value = number(command["opacity"]);
+                if (value < 0 || value > 1)
+                    throw std::runtime_error("Invalid opacity");
+                return float(value);
+            };
+            if (name == "material.create")
+                createMaterial(staged, command["name"].toString().toStdString(), color(),
+                               command.contains("opacity") ? opacity() : 1);
+            else if (name == "material.edit")
+                editMaterial(staged, id(command["material"]),
+                             command.contains("name")
+                                 ? std::optional(command["name"].toString().toStdString())
+                                 : std::nullopt,
+                             command.contains("color") ? std::optional(color()) : std::nullopt,
+                             command.contains("opacity") ? std::optional(opacity()) : std::nullopt);
+            else if (name == "material.delete")
+                eraseMaterial(staged, id(command["material"]));
+            else {
+                const auto side =
+                    command.contains("side") ? command["side"].toString() : QString("both");
+                if (side != "front" && side != "back" && side != "both")
+                    throw std::runtime_error("Unknown material side");
+                compose(assignMaterial(staged, id(command["body"]),
+                                       command.contains("face") ? std::optional(id(command["face"]))
+                                                                : std::nullopt,
+                                       command["material"] == "0" ? Id{} : id(command["material"]),
+                                       side != "back", side != "front"));
+            }
+        } else if (name == "entity.position" || name == "entity.dimensions") {
             const auto frame =
                 command.contains("frame") ? command["frame"].toString() : QString("world");
             if (frame != "world" && frame != "parent")
@@ -1156,7 +1231,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         }
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
-        edit.tags.empty())
+        edit.tags.empty() && edit.materials.empty())
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();
@@ -1167,6 +1242,10 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     for (const auto &change : edit.definitions)
         if (!change.before && change.after)
             createdDefinitions.append(QString::number(change.id));
+    QJsonArray createdMaterials;
+    for (const auto &change : edit.materials)
+        if (!change.before && change.after)
+            createdMaterials.append(QString::number(change.id));
     QJsonArray createdTags;
     for (const auto &change : edit.tags)
         if (!change.before && change.after)
@@ -1215,11 +1294,17 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         }
         return survivors;
     };
-    return {{"status", "committed"},       {"revision", QString::number(doc.revision())},
-            {"created", created},          {"createdDefinitions", createdDefinitions},
-            {"createdTags", createdTags},  {"componentOperations", componentOperations},
-            {"copies", surviving(copies)}, {"transfers", surviving(transfers)},
-            {"changes", changes},          {"document", describe(doc)}};
+    return {{"status", "committed"},
+            {"revision", QString::number(doc.revision())},
+            {"created", created},
+            {"createdDefinitions", createdDefinitions},
+            {"createdTags", createdTags},
+            {"createdMaterials", createdMaterials},
+            {"componentOperations", componentOperations},
+            {"copies", surviving(copies)},
+            {"transfers", surviving(transfers)},
+            {"changes", changes},
+            {"document", describe(doc)}};
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {

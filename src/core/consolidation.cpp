@@ -89,6 +89,9 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
                     std::reverse(loop.begin(), loop.end());
             }
             merged->surface.faces[copy.id] = copy;
+            const auto materials = faceMaterials(source, face);
+            if (materials != merged->materials)
+                merged->faceMaterials[copy.id] = materials;
             const auto color = faceColor(source, face);
             if (color != merged->color)
                 merged->faceColors[copy.id] = color;
@@ -175,6 +178,7 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
         empty->surface.wires.clear();
         empty->topology.edges.clear();
         empty->faceColors.clear();
+        empty->faceMaterials.clear();
         empty->curves.clear();
         empty->guides.clear();
         if (*empty != *source)

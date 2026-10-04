@@ -602,7 +602,7 @@ Implementation split: R034.a tag records, visibility, public commands and persis
 
 #### R035 — Implement Entity info and measured properties
 
-**Status:** In progress. Measurement queries, conservative solid-volume checks and framed edit commands in [PR #43](https://github.com/zygote55/sketchyup/pull/43) pass local core and sanitizer validation. The native Info tab and unit-aware editor pass local interaction checks; CI remains open. **Track:** Core. **Scope:** O06, D01. **UX:** §5.
+**Status:** In progress. Measurement queries, conservative solid-volume checks and framed edit commands in [PR #43](https://github.com/zygote55/sketchyup/pull/43) pass local core and sanitizer validation. The native Info tab and unit-aware editor in [PR #44](https://github.com/zygote55/sketchyup/pull/44) pass local interaction checks; CI remains open. **Track:** Core. **Scope:** O06, D01. **UX:** §5.
 
 **Requires:** [R034](#r034), [R015](#r015); milestone gate rule above.
 
@@ -616,13 +616,15 @@ Implementation split: R035.a core measurements, solid classification and public 
 
 #### R036 — Implement materials and managed asset storage
 
-**Status:** Planned. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
+**Status:** In progress. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and native swatch/paint controls remain. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
 
 **Requires:** [R033](#r033), [R012](#r012); milestone gate rule above.
 
 **Build:** Add color/opacity and front/back assignments, an asset manifest, missing-asset records and local swatches. Wire paint/sample actions and preserve material ownership through component edits.
 
 **Verify:** Assignments survive split/transform/undo/save; copied documents resolve packaged assets; missing assets are explicit and imported paths cannot escape the container.
+
+Implementation split: R036.a material records, assignments, public commands and persistence; R036.b managed assets and container manifests; R036.c native swatches, paint/sample and opacity rendering. [Material decision](decisions/0010-material-records.md). [Foundation evidence](verification/R036a-material-records.md).
 
 <a id="r037"></a>
 

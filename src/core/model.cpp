@@ -43,6 +43,7 @@ size_t bytes(const BodyPtr &b) {
                b->surface.wires.size() * sizeof(std::array<Id, 2>) +
                b->topology.edges.size() * (sizeof(EdgeRecord) + 64);
     n += b->faceColors.size() * (sizeof(Id) + sizeof(std::array<float, 3>) + 64);
+    n += b->faceMaterials.size() * (sizeof(Id) + sizeof(MaterialSides) + 64);
     n += b->guides.size() * (sizeof(Guide) + 64);
     for (const auto &[id, curve] : b->curves)
         n += sizeof(Curve) + 64 + curve.edges.size() * sizeof(OrientedEdge);
@@ -182,7 +183,7 @@ ChangeReport Document::insertEdges(Id context, Vec3 origin, Vec3 normal,
         return {};
     body->surface = std::move(result.surface);
     if (old)
-        inheritFaceColors(*old, *body, result.faces);
+        inheritFaceAppearance(*old, *body, result.faces);
     return apply({"Insert planar edges", {{body->id, old, body, std::move(result.faces)}}},
                  revision_);
 }
@@ -201,7 +202,7 @@ ChangeReport Document::addCurve(Id context, Curve curve) {
     auto result = insertPlanarEdges(body->surface, curve.center, normal, chords);
     body->surface = std::move(result.surface);
     if (old)
-        inheritFaceColors(*old, *body, result.faces);
+        inheritFaceAppearance(*old, *body, result.faces);
     body->topology = Topology::rebuild(body->surface, body->topology);
     size_t budget = 1000000;
     if (!bindCurve(curve, body->surface, body->topology, budget))
@@ -277,7 +278,7 @@ ChangeReport Document::eraseFace(Id context, Id face) {
     auto result = sketchy::eraseFace(old->surface, face);
     body->surface = std::move(result.surface);
     if (old)
-        inheritFaceColors(*old, *body, result.faces);
+        inheritFaceAppearance(*old, *body, result.faces);
     return apply({"Erase face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::eraseEdge(Id context, Id edge) {
@@ -286,7 +287,7 @@ ChangeReport Document::eraseEdge(Id context, Id edge) {
     auto result = sketchy::eraseEdge(old->surface, old->topology, edge);
     body->surface = std::move(result.surface);
     if (old)
-        inheritFaceColors(*old, *body, result.faces);
+        inheritFaceAppearance(*old, *body, result.faces);
     return apply({"Erase edge", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::healFace(Id context, Id edge, Vec3 origin, Vec3 normal) {
@@ -303,7 +304,7 @@ ChangeReport Document::healFace(Id context, Id edge, Vec3 origin, Vec3 normal) {
                           "This edge does not bound a missing closed planar face");
     body->surface = std::move(result.surface);
     if (old)
-        inheritFaceColors(*old, *body, result.faces);
+        inheritFaceAppearance(*old, *body, result.faces);
     return apply({"Heal face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::cleanup(Id context) {
@@ -314,7 +315,7 @@ ChangeReport Document::cleanup(Id context) {
         return {};
     body->surface = std::move(result.surface);
     if (old)
-        inheritFaceColors(*old, *body, result.faces);
+        inheritFaceAppearance(*old, *body, result.faces);
     return apply({"Merge coincident topology",
                   {{context, old, body, std::move(result.faces), std::move(result.vertices),
                     std::move(result.edges)}}},
@@ -326,14 +327,15 @@ ChangeReport Document::pushPull(Id context, Id face, double distance, bool newFa
     auto result = sketchy::pushPull(old->surface, face, distance, newFace);
     body->surface = std::move(result.surface);
     if (old)
-        inheritFaceColors(*old, *body, result.faces, faceColor(*old, face));
+        inheritFaceAppearance(*old, *body, result.faces, faceColor(*old, face),
+                              faceMaterials(*old, face));
     return apply({"Push/pull face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 void Document::extrude(Id id, Id face, double distance) {
     auto old = bodies_.at(id);
     auto b = std::make_shared<Body>(*old);
     b->surface.extrude(face, distance);
-    inheritFaceColors(*old, *b, {}, faceColor(*old, face));
+    inheritFaceAppearance(*old, *b, {}, faceColor(*old, face), faceMaterials(*old, face));
     apply({"Extrude face", {{id, old, b}}}, revision_);
 }
 void Document::move(Id id, Vec3 delta) {
@@ -350,6 +352,8 @@ void Document::paint(Id id, std::array<float, 3> color) {
     auto b = std::make_shared<Body>(*old);
     b->color = color;
     b->faceColors.clear();
+    b->materials = {};
+    b->faceMaterials.clear();
     apply({"Paint", {{id, old, b}}}, revision_);
 }
 Transform Document::worldTransform(Id id) const { return worldTransformIn(bodies_, id); }
@@ -391,7 +395,15 @@ void Document::update(Edit edit, bool forward) {
     auto next = bodies_;
     auto definitions = definitions_;
     auto instances = instances_;
+    auto materials = materials_;
     auto tags = tags_;
+    for (const auto &change : edit.materials) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            materials[change.id] = target;
+        else
+            materials.erase(change.id);
+    }
     for (const auto &change : edit.tags) {
         const auto target = forward ? change.after : change.before;
         if (target)
@@ -434,6 +446,7 @@ void Document::update(Edit edit, bool forward) {
     definitions_.swap(definitions);
     instances_.swap(instances);
     tags_.swap(tags);
+    materials_.swap(materials);
 }
 ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (revision_ == UINT64_MAX)
@@ -441,9 +454,27 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (expected != revision_)
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
-        edit.tags.empty())
+        edit.tags.empty() && edit.materials.empty())
         throw std::runtime_error("Empty edit");
+    auto materials = materials_;
     auto tags = tags_;
+    Id nextMaterial = std::max(nextMaterialId_, edit.nextMaterialFloor);
+    std::set<Id> materialIds;
+    for (auto &change : edit.materials) {
+        if (!change.id || change.id == UINT64_MAX || !materialIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (materials_.contains(change.id) ? materials_.at(change.id) : nullptr) != change.before)
+            throw std::runtime_error("Invalid or stale material change");
+        if (!change.before && change.id < nextMaterialId_)
+            throw std::runtime_error("Retired material ID cannot be reused");
+        if (change.after) {
+            change.after = std::make_shared<MaterialRecord>(*change.after);
+            materials[change.id] = change.after;
+            nextMaterial = std::max(nextMaterial, change.id + 1);
+        } else
+            materials.erase(change.id);
+    }
+    validateMaterialRecords(materials, nextMaterial);
     Id nextTag = std::max(nextTagId_, edit.nextTagFloor);
     std::set<Id> tagIds;
     for (auto &change : edit.tags) {
@@ -664,6 +695,11 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         edit.bytes += sizeof(TagChange) +
                       (change.before ? sizeof(TagRecord) + change.before->name.size() + 64 : 0) +
                       (change.after ? sizeof(TagRecord) + change.after->name.size() + 64 : 0);
+    for (const auto &change : edit.materials)
+        edit.bytes +=
+            sizeof(MaterialChange) +
+            (change.before ? sizeof(MaterialRecord) + change.before->name.size() + 64 : 0) +
+            (change.after ? sizeof(MaterialRecord) + change.after->name.size() + 64 : 0);
     if (edit.bytes > historyLimit)
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     auto updated = bodies_;
@@ -675,7 +711,9 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     }
     validateDocumentSize(updated);
     validateTagAssignments(tags, updated);
-    validateComponentDefinitions(definitions, nextDefinition, tags, nextTag);
+    validateMaterialAssignments(materials, updated);
+    validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
+                                 nextMaterial);
     validateComponentInstances(definitions, instances, updated);
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
@@ -763,7 +801,9 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     definitionFloors_.swap(definitionFloors);
     nextDefinitionId_ = nextDefinition;
     tags_.swap(tags);
+    materials_.swap(materials);
     nextTagId_ = nextTag;
+    nextMaterialId_ = nextMaterial;
     nextId_ = next;
     surfaceFloors_.swap(floors);
     edgeFloors_.swap(edgeFloors);
@@ -797,7 +837,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("The most recent operation can no longer be revised");
     std::set<Id> contexts;
     std::set<Id> definitionContexts;
-    std::set<Id> tagContexts;
+    std::set<Id> tagContexts, materialContexts;
+    size_t createdMaterials = 0;
     size_t createdContexts = 0;
     size_t createdDefinitions = 0;
     size_t createdTags = 0;
@@ -818,12 +859,18 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!change.before && change.after)
             ++createdTags;
     }
+    for (const auto &change : undo_.back().edit.materials) {
+        materialContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdMaterials;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
     const auto baselineDefinitions = staged.definitions_;
     const auto baselineInstances = staged.instances_;
     const auto baselineTags = staged.tags_;
+    const auto baselineMaterials = staged.materials_;
     // Rewind only the private candidate. A replacement publishes one revision,
     // and retains the pre-operation history entry and monotonic allocator floors.
     staged.revision_ = revision_;
@@ -853,6 +900,15 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         newTags += !baselineTags.contains(id);
     if (newTags != createdTags)
         throw std::runtime_error("Replacement must preserve tag creation count");
+    for (const auto &[id, material] : baselineMaterials)
+        if (!materialContexts.contains(id) &&
+            (!staged.materials_.contains(id) || staged.materials_.at(id) != material))
+            throw std::runtime_error("Replacement cannot change another material");
+    size_t newMaterials = 0;
+    for (const auto &[id, material] : staged.materials_)
+        newMaterials += !baselineMaterials.contains(id);
+    if (newMaterials != createdMaterials)
+        throw std::runtime_error("Replacement must preserve material creation count");
     for (const auto &[root, instance] : baselineInstances)
         if (!contexts.contains(root) &&
             (!staged.instances_.contains(root) || staged.instances_.at(root) != instance))
@@ -941,7 +997,7 @@ bool Document::markSaved(const SaveStamp &stamp) {
 void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
                        std::uint64_t revision, ComponentDefinitions definitions,
                        ComponentInstances instances, Id nextDefinitionId, TagRecords tags,
-                       Id nextTagId) {
+                       Id nextTagId, MaterialRecords materials, Id nextMaterialId) {
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
@@ -964,7 +1020,10 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     validateDocumentSize(bodies);
     validateTagRecords(tags, nextTagId);
     validateTagAssignments(tags, bodies);
-    validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId);
+    validateMaterialRecords(materials, nextMaterialId);
+    validateMaterialAssignments(materials, bodies);
+    validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
+                                 nextMaterialId);
     validateComponentInstances(definitions, instances, bodies);
     std::map<Id, DefinitionFloor> definitionFloors;
     for (auto &[id, definition] : definitions) {
@@ -978,6 +1037,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         instance = std::make_shared<ComponentInstance>(*instance);
     for (auto &[id, tag] : tags)
         tag = std::make_shared<TagRecord>(*tag);
+    for (auto &[id, material] : materials)
+        material = std::make_shared<MaterialRecord>(*material);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -989,6 +1050,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     nextDefinitionId_ = nextDefinitionId;
     tags_ = std::move(tags);
     nextTagId_ = nextTagId;
+    materials_ = std::move(materials);
+    nextMaterialId_ = nextMaterialId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     undo_.clear();

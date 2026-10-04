@@ -1,5 +1,6 @@
 #pragma once
 #include "core/body.hpp"
+#include "core/material_records.hpp"
 #include "core/tag_records.hpp"
 namespace sketchy {
 class Document;
@@ -26,10 +27,10 @@ struct ComponentSize {
 };
 // Validate canonical records and the acyclic reference graph, returning bounded
 // expanded sizes for allocation preflight. Does not mutate caller-owned records.
-std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefinitions &definitions,
-                                                         Id nextDefinitionId,
-                                                         const TagRecords &tags = {},
-                                                         Id nextTagId = 1);
+std::map<Id, ComponentSize>
+validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDefinitionId,
+                             const TagRecords &tags = {}, Id nextTagId = 1,
+                             const MaterialRecords &materials = {}, Id nextMaterialId = 1);
 // Resolved records must exactly project their canonical definition and binding.
 // Root placement/state is instance-owned; inner members are definition-owned.
 void validateComponentInstances(const ComponentDefinitions &definitions,

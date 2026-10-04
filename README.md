@@ -197,10 +197,11 @@ space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
 queries for world-coordinate points. `geometry.infer` accepts `includeGuides`
 (default true) and an optional direction reference with `body` plus `guide`
 in place of `edge`; results identify both sources of mixed intersections.
-The current file schema is version 9. It stores tag folders and assignments,
-canonical component definitions and stable instance-member bindings. Versions
-1–8 migrate with all entities Untagged; versions 1–7 acquire no invented
-components. Earlier color, group and guide migrations remain supported.
+The current file schema is version 10. It stores material swatches and front/back
+assignments, tag folders and assignments, canonical component definitions and
+stable instance-member bindings. Versions 1–9 preserve legacy colors without
+inventing swatches; versions 1–8 migrate with all entities Untagged, and versions
+1–7 acquire no invented components. Earlier group and guide migrations remain supported.
 
 `tag.create`, `tag.edit`, `tag.delete` and `tag.assign` manage tags separately
 from scene ownership. Tag `"0"` means Untagged. Folder visibility affects its
@@ -217,6 +218,17 @@ tag creation, visibility checkboxes, rename, move, assignment and unused deletio
 Hidden/locked rows remain available for inspection and reveal/unlock. Shared
 member edits still require opening their component context. See the
 [native organization evidence](docs/verification/R034b-native-organization.md).
+
+`material.create`, `material.edit` and `material.delete` manage named in-model
+RGB/opacity swatches. `material.assign` targets a face or a record's own faces,
+with `front`, `back` or `both` sides; material `"0"` restores the legacy color.
+Splits, extrusion, copies, grouping and mirrored consolidation retain both sides.
+Shared component member assignments use explicit component scope; swatch table
+edits remain document-wide. `materials.describe` lists swatches and
+`material.sample` reports both sides without editing. See the
+[material contract](docs/decisions/0010-material-records.md) and
+[recipe](examples/materials.json). Managed assets and native material rendering,
+swatches and paint/sample controls follow in R036.b/c.
 
 `entity.inspect` reports world, parent and intrinsic bounds, lengths and areas.
 Volume is present only after bounded single-shell solid validation; open, invalid,

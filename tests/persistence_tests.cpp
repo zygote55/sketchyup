@@ -1,5 +1,6 @@
 #include "core/components.hpp"
 #include "core/groups.hpp"
+#include "core/materials.hpp"
 #include "core/tags.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
@@ -207,6 +208,49 @@ int main(int argc, char **argv) {
                 "Version-8 migration preserves components with Untagged organization");
         for (const auto &[id, body] : v8.bodies())
             require(!body->tag, "Historical components start Untagged");
+        const auto v9 = decodeContainer(
+            read(QString(SKETCHYUP_TEST_FIXTURES) + "/container-tags-v9.sketchyup"));
+        require(!v9.tags().empty() && v9.materials().empty(),
+                "Version-9 migration preserves tags without inventing swatches");
+        Document coated = v8;
+        const auto swatch = createMaterial(coated, "Blue glass", {.1f, .3f, .8f}, .35f);
+        const auto coatedDefinition = coated.definitions().begin()->first;
+        editComponentDefinition(coated, coatedDefinition, [&](Document &draft) {
+            for (const auto &[id, body] : draft.bodies())
+                if (!body->surface.faces.empty())
+                    return assignMaterial(draft, id, body->surface.faces.begin()->first, swatch,
+                                          false, true);
+            throw std::runtime_error("Expected a component face");
+        });
+        const auto coatedBytes = encodeContainer(coated);
+        require(encodeContainer(decodeContainer(coatedBytes)) == coatedBytes,
+                "Front/back swatches, opacity and canonical shared assignments roundtrip exactly");
+        auto corruptMaterial = [&](const std::function<void(QJsonObject &)> &edit) {
+            auto root = QJsonDocument::fromJson(encodeDocument(coated)).object();
+            edit(root);
+            rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
+        };
+        corruptMaterial([](auto &root) { root["materials"] = QJsonArray{}; });
+        corruptMaterial([](auto &root) { root["nextMaterialId"] = "1"; });
+        corruptMaterial([](auto &root) {
+            auto materials = root["materials"].toArray();
+            auto first = materials[0].toObject();
+            first["opacity"] = 2;
+            materials[0] = first;
+            root["materials"] = materials;
+        });
+        corruptMaterial([](auto &root) {
+            auto materials = root["materials"].toArray();
+            materials.append(materials[0]);
+            root["materials"] = materials;
+        });
+        rejects([&] {
+            decodeContainer(changeManifest(coatedBytes, [&](auto &manifest) {
+                auto floors = manifest["allocatorFloors"].toObject();
+                floors["nextMaterialId"] = "99";
+                manifest["allocatorFloors"] = floors;
+            }));
+        });
         Document tagged = v8;
         const auto folder = createTag(tagged, "Building", 0, true);
         const auto tag = createTag(tagged, "Panels", folder);
@@ -403,12 +447,14 @@ int main(int argc, char **argv) {
         legacy.remove("nextDefinitionId");
         legacy.remove("tags");
         legacy.remove("nextTagId");
+        legacy.remove("materials");
+        legacy.remove("nextMaterialId");
         auto records = legacy["bodies"].toArray();
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();
             for (const auto &key :
                  {"parent", "transform", "properties", "nextEdgeId", "edges", "curves", "guides",
-                  "kind", "hidden", "locked", "faceColors", "tag"})
+                  "kind", "hidden", "locked", "faceColors", "tag", "materials", "faceMaterials"})
                 body.remove(key);
             records[i] = body;
         }

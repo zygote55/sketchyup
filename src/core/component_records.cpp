@@ -22,6 +22,8 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
     difference(before.tags(), after.tags(), edit.tags);
     edit.nextDefinitionFloor = after.nextDefinitionId();
     edit.nextTagFloor = after.nextTagId();
+    difference(before.materials(), after.materials(), edit.materials);
+    edit.nextMaterialFloor = after.nextMaterialId();
 }
 namespace {
 void bounded(const ComponentSize &size) {
@@ -76,7 +78,9 @@ bool projected(const Body &expected, const Body &actual) {
 } // namespace
 std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefinitions &definitions,
                                                          Id nextDefinitionId,
-                                                         const TagRecords &tags, Id nextTagId) {
+                                                         const TagRecords &tags, Id nextTagId,
+                                                         const MaterialRecords &materials,
+                                                         Id nextMaterialId) {
     if (!nextDefinitionId || definitions.size() > 1024)
         throw std::runtime_error("Invalid component definition allocator or count");
     ComponentSize stored;
@@ -97,7 +101,8 @@ std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefiniti
         // world-bound validation instead of accepting a looser prototype format.
         Document canonical;
         canonical.restore("00000000000000000000000000000000", definition->nextMemberId,
-                          definition->members, 0, {}, {}, 1, tags, nextTagId);
+                          definition->members, 0, {}, {}, 1, tags, nextTagId, materials,
+                          nextMaterialId);
         for (const auto &[member, body] : definition->members) {
             if (canonical.bodies().at(member)->topology != body->topology)
                 throw std::runtime_error("Component prototype requires explicit valid topology");
