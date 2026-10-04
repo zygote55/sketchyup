@@ -1,4 +1,5 @@
 #include "app/window.hpp"
+#include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
@@ -41,7 +42,7 @@ QAction *Window::action(const QString &id, const QString &title, const QKeySeque
     connect(a, &QAction::triggered, this, [this, fn] { run(fn); });
     return a;
 }
-Window::Window(QWidget *parent) : QMainWindow(parent) {
+Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
     QSettings preferences("SketchyUp", "SketchyUp");
     recentFiles_ = preferences.value("recentFiles").toStringList().mid(0, 10);
     themeMode_ = std::clamp(preferences.value("theme", 0).toInt(), 0, 2);
@@ -157,20 +158,22 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     bottomLayout->addWidget(status_, 1);
-    bottomLayout->addWidget(new QLabel("Measurements · m"));
+    measurementUnits_ = new QLabel;
+    measurementUnits_->setObjectName("measurementUnits");
+    bottomLayout->addWidget(measurementUnits_);
     measurements_ = new QLineEdit;
     measurements_->setObjectName("measurements");
     measurements_->installEventFilter(this);
     measurements_->setFixedWidth(150);
     measurements_->setPlaceholderText("width, depth");
-    measurements_->setAccessibleName("Measurements in meters");
+    measurements_->setAccessibleName("Measurements");
     bottomLayout->addWidget(measurements_);
     vertical->addWidget(bottom);
     setCentralWidget(root);
     auto *file = menuBar()->addMenu("&File");
     file->addAction(action("file.new", "New", QKeySequence::New, [this] {
         if (canReplace()) {
-            doc_ = Document();
+            doc_ = Document(preferredUnits());
             resetRecoveryContext();
             path_.clear();
             viewport_->cancel();
@@ -210,6 +213,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             demo();
     }));
     file->addSeparator();
+    file->addAction(action("file.units", "Document units…", {}, [this] { unitsSettings(); }));
     file->addAction(action("file.quit", "Quit", QKeySequence::Quit, [this] { close(); }));
     auto *edit = menuBar()->addMenu("&Edit");
     undo_ = action("edit.undo", "Undo", QKeySequence::Undo, [this] {
@@ -401,14 +405,15 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
         connect(&buttons, &QDialogButtonBox::accepted, &dialog, [&] {
             try {
-                auto vector = [](const QString &text) {
-                    const auto input = parseMeasurements(text, "m", QLocale());
+                auto vector = [&](const QString &text, bool length = false) {
+                    const auto input = parseMeasurements(
+                        text, length ? inputUnit(doc_.displayUnits()) : "m", QLocale());
                     if (input.kind != MeasurementKind::Values || input.values.size() != 3)
                         throw std::runtime_error("Enter three values for each plane vector");
                     return Vec3{input.values[0], input.values[1], input.values[2]};
                 };
                 viewport_->setDrawingPlane(DrawingPlane::make(
-                    vector(origin->text()), vector(normal->text()), vector(axis->text())));
+                    vector(origin->text(), true), vector(normal->text()), vector(axis->text())));
                 dialog.accept();
             } catch (const std::exception &failure) {
                 error->setText(failure.what());
@@ -667,6 +672,9 @@ void Window::tool(Viewport::Tool t, const QString &text) {
                                                                      : "width, depth");
 }
 void Window::sync() {
+    measurementUnits_->setText("Measurements · " +
+                               QString::fromLatin1(unitCode(doc_.displayUnits()).data()));
+    measurements_->setAccessibleName("Measurements in " + unitName(doc_.displayUnits()).toLower());
     viewport_->refresh();
     title_->setText(
         (path_.isEmpty() ? (recoveredName_.isEmpty() ? QString("Untitled") : recoveredName_)
@@ -734,8 +742,9 @@ void Window::sync() {
         const auto &body = *it->second;
         text += "\n" + QString::fromStdString(body.name);
         if (body.surface.faces.contains(viewport_->selectedFace()))
-            text += QString("\nFace area %1 m²")
-                        .arg(doc_.worldArea(body.id, viewport_->selectedFace()), 0, 'f', 3);
+            text +=
+                "\nFace area " + displayMeasure(doc_.worldArea(body.id, viewport_->selectedFace()),
+                                                2, doc_.displayUnits());
     }
     info_->setText(text);
 }

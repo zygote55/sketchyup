@@ -1,4 +1,5 @@
 #include "app/entity_info_panel.hpp"
+#include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/groups.hpp"
 #include <QAction>
@@ -13,8 +14,9 @@
 namespace sketchy {
 namespace {
 QString number(double value) { return QLocale().toString(value, 'g', 8); }
-QString vector(Vec3 value) {
-    return number(value.x) + " · " + number(value.y) + " · " + number(value.z) + " m";
+QString vector(Vec3 value, DisplayUnit unit) {
+    return displayLength(value.x, unit) + " · " + displayLength(value.y, unit) + " · " +
+           displayLength(value.z, unit);
 }
 QJsonArray point(Vec3 value) { return {value.x, value.y, value.z}; }
 QString unavailable(const std::string &status) {
@@ -168,12 +170,13 @@ void EntityInfoPanel::refresh() {
                                                     : Vec3{};
         if (frame_->currentIndex() == 2 && entity.kind == SelectionKind::Guide)
             origin = body.guides.at(entity.entity).origin;
-        position_->setText(vector(origin));
-        dimensions_->setText(frame.bounds ? vector(frame.bounds->dimensions())
+        position_->setText(vector(origin, doc_.displayUnits()));
+        dimensions_->setText(frame.bounds ? vector(frame.bounds->dimensions(), doc_.displayUnits())
                                           : "No finite bounds");
-        length_->setText(frame.infiniteLength ? "Infinite guide" : number(frame.length) + " m");
-        area_->setText(number(frame.area) + " m²");
-        volume_->setText(frame.volume ? number(*frame.volume) + " m³"
+        length_->setText(frame.infiniteLength ? "Infinite guide"
+                                              : displayLength(frame.length, doc_.displayUnits()));
+        area_->setText(displayMeasure(frame.area, 2, doc_.displayUnits()));
+        volume_->setText(frame.volume ? displayMeasure(*frame.volume, 3, doc_.displayUnits())
                                       : unavailable(measured.solid.status));
         QStringList properties;
         for (const auto &[key, property] : body.properties) {
@@ -273,8 +276,8 @@ void EntityInfoPanel::edit() {
         const std::array<double, 3> p{originalPosition.x, originalPosition.y, originalPosition.z},
             d{originalDimensions.x, originalDimensions.y, originalDimensions.z};
         for (size_t i = 0; i < 3; ++i) {
-            position[i]->setText(number(p[i]) + " m");
-            dimensions[i]->setText(number(d[i]) + " m");
+            position[i]->setText(displayLength(p[i], doc_.displayUnits()));
+            dimensions[i]->setText(displayLength(d[i], doc_.displayUnits()));
             dimensions[i]->setEnabled(bool(bounds));
         }
     };
@@ -298,11 +301,12 @@ void EntityInfoPanel::edit() {
                 view_.selectionState().context() != context)
                 throw std::runtime_error(
                     "The document or editing context changed. Reopen Entity info to edit it.");
-            auto read = [](const std::array<QLineEdit *, 3> &fields, Vec3 original) {
+            auto read = [&](const std::array<QLineEdit *, 3> &fields, Vec3 original) {
                 const std::array<double *, 3> output{&original.x, &original.y, &original.z};
                 for (size_t i = 0; i < 3; ++i)
                     if (fields[i]->isEnabled() && fields[i]->isModified())
-                        *output[i] = parseLength(fields[i]->text(), "m", QLocale());
+                        *output[i] = parseLength(fields[i]->text(), inputUnit(doc_.displayUnits()),
+                                                 QLocale());
                 return original;
             };
             const auto p = read(position, originalPosition),

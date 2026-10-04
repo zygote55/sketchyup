@@ -343,7 +343,10 @@ The `document.units` command sets per-document display/entry preferences to `m`,
 `mm` or `ft-in`. Coordinate arguments remain meters. Changing units is undoable
 and survives save/reopen and recovery; it never resizes geometry. The
 [units contract](docs/decisions/0018-document-units.md) describes schema 12 and
-migration of older models. Native unit controls follow in the next slice.
+migration of older models. First run asks for default units; **File → Document
+units** changes the current model and can set the default for new documents.
+Bare lengths use that choice (feet for feet/inches); explicit unit suffixes still
+override it. Measurements, tape readouts and Entity info show the document units.
 
 The headless `history.describe` query exposes bounded labeled undo/redo pages.
 A batch may attach a human label and task/request metadata; this remains local

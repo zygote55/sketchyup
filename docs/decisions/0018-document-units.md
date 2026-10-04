@@ -32,3 +32,23 @@ Immutable save snapshots and complete recovery checkpoints capture the preferenc
 with the rest of the model. Reopening restores it without inventing history;
 recovery remains dirty until explicitly saved. The complete v11 golden fixture
 continues to exercise migration of components, tags, materials and managed assets.
+
+## Native preferences and measurement controls (R039.d)
+
+The normal application asks for default units on first run. The choice initializes
+a pristine blank document without adding an edit; opening an existing model
+retains its stored preference. File → Document units changes the current model
+and optionally the default for later new documents. Cancel preserves both. A
+stale dialog retains its choice with an inline error. Automation smoke/capture
+and benchmark launches do not show first-run setup.
+
+Bare lengths and coordinates follow document units in drawing, push/pull,
+transforms, guides, component placement/axes origins, construction-plane origins
+and Entity info. Scale factors, segment/copy counts, normals and angles retain
+their dimensionless/angle semantics. Explicit suffixes override document units.
+The Measurements label and accessible name, viewport unit/grid hints, tape
+readout, selection area and Info lengths/area/volume follow the same preference.
+Feet/inches lengths use a compound readout; areas and volumes use square/cubic
+feet. Fixed display precision retains length round trips within modeling
+tolerance. Formatted numeric input omits digit grouping and uses the active
+locale's decimal separator. Unedited Info fields preserve exact original values.

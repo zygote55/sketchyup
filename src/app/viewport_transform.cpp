@@ -1,3 +1,4 @@
+#include "app/unit_display.hpp"
 #include "app/viewport.hpp"
 #include "automation/measurements.hpp"
 #include <QLocale>
@@ -279,7 +280,7 @@ bool Viewport::transformMeasurements(const QString &text) {
     if (text.startsWith('x', Qt::CaseInsensitive) || text.startsWith('/')) {
         if (!session_.canRevise() || transformArray_.isEmpty() || !transformCopy_)
             throw std::runtime_error("Complete a Move or Rotate copy before entering xN or /N");
-        const auto input = parseMeasurements(text, "m", QLocale());
+        const auto input = parseMeasurements(text, inputUnit(doc_.displayUnits()), QLocale());
         if (input.kind != MeasurementKind::Copies && input.kind != MeasurementKind::Divisions)
             throw std::runtime_error("Enter xN for new copies or /N for equal intervals");
         auto command = transformArray_;
@@ -289,7 +290,7 @@ bool Viewport::transformMeasurements(const QString &text) {
         return true;
     }
     if (text.startsWith('[')) {
-        const auto input = parseMeasurements(text, "m", QLocale());
+        const auto input = parseMeasurements(text, inputUnit(doc_.displayUnits()), QLocale());
         if (input.kind != MeasurementKind::AbsolutePoint || input.values.size() != 3)
             throw std::runtime_error("Enter world coordinates [x,y,z]");
         const Vec3 point{input.values[0], input.values[1], input.values[2]};
@@ -326,7 +327,7 @@ bool Viewport::transformMeasurements(const QString &text) {
         }
         matrix = Transform::scaling(scale);
     } else {
-        const auto input = parseMeasurements(text, "m", QLocale());
+        const auto input = parseMeasurements(text, inputUnit(doc_.displayUnits()), QLocale());
         Vec3 delta;
         if ((input.kind == MeasurementKind::Values ||
              input.kind == MeasurementKind::RelativePoint) &&

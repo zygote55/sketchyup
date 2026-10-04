@@ -14,6 +14,7 @@ class Window : public QMainWindow {
   public:
     explicit Window(QWidget *parent = nullptr);
     ~Window() override;
+    void startUnits();
     void startRecovery(const QString &root = {});
     void showRecovery(bool onlyIfPresent = false);
     Document &document() { return doc_; }
@@ -34,6 +35,9 @@ class Window : public QMainWindow {
     OrganizationPanel *organization_{};
     QLabel *info_{};
     QLabel *status_{};
+    QLabel *measurementUnits_{};
+    static DisplayUnit preferredUnits();
+    void unitsSettings(bool firstRun = false);
     QLabel *title_{};
     QLabel *breadcrumb_{};
     QLabel *componentBanner_{};
