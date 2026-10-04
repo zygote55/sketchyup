@@ -183,11 +183,25 @@ void Surface::validate() const {
             throw std::runtime_error("Invalid wire edge");
 }
 double Surface::area(Id id) const {
-    double a = 0;
-    for (const auto &t : triangulate(id))
-        a += length(cross(t.b - t.a, t.c - t.a)) * 0.5;
-    return a;
+    // Validate with the tessellator, but measure authoritative loop coordinates.
+    // Independently quantized meshes can differ by a few ulps of the 1e-7 m
+    // grid after a face is partitioned; their summed areas are not a reliable
+    // conservation check for continuous pointer construction.
+    (void)triangulate(id);
+    double area = 0;
+    const auto &loops = faces.at(id).loops;
+    for (size_t i = 0; i < loops.size(); ++i) {
+        const auto &loop = loops[i];
+        const auto origin = vertices.at(loop.front());
+        Vec3 sum{};
+        for (size_t j = 0; j < loop.size(); ++j)
+            sum = sum + cross(vertices.at(loop[j]) - origin,
+                              vertices.at(loop[(j + 1) % loop.size()]) - origin);
+        area += (i == 0 ? 1 : -1) * length(sum) * .5;
+    }
+    return area;
 }
+
 Id Surface::extrude(Id id, double distance) {
     if (!std::isfinite(distance) || std::abs(distance) < tolerance)
         throw std::runtime_error("Extrusion distance must be nonzero and finite");

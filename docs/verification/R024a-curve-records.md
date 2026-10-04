@@ -1,7 +1,7 @@
 # R024.a: persistent curve parameters and commands
 
-Date: 2026-10-03. Local verification passed; CI/merge pending. This is the first
-child of R024. Native arc/pie interaction remains R024.b; R024 is not complete.
+Date: 2026-10-03. Merged in [PR #23](https://github.com/zygote55/sketchyup/pull/23); both pinned CI jobs passed. This is the first
+child of R024. Native arc/pie interaction followed in R024.b / PR #24, completing R024.
 
 The core stores circle, arc and pie records alongside editable planar topology.
 A record contains center, affine parameter axes, radius, start/sweep angle in

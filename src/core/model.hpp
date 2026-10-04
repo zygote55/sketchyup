@@ -89,6 +89,9 @@ class Document {
     void redo();
     SaveStamp saveStamp() const;
     bool owns(const SaveStamp &stamp) const { return stamp.session == session_; }
+    bool isCurrentSnapshot(const SaveStamp &stamp) const {
+        return owns(stamp) && stamp.state == state_;
+    }
     bool markSaved(const SaveStamp &stamp);
     void markSaved() { savedState_ = state_; }
     void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,

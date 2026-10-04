@@ -14,7 +14,7 @@ editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
 M1 native foundation and M2 editable geometry gates; drawing interaction is in progress. Components,
-inference, recovery, AI providers,
+directional locks, recovery, AI providers,
 Blender integration and exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
 checksummed container and preserve the previous valid file as `.sketchyup.bak`.
@@ -68,6 +68,11 @@ ctest --preset headless
   subdivides its editing context.
 - `Space`: select. `P`: select a face, move to preview, then click/drag to finish or enter a signed distance along its local normal.
 - `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
+- Point inference acquires endpoints, midpoints, curve centers, intersections,
+  edges and faces within 8 logical pixels. Marker shapes and labels identify the
+  result; `Tab` cycles nearby alternatives. Drawing from loose geometry adopts
+  its context. Locked planes exclude off-plane points. Index preparation runs in
+  the background; the 0.1 m grid remains the fallback when no candidate is acquired.
 - Middle drag or `O`: orbit. Right drag or `H`: pan. Wheel: zoom. `Shift+Z`: fit.
 - `1/2/3` with Select active: perspective/top/front. `Escape`: cancel drawing.
 - `Ctrl+Z` / `Ctrl+Shift+Z`: undo/redo. `Ctrl+K`: commands, objects and recent files.
@@ -95,6 +100,7 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --preview --script examples/through-opening.json
 ./build/dev/sketchyup-cli --script examples/tilted-drawing.json --output /tmp/tilted.sketchyup
 ./build/dev/sketchyup-cli --script examples/curves.json --output /tmp/curves.sketchyup
+./build/dev/sketchyup-cli --input /tmp/curves.sketchyup --query-file examples/inference-query.json
 ```
 
 The topology query exposes stable context-scoped edges, oriented loops and radial

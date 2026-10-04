@@ -35,6 +35,20 @@ int main(int argc, char **argv) {
                   .contains("parameters"),
               "Command schema query registered");
         check(encodeDocument(source) == beforeQueries, "Queries never mutate model or revision");
+        const QJsonObject inferenceQuery{
+            {"query", "geometry.infer"},
+            {"clipFromWorld", QJsonArray{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -.1, 0, 0, 0, 0, 1}},
+            {"worldFromClip", QJsonArray{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -10, 0, 0, 0, 0, 1}},
+            {"viewport", QJsonArray{1000, 800}},
+            {"pointer", QJsonArray{503, 403}}};
+        const auto inferred = executeQuery(source, inferenceQuery);
+        check(!inferred["candidates"].toArray().empty() &&
+                  inferred["candidates"].toArray()[0].toObject()["kind"] == "Endpoint",
+              "Inference query publishes ranked logical-pixel candidates");
+        check(encodeDocument(source) == beforeQueries, "Inference query is read only");
+        auto invalidInference = inferenceQuery;
+        invalidInference["radius"] = 100;
+        rejects([&] { executeQuery(source, invalidInference); });
         rejects(
             [&] { executeQuery(source, {{"query", "document.describe"}, {"mutation", true}}); });
         const QJsonObject sweep{

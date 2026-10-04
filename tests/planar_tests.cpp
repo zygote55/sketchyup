@@ -36,6 +36,18 @@ int main() {
         check(formed.surface.faces.size() == 1 && formed.surface.wires.empty() &&
                   std::abs(area(formed.surface) - 16) < 1e-8,
               "Closed outline forms face");
+        for (int i = 0; i < 24; ++i) {
+            const double x = 1.00327182818 + i * .000037, y = 1.00614159265 - i * .000053;
+            auto continuous = insertPlanarEdges(formed.surface, {0, 0, 0}, {0, 0, 1},
+                                                outline({{x, y, 0},
+                                                         {3.00417320508, y, 0},
+                                                         {3.00417320508, 3.00722360679, 0},
+                                                         {x, 3.00722360679, 0}}));
+            check(continuous.surface.faces.size() == 2 &&
+                      std::abs(area(continuous.surface) - 16) < 1e-10,
+                  "Continuous-coordinate subdivision conserves canonical area without relaxing "
+                  "tolerance");
+        }
         auto coincident = insertPlanarEdges(formed.surface, {0, 0, 0}, {0, 0, 1}, square);
         check(coincident.surface == formed.surface, "Coincident redrawing is exact no-op");
         const auto originalFace = formed.surface.faces.begin()->first;

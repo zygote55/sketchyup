@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "geometry/drawing.hpp"
+#include "geometry/inference.hpp"
 #include "io/document_io.hpp"
 #include <QString>
 #include <algorithm>
@@ -108,8 +109,8 @@ QJsonObject capabilities() {
                  return names;
              }()},
             {"commandSchemas", commandCatalog()},
-            {"queries", QJsonArray{"document.describe", "geometry.inspect", "geometry.preview",
-                                   "commands.describe", "capabilities"}},
+            {"queries", QJsonArray{"document.describe", "geometry.inspect", "geometry.infer",
+                                   "geometry.preview", "commands.describe", "capabilities"}},
             {"transactionContract",
              QJsonObject{{"atomic", true},
                          {"history", "one undo item per batch"},
@@ -158,6 +159,61 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     if (name == "commands.describe") {
         fields(request, {"query", "name"});
         return commandDescription(request["name"].toString());
+    }
+    if (name == "geometry.infer") {
+        fields(request, {"query", "clipFromWorld", "worldFromClip", "viewport", "pointer", "radius",
+                         "plane", "body"});
+        InferenceQuery query;
+        auto matrix = [&](const QJsonValue &value, auto &output) {
+            const auto values = array(value);
+            if (values.size() != 16)
+                throw std::runtime_error("Inference camera matrix requires 16 values");
+            for (int i = 0; i < 16; ++i)
+                output[i] = number(values[i]);
+        };
+        matrix(request["clipFromWorld"], query.camera.clipFromWorld);
+        matrix(request["worldFromClip"], query.camera.worldFromClip);
+        const auto viewport = array(request["viewport"]), pointer = array(request["pointer"]);
+        if (viewport.size() != 2 || pointer.size() != 2)
+            throw std::runtime_error("Viewport and pointer require two values");
+        query.camera.width = number(viewport[0]);
+        query.camera.height = number(viewport[1]);
+        query.x = number(pointer[0]);
+        query.y = number(pointer[1]);
+        if (request.contains("radius"))
+            query.radius = number(request["radius"]);
+        if (request.contains("body"))
+            query.context = request["body"] == "0" ? 0 : id(request["body"]);
+        if (query.context && !doc.bodies().contains(query.context))
+            throw std::runtime_error("Inference context does not exist");
+        if (request.contains("plane")) {
+            if (!request["plane"].isObject())
+                throw std::runtime_error("Inference plane must be an object");
+            const auto p = request["plane"].toObject();
+            fields(p, {"origin", "normal", "xAxis"});
+            query.plane =
+                DrawingPlane::make(point(p["origin"]), point(p["normal"]), point(p["xAxis"]));
+        }
+        InferenceIndex index;
+        index.sync(doc);
+        const auto result = index.query(query);
+        QJsonArray candidates;
+        for (const auto &candidate : result.candidates)
+            candidates.append(QJsonObject{
+                {"kind", inferenceLabel(candidate.kind)},
+                {"entityType", inferenceEntityLabel(candidate.entityType)},
+                {"point", QJsonArray{candidate.point.x, candidate.point.y, candidate.point.z}},
+                {"body", QString::number(candidate.body)},
+                {"entity", QString::number(candidate.entity)},
+                {"otherBody", QString::number(candidate.otherBody)},
+                {"otherEntity", QString::number(candidate.otherEntity)},
+                {"pixels", candidate.pixels},
+                {"depth", candidate.depth}});
+        return {{"documentId", QString::fromStdString(doc.identity())},
+                {"revision", QString::number(doc.revision())},
+                {"candidates", candidates},
+                {"truncated", result.truncated},
+                {"visitedPrimitives", qint64(result.visitedPrimitives)}};
     }
     if (name == "geometry.inspect") {
         fields(request, {"query", "body"});

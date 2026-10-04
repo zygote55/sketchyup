@@ -1,8 +1,10 @@
 #pragma once
+#include "app/inference_worker.hpp"
 #include "app/theme.hpp"
 #include "app/tool_session.hpp"
 #include "core/model.hpp"
 #include "geometry/drawing.hpp"
+#include "geometry/inference.hpp"
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_3_3_Core>
@@ -43,6 +45,10 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     Tool tool() const { return tool_; }
     ToolSession::Phase interactionPhase() const { return session_.phase(); }
     std::optional<Vec3> operationAnchor() const { return anchor_; }
+    const InferenceResult &inference() const { return inference_; }
+    std::optional<InferenceCandidate> acquiredInference() const;
+    InferenceCamera inferenceCamera() const;
+    bool inferenceReady() const { return bool(inferenceWorker_.ready(doc_)); }
     bool previewValid() const { return previewValid_; }
     void setSelection(Id body, Id face = 0);
     Id selectedBody() const { return selected_; }
@@ -172,7 +178,13 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QString graphics_;
     QMatrix4x4 matrix() const;
     std::pair<Vec3, Vec3> ray(QPointF p) const;
-    std::optional<Vec3> ground(QPointF p) const;
+    std::optional<Vec3> ground(QPointF p);
+    void acquireInference(QPointF point, bool constrainPlane);
+    InferenceWorker inferenceWorker_;
+    bool inferencePending_{false};
+    InferenceResult inference_;
+    size_t inferenceChoice_{};
+    QPointF inferencePointer_;
     void choosePlane(QPointF point);
     void beginChain();
     bool drawingTool() const;
