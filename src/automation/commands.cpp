@@ -154,57 +154,66 @@ QJsonArray tagDescription(const Document &doc) {
 }
 } // namespace
 QJsonObject capabilities() {
-    return {{"apiVersion", 1},
-            {"status", "experimental"},
-            {"units", "m"},
-            {"up", "Z"},
-            {"commands",
-             [] {
-                 QJsonArray names;
-                 for (const auto &item : commandCatalog())
-                     names.append(item.toObject()["name"]);
-                 return names;
-             }()},
-            {"commandSchemas", commandCatalog()},
-            {"imports", QJsonArray{QJsonObject{{"format", "formline"},
-                                               {"version", 1},
-                                               {"sourceUnits", "m"},
-                                               {"sourceUp", "Y"},
-                                               {"primitives", QJsonArray{"box", "cylinder"}},
-                                               {"objects", 1000},
-                                               {"fileBytes", 32 * 1024 * 1024}}}},
-            {"queries", QJsonArray{"document.describe", "entity.inspect", "tags.describe",
-                                   "materials.describe", "material.sample", "assets.describe",
-                                   "component.inspect", "geometry.inspect", "geometry.infer",
-                                   "geometry.measure_distance", "geometry.measure_angle",
-                                   "geometry.preview", "commands.describe", "capabilities"}},
-            {"transactionContract",
-             QJsonObject{{"atomic", true},
-                         {"history", "one undo item per batch"},
-                         {"precondition", "document identity and expected content revision"},
-                         {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
-            {"limits", QJsonObject{{"fileBytes", 128 * 1024 * 1024},
-                                   {"nativeContainerBytes", 16 + 97 * 1024 * 1024},
-                                   {"assetBytes", int(AssetPayload::limit)},
-                                   {"totalAssetBytes", int(assetTotalLimit)},
-                                   {"assets", 1024},
-                                   {"documentBytes", 128 * 1024 * 1024},
-                                   {"packagedModelBytes", 32 * 1024 * 1024},
-                                   {"bodies", 10000},
-                                   {"componentDefinitions", 1024},
-                                   {"materials", 1024},
-                                   {"vertices", 100000},
-                                   {"guides", 10000},
-                                   {"guidesPerContext", 1024},
-                                   {"batchCommands", 100},
-                                   {"tagsAndFolders", 1024},
-                                   {"tagFolderDepth", 32}}},
-            {"limitations", QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
-                                       "sweeps; general solid booleans are unavailable",
-                                       "No durable transaction outcomes or remote retry protocol",
-                                       "Component geometry is materialized per instance; instanced "
-                                       "rendering and component libraries are not yet implemented",
-                                       "No AI provider or Blender integration"}}};
+    return {
+        {"apiVersion", 1},
+        {"status", "experimental"},
+        {"units", "m"},
+        {"up", "Z"},
+        {"commands",
+         [] {
+             QJsonArray names;
+             for (const auto &item : commandCatalog())
+                 names.append(item.toObject()["name"]);
+             return names;
+         }()},
+        {"commandSchemas", commandCatalog()},
+        {"imports", QJsonArray{QJsonObject{{"format", "formline"},
+                                           {"version", 1},
+                                           {"sourceUnits", "m"},
+                                           {"sourceUp", "Y"},
+                                           {"primitives", QJsonArray{"box", "cylinder"}},
+                                           {"objects", 1000},
+                                           {"fileBytes", 32 * 1024 * 1024}}}},
+        {"historyControl",
+         QJsonObject{{"operation", "history.navigate"},
+                     {"preconditions", QJsonArray{"apiVersion", "documentId", "expectedRevision"}},
+                     {"position", "canonical decimal cursor from history.describe"},
+                     {"maximumEntries", int(Document::historyEntryLimit)},
+                     {"maximumPage", 1000},
+                     {"batchMetadata", QJsonArray{"label", "taskId", "request", "assistant"}}}},
+        {"queries",
+         QJsonArray{"history.describe", "document.describe", "entity.inspect", "tags.describe",
+                    "materials.describe", "material.sample", "assets.describe", "component.inspect",
+                    "geometry.inspect", "geometry.infer", "geometry.measure_distance",
+                    "geometry.measure_angle", "geometry.preview", "commands.describe",
+                    "capabilities"}},
+        {"transactionContract",
+         QJsonObject{{"atomic", true},
+                     {"history", "one undo item per batch"},
+                     {"precondition", "document identity and expected content revision"},
+                     {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
+        {"limits", QJsonObject{{"fileBytes", 128 * 1024 * 1024},
+                               {"nativeContainerBytes", 16 + 97 * 1024 * 1024},
+                               {"assetBytes", int(AssetPayload::limit)},
+                               {"totalAssetBytes", int(assetTotalLimit)},
+                               {"assets", 1024},
+                               {"documentBytes", 128 * 1024 * 1024},
+                               {"packagedModelBytes", 32 * 1024 * 1024},
+                               {"bodies", 10000},
+                               {"componentDefinitions", 1024},
+                               {"materials", 1024},
+                               {"vertices", 100000},
+                               {"guides", 10000},
+                               {"guidesPerContext", 1024},
+                               {"batchCommands", 100},
+                               {"tagsAndFolders", 1024},
+                               {"tagFolderDepth", 32}}},
+        {"limitations", QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
+                                   "sweeps; general solid booleans are unavailable",
+                                   "No durable transaction outcomes or remote retry protocol",
+                                   "Component geometry is materialized per instance; instanced "
+                                   "rendering and component libraries are not yet implemented",
+                                   "No AI provider or Blender integration"}}};
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies, definitions, instances;
@@ -259,6 +268,13 @@ QJsonObject describe(const Document &doc) {
 }
 QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     const auto name = request["query"].toString();
+    if (name == "history.describe") {
+        fields(request, {"query", "offset", "limit"});
+        const auto offset =
+            request.contains("offset") ? (request["offset"] == "0" ? 0 : id(request["offset"])) : 0;
+        const auto limit = request.contains("limit") ? id(request["limit"]) : 200;
+        return describeHistory(doc, offset, limit);
+    }
     if (name == "entity.inspect") {
         fields(request, {"query", "body", "kind", "entity"});
         const auto kind =
@@ -494,7 +510,7 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     throw std::runtime_error("Unavailable query");
 }
 QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
-    fields(request, {"apiVersion", "documentId", "expectedRevision", "commands"});
+    fields(request, {"apiVersion", "documentId", "expectedRevision", "commands", "history"});
     if (!request["apiVersion"].isDouble() || request["apiVersion"].toDouble() != 1)
         throw std::runtime_error("Unsupported API version");
     if (!request["documentId"].isString() ||
@@ -505,6 +521,43 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     auto commands = array(request["commands"]);
     if (commands.empty() || commands.size() > 100)
         throw std::runtime_error("Batch must contain 1–100 commands");
+    HistoryMetadata historyMetadata;
+    std::string historyLabel =
+        commands.size() == 1
+            ? commandDescription(commands[0].toObject()["command"].toString())["label"]
+                  .toString()
+                  .toStdString()
+            : "Command batch (" + std::to_string(commands.size()) + " operations)";
+    if (request.contains("history")) {
+        if (!request["history"].isObject())
+            throw std::runtime_error("History metadata must be an object");
+        const auto metadata = request["history"].toObject();
+        fields(metadata, {"label", "taskId", "request", "assistant"});
+        auto text = [&](const char *key, size_t limit) {
+            const auto value = metadata.value(key);
+            const auto string = value.toString();
+            const auto bytes = string.toUtf8();
+            if (!value.isString() || size_t(bytes.size()) > limit || string.contains(QChar('\0')) ||
+                QString::fromUtf8(bytes) != string)
+                throw std::runtime_error("Invalid history text");
+            return bytes.toStdString();
+        };
+        if (metadata.contains("label"))
+            historyLabel = text("label", 512);
+        if (metadata.contains("taskId"))
+            historyMetadata.taskId = text("taskId", 128);
+        if (metadata.contains("request"))
+            historyMetadata.request = text("request", 4096);
+        if (metadata.contains("assistant")) {
+            if (!metadata["assistant"].isBool())
+                throw std::runtime_error("History assistant flag must be boolean");
+            historyMetadata.assistant = metadata["assistant"].toBool();
+        }
+        if (historyLabel.empty() ||
+            (historyMetadata.assistant &&
+             (historyMetadata.taskId.empty() || historyMetadata.request.empty())))
+            throw std::runtime_error("History task metadata is incomplete");
+    }
     Document staged = doc;
     QJsonArray created, copies, transfers, componentOperations;
     struct Lineage {
@@ -1262,7 +1315,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         } else
             throw std::runtime_error("Unavailable command");
     }
-    Edit edit{"Command batch", {}};
+    Edit edit{historyLabel, {}};
+    edit.metadata = historyMetadata;
     appendSceneMetadataChanges(edit, doc, staged);
     std::set<Id> all;
     for (const auto &[id, b] : doc.bodies())

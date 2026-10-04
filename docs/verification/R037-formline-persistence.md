@@ -36,3 +36,6 @@ The CLI imported/saved/reopened the fixture and measured the rotated box as a
 closed 48 m³ solid. Direct, relative and symbolic-link output aliases of the source
 reject with its SHA-256 unchanged. CI adds native checks on both display backends
 and scales plus headless import/reopen. Recovery is the next roadmap step.
+
+PR #49 merged after both Native build runs passed on 2026-10-04 at
+`0c53fd13e3a8f80f77793e8bbbaea532f8838c4a`; merge commit `61fc155`.

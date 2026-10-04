@@ -339,6 +339,13 @@ an experimental local driver, not yet the durable AI/MCP protocol. The example's
 IDs are specific to its empty-document fixture. Query live IDs before editing an
 existing document; do not reuse them across documents.
 
+The headless `history.describe` query exposes bounded labeled undo/redo pages.
+A batch may attach a human label and task/request metadata; this remains local
+session history and is not stored in model files. `--history-position N` navigates
+the retained cursor after a CLI recipe. See the
+[history contract](docs/decisions/0017-labeled-history.md). Native History controls
+are in progress.
+
 ## Viewport verification
 
 The [viewport follow-up](docs/verification/R002-viewport.md) records native pixel,

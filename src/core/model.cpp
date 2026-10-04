@@ -458,6 +458,14 @@ void Document::update(Edit edit, bool forward) {
     assets_.swap(assets);
 }
 ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
+    auto boundedText = [](const std::string &text, size_t limit) {
+        return text.size() <= limit && text.find('\0') == std::string::npos;
+    };
+    if (edit.label.empty() || !boundedText(edit.label, 512) ||
+        !boundedText(edit.metadata.taskId, 128) || !boundedText(edit.metadata.request, 4096) ||
+        (edit.metadata.assistant &&
+         (edit.metadata.taskId.empty() || edit.metadata.request.empty())))
+        throw std::runtime_error("Invalid history label or task metadata");
     if (revision_ == UINT64_MAX)
         throw std::runtime_error("Document revision space exhausted");
     if (expected != revision_)
@@ -593,7 +601,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     Id next = std::max(nextId_, edit.nextIdFloor);
     auto floors = surfaceFloors_;
     auto edgeFloors = edgeFloors_;
-    edit.bytes = sizeof(Edit) + edit.label.size();
+    edit.bytes = sizeof(Edit) + edit.label.size() + edit.metadata.taskId.size() +
+                 edit.metadata.request.size();
     for (const auto &c : edit.changes) {
         if (!c.id || !ids.insert(c.id).second || (!c.before && !c.after))
             throw std::runtime_error("Invalid change set");
@@ -667,7 +676,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             edgeFloors[c.id] = frozen->topology.nextId;
             c.after = std::move(frozen);
         }
-    edit.bytes = sizeof(Edit) + edit.label.size();
+    edit.bytes = sizeof(Edit) + edit.label.size() + edit.metadata.taskId.size() +
+                 edit.metadata.request.size();
     ChangeReport report;
     const Surface emptySurface;
     const Topology emptyTopology;
@@ -841,7 +851,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     edgeFloors_.swap(edgeFloors);
     state_ = h.after;
     ++revision_;
-    while (historyBytes_ > historyLimit && undo_.size() > 1) {
+    while ((historyBytes_ > historyLimit || undo_.size() > historyEntryLimit) && undo_.size() > 1) {
+        historyPruned_ = true;
         historyBytes_ -= undo_.front().edit.bytes;
         undo_.pop_front();
     }
@@ -993,6 +1004,24 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
                                                  after ? after->guides : empty.guides);
         }
     }
+    // Numeric re-entry revises the original user task; it must not silently relabel its origin.
+    auto &revised = staged.undo_.back().edit;
+    const auto &original = undo_.back().edit;
+    const auto oldTextBytes =
+        revised.label.size() + revised.metadata.taskId.size() + revised.metadata.request.size();
+    const auto newTextBytes =
+        original.label.size() + original.metadata.taskId.size() + original.metadata.request.size();
+    revised.label = original.label;
+    revised.metadata = original.metadata;
+    revised.bytes = revised.bytes - oldTextBytes + newTextBytes;
+    staged.historyBytes_ = staged.historyBytes_ - oldTextBytes + newTextBytes;
+    if (revised.bytes > historyLimit)
+        throw std::runtime_error("Amended edit exceeds history budget");
+    while (staged.historyBytes_ > historyLimit && staged.undo_.size() > 1) {
+        staged.historyPruned_ = true;
+        staged.historyBytes_ -= staged.undo_.front().edit.bytes;
+        staged.undo_.pop_front();
+    }
     *this = std::move(staged);
     return report;
 }
@@ -1112,6 +1141,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     undo_.clear();
     redo_.clear();
     historyBytes_ = 0;
+    historyPruned_ = false;
     revision_ = revision;
     session_ = std::move(session);
     state_ = std::move(fresh);
