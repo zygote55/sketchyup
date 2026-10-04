@@ -13,6 +13,7 @@ class ToolSession {
         return identity_ == document_.identity() && revision_ == document_.revision();
     }
     void begin();
+    void setScopeProvider(std::function<Id()> provider) { scopeProvider_ = std::move(provider); }
     void cancel();
     QJsonObject preview(const QJsonObject &command);
     QJsonObject commit(const QJsonObject &command);
@@ -23,6 +24,8 @@ class ToolSession {
     std::string identity_;
     std::uint64_t revision_{};
     Document::AmendStamp amendment_;
+    std::function<Id()> scopeProvider_;
+    Id componentScope_{};
     QJsonObject request(const QJsonObject &command) const;
 };
 } // namespace sketchy

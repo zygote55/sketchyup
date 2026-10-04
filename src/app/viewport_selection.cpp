@@ -143,14 +143,10 @@ void Viewport::deleteSelection() {
     }
     if (entities.empty())
         return;
-    executeBatch(doc_, {{"apiVersion", 1},
-                        {"documentId", QString::fromStdString(doc_.identity())},
-                        {"expectedRevision", QString::number(doc_.revision())},
-                        {"commands",
-                         QJsonArray{QJsonObject{{"command", "geometry.erase_selection"},
-                                                {"entities", entities},
-                                                {"context", QString::number(selection_.context())},
-                                                {"showHidden", selection_.showingHidden()}}}}});
+    commitCommands({QJsonObject{{"command", "geometry.erase_selection"},
+                                {"entities", entities},
+                                {"context", QString::number(selection_.context())},
+                                {"showHidden", selection_.showingHidden()}}});
     selection_.clear();
     selectionChanged();
     emit changed();

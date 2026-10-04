@@ -632,6 +632,10 @@ int main(int argc, char **argv) {
                       sharedAmend.bodies().at(id)->surface.vertices == body->surface.vertices,
                   "Shared numeric amendment retains one-undo behavior");
         const QJsonArray cases{
+            QJsonObject{{"command", "component.selection"},
+                        {"context", "0"},
+                        {"entities", QJsonArray{QJsonObject{
+                                         {"body", "1"}, {"kind", "face"}, {"entity", "5"}}}}},
             QJsonObject{{"command", "component.create"}, {"body", "1"}, {"name", "Panel"}},
             QJsonObject{{"command", "component.instance"}, {"definition", "1"}, {"matrix", matrix}},
             QJsonObject{{"command", "component.make_unique"}, {"body", "1"}},
@@ -799,7 +803,8 @@ int main(int argc, char **argv) {
             };
             Document doc = source;
             if (command["command"].toString().startsWith("component.") &&
-                command["command"] != "component.create") {
+                command["command"] != "component.create" &&
+                command["command"] != "component.selection") {
                 createComponent(doc, 1);
                 if (command["command"] == "component.replace") {
                     const auto raw = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});

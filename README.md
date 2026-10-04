@@ -13,15 +13,15 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation, M2 editable geometry and M3 manual drawing gates; M4 modeling tools are in progress. Components,
-recovery, AI providers,
+M1 native foundation, M2 editable geometry and M3 manual drawing gates; M4 modeling tools are in progress. Shared components now support native editing.
+Recovery, AI providers,
 Blender integration and exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
 checksummed container and preserve the previous valid file as `.sketchyup.bak`.
 Files and the containing directory are synced before showing Saved. Open a backup
 through the file dialog's all-files filter or the CLI if you need the previous save. Light, Dark and System
-themes are available in View. The experimental scene records support nested/mirrored
-transforms through the headless command API; component editing UI remains planned.
+themes are available in View. Groups and reusable components support nested, mirrored
+and nonuniform transforms through both native tools and the headless command API.
 
 ## Build and run
 
@@ -100,6 +100,19 @@ ctest --preset headless
 - Edit offers temporary hide/reveal and context lock/unlock. View → Show hidden
   geometry exposes hidden entities but does not bypass locks or the active context.
   These view states are session-only. Persistent group visibility and locks are separate.
+- `Ctrl+G`: make a group; `Ctrl+Shift+G`: explode selected groups/components.
+  Enter or double-click opens a context; Escape or an outside click closes one level.
+  The breadcrumb returns to an ancestor. `G` opens Make component from the viewport.
+  Edit offers Make component, Place component,
+  Replace component, Change component axes and Make unique. Raw face/edge/guide
+  selections can become components in one undo step.
+- A persistent banner names the active shared definition and counts its instances.
+  Drawing, transforms, grouping, paint and deletion inside that scope update all
+  instances. Make unique isolates the active placement, including nested ownership.
+  A locked affected instance rejects the entire shared edit. Placement dialogs use
+  world coordinates; the axes dialog uses component coordinates and preserves
+  world geometry. The [native component evidence](docs/verification/R033c-native-components.md)
+  records tested workflows and limits.
 - `M`: move; `Q`: rotate; `S`: scale. Select geometry, choose a pivot, then a
   destination (plus a baseline/reference for rotation or scale). Type exact
   displacement, angle or scale factors in Measurements. Re-entry revises the same
@@ -186,6 +199,7 @@ components. Version 7 face colors and earlier group/guide records retain their
 previous migration behavior.
 
 `component.create` converts a geometry/group root into a reusable definition;
+`component.selection` converts typed selected faces, edges, guides or contexts;
 `component.instance` places it with a parent-local affine matrix. `component.edit`
 runs a nested command batch using canonical member IDs from `component.inspect`
 and propagates the change to every instance in one undo step. Its `world` space
@@ -198,7 +212,13 @@ members with fresh scene IDs. `component.axes` changes a definition's local fram
 while preserving world geometry in all placements. Whole-context copies/arrays
 continue sharing definitions; explode removes the selected binding and retains
 geometry. See the [command contract](docs/verification/R033b-component-operations.md).
-Native component controls and the definition-scope banner remain under development.
+For native adapters, `component.edit` also accepts an `instance` matching the
+specified definition. Inner commands then use that placement's scene IDs and
+world coordinate frame. Geometry stays canonical; the temporary editing frame
+is removed before publication. The operation reports created members for the
+initiating placement, while topology changes still cover every affected instance.
+`scene.state` with body `"0"` and false flags reveals/unlocks the whole document,
+including canonical component members, in one undo step; global hide/lock rejects.
 
 `group.create` groups sibling context IDs while preserving their geometry, colors
 and world placement. `group.explode` removes one group boundary and merges eligible

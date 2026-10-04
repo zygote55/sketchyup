@@ -81,6 +81,13 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void makeGroup();
     void explodeGroups();
     void mergeContextGeometry();
+    Id componentScope() const;
+    void makeComponent(const QString &name);
+    void makeComponentUnique(bool activeScope = false);
+    void replaceComponent(Id definition);
+    void placeComponent(Id definition, Vec3 position);
+    void changeComponentAxes(Transform axes);
+    void paintSelection(std::array<float, 3> color);
     void setPersistentState(bool hide, bool lock);
     void revealPersistentEntities();
     void unlockPersistentEntities();
@@ -165,6 +172,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void keyReleaseEvent(QKeyEvent *) override;
 
   private:
+    QJsonObject commitCommands(const QJsonArray &commands, bool shared = true);
+    Id selectedComponent() const;
     struct Vertex {
         float x, y, z, r, g, b, a{1};
     };

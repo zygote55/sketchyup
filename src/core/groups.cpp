@@ -82,6 +82,38 @@ ChangeReport setEntityState(Document &doc, Id id, std::optional<bool> hidden,
                             std::optional<bool> locked) {
     if (!hidden && !locked)
         throw std::runtime_error("Entity state requires hidden or locked");
+    if (!id) {
+        if (hidden.value_or(false) || locked.value_or(false))
+            throw std::runtime_error("Model-wide state may only reveal or unlock entities");
+        Edit edit{"Reveal or unlock document entities", {}};
+        auto cleared = [&](BodyPtr old) -> BodyPtr {
+            auto body = std::make_shared<Body>(*old);
+            if (hidden)
+                body->hidden = false;
+            if (locked)
+                body->locked = false;
+            return *body == *old ? old : body;
+        };
+        for (const auto &[bodyId, old] : doc.bodies()) {
+            const auto body = cleared(old);
+            if (body != old)
+                edit.changes.push_back({bodyId, old, body});
+        }
+        for (const auto &[definitionId, old] : doc.definitions()) {
+            auto definition = std::make_shared<ComponentDefinition>(*old);
+            bool changed = false;
+            for (auto &[member, body] : definition->members) {
+                const auto next = cleared(body);
+                changed |= next != body;
+                body = next;
+            }
+            if (changed)
+                edit.definitions.push_back({definitionId, old, definition});
+        }
+        return edit.changes.empty() && edit.definitions.empty()
+                   ? ChangeReport{}
+                   : doc.apply(std::move(edit), doc.revision());
+    }
     const auto old = doc.bodies().at(id);
     auto body = std::make_shared<Body>(*old);
     if (hidden)

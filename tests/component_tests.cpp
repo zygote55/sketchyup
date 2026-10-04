@@ -219,11 +219,18 @@ void sharedHierarchyEdits() {
     check(doc.definitions().at(created.definition)->references.at(nested) == leaf.definition &&
               doc.instances().size() == 5,
           "New nested instances in shared scope attach to all placements");
+    std::set<Id> promotedGeometry;
+    for (const auto &[id, body] : doc.bodies())
+        if (!body->surface.faces.empty())
+            promotedGeometry.insert(id);
     editComponentDefinition(doc, created.definition,
                             [&](Document &draft) { return explodeGroup(draft, nested); });
     check(doc.definitions().at(created.definition)->references.empty() &&
               doc.instances().size() == 3,
           "Shared nested explode converts every placement into ordinary member geometry");
+    for (auto id : promotedGeometry)
+        check(doc.bodies().contains(id),
+              "Shared boundary-only explode preserves existing scene geometry IDs");
     doc.undo();
     editComponentDefinition(doc, created.definition, [&](Document &draft) {
         Selection selection;

@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/component_scope.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
@@ -167,12 +168,12 @@ QJsonObject capabilities() {
                                    {"guides", 10000},
                                    {"guidesPerContext", 1024},
                                    {"batchCommands", 100}}},
-            {"limitations",
-             QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
-                        "sweeps; general solid booleans are unavailable",
-                        "No durable transaction outcomes or remote retry protocol",
-                        "Component shared edit commands are available; native scope UI is pending",
-                        "No AI provider or Blender integration"}}};
+            {"limitations", QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
+                                       "sweeps; general solid booleans are unavailable",
+                                       "No durable transaction outcomes or remote retry protocol",
+                                       "Component geometry is materialized per instance; instanced "
+                                       "rendering and component libraries are not yet implemented",
+                                       "No AI provider or Blender integration"}}};
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies, definitions, instances;
@@ -465,7 +466,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name == "geometry.erase_selection" || name == "group.selection") {
+        if (name == "geometry.erase_selection" || name == "group.selection" ||
+            name == "component.selection") {
             const auto records = array(command["entities"]);
             if (records.empty() || records.size() > 10000)
                 throw std::runtime_error("Selection must contain 1–10000 entities");
@@ -507,11 +509,14 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                     throw std::runtime_error(
                         "Selected entity is outside the editable context or locked/hidden");
             selection.apply(staged, entities, SelectionMode::Replace);
-            if (name == "group.selection") {
+            if (name == "group.selection" || name == "component.selection") {
                 if (command.contains("name") && !command["name"].isString())
                     throw std::runtime_error("Group name must be a string");
                 const auto result = groupSelected(
-                    staged, selection, command.value("name").toString("Group").toStdString());
+                    staged, selection,
+                    command.value("name")
+                        .toString(name == "component.selection" ? "Component" : "Group")
+                        .toStdString());
                 compose(result.changes);
                 for (const auto &[source, target] : result.movedGeometry) {
                     const auto &body = *staged.bodies().at(target);
@@ -528,6 +533,15 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                                                  {"faces", identities(body.surface.faces)},
                                                  {"curves", identities(body.curves)},
                                                  {"guides", identities(body.guides)}});
+                }
+                if (name == "component.selection") {
+                    const auto component =
+                        createComponent(staged, result.group,
+                                        command.value("name").toString("Component").toStdString());
+                    compose(component.changes);
+                    componentOperations.append(
+                        QJsonObject{{"definition", QString::number(component.definition)},
+                                    {"instance", QString::number(component.instance)}});
                 }
             } else
                 compose(eraseSelected(staged, selection));
@@ -841,6 +855,11 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                 return result;
             };
             ComponentResult result;
+            Id scopeInstance = 0;
+            InstancePtr scopeBefore;
+            QJsonObject innerResult;
+            std::map<Id, Id> scopeMembers;
+            std::optional<Document> scopeDraft;
             if (name == "component.create")
                 result = createComponent(staged, id(command["body"]),
                                          command.value("name").toString("Component").toStdString());
@@ -857,7 +876,16 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             else if (name == "component.axes")
                 result = setComponentAxes(staged, id(command["definition"]), matrix());
             else if (name == "component.edit") {
-                const auto commands = array(command["commands"]);
+                auto commands = array(command["commands"]);
+                Transform frame;
+                if (command.contains("instance")) {
+                    scopeInstance = id(command["instance"]);
+                    scopeBefore = staged.instances().at(scopeInstance);
+                    if (scopeBefore->definition != id(command["definition"]))
+                        throw std::runtime_error(
+                            "Instance no longer belongs to the requested definition");
+                    frame = staged.worldTransform(scopeInstance);
+                }
                 for (auto value : commands) {
                     const auto nested = value.toObject().value("command");
                     if (nested == "component.edit" || nested == "component.axes")
@@ -865,14 +893,25 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                             "Use a separate explicit scope for shared definition or axis edits");
                 }
                 result = editComponentDefinition(
-                    staged, id(command["definition"]), [&](Document &draft) {
-                        const auto edited = executeBatch(
+                    staged, id(command["definition"]),
+                    [&](Document &draft) {
+                        if (scopeInstance)
+                            scopeMembers = componentScopeMembers(staged, draft, scopeInstance);
+                        const auto scopedCommands =
+                            scopeInstance
+                                ? canonicalComponentCommands(staged, draft, scopeInstance, commands)
+                                : commands;
+                        innerResult = executeBatch(
                             draft, {{"apiVersion", 1},
                                     {"documentId", QString::fromStdString(draft.identity())},
                                     {"expectedRevision", QString::number(draft.revision())},
-                                    {"commands", commands}});
-                        return decodedChanges(edited["changes"].toObject());
-                    });
+                                    {"commands", scopedCommands}});
+                        if (scopeInstance)
+                            scopeDraft = draft;
+                        return decodedChanges(innerResult["changes"].toObject());
+                    },
+                    frame);
+                result.instance = scopeInstance;
             } else
                 throw std::runtime_error("Unavailable component command");
             compose(result.changes);
@@ -883,6 +922,34 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                 for (auto [source, target] : result.movedGeometry)
                     normalized[QString::number(source)] = QString::number(target);
                 operation["normalizedMembers"] = normalized;
+                if (scopeInstance) {
+                    const auto after = componentScopeMembers(staged, *scopeDraft, scopeInstance);
+                    QJsonArray scopedCreated;
+                    for (auto value : innerResult["created"].toArray()) {
+                        const auto member = id(value);
+                        if (after.contains(member))
+                            scopedCreated.append(QString::number(after.at(member)));
+                    }
+                    for (auto [source, member] : result.movedGeometry)
+                        scopedCreated.append(QString::number(after.at(member)));
+                    operation["created"] = scopedCreated;
+                    auto resolve = [&](const char *key, QJsonArray &output) {
+                        for (auto value : innerResult[key].toArray()) {
+                            auto record = value.toObject();
+                            const auto source = id(record["sourceBody"]);
+                            auto target = id(record["body"]);
+                            if (result.movedGeometry.contains(target))
+                                target = result.movedGeometry.at(target);
+                            if (!scopeMembers.contains(source) || !after.contains(target))
+                                continue;
+                            record["sourceBody"] = QString::number(scopeMembers.at(source));
+                            record["body"] = QString::number(after.at(target));
+                            output.append(record);
+                        }
+                    };
+                    resolve("copies", copies);
+                    resolve("transfers", transfers);
+                }
             } else if (name == "component.create")
                 for (auto [source, target] : result.movedGeometry) {
                     const auto &body = *staged.bodies().at(target);
@@ -940,7 +1007,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                     throw std::runtime_error("Entity state flags must be boolean");
                 return command[key].toBool();
             };
-            compose(setEntityState(staged, id(command["body"]), flag("hidden"), flag("locked")));
+            compose(setEntityState(staged, command["body"] == "0" ? 0 : id(command["body"]),
+                                   flag("hidden"), flag("locked")));
         } else if (name == "geometry.delete") {
             fields(command, {"command", "body"});
             staged.erase(id(command["body"]));
@@ -1046,7 +1114,9 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {
     QJsonObject result;
-    const auto commands = request["commands"].toArray();
+    auto commands = request["commands"].toArray();
+    if (commands.size() == 1 && commands[0].toObject()["command"] == "component.edit")
+        commands = commands[0].toObject()["commands"].toArray();
     const auto policy =
         commands.size() == 1 && commands[0].toObject()["command"] == "geometry.array_selection"
             ? Document::AmendPolicy::CopyArray

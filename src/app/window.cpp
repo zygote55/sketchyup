@@ -92,6 +92,16 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             viewport_->setFocus();
         });
     });
+    componentBanner_ = new QLabel(viewport_);
+    componentBanner_->setObjectName("componentScopeBanner");
+    componentBanner_->setAccessibleName("Shared component editing scope");
+    componentBanner_->setTextFormat(Qt::RichText);
+    componentBanner_->setWordWrap(true);
+    componentBanner_->setTextInteractionFlags(Qt::LinksAccessibleByMouse |
+                                              Qt::LinksAccessibleByKeyboard);
+    componentBanner_->setFocusPolicy(Qt::StrongFocus);
+    connect(componentBanner_, &QLabel::linkActivated, this,
+            [this] { run([this] { viewport_->makeComponentUnique(true); }); });
     tray_ = new QWidget;
     tray_->setObjectName("tray");
     tray_->setFixedWidth(248);
@@ -210,6 +220,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     }
     edit->addAction(action("geometry.merge_context", "Merge raw geometry in current context", {},
                            [this] { viewport_->mergeContextGeometry(); }));
+    addComponentActions(edit);
     edit->addAction(action("group.hide", "Hide selected groups in document", {},
                            [this] { viewport_->setPersistentState(true, false); }));
     edit->addAction(action("group.lock", "Lock selected groups in document", {},
@@ -239,7 +250,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             return;
         auto c = QColorDialog::getColor(Qt::white, this, "Material color");
         if (c.isValid()) {
-            doc_.paint(id, {float(c.redF()), float(c.greenF()), float(c.blueF())});
+            viewport_->paintSelection({float(c.redF()), float(c.greenF()), float(c.blueF())});
             sync();
         }
     }));
@@ -676,6 +687,7 @@ void Window::sync() {
     breadcrumb_->setMaximumWidth(std::max(100, viewport_->width() - 32));
     breadcrumb_->adjustSize();
     breadcrumb_->raise();
+    syncComponentActions();
     QSignalBlocker block(outliner_);
     outliner_->clear();
     std::set<Id> selectedBodies;
