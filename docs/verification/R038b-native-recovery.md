@@ -28,3 +28,7 @@ The CLI suite checks listing, exact native recovery output, missing resources,
 source and recovery-evidence preservation, direct/symbolic-link output rejection,
 exclusive input options, active-session rejection and corrupt-candidate reporting.
 These are synthetic implementation-agent checks, not independent human acceptance.
+
+PR #51 merged as `fbdcee72c813ff0e5cac0b8fa6fcf0898a0542fd`. Both Native build
+CI runs (37237826411 and 37237800732) passed, including package acceptance,
+finishing at 22:28:44 and 22:28:11 UTC on 2026-10-04.

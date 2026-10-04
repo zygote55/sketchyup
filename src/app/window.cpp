@@ -139,9 +139,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     outliner_ = organization_->outliner();
     info_->setAccessibleName("Selection summary");
     trayLayout->addWidget(organization_, 1);
-    auto *hint = new QLabel("Manual drawing development build\n\nDraw a face → select → "
-                            "Extrude → enter distance.\n\nMiddle drag: orbit\nRight drag: "
-                            "pan\nWheel: zoom\n\nSave explicitly. Recovery is not implemented.");
+    auto *hint = new QLabel("Middle drag: orbit\nRight drag: pan · Wheel: zoom");
+    hint->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     hint->setWordWrap(true);
     hint->setObjectName("hint");
     trayLayout->addWidget(hint);
@@ -214,12 +213,16 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     file->addAction(action("file.quit", "Quit", QKeySequence::Quit, [this] { close(); }));
     auto *edit = menuBar()->addMenu("&Edit");
     undo_ = action("edit.undo", "Undo", QKeySequence::Undo, [this] {
+        viewport_->cancel();
         doc_.undo();
         sync();
+        viewport_->setFocus();
     });
     redo_ = action("edit.redo", "Redo", QKeySequence::Redo, [this] {
+        viewport_->cancel();
         doc_.redo();
         sync();
+        viewport_->setFocus();
     });
     edit->addAction(undo_);
     edit->addAction(redo_);
@@ -492,6 +495,11 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     viewport_->setTrackpadNavigation(trackpad);
     const auto fov = navigationSettings.value("fieldOfView", 45).toDouble();
     viewport_->setFieldOfView(std::isfinite(fov) && fov >= 5 && fov <= 120 ? fov : 45);
+    view->addAction(action("view.history", "History", {}, [this] {
+        tray_->show();
+        findChild<QAction *>("view.tray")->setChecked(true);
+        organization_->showHistory();
+    }));
     auto *panel = action("view.tray", "Model panel", QKeySequence("Ctrl+Shift+T"), [this] {
         tray_->setVisible(findChild<QAction *>("view.tray")->isChecked());
     });
@@ -670,6 +678,18 @@ void Window::sync() {
     syncRecovery();
     undo_->setEnabled(doc_.canUndo());
     redo_->setEnabled(doc_.canRedo());
+    const auto cursor = doc_.history(0, 1).position;
+    auto historyAction = [&](QAction *action, const QString &verb, bool enabled, size_t offset) {
+        const auto label =
+            enabled ? QString::fromStdString(doc_.history(offset, 1).entries.front().label)
+                    : QString{};
+        const auto text = label.isEmpty() ? verb : verb + " " + label;
+        action->setToolTip(text);
+        action->setText(fontMetrics().elidedText(text, Qt::ElideRight, 320).replace("&", "&&"));
+    };
+    historyAction(undo_, "Undo", doc_.canUndo(), cursor ? cursor - 1 : 0);
+    historyAction(redo_, "Redo", doc_.canRedo(), cursor);
+
     for (const auto &id : {"edit.paint", "context.enter"})
         findChild<QAction *>(id)->setEnabled(doc_.bodies().contains(viewport_->selectedBody()));
     for (const auto &id : {"edit.move", "edit.delete", "selection.hide", "selection.lock"})

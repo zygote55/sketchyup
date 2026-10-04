@@ -100,15 +100,17 @@ uniform int instanced;
 uniform vec2 pixelOffset;
 out vec4 tint;
 out vec4 backTint;
+flat out vec2 faceOpacity;
 out vec3 worldPosition;
 void main() {
   vec3 p=position;
   if(instanced!=0) p+=vec3(float(gl_InstanceID%1000)*1.2,float(gl_InstanceID/1000)*1.2,0);
-  gl_Position=mvp*vec4(p,1.0);gl_Position.xy+=pixelOffset*gl_Position.w;tint=color;backTint=backColor;worldPosition=p;
+  gl_Position=mvp*vec4(p,1.0);gl_Position.xy+=pixelOffset*gl_Position.w;tint=color;backTint=backColor;faceOpacity=vec2(color.a,backColor.a);worldPosition=p;
 })";
     const char *fragment = R"(#version 330 core
 in vec4 tint;
 in vec4 backTint;
+flat in vec2 faceOpacity;
 uniform int surfacePass;
 in vec3 worldPosition;
 uniform int clipEnabled;
@@ -120,6 +122,8 @@ void main() {
   if(clipEnabled!=0 && dot(clipPlane,vec4(worldPosition,1.0))<0.0) discard;
   if(stipple!=0 && (mod(floor(gl_FragCoord.x/pixelRatio),4.0)>0.0 || mod(floor(gl_FragCoord.y/pixelRatio),4.0)>0.0)) discard;
   vec4 color=gl_FrontFacing ? tint : backTint;
+  // Opacity is constant per face; interpolating 1 can round below 1 and discard opaque fragments.
+  color.a=gl_FrontFacing ? faceOpacity.x : faceOpacity.y;
   if(surfacePass==1 && color.a<1.0) discard;
   if(surfacePass==2 && (color.a<=0.0 || color.a>=1.0)) discard;
   if(surfacePass==3 && color.a<=0.0) discard;

@@ -7,12 +7,14 @@
 namespace sketchy {
 class EntityInfoPanel;
 class MaterialsPanel;
+class HistoryPanel;
 class OrganizationPanel : public QWidget {
   public:
     OrganizationPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
     QTreeWidget *outliner() const { return outliner_; }
     void refresh();
     void showMaterials();
+    void showHistory();
 
   private:
     Document &doc_;
@@ -23,6 +25,7 @@ class OrganizationPanel : public QWidget {
     QTabWidget *tabs_{};
     EntityInfoPanel *info_{};
     MaterialsPanel *materials_{};
+    HistoryPanel *history_{};
     bool syncing_{};
     std::set<Id> knownBodies_, knownTags_;
     Document::SaveStamp session_;

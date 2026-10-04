@@ -1,5 +1,6 @@
 #include "app/organization_panel.hpp"
 #include "app/entity_info_panel.hpp"
+#include "app/history_panel.hpp"
 #include "app/materials_panel.hpp"
 #include "core/groups.hpp"
 #include <QAction>
@@ -247,9 +248,12 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tabs_->addTab(info_, "Info");
     materials_ = new MaterialsPanel(doc_, view_);
     tabs_->addTab(materials_, "Materials");
+    history_ = new HistoryPanel(doc_, view_);
+    tabs_->addTab(history_, "History");
     setFocusProxy(outliner_);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
-        setFocusProxy(index == 3   ? static_cast<QWidget *>(materials_)
+        setFocusProxy(index == 4   ? static_cast<QWidget *>(history_)
+                      : index == 3 ? static_cast<QWidget *>(materials_)
                       : index == 2 ? static_cast<QWidget *>(info_)
                       : index      ? tags_
                                    : outliner_);
@@ -474,6 +478,10 @@ void OrganizationPanel::filter() {
     }
 }
 void OrganizationPanel::showMaterials() { tabs_->setCurrentWidget(materials_); }
+void OrganizationPanel::showHistory() {
+    tabs_->setCurrentWidget(history_);
+    history_->setFocus();
+}
 void OrganizationPanel::refresh() {
     if (syncing_)
         return;
@@ -576,5 +584,7 @@ void OrganizationPanel::refresh() {
     syncing_ = false;
     info_->refresh();
     materials_->refresh();
+    // Save acknowledgements can move the saved marker without advancing content revision.
+    history_->refresh(true);
 }
 } // namespace sketchy

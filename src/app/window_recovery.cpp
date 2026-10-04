@@ -53,7 +53,10 @@ void Window::syncRecovery() {
         text = "Saving recovery… · ";
     else if (!recovery_->interval())
         text = "Automatic recovery off · ";
-    if (durable && durable->documentId == QString::fromStdString(doc_.identity())) {
+    if (!doc_.dirty()) {
+        text += "No unsaved edits";
+        recoveryStatus_->setToolTip(recovery_->error());
+    } else if (durable && durable->documentId == QString::fromStdString(doc_.identity())) {
         text += "Last verified " + durable->capturedAt.toLocalTime().toString("HH:mm:ss");
         const auto newer =
             doc_.revision() >= durable->revision ? doc_.revision() - durable->revision : 0;

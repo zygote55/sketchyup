@@ -28,3 +28,6 @@ Full development checks pass 38/38; core sanitizer checks pass 28/28.
 The desktop remains
 explicit-save only until the scheduling/UI layer is enabled; this layer alone
 does not claim automatic recovery protection.
+
+PR #50 merged on 2026-10-04 after both Native build runs passed at
+`30db4b585a8d7a9b23aac12d7c541471eea172fb`; merge commit `736fe47`.

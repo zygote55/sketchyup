@@ -58,6 +58,23 @@ not stale creation results for geometry just undone. It cannot be combined with 
 read-only query or preview. Reopened native files start with an empty history,
 so meaningful CLI navigation applies to operations in that invocation.
 
-The native History panel, labeled menu items and focus checks are a follow-up
-slice. Document unit preferences and the integrated M4 room fixture also remain
-within R039.
+## Native controls (R039.b)
+
+View → History reveals the model tray and selects its History tab. Rows name the
+starting/retained baseline and up to 200 steps per page, with current, applied,
+redo and saved markers. Assistant entries display an AI prefix and read-only
+plain-text task/request details. They do not claim provider integration.
+
+Clicking or pressing Enter navigates to that row. Navigation defers until Qt has
+finished dispatching the item event, then checks the captured document session,
+state and revision before canceling any tool preview and executing the shared
+history control. A stale event refreshes the list with an inline explanation and
+preserves newer edits. Successful navigation returns focus to the viewport.
+
+Menu labels name the next undo/redo operation; tooltips preserve full labels and
+ampersands are escaped for Qt mnemonics. Menu, keyboard and panel actions share
+the existing stack. Saving refreshes markers even without a content revision.
+Undoing back to explicitly saved content reports no unsaved edits, even if a
+recovery checkpoint exists for a later state. Paging changes no model state.
+
+Document unit preferences and the integrated M4 room fixture remain within R039.
