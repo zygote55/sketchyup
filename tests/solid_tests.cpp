@@ -59,6 +59,24 @@ int main() {
                                  {{1, 1, 0}, {1, 2, 0}, {2, 2, 0}, {2, 1, 0}}},
                                 2);
         volume(hole, 30, "A through hole retains a valid connected solid shell");
+        for (const auto dimensions :
+             {std::pair{1., 4.}, std::pair{.005, .01}, std::pair{1., 10000.}}) {
+            std::vector<Vec3> ring;
+            for (unsigned i = 0; i < 48; ++i) {
+                const auto angle = 2 * std::numbers::pi * i / 48;
+                ring.push_back(
+                    {dimensions.first * std::sin(angle), -dimensions.first * std::cos(angle), 0});
+            }
+            const auto result = inspect(prism({ring}, dimensions.second));
+            const auto radius = dimensions.first, height = dimensions.second;
+            const auto capArea = 24 * radius * radius * std::sin(std::numbers::pi / 24);
+            const auto area = 2 * capArea + 96 * radius * std::sin(std::numbers::pi / 48) * height;
+            // Triangulation rounds projected coordinates at the geometry tolerance.
+            // Its volume error scales with surface area, not with volume alone.
+            check(result.volume &&
+                      std::abs(*result.volume - capArea * height) <= 4 * tolerance * area,
+                  "Faceted cylinders tolerate rounded shared-edge contacts: " + result.status);
+        }
         auto open = box;
         open.faces.erase(open.faces.begin());
         check(inspect(open).status == "open_boundary" && !inspect(open).volume,

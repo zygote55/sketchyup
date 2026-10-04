@@ -166,6 +166,13 @@ QJsonObject capabilities() {
                  return names;
              }()},
             {"commandSchemas", commandCatalog()},
+            {"imports", QJsonArray{QJsonObject{{"format", "formline"},
+                                               {"version", 1},
+                                               {"sourceUnits", "m"},
+                                               {"sourceUp", "Y"},
+                                               {"primitives", QJsonArray{"box", "cylinder"}},
+                                               {"objects", 1000},
+                                               {"fileBytes", 32 * 1024 * 1024}}}},
             {"queries", QJsonArray{"document.describe", "entity.inspect", "tags.describe",
                                    "materials.describe", "material.sample", "assets.describe",
                                    "component.inspect", "geometry.inspect", "geometry.infer",

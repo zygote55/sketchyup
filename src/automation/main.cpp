@@ -1,8 +1,10 @@
 #include "automation/commands.hpp"
 #include "io/document_io.hpp"
+#include "io/formline.hpp"
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <iostream>
 int main(int argc, char **argv) {
@@ -15,6 +17,7 @@ int main(int argc, char **argv) {
     parser.addOption({"query-file", "Run a read-only query object from a JSON file", "path"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
+    parser.addOption({"import-formline", "Import Formline v1 into a new native model", "path"});
     parser.addOption({"output", "Save the resulting model", "path"});
     parser.addOption(
         {"preview", "Validate a script and return prospective geometry without committing"});
@@ -35,8 +38,21 @@ int main(int argc, char **argv) {
                              .toStdString();
             return 0;
         }
+        if (parser.isSet("input") && parser.isSet("import-formline"))
+            throw std::runtime_error("Choose --input or --import-formline");
+        if (parser.isSet("import-formline") && parser.isSet("output") &&
+            QFileInfo(parser.value("import-formline")).exists() &&
+            QFileInfo(parser.value("import-formline")).canonicalFilePath() ==
+                QFileInfo(parser.value("output")).canonicalFilePath())
+            throw std::runtime_error("Import output must not replace the Formline source");
+        QJsonObject importReport;
         auto doc = parser.isSet("input") ? sketchy::loadDocument(parser.value("input"))
                                          : sketchy::Document();
+        if (parser.isSet("import-formline")) {
+            auto imported = sketchy::loadFormline(parser.value("import-formline"));
+            doc = std::move(imported.document);
+            importReport = std::move(imported.report);
+        }
         QJsonObject result;
         if (int(parser.isSet("query")) + int(parser.isSet("query-file")) +
                 int(parser.isSet("script")) >
@@ -72,6 +88,8 @@ int main(int argc, char **argv) {
                                              : sketchy::executeBatch(doc, batch);
         } else
             result = sketchy::describe(doc);
+        if (!importReport.isEmpty())
+            result["importReport"] = importReport;
         if (parser.isSet("output")) {
             sketchy::saveDocument(doc, parser.value("output"));
             result["saved"] = parser.value("output");

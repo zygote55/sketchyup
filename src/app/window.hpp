@@ -16,6 +16,7 @@ class Window : public QMainWindow {
     Viewport *viewport() { return viewport_; }
     void demo();
     void openPath(const QString &path);
+    void importFormlinePath(const QString &path);
 
   protected:
     bool eventFilter(QObject *, QEvent *) override;
