@@ -41,3 +41,7 @@ The source archive includes the published schema and contract. A staged local
 installation contains both, and the installed CLI's registry exactly matches the
 installed schema. Disposable Arch package acceptance also checks that match and
 schema removal on uninstall. Full install/upgrade/removal CI remains pending.
+
+Follow-up test review found a `QJsonValueRef` retained from a temporary JSON
+object in the reflected-normal assertion. It now stores an owning `QJsonValue`.
+The inspection engine and published schemas are unchanged.

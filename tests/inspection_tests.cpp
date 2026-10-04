@@ -300,11 +300,11 @@ int main(int argc, char **argv) {
                    {"limit", 23}})
                       .size() == 256,
               "Large face loops must be paginated without repeating vertices");
-        const auto normal = all(curves, "topology.query",
-                                {{"target", inspectionReference(curves, curveBody)},
-                                 {"kind", "face"},
-                                 {"space", "world"}})[0]
-                                .toObject()["normal"];
+        const QJsonValue normal = all(curves, "topology.query",
+                                      {{"target", inspectionReference(curves, curveBody)},
+                                       {"kind", "face"},
+                                       {"space", "world"}})[0]
+                                      .toObject()["normal"];
         check(near(normal, {0, 0, -1}),
               "Mirrored world face normal must follow transformed loop orientation");
         const auto guides = all(curves, "topology.query",
