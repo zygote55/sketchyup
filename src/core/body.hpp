@@ -24,6 +24,7 @@ struct Body {
     Id parent{};
     BodyKind kind{BodyKind::Geometry};
     bool hidden{}, locked{};
+    Id tag{}; // Zero is Untagged; organizational visibility never owns geometry.
     std::map<std::string, std::variant<bool, double, std::string>> properties;
     bool operator==(const Body &) const = default;
 };

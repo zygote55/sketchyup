@@ -1,10 +1,11 @@
 #include "core/consolidation.hpp"
 #include "core/appearance.hpp"
 #include "core/selection.hpp"
+#include "core/tags.hpp"
 #include <algorithm>
 namespace sketchy {
-ConsolidationResult consolidateContext(Document &doc, Id context,
-                                       std::optional<std::set<Id>> members) {
+std::vector<std::set<Id>> consolidationGroups(const Document &doc, Id context,
+                                              std::optional<std::set<Id>> members) {
     Selection policy;
     policy.enter(doc, context);
     auto eligible = [&](Id id) {
@@ -22,8 +23,23 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
         for (const auto &[id, body] : doc.bodies())
             if (eligible(id))
                 sources.insert(id);
-    if (sources.empty())
+    std::map<std::set<Id>, std::set<Id>> groups;
+    for (auto id : sources)
+        groups[inheritedTags(doc, id)].insert(id);
+    std::vector<std::set<Id>> result;
+    for (auto &[tags, ids] : groups)
+        result.push_back(std::move(ids));
+    return result;
+}
+ConsolidationResult consolidateContext(Document &doc, Id context,
+                                       std::optional<std::set<Id>> members) {
+    const auto groups = consolidationGroups(doc, context, members);
+    if (groups.empty())
         return {};
+    if (groups.size() != 1)
+        throw std::runtime_error(
+            "Raw geometry with different tags must remain in separate records");
+    const auto &sources = groups.front();
     const auto destination = context && sources.contains(context) ? context : *sources.begin();
     const auto old = doc.bodies().at(destination);
     auto merged = std::make_shared<Body>(*old);

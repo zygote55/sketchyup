@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <set>
 namespace sketchy {
-void appendComponentChanges(Edit &edit, const Document &before, const Document &after) {
+void appendSceneMetadataChanges(Edit &edit, const Document &before, const Document &after) {
     auto difference = [](const auto &old, const auto &next, auto &changes) {
         std::set<Id> ids;
         for (const auto &[id, record] : old)
@@ -19,7 +19,9 @@ void appendComponentChanges(Edit &edit, const Document &before, const Document &
     };
     difference(before.definitions(), after.definitions(), edit.definitions);
     difference(before.instances(), after.instances(), edit.instances);
+    difference(before.tags(), after.tags(), edit.tags);
     edit.nextDefinitionFloor = after.nextDefinitionId();
+    edit.nextTagFloor = after.nextTagId();
 }
 namespace {
 void bounded(const ComponentSize &size) {
@@ -58,6 +60,7 @@ void rootState(Body &body, const Body &placement) {
     body.properties = placement.properties;
     body.hidden = placement.hidden;
     body.locked = placement.locked;
+    body.tag = placement.tag;
 }
 bool projected(const Body &expected, const Body &actual) {
     // Scene allocator floors can exceed the canonical floor after undo. They
@@ -72,7 +75,8 @@ bool projected(const Body &expected, const Body &actual) {
 }
 } // namespace
 std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefinitions &definitions,
-                                                         Id nextDefinitionId) {
+                                                         Id nextDefinitionId,
+                                                         const TagRecords &tags, Id nextTagId) {
     if (!nextDefinitionId || definitions.size() > 1024)
         throw std::runtime_error("Invalid component definition allocator or count");
     ComponentSize stored;
@@ -82,7 +86,7 @@ std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefiniti
             throw std::runtime_error("Invalid component definition identity or root");
         const auto &root = definition->members.at(definition->root);
         if (!root || root->kind != BodyKind::Group || root->parent ||
-            root->transform != Transform{} || root->hidden || root->locked ||
+            root->transform != Transform{} || root->hidden || root->locked || root->tag ||
             definition->references.contains(definition->root))
             throw std::runtime_error("Component definition root must be an unplaced group");
         if (!root->surface.vertices.empty() || !root->surface.faces.empty() ||
@@ -93,7 +97,7 @@ std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefiniti
         // world-bound validation instead of accepting a looser prototype format.
         Document canonical;
         canonical.restore("00000000000000000000000000000000", definition->nextMemberId,
-                          definition->members);
+                          definition->members, 0, {}, {}, 1, tags, nextTagId);
         for (const auto &[member, body] : definition->members) {
             if (canonical.bodies().at(member)->topology != body->topology)
                 throw std::runtime_error("Component prototype requires explicit valid topology");

@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
+#include "core/tags.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QJsonDocument>
@@ -632,6 +633,12 @@ int main(int argc, char **argv) {
                       sharedAmend.bodies().at(id)->surface.vertices == body->surface.vertices,
                   "Shared numeric amendment retains one-undo behavior");
         const QJsonArray cases{
+            QJsonObject{{"command", "tag.create"}, {"name", "Architecture"}, {"folder", true}},
+            QJsonObject{
+                {"command", "tag.edit"}, {"tag", "1"}, {"name", "Walls"}, {"visible", false}},
+            QJsonObject{{"command", "tag.delete"}, {"tag", "1"}},
+            QJsonObject{{"command", "tag.assign"}, {"body", "1"}, {"tag", "1"}},
+            QJsonObject{{"command", "scene.rename"}, {"body", "1"}, {"name", "Wall"}},
             QJsonObject{{"command", "component.selection"},
                         {"context", "0"},
                         {"entities", QJsonArray{QJsonObject{
@@ -802,6 +809,9 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("tag.") &&
+                command["command"] != "tag.create")
+                createTag(doc, "Tag");
             if (command["command"].toString().startsWith("component.") &&
                 command["command"] != "component.create" &&
                 command["command"] != "component.selection") {
@@ -857,8 +867,56 @@ int main(int argc, char **argv) {
             check(doc.bodies().size() == baseline.bodies().size() &&
                       *doc.bodies().at(1) == expectedBody,
                   "Registered command undo restores source geometry and metadata");
+            check(doc.tags() == baseline.tags(), "Registered command undo restores tag records");
         }
         Document groupedBatch = source;
+        Document taggedMerge;
+        const auto redTag = createTag(taggedMerge, "Red");
+        const auto blueTag = createTag(taggedMerge, "Blue");
+        for (unsigned i = 0; i < 4; ++i) {
+            const auto body = taggedMerge.addFace({{{double(i), 0, 0},
+                                                    {double(i + 1), 0, 0},
+                                                    {double(i + 1), 1, 0},
+                                                    {double(i), 1, 0}}});
+            assignTag(taggedMerge, body, i < 2 ? redTag : blueTag);
+        }
+        const auto taggedBefore = encodeDocument(taggedMerge);
+        const auto tagQuery = executeQuery(taggedMerge, {{"query", "tags.describe"}});
+        check(tagQuery["tags"].toArray().size() == 2 && encodeDocument(taggedMerge) == taggedBefore,
+              "Tag inspection is read only");
+        auto tagBatch = [&](QJsonArray commands) {
+            return QJsonObject{{"apiVersion", 1},
+                               {"documentId", QString::fromStdString(taggedMerge.identity())},
+                               {"expectedRevision", QString::number(taggedMerge.revision())},
+                               {"commands", commands}};
+        };
+        rejects([&] {
+            executeBatch(
+                taggedMerge,
+                tagBatch({QJsonObject{{"command", "tag.edit"}, {"tag", "1"}, {"name", "Changed"}},
+                          QJsonObject{{"command", "tag.assign"}, {"body", "1"}, {"tag", "999"}}}));
+        });
+        check(encodeDocument(taggedMerge) == taggedBefore,
+              "Failed tag batch rolls back metadata and assignments together");
+        const auto mergedTags = executeBatch(
+            taggedMerge,
+            tagBatch({QJsonObject{{"command", "geometry.merge_context"}, {"context", "0"}}}));
+        check(taggedMerge.bodies().size() == 2 && taggedMerge.bodies().at(1)->tag == redTag &&
+                  taggedMerge.bodies().at(3)->tag == blueTag &&
+                  mergedTags["transfers"].toArray().size() == 4,
+              "Public merge welds matching tag partitions while preserving separate tag ownership");
+        taggedMerge.undo();
+        check(taggedMerge.bodies().size() == 4, "Partitioned tagged merge remains one undo");
+        const auto beforeTagVisibility = taggedMerge.bodies();
+        executeBatch(
+            taggedMerge,
+            tagBatch({QJsonObject{{"command", "tag.edit"}, {"tag", "1"}, {"visible", false}}}));
+        check(taggedMerge.bodies() == beforeTagVisibility &&
+                  executeQuery(taggedMerge, {{"query", "document.describe"}})["bodies"]
+                      .toArray()[0]
+                      .toObject()["effectiveHidden"]
+                      .toBool(),
+              "Public visibility metadata changes presentation without replacing geometry records");
         executeBatch(
             groupedBatch,
             {{"apiVersion", 1},

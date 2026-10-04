@@ -17,4 +17,5 @@ ChangeReport reparentPreservingWorld(Document &doc, Id body, Id parent);
 ChangeReport explodeGroup(Document &doc, Id group);
 ChangeReport setEntityState(Document &doc, Id body, std::optional<bool> hidden,
                             std::optional<bool> locked);
+ChangeReport renameEntity(Document &doc, Id body, std::string name);
 } // namespace sketchy

@@ -11,4 +11,7 @@ struct ConsolidationResult {
 // Intersecting faces are not booleaned or split by this operation.
 ConsolidationResult consolidateContext(Document &doc, Id context = 0,
                                        std::optional<std::set<Id>> members = {});
+// Keep independently tagged geometry separate when merging a whole context.
+std::vector<std::set<Id>> consolidationGroups(const Document &doc, Id context,
+                                              std::optional<std::set<Id>> members = {});
 } // namespace sketchy

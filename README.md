@@ -170,6 +170,8 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --script examples/transforms.json --output /tmp/transforms.sketchyup
 ./build/dev/sketchyup-cli --script examples/copy-arrays.json --output /tmp/arrays.sketchyup
 ./build/dev/sketchyup-cli --script examples/components.json --output /tmp/components.sketchyup
+./build/dev/sketchyup-cli --script examples/tags.json --output /tmp/tags.sketchyup
+./build/dev/sketchyup-cli --input /tmp/tags.sketchyup --query tags.describe
 ./build/dev/sketchyup-cli --input /tmp/curves.sketchyup --query-file examples/inference-query.json
 ```
 
@@ -193,10 +195,17 @@ space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
 queries for world-coordinate points. `geometry.infer` accepts `includeGuides`
 (default true) and an optional direction reference with `body` plus `guide`
 in place of `edge`; results identify both sources of mixed intersections.
-The current file schema is version 8. It stores canonical component definitions
-and stable instance-member bindings; versions 1–7 migrate with no invented
-components. Version 7 face colors and earlier group/guide records retain their
-previous migration behavior.
+The current file schema is version 9. It stores tag folders and assignments,
+canonical component definitions and stable instance-member bindings. Versions
+1–8 migrate with all entities Untagged; versions 1–7 acquire no invented
+components. Earlier color, group and guide migrations remain supported.
+
+`tag.create`, `tag.edit`, `tag.delete` and `tag.assign` manage tags separately
+from scene ownership. Tag `"0"` means Untagged. Folder visibility affects its
+descendant tags; hiding a tag preserves geometry and transforms. `tags.describe`
+reports local and effective visibility. Component placement tags are local;
+member assignments use shared component scope. `scene.rename` names an entity.
+Native tag controls are the next R034 step.
 
 `component.create` converts a geometry/group root into a reusable definition;
 `component.selection` converts typed selected faces, edges, guides or contexts;

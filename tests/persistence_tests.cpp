@@ -1,4 +1,6 @@
+#include "core/components.hpp"
 #include "core/groups.hpp"
+#include "core/tags.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QDir>
@@ -199,6 +201,70 @@ int main(int argc, char **argv) {
         require(v7.definitions().empty() && v7.instances().empty() &&
                     !v7.bodies().at(1)->faceColors.empty(),
                 "Version-7 migration retains face colors without inventing components");
+        const auto v8 = decodeContainer(
+            read(QString(SKETCHYUP_TEST_FIXTURES) + "/container-components-v8.sketchyup"));
+        require(!v8.definitions().empty() && !v8.instances().empty() && v8.tags().empty(),
+                "Version-8 migration preserves components with Untagged organization");
+        for (const auto &[id, body] : v8.bodies())
+            require(!body->tag, "Historical components start Untagged");
+        Document tagged = v8;
+        const auto folder = createTag(tagged, "Building", 0, true);
+        const auto tag = createTag(tagged, "Panels", folder);
+        assignTag(tagged, tagged.instances().begin()->first, tag);
+        const auto definitionId = tagged.definitions().begin()->first;
+        Id memberId = 0;
+        for (const auto &[id, body] : tagged.definitions().at(definitionId)->members)
+            if (id != tagged.definitions().at(definitionId)->root) {
+                memberId = id;
+                break;
+            }
+        editComponentDefinition(tagged, definitionId,
+                                [&](Document &draft) { return assignTag(draft, memberId, tag); });
+        editTag(tagged, folder, {}, {}, false);
+        const auto taggedBytes = encodeContainer(tagged);
+        require(encodeContainer(decodeContainer(taggedBytes)) == taggedBytes,
+                "Tags, folder visibility and placement/canonical assignments roundtrip exactly");
+        auto invalidTags = QJsonDocument::fromJson(encodeDocument(tagged)).object();
+        auto corruptTag = [&](auto mutate) {
+            auto root = invalidTags;
+            mutate(root);
+            rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
+        };
+        corruptTag([](auto &root) { root["nextTagId"] = "1"; });
+        corruptTag([](auto &root) { root["tags"] = QJsonArray{}; });
+        corruptTag([](auto &root) {
+            auto tags = root["tags"].toArray();
+            tags.append(tags[0]);
+            root["tags"] = tags;
+        });
+        corruptTag([](auto &root) {
+            auto tags = root["tags"].toArray();
+            auto folder = tags[0].toObject();
+            folder["parent"] = folder["id"];
+            tags[0] = folder;
+            root["tags"] = tags;
+        });
+        corruptTag([](auto &root) {
+            auto tags = root["tags"].toArray();
+            auto tag = tags[1].toObject();
+            tag["visible"] = "false";
+            tags[1] = tag;
+            root["tags"] = tags;
+        });
+        corruptTag([](auto &root) {
+            auto bodies = root["bodies"].toArray();
+            auto body = bodies[0].toObject();
+            body["tag"] = "1";
+            bodies[0] = body;
+            root["bodies"] = bodies;
+        });
+        rejects([&] {
+            decodeContainer(changeManifest(taggedBytes, [](auto &manifest) {
+                auto floors = manifest["allocatorFloors"].toObject();
+                floors["nextTagId"] = "99";
+                manifest["allocatorFloors"] = floors;
+            }));
+        });
         Document component;
         component.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
         createGroup(component, {1});
@@ -335,11 +401,14 @@ int main(int argc, char **argv) {
         legacy.remove("definitions");
         legacy.remove("instances");
         legacy.remove("nextDefinitionId");
+        legacy.remove("tags");
+        legacy.remove("nextTagId");
         auto records = legacy["bodies"].toArray();
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();
-            for (const auto &key : {"parent", "transform", "properties", "nextEdgeId", "edges",
-                                    "curves", "guides", "kind", "hidden", "locked", "faceColors"})
+            for (const auto &key :
+                 {"parent", "transform", "properties", "nextEdgeId", "edges", "curves", "guides",
+                  "kind", "hidden", "locked", "faceColors", "tag"})
                 body.remove(key);
             records[i] = body;
         }

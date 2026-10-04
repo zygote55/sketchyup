@@ -109,6 +109,7 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
                                   {"faceColors", faceColors},
                                   {"hidden", b->hidden},
                                   {"locked", b->locked},
+                                  {"tag", sid(b->tag)},
                                   {"transform", transform},
                                   {"properties", properties},
                                   {"name", QString::fromStdString(b->name)},
@@ -126,7 +127,13 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
 }
 QByteArray encodeDocument(const Document &doc) {
     const auto bodies = encodeBodies(doc.bodies());
-    QJsonArray definitions, instances;
+    QJsonArray definitions, instances, tags;
+    for (const auto &[id, tag] : doc.tags())
+        tags.append(QJsonObject{{"id", sid(id)},
+                                {"parent", sid(tag->parent)},
+                                {"name", QString::fromStdString(tag->name)},
+                                {"folder", tag->folder},
+                                {"visible", tag->visible}});
     for (const auto &[id, definition] : doc.definitions()) {
         QJsonObject references;
         for (auto [member, target] : definition->references)
@@ -146,7 +153,7 @@ QByteArray encodeDocument(const Document &doc) {
             {"root", sid(root)}, {"definition", sid(instance->definition)}, {"members", members}});
     }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 8},
+                                           {"version", 9},
                                            {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
@@ -155,7 +162,9 @@ QByteArray encodeDocument(const Document &doc) {
                                            {"bodies", bodies},
                                            {"definitions", definitions},
                                            {"instances", instances},
-                                           {"nextDefinitionId", sid(doc.nextDefinitionId())}})
+                                           {"nextDefinitionId", sid(doc.nextDefinitionId())},
+                                           {"tags", tags},
+                                           {"nextTagId", sid(doc.nextTagId())}})
                      .toJson(QJsonDocument::Compact);
     if (bytes.size() > fileLimit)
         throw std::runtime_error("Document exceeds the 32 MiB file limit");
@@ -182,9 +191,13 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
             allowed += {"kind", "hidden", "locked"};
         if (version >= 7)
             allowed.append("faceColors");
+        if (version >= 9)
+            allowed.append("tag");
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
+        if (version >= 9)
+            b->tag = readId(o["tag"], true);
         if (version >= 6) {
             if ((o["kind"] != "geometry" && o["kind"] != "group") || !o["hidden"].isBool() ||
                 !o["locked"].isBool())
@@ -386,7 +399,8 @@ Document decodeDocument(const QByteArray &bytes) {
         (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
          root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
          root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
-         root["version"].toDouble() != 7 && root["version"].toDouble() != 8) ||
+         root["version"].toDouble() != 7 && root["version"].toDouble() != 8 &&
+         root["version"].toDouble() != 9) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -394,11 +408,34 @@ Document decodeDocument(const QByteArray &bytes) {
                            "up",     "documentId", "nextId",   "bodies"};
     if (root["version"].toInt() >= 8)
         rootFields += {"definitions", "instances", "nextDefinitionId"};
+    if (root["version"].toInt() >= 9)
+        rootFields += {"tags", "nextTagId"};
     supportedFields(root, rootFields);
     auto bodies = decodeBodies(root["bodies"], root["version"].toInt());
     ComponentDefinitions definitions;
     ComponentInstances instances;
     Id nextDefinitionId = 1;
+    TagRecords tags;
+    Id nextTagId = 1;
+    if (root["version"].toInt() >= 9) {
+        nextTagId = readId(root["nextTagId"]);
+        const auto records = array(root["tags"]);
+        if (records.size() > 1024)
+            throw std::runtime_error("Too many tags and folders");
+        for (auto value : records) {
+            const auto record = object(value);
+            supportedFields(record, {"id", "parent", "name", "folder", "visible"});
+            if (!record["name"].isString() || !record["folder"].isBool() ||
+                !record["visible"].isBool())
+                throw std::runtime_error("Invalid tag or folder record");
+            auto tag = std::make_shared<TagRecord>(
+                TagRecord{readId(record["id"]), readId(record["parent"], true),
+                          record["name"].toString().toStdString(), record["folder"].toBool(),
+                          record["visible"].toBool()});
+            if (!tags.emplace(tag->id, tag).second)
+                throw std::runtime_error("Duplicate tag identity");
+        }
+    }
     if (root["version"].toInt() >= 8) {
         nextDefinitionId = readId(root["nextDefinitionId"]);
         const auto definitionRecords = array(root["definitions"]);
@@ -416,7 +453,7 @@ Document decodeDocument(const QByteArray &bytes) {
             if (!record["name"].isString())
                 throw std::runtime_error("Invalid component definition name");
             definition->name = record["name"].toString().toStdString();
-            definition->members = decodeBodies(record["members"], 8);
+            definition->members = decodeBodies(record["members"], root["version"].toInt());
             const auto references = object(record["references"]);
             for (auto it = references.begin(); it != references.end(); ++it)
                 definition->references[readId(it.key())] = readId(it.value());
@@ -438,10 +475,10 @@ Document decodeDocument(const QByteArray &bytes) {
     if (!root["documentId"].isString())
         throw std::runtime_error("Missing document ID");
     Document doc;
-    doc.restore(root["documentId"].toString().toStdString(), readId(root["nextId"]),
-                std::move(bodies),
-                root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0,
-                std::move(definitions), std::move(instances), nextDefinitionId);
+    doc.restore(
+        root["documentId"].toString().toStdString(), readId(root["nextId"]), std::move(bodies),
+        root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0, std::move(definitions),
+        std::move(instances), nextDefinitionId, std::move(tags), nextTagId);
     return doc;
 }
 } // namespace sketchy

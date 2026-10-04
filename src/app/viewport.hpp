@@ -200,6 +200,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     std::uint64_t presentationRevision_{};
     std::vector<SelectedEntity> pickEntities_;
     Document::SaveStamp selectionStamp_, selectionGestureStamp_;
+    TagRecords cachedTags_;
     void syncSelection();
     struct PickPixels {
         QImage image;

@@ -2,6 +2,14 @@
 #include "core/geometry_subset.hpp"
 #include <algorithm>
 namespace sketchy {
+ChangeReport renameEntity(Document &doc, Id id, std::string name) {
+    const auto old = doc.bodies().at(id);
+    if (old->name == name)
+        return {};
+    auto body = std::make_shared<Body>(*old);
+    body->name = std::move(name);
+    return doc.apply({"Rename entity", {{id, old, body}}}, doc.revision());
+}
 Id enclosingGroup(const Document &doc, Id body) {
     for (auto parent = doc.bodies().at(body)->parent; parent;
          parent = doc.bodies().at(parent)->parent)

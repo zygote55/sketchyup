@@ -1,5 +1,6 @@
 #pragma once
 #include "core/body.hpp"
+#include "core/tag_records.hpp"
 namespace sketchy {
 class Document;
 struct Edit;
@@ -26,12 +27,14 @@ struct ComponentSize {
 // Validate canonical records and the acyclic reference graph, returning bounded
 // expanded sizes for allocation preflight. Does not mutate caller-owned records.
 std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefinitions &definitions,
-                                                         Id nextDefinitionId);
+                                                         Id nextDefinitionId,
+                                                         const TagRecords &tags = {},
+                                                         Id nextTagId = 1);
 // Resolved records must exactly project their canonical definition and binding.
 // Root placement/state is instance-owned; inner members are definition-owned.
 void validateComponentInstances(const ComponentDefinitions &definitions,
                                 const ComponentInstances &instances,
                                 const std::map<Id, BodyPtr> &scene);
-// Include staged definition/binding changes when publishing a compound body edit.
-void appendComponentChanges(Edit &edit, const Document &before, const Document &after);
+// Include staged definitions, bindings and tags when publishing a compound edit.
+void appendSceneMetadataChanges(Edit &edit, const Document &before, const Document &after);
 } // namespace sketchy

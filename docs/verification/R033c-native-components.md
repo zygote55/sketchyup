@@ -1,6 +1,7 @@
 # R033.c: native shared component editing
 
-Date: 2026-10-04. Local checks passed; CI pending.
+Date: 2026-10-04. Merged in [PR #40](https://github.com/zygote55/sketchyup/pull/40).
+Both CI jobs passed for `97ade1dbe55e1e9990e5579804045e13557de8a4`.
 Requires merged [PR #39](https://github.com/zygote55/sketchyup/pull/39).
 No independent human component acceptance is claimed.
 

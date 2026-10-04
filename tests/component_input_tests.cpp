@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "core/components.hpp"
+#include "core/tags.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
@@ -55,6 +56,24 @@ int main(int argc, char **argv) {
         view->fit();
         view->setTool(Viewport::Tool::Select);
         QTest::qWait(60);
+        const auto folder = createTag(doc, "Assembly tags", 0, true);
+        const auto tag = createTag(doc, "Original", folder);
+        assignTag(doc, 1, tag);
+        view->refresh();
+        view->grabFramebuffer();
+        const auto geometryBuilds = view->renderStats().bodyMeshBuilds;
+        const auto geometryRecords = doc.bodies();
+        editTag(doc, folder, {}, {}, false);
+        view->refresh();
+        view->grabFramebuffer();
+        check(!view->selectionAt(view->project({1, 1, 0})) && doc.bodies() == geometryRecords &&
+                  view->renderStats().bodyMeshBuilds == geometryBuilds,
+              "Tag folder visibility updates native picking without rebuilding or replacing "
+              "geometry");
+        editTag(doc, folder, {}, {}, true);
+        view->refresh();
+        check(view->selectionAt(view->project({1, 1, 0})).has_value(),
+              "Showing a tag folder restores picking");
         QTest::mouseDClick(view, Qt::LeftButton, {}, view->project({5, 1, 0}).toPoint());
         check(view->componentScope() == peer, "Double-click opens the mirrored component scope");
         auto *banner = window.findChild<QLabel *>("componentScopeBanner");
