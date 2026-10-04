@@ -1,6 +1,7 @@
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "io/document_io.hpp"
+#include <QAction>
 #include <QApplication>
 #include <QSurfaceFormat>
 #include <QTemporaryDir>
@@ -117,6 +118,30 @@ int main(int argc, char **argv) {
                   length(body->surface.vertices.at(edge[0]) - body->surface.vertices.at(edge[1])) -
                   5) < 1e-7,
               "Revised line length");
+        auto *centerArc = window.findChild<QAction *>("tool.10");
+        check(centerArc, "Center arc action registered");
+        centerArc->trigger();
+        check(view->tool() == Viewport::Tool::CenterArc && centerArc->isChecked(),
+              "Draw menu selects center arc");
+        check(view->measurements("[0,0,0]"), "Center arc origin");
+        QTest::keyClick(view, Qt::Key_2);
+        QTest::keyClicks(field, "m,-90deg");
+        QTest::keyClick(field, Qt::Key_Return);
+        check(view->hasFocus() && doc.bodies().rbegin()->second->curves.size() == 1 &&
+                  doc.bodies().rbegin()->second->curves.begin()->second.sweepAngle < 0,
+              "Measurements commits signed arc angle and returns focus");
+        QTest::keyClick(view, Qt::Key_1);
+        QTest::keyClicks(field, "2s");
+        QTest::keyClick(field, Qt::Key_Return);
+        check(doc.bodies().rbegin()->second->curves.begin()->second.segments == 12,
+              "Measurements segment re-entry amends arc");
+        const auto arcBytes = encodeDocument(doc);
+        QTest::keyClick(view, Qt::Key_2);
+        QTest::keyClicks(field, "m,360deg");
+        QTest::keyClick(field, Qt::Key_Return);
+        check(field->hasFocus() && field->property("invalid").toBool() &&
+                  encodeDocument(doc) == arcBytes,
+              "Invalid arc angle stays in Measurements");
         std::cout << "Keyboard coordinates, units, locale dimensions, amendment guards and "
                      "retained invalid input passed\n";
         return 0;

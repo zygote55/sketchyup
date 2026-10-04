@@ -28,12 +28,17 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Line = 6,
         Polygon = 7,
         Freehand = 8,
-        RotatedRectangle = 9
+        RotatedRectangle = 9,
+        CenterArc = 10,
+        TwoPointArc = 11,
+        ThreePointArc = 12,
+        Pie = 13
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
     void useSelectedFacePlane();
     DrawingPlane drawingPlane() const { return plane_; }
+    unsigned curveSegments() const { return curveSegments_; }
     unsigned polygonSides() const { return polygonSides_; }
     Tool tool() const { return tool_; }
     ToolSession::Phase interactionPhase() const { return session_.phase(); }
@@ -151,7 +156,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QPointF committedPointer_;
     std::optional<Vec3> baseline_, committedBaseline_;
     std::vector<Vec3> samples_;
-    unsigned polygonSides_{6};
+    unsigned polygonSides_{6}, curveSegments_{48};
+    QJsonObject committedShape_;
     bool toolPressed_{false}, dragCommit_{false}, previewValid_{false};
     QPointF toolPressPosition_;
     Vec3 extrusionAxis_{};
@@ -170,6 +176,9 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void choosePlane(QPointF point);
     void beginChain();
     bool drawingTool() const;
+    bool arcTool() const;
+    bool threePointTool() const;
+    QString nextPointHint() const;
     void rebuild();
     void paintScene();
     void cleanupGL();
@@ -177,7 +186,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void draw(GpuBatch &batch, GLenum mode, int instances = 1);
     void sortTransparent(const QMatrix4x4 &matrix);
     bool clipped(Vec3 point) const;
-    void finishShape(Vec3 end);
+    void finishShape(Vec3 end, std::optional<QJsonObject> command = std::nullopt);
     QJsonObject shapeCommand(Vec3 end) const;
     QJsonObject extrusionCommand(double distance) const;
     void previewCommand(const QJsonObject &command);

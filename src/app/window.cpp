@@ -219,7 +219,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     addTool("Rectangle", "R", Viewport::Tool::Rectangle,
             "Click first corner · Then click opposite corner or enter width, depth");
     addTool("Circle", "C", Viewport::Tool::Circle,
-            "Click center · Then click radius or enter a radius");
+            "Choose center and radius · Type 24s to set segments");
     addTool("Push/pull", "P", Viewport::Tool::Extrude,
             "Select a face · Enter push/pull distance in meters");
     addTool("Regular polygon", "", Viewport::Tool::Polygon,
@@ -228,6 +228,17 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             false);
     addTool("Rotated rectangle", "", Viewport::Tool::RotatedRectangle,
             "Choose first corner, baseline endpoint and height", false);
+    addTool("Center arc", "", Viewport::Tool::CenterArc,
+            "Choose center, start and end direction · Or enter radius, angle · 24s sets segments",
+            false);
+    addTool("Two-point arc", "", Viewport::Tool::TwoPointArc,
+            "Choose endpoints, then bulge point · Or enter a signed bulge · 24s sets segments",
+            false);
+    addTool("Three-point arc", "", Viewport::Tool::ThreePointArc,
+            "Choose start, through and end points · 24s sets segments", false);
+    addTool("Pie", "", Viewport::Tool::Pie,
+            "Choose center, start and end direction · Or enter radius, angle · 24s sets segments",
+            false);
     auto *planes = draw->addMenu("Drawing plane");
     planes->addAction(action("drawing.plane.auto", "Automatic from hovered face", {},
                              [this] { viewport_->setDrawingPlane(std::nullopt); }));
@@ -429,8 +440,12 @@ void Window::tool(Viewport::Tool t, const QString &text) {
     viewport_->setFocus();
     status_->setText(text);
     measurements_->setPlaceholderText(t == Viewport::Tool::Extrude  ? "distance"
-                                      : t == Viewport::Tool::Circle ? "radius"
-                                                                    : "width, depth");
+                                      : t == Viewport::Tool::Circle ? "radius or 24s"
+                                      : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie
+                                          ? "radius, angle (deg) or 24s"
+                                      : t == Viewport::Tool::TwoPointArc   ? "signed bulge or 24s"
+                                      : t == Viewport::Tool::ThreePointArc ? "[x,y,z] or 24s"
+                                                                           : "width, depth");
 }
 void Window::sync() {
     viewport_->refresh();

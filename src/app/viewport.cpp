@@ -153,7 +153,22 @@ std::optional<Vec3> Viewport::ground(QPointF point) const {
 }
 bool Viewport::drawingTool() const {
     return tool_ == Tool::Line || tool_ == Tool::Rectangle || tool_ == Tool::Circle ||
-           tool_ == Tool::Polygon || tool_ == Tool::Freehand || tool_ == Tool::RotatedRectangle;
+           tool_ == Tool::Polygon || tool_ == Tool::Freehand || tool_ == Tool::RotatedRectangle ||
+           arcTool();
+}
+bool Viewport::arcTool() const {
+    return tool_ == Tool::CenterArc || tool_ == Tool::TwoPointArc || tool_ == Tool::ThreePointArc ||
+           tool_ == Tool::Pie;
+}
+bool Viewport::threePointTool() const { return tool_ == Tool::RotatedRectangle || arcTool(); }
+QString Viewport::nextPointHint() const {
+    if (tool_ == Tool::RotatedRectangle)
+        return "Choose the height or enter width, height";
+    if (tool_ == Tool::TwoPointArc)
+        return "Choose the bulge point or enter a signed bulge";
+    if (tool_ == Tool::ThreePointArc)
+        return "Choose the arc endpoint";
+    return "Choose the end direction or enter radius, angle (degrees)";
 }
 void Viewport::setDrawingPlane(std::optional<DrawingPlane> plane, Id context) {
     if (context && !doc_.bodies().contains(context))
@@ -739,6 +754,10 @@ void Viewport::setSelection(Id body, Id face) {
 void Viewport::setTool(Tool tool) {
     cancel();
     tool_ = tool;
+    if (tool == Tool::Circle)
+        curveSegments_ = std::max(3u, curveSegments_);
+    if (tool == Tool::Pie)
+        curveSegments_ = std::max(2u, curveSegments_);
     emit toolChanged(int(tool));
     setCursor(tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
 }
@@ -762,6 +781,7 @@ void Viewport::cancel() {
     committedAnchor_.reset();
     committedEnd_.reset();
     committedBody_ = committedFace_ = 0;
+    committedShape_ = {};
     clearPreview();
     dragging_ = false;
     dragButton_ = Qt::NoButton;
@@ -832,11 +852,50 @@ QJsonObject Viewport::shapeCommand(Vec3 end) const {
     if (tool_ == Tool::Circle || tool_ == Tool::Polygon) {
         const auto radius = length(delta);
         auto axis = length(delta) > tolerance ? normalized(delta) : plane_.xAxis;
-        command["command"] = "geometry.polygon";
-        command["origin"] = point(a);
+        command["command"] = tool_ == Tool::Circle ? "geometry.circle" : "geometry.polygon";
+        if (tool_ == Tool::Circle) {
+            command.remove("origin");
+            command["center"] = point(a);
+            command["segments"] = int(curveSegments_);
+        } else {
+            command["origin"] = point(a);
+            command["sides"] = int(polygonSides_);
+        }
         command["xAxis"] = point(axis);
         command["radius"] = radius;
-        command["sides"] = tool_ == Tool::Circle ? 48 : int(polygonSides_);
+        return command;
+    }
+    if (arcTool()) {
+        const auto base =
+            baseline_ ? baseline_ : (session_.canRevise() ? committedBaseline_ : std::nullopt);
+        if (!base)
+            throw std::runtime_error("Choose the second construction point first");
+        command.remove("origin");
+        command["segments"] = int(curveSegments_);
+        if (tool_ == Tool::ThreePointArc) {
+            command["command"] = "geometry.arc_three_points";
+            command.remove("normal");
+            command["start"] = point(a);
+            command["through"] = point(*base);
+            command["end"] = point(end);
+        } else if (tool_ == Tool::TwoPointArc) {
+            command["command"] = "geometry.arc_two_points";
+            command["start"] = point(a);
+            command["end"] = point(*base);
+            command["bulge"] =
+                dot(end - (a + *base) * .5, cross(plane_.normal, normalized(*base - a)));
+        } else {
+            const auto axis = normalized(*base - a);
+            auto sweep = std::atan2(dot(delta, cross(plane_.normal, axis)), dot(delta, axis));
+            if (sweep < 0)
+                sweep += 2 * std::numbers::pi;
+            command["command"] = tool_ == Tool::Pie ? "geometry.pie" : "geometry.arc_center";
+            command["center"] = point(a);
+            command["xAxis"] = point(axis);
+            command["radius"] = length(*base - a);
+            command["startAngle"] = 0;
+            command["sweepAngle"] = sweep;
+        }
         return command;
     }
     Vec3 axis = plane_.xAxis, corner = a;
@@ -930,7 +989,7 @@ void Viewport::updateToolPreview(QPointF point) {
             (point - project(*anchor_)).manhattanLength() <= 6)
             end = anchor_;
         cursor_ = end;
-        if (tool_ == Tool::RotatedRectangle && !baseline_) {
+        if (threePointTool() && !baseline_) {
             previewEdges_ = {{{*anchor_, *end}}};
             previewValid_ = false;
             previewError_.clear();
@@ -947,20 +1006,52 @@ void Viewport::updateToolPreview(QPointF point) {
             }
             samples_.push_back(*end);
         }
-        previewCommand(shapeCommand(*end));
+        try {
+            previewCommand(shapeCommand(*end));
+        } catch (const std::exception &error) {
+            previewValid_ = false;
+            previewEdges_.clear();
+            previewError_ = QString::fromUtf8(error.what());
+            emit message(previewError_);
+            update();
+        }
         const auto delta = plane_.coordinates(*end) - plane_.coordinates(*anchor_);
         const auto locale = QLocale();
-        emit measurementPreview(tool_ == Tool::Rectangle
-                                    ? locale.toString(std::abs(delta.x), 'g', 8) +
-                                          (locale.decimalPoint() == "," ? "; " : ", ") +
-                                          locale.toString(std::abs(delta.y), 'g', 8)
-                                    : locale.toString(length(delta), 'g', 8));
+        if (arcTool()) {
+            try {
+                const auto command = shapeCommand(*end);
+                if (tool_ == Tool::CenterArc || tool_ == Tool::Pie)
+                    emit measurementPreview(
+                        locale.toString(command["radius"].toDouble(), 'g', 8) +
+                        (locale.decimalPoint() == "," ? "; " : ", ") +
+                        locale.toString(command["sweepAngle"].toDouble() * 180 / std::numbers::pi,
+                                        'g', 8) +
+                        " deg");
+                else if (tool_ == Tool::TwoPointArc)
+                    emit measurementPreview(locale.toString(command["bulge"].toDouble(), 'g', 8));
+                else {
+                    const auto separator = locale.decimalPoint() == "," ? ";" : ",";
+                    emit measurementPreview("[" + locale.toString(end->x, 'g', 8) + separator +
+                                            locale.toString(end->y, 'g', 8) + separator +
+                                            locale.toString(end->z, 'g', 8) + "]");
+                }
+            } catch (const std::exception &) {
+                // The authoritative preview already displays the constraint error.
+            }
+        } else
+            emit measurementPreview(tool_ == Tool::Rectangle
+                                        ? locale.toString(std::abs(delta.x), 'g', 8) +
+                                              (locale.decimalPoint() == "," ? "; " : ", ") +
+                                              locale.toString(std::abs(delta.y), 'g', 8)
+                                        : locale.toString(length(delta), 'g', 8));
     }
 }
-void Viewport::finishShape(Vec3 end) {
+void Viewport::finishShape(Vec3 end, std::optional<QJsonObject> overrideCommand) {
     try {
         const auto origin = anchor_ ? anchor_ : committedAnchor_;
-        const auto result = session_.commit(shapeCommand(end));
+        const auto command = overrideCommand ? *overrideCommand : shapeCommand(end);
+        const auto result = session_.commit(command);
+        committedShape_ = command;
         committedAnchor_ = origin;
         committedEnd_ = end;
         committedBaseline_ = baseline_ ? baseline_ : committedBaseline_;
@@ -1002,17 +1093,89 @@ void Viewport::setTheme(const ThemeColors &colors) {
 bool Viewport::measurements(const QString &text) {
     const auto revision = doc_.revision();
     try {
+        const auto trimmed = text.trimmed();
+        if (trimmed.isEmpty() || trimmed.size() > 1024)
+            throw std::runtime_error("Measurements must contain 1–1024 characters");
+        const bool centerInput = tool_ == Tool::CenterArc || tool_ == Tool::Pie;
+        if (centerInput && !trimmed.startsWith('[') && !trimmed.startsWith('<') &&
+            !trimmed.endsWith('s', Qt::CaseInsensitive)) {
+            if (session_.phase() == ToolSession::Phase::Committed && !session_.canRevise())
+                throw std::runtime_error(
+                    "Another edit changed the document; start a new operation");
+            const auto origin =
+                anchor_ ? anchor_ : (session_.canRevise() ? committedAnchor_ : std::nullopt);
+            if (!origin)
+                throw std::runtime_error("Choose the center or enter [x,y,z]");
+            const auto locale = QLocale();
+            const auto parts = trimmed.split(locale.decimalPoint() == "," ? ';' : ',');
+            const auto base =
+                baseline_ ? baseline_ : (session_.canRevise() ? committedBaseline_ : std::nullopt);
+            if (parts.size() == 1 && !base) {
+                const auto radius = parseLength(parts[0], "m", locale);
+                if (radius <= tolerance)
+                    throw std::runtime_error("Radius must exceed modeling tolerance");
+                const auto radiusPoint = *origin + plane_.xAxis * radius;
+                checkPoint(radiusPoint);
+                baseline_ = radiusPoint;
+                emit message(nextPointHint());
+                return true;
+            }
+            if (parts.size() != 1 && parts.size() != 2)
+                throw std::runtime_error("Enter radius, angle or an angle after the radius point");
+            const auto radius =
+                parts.size() == 2 ? parseLength(parts[0], "m", locale) : length(*base - *origin);
+            const auto sweep = parseAngle(parts.back(), "deg", locale);
+            const auto axis = base ? normalized(*base - *origin) : plane_.xAxis;
+            const auto kind = tool_ == Tool::Pie ? CurveKind::Pie : CurveKind::Arc;
+            const auto curve = centerCurve(kind, DrawingPlane::make(*origin, plane_.normal, axis),
+                                           radius, 0, sweep, curveSegments_);
+            auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
+            const QJsonObject command{
+                {"command", tool_ == Tool::Pie ? "geometry.pie" : "geometry.arc_center"},
+                {"body", QString::number(drawingContext_)},
+                {"space", "world"},
+                {"center", point(*origin)},
+                {"normal", point(plane_.normal)},
+                {"xAxis", point(axis)},
+                {"radius", radius},
+                {"startAngle", 0},
+                {"sweepAngle", sweep},
+                {"segments", int(curveSegments_)}};
+            const auto oldBase = baseline_;
+            baseline_ = *origin + axis * radius;
+            finishShape(curve.point(sweep), command);
+            if (doc_.revision() == revision)
+                baseline_ = oldBase;
+            return doc_.revision() != revision;
+        }
         const auto input = parseMeasurements(text, "m", QLocale());
         const auto &values = input.values;
-        if (input.kind == MeasurementKind::Segments && tool_ == Tool::Polygon) {
-            if (values[0] < 3 || values[0] > 256)
-                throw std::runtime_error("Polygon requires 3–256 sides");
-            polygonSides_ = unsigned(values[0]);
-            if (session_.canRevise() && committedEnd_)
-                finishShape(*committedEnd_);
-            else if (session_.active() && cursor_)
+        if (input.kind == MeasurementKind::Segments &&
+            (tool_ == Tool::Polygon || tool_ == Tool::Circle || arcTool())) {
+            const auto minimum = tool_ == Tool::Polygon || tool_ == Tool::Circle ? 3
+                                 : tool_ == Tool::Pie                            ? 2
+                                                                                 : 1;
+            if (values[0] < minimum || values[0] > 256)
+                throw std::runtime_error("Segment count is outside this tool's supported range");
+            auto &count = tool_ == Tool::Polygon ? polygonSides_ : curveSegments_;
+            const auto previous = count;
+            count = unsigned(values[0]);
+            if (session_.phase() == ToolSession::Phase::Committed) {
+                if (!session_.canRevise()) {
+                    count = previous;
+                    throw std::runtime_error(
+                        "Another edit changed the document; start a new operation");
+                }
+                auto command = committedShape_;
+                command[tool_ == Tool::Polygon ? "sides" : "segments"] = int(count);
+                finishShape(*committedEnd_, command);
+                if (doc_.revision() == revision) {
+                    count = previous;
+                    return false;
+                }
+            } else if (session_.active() && cursor_ && (!threePointTool() || baseline_))
                 previewCommand(shapeCommand(*cursor_));
-            emit message(QString("Polygon: %1 sides").arg(polygonSides_));
+            emit message(QString("%1 segments").arg(count));
             return true;
         }
         if (input.kind == MeasurementKind::Segments || input.kind == MeasurementKind::Copies ||
@@ -1056,11 +1219,11 @@ bool Viewport::measurements(const QString &text) {
                 update();
                 return true;
             }
-            if (tool_ == Tool::RotatedRectangle && !baseline_ && !session_.canRevise()) {
+            if (threePointTool() && !baseline_ && !session_.canRevise()) {
                 if (length(point - *origin) <= tolerance)
-                    throw std::runtime_error("Rectangle baseline must have length");
+                    throw std::runtime_error("Construction points must be distinct");
                 baseline_ = point;
-                emit message("Baseline set · Enter the height endpoint");
+                emit message(nextPointHint());
                 return true;
             }
             finishShape(point);
@@ -1083,6 +1246,14 @@ bool Viewport::measurements(const QString &text) {
                 if (values[0] <= 0)
                     throw std::runtime_error("Radius must be greater than zero");
                 finishShape(*origin + plane_.xAxis * values[0]);
+            } else if (tool_ == Tool::TwoPointArc && values.size() == 1) {
+                const auto base = baseline_
+                                      ? baseline_
+                                      : (session_.canRevise() ? committedBaseline_ : std::nullopt);
+                if (!base)
+                    throw std::runtime_error("Choose both endpoints before entering a bulge");
+                finishShape((*origin + *base) * .5 +
+                            cross(plane_.normal, normalized(*base - *origin)) * values[0]);
             } else if (tool_ == Tool::Line && values.size() == 2) {
                 finishShape(*origin + plane_.xAxis * values[0] + plane_.yAxis * values[1]);
             } else if (tool_ == Tool::Line && values.size() == 1 && (cursor_ || committedEnd_)) {
@@ -1160,16 +1331,16 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
                     toolPressed_ = true;
                     toolPressPosition_ = e->position();
                     emit message(
-                        tool_ == Tool::RotatedRectangle
-                            ? "Choose the baseline endpoint, then the height"
+                        threePointTool()
+                            ? "Choose the second construction point · Esc cancels"
                             : "Click the endpoint, drag, or enter measurements · Esc cancels");
-                } else if (tool_ == Tool::RotatedRectangle && !baseline_) {
+                } else if (threePointTool() && !baseline_) {
                     if (length(*point - *anchor_) <= tolerance)
-                        throw std::runtime_error("Rectangle baseline must have length");
+                        throw std::runtime_error("Construction points must be distinct");
                     baseline_ = point;
                     cursor_ = point;
                     toolPressed_ = false;
-                    emit message("Choose the height or enter width, height");
+                    emit message(nextPointHint());
                 } else {
                     if (tool_ == Tool::Freehand)
                         updateToolPreview(e->position());
@@ -1252,10 +1423,10 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     dragCommit_ = false;
     if (finish) {
         updateToolPreview(e->position());
-        if (tool_ == Tool::RotatedRectangle && !baseline_ && cursor_ && anchor_ &&
+        if (threePointTool() && !baseline_ && cursor_ && anchor_ &&
             length(*cursor_ - *anchor_) > tolerance) {
             baseline_ = cursor_;
-            emit message("Baseline set · Choose the height");
+            emit message(nextPointHint());
             return;
         }
         if (!previewValid_)
