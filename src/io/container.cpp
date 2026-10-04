@@ -29,7 +29,7 @@ void fields(const QJsonObject &object, const QStringList &expected) {
         throw std::runtime_error("Missing container field");
 }
 QJsonObject floors(const Document &doc, bool topology = true, bool components = false,
-                   bool tags = false) {
+                   bool tags = false, bool materials = false) {
     QJsonObject surfaces, edges;
     for (const auto &[id, body] : doc.bodies()) {
         surfaces[QString::number(id)] = QString::number(body->surface.nextId);
@@ -38,6 +38,8 @@ QJsonObject floors(const Document &doc, bool topology = true, bool components = 
     QJsonObject result{{"body", QString::number(doc.nextId())}, {"surfaces", surfaces}};
     if (topology)
         result["edges"] = edges;
+    if (materials)
+        result["nextMaterialId"] = QString::number(doc.nextMaterialId());
     if (tags)
         result["nextTagId"] = QString::number(doc.nextTagId());
     if (components) {
@@ -69,10 +71,10 @@ QByteArray encodeContainer(const Document &doc) {
                 {"up", "Z"},
                 {"requiredFeatures",
                  QJsonArray{"scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1",
-                            "face-colors-v1", "components-v1", "tags-v1"}},
-                {"allocatorFloors", floors(doc, true, true, true)},
+                            "face-colors-v1", "components-v1", "tags-v1", "materials-v1"}},
+                {"allocatorFloors", floors(doc, true, true, true, true)},
                 {"chunks", QJsonArray{QJsonObject{{"kind", "document"},
-                                                  {"encoding", "json-v9"},
+                                                  {"encoding", "json-v10"},
                                                   {"offset", "0"},
                                                   {"bytes", QString::number(payload.size())},
                                                   {"sha256", hash(payload)}}}}})
@@ -111,7 +113,12 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
+    const bool materials =
+        features == std::set<QString>{"scene-v2",      "topology-v1", "curves-v1",
+                                      "guides-v1",     "groups-v1",   "face-colors-v1",
+                                      "components-v1", "tags-v1",     "materials-v1"};
     const bool tags =
+        materials ||
         features == std::set<QString>{"scene-v2",  "topology-v1",    "curves-v1",     "guides-v1",
                                       "groups-v1", "face-colors-v1", "components-v1", "tags-v1"};
     const bool components =
@@ -139,7 +146,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto chunk = manifest["chunks"].toArray().first().toObject();
     fields(chunk, {"kind", "encoding", "offset", "bytes", "sha256"});
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (tags         ? "json-v9"
+        chunk["encoding"] != (materials    ? "json-v10"
+                              : tags       ? "json-v9"
                               : components ? "json-v8"
                               : faceColors ? "json-v7"
                               : groups     ? "json-v6"
@@ -154,7 +162,8 @@ Document decodeContainer(const QByteArray &bytes) {
     if (chunk["sha256"] != hash(payload))
         throw std::runtime_error("Document checksum mismatch");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != (tags         ? 9
+    if (payloadTree["version"] != (materials    ? 10
+                                   : tags       ? 9
                                    : components ? 8
                                    : faceColors ? 7
                                    : groups     ? 6
@@ -166,7 +175,7 @@ Document decodeContainer(const QByteArray &bytes) {
     auto doc = decodeDocument(payload);
     if (manifest["documentId"] != QString::fromStdString(doc.identity()) ||
         integer(manifest["revision"]) != doc.revision() ||
-        manifest["allocatorFloors"] != floors(doc, topology, components, tags))
+        manifest["allocatorFloors"] != floors(doc, topology, components, tags, materials))
         throw std::runtime_error("Container metadata disagrees with document");
     return doc;
 }

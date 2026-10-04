@@ -1,0 +1,68 @@
+[
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          3,
+          0
+        ],
+        [
+          0,
+          3,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "material.create",
+    "name": "Terracotta",
+    "color": [
+      0.8,
+      0.25,
+      0.1
+    ]
+  },
+  {
+    "command": "material.create",
+    "name": "Blue glass",
+    "color": [
+      0.15,
+      0.4,
+      0.8
+    ],
+    "opacity": 0.4
+  },
+  {
+    "command": "material.assign",
+    "body": "1",
+    "face": "5",
+    "material": "1",
+    "side": "front"
+  },
+  {
+    "command": "material.assign",
+    "body": "1",
+    "face": "5",
+    "material": "2",
+    "side": "back"
+  },
+  {
+    "command": "geometry.push_pull",
+    "body": "1",
+    "face": "5",
+    "distance": 2
+  }
+]

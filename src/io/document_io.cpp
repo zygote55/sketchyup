@@ -103,31 +103,43 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
         QJsonObject faceColors;
         for (const auto &[face, color] : b->faceColors)
             faceColors[sid(face)] = QJsonArray{color[0], color[1], color[2]};
-        bodies.append(QJsonObject{{"id", sid(id)},
-                                  {"parent", sid(b->parent)},
-                                  {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
-                                  {"faceColors", faceColors},
-                                  {"hidden", b->hidden},
-                                  {"locked", b->locked},
-                                  {"tag", sid(b->tag)},
-                                  {"transform", transform},
-                                  {"properties", properties},
-                                  {"name", QString::fromStdString(b->name)},
-                                  {"color", QJsonArray{b->color[0], b->color[1], b->color[2]}},
-                                  {"nextId", sid(b->surface.nextId)},
-                                  {"nextEdgeId", sid(b->topology.nextId)},
-                                  {"edges", edges},
-                                  {"curves", curves},
-                                  {"guides", guides},
-                                  {"vertices", vertices},
-                                  {"faces", faces},
-                                  {"wires", wires}});
+        QJsonObject faceMaterials;
+        for (const auto &[face, sides] : b->faceMaterials)
+            faceMaterials[sid(face)] = QJsonArray{sid(sides.front), sid(sides.back)};
+        bodies.append(
+            QJsonObject{{"id", sid(id)},
+                        {"materials", QJsonArray{sid(b->materials.front), sid(b->materials.back)}},
+                        {"faceMaterials", faceMaterials},
+                        {"parent", sid(b->parent)},
+                        {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
+                        {"faceColors", faceColors},
+                        {"hidden", b->hidden},
+                        {"locked", b->locked},
+                        {"tag", sid(b->tag)},
+                        {"transform", transform},
+                        {"properties", properties},
+                        {"name", QString::fromStdString(b->name)},
+                        {"color", QJsonArray{b->color[0], b->color[1], b->color[2]}},
+                        {"nextId", sid(b->surface.nextId)},
+                        {"nextEdgeId", sid(b->topology.nextId)},
+                        {"edges", edges},
+                        {"curves", curves},
+                        {"guides", guides},
+                        {"vertices", vertices},
+                        {"faces", faces},
+                        {"wires", wires}});
     }
     return bodies;
 }
 QByteArray encodeDocument(const Document &doc) {
     const auto bodies = encodeBodies(doc.bodies());
-    QJsonArray definitions, instances, tags;
+    QJsonArray definitions, instances, tags, materials;
+    for (const auto &[id, material] : doc.materials())
+        materials.append(QJsonObject{
+            {"id", sid(id)},
+            {"name", QString::fromStdString(material->name)},
+            {"color", QJsonArray{material->color[0], material->color[1], material->color[2]}},
+            {"opacity", material->opacity}});
     for (const auto &[id, tag] : doc.tags())
         tags.append(QJsonObject{{"id", sid(id)},
                                 {"parent", sid(tag->parent)},
@@ -153,7 +165,7 @@ QByteArray encodeDocument(const Document &doc) {
             {"root", sid(root)}, {"definition", sid(instance->definition)}, {"members", members}});
     }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 9},
+                                           {"version", 10},
                                            {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
@@ -164,7 +176,9 @@ QByteArray encodeDocument(const Document &doc) {
                                            {"instances", instances},
                                            {"nextDefinitionId", sid(doc.nextDefinitionId())},
                                            {"tags", tags},
-                                           {"nextTagId", sid(doc.nextTagId())}})
+                                           {"nextTagId", sid(doc.nextTagId())},
+                                           {"materials", materials},
+                                           {"nextMaterialId", sid(doc.nextMaterialId())}})
                      .toJson(QJsonDocument::Compact);
     if (bytes.size() > fileLimit)
         throw std::runtime_error("Document exceeds the 32 MiB file limit");
@@ -193,9 +207,25 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
             allowed.append("faceColors");
         if (version >= 9)
             allowed.append("tag");
+        if (version >= 10)
+            allowed += {"materials", "faceMaterials"};
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
+        if (version >= 10) {
+            auto sides = [](const QJsonValue &value) {
+                const auto values = array(value);
+                if (values.size() != 2)
+                    throw std::runtime_error("Expected front/back materials");
+                return MaterialSides{readId(values[0], true), readId(values[1], true)};
+            };
+            b->materials = sides(o["materials"]);
+            const auto assigned = object(o["faceMaterials"]);
+            if (assigned.size() > 100000)
+                throw std::runtime_error("Too many face assignments");
+            for (auto it = assigned.begin(); it != assigned.end(); ++it)
+                b->faceMaterials[readId(it.key())] = sides(it.value());
+        }
         if (version >= 9)
             b->tag = readId(o["tag"], true);
         if (version >= 6) {
@@ -400,7 +430,7 @@ Document decodeDocument(const QByteArray &bytes) {
          root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
          root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
          root["version"].toDouble() != 7 && root["version"].toDouble() != 8 &&
-         root["version"].toDouble() != 9) ||
+         root["version"].toDouble() != 9 && root["version"].toDouble() != 10) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -410,11 +440,37 @@ Document decodeDocument(const QByteArray &bytes) {
         rootFields += {"definitions", "instances", "nextDefinitionId"};
     if (root["version"].toInt() >= 9)
         rootFields += {"tags", "nextTagId"};
+    if (root["version"].toInt() >= 10)
+        rootFields += {"materials", "nextMaterialId"};
     supportedFields(root, rootFields);
     auto bodies = decodeBodies(root["bodies"], root["version"].toInt());
     ComponentDefinitions definitions;
     ComponentInstances instances;
     Id nextDefinitionId = 1;
+    MaterialRecords materials;
+    Id nextMaterialId = 1;
+    if (root["version"].toInt() >= 10) {
+        nextMaterialId = readId(root["nextMaterialId"]);
+        const auto records = array(root["materials"]);
+        if (records.size() > 1024)
+            throw std::runtime_error("Too many materials");
+        for (auto value : records) {
+            const auto record = object(value);
+            supportedFields(record, {"id", "name", "color", "opacity"});
+            if (!record["name"].isString())
+                throw std::runtime_error("Invalid material name");
+            const auto color = array(record["color"]);
+            if (color.size() != 3)
+                throw std::runtime_error("Invalid material color");
+            auto material = std::make_shared<MaterialRecord>(MaterialRecord{
+                readId(record["id"]),
+                record["name"].toString().toStdString(),
+                {float(number(color[0])), float(number(color[1])), float(number(color[2]))},
+                float(number(record["opacity"]))});
+            if (!materials.emplace(material->id, material).second)
+                throw std::runtime_error("Duplicate material identity");
+        }
+    }
     TagRecords tags;
     Id nextTagId = 1;
     if (root["version"].toInt() >= 9) {
@@ -475,10 +531,11 @@ Document decodeDocument(const QByteArray &bytes) {
     if (!root["documentId"].isString())
         throw std::runtime_error("Missing document ID");
     Document doc;
-    doc.restore(
-        root["documentId"].toString().toStdString(), readId(root["nextId"]), std::move(bodies),
-        root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0, std::move(definitions),
-        std::move(instances), nextDefinitionId, std::move(tags), nextTagId);
+    doc.restore(root["documentId"].toString().toStdString(), readId(root["nextId"]),
+                std::move(bodies),
+                root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0,
+                std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
+                nextTagId, std::move(materials), nextMaterialId);
     return doc;
 }
 } // namespace sketchy
