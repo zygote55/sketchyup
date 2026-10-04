@@ -1,6 +1,7 @@
 # R034.b: native Outliner and tag organization
 
-Date: 2026-10-04. Local checks passed; CI pending.
+Date: 2026-10-04. Local checks and both CI jobs passed; merged in
+[PR #42](https://github.com/zygote55/sketchyup/pull/42).
 Requires the R034.a foundation in [PR #41](https://github.com/zygote55/sketchyup/pull/41).
 
 The Model panel provides Outliner and Tags tabs. The Outliner renders actual

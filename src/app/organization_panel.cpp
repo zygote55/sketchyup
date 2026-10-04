@@ -1,4 +1,5 @@
 #include "app/organization_panel.hpp"
+#include "app/entity_info_panel.hpp"
 #include "core/groups.hpp"
 #include <QAction>
 #include <QComboBox>
@@ -241,9 +242,12 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     control(tagPage, tagButtons, 5, "tags.delete", "Delete", Qt::Key_Delete,
             [this] { attempt([&] { deleteTag(); }); });
     tabs_->addTab(tagPage, "Tags");
+    info_ = new EntityInfoPanel(doc_, view_);
+    tabs_->addTab(info_, "Info");
     setFocusProxy(outliner_);
-    connect(tabs_, &QTabWidget::currentChanged, this,
-            [this](int index) { setFocusProxy(index ? tags_ : outliner_); });
+    connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
+        setFocusProxy(index == 2 ? static_cast<QWidget *>(info_) : index ? tags_ : outliner_);
+    });
     connect(search_, &QLineEdit::textChanged, this, [this] { filter(); });
     connect(outliner_, &QTreeWidget::itemSelectionChanged, this, [this] {
         if (syncing_)
@@ -563,5 +567,6 @@ void OrganizationPanel::refresh() {
     rebuild(tags_, true);
     filter();
     syncing_ = false;
+    info_->refresh();
 }
 } // namespace sketchy

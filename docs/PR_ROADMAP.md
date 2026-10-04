@@ -588,7 +588,7 @@ Implementation split: R033.a records, transactions and persistence; R033.b share
 
 #### R034 — Implement Outliner, tags and hierarchy operations
 
-**Status:** In progress. Tag records and persistence merged in [PR #41](https://github.com/zygote55/sketchyup/pull/41), with both CI jobs passing. Native Outliner/tag controls in [PR #42](https://github.com/zygote55/sketchyup/pull/42) pass all local development and native X11/Wayland checks; CI remains open. **Track:** Desktop. **Scope:** O04, N05. **UX:** §5, §10.
+**Status:** Completed. Tag records and persistence merged in [PR #41](https://github.com/zygote55/sketchyup/pull/41); native Outliner/tag controls merged in [PR #42](https://github.com/zygote55/sketchyup/pull/42). Both CI jobs passed for each PR. **Track:** Desktop. **Scope:** O04, N05. **UX:** §5, §10.
 
 **Requires:** [R033](#r033), [R010](#r010); milestone gate rule above.
 
@@ -596,13 +596,13 @@ Implementation split: R033.a records, transactions and persistence; R033.b share
 
 **Verify:** Keyboard operations match pointer actions; world transforms survive reparenting; visibility changes preserve topology and scene ownership.
 
-Implementation split: R034.a tag records, visibility, public commands and persistence; R034.b searchable Outliner, tag controls and pointer/keyboard hierarchy operations. R034 remains open until both pass. [Record decision](decisions/0008-tag-records.md). [Foundation evidence](verification/R034a-tag-records.md). [Native evidence](verification/R034b-native-organization.md).
+Implementation split: R034.a tag records, visibility, public commands and persistence; R034.b searchable Outliner, tag controls and pointer/keyboard hierarchy operations. Both child PRs passed. [Record decision](decisions/0008-tag-records.md). [Foundation evidence](verification/R034a-tag-records.md). [Native evidence](verification/R034b-native-organization.md).
 
 <a id="r035"></a>
 
 #### R035 — Implement Entity info and measured properties
 
-**Status:** In progress. Measurement queries, conservative solid-volume checks and framed edit commands pass local core and sanitizer validation; the native Entity info adapter remains. **Track:** Core. **Scope:** O06, D01. **UX:** §5.
+**Status:** In progress. Measurement queries, conservative solid-volume checks and framed edit commands in [PR #43](https://github.com/zygote55/sketchyup/pull/43) pass local core and sanitizer validation. The native Info tab and unit-aware editor pass local interaction checks; CI remains open. **Track:** Core. **Scope:** O06, D01. **UX:** §5.
 
 **Requires:** [R034](#r034), [R015](#r015); milestone gate rule above.
 
@@ -610,7 +610,7 @@ Implementation split: R034.a tag records, visibility, public commands and persis
 
 **Verify:** Unit-aware edits update geometry rather than display-only numbers; bounds and areas match rotated/mirrored fixtures; invalid solids do not show a fabricated volume.
 
-Implementation split: R035.a core measurements, solid classification and public commands; R035.b native fields and unit-aware editing. [Frame/volume decision](decisions/0009-entity-measurements.md). [Foundation evidence](verification/R035a-entity-measurements.md).
+Implementation split: R035.a core measurements, solid classification and public commands; R035.b native fields and unit-aware editing. [Frame/volume decision](decisions/0009-entity-measurements.md). [Foundation evidence](verification/R035a-entity-measurements.md). [Native evidence](verification/R035b-native-entity-info.md).
 
 <a id="r036"></a>
 

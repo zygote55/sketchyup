@@ -207,7 +207,7 @@ from scene ownership. Tag `"0"` means Untagged. Folder visibility affects its
 descendant tags; hiding a tag preserves geometry and transforms. `tags.describe`
 reports local and effective visibility. Component placement tags are local;
 member assignments use shared component scope. `scene.rename` names an entity.
-The Model panel now offers Outliner and Tags tabs. Search filters the entity
+The Model panel offers Outliner, Tags and Info tabs. Search filters the entity
 hierarchy while retaining matching ancestors. Enter/double-click opens a context;
 Escape closes it. F2 renames, Space toggles visibility, Ctrl+Shift+L toggles an
 entity lock, Ctrl+Shift+M opens Move to, and Ctrl+Alt+T assigns a tag. Buttons
@@ -224,8 +224,15 @@ multiple-record/shell or unclassified geometry returns null volume with a reason
 `entity.position` and `entity.dimensions` edit real placement/geometry in world or
 parent coordinates. Intrinsic measurements remain separate from placement scale.
 `entity.properties` stores typed semantic values for recipes. See the
-[measurement contract](docs/decisions/0009-entity-measurements.md). Native Entity
-info controls follow in R035.b.
+[measurement contract](docs/decisions/0009-entity-measurements.md). The Info tab
+shows the selected entity in an explicit coordinate frame. Edit entity (F2)
+accepts metric/imperial or locale-aware origin/dimension values and edits name
+and tag in the same undo step. Invalid inputs stay in the dialog for correction;
+Cancel changes nothing. Resizing uses the bounds minimum; an explicitly entered
+origin is applied afterward. Closed components edit their placement, while an
+opened component's members use shared scope. Inspect problem geometry selects
+available offending edges/faces without modifying the model. See the
+[native Entity info evidence](docs/verification/R035b-native-entity-info.md).
 
 `component.create` converts a geometry/group root into a reusable definition;
 `component.selection` converts typed selected faces, edges, guides or contexts;
