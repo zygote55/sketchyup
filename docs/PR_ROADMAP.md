@@ -73,7 +73,7 @@ R022 numeric input and guarded operation revision are merged in [PR #21](https:/
 R023 plane-aware drawing tools merged in [PR #22](https://github.com/zygote55/sketchyup/pull/22).
 R024 curve records and native tools merged in PRs #23–24.
 R025 indexed inference and R026 direction constraints are merged in PRs #25–26.
-R027 guide records and persistence merged in [PR #27](https://github.com/zygote55/sketchyup/pull/27); native tools are locally verified; the M3 gate still awaits selection and navigation.
+R027 guide records and persistence merged in [PR #27](https://github.com/zygote55/sketchyup/pull/27); native tools merged in [PR #28](https://github.com/zygote55/sketchyup/pull/28). The M3 gate still awaits selection and navigation.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -480,7 +480,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R027 — Implement tape, protractor and guide geometry
 
-**Status:** Verified locally; core merged and native interaction ready for CI. **Evidence:** [native guides](verification/R027b-native-guides.md). **Track:** Desktop. **Scope:** G07, D01. **UX:** §4.3–§4.4.
+**Status:** Merged in PRs #27–28; both CI jobs passed for each slice. **Evidence:** [native guides](verification/R027b-native-guides.md). **Track:** Desktop. **Scope:** G07, D01. **UX:** §4.3–§4.4.
 
 **Requires:** [R026](#r026), [R022](#r022); milestone gate rule above.
 
@@ -489,19 +489,22 @@ and the linked scope requirements apply even when not repeated in the entry.
 **Verify:** The 0.9 m sill guide can be constructed and reused without accidental face formation; unit conversion, lock and undo cases pass.
 
 - **R027.a — Guide records, commands and persistence:** Merged in [PR #27](https://github.com/zygote55/sketchyup/pull/27); both CI jobs passed. Separate guide points/lines, offsets, angles, measurement queries, cleanup, undo and version-5 migration. [Evidence](verification/R027a-guide-records.md).
-- **R027.b — Native tape, protractor and guide inference:** Verified locally. Pointer/numeric construction, guide display and acquisition, measurement-only mode, cleanup UI and the measured sill fixture. [Evidence](verification/R027b-native-guides.md). Requires R027.a.
+- **R027.b — Native tape, protractor and guide inference:** Merged in [PR #28](https://github.com/zygote55/sketchyup/pull/28); both CI jobs passed. Pointer/numeric construction, guide display and acquisition, measurement-only mode, cleanup UI and the measured sill fixture. [Evidence](verification/R027b-native-guides.md). Requires R027.a.
 
 <a id="r028"></a>
 
 #### R028 — Implement full geometry selection behavior
 
-**Status:** Planned. **Track:** Desktop. **Scope:** G08, N05. **UX:** §4.5–§4.6.
+**Status:** In progress; split into shared selection state and native interaction. **Track:** Desktop. **Scope:** G08, N05. **UX:** §4.5–§4.6.
 
 **Requires:** [R025](#r025), [R013](#r013); milestone gate rule above.
 
 **Build:** Add hover feedback, additive/toggle selection, left/right window selection, connected geometry, hidden-geometry mode and accessible selection summaries. Disambiguate face/group double-click behavior by entity type.
 
 **Verify:** Selection IDs match visual feedback under occlusion and mixed geometry; keyboard traversal works; selections never bypass locked or inactive contexts.
+
+- **R028.a — Typed selection state and deletion:** Locally verified. Shared eligibility, boundary/connected expansion, keyboard order, session isolation and atomic typed deletion. [Evidence](verification/R028a-selection-model.md).
+- **R028.b — Native selection interaction:** Planned. Hover, modifiers, window/crossing selection, click expansion, keyboard traversal, hidden geometry, feedback and Outliner integration. Requires R028.a.
 
 <a id="r029"></a>
 
