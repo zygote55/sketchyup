@@ -66,6 +66,29 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     headerLayout->addWidget(search);
     connect(search, &QPushButton::clicked, this, &Window::palette);
     vertical->addWidget(header);
+    recoveryStatus_ = new QLabel;
+    recoveryStatus_->setObjectName("recoveryStatus");
+    recoveryStatus_->setTextFormat(Qt::PlainText);
+    recoveryStatus_->setWordWrap(true);
+    recoveryStatus_->setContentsMargins(12, 2, 12, 2);
+    recoveryStatus_->hide();
+    vertical->addWidget(recoveryStatus_);
+    saveBanner_ = new QWidget;
+    saveBanner_->setObjectName("saveFailureBanner");
+    auto *saveBannerLayout = new QHBoxLayout(saveBanner_);
+    saveBannerText_ = new QLabel;
+    saveBannerText_->setTextFormat(Qt::PlainText);
+    saveBannerText_->setWordWrap(true);
+    saveBannerLayout->addWidget(saveBannerText_, 1);
+    auto *retrySave = new QPushButton("Retry Save");
+    retrySave->setObjectName("retrySave");
+    connect(retrySave, &QPushButton::clicked, this, [this] { save(); });
+    saveBannerLayout->addWidget(retrySave);
+    auto *saveCopy = new QPushButton("Save as…");
+    connect(saveCopy, &QPushButton::clicked, this, [this] { save(true); });
+    saveBannerLayout->addWidget(saveCopy);
+    saveBanner_->hide();
+    vertical->addWidget(saveBanner_);
     auto *content = new QHBoxLayout;
     content->setSpacing(0);
     auto *tools = new QToolBar;
@@ -149,6 +172,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     file->addAction(action("file.new", "New", QKeySequence::New, [this] {
         if (canReplace()) {
             doc_ = Document();
+            resetRecoveryContext();
             path_.clear();
             viewport_->cancel();
             viewport_->refresh();
@@ -172,6 +196,15 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     file->addAction(action("file.save", "Save", QKeySequence::Save, [this] { save(); }));
     file->addAction(
         action("file.saveAs", "Save as…", QKeySequence::SaveAs, [this] { save(true); }));
+    file->addSeparator();
+    file->addAction(action("file.recovery", "Recover work…", {}, [this] { showRecovery(); }));
+    file->addAction(action("file.recoveryNow", "Save recovery now", {}, [this] {
+        if (!recovery_)
+            startRecovery();
+        recovery_->checkpoint();
+    }));
+    file->addAction(
+        action("file.recoverySettings", "Recovery settings…", {}, [this] { recoverySettings(); }));
     file->addSeparator();
     file->addAction(action("file.example", "Example courtyard", {}, [this] {
         if (canReplace())
@@ -628,8 +661,13 @@ void Window::tool(Viewport::Tool t, const QString &text) {
 void Window::sync() {
     viewport_->refresh();
     title_->setText(
-        (path_.isEmpty() ? "Untitled" : QFileInfo(path_).fileName()) +
-        (path_.isEmpty() ? "  ·  Not saved" : (doc_.dirty() ? "  •  Edited" : "  ·  Saved")));
+        (path_.isEmpty() ? (recoveredName_.isEmpty() ? QString("Untitled") : recoveredName_)
+                         : QFileInfo(path_).fileName()) +
+        (!saveFailure_.isEmpty()
+             ? "  ⚠  Not saved"
+             : (path_.isEmpty() ? (recoveredName_.isEmpty() ? "  ·  Not saved" : "  •  Edited")
+                                : (doc_.dirty() ? "  •  Edited" : "  ·  Saved"))));
+    syncRecovery();
     undo_->setEnabled(doc_.canUndo());
     redo_->setEnabled(doc_.canRedo());
     for (const auto &id : {"edit.paint", "context.enter"})
@@ -708,19 +746,31 @@ bool Window::save(bool saveAs) {
     try {
         saveDocument(doc_, target);
         path_ = target;
+        recoveryContext_ = {QFileInfo(target).absoluteFilePath(), doc_.revision(),
+                            QDateTime::currentDateTimeUtc()};
+        recoveredName_.clear();
+        saveFailure_.clear();
+        saveBanner_->hide();
+        clearRecovery();
         rememberPath(target);
         sync();
         status_->setText("Saved locally");
         return true;
     } catch (const std::exception &e) {
+        saveFailure_ = QString::fromUtf8(e.what());
+        saveBannerText_->setText("Not saved: " + saveFailure_);
+        saveBanner_->show();
+        sync();
         QMessageBox::warning(this, "Save failed", e.what());
-        status_->setText("Save failed. Edits remain in memory; recovery is unavailable.");
+        status_->setText("Save failed. Edits remain in memory.");
         return false;
     }
 }
 bool Window::canReplace() {
-    if (!doc_.dirty())
+    if (!doc_.dirty()) {
+        clearRecovery();
         return true;
+    }
     auto choice = QMessageBox::warning(
         this, "Unsaved changes", "Save this model before continuing?",
         QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
@@ -728,6 +778,7 @@ bool Window::canReplace() {
         return false;
     if (choice == QMessageBox::Save)
         return save();
+    clearRecovery();
     return true;
 }
 void Window::openPath(const QString &path) {
@@ -736,6 +787,9 @@ void Window::openPath(const QString &path) {
     if (!canReplace())
         return;
     doc_ = std::move(loaded);
+    resetRecoveryContext();
+    recoveryContext_ = {QFileInfo(path).absoluteFilePath(), doc_.revision(),
+                        QFileInfo(path).lastModified().toUTC()};
     path_ = path;
     rememberPath(path);
     viewport_->cancel();
@@ -884,6 +938,7 @@ void Window::demo() {
     box(-1, -.6, 2, 1.1, .8, "Table", {.67f, .48f, .30f});
     box(-1, -1.6, 2, .4, .45, "Bench", {.67f, .48f, .30f});
     doc_ = std::move(d);
+    resetRecoveryContext();
     path_.clear();
     viewport_->cancel();
     viewport_->setSelection(0);

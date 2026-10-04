@@ -241,6 +241,10 @@ RecoveryRead inspect(const QString &path, const QString &key) {
     } catch (const std::exception &error) {
         result.issue = QString::fromUtf8(error.what());
     }
+    if (result.document)
+        for (const auto &[id, asset] : result.document->assets())
+            if (!asset->payload)
+                result.missingAssets.push_back(QString::fromStdString(asset->name));
     return result;
 }
 void removeSession(const QString &root, const QString &key) {
@@ -352,14 +356,32 @@ RecoveryRead readRecovery(const QString &root, const QString &key) {
         QLockFile lock(QDir(path).filePath("session.lock"));
         lock.setStaleLockTime(0);
         if (!lock.tryLock(0)) {
-            result.busy = true;
-            result.issue = "Recovery session is active or cannot be locked";
+            result.busy = lock.error() == QLockFile::LockFailedError;
+            result.issue = result.busy ? "Recovery session is active"
+                                       : "Cannot lock recovery session (check permissions)";
             return result;
         }
         return inspect(path, key);
     } catch (const std::exception &error) {
         result.issue = QString::fromUtf8(error.what());
     }
+    return result;
+}
+QJsonObject describeRecovery(const RecoveryRead &read) {
+    QJsonArray missing;
+    for (const auto &name : read.missingAssets)
+        missing.append(name);
+    auto result = metadata(read.info);
+    if (!read.verified) {
+        result["revision"] = QJsonValue::Null;
+        result["capturedAt"] = QJsonValue::Null;
+    }
+    result["key"] = read.info.key;
+    result["verified"] = read.verified;
+    result["busy"] = read.busy;
+    result["incompleteTail"] = read.incompleteTail;
+    result["issue"] = read.issue;
+    result["missingAssets"] = missing;
     return result;
 }
 std::vector<RecoveryRead> listRecoveries(const QString &root) {

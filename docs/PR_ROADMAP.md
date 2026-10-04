@@ -75,6 +75,12 @@ R024 curve records and native tools merged in PRs #23–24.
 R025 indexed inference and R026 direction constraints are merged in PRs #25–26.
 R027 guide records and persistence merged in [PR #27](https://github.com/zygote55/sketchyup/pull/27); native tools merged in [PR #28](https://github.com/zygote55/sketchyup/pull/28). R028 selection merged in PRs #29–30. R029 navigation merged in [PR #31](https://github.com/zygote55/sketchyup/pull/31); the [M3 checkpoint](verification/M3.md) passes.
 
+M4 transforms, copy arrays, groups, shared components, tags/Outliner, entity Info
+and materials (R030–R036) are merged in PRs #32–48. Formline and complete M4
+persistence are implemented in [PR #49](https://github.com/zygote55/sketchyup/pull/49).
+Recovery storage is implemented in [PR #50](https://github.com/zygote55/sketchyup/pull/50);
+native scheduling/selection passes local validation and awaits CI.
+
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
 
@@ -616,7 +622,7 @@ Implementation split: R035.a core measurements, solid classification and public 
 
 #### R036 — Implement materials and managed asset storage
 
-**Status:** In progress. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and packaged manifests pass 35 development and 28 sanitizer suites. Front/back opacity rendering, swatches, local presets, paint/sample and resource controls pass native checks on X11/Weston at scales 1 and 2. R036.a and R036.b are merged; rendering/native-control layers await CI/merge. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
+**Status:** Complete. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and packaged manifests pass 35 development and 28 sanitizer suites. Front/back opacity rendering, swatches, local presets, paint/sample and resource controls pass native checks on X11/Weston at scales 1 and 2. All four layers are merged in PRs #45–48. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
 
 **Requires:** [R033](#r033), [R012](#r012); milestone gate rule above.
 
@@ -642,7 +648,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R038 — Implement durable recovery and recovery UI
 
-**Status:** In progress. R038.a adds checksummed checkpoint/journal storage, immutable capture, verified-prefix recovery, process locks and fault injection; 38 development and 28 sanitizer suites pass. [Storage evidence](verification/R038a-recovery-storage.md). R038.b adds background scheduling, configurable intervals and native recovery selection. [Storage decision](decisions/0015-recovery-storage.md). **Track:** Core. **Scope:** D04, D02. **UX:** §6.1–§6.3.
+**Status:** Implemented; CI/merge pending. R038.a adds checksummed checkpoint/journal storage, immutable capture, verified-prefix recovery, process locks and fault injection; 38 development and 28 sanitizer suites pass. [Storage evidence](verification/R038a-recovery-storage.md). R038.b adds background scheduling, configurable intervals, native recovery selection and headless access; 40 development suites and native X11/Weston at scales 1 and 2 pass. [Native evidence](verification/R038b-native-recovery.md). [Storage decision](decisions/0015-recovery-storage.md). **Track:** Core. **Scope:** D04, D02. **UX:** §6.1–§6.3.
 
 **Requires:** [R037](#r037); milestone gate rule above.
 

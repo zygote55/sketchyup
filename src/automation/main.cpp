@@ -1,8 +1,10 @@
 #include "automation/commands.hpp"
 #include "io/document_io.hpp"
 #include "io/formline.hpp"
+#include "io/recovery.hpp"
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -18,6 +20,10 @@ int main(int argc, char **argv) {
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption({"import-formline", "Import Formline v1 into a new native model", "path"});
+    parser.addOption(
+        {"recovery-list", "List verified inactive recovery sessions in a directory", "directory"});
+    parser.addOption(
+        {"recover", "Open a verified recovery session directory as an unsaved copy", "directory"});
     parser.addOption({"output", "Save the resulting model", "path"});
     parser.addOption(
         {"preview", "Validate a script and return prospective geometry without committing"});
@@ -38,20 +44,60 @@ int main(int argc, char **argv) {
                              .toStdString();
             return 0;
         }
-        if (parser.isSet("input") && parser.isSet("import-formline"))
-            throw std::runtime_error("Choose --input or --import-formline");
+        if (parser.isSet("recovery-list")) {
+            for (const auto &option :
+                 {"input", "import-formline", "recover", "output", "script", "query", "query-file"})
+                if (parser.isSet(option))
+                    throw std::runtime_error(
+                        "--recovery-list cannot be combined with model operations");
+            QJsonArray sessions;
+            for (const auto &session : sketchy::listRecoveries(parser.value("recovery-list")))
+                sessions.append(sketchy::describeRecovery(session));
+            std::cout
+                << QJsonDocument(QJsonObject{{"recoveries", sessions}}).toJson().toStdString();
+            return 0;
+        }
+        if (int(parser.isSet("input")) + int(parser.isSet("import-formline")) +
+                int(parser.isSet("recover")) >
+            1)
+            throw std::runtime_error("Choose --input, --import-formline or --recover");
         if (parser.isSet("import-formline") && parser.isSet("output") &&
             QFileInfo(parser.value("import-formline")).exists() &&
             QFileInfo(parser.value("import-formline")).canonicalFilePath() ==
                 QFileInfo(parser.value("output")).canonicalFilePath())
             throw std::runtime_error("Import output must not replace the Formline source");
-        QJsonObject importReport;
+        QJsonObject importReport, recoveryReport;
         auto doc = parser.isSet("input") ? sketchy::loadDocument(parser.value("input"))
                                          : sketchy::Document();
         if (parser.isSet("import-formline")) {
             auto imported = sketchy::loadFormline(parser.value("import-formline"));
             doc = std::move(imported.document);
             importReport = std::move(imported.report);
+        }
+        if (parser.isSet("recover")) {
+            const QFileInfo session(QDir(parser.value("recover")).absolutePath());
+            auto recovered = sketchy::readRecovery(session.absolutePath(), session.fileName());
+            if (!recovered.verified || !recovered.document)
+                throw std::runtime_error(("Cannot recover: " + recovered.issue).toStdString());
+            if (parser.isSet("output")) {
+                const QFileInfo output(parser.value("output"));
+                const auto recoveryPath = session.canonicalFilePath();
+                const auto parent = output.absoluteDir().canonicalPath();
+                const auto target = output.canonicalFilePath();
+                if (parent == recoveryPath || parent.startsWith(recoveryPath + "/") ||
+                    target.startsWith(recoveryPath + "/"))
+                    throw std::runtime_error(
+                        "Recovery output must be outside the recovery session");
+            }
+            if (parser.isSet("output") && !recovered.info.sourcePath.isEmpty()) {
+                const QFileInfo source(recovered.info.sourcePath), output(parser.value("output"));
+                if (source.absoluteFilePath() == output.absoluteFilePath() ||
+                    (source.exists() && source.canonicalFilePath() == output.canonicalFilePath()))
+                    throw std::runtime_error(
+                        "Recovery output must not replace the original saved file");
+            }
+            recoveryReport = sketchy::describeRecovery(recovered);
+            doc = std::move(*recovered.document);
         }
         QJsonObject result;
         if (int(parser.isSet("query")) + int(parser.isSet("query-file")) +
@@ -88,6 +134,8 @@ int main(int argc, char **argv) {
                                              : sketchy::executeBatch(doc, batch);
         } else
             result = sketchy::describe(doc);
+        if (!recoveryReport.isEmpty())
+            result["recoveryReport"] = recoveryReport;
         if (!importReport.isEmpty())
             result["importReport"] = importReport;
         if (parser.isSet("output")) {

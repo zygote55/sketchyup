@@ -14,9 +14,18 @@ editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
 M1 native foundation, M2 editable geometry and M3 manual drawing gates; M4 modeling tools are in progress. Shared components now support native editing.
-Recovery, AI providers,
+AI providers,
 Blender integration and general exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
-Save explicitly: there is no autosave or recovery journal. Explicit saves use a
+Automatic recovery copies are enabled every 30 seconds; File → Recovery settings
+changes the interval (5–3,600 seconds) or disables it. The recovery status shows
+only the last verified copy and identifies newer edits still in memory. A write
+failure pauses automatic attempts; File → Save recovery now retries.
+Recovery never overwrites your saved file. Startup and File → Recover work let
+you open a verified copy as Edited, open the last saved file, or discard selected
+recovery data. Recovered work first saves to a new native path.
+The CLI can inspect copies with `--recovery-list ROOT` and reopen one with
+`--recover ROOT/SESSION --output copy.sketchyup`.
+Save explicitly for durable named files: explicit saves use a
 checksummed container and preserve the previous valid file as `.sketchyup.bak`.
 Files and the containing directory are synced before showing Saved. Open a backup
 through the file dialog's all-files filter or the CLI if you need the previous save. Light, Dark and System

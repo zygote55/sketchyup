@@ -30,6 +30,7 @@ struct RecoveryRead {
     RecoveryInfo info;
     std::optional<Document> document;
     QString issue;
+    QStringList missingAssets;
     bool incompleteTail{}, busy{}, verified{};
 };
 // Each writer owns a separate session beneath the document/epoch key. Destroying it releases
@@ -49,6 +50,7 @@ class RecoveryWriter {
     std::unique_ptr<State> state_;
 };
 RecoveryRead readRecovery(const QString &root, const QString &key);
+QJsonObject describeRecovery(const RecoveryRead &);
 std::vector<RecoveryRead> listRecoveries(const QString &root);
 void discardRecovery(const QString &root, const QString &key);
 } // namespace sketchy

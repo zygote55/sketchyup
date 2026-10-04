@@ -41,6 +41,10 @@ int main(int argc, char **argv) {
         return 1;
     }
     window.show();
+    if (!parser.isSet("smoke") && !parser.isSet("capture") && !parser.isSet("benchmark")) {
+        window.startRecovery();
+        QTimer::singleShot(0, &window, [&window] { window.showRecovery(true); });
+    }
     if (parser.isSet("benchmark")) {
         bool ok = false;
         int n = parser.value("benchmark").toInt(&ok);
