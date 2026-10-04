@@ -154,6 +154,7 @@ void InferenceIndex::sync(const Document &doc, const std::function<bool()> &canc
             cache.primitives.push_back({kind, entity, a, b, c, bounds(a, b, c)});
         };
         const auto adjacency = body->topology.adjacency(body->surface);
+        cache.vertexEdges = adjacency.vertexEdges;
         for (const auto &[vertex, local] : body->surface.vertices) {
             const auto p = world.point(local);
             add(InferenceKind::Endpoint, vertex, p, p, p);
@@ -307,26 +308,62 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
             result.truncated = true;
             return;
         }
-        result.candidates.push_back(
-            {kind, p, body, entity, otherBody, otherEntity, distance, screen->depth,
-             guide || kind == InferenceKind::GuidePoint || kind == InferenceKind::OnGuide
-                 ? InferenceEntity::Guide
-             : kind == InferenceKind::OnFace ? InferenceEntity::Face
-             : kind == InferenceKind::Center ? InferenceEntity::Curve
-             : kind == InferenceKind::OnEdge || kind == InferenceKind::Midpoint || edgeIntersection
-                 ? InferenceEntity::Edge
-                 : InferenceEntity::Vertex,
-             otherGuide ? InferenceEntity::Guide : InferenceEntity::Edge});
+        const auto type =
+            guide || kind == InferenceKind::GuidePoint || kind == InferenceKind::OnGuide
+                ? InferenceEntity::Guide
+            : kind == InferenceKind::OnFace ? InferenceEntity::Face
+            : kind == InferenceKind::Center ? InferenceEntity::Curve
+            : kind == InferenceKind::OnEdge || kind == InferenceKind::Midpoint || edgeIntersection
+                ? InferenceEntity::Edge
+                : InferenceEntity::Vertex;
+        const auto otherType = otherGuide ? InferenceEntity::Guide : InferenceEntity::Edge;
+        if (q.eligible && (!q.eligible(body, type, entity) ||
+                           (otherBody && !q.eligible(otherBody, otherType, otherEntity))))
+            return;
+        result.candidates.push_back({kind, p, body, entity, otherBody, otherEntity, distance,
+                                     screen->depth, type, otherType});
     };
     struct Edge {
         Id body;
         const Primitive *p;
     };
+    auto typeOf = [](InferenceKind kind) {
+        return kind == InferenceKind::OnFace ? InferenceEntity::Face
+               : kind == InferenceKind::OnGuide || kind == InferenceKind::GuidePoint
+                   ? InferenceEntity::Guide
+               : kind == InferenceKind::OnEdge || kind == InferenceKind::Midpoint
+                   ? InferenceEntity::Edge
+               : kind == InferenceKind::Center ? InferenceEntity::Curve
+                                               : InferenceEntity::Vertex;
+    };
+    auto visiblePrimitive = [&](Id body, const Primitive &p) {
+        if (!q.visible)
+            return true;
+        const auto type = typeOf(p.kind);
+        if (!q.visible(body, type, p.entity))
+            return false;
+        const auto &cache = *bodies_.at(body);
+        if (type == InferenceEntity::Vertex) {
+            const auto found = cache.vertexEdges.find(p.entity);
+            return found != cache.vertexEdges.end() &&
+                   std::any_of(found->second.begin(), found->second.end(), [&](Id edge) {
+                       return q.visible(body, InferenceEntity::Edge, edge);
+                   });
+        }
+        if (type == InferenceEntity::Curve) {
+            const auto &edges = cache.record->curves.at(p.entity).edges;
+            return std::any_of(edges.begin(), edges.end(), [&](auto edge) {
+                return q.visible(body, InferenceEntity::Edge, edge.edge);
+            });
+        }
+        return true;
+    };
     std::vector<Edge> edges;
     visit(frustum(q.camera, q.x, q.y, q.radius), q.context, [&](Id body, const Primitive &p) {
         ++result.visitedPrimitives;
         const bool guide = p.kind == InferenceKind::OnGuide || p.kind == InferenceKind::GuidePoint;
-        if (guide && !q.includeGuides)
+        if ((guide && !q.includeGuides) || !visiblePrimitive(body, p) ||
+            (q.eligible && !q.eligible(body, typeOf(p.kind), p.entity)))
             return;
         if (p.kind == InferenceKind::OnFace) {
             if (auto t = triangleHit(origin, direction, p.a, p.b, p.c))
@@ -435,9 +472,9 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
             candidate.entityType == InferenceEntity::Guide &&
             (!candidate.otherBody || candidate.otherEntityType == InferenceEntity::Guide);
         if (!overlay)
-            visit(frustum(q.camera, screen.x, screen.y, .01), 0, [&](Id, const Primitive &p) {
+            visit(frustum(q.camera, screen.x, screen.y, .01), 0, [&](Id body, const Primitive &p) {
                 ++result.visitedPrimitives;
-                if (p.kind == InferenceKind::OnFace)
+                if (p.kind == InferenceKind::OnFace && visiblePrimitive(body, p))
                     if (auto t = triangleHit(eye, ray, p.a, p.b, p.c);
                         t && *t < target - std::max(tolerance, target * 1e-8))
                         occluded = true;

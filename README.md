@@ -85,7 +85,19 @@ ctest --preset headless
   Guide points, lines and true 3D intersections can be acquired by drawing tools;
   guide lines also supply parallel/perpendicular references.
 - `Space`: select. `P`: select a face, move to preview, then click/drag to finish or enter a signed distance along its local normal.
-- `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
+- With Select active, click faces/edges/guides; `Ctrl` adds and `Shift` toggles.
+  Drag left-to-right to select fully enclosed visible entities, right-to-left to
+  select touched visible entities. Occluded geometry is excluded in both modes.
+  Double-click a face for its boundaries; triple-click for connected geometry.
+- `Tab` / `Shift+Tab` traverses visible entities; `Ctrl+A` selects eligible geometry.
+  The Outliner selects whole contexts and supports `Ctrl` multi-selection.
+  `Enter` on a context opens it; `Escape` clears selection, then exits one level.
+- Edit offers temporary hide/reveal and context lock/unlock. View → Show hidden
+  geometry exposes hidden entities but does not bypass locks or the active context.
+  These view states are session-only. Group/component organization is still planned.
+- `M`: translate the selected context numerically. `B`: change its color.
+  `Delete` erases the selected entities as one undo step. Mixed deletion is bounded
+  to 100 subentities per operation; select a whole context for bulk deletion.
 - Point inference acquires endpoints, midpoints, curve centers, intersections,
   edges and faces within 8 logical pixels. Marker shapes and labels identify the
   result; `Tab` cycles nearby alternatives. Drawing from loose geometry adopts

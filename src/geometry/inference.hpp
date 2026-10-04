@@ -38,6 +38,8 @@ struct InferenceQuery {
     std::optional<DrawingPlane> plane;
     Id context{}; // Zero searches all visible editing contexts.
     bool includeGuides{true};
+    // Optional editor view policy. Visible but ineligible faces still occlude.
+    std::function<bool(Id, InferenceEntity, Id)> visible{}, eligible{};
 };
 struct InferenceResult {
     std::vector<InferenceCandidate> candidates;
@@ -70,6 +72,7 @@ class InferenceIndex {
     struct Cache {
         BodyPtr record;
         Transform world;
+        std::map<Id, std::vector<Id>> vertexEdges;
         std::vector<Primitive> primitives;
         std::vector<size_t> order;
         std::vector<Node> nodes;

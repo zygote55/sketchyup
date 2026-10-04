@@ -55,9 +55,21 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
         if (tool_ == Tool::Line && std::abs(dot(lock->direction, plane_.normal)) > 1e-10)
             queryPlane.reset();
     }
-    inference_ = index ? index->query({camera, queryPoint.x(), queryPoint.y(), 8, queryPlane, 0,
-                                       guidesVisible_})
-                       : InferenceResult{};
+    InferenceQuery query{camera,     queryPoint.x(),       queryPoint.y(), 8,
+                         queryPlane, selection_.context(), guidesVisible_};
+    query.visible = [&](Id body, InferenceEntity type, Id entity) {
+        if (type == InferenceEntity::Face)
+            return visible({body, SelectionKind::Face, entity});
+        if (type == InferenceEntity::Edge)
+            return visible({body, SelectionKind::Edge, entity});
+        if (type == InferenceEntity::Guide)
+            return visible({body, SelectionKind::Guide, entity});
+        return visible({body, SelectionKind::Body, 0});
+    };
+    query.eligible = [&](Id body, InferenceEntity, Id) {
+        return selection_.inContext(body) && !selection_.locked(doc_, body);
+    };
+    inference_ = index ? index->query(query) : InferenceResult{};
     std::erase_if(inference_.candidates, [&](const auto &candidate) {
         return clipped(candidate.point) ||
                (lock && length(cross(candidate.point - lock->origin, lock->direction)) > tolerance);

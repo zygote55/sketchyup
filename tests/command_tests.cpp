@@ -243,6 +243,43 @@ int main(int argc, char **argv) {
         badGuide = worldGuide;
         badGuide["space"] = "screen";
         rejects([&] { executeBatch(guided, guideRequest({badGuide})); });
+        Document selected = source;
+        selected.addGuide(1, guidePoint({0, 0, 1}));
+        const auto selectedGuide = selected.bodies().at(1)->guides.rbegin()->first;
+        auto selectedRequest = [&](QJsonArray entities) {
+            return QJsonObject{
+                {"apiVersion", 1},
+                {"documentId", QString::fromStdString(selected.identity())},
+                {"expectedRevision", QString::number(selected.revision())},
+                {"commands", QJsonArray{QJsonObject{{"command", "geometry.erase_selection"},
+                                                    {"entities", entities}}}}};
+        };
+        const QJsonObject selectedFace{{"body", "1"}, {"kind", "face"}, {"entity", "5"}};
+        const QJsonObject selectedPoint{
+            {"body", "1"}, {"kind", "guide"}, {"entity", QString::number(selectedGuide)}};
+        const auto selectionBaseline = encodeDocument(selected);
+        for (const auto &bad :
+             QJsonArray{QJsonObject{{"body", "1"}, {"kind", "edge"}, {"entity", "01"}},
+                        QJsonObject{{"body", "1"}, {"kind", "face"}, {"entity", "999"}},
+                        QJsonObject{{"body", "1"}, {"kind", "context"}, {"entity", 0}},
+                        QJsonObject{{"body", "1"}, {"kind", "vertex"}, {"entity", "1"}},
+                        QJsonObject{
+                            {"body", "1"}, {"kind", "face"}, {"entity", "5"}, {"unknown", true}}}) {
+            rejects([&] { executeBatch(selected, selectedRequest({selectedFace, bad})); });
+            check(encodeDocument(selected) == selectionBaseline,
+                  "Invalid nested selection is rejected atomically");
+        }
+        rejects([&] { executeBatch(selected, selectedRequest({selectedFace, selectedFace})); });
+        const auto selectionRevision = selected.revision();
+        executeBatch(selected, selectedRequest({selectedFace, selectedPoint}));
+        check(selected.revision() == selectionRevision + 1 &&
+                  selected.bodies().at(1)->surface.faces.empty() &&
+                  selected.bodies().at(1)->guides.empty(),
+              "Public typed deletion commits face and guide together");
+        selected.undo();
+        check(selected.bodies().at(1)->surface.faces.contains(5) &&
+                  selected.bodies().at(1)->guides.contains(selectedGuide),
+              "One undo restores a public mixed deletion");
         QJsonArray matrix;
         for (auto value : Transform::translation({2, 0, 0}).m)
             matrix.append(value);
@@ -337,6 +374,9 @@ int main(int argc, char **argv) {
                         {"distance", 2}},
             QJsonObject{
                 {"command", "geometry.translate"}, {"body", "1"}, {"delta", QJsonArray{1, 0, 0}}},
+            QJsonObject{{"command", "geometry.erase_selection"},
+                        {"entities", QJsonArray{QJsonObject{
+                                         {"body", "1"}, {"kind", "face"}, {"entity", "5"}}}}},
             QJsonObject{{"command", "geometry.delete"}, {"body", "1"}},
             QJsonObject{
                 {"command", "material.color"}, {"body", "1"}, {"color", QJsonArray{.1, .2, .3}}},
