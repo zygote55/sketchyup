@@ -47,7 +47,8 @@ Validation:
 - Native selection fixtures cover hover/click agreement, modifiers, holes,
   foreground occlusion, full/partial window and crossing selection, face boundary
   and connected expansion, lock/hidden/context guards, drawing inference guards,
-  keyboard traversal, Outliner synchronization, framebuffer highlighting and
+  keyboard traversal, typed-only drawing in the active context, Outliner
+  synchronization, framebuffer highlighting and
   mixed deletion/undo.
 - The selection fixture passed on Wayland/Intel Mesa at DPR 1.6 and pinned
   Xvfb/software Mesa at DPR 1 and 2. The native application smoke check passed

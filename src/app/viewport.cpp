@@ -1566,8 +1566,12 @@ bool Viewport::measurements(const QString &text) {
         if (!origin) {
             plane_ = heldPlane_.value_or(configuredPlane_.value_or(DrawingPlane{}));
             drawingContext_ = heldPlane_ ? heldContext_ : configuredContext_;
-            if (drawingContext_ && !doc_.bodies().contains(drawingContext_))
-                throw std::runtime_error("Locked drawing context no longer exists");
+            if (!drawingContext_)
+                drawingContext_ = selection_.context();
+            if (drawingContext_ && (!doc_.bodies().contains(drawingContext_) ||
+                                    !selection_.inContext(drawingContext_) ||
+                                    selection_.locked(doc_, drawingContext_)))
+                throw std::runtime_error("Drawing context is missing, inactive or locked");
         }
         if (input.kind == MeasurementKind::AbsolutePoint ||
             input.kind == MeasurementKind::RelativePoint) {

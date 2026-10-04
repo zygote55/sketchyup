@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
         const auto edge = view->selectionAt(view->project({-2, 1, 0}));
         check(edge && edge->body == 3 && edge->kind == SelectionKind::Edge,
               "Loose edge has a typed selection ID");
-        const auto original = encodeDocument(doc);
+        auto original = encodeDocument(doc);
         move(*view, view->project({.4, .4, 0}));
         check(view->hoveredEntity() == face, "Hover resolves exactly the click target");
         click(*view, {.4, .4, 0});
@@ -179,6 +179,17 @@ int main(int argc, char **argv) {
         check(!active.empty() &&
                   std::all_of(active.begin(), active.end(), [](auto e) { return e.body == 1; }),
               "Window selection stays in the active editing context");
+        check(encodeDocument(doc) == original, "Selection policies do not edit saved state");
+        view->setTool(Viewport::Tool::Rectangle);
+        const auto contextCount = doc.bodies().size();
+        check(view->measurements("[5,0,0]") && view->measurements("1,1"),
+              "Typed-only drawing completes inside the active context");
+        check(doc.bodies().size() == contextCount && doc.bodies().at(1)->surface.faces.size() == 3,
+              "Typed coordinate entry adopts active editing context");
+        doc.undo();
+        original = encodeDocument(doc);
+        view->refresh();
+        view->setTool(Viewport::Tool::Select);
         view->leaveContext();
         view->setSelection(1);
         QTest::keyClick(view, Qt::Key_Return);
