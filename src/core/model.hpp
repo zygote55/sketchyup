@@ -20,6 +20,7 @@ struct Body {
     std::array<float, 3> color{0.73f, 0.79f, 0.73f};
     Surface surface;
     Topology topology;
+    std::map<Id, std::array<float, 3>> faceColors;
     std::map<Id, Curve> curves;
     std::map<Id, Guide> guides;
     Transform transform;

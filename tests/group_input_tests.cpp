@@ -193,6 +193,78 @@ int main(int argc, char **argv) {
                             color.blue() > color.green() + 60;
                 }
         check(blue, "Guide-only group selection has visible feedback");
+        view->cancel();
+        doc = Document{};
+        for (double x : {0., 1., 3., 5., 7.})
+            doc.addFace({{{x, 0, 0}, {x + 1, 0, 0}, {x + 1, 1, 0}, {x, 1, 0}}});
+        doc.paint(1, {.9f, .1f, .1f});
+        doc.paint(2, {.1f, .1f, .9f});
+        const auto mergingGroup = createGroup(doc, {2});
+        const auto protectedGroup = createGroup(doc, {5});
+        const auto lockedRecord = doc.bodies().at(3), hiddenRecord = doc.bodies().at(4);
+        QMetaObject::invokeMethod(view, "changed");
+        view->setSelection(3);
+        view->lockSelection();
+        view->selectEntities({{4, SelectionKind::Face, 5}});
+        view->hideSelection();
+        view->setSelection(mergingGroup);
+        const auto mergeRevision = doc.revision();
+        view->explodeGroups();
+        check(doc.revision() == mergeRevision + 1 && !doc.bodies().contains(mergingGroup) &&
+                  !doc.bodies().contains(2) && doc.bodies().at(1)->surface.vertices.size() == 6 &&
+                  doc.bodies().at(1)->surface.faces.size() == 2,
+              "Native explode consolidates adjacent records in one edit");
+        check(doc.bodies().at(3) == lockedRecord && doc.bodies().at(4) == hiddenRecord &&
+                  doc.bodies().at(5)->parent == protectedGroup,
+              "Temporary locks, partially hidden records and closed groups remain isolated");
+        check(view->selectedBody() == 1, "Exploded selection follows transferred geometry");
+        view->selectEntities({});
+        view->standardView(1);
+        view->fit();
+        QCoreApplication::processEvents();
+        const auto colors = view->grabFramebuffer();
+        auto pixel = [&](const QImage &image, Vec3 point) {
+            return image.pixelColor((view->project(point) * view->devicePixelRatioF()).toPoint());
+        };
+        const auto redPixel = pixel(colors, {.5, .5, 0});
+        const auto bluePixel = pixel(colors, {1.5, .5, 0});
+        check(redPixel.red() > redPixel.blue() + 70 && bluePixel.blue() > bluePixel.red() + 70,
+              "Merged faces retain distinct visible colors");
+        const auto mergeCapture = app.arguments().indexOf("--capture-consolidation");
+        if (mergeCapture >= 0)
+            check(window.grab().save(app.arguments().value(mergeCapture + 1)),
+                  "Consolidated color capture saved");
+        const auto builds = view->renderStats().bodyMeshBuilds;
+        const auto beforeTint = doc.bodies().at(1);
+        auto tinted = std::make_shared<Body>(*beforeTint);
+        tinted->faceColors.begin()->second = {.1f, .9f, .1f};
+        doc.apply({"Tint merged face", {{1, beforeTint, tinted}}}, doc.revision());
+        QMetaObject::invokeMethod(view, "changed");
+        const auto greenPixel = pixel(view->grabFramebuffer(), {1.5, .5, 0});
+        check(greenPixel.green() > greenPixel.blue() + 70 &&
+                  view->renderStats().bodyMeshBuilds == builds,
+              "Per-face color upload changes pixels without rebuilding meshes");
+        window.findChild<QAction *>("edit.undo")->trigger();
+        window.findChild<QAction *>("edit.undo")->trigger();
+        check(doc.bodies().contains(mergingGroup) && doc.bodies().at(2)->parent == mergingGroup &&
+                  doc.bodies().at(1)->surface.faces.size() == 1,
+              "One undo restores both the exploded boundary and separate colored records");
+        view->unlockContexts();
+        view->revealHiddenGeometry();
+        window.findChild<QAction *>("geometry.merge_context")->trigger();
+        check(!doc.bodies().contains(3) && !doc.bodies().contains(4) &&
+                  doc.bodies().at(2)->parent == mergingGroup &&
+                  doc.bodies().at(5)->parent == protectedGroup,
+              "Explicit native merge combines eligible raw records and preserves groups");
+        const auto outer = createGroup(doc, {mergingGroup});
+        QMetaObject::invokeMethod(view, "changed");
+        view->enterContext(outer);
+        view->setSelection(mergingGroup);
+        view->explodeGroups();
+        check(!doc.bodies().contains(mergingGroup) && !doc.bodies().contains(2) &&
+                  doc.bodies().at(outer)->surface.faces.size() == 1 &&
+                  view->selectionState().entities().contains({outer, SelectionKind::Face, 5}),
+              "Nested explode retains raw selection in the active destination group");
         check(!view->renderStats().glError, "Grouped picking and rendering leave no GL errors");
         std::cout << "Native raw grouping, protected picking, nested editing, drawing/deletion "
                      "isolation, breadcrumbs, locks, persistence and undo passed; DPR="

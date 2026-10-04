@@ -1,5 +1,6 @@
 #include "app/viewport.hpp"
 #include "automation/measurements.hpp"
+#include "core/appearance.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -608,9 +609,10 @@ void Viewport::rebuild() {
         const bool topologyChanged =
             meshChanged || !cache.record || cache.record->topology.edges != body->topology.edges;
         const bool worldChanged = meshChanged || !cache.record || cache.world != world;
-        const bool appearanceChanged = worldChanged || topologyChanged || !cache.record ||
-                                       cache.record->color != body->color || cache.alpha != alpha ||
-                                       cache.presentationRevision != presentationRevision_;
+        const bool appearanceChanged =
+            worldChanged || topologyChanged || !cache.record ||
+            cache.record->color != body->color || cache.record->faceColors != body->faceColors ||
+            cache.alpha != alpha || cache.presentationRevision != presentationRevision_;
         if (meshChanged) {
             cache.localTriangles = body->surface.triangles();
             ++stats_.bodyMeshBuilds;
@@ -658,7 +660,7 @@ void Viewport::rebuild() {
                     const auto normal = crossProduct * (1 / magnitude);
                     const float light =
                         .64f + .36f * std::abs(dot(normal, normalized({.3, -.5, .8})));
-                    auto color = body->color;
+                    auto color = faceColor(*body, triangle.face);
                     if (!selection_.inActiveHierarchy(doc_, id) || selection_.locked(doc_, id)) {
                         const std::array<float, 3> background{float(colors_.canvas.redF()),
                                                               float(colors_.canvas.greenF()),

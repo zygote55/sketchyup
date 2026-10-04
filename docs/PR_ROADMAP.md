@@ -551,7 +551,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R032 — Implement groups and nested editing contexts
 
-**Status:** In progress; core/persistence first, native context workflow next. **Track:** Core. **Scope:** O01, G08. **UX:** §4.6, §5.
+**Status:** Native grouped editing merged; final consolidation layer passes local checks, CI pending. **Track:** Core. **Scope:** O01, G08. **UX:** §4.6, §5.
 
 **Requires:** [R030](#r030), [R012](#r012); milestone gate rule above.
 
@@ -564,11 +564,11 @@ Implementation split:
 - **R032.a — Group records and hierarchy operations:** Merged in [PR #35](https://github.com/zygote55/sketchyup/pull/35); both CI jobs passed. Persistent typed groups,
   sibling grouping, world-preserving reparent/explode, authoritative locks and
   v1–v5 migration. [Evidence](verification/R032a-group-records.md).
-- **R032.b — Native grouped editing:** Local checks passed; CI pending. Raw selection grouping, protected picking,
+- **R032.b — Native grouped editing:** Merged in [PR #36](https://github.com/zygote55/sketchyup/pull/36); both CI jobs passed. Raw selection grouping, protected picking,
   scoped drawing/inference, dimming, open/close/escape and breadcrumbs. Requires R032.a. [Evidence](verification/R032b-native-groups.md).
-- **R032.c — Context geometry consolidation:** Merge separate raw records in one active context
+- **R032.c — Context geometry consolidation:** Local checks passed; CI pending. Merge separate raw records in one active context
   and combine promoted geometry on explode while preserving appearance and identities.
-  Requires R032.b; complete before claiming the R032 gate.
+  Requires R032.b; complete before claiming the R032 gate. [Evidence](verification/R032c-context-consolidation.md).
 
 <a id="r033"></a>
 

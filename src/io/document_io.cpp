@@ -100,9 +100,13 @@ QByteArray encodeDocument(const Document &doc) {
                         properties[QString::fromStdString(key)] = v;
                 },
                 value);
+        QJsonObject faceColors;
+        for (const auto &[face, color] : b->faceColors)
+            faceColors[sid(face)] = QJsonArray{color[0], color[1], color[2]};
         bodies.append(QJsonObject{{"id", sid(id)},
                                   {"parent", sid(b->parent)},
                                   {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
+                                  {"faceColors", faceColors},
                                   {"hidden", b->hidden},
                                   {"locked", b->locked},
                                   {"transform", transform},
@@ -119,7 +123,7 @@ QByteArray encodeDocument(const Document &doc) {
                                   {"wires", wires}});
     }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 6},
+                                           {"version", 7},
                                            {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
@@ -142,7 +146,8 @@ Document decodeDocument(const QByteArray &bytes) {
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
         (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
          root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
-         root["version"].toDouble() != 5 && root["version"].toDouble() != 6) ||
+         root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
+         root["version"].toDouble() != 7) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -166,6 +171,8 @@ Document decodeDocument(const QByteArray &bytes) {
             allowed.append("guides");
         if (root["version"].toInt() >= 6)
             allowed += {"kind", "hidden", "locked"};
+        if (root["version"].toInt() >= 7)
+            allowed.append("faceColors");
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
@@ -207,6 +214,22 @@ Document decodeDocument(const QByteArray &bytes) {
                     b->properties[key] = it->toString().toStdString();
                 else
                     throw std::runtime_error("Unsupported entity property value");
+            }
+        }
+        if (root["version"].toInt() >= 7) {
+            const auto colors = object(o["faceColors"]);
+            for (auto it = colors.begin(); it != colors.end(); ++it) {
+                const auto values = array(it.value());
+                if (values.size() != 3)
+                    throw std::runtime_error("Face color requires three components");
+                std::array<float, 3> color;
+                for (int i = 0; i < 3; ++i) {
+                    const auto value = number(values[i]);
+                    if (value < 0 || value > 1)
+                        throw std::runtime_error("Face color component outside range");
+                    color[i] = value;
+                }
+                b->faceColors[readId(it.key())] = color;
             }
         }
         b->surface.nextId = readId(o["nextId"]);

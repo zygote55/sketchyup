@@ -208,6 +208,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         groupAction->setProperty("command", name);
         groupAction->setProperty("requiresSelection", true);
     }
+    edit->addAction(action("geometry.merge_context", "Merge raw geometry in current context", {},
+                           [this] { viewport_->mergeContextGeometry(); }));
     edit->addAction(action("group.hide", "Hide selected groups in document", {},
                            [this] { viewport_->setPersistentState(true, false); }));
     edit->addAction(action("group.lock", "Lock selected groups in document", {},

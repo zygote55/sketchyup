@@ -189,6 +189,35 @@ int main(int argc, char **argv) {
         corruptCurve([](auto &c) { c["segments"] = 1.5; });
         corruptCurve([](auto &c) { c["edges"] = QJsonArray{}; });
         corruptCurve([](auto &c) { c["kind"] = "spline"; });
+        const auto v6 = decodeContainer(
+            read(QString(SKETCHYUP_TEST_FIXTURES) + "/container-groups-v6.sketchyup"));
+        for (const auto &[id, body] : v6.bodies())
+            require(body->faceColors.empty(),
+                    "Version-6 migration preserves inherited body colors");
+        Document painted;
+        painted.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+        auto faceColored = std::make_shared<Body>(*painted.bodies().at(1));
+        const auto tintedFace = faceColored->surface.faces.begin()->first;
+        faceColored->faceColors[tintedFace] = {.2f, .3f, .7f};
+        painted.apply({"Face tint", {{1, painted.bodies().at(1), faceColored}}},
+                      painted.revision());
+        const auto paintedBytes = encodeContainer(painted);
+        const auto paintedReopened = decodeContainer(paintedBytes);
+        require(encodeContainer(paintedReopened) == paintedBytes &&
+                    paintedReopened.bodies().at(1)->faceColors ==
+                        painted.bodies().at(1)->faceColors,
+                "Face color assignments survive exact container roundtrip");
+        for (const auto &bad : {QJsonObject{{"999", QJsonArray{.2, .3, .7}}},
+                                QJsonObject{{QString::number(tintedFace), QJsonArray{1.1, .3, .7}}},
+                                QJsonObject{{QString::number(tintedFace), QJsonArray{.2, .3}}}}) {
+            auto root = QJsonDocument::fromJson(encodeDocument(painted)).object();
+            auto bodies = root["bodies"].toArray();
+            auto body = bodies[0].toObject();
+            body["faceColors"] = bad;
+            bodies[0] = body;
+            root["bodies"] = bodies;
+            rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
+        }
         const auto v5 = decodeContainer(
             read(QString(SKETCHYUP_TEST_FIXTURES) + "/container-guides-v5.sketchyup"));
         for (const auto &[id, body] : v5.bodies())
@@ -208,7 +237,7 @@ int main(int argc, char **argv) {
                     groupReopened.bodies().at(groupId)->locked,
                 "Persistent group kind, visibility, lock and member identities roundtrip exactly");
         auto invalidGroup = QJsonDocument::fromJson(encodeDocument(grouped)).object();
-        for (const auto &key : {"kind", "hidden", "locked"}) {
+        for (const auto &key : {"kind", "hidden", "locked", "faceColors"}) {
             auto invalid = invalidGroup;
             auto records = invalid["bodies"].toArray();
             auto body = records[0].toObject();
@@ -231,7 +260,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();
             for (const auto &key : {"parent", "transform", "properties", "nextEdgeId", "edges",
-                                    "curves", "guides", "kind", "hidden", "locked"})
+                                    "curves", "guides", "kind", "hidden", "locked", "faceColors"})
                 body.remove(key);
             records[i] = body;
         }

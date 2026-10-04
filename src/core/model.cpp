@@ -1,4 +1,5 @@
 #include "core/model.hpp"
+#include "core/appearance.hpp"
 #include <algorithm>
 #include <iomanip>
 #include <random>
@@ -12,6 +13,7 @@ size_t bytes(const BodyPtr &b) {
     size_t n = sizeof(Body) + b->name.size() + b->surface.vertices.size() * (sizeof(Vec3) + 64) +
                b->surface.wires.size() * sizeof(std::array<Id, 2>) +
                b->topology.edges.size() * (sizeof(EdgeRecord) + 64);
+    n += b->faceColors.size() * (sizeof(Id) + sizeof(std::array<float, 3>) + 64);
     n += b->guides.size() * (sizeof(Guide) + 64);
     for (const auto &[id, curve] : b->curves)
         n += sizeof(Curve) + 64 + curve.edges.size() * sizeof(OrientedEdge);
@@ -74,6 +76,13 @@ void validate(const Body &b) {
             throw std::runtime_error("Invalid material color");
     if (b.kind != BodyKind::Geometry && b.kind != BodyKind::Group)
         throw std::runtime_error("Unknown entity kind");
+    for (const auto &[id, color] : b.faceColors) {
+        if (!b.surface.faces.contains(id))
+            throw std::runtime_error("Face color references a missing face");
+        for (auto component : color)
+            if (!std::isfinite(component) || component < 0 || component > 1)
+                throw std::runtime_error("Invalid face color");
+    }
     b.transform.validate();
     if (b.properties.size() > 128)
         throw std::runtime_error("Too many entity properties");
@@ -143,6 +152,8 @@ ChangeReport Document::insertEdges(Id context, Vec3 origin, Vec3 normal,
     if (old && result.surface == old->surface)
         return {};
     body->surface = std::move(result.surface);
+    if (old)
+        inheritFaceColors(*old, *body, result.faces);
     return apply({"Insert planar edges", {{body->id, old, body, std::move(result.faces)}}},
                  revision_);
 }
@@ -160,6 +171,8 @@ ChangeReport Document::addCurve(Id context, Curve curve) {
         DrawingPlane::make(curve.center, cross(curve.xAxis, curve.yAxis), curve.xAxis).normal;
     auto result = insertPlanarEdges(body->surface, curve.center, normal, chords);
     body->surface = std::move(result.surface);
+    if (old)
+        inheritFaceColors(*old, *body, result.faces);
     body->topology = Topology::rebuild(body->surface, body->topology);
     size_t budget = 1000000;
     if (!bindCurve(curve, body->surface, body->topology, budget))
@@ -214,6 +227,8 @@ ChangeReport Document::eraseFace(Id context, Id face) {
     auto body = std::make_shared<Body>(*old);
     auto result = sketchy::eraseFace(old->surface, face);
     body->surface = std::move(result.surface);
+    if (old)
+        inheritFaceColors(*old, *body, result.faces);
     return apply({"Erase face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::eraseEdge(Id context, Id edge) {
@@ -221,6 +236,8 @@ ChangeReport Document::eraseEdge(Id context, Id edge) {
     auto body = std::make_shared<Body>(*old);
     auto result = sketchy::eraseEdge(old->surface, old->topology, edge);
     body->surface = std::move(result.surface);
+    if (old)
+        inheritFaceColors(*old, *body, result.faces);
     return apply({"Erase edge", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::healFace(Id context, Id edge, Vec3 origin, Vec3 normal) {
@@ -236,6 +253,8 @@ ChangeReport Document::healFace(Id context, Id edge, Vec3 origin, Vec3 normal) {
         throw PlanarError("NO_CLOSED_REGION",
                           "This edge does not bound a missing closed planar face");
     body->surface = std::move(result.surface);
+    if (old)
+        inheritFaceColors(*old, *body, result.faces);
     return apply({"Heal face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::cleanup(Id context) {
@@ -245,6 +264,8 @@ ChangeReport Document::cleanup(Id context) {
     if (result.surface == old->surface)
         return {};
     body->surface = std::move(result.surface);
+    if (old)
+        inheritFaceColors(*old, *body, result.faces);
     return apply({"Merge coincident topology",
                   {{context, old, body, std::move(result.faces), std::move(result.vertices),
                     std::move(result.edges)}}},
@@ -255,12 +276,15 @@ ChangeReport Document::pushPull(Id context, Id face, double distance, bool newFa
     auto body = std::make_shared<Body>(*old);
     auto result = sketchy::pushPull(old->surface, face, distance, newFace);
     body->surface = std::move(result.surface);
+    if (old)
+        inheritFaceColors(*old, *body, result.faces, faceColor(*old, face));
     return apply({"Push/pull face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 void Document::extrude(Id id, Id face, double distance) {
     auto old = bodies_.at(id);
     auto b = std::make_shared<Body>(*old);
     b->surface.extrude(face, distance);
+    inheritFaceColors(*old, *b, {}, faceColor(*old, face));
     apply({"Extrude face", {{id, old, b}}}, revision_);
 }
 void Document::move(Id id, Vec3 delta) {
@@ -276,6 +300,7 @@ void Document::paint(Id id, std::array<float, 3> color) {
     auto old = bodies_.at(id);
     auto b = std::make_shared<Body>(*old);
     b->color = color;
+    b->faceColors.clear();
     apply({"Paint", {{id, old, b}}}, revision_);
 }
 Transform Document::worldTransform(Id id) const { return worldTransformIn(bodies_, id); }

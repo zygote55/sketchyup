@@ -1,4 +1,5 @@
 #include "core/transform_selection.hpp"
+#include "core/appearance.hpp"
 #include "core/geometry_subset.hpp"
 #include <algorithm>
 namespace sketchy {
@@ -64,6 +65,9 @@ Change appendCopy(const BodyPtr &old, const Body &geometry, GeometryCopies &mapp
         auto record = face;
         record.id = allocate();
         mapping.faces[id] = record.id;
+        const auto color = faceColor(geometry, id);
+        if (color != body->color)
+            body->faceColors[record.id] = color;
         for (auto &loop : record.loops)
             for (auto &vertex : loop)
                 vertex = mapping.vertices.at(vertex);
