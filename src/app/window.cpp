@@ -77,6 +77,21 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     content->addWidget(tools);
     viewport_ = new Viewport(doc_);
     content->addWidget(viewport_, 1);
+    breadcrumb_ = new QLabel(viewport_);
+    breadcrumb_->setObjectName("contextBreadcrumb");
+    breadcrumb_->setAccessibleName("Editing context breadcrumb");
+    breadcrumb_->setTextFormat(Qt::RichText);
+    breadcrumb_->setWordWrap(true);
+    breadcrumb_->setTextInteractionFlags(Qt::LinksAccessibleByMouse |
+                                         Qt::LinksAccessibleByKeyboard);
+    breadcrumb_->setFocusPolicy(Qt::StrongFocus);
+    breadcrumb_->move(16, 12);
+    connect(breadcrumb_, &QLabel::linkActivated, this, [this](const QString &link) {
+        run([&] {
+            viewport_->enterContext(link.toULongLong());
+            viewport_->setFocus();
+        });
+    });
     tray_ = new QWidget;
     tray_->setObjectName("tray");
     tray_->setFixedWidth(248);
@@ -181,6 +196,28 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
                            [this] { viewport_->lockSelection(); }));
     edit->addAction(action("selection.unlock", "Unlock all contexts in this view", {},
                            [this] { viewport_->unlockContexts(); }));
+    edit->addAction(action("group.selection", "Make group", QKeySequence("Ctrl+G"),
+                           [this] { viewport_->makeGroup(); }));
+    edit->addAction(action("group.explode", "Explode selected groups", QKeySequence("Ctrl+Shift+G"),
+                           [this] { viewport_->explodeGroups(); }));
+    for (const auto &name : {"group.selection", "group.explode"}) {
+        auto *groupAction = findChild<QAction *>(name);
+        groupAction->setShortcutContext(Qt::WidgetShortcut);
+        removeAction(groupAction);
+        viewport_->addAction(groupAction);
+        groupAction->setProperty("command", name);
+        groupAction->setProperty("requiresSelection", true);
+    }
+    edit->addAction(action("group.hide", "Hide selected groups in document", {},
+                           [this] { viewport_->setPersistentState(true, false); }));
+    edit->addAction(action("group.lock", "Lock selected groups in document", {},
+                           [this] { viewport_->setPersistentState(false, true); }));
+    edit->addAction(action("group.reveal", "Reveal all document groups and contexts", {},
+                           [this] { viewport_->revealPersistentEntities(); }));
+    edit->addAction(action("group.unlock", "Unlock all document groups and contexts", {},
+                           [this] { viewport_->unlockPersistentEntities(); }));
+    for (const auto &name : {"group.hide", "group.lock", "group.reveal", "group.unlock"})
+        findChild<QAction *>(name)->setProperty("command", "scene.state");
     edit->addAction(action("context.enter", "Edit selected context", {}, [this] {
         if (viewport_->selectedBody())
             viewport_->enterContext(viewport_->selectedBody());
@@ -534,6 +571,9 @@ QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} Q
     style.replace("$accent", colors.accent.name());
     setStyleSheet(style);
     viewport_->setTheme(colors);
+    auto linkPalette = breadcrumb_->palette();
+    linkPalette.setColor(QPalette::Link, colors.accent);
+    breadcrumb_->setPalette(linkPalette);
 }
 void Window::run(const std::function<void()> &fn) {
     try {
@@ -608,6 +648,32 @@ void Window::sync() {
     findChild<QAction *>("context.leave")->setEnabled(viewport_->selectionState().context() != 0);
     findChild<QAction *>("selection.showHidden")
         ->setChecked(viewport_->selectionState().showingHidden());
+    const auto &selection = viewport_->selectionState().entities();
+    findChild<QAction *>("group.selection")->setEnabled(!selection.empty());
+    const bool whole =
+        !selection.empty() && std::all_of(selection.begin(), selection.end(),
+                                          [](auto e) { return e.kind == SelectionKind::Body; });
+    for (const auto &action : {"group.hide", "group.lock"})
+        findChild<QAction *>(action)->setEnabled(whole);
+    findChild<QAction *>("group.explode")
+        ->setEnabled(whole && std::all_of(selection.begin(), selection.end(), [&](auto e) {
+                         return doc_.bodies().at(e.body)->kind == BodyKind::Group;
+                     }));
+    std::vector<Id> path;
+    for (auto context = viewport_->selectionState().context(); context;
+         context = doc_.bodies().at(context)->parent)
+        path.push_back(context);
+    QString breadcrumb = "<a href=\"0\">Model</a>";
+    for (auto it = path.rbegin(); it != path.rend(); ++it)
+        breadcrumb += QString(" &rsaquo; <a href=\"%1\">%2</a>")
+                          .arg(*it)
+                          .arg(QString::fromStdString(doc_.bodies().at(*it)->name).toHtmlEscaped());
+    breadcrumb_->setText(breadcrumb);
+    breadcrumb_->setToolTip(path.empty() ? "Editing the model"
+                                         : "Click an ancestor to close nested contexts");
+    breadcrumb_->setMaximumWidth(std::max(100, viewport_->width() - 32));
+    breadcrumb_->adjustSize();
+    breadcrumb_->raise();
     QSignalBlocker block(outliner_);
     outliner_->clear();
     std::set<Id> selectedBodies;

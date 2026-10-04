@@ -27,6 +27,8 @@ class Selection {
     bool locked(const Document &doc, Id body) const;
     bool inContext(const Document &doc, Id body) const;
     bool selectable(const Document &doc, SelectedEntity entity) const;
+    std::optional<SelectedEntity> pickTarget(const Document &doc, SelectedEntity entity) const;
+    bool inActiveHierarchy(const Document &doc, Id body) const;
     bool apply(const Document &doc, const SelectionSet &entities, SelectionMode mode);
     void clear() { entities_.clear(); }
     void enter(const Document &doc, Id context);
@@ -46,6 +48,8 @@ class Selection {
     Id context_{};
     bool showHidden_{};
     Document::SaveStamp session_;
+    mutable Document::SaveStamp lockCacheStamp_;
+    mutable std::set<Id> persistentLockedAncestors_;
     void prune(const Document &doc);
 };
 // Erases the eligible typed selection atomically as one document edit.

@@ -1,6 +1,6 @@
 # R032.a: persistent groups and hierarchy operations
 
-Date: 2026-10-04. Local development, sanitizer, X11 and isolated Wayland validation passed; CI pending.
+Date: 2026-10-04. Merged in [PR #35](https://github.com/zygote55/sketchyup/pull/35); both CI jobs passed (16m33s and 12m17s). Merge `fd1ffb34101ca2541428181d3e7d9c665ef4d06a`.
 
 Groups are explicit scene records. They contain existing geometry contexts and
 nested groups, and can also own geometry drawn directly in the group's local

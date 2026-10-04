@@ -136,8 +136,11 @@ int main() {
         check(reopened.revision() == lockedRevision, "Delete cannot bypass context locks");
         Document healing;
         healing.addFace({{{0, 0, 0}, {4, 0, 0}, {4, 4, 0}, {0, 4, 0}}});
-        healing.insertEdges(1, {}, {0, 0, 1}, {{{2, 0, 0}, {2, 4, 0}}});
+        healing.insertEdges(1, {}, {0, 0, 1}, {{Vec3{2, 0, 0}, Vec3{2, 4, 0}}});
         const auto divided = healing.bodies().at(1);
+        for (const auto &[id, face] : divided->surface.faces)
+            check(std::abs(divided->surface.area(id) - 8) < 1e-9,
+                  "Healing fixture divides the face into equal rectangles");
         const auto adjacency = divided->topology.adjacency(divided->surface);
         Id seam = 0;
         for (const auto &[id, incident] : adjacency.edgeFaces)

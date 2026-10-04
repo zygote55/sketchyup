@@ -78,6 +78,11 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QString selectionSummary() const;
     void enterContext(Id context);
     void leaveContext();
+    void makeGroup();
+    void explodeGroups();
+    void setPersistentState(bool hide, bool lock);
+    void revealPersistentEntities();
+    void unlockPersistentEntities();
     void showHiddenGeometry(bool show);
     void hideSelection();
     void revealHiddenGeometry();

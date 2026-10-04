@@ -146,8 +146,11 @@ void Viewport::deleteSelection() {
     executeBatch(doc_, {{"apiVersion", 1},
                         {"documentId", QString::fromStdString(doc_.identity())},
                         {"expectedRevision", QString::number(doc_.revision())},
-                        {"commands", QJsonArray{QJsonObject{{"command", "geometry.erase_selection"},
-                                                            {"entities", entities}}}}});
+                        {"commands",
+                         QJsonArray{QJsonObject{{"command", "geometry.erase_selection"},
+                                                {"entities", entities},
+                                                {"context", QString::number(selection_.context())},
+                                                {"showHidden", selection_.showingHidden()}}}}});
     selection_.clear();
     selectionChanged();
     emit changed();
@@ -168,7 +171,8 @@ void Viewport::rebuildPickGeometry() {
     std::vector<Vertex> faces, edges;
     auto color = [&](SelectedEntity entity) {
         unsigned id = 0;
-        if (selectable(entity)) {
+        if (const auto target = selection_.pickTarget(doc_, entity)) {
+            entity = *target;
             if (!ids.contains(entity)) {
                 if (pickEntities_.size() >= 0xffffff)
                     throw std::runtime_error("Selection ID buffer limit exceeded");
@@ -297,13 +301,25 @@ std::optional<SelectedEntity> Viewport::selectionAt(QPointF point) {
     const auto pixels = selectionPixels(QRectF(point - QPointF(7, 7), QSizeF(14, 14)));
     if (pixels.image.isNull())
         return {};
-    std::optional<SelectedEntity> edge, face, guide;
+    std::optional<SelectedEntity> edge, face, guide, nearbyGroup;
+    double groupDistance = 6;
     double edgeDistance = 6, guideDistance = 6;
     const auto ratio = devicePixelRatioF();
     for (int y = 0; y < pixels.image.height(); ++y)
         for (int x = 0; x < pixels.image.width(); ++x) {
             const auto entity = pickEntity(pixels.image.pixel(x, y));
-            if (!entity || entity->kind != SelectionKind::Edge)
+            if (!entity)
+                continue;
+            if (entity->kind == SelectionKind::Body) {
+                const QPointF at((pixels.deviceRect.left() + x + .5) / ratio,
+                                 (pixels.deviceRect.top() + y + .5) / ratio);
+                const auto distance = std::hypot(at.x() - point.x(), at.y() - point.y());
+                if (distance < groupDistance) {
+                    nearbyGroup = entity;
+                    groupDistance = distance;
+                }
+            }
+            if (entity->kind != SelectionKind::Edge)
                 continue;
             const QPointF at((pixels.deviceRect.left() + x + .5) / ratio,
                              (pixels.deviceRect.top() + y + .5) / ratio);
@@ -326,7 +342,9 @@ std::optional<SelectedEntity> Viewport::selectionAt(QPointF point) {
             const auto world = doc_.worldTransform(id);
             for (const auto &[gid, record] : body->guides) {
                 const SelectedEntity entity{id, SelectionKind::Guide, gid};
-                if (!selectable(entity))
+                const auto target =
+                    visible(entity) ? selection_.pickTarget(doc_, entity) : std::nullopt;
+                if (!target)
                     continue;
                 const auto origin = world.point(record.origin);
                 std::optional<ScreenPoint> screen;
@@ -342,12 +360,12 @@ std::optional<SelectedEntity> Viewport::selectionAt(QPointF point) {
                     continue;
                 const auto distance = std::hypot(screen->x - point.x(), screen->y - point.y());
                 if (distance < guideDistance) {
-                    guide = entity;
+                    guide = *target;
                     guideDistance = distance;
                 }
             }
         }
-    return guide ? guide : face;
+    return guide ? guide : face ? face : nearbyGroup;
 }
 SelectionSet Viewport::windowSelection(QRectF bounds, bool crossing) {
     bounds = bounds.normalized();
@@ -363,32 +381,19 @@ SelectionSet Viewport::windowSelection(QRectF bounds, bool crossing) {
         const auto screen = inferenceCamera().project(point);
         return screen && !clipped(point) && bounds.contains(QPointF(screen->x, screen->y));
     };
-    if (!crossing)
-        std::erase_if(candidates, [&](auto e) {
-            const auto &body = *doc_.bodies().at(e.body);
-            const auto world = doc_.worldTransform(e.body);
-            if (e.kind == SelectionKind::Edge) {
-                const auto &edge = body.topology.edges.at(e.entity);
-                return !inside(world.point(body.surface.vertices.at(edge.a))) ||
-                       !inside(world.point(body.surface.vertices.at(edge.b)));
-            }
-            for (const auto &loop : body.surface.faces.at(e.entity).loops)
-                for (auto vertex : loop)
-                    if (!inside(world.point(body.surface.vertices.at(vertex))))
-                        return true;
-            return false;
-        });
     if (guidesVisible_)
         for (const auto &[id, body] : doc_.bodies()) {
             const auto world = doc_.worldTransform(id);
             for (const auto &[gid, record] : body->guides) {
                 const SelectedEntity entity{id, SelectionKind::Guide, gid};
-                if (!selectable(entity))
+                const auto target =
+                    visible(entity) ? selection_.pickTarget(doc_, entity) : std::nullopt;
+                if (!target)
                     continue;
                 const auto origin = world.point(record.origin);
                 if (record.kind == GuideKind::Point) {
                     if (inside(origin))
-                        candidates.insert(entity);
+                        candidates.insert(*target);
                 } else if (crossing) {
                     if (const auto line =
                             guideSegment(guideLine(origin, world.vector(record.direction)))) {
@@ -403,11 +408,43 @@ SelectionSet Viewport::windowSelection(QRectF bounds, bool crossing) {
                             intersects |= segment.intersects(side, &intersection) ==
                                           QLineF::BoundedIntersection;
                         if (intersects)
-                            candidates.insert(entity);
+                            candidates.insert(*target);
                     }
                 }
             }
         }
+    if (!crossing)
+        std::erase_if(candidates, [&](auto e) {
+            if (e.kind == SelectionKind::Body) {
+                for (const auto &[id, member] : doc_.bodies()) {
+                    auto ancestor = id;
+                    while (ancestor && ancestor != e.body)
+                        ancestor = doc_.bodies().at(ancestor)->parent;
+                    if (!ancestor || !visible({id, SelectionKind::Body, 0}))
+                        continue;
+                    const auto world = doc_.worldTransform(id);
+                    for (const auto &[vertex, point] : member->surface.vertices)
+                        if (!inside(world.point(point)))
+                            return true;
+                    for (const auto &[guide, record] : member->guides)
+                        if (record.kind == GuideKind::Line || !inside(world.point(record.origin)))
+                            return true;
+                }
+                return false;
+            }
+            const auto &body = *doc_.bodies().at(e.body);
+            const auto world = doc_.worldTransform(e.body);
+            if (e.kind == SelectionKind::Edge) {
+                const auto &edge = body.topology.edges.at(e.entity);
+                return !inside(world.point(body.surface.vertices.at(edge.a))) ||
+                       !inside(world.point(body.surface.vertices.at(edge.b)));
+            }
+            for (const auto &loop : body.surface.faces.at(e.entity).loops)
+                for (auto vertex : loop)
+                    if (!inside(world.point(body.surface.vertices.at(vertex))))
+                        return true;
+            return false;
+        });
     return candidates;
 }
 void Viewport::rebuildSelectionOverlay() {
@@ -519,16 +556,36 @@ void Viewport::paintSelection(QPainter &p) {
     p.save();
     p.setBrush(Qt::NoBrush);
     auto guides = [&](const SelectionSet &entities, QColor color) {
+        if (!guidesVisible_)
+            return;
         p.setPen(QPen(color, 2, Qt::DashLine));
-        for (auto e : entities)
-            if (e.kind == SelectionKind::Guide && selectable(e)) {
-                const auto &guide = doc_.bodies().at(e.body)->guides.at(e.entity);
-                const auto world = doc_.worldTransform(e.body);
-                paintGuide(
-                    p, guide.kind == GuideKind::Point
+        SelectionSet targets;
+        std::set<Id> containers;
+        for (auto entity : entities)
+            if (selectable(entity)) {
+                if (entity.kind == SelectionKind::Guide)
+                    targets.insert(entity);
+                else if (entity.kind == SelectionKind::Body)
+                    containers.insert(entity.body);
+            }
+        if (!containers.empty())
+            for (const auto &[id, body] : doc_.bodies()) {
+                auto ancestor = id;
+                while (ancestor && !containers.contains(ancestor))
+                    ancestor = doc_.bodies().at(ancestor)->parent;
+                if (ancestor)
+                    for (const auto &[guide, record] : body->guides)
+                        if (visible({id, SelectionKind::Guide, guide}))
+                            targets.insert({id, SelectionKind::Guide, guide});
+            }
+        for (auto entity : targets) {
+            const auto &guide = doc_.bodies().at(entity.body)->guides.at(entity.entity);
+            const auto world = doc_.worldTransform(entity.body);
+            paintGuide(p,
+                       guide.kind == GuideKind::Point
                            ? guidePoint(world.point(guide.origin))
                            : guideLine(world.point(guide.origin), world.vector(guide.direction)));
-            }
+        }
     };
     guides(selection_.entities(),
            QColor::fromRgbF(selectionColor[0], selectionColor[1], selectionColor[2]));
@@ -540,11 +597,7 @@ void Viewport::paintSelection(QPainter &p) {
         p.setBrush(QColor(99, 84, 212, 24));
         p.drawRect(QRectF(selectionStart_, selectionEnd_).normalized());
     }
-    if (selection_.context()) {
-        p.setPen(colors_.ink);
-        p.drawText(20, 48,
-                   QString("Editing context #%1 · Esc closes one level").arg(selection_.context()));
-    }
+
     if (tool_ == Tool::Select) {
         p.setPen(colors_.muted);
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
@@ -569,6 +622,11 @@ void Viewport::selectionRelease(QPointF point) {
         clickCount_ = 0;
     } else {
         const auto entity = selectionAt(point);
+        if (!entity && selection_.context() && selectionMode_ == SelectionMode::Replace) {
+            leaveContext();
+            clickCount_ = 0;
+            return;
+        }
         const bool third = entity && lastClickEntity_ == entity && clickCount_ == 2 &&
                            clickTimer_.isValid() &&
                            clickTimer_.elapsed() <= QApplication::doubleClickInterval() &&
@@ -620,7 +678,9 @@ bool Viewport::selectionKey(QKeyEvent *event) {
     if (tool_ != Tool::Select)
         return false;
     if (event->key() == Qt::Key_Escape) {
-        if (!selection_.entities().empty())
+        if (selection_.context() && doc_.bodies().at(selection_.context())->kind == BodyKind::Group)
+            leaveContext();
+        else if (!selection_.entities().empty())
             selectEntities({});
         else if (selection_.context())
             leaveContext();

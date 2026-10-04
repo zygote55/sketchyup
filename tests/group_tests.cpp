@@ -126,6 +126,57 @@ int main() {
                   doc.bodies().at(group)->surface == groupGeometry &&
                   doc.bodies().at(a)->parent == 0,
               "Explode retains directly drawn geometry with stable IDs");
+        Document raw;
+        const auto rawId = raw.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+        auto rawBefore = raw.bodies().at(rawId);
+        auto joined = std::make_shared<Body>(*rawBefore);
+        const auto neighbor =
+            joined->surface.addFace({{{1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 1, 0}}});
+        raw.apply({"Adjacent fixture", {{rawId, rawBefore, joined}}}, raw.revision());
+        raw.addGuide(rawId, guidePoint({.5, .5, 2}));
+        const auto original = *raw.bodies().at(rawId);
+        Selection rawSelection;
+        rawSelection.apply(raw,
+                           {{rawId, SelectionKind::Face, 5},
+                            {rawId, SelectionKind::Guide, original.guides.begin()->first}},
+                           SelectionMode::Replace);
+        const auto transferred = groupSelected(raw, rawSelection);
+        const auto member = transferred.movedGeometry.at(rawId);
+        check(raw.bodies().at(rawId)->surface.faces.contains(neighbor) &&
+                  !raw.bodies().at(rawId)->surface.faces.contains(5) &&
+                  raw.bodies().at(member)->surface.faces.contains(5) &&
+                  raw.bodies().at(member)->guides == original.guides &&
+                  raw.bodies().at(rawId)->guides.empty(),
+              "Grouping transfers only selected raw entities");
+        std::optional<Id> boundary;
+        for (const auto &[id, edge] : original.topology.edges)
+            if (edge.a == 2 && edge.b == 3)
+                boundary = id;
+        check(boundary && raw.bodies().at(rawId)->topology.edges.contains(*boundary) &&
+                  raw.bodies().at(member)->topology.edges.contains(*boundary),
+              "Shared boundary remains with the unselected adjacent face and the new group");
+        rawSelection.sync(raw);
+        check(rawSelection.pickTarget(raw, {member, SelectionKind::Face, 5}) ==
+                  SelectedEntity{transferred.group, SelectionKind::Body, 0},
+              "Closed group resolves a raw hit to its container");
+        raw.undo();
+        check(*raw.bodies().at(rawId) == original && raw.bodies().size() == 1,
+              "Raw transfer and new group undo together");
+        rawSelection.enter(raw, rawId);
+        rawSelection.apply(raw, {{rawId, SelectionKind::Face, 5}}, SelectionMode::Replace);
+        const auto nestedRaw = groupSelected(raw, rawSelection);
+        check(
+            raw.bodies().at(rawId)->kind == BodyKind::Group &&
+                raw.bodies().at(nestedRaw.group)->parent == rawId &&
+                rawSelection.selectable(raw, {nestedRaw.group, SelectionKind::Body, 0}),
+            "Grouping in a legacy raw context promotes its boundary without changing its identity");
+        const auto moved = nestedRaw.movedGeometry.at(rawId);
+        rawSelection.enter(raw, nestedRaw.group);
+        rawSelection.apply(raw, {{moved, SelectionKind::Face, 5}}, SelectionMode::Replace);
+        eraseSelected(raw, rawSelection);
+        check(raw.bodies().at(moved)->surface.faces.empty() &&
+                  raw.bodies().at(rawId)->surface.faces.contains(neighbor),
+              "Deleting inside a nested group leaves inactive surrounding geometry intact");
         std::cout << "Groups, context isolation, nested transforms, authoritative locks and undo "
                      "passed\n";
     } catch (const std::exception &e) {
