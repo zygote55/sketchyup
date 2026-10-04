@@ -34,13 +34,14 @@ Native unit-aware field editing follows in R035.b.
   null volume for open geometry, and rollback of a position edit when a later
   dimension edit would collapse geometry.
 - Native organization and component workflows plus application smoke pass on X11.
-- Initial CI exposed a Wayland test-focus race after closing the rename dialog:
-  the window was active but the Outliner had lost focus, so F2 never invoked
-  rename. The native test now drains pending focus restoration and verifies
-  the tree has focus before shortcut input. It also waits for modal activation
-  before submitting, preventing a late Wayland activation from stealing focus
-  during the following test. Six consecutive Wayland DPR 1 runs passed after
-  the correction; production rename behavior is unchanged.
+- CI exposed a Wayland test-focus race around rapid modal dismissal. A window
+  could report active while its native surface had not yet regained keyboard
+  focus. The initial activation check passed local repeats but was insufficient
+  in CI. The test now waits for the exact native focus surface before focusing
+  the tree for every shortcut, including Space immediately after a form. Form
+  submission waits for the actual dialog and its native focus instead of assuming
+  a fixed delay. Six consecutive runs at each Weston scale passed after this
+  correction; production rename behavior is unchanged.
 - `examples/entity-info.json` saves and reopens a 4 × 6 × 8 m block at (1, 2, 0).
   Its query returns 208 m² area, 72 m edge length, 192 m³ volume and exact typed
   semantic fields. CI executes and reopens this recipe.

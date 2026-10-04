@@ -30,28 +30,37 @@ QTreeWidgetItem *row(QTreeWidget *tree, Id id) {
             return *it;
     throw std::runtime_error("Expected tree row missing");
 }
-void current(QTreeWidget *tree, Id id) {
-    tree->window()->activateWindow();
-    check(QTest::qWaitForWindowActive(tree->window()),
-          "Hierarchy window active for keyboard input");
-    tree->setCurrentItem(row(tree, id));
-    tree->setFocus();
-    // A modal dialog's deferred focus restoration can arrive after activation.
-    // Set the test's input target after draining those events and verify it.
-    QTest::qWait(10);
+void focus(QTreeWidget *tree) {
+    auto *window = tree->window();
+    window->activateWindow();
+    check(QTest::qWaitFor([&] { return QGuiApplication::focusWindow() == window->windowHandle(); }),
+          "Hierarchy native window receives keyboard focus");
     tree->setFocus();
     check(QTest::qWaitFor([&] { return tree->hasFocus(); }),
-          "Hierarchy tree focused before shortcut input");
+          "Hierarchy tree receives shortcut focus");
+}
+void current(QTreeWidget *tree, Id id) {
+    focus(tree);
+    tree->setCurrentItem(row(tree, id));
+}
+void shortcut(QTreeWidget *tree, Qt::Key key, Qt::KeyboardModifiers modifiers = {}) {
+    // Native modal dismissal is asynchronous on Wayland. Wait for the parent
+    // surface before focusing the tree, including shortcuts immediately after a form.
+    focus(tree);
+    QTest::keyClick(tree, key, modifiers);
 }
 void submit(Window &window, const std::function<void(QDialog *)> &fill) {
-    QTimer::singleShot(20, &window, [&window, fill] {
+    auto *timer = new QTimer(&window);
+    timer->setInterval(10);
+    QObject::connect(timer, &QTimer::timeout, &window, [&window, fill, timer] {
         auto *dialog = window.findChild<QDialog *>("organizationDialog");
-        if (!dialog)
+        if (!dialog || !dialog->isVisible())
             return;
-        // Wait for the compositor to activate the modal before closing it.
-        // Otherwise its delayed activation can steal focus from the next test.
+        timer->stop();
+        timer->deleteLater();
         dialog->activateWindow();
-        if (!QTest::qWaitForWindowActive(dialog)) {
+        if (!QTest::qWaitFor(
+                [&] { return QGuiApplication::focusWindow() == dialog->windowHandle(); })) {
             dialog->reject();
             return;
         }
@@ -60,6 +69,7 @@ void submit(Window &window, const std::function<void(QDialog *)> &fill) {
         if (dialog->isVisible())
             dialog->reject();
     });
+    timer->start();
 }
 void nameForm(Window &window, const QString &name) {
     submit(window, [name](QDialog *dialog) {
@@ -130,20 +140,20 @@ int main(int argc, char **argv) {
         search->clear();
         current(tree, b);
         nameForm(window, "Loose panel");
-        QTest::keyClick(tree, Qt::Key_F2);
+        shortcut(tree, Qt::Key_F2);
         check(doc.bodies().at(b)->name == "Loose panel", "F2 renames through native form");
-        QTest::keyClick(tree, Qt::Key_Space);
+        shortcut(tree, Qt::Key_Space);
         check(doc.bodies().at(b)->hidden, "Space hides entity persistently");
         window.findChild<QPushButton *>("outliner.hideButton")->click();
         check(!doc.bodies().at(b)->hidden, "Button reveals the focused hidden entity");
         current(tree, b);
-        QTest::keyClick(tree, Qt::Key_L, Qt::ControlModifier | Qt::ShiftModifier);
+        shortcut(tree, Qt::Key_L, Qt::ControlModifier | Qt::ShiftModifier);
         check(doc.bodies().at(b)->locked, "Keyboard locks focused entity");
         window.findChild<QPushButton *>("outliner.lockButton")->click();
         check(!doc.bodies().at(b)->locked, "Button unlocks focused entity");
         current(tree, a);
         parentForm(window, 0);
-        QTest::keyClick(tree, Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier);
+        shortcut(tree, Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier);
         check(!doc.bodies().at(a)->parent && doc.worldTransform(a) == pose,
               "Keyboard reparent preserves exact world frame");
         window.findChild<QAction *>("edit.undo")->trigger();
@@ -169,7 +179,7 @@ int main(int argc, char **argv) {
         check(!drop(tree, mime.get(), row(tree, group)) && encodeDocument(doc) == cycleSnapshot,
               "Cyclic drop rejects atomically");
         current(tree, group);
-        QTest::keyClick(tree, Qt::Key_Return);
+        shortcut(tree, Qt::Key_Return);
         check(view->selectionState().context() == group,
               ("Enter opens focused context: actual=" +
                std::to_string(view->selectionState().context()) +
@@ -204,7 +214,7 @@ int main(int argc, char **argv) {
         const auto bodies = doc.bodies();
         tabs->setCurrentIndex(1);
         current(tags, folder);
-        QTest::keyClick(tags, Qt::Key_Space);
+        shortcut(tags, Qt::Key_Space);
         check(!doc.tags().at(folder)->visible && doc.bodies() == bodies,
               "Folder visibility checkbox changes no geometry records");
         check(!view->selectionAt(view->project(pose.point({.5, .5, 0}))),
@@ -217,7 +227,7 @@ int main(int argc, char **argv) {
         current(tags, tag);
 
         parentForm(window, 0);
-        QTest::keyClick(tags, Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier);
+        shortcut(tags, Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier);
         check(!doc.tags().at(tag)->parent && doc.bodies() == bodies,
               ("Tag reparent leaves scene ownership intact: parent=" +
                std::to_string(doc.tags().at(tag)->parent) +
@@ -262,17 +272,17 @@ int main(int argc, char **argv) {
         const auto peer = placeComponent(doc, component.definition).instance;
         QMetaObject::invokeMethod(view, "changed");
         current(tree, b);
-        QTest::keyClick(tree, Qt::Key_Return);
+        shortcut(tree, Qt::Key_Return);
         current(tree, member);
         nameForm(window, "Shared panel");
-        QTest::keyClick(tree, Qt::Key_F2);
+        shortcut(tree, Qt::Key_F2);
         const auto peerMember = doc.instances().at(peer)->members.at(member);
         check(doc.bodies().at(member)->name == "Shared panel" &&
                   doc.bodies().at(peerMember)->name == "Shared panel",
               "Outliner rename inside component edits shared members");
         current(tree, b);
         nameForm(window, "Local placement");
-        QTest::keyClick(tree, Qt::Key_F2);
+        shortcut(tree, Qt::Key_F2);
         check(doc.bodies().at(b)->name == "Local placement" &&
                   doc.bodies().at(peer)->name != "Local placement",
               ("Open component root rename remains local: name=" + doc.bodies().at(b)->name +
