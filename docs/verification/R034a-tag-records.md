@@ -1,6 +1,7 @@
 # R034.a: tag records, visibility and persistence
 
-Date: 2026-10-04. Local validation passed; CI pending.
+Date: 2026-10-04. Merged in [PR #41](https://github.com/zygote55/sketchyup/pull/41).
+Both CI jobs passed for `d51a75a7a2b0e863d9967f1f46f73f5624f7afe8`.
 Requires merged [PR #40](https://github.com/zygote55/sketchyup/pull/40).
 
 The document now owns immutable tags and folder records independently of scene
@@ -53,3 +54,7 @@ invented tags or lost component records. Earlier schema fixtures remain intact.
 R034 is still open: searchable native hierarchy, tag controls and pointer/keyboard
 organization operations follow in R034.b. No independent human acceptance or
 physical Hyprland/output-scale acceptance is claimed here.
+
+One initial CI run failed the existing Wayland DPR-2 pointer-scale assertion.
+The same test passed four consecutive local runs and the failed CI job passed
+on rerun; the other CI job passed without rerun.

@@ -172,6 +172,8 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --script examples/components.json --output /tmp/components.sketchyup
 ./build/dev/sketchyup-cli --script examples/tags.json --output /tmp/tags.sketchyup
 ./build/dev/sketchyup-cli --input /tmp/tags.sketchyup --query tags.describe
+./build/dev/sketchyup-cli --script examples/entity-info.json --output /tmp/entity-info.sketchyup
+./build/dev/sketchyup-cli --input /tmp/entity-info.sketchyup --query entity.inspect --context 1
 ./build/dev/sketchyup-cli --input /tmp/curves.sketchyup --query-file examples/inference-query.json
 ```
 
@@ -215,6 +217,15 @@ tag creation, visibility checkboxes, rename, move, assignment and unused deletio
 Hidden/locked rows remain available for inspection and reveal/unlock. Shared
 member edits still require opening their component context. See the
 [native organization evidence](docs/verification/R034b-native-organization.md).
+
+`entity.inspect` reports world, parent and intrinsic bounds, lengths and areas.
+Volume is present only after bounded single-shell solid validation; open, invalid,
+multiple-record/shell or unclassified geometry returns null volume with a reason.
+`entity.position` and `entity.dimensions` edit real placement/geometry in world or
+parent coordinates. Intrinsic measurements remain separate from placement scale.
+`entity.properties` stores typed semantic values for recipes. See the
+[measurement contract](docs/decisions/0009-entity-measurements.md). Native Entity
+info controls follow in R035.b.
 
 `component.create` converts a geometry/group root into a reusable definition;
 `component.selection` converts typed selected faces, edges, guides or contexts;
