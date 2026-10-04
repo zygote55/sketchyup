@@ -112,12 +112,13 @@ Id Document::addWire(Id context, Vec3 a, Vec3 b) {
     return body->id;
 }
 ChangeReport Document::insertEdges(Id context, Vec3 origin, Vec3 normal,
-                                   const std::vector<std::array<Vec3, 2>> &edges) {
+                                   const std::vector<std::array<Vec3, 2>> &edges,
+                                   std::string name) {
     BodyPtr old = context ? bodies_.at(context) : nullptr;
     auto body = old ? std::make_shared<Body>(*old) : std::make_shared<Body>();
     if (!old) {
         body->id = nextId_;
-        body->name = "Planar geometry";
+        body->name = std::move(name);
     }
     auto result = insertPlanarEdges(body->surface, origin, normal, edges);
     if (old && result.surface == old->surface)

@@ -2,6 +2,7 @@
 #include "app/theme.hpp"
 #include "app/tool_session.hpp"
 #include "core/model.hpp"
+#include "geometry/drawing.hpp"
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_3_3_Core>
@@ -24,9 +25,16 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Extrude = 3,
         Orbit = 4,
         Pan = 5,
-        Line = 6
+        Line = 6,
+        Polygon = 7,
+        Freehand = 8,
+        RotatedRectangle = 9
     };
     void setTool(Tool tool);
+    void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
+    void useSelectedFacePlane();
+    DrawingPlane drawingPlane() const { return plane_; }
+    unsigned polygonSides() const { return polygonSides_; }
     Tool tool() const { return tool_; }
     ToolSession::Phase interactionPhase() const { return session_.phase(); }
     std::optional<Vec3> operationAnchor() const { return anchor_; }
@@ -136,6 +144,14 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QPointF previous_;
     std::optional<Vec3> anchor_, cursor_, committedAnchor_, committedEnd_;
     Id committedBody_{}, committedFace_{};
+    DrawingPlane plane_;
+    std::optional<DrawingPlane> configuredPlane_;
+    Id configuredContext_{}, drawingContext_{}, chainContext_{};
+    bool chainPending_{false};
+    QPointF committedPointer_;
+    std::optional<Vec3> baseline_, committedBaseline_;
+    std::vector<Vec3> samples_;
+    unsigned polygonSides_{6};
     bool toolPressed_{false}, dragCommit_{false}, previewValid_{false};
     QPointF toolPressPosition_;
     Vec3 extrusionAxis_{};
@@ -151,6 +167,9 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QMatrix4x4 matrix() const;
     std::pair<Vec3, Vec3> ray(QPointF p) const;
     std::optional<Vec3> ground(QPointF p) const;
+    void choosePlane(QPointF point);
+    void beginChain();
+    bool drawingTool() const;
     void rebuild();
     void paintScene();
     void cleanupGL();
