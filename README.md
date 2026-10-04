@@ -197,9 +197,9 @@ space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
 queries for world-coordinate points. `geometry.infer` accepts `includeGuides`
 (default true) and an optional direction reference with `body` plus `guide`
 in place of `edge`; results identify both sources of mixed intersections.
-The current file schema is version 10. It stores material swatches and front/back
+The current file schema is version 11. It stores managed assets, material swatches and front/back
 assignments, tag folders and assignments, canonical component definitions and
-stable instance-member bindings. Versions 1–9 preserve legacy colors without
+stable instance-member bindings. Versions 1–10 acquire no invented assets; versions 1–9 preserve legacy colors without
 inventing swatches; versions 1–8 migrate with all entities Untagged, and versions
 1–7 acquire no invented components. Earlier group and guide migrations remain supported.
 
@@ -227,8 +227,20 @@ Shared component member assignments use explicit component scope; swatch table
 edits remain document-wide. `materials.describe` lists swatches and
 `material.sample` reports both sides without editing. See the
 [material contract](docs/decisions/0010-material-records.md) and
-[recipe](examples/materials.json). Managed assets and native material rendering,
-swatches and paint/sample controls follow in R036.b/c.
+[recipe](examples/materials.json). Native material rendering, swatches and
+paint/sample controls follow in R036.c.
+
+`asset.import` stores canonical base64 bytes; `asset.missing` retains an explicit
+missing-resource record. `asset.replace` resolves/replaces bytes under the same
+identity, or accepts null data to mark a resource missing. `asset.delete` rejects
+resources still referenced by a swatch. Material create/edit accepts `asset`
+(`"0"` clears it). `assets.describe` returns a checksummed manifest without raw
+payloads; material queries expose missing/present status. Native containers own
+their bytes and survive relocation without the source files. Asset paths are
+fixed logical keys, never filesystem extraction paths. Limits are 16 MiB per
+asset, 64 MiB per document and 1,024 records. See the
+[asset contract](docs/decisions/0011-managed-assets.md). Stored images do not yet
+have UV mapping or texture rendering.
 
 `entity.inspect` reports world, parent and intrinsic bounds, lengths and areas.
 Volume is present only after bounded single-shell solid validation; open, invalid,

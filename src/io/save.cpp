@@ -9,7 +9,7 @@
 #include <unistd.h>
 namespace sketchy {
 namespace {
-constexpr qint64 fileLimit = 16 + 1024 * 1024 + 32 * 1024 * 1024;
+constexpr qint64 fileLimit = 128 * 1024 * 1024;
 class Directory {
   public:
     explicit Directory(const QString &path) {

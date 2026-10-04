@@ -1,6 +1,7 @@
 # R035.b: native Entity info
 
-Date: 2026-10-04. Local checks passed; CI pending.
+Date: 2026-10-04. Local checks and both CI jobs passed; merged in
+[PR #44](https://github.com/zygote55/sketchyup/pull/44).
 Requires the measurement foundation in [PR #43](https://github.com/zygote55/sketchyup/pull/43).
 
 The Model tray's Info tab measures the single selected context, face, edge or
@@ -50,7 +51,6 @@ or the later full Diagnostics panel.
 - CI runs the new native suite on both platforms at both scales.
 
 The screenshot is implementation-agent evidence, not independent human
-acceptance or physical Hyprland output-scale verification. R035 remains open
-until both child PRs pass CI.
+acceptance or physical Hyprland output-scale verification. Both child PRs passed CI and R035 is complete.
 
 ![Native Entity info in explicit world coordinates](R035b-info-x11.png)

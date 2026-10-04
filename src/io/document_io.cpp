@@ -1,11 +1,14 @@
 #include "io/document_io.hpp"
+#include "io/assets.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <limits>
+#include <set>
 namespace sketchy {
 namespace {
-constexpr qint64 fileLimit = 32 * 1024 * 1024;
+constexpr qint64 fileLimit = 128 * 1024 * 1024;
+constexpr qint64 modelLimit = 32 * 1024 * 1024;
 QString sid(Id id) { return QString::number(id); }
 Id readId(const QJsonValue &v, bool allowZero = false) {
     bool ok = false;
@@ -131,15 +134,28 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
     }
     return bodies;
 }
-QByteArray encodeDocument(const Document &doc) {
+QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
     const auto bodies = encodeBodies(doc.bodies());
-    QJsonArray definitions, instances, tags, materials;
+    QJsonArray definitions, instances, tags, materials, assets;
+    for (const auto &[id, asset] : doc.assets()) {
+        const auto inlineData = asset->payload && assetStorage == AssetStorage::Inline;
+        assets.append(QJsonObject{
+            {"id", sid(id)},
+            {"name", QString::fromStdString(asset->name)},
+            {"mediaType", QString::fromStdString(asset->mediaType)},
+            {"missing", !asset->payload},
+            {"bytes", sid(asset->payload ? asset->payload->bytes().size() : 0)},
+            {"data",
+             inlineData ? QJsonValue(QString::fromLatin1(assetByteArray(asset->payload).toBase64()))
+                        : QJsonValue::Null}});
+    }
     for (const auto &[id, material] : doc.materials())
         materials.append(QJsonObject{
             {"id", sid(id)},
             {"name", QString::fromStdString(material->name)},
             {"color", QJsonArray{material->color[0], material->color[1], material->color[2]}},
-            {"opacity", material->opacity}});
+            {"opacity", material->opacity},
+            {"asset", sid(material->asset)}});
     for (const auto &[id, tag] : doc.tags())
         tags.append(QJsonObject{{"id", sid(id)},
                                 {"parent", sid(tag->parent)},
@@ -164,24 +180,29 @@ QByteArray encodeDocument(const Document &doc) {
         instances.append(QJsonObject{
             {"root", sid(root)}, {"definition", sid(instance->definition)}, {"members", members}});
     }
-    auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 10},
-                                           {"revision", sid(doc.revision())},
-                                           {"units", "m"},
-                                           {"up", "Z"},
-                                           {"documentId", QString::fromStdString(doc.identity())},
-                                           {"nextId", sid(doc.nextId())},
-                                           {"bodies", bodies},
-                                           {"definitions", definitions},
-                                           {"instances", instances},
-                                           {"nextDefinitionId", sid(doc.nextDefinitionId())},
-                                           {"tags", tags},
-                                           {"nextTagId", sid(doc.nextTagId())},
-                                           {"materials", materials},
-                                           {"nextMaterialId", sid(doc.nextMaterialId())}})
-                     .toJson(QJsonDocument::Compact);
-    if (bytes.size() > fileLimit)
-        throw std::runtime_error("Document exceeds the 32 MiB file limit");
+    auto bytes =
+        QJsonDocument(QJsonObject{{"format", "sketchyup"},
+                                  {"version", 11},
+                                  {"revision", sid(doc.revision())},
+                                  {"units", "m"},
+                                  {"up", "Z"},
+                                  {"documentId", QString::fromStdString(doc.identity())},
+                                  {"nextId", sid(doc.nextId())},
+                                  {"bodies", bodies},
+                                  {"definitions", definitions},
+                                  {"instances", instances},
+                                  {"nextDefinitionId", sid(doc.nextDefinitionId())},
+                                  {"tags", tags},
+                                  {"nextTagId", sid(doc.nextTagId())},
+                                  {"materials", materials},
+                                  {"nextMaterialId", sid(doc.nextMaterialId())},
+                                  {"assets", assets},
+                                  {"nextAssetId", sid(doc.nextAssetId())},
+                                  {"assetStorage",
+                                   assetStorage == AssetStorage::Inline ? "inline" : "external"}})
+            .toJson(QJsonDocument::Compact);
+    if (bytes.size() > (assetStorage == AssetStorage::Inline ? fileLimit : modelLimit))
+        throw std::runtime_error("Document exceeds its JSON storage limit");
     return bytes;
 }
 std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
@@ -417,9 +438,9 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
     }
     return bodies;
 }
-Document decodeDocument(const QByteArray &bytes) {
+Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) {
     if (bytes.size() > fileLimit)
-        throw std::runtime_error("Document exceeds the 32 MiB file limit");
+        throw std::runtime_error("Document exceeds the 128 MiB JSON limit");
     QJsonParseError error;
     auto json = QJsonDocument::fromJson(bytes, &error);
     if (error.error != QJsonParseError::NoError || !json.isObject())
@@ -430,7 +451,8 @@ Document decodeDocument(const QByteArray &bytes) {
          root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
          root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
          root["version"].toDouble() != 7 && root["version"].toDouble() != 8 &&
-         root["version"].toDouble() != 9 && root["version"].toDouble() != 10) ||
+         root["version"].toDouble() != 9 && root["version"].toDouble() != 10 &&
+         root["version"].toDouble() != 11) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -442,11 +464,65 @@ Document decodeDocument(const QByteArray &bytes) {
         rootFields += {"tags", "nextTagId"};
     if (root["version"].toInt() >= 10)
         rootFields += {"materials", "nextMaterialId"};
+    if (root["version"].toInt() >= 11)
+        rootFields += {"assets", "nextAssetId", "assetStorage"};
+    else if (bytes.size() > modelLimit || !payloads.empty())
+        throw std::runtime_error("Legacy document exceeds model limit or has unexpected assets");
     supportedFields(root, rootFields);
+    if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
+        bytes.size() > modelLimit)
+        throw std::runtime_error("Packaged model exceeds the 32 MiB JSON limit");
     auto bodies = decodeBodies(root["bodies"], root["version"].toInt());
     ComponentDefinitions definitions;
     ComponentInstances instances;
     Id nextDefinitionId = 1;
+    AssetRecords assets;
+    Id nextAssetId = 1;
+    if (root["version"].toInt() >= 11) {
+        nextAssetId = readId(root["nextAssetId"]);
+        const bool external = root["assetStorage"] == "external";
+        if ((!external && root["assetStorage"] != "inline") || (!external && !payloads.empty()))
+            throw std::runtime_error("Invalid asset storage mode");
+        const auto records = array(root["assets"]);
+        if (records.size() > 1024)
+            throw std::runtime_error("Too many assets");
+        std::set<Id> used;
+        size_t total = 0;
+        for (auto value : records) {
+            const auto record = object(value);
+            supportedFields(record, {"id", "name", "mediaType", "missing", "bytes", "data"});
+            if (!record["name"].isString() || !record["mediaType"].isString() ||
+                !record["missing"].isBool())
+                throw std::runtime_error("Invalid asset metadata");
+            const auto id = readId(record["id"]), size = readId(record["bytes"], true);
+            if (size > AssetPayload::limit || size > assetTotalLimit - total)
+                throw std::runtime_error("Asset data exceeds document limits");
+            total += size;
+            AssetPayloadPtr payload;
+            if (record["missing"].toBool()) {
+                if (size || !record["data"].isNull())
+                    throw std::runtime_error("Missing asset cannot contain payload");
+            } else if (external) {
+                if (!record["data"].isNull() || !payloads.contains(id) || !payloads.at(id))
+                    throw std::runtime_error("Packaged asset payload is absent");
+                payload = payloads.at(id);
+                used.insert(id);
+            } else {
+                if (!record["data"].isString())
+                    throw std::runtime_error("Asset requires base64 payload");
+                payload = decodeAssetPayload(record["data"].toString());
+            }
+            if (payload && payload->bytes().size() != size)
+                throw std::runtime_error("Asset byte count mismatch");
+            auto asset = std::make_shared<AssetRecord>(
+                AssetRecord{id, record["name"].toString().toStdString(),
+                            record["mediaType"].toString().toStdString(), payload});
+            if (!assets.emplace(id, asset).second)
+                throw std::runtime_error("Duplicate asset identity");
+        }
+        if (used.size() != payloads.size())
+            throw std::runtime_error("Unreferenced packaged asset payload");
+    }
     MaterialRecords materials;
     Id nextMaterialId = 1;
     if (root["version"].toInt() >= 10) {
@@ -456,7 +532,10 @@ Document decodeDocument(const QByteArray &bytes) {
             throw std::runtime_error("Too many materials");
         for (auto value : records) {
             const auto record = object(value);
-            supportedFields(record, {"id", "name", "color", "opacity"});
+            QStringList materialFields{"id", "name", "color", "opacity"};
+            if (root["version"].toInt() >= 11)
+                materialFields.append("asset");
+            supportedFields(record, materialFields);
             if (!record["name"].isString())
                 throw std::runtime_error("Invalid material name");
             const auto color = array(record["color"]);
@@ -466,7 +545,8 @@ Document decodeDocument(const QByteArray &bytes) {
                 readId(record["id"]),
                 record["name"].toString().toStdString(),
                 {float(number(color[0])), float(number(color[1])), float(number(color[2]))},
-                float(number(record["opacity"]))});
+                float(number(record["opacity"])),
+                root["version"].toInt() >= 11 ? readId(record["asset"], true) : Id{}});
             if (!materials.emplace(material->id, material).second)
                 throw std::runtime_error("Duplicate material identity");
         }
@@ -535,7 +615,7 @@ Document decodeDocument(const QByteArray &bytes) {
                 std::move(bodies),
                 root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0,
                 std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
-                nextTagId, std::move(materials), nextMaterialId);
+                nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId);
     return doc;
 }
 } // namespace sketchy

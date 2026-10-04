@@ -212,6 +212,12 @@ int main(int argc, char **argv) {
             read(QString(SKETCHYUP_TEST_FIXTURES) + "/container-tags-v9.sketchyup"));
         require(!v9.tags().empty() && v9.materials().empty(),
                 "Version-9 migration preserves tags without inventing swatches");
+        const auto v10 = decodeContainer(
+            read(QString(SKETCHYUP_TEST_FIXTURES) + "/container-materials-v10.sketchyup"));
+        require(v10.materials().size() == 2 && v10.assets().empty() &&
+                    !v10.materials().at(2)->asset &&
+                    std::abs(v10.materials().at(2)->opacity - .4f) < 1e-6,
+                "Version-10 migration retains front/back materials without invented assets");
         Document coated = v8;
         const auto swatch = createMaterial(coated, "Blue glass", {.1f, .3f, .8f}, .35f);
         const auto coatedDefinition = coated.definitions().begin()->first;
@@ -449,6 +455,9 @@ int main(int argc, char **argv) {
         legacy.remove("nextTagId");
         legacy.remove("materials");
         legacy.remove("nextMaterialId");
+        legacy.remove("assets");
+        legacy.remove("nextAssetId");
+        legacy.remove("assetStorage");
         auto records = legacy["bodies"].toArray();
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();

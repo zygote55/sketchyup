@@ -1,17 +1,19 @@
 #include "core/materials.hpp"
 namespace sketchy {
-Id createMaterial(Document &doc, std::string name, std::array<float, 3> color, float opacity) {
+Id createMaterial(Document &doc, std::string name, std::array<float, 3> color, float opacity,
+                  Id asset) {
     const auto id = doc.nextMaterialId();
-    auto record =
-        std::make_shared<MaterialRecord>(MaterialRecord{id, std::move(name), color, opacity});
+    auto record = std::make_shared<MaterialRecord>(
+        MaterialRecord{id, std::move(name), color, opacity, asset});
     Edit edit{"Create material", {}};
     edit.materials.push_back({id, nullptr, record});
     doc.apply(std::move(edit), doc.revision());
     return id;
 }
 void editMaterial(Document &doc, Id id, std::optional<std::string> name,
-                  std::optional<std::array<float, 3>> color, std::optional<float> opacity) {
-    if (!name && !color && !opacity)
+                  std::optional<std::array<float, 3>> color, std::optional<float> opacity,
+                  std::optional<Id> asset) {
+    if (!name && !color && !opacity && !asset)
         throw std::runtime_error("Material edit requires a field");
     const auto old = doc.materials().at(id);
     auto record = std::make_shared<MaterialRecord>(*old);
@@ -21,6 +23,8 @@ void editMaterial(Document &doc, Id id, std::optional<std::string> name,
         record->color = *color;
     if (opacity)
         record->opacity = *opacity;
+    if (asset)
+        record->asset = *asset;
     if (*record == *old)
         return;
     Edit edit{"Edit material", {}};

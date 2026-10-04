@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "core/assets.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
@@ -695,7 +696,59 @@ int main(int argc, char **argv) {
         });
         check(encodeDocument(info) == beforeMaterialFailure,
               "Rejected assignment rolls back earlier global swatch edits");
+        Document assetDoc;
+        auto assetBatch = [&](QJsonArray commands) {
+            return executeBatch(assetDoc,
+                                {{"apiVersion", 1},
+                                 {"documentId", QString::fromStdString(assetDoc.identity())},
+                                 {"expectedRevision", QString::number(assetDoc.revision())},
+                                 {"commands", commands}});
+        };
+        const auto assetCreated = assetBatch({QJsonObject{{"command", "asset.missing"},
+                                                          {"name", "Lost texture"},
+                                                          {"mediaType", "image/png"}},
+                                              QJsonObject{{"command", "material.create"},
+                                                          {"name", "Textured"},
+                                                          {"color", QJsonArray{1, 1, 1}},
+                                                          {"asset", "1"}}});
+        check(assetCreated["createdAssets"].toArray() == QJsonArray{"1"} &&
+                  executeQuery(assetDoc, {{"query", "materials.describe"}})["materials"]
+                          .toArray()[0]
+                          .toObject()["assetStatus"] == "missing",
+              "Public material query explicitly reports missing referenced assets");
+        const auto assetStamp = assetDoc.saveStamp();
+        const auto assetQuery = executeQuery(assetDoc, {{"query", "assets.describe"}});
+        check(assetQuery["assets"].toArray()[0].toObject()["missing"] == true &&
+                  assetDoc.isCurrentSnapshot(assetStamp),
+              "Asset manifest query is read-only");
+        assetBatch({QJsonObject{{"command", "asset.replace"}, {"asset", "1"}, {"data", "AAEC"}}});
+        check(executeQuery(assetDoc, {{"query", "materials.describe"}})["materials"]
+                      .toArray()[0]
+                      .toObject()["assetStatus"] == "present",
+              "Resolving bytes updates material resource status without rebinding identity");
+        const auto beforeAssetFailure = encodeDocument(assetDoc);
+        rejects([&] {
+            assetBatch(
+                {QJsonObject{
+                     {"command", "asset.replace"}, {"asset", "1"}, {"data", QJsonValue::Null}},
+                 QJsonObject{{"command", "material.edit"}, {"material", "1"}, {"asset", "999"}}});
+        });
+        check(encodeDocument(assetDoc) == beforeAssetFailure,
+              "Invalid binding rolls back a preceding asset replacement");
+        assetDoc.undo();
+        check(!assetDoc.assets().at(1)->payload, "Resolution has one undo step");
+        assetDoc.undo();
+        check(assetDoc.assets().empty() && assetDoc.materials().empty(),
+              "Combined asset and material creation undoes atomically");
         const QJsonArray cases{
+            QJsonObject{{"command", "asset.import"},
+                        {"name", "Data"},
+                        {"mediaType", "application/octet-stream"},
+                        {"data", "AAEC"}},
+            QJsonObject{
+                {"command", "asset.missing"}, {"name", "Texture"}, {"mediaType", "image/png"}},
+            QJsonObject{{"command", "asset.replace"}, {"asset", "1"}, {"data", "AwQF"}},
+            QJsonObject{{"command", "asset.delete"}, {"asset", "1"}},
             QJsonObject{{"command", "material.create"},
                         {"name", "Glass"},
                         {"color", QJsonArray{.2, .4, .6}},
@@ -892,6 +945,10 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("asset.") &&
+                command["command"] != "asset.import" && command["command"] != "asset.missing")
+                createAsset(doc, "Data", "application/octet-stream",
+                            std::make_shared<AssetPayload>(std::vector<std::uint8_t>{0, 1, 2}));
             if (command["command"].toString().startsWith("material.") &&
                 command["command"] != "material.create" && command["command"] != "material.color")
                 createMaterial(doc, "Paint", {.7f, .2f, .3f});
@@ -956,6 +1013,8 @@ int main(int argc, char **argv) {
             check(doc.tags() == baseline.tags(), "Registered command undo restores tag records");
             check(doc.materials() == baseline.materials(),
                   "Registered command undo restores material records");
+            check(doc.assets() == baseline.assets(),
+                  "Registered command undo restores asset records");
         }
         Document groupedBatch = source;
         Document taggedMerge;

@@ -173,9 +173,9 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
                      const ComponentInstances &bindings, const std::map<Id, BodyPtr> &seed, Id next,
                      Id nextDefinition, std::string label, Id editedDefinition = 0,
                      const ChangeReport &lineage = {}) {
-    const auto sizes =
-        validateComponentDefinitions(definitions, nextDefinition, doc.tags(), doc.nextTagId(),
-                                     doc.materials(), doc.nextMaterialId());
+    const auto sizes = validateComponentDefinitions(
+        definitions, nextDefinition, doc.tags(), doc.nextTagId(), doc.materials(),
+        doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
     std::set<Id> owned, nestedRoots;
     for (const auto &[root, binding] : doc.instances())
         for (const auto &[member, id] : binding->members) {
@@ -412,7 +412,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     Document draft;
     draft.restore(draft.identity(), original->nextMemberId, members, 0, doc.definitions(), {},
                   doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
-                  doc.nextMaterialId());
+                  doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
@@ -430,6 +430,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     const auto baselineDefinitions = draft.definitions();
     const auto baselineTags = draft.tags();
     const auto baselineMaterials = draft.materials();
+    const auto baselineAssets = draft.assets();
     const auto baseline = draft.saveStamp();
     const auto report = edit(draft);
     if (draft.isCurrentSnapshot(baseline))
@@ -442,6 +443,8 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         root->name != previousRoot->name || root->properties != previousRoot->properties ||
         root->tag != previousRoot->tag)
         throw std::runtime_error("Instance root state is outside shared geometry edit scope");
+    if (draft.assets() != baselineAssets)
+        throw std::runtime_error("Edit document assets outside a shared geometry scope");
     if (draft.materials() != baselineMaterials)
         throw std::runtime_error("Edit document materials outside a shared geometry scope");
     if (draft.tags() != baselineTags)

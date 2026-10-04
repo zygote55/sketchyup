@@ -1,4 +1,5 @@
 #pragma once
+#include "core/asset_records.hpp"
 #include "core/component_records.hpp"
 #include "core/material_records.hpp"
 #include <deque>
@@ -26,6 +27,10 @@ struct MaterialChange {
     Id id{};
     MaterialPtr before, after;
 };
+struct AssetChange {
+    Id id{};
+    AssetPtr before, after;
+};
 struct Edit {
     std::string label;
     std::vector<Change> changes;
@@ -38,6 +43,8 @@ struct Edit {
     Id nextTagFloor{};
     std::vector<MaterialChange> materials{};
     Id nextMaterialFloor{};
+    std::vector<AssetChange> assets{};
+    Id nextAssetFloor{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -62,6 +69,8 @@ class Document {
     Id nextTagId() const { return nextTagId_; }
     const MaterialRecords &materials() const { return materials_; }
     Id nextMaterialId() const { return nextMaterialId_; }
+    const AssetRecords &assets() const { return assets_; }
+    Id nextAssetId() const { return nextAssetId_; }
     std::uint64_t revision() const { return revision_; }
     Id nextId() const { return nextId_; }
     const std::string &identity() const { return identity_; }
@@ -112,7 +121,8 @@ class Document {
     void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
                  std::uint64_t revision = 0, ComponentDefinitions definitions = {},
                  ComponentInstances instances = {}, Id nextDefinitionId = 1, TagRecords tags = {},
-                 Id nextTagId = 1, MaterialRecords materials = {}, Id nextMaterialId = 1);
+                 Id nextTagId = 1, MaterialRecords materials = {}, Id nextMaterialId = 1,
+                 AssetRecords assets = {}, Id nextAssetId = 1);
 
   private:
     std::string identity_;
@@ -125,6 +135,8 @@ class Document {
     Id nextTagId_{1};
     MaterialRecords materials_;
     Id nextMaterialId_{1};
+    AssetRecords assets_;
+    Id nextAssetId_{1};
     struct DefinitionFloor {
         Id nextMemberId{1};
         std::map<Id, std::pair<Id, Id>> geometry;

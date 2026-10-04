@@ -12,6 +12,7 @@
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
+#include "io/assets.hpp"
 #include "io/document_io.hpp"
 #include <QString>
 #include <algorithm>
@@ -166,8 +167,8 @@ QJsonObject capabilities() {
              }()},
             {"commandSchemas", commandCatalog()},
             {"queries", QJsonArray{"document.describe", "entity.inspect", "tags.describe",
-                                   "materials.describe", "material.sample", "component.inspect",
-                                   "geometry.inspect", "geometry.infer",
+                                   "materials.describe", "material.sample", "assets.describe",
+                                   "component.inspect", "geometry.inspect", "geometry.infer",
                                    "geometry.measure_distance", "geometry.measure_angle",
                                    "geometry.preview", "commands.describe", "capabilities"}},
             {"transactionContract",
@@ -175,8 +176,13 @@ QJsonObject capabilities() {
                          {"history", "one undo item per batch"},
                          {"precondition", "document identity and expected content revision"},
                          {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
-            {"limits", QJsonObject{{"fileBytes", 16 + 33 * 1024 * 1024},
-                                   {"documentBytes", 32 * 1024 * 1024},
+            {"limits", QJsonObject{{"fileBytes", 128 * 1024 * 1024},
+                                   {"nativeContainerBytes", 16 + 97 * 1024 * 1024},
+                                   {"assetBytes", int(AssetPayload::limit)},
+                                   {"totalAssetBytes", int(assetTotalLimit)},
+                                   {"assets", 1024},
+                                   {"documentBytes", 128 * 1024 * 1024},
+                                   {"packagedModelBytes", 32 * 1024 * 1024},
                                    {"bodies", 10000},
                                    {"componentDefinitions", 1024},
                                    {"materials", 1024},
@@ -263,6 +269,13 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                                                          : SelectionKind::Guide,
                                        entity});
     }
+    if (name == "assets.describe") {
+        fields(request, {"query"});
+        return {{"documentId", QString::fromStdString(doc.identity())},
+                {"revision", QString::number(doc.revision())},
+                {"assets", assetManifest(doc)},
+                {"nextAssetId", QString::number(doc.nextAssetId())}};
+    }
     if (name == "materials.describe") {
         fields(request, {"query"});
         QJsonArray records;
@@ -271,7 +284,11 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                 {"id", QString::number(id)},
                 {"name", QString::fromStdString(material->name)},
                 {"color", QJsonArray{material->color[0], material->color[1], material->color[2]}},
-                {"opacity", material->opacity}});
+                {"opacity", material->opacity},
+                {"asset", QString::number(material->asset)},
+                {"assetStatus", !material->asset                            ? "none"
+                                : doc.assets().at(material->asset)->payload ? "present"
+                                                                            : "missing"}});
         return {{"documentId", QString::fromStdString(doc.identity())},
                 {"revision", QString::number(doc.revision())},
                 {"materials", records},
@@ -285,10 +302,15 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
             throw std::runtime_error("Unknown face");
         auto appearance = [&](bool back) {
             const auto result = surfaceAppearance(doc.materials(), *body, face, back);
+            const auto asset = result.material ? doc.materials().at(result.material)->asset : Id{};
             return QJsonObject{
                 {"material", QString::number(result.material)},
                 {"color", QJsonArray{result.color[0], result.color[1], result.color[2]}},
-                {"opacity", result.opacity}};
+                {"opacity", result.opacity},
+                {"asset", QString::number(asset)},
+                {"assetStatus", !asset                            ? "none"
+                                : doc.assets().at(asset)->payload ? "present"
+                                                                  : "missing"}};
         };
         return {{"documentId", QString::fromStdString(doc.identity())},
                 {"revision", QString::number(doc.revision())},
@@ -551,8 +573,29 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name == "material.create" || name == "material.edit" || name == "material.delete" ||
-            name == "material.assign") {
+        if (name.startsWith("asset.")) {
+            if ((command.contains("name") && !command["name"].isString()) ||
+                (command.contains("mediaType") && !command["mediaType"].isString()))
+                throw std::runtime_error("Asset name and media type must be strings");
+            auto data = [&] {
+                if (!command["data"].isString())
+                    throw std::runtime_error("Asset data must be base64");
+                return decodeAssetPayload(command["data"].toString());
+            };
+            if (name == "asset.import" || name == "asset.missing")
+                createAsset(staged, command["name"].toString().toStdString(),
+                            command["mediaType"].toString().toStdString(),
+                            name == "asset.import" ? data() : AssetPayloadPtr{});
+            else if (name == "asset.replace")
+                replaceAsset(staged, id(command["asset"]),
+                             command["data"].isNull() ? AssetPayloadPtr{} : data(),
+                             command.contains("mediaType")
+                                 ? std::optional(command["mediaType"].toString().toStdString())
+                                 : std::nullopt);
+            else
+                eraseAsset(staged, id(command["asset"]));
+        } else if (name == "material.create" || name == "material.edit" ||
+                   name == "material.delete" || name == "material.assign") {
             if (command.contains("name") && !command["name"].isString())
                 throw std::runtime_error("Material name must be a string");
             auto color = [&] {
@@ -570,14 +613,21 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             };
             if (name == "material.create")
                 createMaterial(staged, command["name"].toString().toStdString(), color(),
-                               command.contains("opacity") ? opacity() : 1);
+                               command.contains("opacity") ? opacity() : 1,
+                               !command.contains("asset") || command["asset"] == "0"
+                                   ? Id{}
+                                   : id(command["asset"]));
             else if (name == "material.edit")
-                editMaterial(staged, id(command["material"]),
-                             command.contains("name")
-                                 ? std::optional(command["name"].toString().toStdString())
-                                 : std::nullopt,
-                             command.contains("color") ? std::optional(color()) : std::nullopt,
-                             command.contains("opacity") ? std::optional(opacity()) : std::nullopt);
+                editMaterial(
+                    staged, id(command["material"]),
+                    command.contains("name")
+                        ? std::optional(command["name"].toString().toStdString())
+                        : std::nullopt,
+                    command.contains("color") ? std::optional(color()) : std::nullopt,
+                    command.contains("opacity") ? std::optional(opacity()) : std::nullopt,
+                    command.contains("asset")
+                        ? std::optional(command["asset"] == "0" ? Id{} : id(command["asset"]))
+                        : std::nullopt);
             else if (name == "material.delete")
                 eraseMaterial(staged, id(command["material"]));
             else {
@@ -1231,7 +1281,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         }
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
-        edit.tags.empty() && edit.materials.empty())
+        edit.tags.empty() && edit.materials.empty() && edit.assets.empty())
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();
@@ -1242,6 +1292,10 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     for (const auto &change : edit.definitions)
         if (!change.before && change.after)
             createdDefinitions.append(QString::number(change.id));
+    QJsonArray createdAssets;
+    for (const auto &change : edit.assets)
+        if (!change.before && change.after)
+            createdAssets.append(QString::number(change.id));
     QJsonArray createdMaterials;
     for (const auto &change : edit.materials)
         if (!change.before && change.after)
@@ -1300,6 +1354,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             {"createdDefinitions", createdDefinitions},
             {"createdTags", createdTags},
             {"createdMaterials", createdMaterials},
+            {"createdAssets", createdAssets},
             {"componentOperations", componentOperations},
             {"copies", surviving(copies)},
             {"transfers", surviving(transfers)},
