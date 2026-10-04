@@ -31,6 +31,25 @@ Guide guideLine(Vec3 origin, Vec3 direction) {
     result.validate();
     return result;
 }
+std::array<Vec3, 2> boundedGuideLine(const Guide &line) {
+    line.validate();
+    if (line.kind != GuideKind::Line)
+        throw std::runtime_error("Expected a guide line");
+    double low = -INFINITY, high = INFINITY;
+    const double origins[]{line.origin.x, line.origin.y, line.origin.z};
+    const double directions[]{line.direction.x, line.direction.y, line.direction.z};
+    for (int i = 0; i < 3; ++i) {
+        if (directions[i] == 0)
+            continue;
+        auto a = (-coordinateLimit - origins[i]) / directions[i];
+        auto b = (coordinateLimit - origins[i]) / directions[i];
+        if (a > b)
+            std::swap(a, b);
+        low = std::max(low, a);
+        high = std::min(high, b);
+    }
+    return {line.origin + line.direction * low, line.origin + line.direction * high};
+}
 Guide offsetGuide(const Guide &line, Vec3 normal, double distance) {
     line.validate();
     normal = unit(normal);

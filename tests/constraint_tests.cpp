@@ -55,6 +55,26 @@ int main() {
         check(locks.current() == red, "Shift release restores persistent lock");
         locks.toggle(red);
         check(!locks.current(), "Same arrow releases axis");
+        Document guides;
+        guides.addGuide(0, guideLine({}, {1, 1, 0}));
+        guides.transform(1, Transform::scaling({-2, 3, 1}));
+        InferenceCandidate guideReference;
+        guideReference.kind = InferenceKind::OnGuide;
+        guideReference.body = 1;
+        guideReference.entity = 1;
+        guideReference.entityType = InferenceEntity::Guide;
+        const auto guideDirections = edgeDirections(guides, guideReference, {0, 1, 0}, {});
+        check(guideDirections.size() == 2 && guideDirections[0].entityType == InferenceEntity::Guide &&
+              length(cross(guideDirections[0].direction, Vec3{-2,3,0})) < tolerance,
+              "Guide references use transformed world directions and typed identities");
+        auto guideLock = guideDirections[0];
+        locks.toggle(guideLock);
+        auto edgeLock = guideLock;
+        edgeLock.entityType = InferenceEntity::Edge;
+        locks.toggle(edgeLock);
+        check(locks.current() && locks.current()->entityType == InferenceEntity::Edge,
+              "Equal edge/guide numbers do not toggle the wrong source off");
+        locks.clear();
         Document doc;
         doc.addWire(0, {0, 0, 0}, {2, 2, 0});
         InferenceCandidate edge;

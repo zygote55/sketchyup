@@ -104,13 +104,13 @@ directionCandidates(const InferenceCamera &camera, double x, double y, Vec3 anch
         // roundoff. Tie within a millionth of a logical pixel, never in world
         // geometry, so canonical axis priority is stable across camera/scale.
         return std::tuple{
-                   std::llround(a.pixels * 1e6), a.constraint.kind,        a.constraint.body,
-                   a.constraint.entity,          a.constraint.direction.x, a.constraint.direction.y,
-                   a.constraint.direction.z} <
+                   std::llround(a.pixels * 1e6), a.constraint.kind,       a.constraint.body,
+                   a.constraint.entityType,      a.constraint.entity,     a.constraint.direction.x,
+                   a.constraint.direction.y,     a.constraint.direction.z} <
                std::tuple{
-                   std::llround(b.pixels * 1e6), b.constraint.kind,        b.constraint.body,
-                   b.constraint.entity,          b.constraint.direction.x, b.constraint.direction.y,
-                   b.constraint.direction.z};
+                   std::llround(b.pixels * 1e6), b.constraint.kind,       b.constraint.body,
+                   b.constraint.entityType,      b.constraint.entity,     b.constraint.direction.x,
+                   b.constraint.direction.y,     b.constraint.direction.z};
     });
     return result;
 }
@@ -151,15 +151,28 @@ std::vector<DirectionConstraint> edgeDirections(const Document &doc,
                     edges.push_back(id);
     std::set<Id> processedCurves;
     std::vector<DirectionConstraint> result;
+    if (reference.entityType == InferenceEntity::Guide && body.guides.contains(reference.entity)) {
+        const auto &guide = body.guides.at(reference.entity);
+        if (guide.kind == GuideKind::Line) {
+            const auto direction = unit(world.vector(guide.direction));
+            result.push_back({DirectionKind::Parallel, anchor, direction, body.id, reference.entity,
+                              InferenceEntity::Guide});
+            const auto perpendicular = cross(plane.normal, direction);
+            if (length(perpendicular) > 1e-10)
+                result.push_back({DirectionKind::Perpendicular, anchor, unit(perpendicular),
+                                  body.id, reference.entity, InferenceEntity::Guide});
+        }
+    }
     for (auto id : edges) {
         const auto &edge = body.topology.edges.at(id);
         const auto direction =
             unit(world.vector(body.surface.vertices.at(edge.b) - body.surface.vertices.at(edge.a)));
-        result.push_back({DirectionKind::Parallel, anchor, direction, body.id, id});
+        result.push_back(
+            {DirectionKind::Parallel, anchor, direction, body.id, id, InferenceEntity::Edge});
         const auto perpendicular = cross(plane.normal, direction);
         if (length(perpendicular) > 1e-10)
-            result.push_back(
-                {DirectionKind::Perpendicular, anchor, unit(perpendicular), body.id, id});
+            result.push_back({DirectionKind::Perpendicular, anchor, unit(perpendicular), body.id,
+                              id, InferenceEntity::Edge});
         for (const auto &[curveId, curve] : body.curves) {
             if (processedCurves.contains(curveId) ||
                 std::none_of(curve.edges.begin(), curve.edges.end(),
@@ -188,7 +201,8 @@ std::vector<DirectionConstraint> edgeDirections(const Document &doc,
                 const auto angle = std::atan2(v, u);
                 if (inRange(angle))
                     result.push_back({DirectionKind::Tangent, anchor,
-                                      unit(world.vector(curve.tangent(angle))), body.id, curveId});
+                                      unit(world.vector(curve.tangent(angle))), body.id, curveId,
+                                      InferenceEntity::Curve});
             } else if (squared > r * r) {
                 const auto foot = r * r / squared,
                            offset = r * std::sqrt(squared - r * r) / squared;
@@ -198,8 +212,8 @@ std::vector<DirectionConstraint> edgeDirections(const Document &doc,
                     if (!inRange(angle))
                         continue;
                     const auto contact = world.point(curve.point(angle));
-                    result.push_back(
-                        {DirectionKind::Tangent, anchor, unit(contact - anchor), body.id, curveId});
+                    result.push_back({DirectionKind::Tangent, anchor, unit(contact - anchor),
+                                      body.id, curveId, InferenceEntity::Curve});
                 }
             }
         }
@@ -209,6 +223,7 @@ std::vector<DirectionConstraint> edgeDirections(const Document &doc,
         if (std::none_of(unique.begin(), unique.end(), [&](const auto &other) {
                 return other.kind == constraint.kind && other.body == constraint.body &&
                        other.entity == constraint.entity &&
+                       other.entityType == constraint.entityType &&
                        std::abs(dot(other.direction, constraint.direction)) > 1 - 1e-10;
             }))
             unique.push_back(constraint);
@@ -219,6 +234,7 @@ void DirectionLocks::toggle(DirectionConstraint constraint) {
     held_.reset();
     if (persistent_ && persistent_->kind == constraint.kind &&
         persistent_->body == constraint.body && persistent_->entity == constraint.entity &&
+        persistent_->entityType == constraint.entityType &&
         std::abs(dot(persistent_->direction, constraint.direction)) > 1 - 1e-10)
         persistent_.reset();
     else

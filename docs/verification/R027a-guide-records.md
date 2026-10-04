@@ -1,6 +1,6 @@
 # R027.a: guide records, measurements and persistence
 
-Date: 2026-10-03. Local verification passed; CI/merge pending.
+Date: 2026-10-03. PR #27 merged as `b9188a0`; both CI jobs passed. Local verification passed.
 
 Guide points and infinite guide lines are immutable context records separate
 from surface vertices, edges, faces and analytic curves. Line directions are

@@ -36,7 +36,9 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         CenterArc = 10,
         TwoPointArc = 11,
         ThreePointArc = 12,
-        Pie = 13
+        Pie = 13,
+        Tape = 14,
+        Protractor = 15
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -56,6 +58,11 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     bool planeHeld() const { return bool(heldPlane_); }
     bool inferenceReady() const { return bool(inferenceWorker_.ready(doc_)); }
     bool previewValid() const { return previewValid_; }
+    void setGuideCreation(bool enabled);
+    bool guideCreation() const { return createGuides_; }
+    void clearGuides();
+    void setGuidesVisible(bool visible);
+    bool guidesVisible() const { return guidesVisible_; }
     void setSelection(Id body, Id face = 0);
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
@@ -91,6 +98,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   signals:
     void selected(qulonglong body, qulonglong face);
     void toolChanged(int tool);
+    void guideCreationChanged(bool enabled);
     void measurementsRequested(const QString &text);
     void measurementPreview(const QString &text);
     void changed();
@@ -204,6 +212,17 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     std::optional<DrawingPlane> heldPlane_;
     Id heldContext_{};
     bool shiftHeld_{};
+    bool guidesVisible_{true}, createGuides_{true}, measurementCompleted_{}, guideControlPending_{};
+    std::optional<Guide> tapeReference_, previewGuide_;
+    bool guideTool() const { return tool_ == Tool::Tape || tool_ == Tool::Protractor; }
+    void captureTapeReference();
+    Guide prospectiveGuide(Vec3 end) const;
+    QJsonObject guideCommand(Vec3 end) const;
+    double guideMeasurement(Vec3 end) const;
+    QString guideMeasurementText(Vec3 end) const;
+    void finishGuide(Vec3 end);
+    void paintGuide(QPainter &painter, const Guide &guide) const;
+    void paintGuides(QPainter &painter) const;
     size_t inferenceCount() const { return inference_.candidates.size() + directions_.size(); }
     void armReference();
     void releaseInferenceHold();

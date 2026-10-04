@@ -168,6 +168,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         }
     });
     edit->addAction(remove);
+    edit->addAction(
+        action("guides.clear", "Delete all guides", {}, [this] { viewport_->clearGuides(); }));
     edit->addAction(action("edit.move", "Move selection…", QKeySequence("M"), [this] {
         auto id = viewport_->selectedBody();
         if (!id)
@@ -239,6 +241,17 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     addTool("Pie", "", Viewport::Tool::Pie,
             "Choose center, start and end direction · Or enter radius, angle · 24s sets segments",
             false);
+    addTool("Tape measure", "T", Viewport::Tool::Tape,
+            "Choose an edge for an offset guide, or two points for distance · Ctrl: measure only");
+    addTool("Protractor", "", Viewport::Tool::Protractor,
+            "Choose center, baseline and angle · Ctrl: measure only", false);
+    auto *createGuides = action("guides.create", "Create guides when measuring", {}, [this] {
+        viewport_->setGuideCreation(findChild<QAction *>("guides.create")->isChecked());
+    });
+    createGuides->setCheckable(true);
+    createGuides->setChecked(true);
+    draw->addAction(createGuides);
+    connect(viewport_, &Viewport::guideCreationChanged, createGuides, &QAction::setChecked);
     auto *planes = draw->addMenu("Drawing plane");
     planes->addAction(action("drawing.plane.auto", "Automatic from hovered face", {},
                              [this] { viewport_->setDrawingPlane(std::nullopt); }));
@@ -288,6 +301,12 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
     auto *view = menuBar()->addMenu("&View");
+    auto *showGuides = action("guides.visible", "Show guides", {}, [this] {
+        viewport_->setGuidesVisible(findChild<QAction *>("guides.visible")->isChecked());
+    });
+    showGuides->setCheckable(true);
+    showGuides->setChecked(true);
+    view->addAction(showGuides);
     view->addAction(
         action("view.fit", "Fit model", QKeySequence("Shift+Z"), [this] { viewport_->fit(); }));
     view->addAction(action("view.perspective", "Perspective", QKeySequence("1"),
@@ -439,8 +458,10 @@ void Window::tool(Viewport::Tool t, const QString &text) {
     viewport_->setTool(t);
     viewport_->setFocus();
     status_->setText(text);
-    measurements_->setPlaceholderText(t == Viewport::Tool::Extrude  ? "distance"
-                                      : t == Viewport::Tool::Circle ? "radius or 24s"
+    measurements_->setPlaceholderText(t == Viewport::Tool::Tape         ? "distance or [x,y,z]"
+                                      : t == Viewport::Tool::Protractor ? "angle (deg) or [x,y,z]"
+                                      : t == Viewport::Tool::Extrude    ? "distance"
+                                      : t == Viewport::Tool::Circle     ? "radius or 24s"
                                       : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie
                                           ? "radius, angle (deg) or 24s"
                                       : t == Viewport::Tool::TwoPointArc   ? "signed bulge or 24s"

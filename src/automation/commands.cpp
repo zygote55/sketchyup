@@ -181,7 +181,7 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     }
     if (name == "geometry.infer") {
         fields(request, {"query", "clipFromWorld", "worldFromClip", "viewport", "pointer", "radius",
-                         "plane", "body", "anchor", "reference", "fromPoint"});
+                         "plane", "body", "anchor", "reference", "fromPoint", "includeGuides"});
         InferenceQuery query;
         auto matrix = [&](const QJsonValue &value, auto &output) {
             const auto values = array(value);
@@ -199,6 +199,11 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
         query.camera.height = number(viewport[1]);
         query.x = number(pointer[0]);
         query.y = number(pointer[1]);
+        if (request.contains("includeGuides")) {
+            if (!request["includeGuides"].isBool())
+                throw std::runtime_error("includeGuides must be a boolean");
+            query.includeGuides = request["includeGuides"].toBool();
+        }
         if (request.contains("radius"))
             query.radius = number(request["radius"]);
         if (request.contains("body"))
@@ -226,6 +231,7 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                 {"entity", QString::number(candidate.entity)},
                 {"otherBody", QString::number(candidate.otherBody)},
                 {"otherEntity", QString::number(candidate.otherEntity)},
+                {"otherEntityType", inferenceEntityLabel(candidate.otherEntityType)},
                 {"pixels", candidate.pixels},
                 {"depth", candidate.depth}});
         QJsonArray directions;
@@ -240,14 +246,20 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                 if (!request["reference"].isObject())
                     throw std::runtime_error("Inference reference requires body and edge");
                 const auto ref = request["reference"].toObject();
-                fields(ref, {"body", "edge"});
+                fields(ref, {"body", "edge", "guide"});
+                if (ref.contains("edge") == ref.contains("guide"))
+                    throw std::runtime_error("Reference requires exactly one edge or guide");
                 InferenceCandidate source;
                 source.body = id(ref["body"]);
-                source.entity = id(ref["edge"]);
-                source.entityType = InferenceEntity::Edge;
+                source.entity = id(ref[ref.contains("guide") ? "guide" : "edge"]);
+                source.entityType =
+                    ref.contains("guide") ? InferenceEntity::Guide : InferenceEntity::Edge;
                 if (!doc.bodies().contains(source.body) ||
-                    !doc.bodies().at(source.body)->topology.edges.contains(source.entity))
-                    throw std::runtime_error("Inference reference edge does not exist");
+                    (source.entityType == InferenceEntity::Guide
+                         ? !query.includeGuides ||
+                               !doc.bodies().at(source.body)->guides.contains(source.entity)
+                         : !doc.bodies().at(source.body)->topology.edges.contains(source.entity)))
+                    throw std::runtime_error("Inference reference does not exist or is hidden");
                 references = edgeDirections(doc, source, anchor, plane);
             }
             const auto from = request.contains("fromPoint")
@@ -264,6 +276,8 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                     {"point", QJsonArray{candidate.point.x, candidate.point.y, candidate.point.z}},
                     {"body", QString::number(c.body)},
                     {"entity", QString::number(c.entity)},
+                    {"entityType",
+                     c.entityType ? QJsonValue(inferenceEntityLabel(*c.entityType)) : QJsonValue()},
                     {"pixels", candidate.pixels}});
             }
         }

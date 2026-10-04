@@ -74,6 +74,16 @@ ctest --preset headless
 - Draw → Drawing plane: automatic from the first hovered face, ground, selected
   face or custom origin/normal/horizontal direction. Drawing on an existing face
   subdivides its editing context.
+- `T`: tape measure. Start on an edge or guide line for a parallel offset guide;
+  start on a point for a distance and guide point. Enter `900mm` for an exact sill
+  height. Draw → Protractor: center, baseline endpoint, then angle point or `45deg`.
+  Numeric re-entry revises the last guide as one undoable operation.
+- Tap `Ctrl` while measuring, or uncheck Draw → Create guides when measuring, to
+  measure without editing the document. View → Show guides controls both display
+  and snapping. Edit → Delete all guides clears them in one undo step.
+- Guides appear as dotted overlays through faces and never form model faces.
+  Guide points, lines and true 3D intersections can be acquired by drawing tools;
+  guide lines also supply parallel/perpendicular references.
 - `Space`: select. `P`: select a face, move to preview, then click/drag to finish or enter a signed distance along its local normal.
 - `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
 - Point inference acquires endpoints, midpoints, curve centers, intersections,
@@ -118,8 +128,10 @@ Guides remain separate from faces/edges. `guide.clear` with body `"0"` removes
 all guides in one undo step; a body ID scopes cleanup. Creation accepts local or
 world coordinates, angles use radians, and offsets use meters in the selected
 space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
-queries for world-coordinate points. Native guide display and tape/protractor
-interaction are the next R027 slice. The current file schema is version 5;
+queries for world-coordinate points. `geometry.infer` accepts `includeGuides`
+(default true) and an optional direction reference with `body` plus `guide`
+in place of `edge`; results identify both sources of mixed intersections.
+The current file schema is version 5;
 versions 1–4 migrate without adding guide data.
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
