@@ -1,4 +1,5 @@
 #include "core/selection.hpp"
+#include "core/groups.hpp"
 #include <algorithm>
 namespace sketchy {
 bool Selection::exists(const Document &doc, SelectedEntity e) const {
@@ -22,28 +23,40 @@ bool Selection::hidden(const Document &doc, SelectedEntity e) const {
         return true;
     for (auto body = e.body; body && doc.bodies().contains(body);
          body = doc.bodies().at(body)->parent)
-        if (hidden_.contains({body, SelectionKind::Body, 0}))
+        if (doc.bodies().at(body)->hidden || hidden_.contains({body, SelectionKind::Body, 0}))
             return true;
     return false;
 }
 bool Selection::locked(const Document &doc, Id body) const {
     for (; body && doc.bodies().contains(body); body = doc.bodies().at(body)->parent)
-        if (locked_.contains(body))
+        if (doc.bodies().at(body)->locked || locked_.contains(body))
             return true;
     return false;
 }
-bool Selection::selectable(const Document &doc, SelectedEntity e) const {
-    if (!exists(doc, e) || !inContext(e.body) || locked(doc, e.body) ||
-        (!showHidden_ && hidden(doc, e)))
+bool Selection::inContext(const Document &doc, Id body) const {
+    if (!doc.bodies().contains(body))
         return false;
-    if (e.kind == SelectionKind::Body) {
-        if (context_)
-            return false; // Inside a context, select its geometry, not its container.
-        for (auto lockedBody : locked_)
-            for (auto parent = lockedBody; parent && doc.bodies().contains(parent);
-                 parent = doc.bodies().at(parent)->parent)
-                if (parent == e.body)
-                    return false;
+    if (body == context_)
+        return true;
+    if (context_ && doc.bodies().at(context_)->kind == BodyKind::Geometry)
+        return false; // Legacy explicit raw-context editing.
+    return doc.bodies().at(body)->kind == BodyKind::Geometry &&
+           enclosingGroup(doc, body) == context_;
+}
+bool Selection::selectable(const Document &doc, SelectedEntity e) const {
+    if (!exists(doc, e) || locked(doc, e.body) || (!showHidden_ && hidden(doc, e)))
+        return false;
+    if (e.kind != SelectionKind::Body)
+        return inContext(doc, e.body);
+    if (e.body == context_ || (context_ && doc.bodies().at(context_)->kind == BodyKind::Geometry) ||
+        enclosingGroup(doc, e.body) != context_)
+        return false;
+    for (const auto &[id, body] : doc.bodies()) {
+        if (!body->locked && !locked_.contains(id))
+            continue;
+        for (auto parent = id; parent; parent = doc.bodies().at(parent)->parent)
+            if (parent == e.body)
+                return false;
     }
     return true;
 }
@@ -200,9 +213,9 @@ std::vector<SelectedEntity> Selection::ordered(const Document &doc) const {
             result.push_back(e);
     };
     for (const auto &[id, body] : doc.bodies()) {
-        if (!inContext(id) || locked(doc, id))
-            continue;
         add({id, SelectionKind::Body, 0});
+        if (!inContext(doc, id) || locked(doc, id))
+            continue;
         for (const auto &[face, record] : body->surface.faces)
             add({id, SelectionKind::Face, face});
         for (const auto &[edge, record] : body->topology.edges)

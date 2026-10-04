@@ -1,0 +1,82 @@
+[
+  {
+    "command": "geometry.rectangle",
+    "body": "0",
+    "origin": [
+      0,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      0,
+      1
+    ],
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "width": 2,
+    "height": 1
+  },
+  {
+    "command": "geometry.rectangle",
+    "body": "0",
+    "origin": [
+      0,
+      0,
+      1
+    ],
+    "normal": [
+      0,
+      0,
+      1
+    ],
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "width": 2,
+    "height": 1
+  },
+  {
+    "command": "material.color",
+    "body": "2",
+    "color": [
+      0.3,
+      0.5,
+      0.8
+    ]
+  },
+  {
+    "command": "group.create",
+    "members": [
+      "1",
+      "2"
+    ],
+    "name": "Shelf assembly"
+  },
+  {
+    "command": "geometry.translate",
+    "body": "3",
+    "delta": [
+      3,
+      0,
+      0
+    ]
+  },
+  {
+    "command": "group.create",
+    "members": [
+      "2"
+    ],
+    "name": "Upper shelf"
+  },
+  {
+    "command": "scene.state",
+    "body": "4",
+    "locked": true
+  }
+]

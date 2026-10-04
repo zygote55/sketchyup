@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QJsonDocument>
@@ -406,6 +407,12 @@ int main(int argc, char **argv) {
         arrayDoc.undo();
         check(arrayDoc.bodies().at(1)->surface.faces.size() == 1, "Public array is one undo item");
         const QJsonArray cases{
+            QJsonObject{
+                {"command", "group.create"}, {"members", QJsonArray{"1"}}, {"name", "Assembly"}},
+            QJsonObject{{"command", "group.explode"}, {"body", "2"}},
+            QJsonObject{{"command", "scene.reparent"}, {"body", "1"}, {"parent", "0"}},
+            QJsonObject{
+                {"command", "scene.state"}, {"body", "1"}, {"locked", true}, {"hidden", true}},
             QJsonObject{{"command", "geometry.face"},
                         {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{1, 0, 0},
                                                         QJsonArray{0, 1, 0}}}}},
@@ -546,6 +553,8 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"] == "group.explode" || command["command"] == "scene.reparent")
+                createGroup(doc, {1});
             if (command["command"] == "guide.offset" || command["command"] == "guide.erase" ||
                 command["command"] == "guide.clear")
                 doc.addGuide(1, guideLine({}, {1, 0, 0}));
@@ -583,6 +592,44 @@ int main(int argc, char **argv) {
                       *doc.bodies().at(1) == expectedBody,
                   "Registered command undo restores source geometry and metadata");
         }
+        Document groupedBatch = source;
+        executeBatch(
+            groupedBatch,
+            {{"apiVersion", 1},
+             {"documentId", QString::fromStdString(groupedBatch.identity())},
+             {"expectedRevision", QString::number(groupedBatch.revision())},
+             {"commands",
+              QJsonArray{
+                  QJsonObject{{"command", "group.create"}, {"members", QJsonArray{"1"}}},
+                  QJsonObject{{"command", "scene.state"}, {"body", "2"}, {"locked", true}}}}});
+        check(groupedBatch.bodies().at(2)->locked && groupedBatch.bodies().at(1)->parent == 2,
+              "One batch can create and then lock a new assembly");
+        const auto lockedBytes = encodeDocument(groupedBatch);
+        rejects([&] {
+            executeBatch(groupedBatch,
+                         {{"apiVersion", 1},
+                          {"documentId", QString::fromStdString(groupedBatch.identity())},
+                          {"expectedRevision", QString::number(groupedBatch.revision())},
+                          {"commands", QJsonArray{QJsonObject{{"command", "scene.state"},
+                                                              {"body", "2"},
+                                                              {"locked", false}},
+                                                  QJsonObject{{"command", "geometry.translate"},
+                                                              {"body", "1"},
+                                                              {"delta", QJsonArray{1, 0, 0}}}}}});
+        });
+        check(encodeDocument(groupedBatch) == lockedBytes,
+              "Unlock-and-edit batch cannot bypass an original ancestor lock");
+        for (const auto &invalid :
+             {QJsonObject{{"command", "scene.state"}, {"body", "1"}, {"hidden", 1}},
+              QJsonObject{{"command", "scene.state"}, {"body", "1"}},
+              QJsonObject{{"command", "group.create"}, {"members", QJsonArray{"1", "1"}}}})
+            rejects([&] {
+                executeBatch(groupedBatch,
+                             {{"apiVersion", 1},
+                              {"documentId", QString::fromStdString(groupedBatch.identity())},
+                              {"expectedRevision", QString::number(groupedBatch.revision())},
+                              {"commands", QJsonArray{invalid}}});
+            });
         Document subdivided = source;
         const auto originalBody = *subdivided.bodies().at(1);
         auto insertion = [](QJsonArray first, QJsonArray last) {

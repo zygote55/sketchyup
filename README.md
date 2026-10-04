@@ -179,8 +179,16 @@ space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
 queries for world-coordinate points. `geometry.infer` accepts `includeGuides`
 (default true) and an optional direction reference with `body` plus `guide`
 in place of `edge`; results identify both sources of mixed intersections.
-The current file schema is version 5;
-versions 1–4 migrate without adding guide data.
+The current file schema is version 6; versions 1–5 migrate without inventing
+groups or visibility/lock state, and versions 1–4 retain migration without guide data.
+
+`group.create` groups sibling context IDs while preserving their geometry, colors
+and world placement. `group.explode` removes one group boundary;
+`scene.reparent` moves a record to a group (or parent `"0"`) while preserving its
+world transform. `scene.state` stores boolean `hidden` and `locked` flags, with
+inherited visibility and authoritative protection of locked descendants. See
+[the group recipe](examples/groups.json). Native group creation and raw selection
+grouping are the next R032 layer.
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
 adjacency, plus analytic curve parameters and ordered derived-edge references.

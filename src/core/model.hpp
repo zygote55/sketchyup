@@ -13,6 +13,7 @@
 #include <string>
 #include <variant>
 namespace sketchy {
+enum class BodyKind { Geometry, Group };
 struct Body {
     Id id{};
     std::string name{"Face"};
@@ -23,6 +24,8 @@ struct Body {
     std::map<Id, Guide> guides;
     Transform transform;
     Id parent{};
+    BodyKind kind{BodyKind::Geometry};
+    bool hidden{}, locked{};
     std::map<std::string, std::variant<bool, double, std::string>> properties;
     bool operator==(const Body &) const = default;
 };

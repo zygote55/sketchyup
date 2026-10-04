@@ -102,6 +102,9 @@ QByteArray encodeDocument(const Document &doc) {
                 value);
         bodies.append(QJsonObject{{"id", sid(id)},
                                   {"parent", sid(b->parent)},
+                                  {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
+                                  {"hidden", b->hidden},
+                                  {"locked", b->locked},
                                   {"transform", transform},
                                   {"properties", properties},
                                   {"name", QString::fromStdString(b->name)},
@@ -116,7 +119,7 @@ QByteArray encodeDocument(const Document &doc) {
                                   {"wires", wires}});
     }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 5},
+                                           {"version", 6},
                                            {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
@@ -139,7 +142,7 @@ Document decodeDocument(const QByteArray &bytes) {
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
         (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
          root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
-         root["version"].toDouble() != 5) ||
+         root["version"].toDouble() != 5 && root["version"].toDouble() != 6) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -161,9 +164,19 @@ Document decodeDocument(const QByteArray &bytes) {
             allowed.append("curves");
         if (root["version"].toInt() >= 5)
             allowed.append("guides");
+        if (root["version"].toInt() >= 6)
+            allowed += {"kind", "hidden", "locked"};
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
+        if (root["version"].toInt() >= 6) {
+            if ((o["kind"] != "geometry" && o["kind"] != "group") || !o["hidden"].isBool() ||
+                !o["locked"].isBool())
+                throw std::runtime_error("Invalid entity kind, visibility or lock");
+            b->kind = o["kind"] == "group" ? BodyKind::Group : BodyKind::Geometry;
+            b->hidden = o["hidden"].toBool();
+            b->locked = o["locked"].toBool();
+        }
         if (!o["name"].isString())
             throw std::runtime_error("Invalid body name");
         b->name = o["name"].toString().toStdString();

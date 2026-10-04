@@ -28,7 +28,21 @@ void Viewport::syncSelection() {
     const auto oldContext = selection_.context();
     const bool newSession = !doc_.owns(selectionStamp_);
     selection_.sync(doc_);
-    if (newSession || oldContext != selection_.context())
+    bool policyChanged = newSession || oldContext != selection_.context();
+    for (const auto &[id, cache] : bodyCaches_) {
+        if (!cache->record)
+            continue;
+        const auto found = doc_.bodies().find(id);
+        if (found == doc_.bodies().end()) {
+            policyChanged |= cache->record->kind == BodyKind::Group;
+            continue;
+        }
+        const auto &body = *found->second;
+        policyChanged |= body.kind != cache->record->kind || body.parent != cache->record->parent ||
+                         body.hidden != cache->record->hidden ||
+                         body.locked != cache->record->locked;
+    }
+    if (policyChanged)
         ++presentationRevision_;
     selectionStamp_ = doc_.saveStamp();
     updatePrimarySelection();

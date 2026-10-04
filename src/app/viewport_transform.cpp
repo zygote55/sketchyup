@@ -51,7 +51,8 @@ void Viewport::captureTransformTargets() {
     if (transformTargets_.isEmpty() && tool_ == Tool::Move) {
         const auto candidate = acquiredInference();
         if (candidate && candidate->entityType == InferenceEntity::Vertex &&
-            selection_.inContext(candidate->body) && !selection_.locked(doc_, candidate->body))
+            selection_.inContext(doc_, candidate->body) &&
+            !selection_.locked(doc_, candidate->body))
             transformTargets_.append(QJsonObject{{"body", QString::number(candidate->body)},
                                                  {"kind", "vertex"},
                                                  {"entity", QString::number(candidate->entity)}});

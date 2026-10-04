@@ -84,6 +84,9 @@ int main(int argc, char **argv) {
             record.remove("nextEdgeId");
             record.remove("curves");
             record.remove("guides");
+            record.remove("kind");
+            record.remove("hidden");
+            record.remove("locked");
             record.remove("parent");
             record.remove("transform");
             record.remove("properties");
@@ -123,7 +126,7 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 1.5;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
-        root["version"] = 5;
+        root["version"] = 6;
         root["nextId"] = "1";
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["nextId"] = "2";
