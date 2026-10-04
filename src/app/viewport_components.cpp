@@ -28,7 +28,8 @@ void Viewport::organize(const QJsonArray &commands) {
             globalTags = true;
         } else {
             if (name != "tag.assign" && name != "scene.rename" && name != "scene.state" &&
-                name != "scene.reparent")
+                name != "scene.reparent" && name != "entity.position" &&
+                name != "entity.dimensions" && name != "entity.properties")
                 throw std::runtime_error("Unsupported organization operation");
             entities = true;
             const auto body = command.value("body").toString().toULongLong();
