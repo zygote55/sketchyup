@@ -187,8 +187,12 @@ and world placement. `group.explode` removes one group boundary;
 `scene.reparent` moves a record to a group (or parent `"0"`) while preserving its
 world transform. `scene.state` stores boolean `hidden` and `locked` flags, with
 inherited visibility and authoritative protection of locked descendants. See
-[the group recipe](examples/groups.json). Native group creation and raw selection
-grouping are the next R032 layer.
+[the group recipe](examples/groups.json). Select faces, edges, guides or whole groups and use `Ctrl+G` to make a group.
+Double-click or Enter opens it; Esc closes one level. The viewport breadcrumb
+links to parent contexts. `Ctrl+Shift+G` explodes selected groups. The Edit menu
+also exposes persistent group hide/lock and document-wide reveal/unlock.
+Drawing and deletion stay in the active context; separate raw-record consolidation
+and merge-on-explode remain the final R032 layer.
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
 adjacency, plus analytic curve parameters and ordered derived-edge references.

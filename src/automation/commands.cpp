@@ -323,7 +323,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     if (commands.empty() || commands.size() > 100)
         throw std::runtime_error("Batch must contain 1–100 commands");
     Document staged = doc;
-    QJsonArray created, copies;
+    QJsonArray created, copies, transfers;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
     };
@@ -376,11 +376,18 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name == "geometry.erase_selection") {
+        if (name == "geometry.erase_selection" || name == "group.selection") {
             const auto records = array(command["entities"]);
             if (records.empty() || records.size() > 10000)
                 throw std::runtime_error("Selection must contain 1–10000 entities");
             Selection selection;
+            if (command.contains("context"))
+                selection.enter(staged, command["context"] == "0" ? 0 : id(command["context"]));
+            if (command.contains("showHidden")) {
+                if (!command["showHidden"].isBool())
+                    throw std::runtime_error("showHidden must be boolean");
+                selection.showHidden(staged, command["showHidden"].toBool());
+            }
             SelectionSet entities;
             for (const auto &record : records) {
                 if (!record.isObject())
@@ -406,8 +413,35 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                 if (!selection.exists(staged, entity) || !entities.insert(entity).second)
                     throw std::runtime_error("Missing or duplicate selected entity");
             }
+            for (auto entity : entities)
+                if (!selection.selectable(staged, entity))
+                    throw std::runtime_error(
+                        "Selected entity is outside the editable context or locked/hidden");
             selection.apply(staged, entities, SelectionMode::Replace);
-            compose(eraseSelected(staged, selection));
+            if (name == "group.selection") {
+                if (command.contains("name") && !command["name"].isString())
+                    throw std::runtime_error("Group name must be a string");
+                const auto result = groupSelected(
+                    staged, selection, command.value("name").toString("Group").toStdString());
+                compose(result.changes);
+                for (const auto &[source, target] : result.movedGeometry) {
+                    const auto &body = *staged.bodies().at(target);
+                    auto identities = [](const auto &records) {
+                        QJsonObject mapping;
+                        for (const auto &[id, record] : records)
+                            mapping[QString::number(id)] = QString::number(id);
+                        return mapping;
+                    };
+                    transfers.append(QJsonObject{{"sourceBody", QString::number(source)},
+                                                 {"body", QString::number(target)},
+                                                 {"vertices", identities(body.surface.vertices)},
+                                                 {"edges", identities(body.topology.edges)},
+                                                 {"faces", identities(body.surface.faces)},
+                                                 {"curves", identities(body.curves)},
+                                                 {"guides", identities(body.guides)}});
+                }
+            } else
+                compose(eraseSelected(staged, selection));
         } else if (name == "guide.erase") {
             compose(staged.eraseGuide(id(command["body"]), id(command["guide"])));
         } else if (name == "guide.clear") {
@@ -778,35 +812,42 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                         {"faces", entityChanges(change.faces)},
                         {"curves", entityChanges(change.curves)},
                         {"guides", entityChanges(change.guides)}};
-    QJsonArray survivingCopies;
-    for (const auto &copy : copies) {
-        auto record = copy.toObject();
-        const auto context = id(record["body"]);
-        if (!doc.bodies().contains(context))
-            continue;
-        const auto &body = *doc.bodies().at(context);
-        auto prune = [&](const QString &key, const auto &entities) {
-            if (!record.contains(key))
-                return;
-            auto mapping = record[key].toObject();
-            for (auto it = mapping.begin(); it != mapping.end();) {
-                if (!entities.contains(id(it.value())))
-                    it = mapping.erase(it);
-                else
-                    ++it;
-            }
-            record[key] = mapping;
-        };
-        prune("vertices", body.surface.vertices);
-        prune("edges", body.topology.edges);
-        prune("faces", body.surface.faces);
-        prune("curves", body.curves);
-        prune("guides", body.guides);
-        survivingCopies.append(record);
-    }
-    return {{"status", "committed"}, {"revision", QString::number(doc.revision())},
-            {"created", created},    {"copies", survivingCopies},
-            {"changes", changes},    {"document", describe(doc)}};
+    auto surviving = [&](const QJsonArray &records) {
+        QJsonArray survivors;
+        for (const auto &copy : records) {
+            auto record = copy.toObject();
+            const auto context = id(record["body"]);
+            if (!doc.bodies().contains(context))
+                continue;
+            const auto &body = *doc.bodies().at(context);
+            auto prune = [&](const QString &key, const auto &entities) {
+                if (!record.contains(key))
+                    return;
+                auto mapping = record[key].toObject();
+                for (auto it = mapping.begin(); it != mapping.end();) {
+                    if (!entities.contains(id(it.value())))
+                        it = mapping.erase(it);
+                    else
+                        ++it;
+                }
+                record[key] = mapping;
+            };
+            prune("vertices", body.surface.vertices);
+            prune("edges", body.topology.edges);
+            prune("faces", body.surface.faces);
+            prune("curves", body.curves);
+            prune("guides", body.guides);
+            survivors.append(record);
+        }
+        return survivors;
+    };
+    return {{"status", "committed"},
+            {"revision", QString::number(doc.revision())},
+            {"created", created},
+            {"copies", surviving(copies)},
+            {"transfers", surviving(transfers)},
+            {"changes", changes},
+            {"document", describe(doc)}};
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {

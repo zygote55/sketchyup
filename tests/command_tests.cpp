@@ -407,6 +407,10 @@ int main(int argc, char **argv) {
         arrayDoc.undo();
         check(arrayDoc.bodies().at(1)->surface.faces.size() == 1, "Public array is one undo item");
         const QJsonArray cases{
+            QJsonObject{{"command", "group.selection"},
+                        {"context", "0"},
+                        {"entities", QJsonArray{QJsonObject{
+                                         {"body", "1"}, {"kind", "face"}, {"entity", "5"}}}}},
             QJsonObject{
                 {"command", "group.create"}, {"members", QJsonArray{"1"}}, {"name", "Assembly"}},
             QJsonObject{{"command", "group.explode"}, {"body", "2"}},
@@ -580,7 +584,13 @@ int main(int argc, char **argv) {
             rejects([&] { executeBatch(doc, request(doc, unknown)); });
             check(encodeDocument(doc) == original, "Unknown field never mutates document");
             const auto revision = doc.revision();
-            executeBatch(doc, request(doc, command));
+            const auto response = executeBatch(doc, request(doc, command));
+            if (command["command"] == "group.selection") {
+                const auto transfer = response["transfers"].toArray()[0].toObject();
+                check(response["copies"].toArray().empty() && transfer["sourceBody"] == "1" &&
+                          transfer["faces"].toObject()["5"] == "5",
+                      "Grouping returns typed transfers separately from copies");
+            }
             check(doc.revision() == revision + 1, "Registered command commits once");
             doc.undo();
             auto expectedBody = *baseline.bodies().at(1);

@@ -48,17 +48,50 @@ bool Selection::selectable(const Document &doc, SelectedEntity e) const {
         return false;
     if (e.kind != SelectionKind::Body)
         return inContext(doc, e.body);
-    if (e.body == context_ || (context_ && doc.bodies().at(context_)->kind == BodyKind::Geometry) ||
-        enclosingGroup(doc, e.body) != context_)
+    if (e.body == context_)
         return false;
-    for (const auto &[id, body] : doc.bodies()) {
-        if (!body->locked && !locked_.contains(id))
-            continue;
-        for (auto parent = id; parent; parent = doc.bodies().at(parent)->parent)
+    const bool rawContext = context_ && doc.bodies().at(context_)->kind == BodyKind::Geometry;
+    if (rawContext ? (doc.bodies().at(e.body)->kind != BodyKind::Group ||
+                      doc.bodies().at(e.body)->parent != context_)
+                   : enclosingGroup(doc, e.body) != context_)
+        return false;
+    if (!doc.isCurrentSnapshot(lockCacheStamp_)) {
+        persistentLockedAncestors_.clear();
+        for (const auto &[id, body] : doc.bodies())
+            if (body->locked)
+                for (auto parent = id; parent; parent = doc.bodies().at(parent)->parent)
+                    persistentLockedAncestors_.insert(parent);
+        lockCacheStamp_ = doc.saveStamp();
+    }
+    if (persistentLockedAncestors_.contains(e.body))
+        return false;
+    for (auto lockedBody : locked_)
+        for (auto parent = lockedBody; parent && doc.bodies().contains(parent);
+             parent = doc.bodies().at(parent)->parent)
             if (parent == e.body)
                 return false;
-    }
     return true;
+}
+std::optional<SelectedEntity> Selection::pickTarget(const Document &doc,
+                                                    SelectedEntity entity) const {
+    if (!exists(doc, entity) || (!showHidden_ && hidden(doc, entity)))
+        return {};
+    if (selectable(doc, entity))
+        return entity;
+    for (auto body = entity.body; body; body = doc.bodies().at(body)->parent) {
+        const SelectedEntity group{body, SelectionKind::Body, 0};
+        if (doc.bodies().at(body)->kind == BodyKind::Group && selectable(doc, group))
+            return group;
+    }
+    return {};
+}
+bool Selection::inActiveHierarchy(const Document &doc, Id body) const {
+    if (!context_)
+        return true;
+    for (; body; body = doc.bodies().at(body)->parent)
+        if (body == context_)
+            return true;
+    return false;
 }
 void Selection::prune(const Document &doc) {
     std::erase_if(hidden_, [&](auto e) { return !exists(doc, e); });

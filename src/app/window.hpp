@@ -27,6 +27,7 @@ class Window : public QMainWindow {
     QLabel *info_{};
     QLabel *status_{};
     QLabel *title_{};
+    QLabel *breadcrumb_{};
     QLineEdit *measurements_{};
     QWidget *tray_{};
     QString path_;

@@ -1,6 +1,6 @@
 # R031: linear and radial copy arrays
 
-Date: 2026-10-04. Local validation passed; CI pending. Requires merged R030, PRs #32–33.
+Date: 2026-10-04. Merged in [PR #34](https://github.com/zygote55/sketchyup/pull/34); both CI jobs passed (17m14s and 11m52s). Merge `9fa7852aae2d7cddde0a400cf0ee6e5443940f48`. Requires merged R030, PRs #32–33.
 Owner/implementer: coding agent under the owner's full-roadmap authorization.
 
 The public `geometry.array_selection` command copies typed geometry or hierarchies

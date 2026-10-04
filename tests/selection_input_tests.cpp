@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
         window.resize(1200, 800);
         auto &doc = window.document();
         doc.addFace({{{0, 0, 0}, {4, 0, 0}, {4, 4, 0}, {0, 4, 0}}});
-        doc.insertEdges(1, {}, {0, 0, 1}, {{{.8, 0, 0}, {.8, 4, 0}}});
+        doc.insertEdges(1, {}, {0, 0, 1}, {{Vec3{.8, 0, 0}, Vec3{.8, 4, 0}}});
         doc.addGuide(1, guidePoint({-.5, 0, 0}));
         doc.addFace({{{1, 1, 1}, {3, 1, 1}, {3, 3, 1}, {1, 3, 1}},
                      {{1.5, 1.5, 1}, {1.5, 2.5, 1}, {2.5, 2.5, 1}, {2.5, 1.5, 1}}});
@@ -74,6 +74,8 @@ int main(int argc, char **argv) {
         const auto face = view->selectionAt(view->project({.4, .4, 0}));
         check(face && face->body == 1 && face->kind == SelectionKind::Face,
               "Back face is selectable in its visible region");
+        check(std::abs(doc.worldArea(face->body, face->entity) - 3.2) < 1e-9,
+              "Selection fixture has its intended vertical divider");
         const auto edge = view->selectionAt(view->project({-2, 1, 0}));
         check(edge && edge->body == 3 && edge->kind == SelectionKind::Edge,
               "Loose edge has a typed selection ID");

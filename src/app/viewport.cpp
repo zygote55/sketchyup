@@ -659,7 +659,7 @@ void Viewport::rebuild() {
                     const float light =
                         .64f + .36f * std::abs(dot(normal, normalized({.3, -.5, .8})));
                     auto color = body->color;
-                    if (!selection_.inContext(doc_, id) || selection_.locked(doc_, id)) {
+                    if (!selection_.inActiveHierarchy(doc_, id) || selection_.locked(doc_, id)) {
                         const std::array<float, 3> background{float(colors_.canvas.redF()),
                                                               float(colors_.canvas.greenF()),
                                                               float(colors_.canvas.blueF())};
@@ -683,7 +683,7 @@ void Viewport::rebuild() {
                     if (!visible(entity))
                         continue;
                     const std::array<float, 3> color =
-                        selection_.hidden(doc_, entity) || !selection_.inContext(doc_, id)
+                        selection_.hidden(doc_, entity) || !selection_.inActiveHierarchy(doc_, id)
                             ? std::array<float, 3>{.56f, .58f, .60f}
                             : std::array<float, 3>{.19f, .24f, .23f};
                     cache.lines.push_back(vertex(edge.a, color));
