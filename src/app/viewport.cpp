@@ -27,6 +27,7 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     auto *inferenceTimer = new QTimer(this);
     inferenceTimer->setInterval(25);
     connect(inferenceTimer, &QTimer::timeout, this, [this] {
+        armReference();
         if (!inferencePending_)
             return;
         if (inferenceReady()) {
@@ -171,47 +172,19 @@ InferenceCamera Viewport::inferenceCamera() const {
     camera.height = height();
     return camera;
 }
-std::optional<InferenceCandidate> Viewport::acquiredInference() const {
-    if (inferenceChoice_ >= inference_.candidates.size())
-        return {};
-    return inference_.candidates[inferenceChoice_];
-}
-void Viewport::acquireInference(QPointF point, bool constrainPlane) {
-    inferenceWorker_.request(doc_);
-    const auto index = inferenceWorker_.ready(doc_);
-    if (!index) {
-        inference_ = {};
-        inferenceChoice_ = 0;
-        inferencePointer_ = point;
-        inferencePending_ = true;
-        return;
-    }
-    inferencePending_ = false;
-    const auto previous = acquiredInference();
-    const auto preserve = (point - inferencePointer_).manhattanLength() < 2;
-    inference_ =
-        index->query({inferenceCamera(), point.x(), point.y(), 8,
-                      constrainPlane ? std::optional<DrawingPlane>{plane_} : configuredPlane_, 0});
-    std::erase_if(inference_.candidates,
-                  [&](const auto &candidate) { return clipped(candidate.point); });
-    inferenceChoice_ = 0;
-    if (preserve && previous)
-        for (size_t i = 0; i < inference_.candidates.size(); ++i) {
-            const auto &c = inference_.candidates[i];
-            if (c.kind == previous->kind && c.body == previous->body &&
-                c.entity == previous->entity && c.otherBody == previous->otherBody &&
-                c.otherEntity == previous->otherEntity) {
-                inferenceChoice_ = i;
-                break;
-            }
-        }
-    inferencePointer_ = point;
-}
 std::optional<Vec3> Viewport::ground(QPointF point) {
     if (tool_ != Tool::Freehand) {
         acquireInference(point, true);
+        if (heldPoint_)
+            return heldPoint_->point;
+        if (directionLocks_.current()) {
+            const auto candidate = acquiredDirection();
+            return candidate ? std::optional<Vec3>{candidate->point} : std::nullopt;
+        }
         if (const auto candidate = acquiredInference())
             return candidate->point;
+        if (const auto direction = acquiredDirection())
+            return direction->point;
     }
 
     const auto [origin, direction] = ray(point);
@@ -279,6 +252,11 @@ void Viewport::useSelectedFacePlane() {
     setDrawingPlane(DrawingPlane::make(a, normal, u), selected_);
 }
 void Viewport::choosePlane(QPointF point) {
+    if (heldPlane_) {
+        plane_ = *heldPlane_;
+        drawingContext_ = heldContext_;
+        return;
+    }
     if (configuredPlane_) {
         if (configuredContext_ && !doc_.bodies().contains(configuredContext_))
             throw std::runtime_error("Locked drawing context no longer exists");
@@ -351,6 +329,7 @@ void Viewport::beginChain() {
     anchor_ = point;
     cursor_ = point;
     drawingContext_ = chainContext_;
+    plane_.origin = plane_.origin + plane_.normal * dot(point - plane_.origin, plane_.normal);
     chainPending_ = false;
 }
 Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
@@ -821,6 +800,10 @@ void Viewport::paintScene() {
     p.drawText(20, 28, ortho_ ? "ORTHOGRAPHIC  /  METERS" : "PERSPECTIVE  /  METERS");
     p.setPen(colors_.muted);
     p.drawText(20, height() - 22, "Z up   ·   Inference 8 px   ·   Grid fallback 0.1 m");
+    if (drawingTool() && tool_ != Tool::Freehand)
+        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+                   "Shift: hold inference · Arrows: axis / edge lock · Tab: alternatives · Hover: "
+                   "arm reference");
     if (inferencePending_) {
         p.setPen(colors_.muted);
         p.drawText(20, 48, "Preparing inference · grid fallback available");
@@ -845,6 +828,71 @@ void Viewport::paintScene() {
             p.setPen(colors_.ink);
             p.drawText(box.adjusted(6, 4, -6, -4), Qt::TextWordWrap, previewError_);
         }
+    }
+    if (reference_ && drawingTool()) {
+        const auto pos = project(reference_->point);
+        p.setPen(QPen(colors_.accent, 1, Qt::DotLine));
+        p.setBrush(Qt::NoBrush);
+        p.drawEllipse(pos, 9, 9);
+        if (cursor_)
+            p.drawLine(pos, project(*cursor_));
+    }
+    if (const auto direction = acquiredDirection(); direction && drawingTool()) {
+        const auto &constraint = direction->constraint;
+        QColor color = colors_.accent;
+        if (constraint.kind == DirectionKind::RedAxis)
+            color = QColor("#d84848");
+        if (constraint.kind == DirectionKind::GreenAxis)
+            color = QColor("#298c50");
+        if (constraint.kind == DirectionKind::BlueAxis)
+            color = QColor("#427ddd");
+        p.setPen(QPen(color, directionLocks_.current() ? 3 : 2, Qt::DashLine));
+        p.setBrush(Qt::NoBrush);
+        p.drawLine(project(constraint.origin), project(direction->point));
+        p.drawEllipse(project(direction->point), 5, 5);
+        auto label =
+            QString(directionLocks_.current() ? "Locked · " : "") + directionLabel(constraint.kind);
+        if (!directionLocks_.current() && inferenceCount() > 1)
+            label += QString(" · Tab %1/%2").arg(inferenceChoice_ + 1).arg(inferenceCount());
+        if (constraint.body && doc_.bodies().contains(constraint.body)) {
+            const auto &body = *doc_.bodies().at(constraint.body);
+            const auto world = doc_.worldTransform(constraint.body);
+            p.setPen(QPen(color, 3));
+            auto highlight = [&](Id id) {
+                if (!body.topology.edges.contains(id))
+                    return;
+                const auto &edge = body.topology.edges.at(id);
+                p.drawLine(project(world.point(body.surface.vertices.at(edge.a))),
+                           project(world.point(body.surface.vertices.at(edge.b))));
+            };
+            if (constraint.kind == DirectionKind::Parallel ||
+                constraint.kind == DirectionKind::Perpendicular)
+                highlight(constraint.entity);
+            else if (constraint.kind == DirectionKind::Tangent &&
+                     body.curves.contains(constraint.entity))
+                for (const auto &association : body.curves.at(constraint.entity).edges)
+                    highlight(association.edge);
+        }
+        const auto pos = project(direction->point);
+        const auto textWidth =
+            std::min(p.fontMetrics().horizontalAdvance(label) + 30, std::max(1, width() - 24));
+        const QRectF box(
+            std::clamp(pos.x() + 12, 12., double(std::max(12, width() - textWidth - 12))),
+            std::clamp(pos.y() - 34, 40., double(std::max(40, height() - 94))), textWidth, 26);
+        p.fillRect(box, colors_.surface);
+        p.setPen(QPen(color, 1.5));
+        if (directionLocks_.current()) {
+            const auto icon = box.topLeft() + QPointF(5, 10);
+            p.drawRoundedRect(QRectF(icon, QSizeF(9, 8)), 1, 1);
+            p.drawArc(QRectF(icon + QPointF(1, -6), QSizeF(7, 10)), 0, 180 * 16);
+        }
+        p.drawText(box.adjusted(19, 0, -4, 0), Qt::AlignVCenter, label);
+    } else if (directionLocks_.current()) {
+        p.setPen(colors_.accent);
+        p.drawText(20, 68, QString("Locked · ") + directionLabel(directionLocks_.current()->kind));
+    } else if (heldPlane_) {
+        p.setPen(colors_.accent);
+        p.drawText(20, 68, "Locked drawing plane");
     }
     if (const auto candidate = acquiredInference(); candidate && drawingTool()) {
         const auto pos = project(candidate->point);
@@ -878,11 +926,11 @@ void Viewport::paintScene() {
             p.drawLine(pos + QPointF(-5, 5), pos + QPointF(5, -5));
             break;
         }
-        auto label = QString::fromUtf8(inferenceLabel(candidate->kind));
-        if (inference_.candidates.size() > 1)
+        auto label = QString(heldPoint_ ? "Locked · " : "") + inferenceLabel(candidate->kind);
+        if (inferenceCount() > 1)
             label += QString(" · Tab %1/%2%3")
                          .arg(inferenceChoice_ + 1)
-                         .arg(inference_.candidates.size())
+                         .arg(inferenceCount())
                          .arg(inference_.truncated ? "+" : "");
         const auto extent = p.fontMetrics().boundingRect(label).adjusted(-6, -4, 6, 4);
         const auto labelWidth = std::min(extent.width(), std::max(1, width() - 24));
@@ -898,6 +946,10 @@ void Viewport::paintScene() {
 void Viewport::refresh() {
     inferenceWorker_.request(doc_);
     inference_ = {};
+    directions_.clear();
+    hoverReference_.reset();
+    if (referenceStamp_ && !doc_.isCurrentSnapshot(*referenceStamp_))
+        clearConstraints();
     inferenceChoice_ = 0;
     if (session_.active() && !session_.current()) {
         cancel();
@@ -953,6 +1005,7 @@ void Viewport::clearPreview() {
 }
 void Viewport::cancel() {
     session_.cancel();
+    clearConstraints();
     inference_ = {};
     inferenceChoice_ = 0;
     chainPending_ = false;
@@ -1015,9 +1068,16 @@ QJsonObject Viewport::shapeCommand(Vec3 end) const {
                         {"normal", point(plane_.normal)}};
     if (tool_ == Tool::Line || tool_ == Tool::Freehand) {
         QJsonArray points;
-        if (tool_ == Tool::Line)
+        if (tool_ == Tool::Line) {
             points = {point(a), point(end)};
-        else {
+            if (std::abs(dot(end - a, plane_.normal)) > tolerance) {
+                command["origin"] = point(a);
+                auto normal = cross(end - a, plane_.xAxis);
+                if (length(normal) <= tolerance)
+                    normal = cross(end - a, plane_.yAxis);
+                command["normal"] = point(normalized(normal));
+            }
+        } else {
             for (auto sample : samples_)
                 points.append(point(sample));
             if (samples_.empty() || length(samples_.back() - end) >= tolerance)
@@ -1224,10 +1284,18 @@ void Viewport::updateToolPreview(QPointF point) {
                                               (locale.decimalPoint() == "," ? "; " : ", ") +
                                               locale.toString(std::abs(delta.y), 'g', 8)
                                         : locale.toString(length(delta), 'g', 8));
+    } else {
+        previewValid_ = false;
+        previewEdges_.clear();
+        previewError_ = directionLocks_.current()
+                            ? "Orbit to view the locked direction or enter a length"
+                            : "Orbit to view the drawing plane";
+        update();
     }
 }
 void Viewport::finishShape(Vec3 end, std::optional<QJsonObject> overrideCommand) {
     try {
+        validateLockedPoint(end);
         const auto origin = anchor_ ? anchor_ : committedAnchor_;
         const auto command = overrideCommand ? *overrideCommand : shapeCommand(end);
         const auto result = session_.commit(command);
@@ -1240,6 +1308,7 @@ void Viewport::finishShape(Vec3 end, std::optional<QJsonObject> overrideCommand)
         chainPending_ = tool_ == Tool::Line;
         chainContext_ = id;
         committedPointer_ = previous_;
+        clearConstraints();
         clearPreview();
         if (id)
             setSelection(id, doc_.bodies().at(id)->surface.faces.empty()
@@ -1373,8 +1442,8 @@ bool Viewport::measurements(const QString &text) {
             throw std::runtime_error("Another edit changed the document; start a new operation");
         auto origin = anchor_ ? anchor_ : (session_.canRevise() ? committedAnchor_ : std::nullopt);
         if (!origin) {
-            plane_ = configuredPlane_.value_or(DrawingPlane{});
-            drawingContext_ = configuredContext_;
+            plane_ = heldPlane_.value_or(configuredPlane_.value_or(DrawingPlane{}));
+            drawingContext_ = heldPlane_ ? heldContext_ : configuredContext_;
             if (drawingContext_ && !doc_.bodies().contains(drawingContext_))
                 throw std::runtime_error("Locked drawing context no longer exists");
         }
@@ -1385,9 +1454,12 @@ bool Viewport::measurements(const QString &text) {
                 point = point + origin.value_or(Vec3{});
             checkPoint(point);
             const auto local = plane_.coordinates(point);
-            if (std::abs(local.z) > tolerance)
-                throw std::runtime_error("Coordinate is outside the active drawing plane");
-            point = plane_.point(local.x, local.y);
+            if (!(tool_ == Tool::Line && directionLocks_.current())) {
+                if (std::abs(local.z) > tolerance)
+                    throw std::runtime_error("Coordinate is outside the active drawing plane");
+                point = plane_.point(local.x, local.y);
+            }
+            validateLockedPoint(point);
             if (!origin) {
                 clearPreview();
                 session_.begin();
@@ -1425,7 +1497,11 @@ bool Viewport::measurements(const QString &text) {
             } else if ((tool_ == Tool::Circle || tool_ == Tool::Polygon) && values.size() == 1) {
                 if (values[0] <= 0)
                     throw std::runtime_error("Radius must be greater than zero");
-                finishShape(*origin + plane_.xAxis * values[0]);
+                if (const auto lock = directionLocks_.current())
+                    finishShape(constrainedLength(
+                        *lock, *origin, cursor_.value_or(*origin + lock->direction), values[0]));
+                else
+                    finishShape(*origin + plane_.xAxis * values[0]);
             } else if (tool_ == Tool::TwoPointArc && values.size() == 1) {
                 const auto base = baseline_
                                       ? baseline_
@@ -1439,9 +1515,16 @@ bool Viewport::measurements(const QString &text) {
             } else if (tool_ == Tool::Line && values.size() == 1 && (cursor_ || committedEnd_)) {
                 if (values[0] <= 0)
                     throw std::runtime_error("Length must be greater than zero");
-                finishShape(*origin + normalized(cursor_.value_or(committedEnd_.value_or(*origin)) -
-                                                 *origin) *
-                                          values[0]);
+                if (const auto lock = directionLocks_.current()) {
+                    auto preview = cursor_.value_or(*origin);
+                    if (length(preview - *origin) <= tolerance)
+                        preview = *origin + lock->direction;
+                    finishShape(constrainedLength(*lock, *origin, preview, values[0]));
+                } else
+                    finishShape(
+                        *origin +
+                        normalized(cursor_.value_or(committedEnd_.value_or(*origin)) - *origin) *
+                            values[0]);
             } else
                 throw std::runtime_error("Rectangle: two dimensions. Circle: radius. Line: length "
                                          "along preview or coordinates.");
@@ -1454,13 +1537,16 @@ bool Viewport::measurements(const QString &text) {
 bool Viewport::event(QEvent *event) {
     if (event->type() == QEvent::KeyPress) {
         const auto *key = static_cast<QKeyEvent *>(event);
-        if (key->key() == Qt::Key_Tab && !key->modifiers() && drawingTool() &&
-            !inference_.candidates.empty()) {
-            inferenceChoice_ = (inferenceChoice_ + 1) % inference_.candidates.size();
+        if (key->key() == Qt::Key_Tab && !key->modifiers() && drawingTool() && inferenceCount() &&
+            !directionLocks_.current() && !heldPoint_) {
+            inferenceChoice_ = (inferenceChoice_ + 1) % inferenceCount();
+            inferenceCycled_ = true;
             if (session_.active())
                 updateToolPreview(inferencePointer_);
             if (const auto candidate = acquiredInference())
                 emit message(QString::fromUtf8(inferenceLabel(candidate->kind)));
+            else if (const auto direction = acquiredDirection())
+                emit message(QString::fromUtf8(directionLabel(direction->constraint.kind)));
             update();
             event->accept();
             return true;
@@ -1481,6 +1567,7 @@ bool Viewport::event(QEvent *event) {
         event->type() == QEvent::TouchCancel) {
         cancel();
     } else if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::FocusOut) {
+        releaseInferenceHold();
         // Keep the anchor when focus moves to Measurements. End every button
         // gesture so a late release cannot publish an unintended edit.
         dragging_ = false;
@@ -1609,8 +1696,11 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
             emit message(error.what());
         }
     }
-    if (dragging_)
+    if (dragging_) {
         inference_ = {};
+        directions_.clear();
+        hoverReference_.reset();
+    }
     update();
 }
 void Viewport::mouseReleaseEvent(QMouseEvent *e) {
@@ -1646,6 +1736,8 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
 }
 void Viewport::wheelEvent(QWheelEvent *e) {
     inference_ = {};
+    directions_.clear();
+    hoverReference_.reset();
     const auto steps =
         e->pixelDelta().isNull() ? e->angleDelta().y() / 120.f : e->pixelDelta().y() / 15.f;
     distance_ = std::clamp(distance_ * std::exp(-steps * .12f), .05f, 1e7f);
@@ -1653,6 +1745,10 @@ void Viewport::wheelEvent(QWheelEvent *e) {
     e->accept();
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
+    if (constraintKey(e)) {
+        e->accept();
+        return;
+    }
     if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
         !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
         !e->text().isEmpty() && QString("0123456789.+-[<").contains(e->text()[0])) {

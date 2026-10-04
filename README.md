@@ -14,7 +14,7 @@ editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
 M1 native foundation and M2 editable geometry gates; drawing interaction is in progress. Components,
-directional locks, recovery, AI providers,
+recovery, AI providers,
 Blender integration and exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
 checksummed container and preserve the previous valid file as `.sketchyup.bak`.
@@ -52,11 +52,19 @@ ctest --preset headless
   Escape disconnects it while keeping committed edges. Closed chains form faces.
 - `R`: rectangle. Click the first corner, then the second; or enter `width, depth`
   in Measurements and press Enter. Values default to meters; `mm`, `cm`, `ft`, `in`,
-  feet/inches and fractions override units. Pointer snapping is 0.1 m.
+  feet/inches and fractions override units. Unconstrained grid fallback is 0.1 m; acquired directions use continuous coordinates.
+- Hover a point or edge for 450 ms to arm a reference. Move away for axis,
+  parallel, perpendicular, analytic tangent, or from-point alignment. `Tab`
+  cycles point and direction alternatives. `Shift` holds the current inference;
+  release it to unlock. Right/Left/Up toggle world X/Y/Z locks; Down cycles
+  parallel/perpendicular/off for the reference edge. Planar shapes reject axes
+  outside their construction plane; Line can follow Z out of the starting plane.
+  Numeric lengths honor locks. Focus transfer releases held Shift; arrow locks
+  persist until toggled, committed, canceled, or the document changes.
 - `C`: circle. Click center, then radius; or enter the radius. `24s` sets segments.
 - Draw menu: Freehand, Regular polygon (`6s` sets sides), and Rotated rectangle
   (first corner, baseline endpoint, height).
-- Draw → Center arc / Pie: center, radius point, end direction; or enter
+- `A`: center arc. Draw → Center arc / Pie: center, radius point, end direction; or enter
   `radius, angle` such as `2m,90deg`. With a radius point set, a single value is
   the angle. Angles default to degrees; `rad` is supported. Pointer sweeps go
   counterclockwise around the plane normal; type a negative angle to reverse.

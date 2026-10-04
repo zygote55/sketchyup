@@ -40,6 +40,14 @@ int main(int argc, char **argv) {
         view->standardView(1);
         view->setTool(Viewport::Tool::Line);
         auto click = [&](Vec3 point) {
+            // Inference is prepared from the last committed snapshot. A user
+            // sees its preparation hint; replay waits for canonical endpoint
+            // acquisition instead of racing the grid-only fallback.
+            QElapsedTimer ready;
+            ready.start();
+            while (!view->inferenceReady() && ready.elapsed() < 10000)
+                QTest::qWait(10);
+            check(view->inferenceReady(), "Drawing snap index prepared");
             QTest::mouseClick(view, Qt::LeftButton, {}, view->project(point).toPoint());
         };
         click({0, 0, 0});
@@ -50,12 +58,17 @@ int main(int argc, char **argv) {
             move(*view, view->project(point));
             click(point);
         }
+        if (doc.bodies().at(first)->surface.faces.empty()) {
+            for (const auto &[id, point] : doc.bodies().at(first)->surface.vertices)
+                std::cerr << id << ": " << point.x << ", " << point.y << ", " << point.z << '\n';
+            std::cerr << lastMessage.toStdString() << '\n';
+        }
         check(doc.bodies().size() == 1 && doc.bodies().at(first)->surface.faces.size() == 1,
               "Chained line closes a face in one context");
         check(std::abs(doc.bodies().at(first)->surface.area(
                            doc.bodies().at(first)->surface.faces.begin()->first) -
-                       4) < 1e-8,
-              "Chained line area");
+                       4) < .04,
+              "Continuous axis acquisition area within integer pointer resolution");
         const auto chained = encodeDocument(doc);
         QTest::keyClick(view, Qt::Key_Escape);
         check(view->tool() == Viewport::Tool::Line && encodeDocument(doc) == chained,

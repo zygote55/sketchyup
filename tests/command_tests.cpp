@@ -46,6 +46,17 @@ int main(int argc, char **argv) {
                   inferred["candidates"].toArray()[0].toObject()["kind"] == "Endpoint",
               "Inference query publishes ranked logical-pixel candidates");
         check(encodeDocument(source) == beforeQueries, "Inference query is read only");
+        auto directionalQuery = inferenceQuery;
+        directionalQuery["anchor"] = QJsonArray{0, 0, 0};
+        directionalQuery["pointer"] = QJsonArray{700, 403};
+        directionalQuery["reference"] = QJsonObject{{"body", "1"}, {"edge", "1"}};
+        auto directions = executeQuery(source, directionalQuery)["directions"].toArray();
+        check(directions.size() >= 2, "Directional query includes axis and edge reference");
+        check(encodeDocument(source) == beforeQueries, "Directional query remains read only");
+        directionalQuery["reference"] = QJsonObject{{"body", "1"}, {"edge", "9999"}};
+        rejects([&] { executeQuery(source, directionalQuery); });
+        directionalQuery.remove("anchor");
+        rejects([&] { executeQuery(source, directionalQuery); });
         auto invalidInference = inferenceQuery;
         invalidInference["radius"] = 100;
         rejects([&] { executeQuery(source, invalidInference); });

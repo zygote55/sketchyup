@@ -3,8 +3,10 @@
 #include "app/theme.hpp"
 #include "app/tool_session.hpp"
 #include "core/model.hpp"
+#include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
+#include <QElapsedTimer>
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_3_3_Core>
@@ -48,6 +50,10 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     const InferenceResult &inference() const { return inference_; }
     std::optional<InferenceCandidate> acquiredInference() const;
     InferenceCamera inferenceCamera() const;
+    std::optional<DirectionCandidate> acquiredDirection() const;
+    std::optional<DirectionConstraint> lockedDirection() const { return directionLocks_.current(); }
+    std::optional<InferenceCandidate> armedReference() const { return reference_; }
+    bool planeHeld() const { return bool(heldPlane_); }
     bool inferenceReady() const { return bool(inferenceWorker_.ready(doc_)); }
     bool previewValid() const { return previewValid_; }
     void setSelection(Id body, Id face = 0);
@@ -99,6 +105,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void mouseReleaseEvent(QMouseEvent *) override;
     void wheelEvent(QWheelEvent *) override;
     void keyPressEvent(QKeyEvent *) override;
+    void keyReleaseEvent(QKeyEvent *) override;
 
   private:
     struct Vertex {
@@ -184,7 +191,25 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     bool inferencePending_{false};
     InferenceResult inference_;
     size_t inferenceChoice_{};
+    bool inferenceCycled_{};
     QPointF inferencePointer_;
+    std::vector<DirectionCandidate> directions_;
+    DirectionLocks directionLocks_;
+    std::optional<InferenceCandidate> reference_, hoverReference_, heldPoint_;
+    std::optional<Document::SaveStamp> referenceStamp_;
+    std::vector<DirectionConstraint> referenceDirections_;
+    std::optional<Vec3> referenceAnchor_;
+    QElapsedTimer referenceTimer_;
+    QPointF referencePointer_;
+    std::optional<DrawingPlane> heldPlane_;
+    Id heldContext_{};
+    bool shiftHeld_{};
+    size_t inferenceCount() const { return inference_.candidates.size() + directions_.size(); }
+    void armReference();
+    void releaseInferenceHold();
+    void clearConstraints();
+    bool constraintKey(QKeyEvent *event);
+    void validateLockedPoint(Vec3 point) const;
     void choosePlane(QPointF point);
     void beginChain();
     bool drawingTool() const;
