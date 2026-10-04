@@ -1,6 +1,7 @@
 # R025: indexed point and surface inference
 
-Date: 2026-10-03. Local verification passed; CI/merge pending.
+Date: 2026-10-03. Local verification and both CI jobs passed.
+PR #25 merged as `5312110`.
 
 A two-level world-space BVH indexes per-body immutable geometry and context bounds.
 Endpoint, midpoint, analytic curve center, on-edge and on-face primitives are

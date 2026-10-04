@@ -228,7 +228,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             false);
     addTool("Rotated rectangle", "", Viewport::Tool::RotatedRectangle,
             "Choose first corner, baseline endpoint and height", false);
-    addTool("Center arc", "", Viewport::Tool::CenterArc,
+    addTool("Center arc", "A", Viewport::Tool::CenterArc,
             "Choose center, start and end direction · Or enter radius, angle · 24s sets segments",
             false);
     addTool("Two-point arc", "", Viewport::Tool::TwoPointArc,

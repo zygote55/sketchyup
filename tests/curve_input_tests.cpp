@@ -59,8 +59,9 @@ int main(int argc, char **argv) {
         check(view->previewValid() && doc.bodies().empty(), "Circle preview is private");
         click({2, 0, 0});
         check(curve().kind == CurveKind::Circle && curve().segments == 24 &&
-                  std::abs(curve().radius - 2) < tolerance,
-              "Pointer circle parameters");
+                  (view->project(curve().point(0)) - view->project({2, 0, 0})).manhattanLength() <
+                      1.5,
+              "Pointer circle parameters within integer pointer resolution");
         check(view->measurements("12s") && curve().segments == 12, "Circle segment amendment");
         doc.undo();
         check(doc.bodies().empty(), "Circle amended one undo");
@@ -91,12 +92,14 @@ int main(int argc, char **argv) {
         move(*view, {0, 1, 0});
         click({0, 1, 0});
         auto arc = curve();
-        check(length(arc.point(arc.sweepAngle / 2) - Vec3{0, 1, 0}) < tolerance,
-              "Pointer bulge constraint");
+        check((view->project(arc.point(arc.sweepAngle / 2)) - view->project({0, 1, 0}))
+                      .manhattanLength() < 1.5,
+              "Pointer bulge constraint within integer pointer resolution");
         check(view->measurements("-2m"), "Signed bulge amendment");
         arc = curve();
-        check(length(arc.point(arc.sweepAngle / 2) - Vec3{0, -2, 0}) < tolerance,
-              "Negative bulge constraint");
+        const auto midpoint = (arc.point(0) + arc.point(arc.sweepAngle)) * .5;
+        check(length(arc.point(arc.sweepAngle / 2) - midpoint - Vec3{0, -2, 0}) < tolerance,
+              "Typed negative bulge is exact relative to pointer-defined endpoints");
         reset(Viewport::Tool::ThreePointArc);
         check(view->measurements("[2,0,0]") && view->measurements("[0,2,0]"),
               "Typed start/through phase");
@@ -140,9 +143,11 @@ int main(int argc, char **argv) {
         move(*view, tilted.point(0, 2));
         click(tilted.point(0, 2));
         auto pointerCurve = curve();
-        check(std::abs(pointerCurve.radius - typed.radius) < tolerance &&
+        check((view->project(tilted.point(pointerCurve.radius, 0)) -
+               view->project(tilted.point(typed.radius, 0)))
+                          .manhattanLength() < 1.5 &&
                   std::abs(pointerCurve.sweepAngle - typed.sweepAngle) < tolerance,
-              "Tilted pointer and typed radius/angle agree");
+              "Tilted pointer radius agrees within pixel resolution; axis angle is exact");
         for (const auto &[id, p] : doc.bodies().begin()->second->surface.vertices)
             check(std::abs(tilted.coordinates(p).z) < tolerance,
                   "Curve vertices stay on locked plane");

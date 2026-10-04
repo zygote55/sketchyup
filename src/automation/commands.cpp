@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
 #include "io/document_io.hpp"
@@ -162,7 +163,7 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     }
     if (name == "geometry.infer") {
         fields(request, {"query", "clipFromWorld", "worldFromClip", "viewport", "pointer", "radius",
-                         "plane", "body"});
+                         "plane", "body", "anchor", "reference", "fromPoint"});
         InferenceQuery query;
         auto matrix = [&](const QJsonValue &value, auto &output) {
             const auto values = array(value);
@@ -209,9 +210,49 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                 {"otherEntity", QString::number(candidate.otherEntity)},
                 {"pixels", candidate.pixels},
                 {"depth", candidate.depth}});
+        QJsonArray directions;
+        if (!request.contains("anchor") &&
+            (request.contains("reference") || request.contains("fromPoint")))
+            throw std::runtime_error("Directional references require an anchor");
+        if (request.contains("anchor")) {
+            const auto anchor = point(request["anchor"]);
+            const auto plane = query.plane.value_or(DrawingPlane{});
+            std::vector<DirectionConstraint> references;
+            if (request.contains("reference")) {
+                if (!request["reference"].isObject())
+                    throw std::runtime_error("Inference reference requires body and edge");
+                const auto ref = request["reference"].toObject();
+                fields(ref, {"body", "edge"});
+                InferenceCandidate source;
+                source.body = id(ref["body"]);
+                source.entity = id(ref["edge"]);
+                source.entityType = InferenceEntity::Edge;
+                if (!doc.bodies().contains(source.body) ||
+                    !doc.bodies().at(source.body)->topology.edges.contains(source.entity))
+                    throw std::runtime_error("Inference reference edge does not exist");
+                references = edgeDirections(doc, source, anchor, plane);
+            }
+            const auto from = request.contains("fromPoint")
+                                  ? std::optional<Vec3>{point(request["fromPoint"])}
+                                  : std::nullopt;
+            for (const auto &candidate :
+                 directionCandidates(query.camera, query.x, query.y, anchor, plane, references,
+                                     from, query.radius)) {
+                const auto &c = candidate.constraint;
+                directions.append(QJsonObject{
+                    {"kind", directionLabel(c.kind)},
+                    {"origin", QJsonArray{c.origin.x, c.origin.y, c.origin.z}},
+                    {"direction", QJsonArray{c.direction.x, c.direction.y, c.direction.z}},
+                    {"point", QJsonArray{candidate.point.x, candidate.point.y, candidate.point.z}},
+                    {"body", QString::number(c.body)},
+                    {"entity", QString::number(c.entity)},
+                    {"pixels", candidate.pixels}});
+            }
+        }
         return {{"documentId", QString::fromStdString(doc.identity())},
                 {"revision", QString::number(doc.revision())},
                 {"candidates", candidates},
+                {"directions", directions},
                 {"truncated", result.truncated},
                 {"visitedPrimitives", qint64(result.visitedPrimitives)}};
     }

@@ -72,7 +72,7 @@ R021 tool lifecycle and camera interleaving are merged in [PR #20](https://githu
 R022 numeric input and guarded operation revision are merged in [PR #21](https://github.com/zygote55/sketchyup/pull/21).
 R023 plane-aware drawing tools merged in [PR #22](https://github.com/zygote55/sketchyup/pull/22).
 R024 curve records and native tools merged in PRs #23–24.
-R025 indexed inference is locally verified.
+R025 indexed inference is merged; R026 direction constraints are locally verified.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -455,7 +455,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R025 — Implement point and surface inference
 
-**Status:** Verified locally. **Evidence:** [indexed inference](verification/R025-inference.md). **Track:** Geometry. **Scope:** G06. **UX:** §4.4.
+**Status:** Complete. PR #25 merged after both CI jobs passed. **Evidence:** [indexed inference](verification/R025-inference.md). **Track:** Geometry. **Scope:** G06. **UX:** §4.4.
 
 **Requires:** [R024](#r024), [R011](#r011); milestone gate rule above.
 
@@ -467,7 +467,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R026 — Implement directional inference and locks
 
-**Status:** Planned. **Track:** Geometry. **Scope:** G06, G07. **UX:** §4.2, §4.4.
+**Status:** Verified locally. **Evidence:** [direction constraints and locks](verification/R026-directional-inference.md). **Track:** Geometry. **Scope:** G06, G07. **UX:** §4.2, §4.4.
 
 **Requires:** [R025](#r025); milestone gate rule above.
 
