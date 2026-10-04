@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QVector2D>
 #include <QWheelEvent>
 #include <algorithm>
 #include <limits>
@@ -56,7 +57,9 @@ void Viewport::cleanupGL() {
     disconnect(contextCleanup_);
     if (context()) {
         makeCurrent();
-        for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_}) {
+        for (auto *batch :
+             {&gridGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_, &pickEdgesGpu_,
+              &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_, &hoverEdgesGpu_}) {
             batch->buffer.destroy();
             batch->count = 0;
         }
@@ -74,6 +77,7 @@ void Viewport::cleanupGL() {
     transparentDirty_ = true;
     benchmarkDirty_ = true;
     gridDirty_ = true;
+    pickDirty_ = overlayDirty_ = true;
 }
 void Viewport::initializeGL() {
     ready_ = false;
@@ -90,21 +94,25 @@ layout(location=0) in vec3 position;
 layout(location=1) in vec4 color;
 uniform mat4 mvp;
 uniform int instanced;
+uniform vec2 pixelOffset;
 out vec4 tint;
 out vec3 worldPosition;
 void main() {
   vec3 p=position;
   if(instanced!=0) p+=vec3(float(gl_InstanceID%1000)*1.2,float(gl_InstanceID/1000)*1.2,0);
-  gl_Position=mvp*vec4(p,1.0);tint=color;worldPosition=p;
+  gl_Position=mvp*vec4(p,1.0);gl_Position.xy+=pixelOffset*gl_Position.w;tint=color;worldPosition=p;
 })";
     const char *fragment = R"(#version 330 core
 in vec4 tint;
 in vec3 worldPosition;
 uniform int clipEnabled;
 uniform vec4 clipPlane;
+uniform int stipple;
+uniform float pixelRatio;
 out vec4 fragment;
 void main() {
   if(clipEnabled!=0 && dot(clipPlane,vec4(worldPosition,1.0))<0.0) discard;
+  if(stipple!=0 && (mod(floor(gl_FragCoord.x/pixelRatio),4.0)>0.0 || mod(floor(gl_FragCoord.y/pixelRatio),4.0)>0.0)) discard;
   fragment=tint;
 })";
     shader_ = std::make_unique<QOpenGLShaderProgram>();
@@ -117,7 +125,8 @@ void main() {
         emit message("Could not create the viewport vertex array");
         return;
     }
-    for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_}) {
+    for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_, &pickEdgesGpu_,
+                        &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_, &hoverEdgesGpu_}) {
         if (!batch->buffer.create()) {
             emit message("Could not create a viewport buffer");
             return;
@@ -231,13 +240,15 @@ QString Viewport::nextPointHint() const {
 void Viewport::setDrawingPlane(std::optional<DrawingPlane> plane, Id context) {
     if (context && !doc_.bodies().contains(context))
         throw std::runtime_error("Drawing context does not exist");
+    if (context && (!selection_.inContext(context) || selection_.locked(doc_, context)))
+        throw std::runtime_error("Drawing context is inactive or locked");
     if (plane)
         *plane = DrawingPlane::make(plane->origin, plane->normal, plane->xAxis);
     cancel();
     configuredPlane_ = plane;
     configuredContext_ = plane ? context : 0;
     plane_ = plane.value_or(DrawingPlane{});
-    drawingContext_ = configuredContext_;
+    drawingContext_ = configuredContext_ ? configuredContext_ : selection_.context();
     emit message(plane ? "Drawing plane locked" : "Drawing plane follows the first hovered face");
 }
 void Viewport::useSelectedFacePlane() {
@@ -264,12 +275,16 @@ void Viewport::choosePlane(QPointF point) {
     if (configuredPlane_) {
         if (configuredContext_ && !doc_.bodies().contains(configuredContext_))
             throw std::runtime_error("Locked drawing context no longer exists");
+        if (configuredContext_ && (!selection_.inContext(configuredContext_) ||
+                                   selection_.locked(doc_, configuredContext_)))
+            throw std::runtime_error(
+                "Locked drawing plane belongs to an inactive or locked context");
         plane_ = *configuredPlane_;
-        drawingContext_ = configuredContext_;
+        drawingContext_ = configuredContext_ ? configuredContext_ : selection_.context();
         return;
     }
     plane_ = DrawingPlane{};
-    drawingContext_ = 0;
+    drawingContext_ = selection_.context();
     acquireInference(point, false);
     const auto candidate = acquiredInference();
     // The small-scene face fallback keeps drawing available during preparation.
@@ -284,7 +299,7 @@ void Viewport::choosePlane(QPointF point) {
     }
     const auto fallback = !candidate && inferencePending_ ? pick(point) : std::pair<Id, Id>{};
     const auto context = candidate ? candidate->body : fallback.first;
-    if (!context)
+    if (!context || !selection_.inContext(context) || selection_.locked(doc_, context))
         return;
     const auto &body = *doc_.bodies().at(context);
     const auto world = doc_.worldTransform(context);
@@ -306,10 +321,13 @@ void Viewport::choosePlane(QPointF point) {
             edges.push_back(candidate->entity);
         for (auto edge : edges) {
             const auto &incidence = adjacency.edgeFaces.at(edge);
-            if (!incidence.empty()) {
-                face = incidence.front().face;
+            for (auto item : incidence)
+                if (visible({context, SelectionKind::Face, item.face})) {
+                    face = item.face;
+                    break;
+                }
+            if (face)
                 break;
-            }
         }
     }
     if (!face && candidate && candidate->entityType == InferenceEntity::Guide) {
@@ -354,6 +372,8 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
     auto [o, d] = ray(p);
     FaceHit hit;
     auto intersect = [&](const Triangle &t, Id body) {
+        if (!visible({body, SelectionKind::Face, t.face}))
+            return;
         auto e1 = t.b - t.a, e2 = t.c - t.a;
         auto h = cross(d, e2);
         double a = dot(e1, h);
@@ -447,6 +467,8 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
     double best = radius * radius, nearest = INFINITY;
     const auto transform = matrix();
     auto candidate = [&](Id body, Id edge, Vec3 a, Vec3 b) {
+        if (!selectable({body, SelectionKind::Edge, edge}))
+            return;
         auto ca = transform * QVector4D(qv(a), 1), cb = transform * QVector4D(qv(b), 1);
         double first = 0, last = 1;
         auto clip = [&](double fa, double fb) {
@@ -523,6 +545,8 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
     return hit;
 }
 void Viewport::rebuild() {
+    syncSelection();
+    pickDirty_ = overlayDirty_ = true;
     if (selectionDocument_ != doc_.identity()) {
         cancel();
         configuredPlane_.reset();
@@ -576,8 +600,7 @@ void Viewport::rebuild() {
         auto &cache = *bodyCaches_.at(id);
         const auto world = doc_.worldTransform(id);
         const float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
-        const bool selected = selected_ == id;
-        const auto selectedFace = selected ? selectedFace_ : 0;
+
         const bool meshChanged =
             !cache.record || (cache.record != body && cache.record->surface != body->surface);
         const bool topologyChanged =
@@ -585,8 +608,7 @@ void Viewport::rebuild() {
         const bool worldChanged = meshChanged || !cache.record || cache.world != world;
         const bool appearanceChanged = worldChanged || topologyChanged || !cache.record ||
                                        cache.record->color != body->color || cache.alpha != alpha ||
-                                       cache.selected != selected ||
-                                       cache.selectedFace != selectedFace;
+                                       cache.presentationRevision != presentationRevision_;
         if (meshChanged) {
             cache.localTriangles = body->surface.triangles();
             ++stats_.bodyMeshBuilds;
@@ -615,13 +637,17 @@ void Viewport::rebuild() {
             }
         }
         if (appearanceChanged) {
-            if (!cache.transparent.empty() || (alpha > 0 && alpha < 1))
-                transparentDirty_ = true;
+            transparentDirty_ = true;
             cache.opaque.clear();
             cache.lines.clear();
             cache.transparent.clear();
             if (alpha > 0) {
                 for (const auto &triangle : cache.worldTriangles) {
+                    const SelectedEntity entity{id, SelectionKind::Face, triangle.face};
+                    if (!visible(entity))
+                        continue;
+                    const auto faceAlpha =
+                        selection_.hidden(doc_, entity) ? std::min(alpha, .18f) : alpha;
                     const auto crossProduct =
                         cross(triangle.b - triangle.a, triangle.c - triangle.a);
                     const auto magnitude = length(crossProduct);
@@ -631,25 +657,35 @@ void Viewport::rebuild() {
                     const float light =
                         .64f + .36f * std::abs(dot(normal, normalized({.3, -.5, .8})));
                     auto color = body->color;
-                    if (selected)
-                        color = {.83f, .66f, .40f};
-                    if (selected && triangle.face == selectedFace)
-                        color = {.94f, .72f, .38f};
+                    if (!selection_.inContext(id) || selection_.locked(doc_, id)) {
+                        const std::array<float, 3> background{float(colors_.canvas.redF()),
+                                                              float(colors_.canvas.greenF()),
+                                                              float(colors_.canvas.blueF())};
+                        for (size_t i = 0; i < 3; ++i)
+                            color[i] = color[i] * .35f + background[i] * .65f;
+                    }
                     for (auto &component : color)
                         component *= light;
                     std::array<Vertex, 3> vertices{vertex(triangle.a, color),
                                                    vertex(triangle.b, color),
                                                    vertex(triangle.c, color)};
                     for (auto &v : vertices)
-                        v.a = alpha;
-                    if (alpha < 1)
+                        v.a = faceAlpha;
+                    if (faceAlpha < 1)
                         cache.transparent.push_back(vertices);
                     else
                         cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
                 }
                 for (const auto &edge : cache.worldEdges) {
-                    cache.lines.push_back(vertex(edge.a, {.19f, .24f, .23f}));
-                    cache.lines.push_back(vertex(edge.b, {.19f, .24f, .23f}));
+                    const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
+                    if (!visible(entity))
+                        continue;
+                    const std::array<float, 3> color =
+                        selection_.hidden(doc_, entity) || !selection_.inContext(id)
+                            ? std::array<float, 3>{.56f, .58f, .60f}
+                            : std::array<float, 3>{.19f, .24f, .23f};
+                    cache.lines.push_back(vertex(edge.a, color));
+                    cache.lines.push_back(vertex(edge.b, color));
                 }
             }
         }
@@ -662,8 +698,7 @@ void Viewport::rebuild() {
         cache.record = body;
         cache.world = world;
         cache.alpha = alpha;
-        cache.selected = selected;
-        cache.selectedFace = selectedFace;
+        cache.presentationRevision = presentationRevision_;
         if (alpha > 0)
             stats_.meshTriangles += cache.worldTriangles.size();
         transparent_.insert(transparent_.end(), cache.transparent.begin(), cache.transparent.end());
@@ -763,6 +798,8 @@ void Viewport::paintScene() {
     auto transform = matrix();
     shader_->setUniformValue("mvp", transform);
     shader_->setUniformValue("instanced", instances_ > 0 ? 1 : 0);
+    shader_->setUniformValue("stipple", 0);
+    shader_->setUniformValue("pixelOffset", QVector2D{});
     shader_->setUniformValue("clipEnabled", clipPlane_ ? 1 : 0);
     if (clipPlane_) {
         auto c = *clipPlane_;
@@ -800,6 +837,7 @@ void Viewport::paintScene() {
         glDisable(GL_POLYGON_OFFSET_FILL);
         for (auto &[id, cache] : bodyCaches_)
             draw(cache->linesGpu, GL_LINES);
+        drawSelectionOverlay();
     }
     shader_->release();
     glDisable(GL_DEPTH_TEST);
@@ -810,6 +848,7 @@ void Viewport::paintScene() {
     p.endNativePainting();
     p.setRenderHint(QPainter::Antialiasing);
     paintGuides(p);
+    paintSelection(p);
     if (hasFocus()) {
         p.setPen(QPen(colors_.accent, 2));
         p.setBrush(Qt::NoBrush);
@@ -976,6 +1015,7 @@ void Viewport::paintScene() {
     }
 }
 void Viewport::refresh() {
+    syncSelection();
     inferenceWorker_.request(doc_);
     inference_ = {};
     directions_.clear();
@@ -1008,11 +1048,11 @@ void Viewport::refresh() {
 }
 void Viewport::setSelection(Id body, Id face) {
     selectionDocument_ = doc_.identity();
-    selected_ = body;
-    selectedFace_ = face;
-    refresh();
-    emit selected(selected_, selectedFace_);
+    selectEntities(
+        body ? SelectionSet{{body, face ? SelectionKind::Face : SelectionKind::Body, face}}
+             : SelectionSet{});
 }
+
 void Viewport::setTool(Tool tool) {
     cancel();
     tool_ = tool;
@@ -1037,6 +1077,10 @@ void Viewport::clearPreview() {
     update();
 }
 void Viewport::cancel() {
+    selectionPressed_ = selectingBox_ = false;
+    hover_.reset();
+    overlayDirty_ = true;
+    clickCount_ = 0;
     session_.cancel();
     guideControlPending_ = false;
     clearConstraints();
@@ -1619,7 +1663,12 @@ bool Viewport::measurements(const QString &text) {
 }
 bool Viewport::event(QEvent *event) {
     if (event->type() == QEvent::KeyPress) {
-        const auto *key = static_cast<QKeyEvent *>(event);
+        auto *key = static_cast<QKeyEvent *>(event);
+        if (tool_ == Tool::Select && (key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab)) {
+            selectionKey(key);
+            event->accept();
+            return true;
+        }
         if (key->key() == Qt::Key_Tab && !key->modifiers() && drawingTool() && inferenceCount() &&
             !directionLocks_.current() && !heldPoint_) {
             inferenceChoice_ = (inferenceChoice_ + 1) % inferenceCount();
@@ -1653,6 +1702,7 @@ bool Viewport::event(QEvent *event) {
         cancel();
     } else if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::FocusOut) {
         guideControlPending_ = false;
+        selectionPressed_ = selectingBox_ = false;
         releaseInferenceHold();
         // Keep the anchor when focus moves to Measurements. End every button
         // gesture so a late release cannot publish an unintended edit.
@@ -1673,6 +1723,16 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         dragButton_ = e->button();
         toolPressed_ = false;
         dragCommit_ = false;
+        return;
+    }
+    if (tool_ == Tool::Select) {
+        syncSelection();
+        selectionPressed_ = true;
+        selectingBox_ = false;
+        selectionGestureStamp_ = doc_.saveStamp();
+        selectionStart_ = selectionEnd_ = e->position();
+        selectionMode_ = selectionMode(e->modifiers());
+        boxBase_ = selection_.entities();
         return;
     }
     toolPressed_ = true;
@@ -1735,6 +1795,8 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         return;
     }
     auto [body, face] = pick(e->position());
+    if (body && !selectable({body, SelectionKind::Face, face}))
+        body = face = 0;
     setSelection(body, face);
     if (tool_ == Tool::Extrude && body && face) {
         session_.begin();
@@ -1771,6 +1833,22 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
             yaw_ -= delta.x() * .4f;
             pitch_ = std::clamp(pitch_ + float(delta.y()) * .4f, -89.f, 89.f);
         }
+    } else if (tool_ == Tool::Select) {
+        if (selectionPressed_) {
+            if (!e->buttons().testFlag(Qt::LeftButton))
+                selectionPressed_ = selectingBox_ = false;
+            else {
+                selectionEnd_ = e->position();
+                selectingBox_ |= (selectionEnd_ - selectionStart_).manhattanLength() >= 4;
+            }
+        }
+        if (!selectingBox_) {
+            const auto candidate = selectionAt(e->position());
+            if (candidate != hover_) {
+                hover_ = candidate;
+                overlayDirty_ = true;
+            }
+        }
     } else if (session_.active()) {
         if (toolPressed_ && e->buttons().testFlag(Qt::LeftButton) &&
             (e->position() - toolPressPosition_).manhattanLength() >= 4)
@@ -1799,6 +1877,10 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     }
     if (e->button() != Qt::LeftButton)
         return;
+    if (tool_ == Tool::Select && selectionPressed_) {
+        selectionRelease(e->position());
+        return;
+    }
     const auto finish = toolPressed_ && dragCommit_ && session_.active();
     toolPressed_ = false;
     dragCommit_ = false;
@@ -1836,6 +1918,10 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
     if (guideTool() && e->key() == Qt::Key_Control) {
         if (!e->isAutoRepeat())
             guideControlPending_ = true;
+        e->accept();
+        return;
+    }
+    if (selectionKey(e)) {
         e->accept();
         return;
     }

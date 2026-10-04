@@ -3,10 +3,12 @@
 #include "app/theme.hpp"
 #include "app/tool_session.hpp"
 #include "core/model.hpp"
+#include "core/selection.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
 #include <QElapsedTimer>
+#include <QImage>
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_3_3_Core>
@@ -64,6 +66,21 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void setGuidesVisible(bool visible);
     bool guidesVisible() const { return guidesVisible_; }
     void setSelection(Id body, Id face = 0);
+    void selectEntities(const SelectionSet &entities, SelectionMode mode = SelectionMode::Replace);
+    const Selection &selectionState() const { return selection_; }
+    std::optional<SelectedEntity> hoveredEntity() const { return hover_; }
+    std::optional<SelectedEntity> selectionAt(QPointF point);
+    SelectionSet windowSelection(QRectF bounds, bool crossing);
+    QString selectionSummary() const;
+    void enterContext(Id context);
+    void leaveContext();
+    void showHiddenGeometry(bool show);
+    void hideSelection();
+    void revealHiddenGeometry();
+    void lockSelection();
+    void unlockContexts();
+    void deleteSelection();
+    void selectAll();
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
@@ -110,6 +127,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void paintGL() override;
     void mousePressEvent(QMouseEvent *) override;
     void mouseMoveEvent(QMouseEvent *) override;
+    void mouseDoubleClickEvent(QMouseEvent *) override;
     void mouseReleaseEvent(QMouseEvent *) override;
     void wheelEvent(QWheelEvent *) override;
     void keyPressEvent(QKeyEvent *) override;
@@ -129,6 +147,37 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     };
     std::unique_ptr<QOpenGLShaderProgram> shader_;
     GpuBatch gridGpu_, transparentGpu_, benchmarkGpu_;
+    GpuBatch pickFacesGpu_, pickEdgesGpu_, selectedFacesGpu_, selectedEdgesGpu_, hoverFacesGpu_,
+        hoverEdgesGpu_;
+    Selection selection_;
+    std::optional<SelectedEntity> hover_, lastClickEntity_;
+    SelectionSet boxBase_;
+    QPointF selectionStart_, selectionEnd_, lastClickPosition_;
+    bool selectionPressed_{}, selectingBox_{}, pickDirty_{true}, overlayDirty_{true};
+    SelectionMode selectionMode_{SelectionMode::Replace};
+    QElapsedTimer clickTimer_;
+    unsigned clickCount_{};
+    std::uint64_t presentationRevision_{};
+    std::vector<SelectedEntity> pickEntities_;
+    Document::SaveStamp selectionStamp_, selectionGestureStamp_;
+    void syncSelection();
+    struct PickPixels {
+        QImage image;
+        QRect deviceRect;
+    };
+    PickPixels selectionPixels(QRectF region);
+    void rebuildPickGeometry();
+    void rebuildSelectionOverlay();
+    void drawSelectionOverlay();
+    void paintSelection(QPainter &painter);
+    bool visible(SelectedEntity entity) const;
+    bool selectable(SelectedEntity entity) const;
+    void selectionChanged(bool policy = false);
+    void updatePrimarySelection();
+    bool selectionKey(QKeyEvent *event);
+    SelectionMode selectionMode(Qt::KeyboardModifiers modifiers) const;
+    void selectionRelease(QPointF point);
+    std::optional<SelectedEntity> pickEntity(QRgb color) const;
     struct BodyCache {
         BodyPtr record;
         Transform world;
@@ -143,8 +192,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         std::vector<std::array<Vertex, 3>> transparent;
         GpuBatch opaqueGpu, linesGpu;
         float alpha{1};
-        bool selected{};
-        Id selectedFace{};
+        std::uint64_t presentationRevision{};
     };
     std::map<Id, std::unique_ptr<BodyCache>> bodyCaches_;
     bool gridDirty_{true};
@@ -221,6 +269,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     double guideMeasurement(Vec3 end) const;
     QString guideMeasurementText(Vec3 end) const;
     void finishGuide(Vec3 end);
+    std::optional<std::array<QPointF, 2>> guideSegment(const Guide &guide) const;
     void paintGuide(QPainter &painter, const Guide &guide) const;
     void paintGuides(QPainter &painter) const;
     size_t inferenceCount() const { return inference_.candidates.size() + directions_.size(); }

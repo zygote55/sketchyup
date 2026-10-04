@@ -6,6 +6,15 @@
 namespace sketchy {
 void Viewport::setGuidesVisible(bool visible) {
     guidesVisible_ = visible;
+    if (!visible) {
+        auto selected = selection_.entities();
+        std::erase_if(selected, [](auto e) { return e.kind == SelectionKind::Guide; });
+        selection_.apply(doc_, selected, SelectionMode::Replace);
+        if (hover_ && hover_->kind == SelectionKind::Guide)
+            hover_.reset();
+        selectionChanged();
+    }
+    overlayDirty_ = true;
     clearConstraints();
     inference_ = {};
     if (session_.active())
@@ -124,7 +133,7 @@ void Viewport::finishGuide(Vec3 end) {
     clearConstraints();
     clearPreview();
     if (id)
-        setSelection(id);
+        selectEntities({{id, SelectionKind::Guide, doc_.bodies().at(id)->guides.rbegin()->first}});
     emit changed();
     emit message("Guide created · " + label + " · Type a new measurement to revise");
 }
@@ -138,6 +147,11 @@ void Viewport::paintGuide(QPainter &p, const Guide &guide) const {
         }
         return;
     }
+    if (const auto segment = guideSegment(guide))
+        p.drawLine((*segment)[0], (*segment)[1]);
+}
+std::optional<std::array<QPointF, 2>> Viewport::guideSegment(const Guide &guide) const {
+    const auto camera = inferenceCamera();
     const auto ends = boundedGuideLine(guide);
     const auto &m = camera.clipFromWorld;
     auto clip = [&](Vec3 a) {
@@ -160,14 +174,14 @@ void Viewport::paintGuide(QPainter &p, const Guide &guide) const {
     for (int axis = 0; axis < 3; ++axis)
         for (int sign : {-1, 1})
             if (!trim(a[3] + sign * a[axis], b[3] + sign * b[axis]))
-                return;
+                return {};
     if (clipPlane_) {
         auto distance = [&](Vec3 point) {
             const auto &c = *clipPlane_;
             return c[0] * point.x + c[1] * point.y + c[2] * point.z + c[3];
         };
         if (!trim(distance(ends[0]), distance(ends[1])))
-            return;
+            return {};
     }
     auto screen = [&](double t) {
         const auto w = a[3] + (b[3] - a[3]) * t;
@@ -175,20 +189,28 @@ void Viewport::paintGuide(QPainter &p, const Guide &guide) const {
                        (1 - (a[1] + (b[1] - a[1]) * t) / w) * camera.height * .5);
     };
     if (a[3] + (b[3] - a[3]) * low > 0 && a[3] + (b[3] - a[3]) * high > 0)
-        p.drawLine(screen(low), screen(high));
+        return std::array<QPointF, 2>{screen(low), screen(high)};
+    return {};
 }
 void Viewport::paintGuides(QPainter &p) const {
     p.save();
     p.setBrush(Qt::NoBrush);
     if (guidesVisible_) {
-        p.setPen(QPen(colors_.muted, 1, Qt::DotLine));
         for (const auto &[id, body] : doc_.bodies()) {
             const auto world = doc_.worldTransform(id);
-            for (const auto &[gid, guide] : body->guides)
+            bool selected = false;
+            for (auto ancestor = id; ancestor; ancestor = doc_.bodies().at(ancestor)->parent)
+                selected |= selection_.entities().contains({ancestor, SelectionKind::Body, 0});
+            p.setPen(
+                QPen(selected ? QColor("#5c4fd4") : colors_.muted, selected ? 2 : 1, Qt::DotLine));
+            for (const auto &[gid, guide] : body->guides) {
+                if (!visible({id, SelectionKind::Guide, gid}))
+                    continue;
                 paintGuide(
                     p, guide.kind == GuideKind::Point
                            ? guidePoint(world.point(guide.origin))
                            : guideLine(world.point(guide.origin), world.vector(guide.direction)));
+            }
         }
     }
     if (previewGuide_) {

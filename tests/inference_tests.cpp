@@ -76,6 +76,25 @@ int main(int argc, char **argv) {
         curved.addFace({{{-.7, -.7, 1}, {.7, -.7, 1}, {.7, .7, 1}, {-.7, .7, 1}}});
         index.sync(curved);
         check(!has(at(index, {}), InferenceKind::Center, {}), "Occluded center is not acquired");
+        InferenceQuery policy{camera(), 500, 400};
+        policy.visible = [](Id body, InferenceEntity, Id) { return body != 2; };
+        check(has(index.query(policy), InferenceKind::Center, {}),
+              "Hidden face does not occlude visible geometry");
+        policy.visible = {};
+        policy.eligible = [](Id body, InferenceEntity, Id) { return body != 2; };
+        check(index.query(policy).candidates.empty(),
+              "Visible locked geometry still occludes eligible geometry");
+        policy.visible = [](Id body, InferenceEntity type, Id) {
+            return body == 1 && type != InferenceEntity::Edge;
+        };
+        check(!has(index.query(policy), InferenceKind::Center, {}),
+              "An entirely hidden curve outline does not expose its center");
+        const auto endpoint = curved.bodies().at(1)->surface.vertices.begin()->second;
+        const auto endpointScreen = *camera().project(endpoint);
+        policy.x = endpointScreen.x;
+        policy.y = endpointScreen.y;
+        check(!has(index.query(policy), InferenceKind::Endpoint, endpoint),
+              "Hidden incident edges do not expose vertex inference");
         curved.undo();
         index.sync(curved);
         check(has(at(index, {}), InferenceKind::Center, {}), "Undo invalidates occlusion index");

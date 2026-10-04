@@ -132,7 +132,7 @@ void checkTopologyViewport() {
     doc.insertEdges(front, {0, 0, 0}, {0, 0, 1}, {{{{-1, -3, 0}, {-1, 3, 0}}}});
     view->refresh();
     frame(view);
-    check(view->selectedBody() == front && view->selectedFace() == 0,
+    check(view->selectedBody() == 0 && view->selectedFace() == 0,
           "Retired face selection clears after subdivision");
     const auto left = view->pick(view->project(transform.point({-3.5, 0, 0}))),
                right = view->pick(view->project(transform.point({-.5, -1, 0})));

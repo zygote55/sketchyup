@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "core/selection.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
@@ -365,7 +366,39 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name == "guide.erase") {
+        if (name == "geometry.erase_selection") {
+            const auto records = array(command["entities"]);
+            if (records.empty() || records.size() > 10000)
+                throw std::runtime_error("Selection must contain 1–10000 entities");
+            Selection selection;
+            SelectionSet entities;
+            for (const auto &record : records) {
+                if (!record.isObject())
+                    throw std::runtime_error("Expected selected entity object");
+                const auto object = record.toObject();
+                fields(object, {"body", "kind", "entity"});
+                const auto kind = object["kind"];
+                SelectedEntity entity{id(object["body"]), SelectionKind::Body, 0};
+                if (kind == "context") {
+                    if (object["entity"] != "0")
+                        throw std::runtime_error("Context selection requires entity zero");
+                } else {
+                    entity.entity = id(object["entity"]);
+                    if (kind == "face")
+                        entity.kind = SelectionKind::Face;
+                    else if (kind == "edge")
+                        entity.kind = SelectionKind::Edge;
+                    else if (kind == "guide")
+                        entity.kind = SelectionKind::Guide;
+                    else
+                        throw std::runtime_error("Unknown selection kind");
+                }
+                if (!selection.exists(staged, entity) || !entities.insert(entity).second)
+                    throw std::runtime_error("Missing or duplicate selected entity");
+            }
+            selection.apply(staged, entities, SelectionMode::Replace);
+            compose(eraseSelected(staged, selection));
+        } else if (name == "guide.erase") {
             compose(staged.eraseGuide(id(command["body"]), id(command["guide"])));
         } else if (name == "guide.clear") {
             compose(staged.clearGuides(command["body"] == "0" ? 0 : id(command["body"])));

@@ -1,6 +1,6 @@
 # R028.a: typed selection state and atomic deletion
 
-Date: 2026-10-03. Selection tests pass in development and ASan/UBSan builds; CI/merge pending.
+Date: 2026-10-03. Development, sanitizer and both CI jobs passed. PR #29 merged as `be0a7bb`.
 
 The selection model distinguishes whole editing contexts, faces, edges and
 guides. Replace, add and toggle all use the same existence, visibility, lock and

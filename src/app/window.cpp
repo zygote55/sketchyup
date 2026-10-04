@@ -91,7 +91,10 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     outlinerLabel->setObjectName("section");
     trayLayout->addWidget(outlinerLabel);
     outliner_ = new QListWidget;
-    outliner_->setAccessibleName("Model objects");
+    outliner_->setAccessibleName("Model contexts");
+    outliner_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    outliner_->installEventFilter(this);
+    info_->setAccessibleName("Selection summary");
     trayLayout->addWidget(outliner_, 1);
     auto *hint = new QLabel("Native development spike\n\nRectangle or circle → select face → "
                             "Extrude → enter distance.\n\nMiddle drag: orbit\nRight drag: "
@@ -161,13 +164,29 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     });
     edit->addAction(undo_);
     edit->addAction(redo_);
-    auto *remove = action("edit.delete", "Delete selection", QKeySequence::Delete, [this] {
-        if (auto id = viewport_->selectedBody()) {
-            doc_.erase(id);
-            sync();
-        }
-    });
+    auto *remove = action("edit.delete", "Delete selection", QKeySequence::Delete,
+                          [this] { viewport_->deleteSelection(); });
     edit->addAction(remove);
+    auto *selectAll = action("edit.selectAll", "Select all eligible geometry",
+                             QKeySequence::SelectAll, [this] { viewport_->selectAll(); });
+    selectAll->setShortcutContext(Qt::WidgetShortcut);
+    removeAction(selectAll);
+    viewport_->addAction(selectAll);
+    edit->addAction(selectAll);
+    edit->addAction(action("selection.hide", "Hide selection in this view", {},
+                           [this] { viewport_->hideSelection(); }));
+    edit->addAction(action("selection.reveal", "Reveal hidden geometry in this view", {},
+                           [this] { viewport_->revealHiddenGeometry(); }));
+    edit->addAction(action("selection.lock", "Lock selected contexts in this view", {},
+                           [this] { viewport_->lockSelection(); }));
+    edit->addAction(action("selection.unlock", "Unlock all contexts in this view", {},
+                           [this] { viewport_->unlockContexts(); }));
+    edit->addAction(action("context.enter", "Edit selected context", {}, [this] {
+        if (viewport_->selectedBody())
+            viewport_->enterContext(viewport_->selectedBody());
+    }));
+    edit->addAction(action("context.leave", "Close editing context", {},
+                           [this] { viewport_->leaveContext(); }));
     edit->addAction(
         action("guides.clear", "Delete all guides", {}, [this] { viewport_->clearGuides(); }));
     edit->addAction(action("edit.move", "Move selection…", QKeySequence("M"), [this] {
@@ -215,7 +234,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         draw->addAction(a);
         return a;
     };
-    addTool("Select", "Space", Viewport::Tool::Select, "Select a face · Delete removes its object")
+    addTool("Select", "Space", Viewport::Tool::Select,
+            "Click an entity · Ctrl adds · Shift toggles · Drag to select a window")
         ->setChecked(true);
     addTool("Line", "L", Viewport::Tool::Line, "Click first point · Click or drag to endpoint");
     addTool("Rectangle", "R", Viewport::Tool::Rectangle,
@@ -301,6 +321,11 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
     auto *view = menuBar()->addMenu("&View");
+    auto *hidden = action("selection.showHidden", "Show hidden geometry", {}, [this] {
+        viewport_->showHiddenGeometry(findChild<QAction *>("selection.showHidden")->isChecked());
+    });
+    hidden->setCheckable(true);
+    view->addAction(hidden);
     auto *showGuides = action("guides.visible", "Show guides", {}, [this] {
         viewport_->setGuidesVisible(findChild<QAction *>("guides.visible")->isChecked());
     });
@@ -344,7 +369,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     for (const auto &binding :
          std::vector<std::pair<QString, QString>>{{"edit.move", "geometry.translate"},
                                                   {"edit.paint", "material.color"},
-                                                  {"edit.delete", "geometry.delete"}}) {
+                                                  {"edit.delete", "geometry.erase_selection"}}) {
         auto *entry = findChild<QAction *>(binding.first);
         entry->setProperty("command", binding.second);
         entry->setProperty("requiresSelection", true);
@@ -389,9 +414,18 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         }
     });
     connect(measurements_, &QLineEdit::textEdited, this, [this] { measurementError(false); });
-    connect(outliner_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *item) {
+    connect(outliner_, &QListWidget::itemSelectionChanged, this, [this] {
+        SelectionSet entities;
+        for (auto *item : outliner_->selectedItems())
+            entities.insert({item->data(Qt::UserRole).toULongLong(), SelectionKind::Body, 0});
+        viewport_->selectEntities(entities);
+    });
+    connect(outliner_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
         if (item)
-            viewport_->setSelection(item->data(Qt::UserRole).toULongLong());
+            run([&] {
+                viewport_->enterContext(item->data(Qt::UserRole).toULongLong());
+                viewport_->setFocus();
+            });
     });
     applyTheme();
     sync();
@@ -445,6 +479,23 @@ void Window::measurementError(bool invalid) {
     measurements_->style()->polish(measurements_);
 }
 bool Window::eventFilter(QObject *object, QEvent *event) {
+    if (object == outliner_ && event->type() == QEvent::KeyPress) {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+            if (auto *item = outliner_->currentItem()) {
+                const auto id = item->data(Qt::UserRole).toULongLong();
+                run([&] {
+                    viewport_->enterContext(id);
+                    viewport_->setFocus();
+                });
+            }
+            return true;
+        }
+        if (key->key() == Qt::Key_Delete) {
+            run([&] { viewport_->deleteSelection(); });
+            return true;
+        }
+    }
     if (object == measurements_ && event->type() == QEvent::KeyPress &&
         static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
         measurements_->clear();
@@ -475,30 +526,46 @@ void Window::sync() {
         (path_.isEmpty() ? "  ·  Not saved" : (doc_.dirty() ? "  •  Edited" : "  ·  Saved")));
     undo_->setEnabled(doc_.canUndo());
     redo_->setEnabled(doc_.canRedo());
-    for (const auto &id : {"edit.move", "edit.paint", "edit.delete"})
+    for (const auto &id : {"edit.move", "edit.paint", "context.enter"})
         findChild<QAction *>(id)->setEnabled(doc_.bodies().contains(viewport_->selectedBody()));
+    for (const auto &id : {"edit.delete", "selection.hide", "selection.lock"})
+        findChild<QAction *>(id)->setEnabled(!viewport_->selectionState().entities().empty());
+    findChild<QAction *>("context.leave")->setEnabled(viewport_->selectionState().context() != 0);
+    findChild<QAction *>("selection.showHidden")
+        ->setChecked(viewport_->selectionState().showingHidden());
     QSignalBlocker block(outliner_);
     outliner_->clear();
+    std::set<Id> selectedBodies;
+    for (auto e : viewport_->selectionState().entities())
+        selectedBodies.insert(e.body);
     for (const auto &[id, b] : doc_.bodies()) {
-        auto *item = new QListWidgetItem(
-            QString::fromStdString(b->name) + "  #" + QString::number(id), outliner_);
+        const bool locked = viewport_->selectionState().locked(doc_, id);
+        const bool hidden = viewport_->selectionState().hidden(doc_, {id, SelectionKind::Body, 0});
+        auto *item =
+            new QListWidgetItem(QString::fromStdString(b->name) + " #" + QString::number(id) +
+                                    (locked ? " · Locked" : "") + (hidden ? " · Hidden" : ""),
+                                outliner_);
         item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(id));
-        if (id == viewport_->selectedBody())
-            outliner_->setCurrentItem(item);
+        if (!viewport_->selectionState().selectable(doc_, {id, SelectionKind::Body, 0}))
+            item->setFlags(item->flags() & ~(Qt::ItemIsSelectable | Qt::ItemIsEnabled));
+        if (selectedBodies.contains(id)) {
+            item->setSelected(true);
+            if (!outliner_->currentItem())
+                outliner_->setCurrentItem(item, QItemSelectionModel::NoUpdate);
+        }
     }
-    auto it = doc_.bodies().find(viewport_->selectedBody());
+    QString text = viewport_->selectionSummary();
+    if (viewport_->selectionState().context())
+        text += QString("\nEditing context #%1").arg(viewport_->selectionState().context());
+    const auto it = doc_.bodies().find(viewport_->selectedBody());
     if (it != doc_.bodies().end()) {
-        const auto &b = *it->second;
-        QString text = QString::fromStdString(b.name) + QString("\n%1 vertices · %2 faces")
-                                                            .arg(b.surface.vertices.size())
-                                                            .arg(b.surface.faces.size());
-        if (b.surface.faces.contains(viewport_->selectedFace()))
+        const auto &body = *it->second;
+        text += "\n" + QString::fromStdString(body.name);
+        if (body.surface.faces.contains(viewport_->selectedFace()))
             text += QString("\nFace area %1 m²")
-                        .arg(doc_.worldArea(b.id, viewport_->selectedFace()), 0, 'f', 3);
-        info_->setText(text);
-    } else
-        info_->setText(
-            QString("%1 objects\nClick a face to inspect it.").arg(doc_.bodies().size()));
+                        .arg(doc_.worldArea(body.id, viewport_->selectedFace()), 0, 'f', 3);
+    }
+    info_->setText(text);
 }
 bool Window::save(bool saveAs) {
     auto target = path_;
@@ -632,7 +699,8 @@ void Window::palette() {
                 add(a->text() + "    " + a->shortcut().toString(), "action", a->objectName());
         for (const auto &[id, body] : doc_.bodies()) {
             const auto name = QString::fromStdString(body->name) + " #" + QString::number(id);
-            if (name.contains(query->text(), Qt::CaseInsensitive))
+            if (viewport_->selectionState().selectable(doc_, {id, SelectionKind::Body, 0}) &&
+                name.contains(query->text(), Qt::CaseInsensitive))
                 add("Select object: " + name, "entity", QVariant::fromValue<qulonglong>(id));
         }
         const auto faceQuery =
@@ -642,7 +710,7 @@ void Window::palette() {
             const auto body = faceQuery.captured(1).toULongLong(&bodyOk);
             const auto face = faceQuery.captured(2).toULongLong(&faceOk);
             if (bodyOk && faceOk && doc_.bodies().contains(body) &&
-                doc_.bodies().at(body)->surface.faces.contains(face))
+                viewport_->selectionState().selectable(doc_, {body, SelectionKind::Face, face}))
                 add("Select " + faceQuery.captured(), "entity",
                     QVariant::fromValue<qulonglong>(body), QVariant::fromValue<qulonglong>(face));
         }
