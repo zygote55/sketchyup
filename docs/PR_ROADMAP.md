@@ -72,7 +72,8 @@ R021 tool lifecycle and camera interleaving are merged in [PR #20](https://githu
 R022 numeric input and guarded operation revision are merged in [PR #21](https://github.com/zygote55/sketchyup/pull/21).
 R023 plane-aware drawing tools merged in [PR #22](https://github.com/zygote55/sketchyup/pull/22).
 R024 curve records and native tools merged in PRs #23–24.
-R025 indexed inference is merged; R026 direction constraints are locally verified.
+R025 indexed inference and R026 direction constraints are merged in PRs #25–26.
+R027 guide records and command/persistence support are locally verified; native tools follow.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -467,7 +468,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R026 — Implement directional inference and locks
 
-**Status:** Verified locally. **Evidence:** [direction constraints and locks](verification/R026-directional-inference.md). **Track:** Geometry. **Scope:** G06, G07. **UX:** §4.2, §4.4.
+**Status:** Merged in [PR #26](https://github.com/zygote55/sketchyup/pull/26); both CI jobs passed. **Evidence:** [direction constraints and locks](verification/R026-directional-inference.md). **Track:** Geometry. **Scope:** G06, G07. **UX:** §4.2, §4.4.
 
 **Requires:** [R025](#r025); milestone gate rule above.
 
@@ -479,13 +480,16 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R027 — Implement tape, protractor and guide geometry
 
-**Status:** Planned. **Track:** Desktop. **Scope:** G07, D01. **UX:** §4.3–§4.4.
+**Status:** In progress; split into core/persistence and native interaction slices. **Track:** Desktop. **Scope:** G07, D01. **UX:** §4.3–§4.4.
 
 **Requires:** [R026](#r026), [R022](#r022); milestone gate rule above.
 
 **Build:** Add guide points/lines, distance/angle tools, offset guide creation and explicit guide cleanup. Keep guides distinct from model edges and save them with the document.
 
 **Verify:** The 0.9 m sill guide can be constructed and reused without accidental face formation; unit conversion, lock and undo cases pass.
+
+- **R027.a — Guide records, commands and persistence:** Verified locally. Separate guide points/lines, offsets, angles, measurement queries, cleanup, undo and version-5 migration. [Evidence](verification/R027a-guide-records.md).
+- **R027.b — Native tape, protractor and guide inference:** Planned. Pointer/numeric construction, guide display and acquisition, measurement-only mode, cleanup UI and the measured sill fixture. Requires R027.a.
 
 <a id="r028"></a>
 

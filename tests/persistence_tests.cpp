@@ -112,6 +112,53 @@ int main(int argc, char **argv) {
                 require(*body == *migrated.bodies().at(id), "Version-3 topology IDs preserved");
             }
         }
+        for (const auto &name : {"container-curves-v4.sketchyup", "raw-curves-v4.json"}) {
+            const auto fixture = read(QString(SKETCHYUP_TEST_FIXTURES) + "/" + name);
+            const auto old = decodeContainer(fixture);
+            require(old.bodies().size() == 5, "Historical curve fixture contexts");
+            const auto migrated = decodeContainer(encodeContainer(old));
+            for (const auto &[id, body] : old.bodies()) {
+                require(body->guides.empty() && !body->curves.empty(),
+                        "Version-4 migration preserves curves without inventing guides");
+                require(*body == *migrated.bodies().at(id), "Version-4 records survive migration");
+            }
+        }
+        Document guided;
+        guided.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}});
+        guided.addGuide(1, guideLine({0, 0, .9}, {1, 0, 0}));
+        guided.addGuide(1, guidePoint({1, 0, .9}));
+        const auto guideBytes = encodeContainer(guided);
+        require(encodeContainer(decodeContainer(guideBytes)) == guideBytes,
+                "Guides exact container roundtrip");
+        auto guideReopened = decodeContainer(guideBytes);
+        const auto guideFloor = guideReopened.bodies().at(1)->surface.nextId;
+        guideReopened.clearGuides();
+        guideReopened.addGuide(1, guidePoint({2, 0, .9}));
+        require(guideReopened.bodies().at(1)->guides.begin()->first >= guideFloor,
+                "Guide allocator floor survives reopen and cleanup");
+        auto corruptGuide = [&](auto mutate) {
+            auto root = QJsonDocument::fromJson(encodeDocument(guided)).object();
+            auto bodies = root["bodies"].toArray();
+            auto body = bodies[0].toObject();
+            auto guides = body["guides"].toArray();
+            auto guide = guides[0].toObject();
+            mutate(guide);
+            guides[0] = guide;
+            body["guides"] = guides;
+            bodies[0] = body;
+            root["bodies"] = bodies;
+            rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
+        };
+        corruptGuide([](auto &g) { g["direction"] = QJsonArray{2, 0, 0}; });
+        corruptGuide([](auto &g) { g["direction"] = QJsonArray{0, 0, 0}; });
+        corruptGuide([](auto &g) { g["origin"] = QJsonArray{1, 2}; });
+        corruptGuide([](auto &g) { g["origin"] = QJsonArray{1000001, 0, 0}; });
+        corruptGuide([](auto &g) { g["id"] = "1"; });
+        corruptGuide([](auto &g) { g["id"] = "7"; });
+        corruptGuide([](auto &g) { g["id"] = "999999"; });
+        corruptGuide([](auto &g) { g["kind"] = "ray"; });
+        corruptGuide([](auto &g) { g["kind"] = "point"; });
+        corruptGuide([](auto &g) { g["unrecognized"] = true; });
         Document curved;
         curved.addCurve(0, centerCurve(CurveKind::Circle, {}, 2, 0, 2 * std::acos(-1), 24));
         curved.addCurve(0, twoPointArc({3, 0, 0}, {5, 0, 0}, {0, 0, 1}, .5, 12));
@@ -155,7 +202,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();
             for (const auto &key :
-                 {"parent", "transform", "properties", "nextEdgeId", "edges", "curves"})
+                 {"parent", "transform", "properties", "nextEdgeId", "edges", "curves", "guides"})
                 body.remove(key);
             records[i] = body;
         }

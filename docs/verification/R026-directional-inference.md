@@ -1,6 +1,7 @@
 # R026: directional inference and locks
 
-Date: 2026-10-03. Local verification passed; CI/merge pending.
+Date: 2026-10-03. Local verification and both CI jobs passed.
+PR #26 merged as `071d145`.
 
 World-space constraints carry an origin, unit direction, kind and source IDs.
 Projection solves the screen-space infinite line with perspective-correct world

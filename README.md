@@ -108,8 +108,19 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --preview --script examples/through-opening.json
 ./build/dev/sketchyup-cli --script examples/tilted-drawing.json --output /tmp/tilted.sketchyup
 ./build/dev/sketchyup-cli --script examples/curves.json --output /tmp/curves.sketchyup
+./build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
 ./build/dev/sketchyup-cli --input /tmp/curves.sketchyup --query-file examples/inference-query.json
 ```
+
+Guide points and infinite guide lines are available through `guide.point`,
+`guide.line`, `guide.angle`, `guide.offset`, `guide.erase` and `guide.clear`.
+Guides remain separate from faces/edges. `guide.clear` with body `"0"` removes
+all guides in one undo step; a body ID scopes cleanup. Creation accepts local or
+world coordinates, angles use radians, and offsets use meters in the selected
+space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
+queries for world-coordinate points. Native guide display and tape/protractor
+interaction are the next R027 slice. The current file schema is version 5;
+versions 1–4 migrate without adding guide data.
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
 adjacency, plus analytic curve parameters and ordered derived-edge references.

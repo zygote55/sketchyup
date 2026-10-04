@@ -39,7 +39,7 @@ struct EntityChanges {
     std::map<Id, std::vector<Id>> descendants;
 };
 struct TopologyChanges {
-    EntityChanges vertices, edges, faces, curves;
+    EntityChanges vertices, edges, faces, curves, guides;
 };
 TopologyChanges compareTopology(const Surface &before, const Topology &beforeTopology,
                                 const Surface &after, const Topology &afterTopology,

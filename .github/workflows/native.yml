@@ -41,6 +41,8 @@ jobs:
         run: |
           build/dev/sketchyup-cli --script examples/room-shell.json --output /tmp/room.sketchyup
           build/dev/sketchyup-cli --input /tmp/room.sketchyup
+          build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
+          build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1
       - name: Sanitized core without Qt
         run: |
           cmake --preset sanitize

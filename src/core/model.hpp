@@ -2,6 +2,7 @@
 #include "core/transform.hpp"
 #include "geometry/cleanup.hpp"
 #include "geometry/curves.hpp"
+#include "geometry/guides.hpp"
 #include "geometry/planar.hpp"
 #include "geometry/push_pull.hpp"
 #include "geometry/topology.hpp"
@@ -19,6 +20,7 @@ struct Body {
     Surface surface;
     Topology topology;
     std::map<Id, Curve> curves;
+    std::map<Id, Guide> guides;
     Transform transform;
     Id parent{};
     std::map<std::string, std::variant<bool, double, std::string>> properties;
@@ -77,6 +79,9 @@ class Document {
                              const std::vector<std::array<Vec3, 2>> &edges,
                              std::string name = "Planar geometry");
     ChangeReport addCurve(Id context, Curve curve);
+    ChangeReport addGuide(Id context, Guide guide);
+    ChangeReport eraseGuide(Id context, Id guide);
+    ChangeReport clearGuides(Id context = 0);
     ChangeReport splitEdge(Id context, Id edge, double fraction);
     ChangeReport eraseFace(Id context, Id face);
     ChangeReport eraseEdge(Id context, Id edge);

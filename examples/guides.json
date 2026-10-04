@@ -1,0 +1,56 @@
+[
+  {
+    "command": "guide.line",
+    "body": "0",
+    "origin": [
+      0,
+      0,
+      0
+    ],
+    "direction": [
+      1,
+      0,
+      0
+    ]
+  },
+  {
+    "command": "guide.offset",
+    "body": "1",
+    "guide": "1",
+    "normal": [
+      0,
+      -1,
+      0
+    ],
+    "distance": 0.9
+  },
+  {
+    "command": "guide.point",
+    "body": "1",
+    "origin": [
+      0.4,
+      0,
+      0.9
+    ]
+  },
+  {
+    "command": "guide.angle",
+    "body": "1",
+    "origin": [
+      0,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      -1,
+      0
+    ],
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "angle": 0.7853981633974483
+  }
+]
