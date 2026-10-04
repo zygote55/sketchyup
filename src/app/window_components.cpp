@@ -1,3 +1,4 @@
+#include "app/unit_display.hpp"
 #include "app/window.hpp"
 #include "automation/measurements.hpp"
 #include <QAction>
@@ -28,6 +29,8 @@ void Window::addComponentActions(QMenu *menu) {
     menu->addAction(unique);
 }
 void Window::componentDialog(const QString &operation) {
+    const auto stamp = doc_.saveStamp();
+    const auto revision = doc_.revision();
     QDialog dialog(this);
     dialog.setObjectName("componentDialog");
     dialog.setWindowTitle(
@@ -85,8 +88,12 @@ void Window::componentDialog(const QString &operation) {
     connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(&buttons, &QDialogButtonBox::accepted, &dialog, [&] {
         try {
-            auto vector = [](const QString &text) {
-                const auto value = parseMeasurements(text, "m", QLocale());
+            if (!doc_.isCurrentSnapshot(stamp) || doc_.revision() != revision)
+                throw std::runtime_error(
+                    "The document changed. Reopen the component dialog to try again.");
+            auto vector = [&](const QString &text, bool length = false) {
+                const auto value = parseMeasurements(
+                    text, length ? inputUnit(doc_.displayUnits()) : "m", QLocale());
                 if (value.kind != MeasurementKind::Values || value.values.size() != 3)
                     throw std::runtime_error(
                         "Enter three values separated by commas (semicolons with decimal commas)");
@@ -98,9 +105,9 @@ void Window::componentDialog(const QString &operation) {
             else if (operation == "replace")
                 viewport_->replaceComponent(definition);
             else if (operation == "instance")
-                viewport_->placeComponent(definition, vector(origin->text()));
+                viewport_->placeComponent(definition, vector(origin->text(), true));
             else {
-                const auto plane = DrawingPlane::make(vector(origin->text()),
+                const auto plane = DrawingPlane::make(vector(origin->text(), true),
                                                       vector(normal->text()), vector(axis->text()));
                 Transform axes;
                 axes.m = {plane.xAxis.x,  plane.xAxis.y,  plane.xAxis.z,  0,

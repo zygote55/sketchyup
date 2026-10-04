@@ -1,4 +1,5 @@
 #include "app/viewport.hpp"
+#include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/appearance.hpp"
 #include <QElapsedTimer>
@@ -911,9 +912,13 @@ void Viewport::paintScene() {
         p.drawRect(rect().adjusted(1, 1, -1, -1));
     }
     p.setPen(colors_.ink);
-    p.drawText(20, 28, ortho_ ? "ORTHOGRAPHIC  /  METERS" : "PERSPECTIVE  /  METERS");
+    p.drawText(20, 28,
+               (ortho_ ? "ORTHOGRAPHIC  /  " : "PERSPECTIVE  /  ") +
+                   unitName(doc_.displayUnits()).toUpper());
     p.setPen(colors_.muted);
-    p.drawText(20, height() - 22, "Z up   ·   Inference 8 px   ·   Grid fallback 0.1 m");
+    p.drawText(20, height() - 22,
+               "Z up   ·   Inference 8 px   ·   Grid fallback " +
+                   displayLength(.1, doc_.displayUnits()));
     if (transformTool())
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
                    QString("%1 axes · Ctrl: copy %2 · Choose pivot, then destination · Esc: cancel")
@@ -1569,7 +1574,7 @@ bool Viewport::measurements(const QString &text) {
             const auto base =
                 baseline_ ? baseline_ : (session_.canRevise() ? committedBaseline_ : std::nullopt);
             if (parts.size() == 1 && !base) {
-                const auto radius = parseLength(parts[0], "m", locale);
+                const auto radius = parseLength(parts[0], inputUnit(doc_.displayUnits()), locale);
                 if (radius <= tolerance)
                     throw std::runtime_error("Radius must exceed modeling tolerance");
                 const auto radiusPoint = *origin + plane_.xAxis * radius;
@@ -1580,8 +1585,9 @@ bool Viewport::measurements(const QString &text) {
             }
             if (parts.size() != 1 && parts.size() != 2)
                 throw std::runtime_error("Enter radius, angle or an angle after the radius point");
-            const auto radius =
-                parts.size() == 2 ? parseLength(parts[0], "m", locale) : length(*base - *origin);
+            const auto radius = parts.size() == 2
+                                    ? parseLength(parts[0], inputUnit(doc_.displayUnits()), locale)
+                                    : length(*base - *origin);
             const auto sweep = parseAngle(parts.back(), "deg", locale);
             const auto axis = base ? normalized(*base - *origin) : plane_.xAxis;
             const auto kind = tool_ == Tool::Pie ? CurveKind::Pie : CurveKind::Arc;
@@ -1606,7 +1612,7 @@ bool Viewport::measurements(const QString &text) {
                 baseline_ = oldBase;
             return doc_.revision() != revision;
         }
-        const auto input = parseMeasurements(text, "m", QLocale());
+        const auto input = parseMeasurements(text, inputUnit(doc_.displayUnits()), QLocale());
         const auto &values = input.values;
         if (input.kind == MeasurementKind::Segments &&
             (tool_ == Tool::Polygon || tool_ == Tool::Circle || arcTool())) {

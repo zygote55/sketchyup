@@ -1,3 +1,4 @@
+#include "app/unit_display.hpp"
 #include "app/viewport.hpp"
 #include <QJsonArray>
 #include <QLocale>
@@ -77,9 +78,9 @@ double Viewport::guideMeasurement(Vec3 end) const {
 }
 QString Viewport::guideMeasurementText(Vec3 end) const {
     const auto value = guideMeasurement(end);
-    return QLocale().toString(tool_ == Tool::Protractor ? value * 180 / std::numbers::pi : value,
-                              'g', 10) +
-           (tool_ == Tool::Protractor ? " deg" : " m");
+    return tool_ == Tool::Protractor
+               ? QLocale().toString(value * 180 / std::numbers::pi, 'g', 10) + " deg"
+               : displayLength(value, doc_.displayUnits());
 }
 Guide Viewport::prospectiveGuide(Vec3 end) const {
     const auto origin = anchor_ ? anchor_ : committedAnchor_;
