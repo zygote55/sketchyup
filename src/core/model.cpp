@@ -512,7 +512,10 @@ bool Document::canAmend(const AmendStamp &stamp) const {
            !undo_.empty() && undo_.back().after == state_;
 }
 ChangeReport Document::amendLast(const AmendStamp &stamp,
-                                 const std::function<void(Document &)> &replace) {
+                                 const std::function<void(Document &)> &replace,
+                                 AmendPolicy policy) {
+    if (policy != AmendPolicy::FixedContextCount && policy != AmendPolicy::CopyArray)
+        throw std::runtime_error("Unknown amendment policy");
     if (!canAmend(stamp))
         throw std::runtime_error("The most recent operation can no longer be revised");
     std::set<Id> contexts;
@@ -540,7 +543,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     for (const auto &[id, body] : staged.bodies_)
         if (!baseline.contains(id))
             ++newContexts;
-    if (newContexts != createdContexts)
+    if (newContexts != createdContexts && policy != AmendPolicy::CopyArray)
         throw std::runtime_error(
             "Replacement must preserve the operation's context creation count");
     ChangeReport report;

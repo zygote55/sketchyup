@@ -79,6 +79,7 @@ void Viewport::beginTransform(Vec3 pivot) {
     transformBase_.reset();
     transformEnd_.reset();
     transformPreview_ = {};
+    transformArray_ = {};
     anchor_ = cursor_ = pivot;
     transformAxis_ = transformLocal_ ? Vec3{0, 0, 1} : plane_.normal;
     if (transformLocal_) {
@@ -108,7 +109,7 @@ QJsonObject Viewport::transformCommand(const Transform &operation) const {
             {"space", transformLocal_ ? "local" : "world"},
             {"copy", transformCopy_}};
 }
-QJsonObject Viewport::transformAt(Vec3 point) const {
+QJsonObject Viewport::transformAt(Vec3 point) {
     const auto inverse = transformFrame_.inverse();
     const auto vector = [&](Vec3 value) { return transformLocal_ ? inverse.vector(value) : value; };
     if (tool_ == Tool::Move)
@@ -124,6 +125,7 @@ QJsonObject Viewport::transformAt(Vec3 point) const {
         start = normalized(start);
         end = normalized(end);
         const auto angle = std::atan2(dot(axis, cross(start, end)), dot(start, end));
+        transformAngle_ = angle;
         return transformCommand(Transform::rotation(axis, angle));
     }
     const auto denominator = dot(start, start);
@@ -196,7 +198,32 @@ void Viewport::updateTransformPreview(QPointF point) {
         update();
     }
 }
-void Viewport::finishTransform(const QJsonObject &command) {
+void Viewport::finishTransform(const QJsonObject &input, bool arrayEligible) {
+    auto command = input;
+    QJsonObject seed;
+    if (command["command"] == "geometry.array_selection") {
+        seed = command;
+    } else if (arrayEligible && command["copy"].toBool() &&
+               (tool_ == Tool::Move || tool_ == Tool::Rotate)) {
+        seed = {{"command", "geometry.array_selection"},
+                {"entities", command["entities"]},
+                {"pivot", command["pivot"]},
+                {"space", command["space"]}};
+        if (tool_ == Tool::Move) {
+            const auto matrix = command["matrix"].toArray();
+            seed["mode"] = "linear";
+            seed["delta"] = QJsonArray{matrix[12], matrix[13], matrix[14]};
+        } else {
+            seed["mode"] = "radial";
+            seed["axis"] = jsonPoint(transformAxis_);
+            seed["angle"] = transformAngle_;
+        }
+        if (session_.canRevise() && transformArray_.contains("count")) {
+            seed["count"] = transformArray_["count"];
+            seed["divide"] = transformArray_["divide"];
+            command = seed;
+        }
+    }
     for (auto target : transformSelection_)
         if (!selectable(target))
             throw std::runtime_error("Transform source is no longer editable");
@@ -208,8 +235,9 @@ void Viewport::finishTransform(const QJsonObject &command) {
         emit message("Transform made no change");
         return;
     }
+    transformArray_ = seed;
     auto selected = transformSelection_;
-    if (command["copy"].toBool()) {
+    if (command["copy"].toBool() || command["command"] == "geometry.array_selection") {
         selected.clear();
         for (const auto &value : result["copies"].toArray()) {
             const auto mapping = value.toObject();
@@ -238,11 +266,27 @@ void Viewport::finishTransform(const QJsonObject &command) {
     refresh();
     selectEntities(selected);
     emit changed();
-    emit message("Transform complete · Type measurements to revise · Ctrl+Z undoes the operation");
+    emit message(
+        transformArray_.isEmpty()
+            ? "Transform complete · Type measurements to revise · Ctrl+Z undoes the operation"
+            : "Copy complete · xN: N new copies · /N: N equal intervals · Measurements revise one "
+              "undo item");
 }
 bool Viewport::transformMeasurements(const QString &text) {
     if (session_.phase() == ToolSession::Phase::Committed && !session_.canRevise())
         throw std::runtime_error("Another edit changed the document; choose a new pivot");
+    if (text.startsWith('x', Qt::CaseInsensitive) || text.startsWith('/')) {
+        if (!session_.canRevise() || transformArray_.isEmpty() || !transformCopy_)
+            throw std::runtime_error("Complete a Move or Rotate copy before entering xN or /N");
+        const auto input = parseMeasurements(text, "m", QLocale());
+        if (input.kind != MeasurementKind::Copies && input.kind != MeasurementKind::Divisions)
+            throw std::runtime_error("Enter xN for new copies or /N for equal intervals");
+        auto command = transformArray_;
+        command["count"] = input.values[0];
+        command["divide"] = input.kind == MeasurementKind::Divisions;
+        finishTransform(command);
+        return true;
+    }
     if (text.startsWith('[')) {
         const auto input = parseMeasurements(text, "m", QLocale());
         if (input.kind != MeasurementKind::AbsolutePoint || input.values.size() != 3)
@@ -265,7 +309,8 @@ bool Viewport::transformMeasurements(const QString &text) {
         throw std::runtime_error("Choose a pivot or enter world coordinates [x,y,z] first");
     Transform matrix;
     if (tool_ == Tool::Rotate) {
-        matrix = Transform::rotation(transformAxis_, parseAngle(text, "deg", QLocale()));
+        transformAngle_ = parseAngle(text, "deg", QLocale());
+        matrix = Transform::rotation(transformAxis_, transformAngle_);
     } else if (tool_ == Tool::Scale) {
         const auto parts = text.split(QLocale().decimalPoint() == "," ? ';' : ',');
         if (parts.size() != 1 && parts.size() != 3)
@@ -350,6 +395,6 @@ void Viewport::flipSelection(int axis) {
     session_.begin();
     Vec3 factors{1, 1, 1};
     (axis == 0 ? factors.x : axis == 1 ? factors.y : factors.z) = -1;
-    finishTransform(transformCommand(Transform::scaling(factors)));
+    finishTransform(transformCommand(Transform::scaling(factors)), false);
 }
 } // namespace sketchy

@@ -524,7 +524,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R030 — Implement precise move, rotate, scale and flip
 
-**Status:** In progress; split into scoped transform commands and native manipulation. **Track:** Geometry. **Scope:** E02, D03. **UX:** §4.2–§4.3.
+**Status:** Verified on core/X11; Wayland retest is tracked for the M4 checkpoint. **Track:** Geometry. **Scope:** E02, D03. **UX:** §4.2–§4.3.
 
 **Requires:** [R028](#r028), [R022](#r022), [R015](#r015); milestone gate rule above.
 
@@ -533,13 +533,13 @@ and the linked scope requirements apply even when not repeated in the entry.
 **Verify:** Rotated/mirrored and connected-face fixtures pass; transformed topology validates; numerical and interactive paths agree and one gesture is one undo step.
 
 - **R030.a — Scoped transform/copy core:** Merged in [PR #32](https://github.com/zygote55/sketchyup/pull/32); both CI jobs passed. [Evidence](verification/R030a-scoped-transforms.md). Shared vertices, pivots, local/world frames, reflection, typed copy mappings and atomic validation.
-- **R030.b — Native move/rotate/scale/flip:** Local core/X11 validation passed; CI pending. Wayland retest remains a tracked M4 checkpoint requirement. [Evidence](verification/R030b-native-transforms.md). Pointer/numeric tools, copy mode, selection feedback and one-gesture undo. Requires R030.a.
+- **R030.b — Native move/rotate/scale/flip:** Merged in [PR #33](https://github.com/zygote55/sketchyup/pull/33); both CI jobs passed. Wayland retest remains a tracked M4 checkpoint requirement. [Evidence](verification/R030b-native-transforms.md). Pointer/numeric tools, copy mode, selection feedback and one-gesture undo. Requires R030.a.
 
 <a id="r031"></a>
 
 #### R031 — Implement linear and radial copy arrays
 
-**Status:** Planned. **Track:** Geometry. **Scope:** E03. **UX:** §4.3.
+**Status:** Local development, sanitizer, X11 and isolated Wayland checks passed; CI pending. **Evidence:** [copy arrays](verification/R031-copy-arrays.md). **Track:** Geometry. **Scope:** E03. **UX:** §4.3.
 
 **Requires:** [R030](#r030); milestone gate rule above.
 

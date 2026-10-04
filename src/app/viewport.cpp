@@ -1106,6 +1106,7 @@ void Viewport::cancel() {
     transformBase_.reset();
     transformEnd_.reset();
     transformPreview_ = {};
+    transformArray_ = {};
     transformControlPending_ = false;
     guideControlPending_ = false;
     pushControlPending_ = false;
@@ -1733,7 +1734,7 @@ bool Viewport::event(QEvent *event) {
         if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
             tool_ != Tool::Zoom &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
-            !key->text().isEmpty() && QString("0123456789.+-[<").contains(key->text()[0])) {
+            !key->text().isEmpty() && QString("0123456789.+-[<xX/").contains(key->text()[0])) {
             event->accept();
             return true;
         }
@@ -1984,7 +1985,7 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
     if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
         tool_ != Tool::Zoom &&
         !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
-        !e->text().isEmpty() && QString("0123456789.+-[<").contains(e->text()[0])) {
+        !e->text().isEmpty() && QString("0123456789.+-[<xX/").contains(e->text()[0])) {
         emit measurementsRequested(e->text());
         e->accept();
         return;

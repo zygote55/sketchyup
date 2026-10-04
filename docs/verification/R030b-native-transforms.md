@@ -1,7 +1,8 @@
 # R030.b: native move, rotate, scale and flip
 
 Date: 2026-10-03. All 22 development suites and the full native regression set pass. The native
-transform workflow passes at DPR 1 and 2. CI validation is pending. Requires R030.a.
+transform workflow passes at DPR 1 and 2. Both CI jobs passed; PR #33 merged
+as `3787e5f`. Requires R030.a.
 Owner/implementer: coding agent under the owner's full-roadmap authorization.
 
 Move (M), Rotate (Q) and Scale (S) use the same public scoped-transform command
@@ -63,7 +64,7 @@ agent. The capture mounts the host Noto fonts into the disposable Xvfb container
 the Arch package already depends on DejaVu fonts. The native smoke check reports
 `glError: 0`.
 
-Wayland validation is **not claimed for this PR**. The current desktop kept T3 Code
+Wayland validation was **not claimed at the PR #33 merge**. The current desktop kept T3 Code
 active while the mapped test window failed activation; repeated runs and an
 explicit targeted focus request did not resolve it. The Wayland smoke run also
 timed out waiting for rendered frames. The tests were not weakened to bypass
@@ -77,3 +78,8 @@ xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 bu
 ```
 
 These are implementation-agent tests and captures, not independent human review.
+
+R031 follow-up: isolated Weston/llvmpipe transform workflows passed at DPR 1 and 2,
+with explicit Qt pointer events and unchanged activation checks. See the
+[Wayland evidence and CI runner](R031-copy-arrays.md); this does not replace a
+physical-desktop check.

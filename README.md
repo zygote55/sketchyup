@@ -104,6 +104,9 @@ ctest --preset headless
   destination (plus a baseline/reference for rotation or scale). Type exact
   displacement, angle or scale factors in Measurements. Re-entry revises the same
   undo item. With no selection, Move can target an inferred vertex.
+- After a Move or Rotate copy, type `xN` for N new copies or `/N` for N equal
+  intervals ending at the chosen destination. Counts are limited to 1–100;
+  re-entering counts, distance or angle revises the same undo item.
 - `Ctrl` toggles transform copy mode; Edit also provides copy/local-axis settings
   and X/Y/Z flips about the selection center. Raw copies stay in their editing
   context; whole-context copies duplicate the hierarchy. Local mode requires one
@@ -152,6 +155,7 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --script examples/curves.json --output /tmp/curves.sketchyup
 ./build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
 ./build/dev/sketchyup-cli --script examples/transforms.json --output /tmp/transforms.sketchyup
+./build/dev/sketchyup-cli --script examples/copy-arrays.json --output /tmp/arrays.sketchyup
 ./build/dev/sketchyup-cli --input /tmp/curves.sketchyup --query-file examples/inference-query.json
 ```
 

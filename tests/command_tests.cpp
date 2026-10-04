@@ -368,6 +368,43 @@ int main(int argc, char **argv) {
         check(!childGeometry.isEmpty() && childGeometry["worldTransform"].toArray()[12] == 2 &&
                   childGeometry["worldTransform"].toArray()[13] == 3,
               "Parent-transform preview includes unchanged child meshes at their new world frame");
+        Document arrayDoc = source;
+        QJsonObject arrayCommand{{"command", "geometry.array_selection"},
+                                 {"entities", goodTransform["entities"]},
+                                 {"mode", "linear"},
+                                 {"delta", QJsonArray{2, 0, 0}},
+                                 {"count", 3}};
+        auto arrayRequest = [&] {
+            return QJsonObject{{"apiVersion", 1},
+                               {"documentId", QString::fromStdString(arrayDoc.identity())},
+                               {"expectedRevision", QString::number(arrayDoc.revision())},
+                               {"commands", QJsonArray{arrayCommand}}};
+        };
+        const auto arrayBaseline = encodeDocument(arrayDoc);
+        const auto arrayPreview = previewBatch(arrayDoc, arrayRequest());
+        check(encodeDocument(arrayDoc) == arrayBaseline &&
+                  arrayPreview["copies"].toArray().size() == 3 &&
+                  arrayPreview["copies"].toArray()[2].toObject()["instance"] == 3,
+              "Array preview is private and labels ordered copy instances");
+        const auto validArray = arrayCommand;
+        for (auto patch : QJsonArray{QJsonObject{{"count", 0}}, QJsonObject{{"count", 101}},
+                                     QJsonObject{{"count", 1.5}}, QJsonObject{{"count", "3"}},
+                                     QJsonObject{{"divide", 1}}, QJsonObject{{"mode", "unknown"}},
+                                     QJsonObject{{"axis", QJsonArray{0, 0, 1}}}}) {
+            arrayCommand = validArray;
+            const auto object = patch.toObject();
+            for (auto it = object.begin(); it != object.end(); ++it)
+                arrayCommand[it.key()] = it.value();
+            rejects([&] { executeBatch(arrayDoc, arrayRequest()); });
+            check(encodeDocument(arrayDoc) == arrayBaseline,
+                  "Malformed array preserves document and IDs");
+        }
+        arrayCommand = validArray;
+        executeBatch(arrayDoc, arrayRequest());
+        check(arrayDoc.bodies().at(1)->surface.faces.size() == 4,
+              "Array command creates exact copy count");
+        arrayDoc.undo();
+        check(arrayDoc.bodies().at(1)->surface.faces.size() == 1, "Public array is one undo item");
         const QJsonArray cases{
             QJsonObject{{"command", "geometry.face"},
                         {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{1, 0, 0},
@@ -457,6 +494,12 @@ int main(int argc, char **argv) {
                         {"body", "1"},
                         {"face", "5"},
                         {"distance", 2}},
+            QJsonObject{{"command", "geometry.array_selection"},
+                        {"entities",
+                         QJsonArray{QJsonObject{{"body", "1"}, {"kind", "face"}, {"entity", "5"}}}},
+                        {"mode", "linear"},
+                        {"delta", QJsonArray{2, 0, 0}},
+                        {"count", 3}},
             QJsonObject{{"command", "geometry.transform_selection"},
                         {"matrix", matrix},
                         {"entities", QJsonArray{QJsonObject{

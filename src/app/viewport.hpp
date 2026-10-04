@@ -263,14 +263,15 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     Transform transformFrame_;
     Vec3 transformPivot_{}, transformAxis_{0, 0, 1};
     std::optional<Vec3> transformBase_, transformEnd_;
-    QJsonObject transformPreview_;
+    QJsonObject transformPreview_, transformArray_;
+    double transformAngle_{};
     void captureTransformTargets();
     void beginTransform(Vec3 pivot);
     void transformClick(QPointF point);
     void updateTransformPreview(QPointF point);
     QJsonObject transformCommand(const Transform &operation) const;
-    QJsonObject transformAt(Vec3 point) const;
-    void finishTransform(const QJsonObject &command);
+    QJsonObject transformAt(Vec3 point);
+    void finishTransform(const QJsonObject &command, bool arrayEligible = true);
     bool transformMeasurements(const QString &text);
     Vec3 extrusionAxis_{};
     double extrusionScale_{1}, previewDistance_{};

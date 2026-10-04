@@ -89,7 +89,9 @@ class Document {
     ChangeReport cleanup(Id context);
     AmendStamp amendmentStamp() const;
     bool canAmend(const AmendStamp &stamp) const;
-    ChangeReport amendLast(const AmendStamp &stamp, const std::function<void(Document &)> &replace);
+    enum class AmendPolicy { FixedContextCount, CopyArray };
+    ChangeReport amendLast(const AmendStamp &stamp, const std::function<void(Document &)> &replace,
+                           AmendPolicy policy = AmendPolicy::FixedContextCount);
     void undo();
     void redo();
     SaveStamp saveStamp() const;
