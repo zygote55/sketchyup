@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/entity_info.hpp"
+#include "automation/inspection.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
@@ -157,6 +158,7 @@ QJsonObject capabilities() {
     return {
         {"apiVersion", 1},
         {"status", "experimental"},
+        {"inspection", inspectionCapabilities()},
         {"units", "m"},
         {"up", "Z"},
         {"commands",

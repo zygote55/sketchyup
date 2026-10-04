@@ -1,6 +1,6 @@
 # R039.b: native History controls
 
-Date: 2026-10-04. Local verification passed; CI pending. Builds on
+Date: 2026-10-04. Local and CI verification passed; merged. Builds on
 [PR #52](https://github.com/zygote55/sketchyup/pull/52).
 
 View → History opens the tray's fifth tab. The panel exposes a bounded page of
@@ -46,3 +46,5 @@ picking, cache invalidation, undo and reopen assertions remain passing.
 
 The final rebuilt development suite also passes 42/42 after the opacity fix.
 The core did not change from R039.a's passing 29/29 sanitizer suites.
+
+[PR #53](https://github.com/zygote55/sketchyup/pull/53) merged on 2026-10-04 as `b740b37` after both Native build runs passed: [37240281729](https://github.com/zygote55/sketchyup/actions/runs/37240281729), [37240278832](https://github.com/zygote55/sketchyup/actions/runs/37240278832).

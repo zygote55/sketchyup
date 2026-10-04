@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/inspection.hpp"
 #include "io/document_io.hpp"
 #include "io/formline.hpp"
 #include "io/recovery.hpp"
@@ -17,6 +18,8 @@ int main(int argc, char **argv) {
     parser.addOption({"describe-command", "Print a command parameter schema", "name"});
     parser.addOption({"query", "Run a read-only document or geometry query", "name"});
     parser.addOption({"query-file", "Run a read-only query object from a JSON file", "path"});
+    parser.addOption({"inspect", "Run a bounded query using the explicit input document", "name"});
+    parser.addOption({"inspect-file", "Run a versioned bounded inspection request", "path"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption({"import-formline", "Import Formline v1 into a new native model", "path"});
@@ -32,6 +35,44 @@ int main(int argc, char **argv) {
     parser.addOption({"script", "Read a command array from a local JSON file", "path"});
     parser.process(app);
     try {
+        if (parser.isSet("inspect") || parser.isSet("inspect-file")) {
+            if (!parser.isSet("input") || (parser.isSet("inspect") && parser.isSet("inspect-file")))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Choose one inspection mode with --input");
+            for (const auto *option : {"capabilities", "describe-command", "query", "query-file",
+                                       "context", "import-formline", "recovery-list", "recover",
+                                       "history-position", "output", "preview", "script"})
+                if (parser.isSet(option))
+                    throw sketchy::InspectionError(
+                        "INVALID_REQUEST", "Inspection cannot be combined with other operations");
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            QJsonObject request;
+            if (parser.isSet("inspect-file")) {
+                QFile file(parser.value("inspect-file"));
+                if (!file.open(QIODevice::ReadOnly))
+                    throw sketchy::InspectionError("INPUT_ERROR", "Cannot open inspection request");
+                const auto bytes = file.read(sketchy::inspectionRequestBytes + 1);
+                if (bytes.size() > sketchy::inspectionRequestBytes)
+                    throw sketchy::InspectionError("LIMIT_EXCEEDED",
+                                                   "Inspection request exceeds 16 KiB");
+                QJsonParseError error;
+                const auto json = QJsonDocument::fromJson(bytes, &error);
+                if (error.error != QJsonParseError::NoError || !json.isObject())
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "Expected one JSON request object");
+                request = json.object();
+            } else {
+                request = {{"apiVersion", 1},
+                           {"documentId", QString::fromStdString(document.identity())},
+                           {"expectedRevision", QString::number(document.revision())},
+                           {"query", parser.value("inspect")}};
+            }
+            std::cout << QJsonDocument(sketchy::inspectDocument(document, request))
+                             .toJson(QJsonDocument::Compact)
+                             .toStdString()
+                      << '\n';
+            return 0;
+        }
         if (parser.isSet("history-position") &&
             (parser.isSet("preview") || parser.isSet("query") || parser.isSet("query-file")))
             throw std::runtime_error(
@@ -159,6 +200,14 @@ int main(int argc, char **argv) {
         }
         std::cout << QJsonDocument(result).toJson().toStdString();
         return 0;
+    } catch (const sketchy::InspectionError &e) {
+        std::cerr << QJsonDocument(QJsonObject{{"status", "failed"},
+                                               {"code", QString::fromStdString(e.code())},
+                                               {"error", e.what()}})
+                         .toJson(QJsonDocument::Compact)
+                         .toStdString()
+                  << '\n';
+        return 1;
     } catch (const sketchy::PlanarError &e) {
         std::cerr << QJsonDocument(QJsonObject{{"status", "failed"},
                                                {"code", QString::fromStdString(e.code())},

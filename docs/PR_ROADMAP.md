@@ -80,9 +80,9 @@ and materials (R030–R036) are merged in PRs #32–48. Formline and complete M4
 persistence are merged in [PR #49](https://github.com/zygote55/sketchyup/pull/49).
 Recovery storage is merged in [PR #50](https://github.com/zygote55/sketchyup/pull/50);
 native scheduling/selection is merged in [PR #51](https://github.com/zygote55/sketchyup/pull/51).
-The labeled history API is [PR #52](https://github.com/zygote55/sketchyup/pull/52);
-native History controls are [PR #53](https://github.com/zygote55/sketchyup/pull/53).
-Document unit data/API/persistence are [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences are [PR #55](https://github.com/zygote55/sketchyup/pull/55).
+The labeled history API merged in [PR #52](https://github.com/zygote55/sketchyup/pull/52);
+native History controls merged in [PR #53](https://github.com/zygote55/sketchyup/pull/53).
+Document unit data/API/persistence merged in [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences are [PR #55](https://github.com/zygote55/sketchyup/pull/55).
 The integrated [M4 workflow](verification/M4.md) passes locally; dependency merges and CI remain pending.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
@@ -678,7 +678,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R040 — Publish bounded document inspection and measurement tools
 
-**Status:** Planned. **Track:** Automation. **Scope:** A01, A02. **UX:** —.
+**Status:** In progress. R040.a implements versioned bounded read-only queries, typed references, revision/editor-bound pagination, measurements and generated schemas. Targeted headless checks pass. R040.b retained snapshots and desktop view capture remain pending; M4 gate acceptance is still required. [Contract](decisions/0019-bounded-inspection.md). [Evidence](verification/R040a-bounded-inspection.md). **Track:** Automation. **Scope:** A01, A02. **UX:** —.
 
 **Requires:** [R035](#r035), [R037](#r037); milestone gate rule above.
 

@@ -1,6 +1,6 @@
 # R039.a: history data and navigation
 
-Date: 2026-10-04. Local validation passed; CI pending. Requires
+Date: 2026-10-04. Local and CI validation passed; merged. Requires
 [PR #51](https://github.com/zygote55/sketchyup/pull/51).
 
 The [history decision](../decisions/0017-labeled-history.md) records bounds,
@@ -26,3 +26,5 @@ runs passed, so the original discrepancy was not reproduced or measured. The
 assertion now uses the model's geometric tolerance (as its adjacent rotation
 check does) and prints all coordinates at full double precision on failure.
 This does not change modeling behavior; subsequent CI must validate the result.
+
+[PR #52](https://github.com/zygote55/sketchyup/pull/52) merged on 2026-10-04 as `a7d2fc6` after both Native build runs passed: [37239903246](https://github.com/zygote55/sketchyup/actions/runs/37239903246), [37239900355](https://github.com/zygote55/sketchyup/actions/runs/37239900355).
