@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "core/copy_array.hpp"
 namespace sketchy {
 namespace {
 QJsonObject number() { return {{"type", "number"}}; }
@@ -10,6 +11,19 @@ QJsonObject stableId(bool zero = false) {
 }
 QJsonObject list(QJsonObject items, int minimum, int maximum) {
     return {{"type", "array"}, {"items", items}, {"minItems", minimum}, {"maxItems", maximum}};
+}
+QJsonObject targetsSchema() {
+    return list(
+        QJsonObject{{"type", "object"},
+                    {"properties",
+                     QJsonObject{{"body", stableId()},
+                                 {"entity", stableId(true)},
+                                 {"kind", QJsonObject{{"type", "string"},
+                                                      {"enum", QJsonArray{"context", "face", "edge",
+                                                                          "vertex", "guide"}}}}}},
+                    {"required", QJsonArray{"body", "kind", "entity"}},
+                    {"additionalProperties", false}},
+        1, 10000);
 }
 QJsonObject spec(QString name, QString label, QString category, QJsonObject properties,
                  QJsonArray required) {
@@ -171,42 +185,48 @@ QJsonArray commandCatalog() {
              {{"body", stableId()}, {"face", stableId()}, {"distance", number()}},
              {"body", "face", "distance"}),
         spec("geometry.transform_selection", "Transform selected geometry", "Geometry",
-             {{"entities",
-               list(QJsonObject{{"type", "object"},
-                                {"properties",
-                                 QJsonObject{
-                                     {"body", stableId()},
-                                     {"entity", stableId(true)},
-                                     {"kind",
-                                      QJsonObject{{"type", "string"},
-                                                  {"enum", QJsonArray{"context", "face", "edge",
-                                                                      "vertex", "guide"}}}}}},
-                                {"required", QJsonArray{"body", "kind", "entity"}},
-                                {"additionalProperties", false}},
-                    1, 10000)},
+             {{"entities", targetsSchema()},
               {"matrix", list(number(), 16, 16)},
               {"pivot", point},
               {"space", space},
               {"copy", QJsonObject{{"type", "boolean"}, {"default", false}}}},
              {"entities", "matrix"}),
+        spec("geometry.array_selection", "Linear or radial copy array", "Geometry",
+             {{"entities", targetsSchema()},
+              {"mode", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"linear", "radial"}}}},
+              {"count", QJsonObject{{"type", "integer"},
+                                    {"minimum", 1},
+                                    {"maximum", int(maxArrayCopies)},
+                                    {"description",
+                                     "New copies; total instances including source = count + 1"}}},
+              {"delta", point},
+              {"axis", point},
+              {"angle", number()},
+              {"pivot", point},
+              {"space", space},
+              {"divide",
+               QJsonObject{
+                   {"type", "boolean"},
+                   {"default", false},
+                   {"description",
+                    "Divide displacement or sweep into count intervals, including endpoint"}}}},
+             {"entities", "mode", "count"}),
         spec("geometry.translate", "Move selection", "Geometry",
              {{"body", stableId()}, {"delta", point}}, {"body", "delta"}),
-        spec(
-            "geometry.erase_selection", "Delete selected entities", "Geometry",
-            {{"entities",
-              list(
-                  QJsonObject{
-                      {"type", "object"},
-                      {"properties",
-                       QJsonObject{{"body", stableId()},
-                                   {"kind", QJsonObject{{"type", "string"},
-                                                        {"enum", QJsonArray{"context", "face",
-                                                                            "edge", "guide"}}}},
-                                   {"entity", stableId(true)}}},
-                      {"required", QJsonArray{"body", "kind", "entity"}},
-                      {"additionalProperties", false}},
-                  1, 10000)}},
-            {"entities"}),
+        spec("geometry.erase_selection", "Delete selected entities", "Geometry",
+             {{"entities",
+               list(QJsonObject{{"type", "object"},
+                                {"properties",
+                                 QJsonObject{
+                                     {"body", stableId()},
+                                     {"kind", QJsonObject{{"type", "string"},
+                                                          {"enum", QJsonArray{"context", "face",
+                                                                              "edge", "guide"}}}},
+                                     {"entity", stableId(true)}}},
+                                {"required", QJsonArray{"body", "kind", "entity"}},
+                                {"additionalProperties", false}},
+                    1, 10000)}},
+             {"entities"}),
         spec("geometry.delete", "Delete context", "Geometry", {{"body", stableId()}}, {"body"}),
         spec("material.color", "Paint selection", "Materials",
              {{"body", stableId()},

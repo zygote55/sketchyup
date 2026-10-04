@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "core/copy_array.hpp"
 #include "core/selection.hpp"
 #include "core/transform_selection.hpp"
 #include "geometry/constraints.hpp"
@@ -578,7 +579,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         } else if (name == "geometry.extrude_isolated") {
             fields(command, {"command", "body", "face", "distance"});
             staged.extrude(id(command["body"]), id(command["face"]), number(command["distance"]));
-        } else if (name == "geometry.transform_selection") {
+        } else if (name == "geometry.transform_selection" || name == "geometry.array_selection") {
             const auto records = array(command["entities"]);
             if (records.empty() || records.size() > 10000)
                 throw std::runtime_error("Transform requires 1–10000 targets");
@@ -609,40 +610,79 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                 if (!targets.insert(target).second)
                     throw std::runtime_error("Duplicate transform target");
             }
-            const auto values = array(command["matrix"]);
-            if (values.size() != 16)
-                throw std::runtime_error("Transform matrix requires sixteen numbers");
-            Transform matrix;
-            for (int i = 0; i < 16; ++i)
-                matrix.m[i] = number(values[i]);
             if (command.contains("space") && command["space"] != "local" &&
                 command["space"] != "world")
                 throw std::runtime_error("Transform space must be local or world");
-            if (command.contains("copy") && !command["copy"].isBool())
-                throw std::runtime_error("copy must be boolean");
-            const auto result = transformSelected(
-                staged, targets, matrix,
-                command.contains("pivot") ? point(command["pivot"]) : Vec3{},
-                command["space"] == "local" ? TransformSpace::Local : TransformSpace::World,
-                command["copy"].toBool());
-            compose(result.changes);
-            for (const auto &[source, copied] : result.copies)
-                copies.append(QJsonObject{{"sourceBody", QString::number(source)},
-                                          {"body", QString::number(copied)}});
-            for (const auto &[body, copied] : result.geometryCopies) {
-                auto ids = [](const auto &mapping) {
-                    QJsonObject result;
-                    for (const auto &[source, target] : mapping)
-                        result[QString::number(source)] = QString::number(target);
-                    return result;
-                };
-                copies.append(QJsonObject{{"sourceBody", QString::number(body)},
-                                          {"body", QString::number(body)},
-                                          {"vertices", ids(copied.vertices)},
-                                          {"edges", ids(copied.edges)},
-                                          {"faces", ids(copied.faces)},
-                                          {"curves", ids(copied.curves)},
-                                          {"guides", ids(copied.guides)}});
+            const auto pivot = command.contains("pivot") ? point(command["pivot"]) : Vec3{};
+            const auto space =
+                command["space"] == "local" ? TransformSpace::Local : TransformSpace::World;
+            std::vector<TransformResult> instances;
+            const auto isArray = name == "geometry.array_selection";
+            if (isArray) {
+                CopyArray spec;
+                const auto count = number(command["count"]);
+                if (count < 1 || count > maxArrayCopies || count != std::floor(count))
+                    throw std::runtime_error("Array count must be an integer from 1 to 100");
+                spec.copies = unsigned(count);
+                if (command.contains("divide") && !command["divide"].isBool())
+                    throw std::runtime_error("divide must be boolean");
+                spec.divide = command["divide"].toBool();
+                if (command["mode"] == "linear") {
+                    if (command.contains("axis") || command.contains("angle"))
+                        throw std::runtime_error("Linear array accepts delta, not axis or angle");
+                    spec.delta = point(command["delta"]);
+                } else if (command["mode"] == "radial") {
+                    if (command.contains("delta"))
+                        throw std::runtime_error("Radial array accepts axis and angle, not delta");
+                    spec.mode = ArrayMode::Radial;
+                    spec.axis = point(command["axis"]);
+                    spec.angle = number(command["angle"]);
+                } else
+                    throw std::runtime_error("Array mode must be linear or radial");
+                auto result = copyArraySelected(staged, targets, spec, pivot, space);
+                compose(result.changes);
+                instances = std::move(result.instances);
+            } else {
+                const auto values = array(command["matrix"]);
+                if (values.size() != 16)
+                    throw std::runtime_error("Transform matrix requires sixteen numbers");
+                Transform matrix;
+                for (int i = 0; i < 16; ++i)
+                    matrix.m[i] = number(values[i]);
+                if (command.contains("copy") && !command["copy"].isBool())
+                    throw std::runtime_error("copy must be boolean");
+                instances.push_back(transformSelected(staged, targets, matrix, pivot, space,
+                                                      command["copy"].toBool()));
+                compose(instances.back().changes);
+            }
+            unsigned index = 0;
+            for (const auto &result : instances) {
+                const auto first = copies.size();
+                ++index;
+                for (const auto &[source, copied] : result.copies)
+                    copies.append(QJsonObject{{"sourceBody", QString::number(source)},
+                                              {"body", QString::number(copied)}});
+                for (const auto &[body, copied] : result.geometryCopies) {
+                    auto ids = [](const auto &mapping) {
+                        QJsonObject result;
+                        for (const auto &[source, target] : mapping)
+                            result[QString::number(source)] = QString::number(target);
+                        return result;
+                    };
+                    copies.append(QJsonObject{{"sourceBody", QString::number(body)},
+                                              {"body", QString::number(body)},
+                                              {"vertices", ids(copied.vertices)},
+                                              {"edges", ids(copied.edges)},
+                                              {"faces", ids(copied.faces)},
+                                              {"curves", ids(copied.curves)},
+                                              {"guides", ids(copied.guides)}});
+                }
+                if (isArray)
+                    for (auto i = first; i < copies.size(); ++i) {
+                        auto record = copies[i].toObject();
+                        record["instance"] = int(index);
+                        copies[i] = record;
+                    }
             }
         } else if (name == "geometry.translate") {
             fields(command, {"command", "body", "delta"});
@@ -745,8 +785,13 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {
     QJsonObject result;
+    const auto commands = request["commands"].toArray();
+    const auto policy =
+        commands.size() == 1 && commands[0].toObject()["command"] == "geometry.array_selection"
+            ? Document::AmendPolicy::CopyArray
+            : Document::AmendPolicy::FixedContextCount;
     const auto report = doc.amendLast(
-        stamp, [&](Document &candidate) { result = executeBatch(candidate, request); });
+        stamp, [&](Document &candidate) { result = executeBatch(candidate, request); }, policy);
     QJsonObject changes;
     for (const auto &[context, change] : report)
         changes[QString::number(context)] =

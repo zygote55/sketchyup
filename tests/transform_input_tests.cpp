@@ -22,6 +22,13 @@ void click(Viewport &view, Vec3 point) {
     QTest::mouseClick(&view, Qt::LeftButton, {}, view.project(point).toPoint());
     QCoreApplication::processEvents();
 }
+void movePointer(Viewport &view, Vec3 point) {
+    const auto at = view.project(point);
+    QMouseEvent event(QEvent::MouseMove, at, view.mapToGlobal(at.toPoint()), Qt::NoButton,
+                      Qt::NoButton, {});
+    QCoreApplication::sendEvent(&view, &event);
+    QCoreApplication::processEvents();
+}
 int main(int argc, char **argv) {
     QSurfaceFormat format;
     format.setVersion(3, 3);
@@ -121,7 +128,7 @@ int main(int argc, char **argv) {
         view->setTool(Viewport::Tool::Move);
         view->setSelection(1, 5);
         click(*view, {0, 0, 0});
-        QTest::mouseMove(view, view->project({2, 0, 0}).toPoint());
+        movePointer(*view, {2, 0, 0});
         QTest::qWait(30);
         check(view->previewValid() && sameContent(*doc.bodies().at(1), *original),
               "Move preview is private");
@@ -205,7 +212,7 @@ int main(int argc, char **argv) {
         view->setTool(Viewport::Tool::Move);
         view->selectEntities({});
         for (int i = 0; i < 100 && !view->inferenceReady(); ++i) {
-            QTest::mouseMove(view, view->project({0, 0, 0}).toPoint());
+            movePointer(*view, {0, 0, 0});
             QTest::qWait(10);
         }
         click(*view, {0, 0, 0});

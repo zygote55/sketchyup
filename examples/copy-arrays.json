@@ -1,0 +1,18 @@
+[
+  {
+    "command": "geometry.face",
+    "name": "Array sample",
+    "loops": [[[0,0,0],[1,0,0],[1,1,0],[0,1,0]]]
+  },
+  {
+    "command": "geometry.array_selection",
+    "entities": [{"body":"1","kind":"face","entity":"5"}],
+    "mode": "linear", "delta": [2,0,0], "count": 4
+  },
+  {
+    "command": "geometry.array_selection",
+    "entities": [{"body":"1","kind":"context","entity":"0"}],
+    "mode": "radial", "axis": [0,0,1], "angle": 1.5707963267948966,
+    "pivot": [0,0,0], "count": 3
+  }
+]
