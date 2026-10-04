@@ -168,6 +168,64 @@ int main(int argc, char **argv) {
         transformedDrawing.undo();
         check(transformedDrawing.bodies().at(1)->curves.empty(),
               "Amended curve remains one undo item");
+        Document guided;
+        guided.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}});
+        guided.transform(1, Transform::translation({2, 3, 4}) * Transform::scaling({-2, 3, 1}));
+        auto guideRequest = [&](QJsonArray commands) {
+            return QJsonObject{{"apiVersion", 1},
+                               {"documentId", QString::fromStdString(guided.identity())},
+                               {"expectedRevision", QString::number(guided.revision())},
+                               {"commands", commands}};
+        };
+        QJsonObject worldGuide{{"command", "guide.line"},
+                               {"body", "1"},
+                               {"space", "world"},
+                               {"origin", QJsonArray{2, 3, 4}},
+                               {"direction", QJsonArray{1, 0, 0}}};
+        const auto beforeGuide = encodeDocument(guided);
+        auto guidePreview = previewBatch(guided, guideRequest({worldGuide}));
+        check(encodeDocument(guided) == beforeGuide, "Guide preview is read only");
+        auto guideResult = executeBatch(guided, guideRequest({worldGuide}));
+        check(guidePreview["changes"] == guideResult["changes"], "Guide preview and commit agree");
+        const auto guideId = guided.bodies().at(1)->guides.begin()->first;
+        QJsonObject offset{{"command", "guide.offset"},
+                           {"body", "1"},
+                           {"space", "world"},
+                           {"guide", QString::number(guideId)},
+                           {"normal", QJsonArray{0, 0, 1}},
+                           {"distance", .9}};
+        executeBatch(guided, guideRequest({offset}));
+        const auto shifted = guided.bodies().at(1)->guides.rbegin()->second;
+        check(length(guided.worldTransform(1).point(shifted.origin) - Vec3{2, 3.9, 4}) < tolerance,
+              "World offset remains 0.9 m under mirrored nonuniform context");
+        const auto inspection =
+            executeQuery(guided, {{"query", "geometry.inspect"}, {"body", "1"}});
+        check(inspection["guides"].toArray().size() == 2 &&
+                  guided.bodies().at(1)->surface.faces.size() == 1,
+              "Guide query remains distinct from faces");
+        const auto measureBaseline = encodeDocument(guided);
+        const auto distance = executeQuery(guided, {{"query", "geometry.measure_distance"},
+                                                    {"start", QJsonArray{2, 3, 4}},
+                                                    {"end", QJsonArray{2, 3.9, 4}}});
+        check(std::abs(distance["distance"].toDouble() - .9) < tolerance &&
+                  distance["units"] == "m",
+              "Read-only tape measurement query");
+        const auto angle = executeQuery(guided, {{"query", "geometry.measure_angle"},
+                                                 {"origin", QJsonArray{0, 0, 0}},
+                                                 {"first", QJsonArray{1, 0, 0}},
+                                                 {"second", QJsonArray{0, -1, 0}},
+                                                 {"normal", QJsonArray{0, 0, 1}}});
+        check(std::abs(angle["angle"].toDouble() + std::acos(-1) * .5) < tolerance &&
+                  encodeDocument(guided) == measureBaseline,
+              "Signed protractor query never mutates");
+        auto badGuide = worldGuide;
+        badGuide["direction"] = QJsonArray{0, 0, 0};
+        rejects([&] { executeBatch(guided, guideRequest({worldGuide, badGuide})); });
+        check(encodeDocument(guided) == measureBaseline,
+              "Invalid guide batch rolls back atomically");
+        badGuide = worldGuide;
+        badGuide["space"] = "screen";
+        rejects([&] { executeBatch(guided, guideRequest({badGuide})); });
         QJsonArray matrix;
         for (auto value : Transform::translation({2, 0, 0}).m)
             matrix.append(value);
@@ -265,7 +323,26 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "geometry.delete"}, {"body", "1"}},
             QJsonObject{
                 {"command", "material.color"}, {"body", "1"}, {"color", QJsonArray{.1, .2, .3}}},
-            QJsonObject{{"command", "scene.transform"}, {"body", "1"}, {"matrix", matrix}}};
+            QJsonObject{{"command", "scene.transform"}, {"body", "1"}, {"matrix", matrix}},
+            QJsonObject{
+                {"command", "guide.point"}, {"body", "0"}, {"origin", QJsonArray{0, 0, .9}}},
+            QJsonObject{{"command", "guide.line"},
+                        {"body", "1"},
+                        {"origin", QJsonArray{0, 0, .9}},
+                        {"direction", QJsonArray{1, 0, 0}}},
+            QJsonObject{{"command", "guide.angle"},
+                        {"body", "1"},
+                        {"origin", QJsonArray{0, 0, 0}},
+                        {"normal", QJsonArray{0, -1, 0}},
+                        {"xAxis", QJsonArray{1, 0, 0}},
+                        {"angle", .5}},
+            QJsonObject{{"command", "guide.offset"},
+                        {"body", "1"},
+                        {"guide", "6"},
+                        {"normal", QJsonArray{0, -1, 0}},
+                        {"distance", .9}},
+            QJsonObject{{"command", "guide.erase"}, {"body", "1"}, {"guide", "6"}},
+            QJsonObject{{"command", "guide.clear"}, {"body", "0"}}};
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -280,6 +357,9 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"] == "guide.offset" || command["command"] == "guide.erase" ||
+                command["command"] == "guide.clear")
+                doc.addGuide(1, guideLine({}, {1, 0, 0}));
             if (command["command"] == "geometry.heal_face")
                 doc.eraseFace(1, 5);
             if (command["command"] == "geometry.cleanup") {

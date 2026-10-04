@@ -55,7 +55,7 @@ QJsonObject entityChanges(const EntityChanges &changes) {
 QJsonObject topologyDescription(const Document &doc, Id context) {
     const auto &body = *doc.bodies().at(context);
     const auto adjacency = body.topology.adjacency(body.surface);
-    QJsonArray vertices, edges, faces, curves;
+    QJsonArray vertices, edges, faces, curves, guides;
     for (const auto &[id, point] : body.surface.vertices)
         vertices.append(QJsonObject{{"id", QString::number(id)},
                                     {"point", QJsonArray{point.x, point.y, point.z}},
@@ -86,6 +86,8 @@ QJsonObject topologyDescription(const Document &doc, Id context) {
     }
     for (const auto &[id, curve] : body.curves)
         curves.append(encodeCurve(id, curve));
+    for (const auto &[id, guide] : body.guides)
+        guides.append(encodeGuide(id, guide));
     return {{"documentId", QString::fromStdString(doc.identity())},
             {"context", QString::number(context)},
             {"revision", QString::number(doc.revision())},
@@ -93,6 +95,7 @@ QJsonObject topologyDescription(const Document &doc, Id context) {
             {"edges", edges},
             {"faces", faces},
             {"curves", curves},
+            {"guides", guides},
             {"nextId", QString::number(body.surface.nextId)},
             {"nextEdgeId", QString::number(body.topology.nextId)}};
 }
@@ -111,6 +114,7 @@ QJsonObject capabilities() {
              }()},
             {"commandSchemas", commandCatalog()},
             {"queries", QJsonArray{"document.describe", "geometry.inspect", "geometry.infer",
+                                   "geometry.measure_distance", "geometry.measure_angle",
                                    "geometry.preview", "commands.describe", "capabilities"}},
             {"transactionContract",
              QJsonObject{{"atomic", true},
@@ -121,6 +125,8 @@ QJsonObject capabilities() {
                                    {"documentBytes", 32 * 1024 * 1024},
                                    {"bodies", 10000},
                                    {"vertices", 100000},
+                                   {"guides", 10000},
+                                   {"guidesPerContext", 1024},
                                    {"batchCommands", 100}}},
             {"limitations", QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
                                        "sweeps; general solid booleans are unavailable",
@@ -143,6 +149,7 @@ QJsonObject describe(const Document &doc) {
                                   {"worldTransform", world},
                                   {"name", QString::fromStdString(b->name)},
                                   {"vertices", int(b->surface.vertices.size())},
+                                  {"guides", int(b->guides.size())},
                                   {"faces", faces}});
     }
     return {{"documentId", QString::fromStdString(doc.identity())},
@@ -151,6 +158,17 @@ QJsonObject describe(const Document &doc) {
 }
 QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     const auto name = request["query"].toString();
+    if (name == "geometry.measure_distance") {
+        fields(request, {"query", "start", "end"});
+        return {{"distance", measureDistance(point(request["start"]), point(request["end"]))},
+                {"units", "m"}};
+    }
+    if (name == "geometry.measure_angle") {
+        fields(request, {"query", "origin", "first", "second", "normal"});
+        return {{"angle", measureAngle(point(request["origin"]), point(request["first"]),
+                                       point(request["second"]), point(request["normal"]))},
+                {"units", "rad"}};
+    }
     if (name == "geometry.preview") {
         fields(request, {"query", "batch"});
         if (!request["batch"].isObject())
@@ -333,7 +351,45 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name == "geometry.face") {
+        if (name == "guide.erase") {
+            compose(staged.eraseGuide(id(command["body"]), id(command["guide"])));
+        } else if (name == "guide.clear") {
+            compose(staged.clearGuides(command["body"] == "0" ? 0 : id(command["body"])));
+        } else if (name.startsWith("guide.")) {
+            const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
+            if (command.contains("space") && command["space"] != "local" &&
+                command["space"] != "world")
+                throw std::runtime_error("Guide space must be local or world");
+            const bool worldSpace = command["space"] == "world";
+            Guide guide;
+            if (name == "guide.point")
+                guide = guidePoint(point(command["origin"]));
+            else if (name == "guide.line")
+                guide = guideLine(point(command["origin"]), point(command["direction"]));
+            else if (name == "guide.angle")
+                guide = angledGuide(DrawingPlane::make(point(command["origin"]),
+                                                       point(command["normal"]),
+                                                       point(command["xAxis"])),
+                                    number(command["angle"]));
+            else if (name == "guide.offset") {
+                const auto source = staged.bodies().at(context)->guides.at(id(command["guide"]));
+                if (source.kind != GuideKind::Line)
+                    throw std::runtime_error("Only guide lines can be offset");
+                const auto world = staged.worldTransform(context);
+                guide = worldSpace
+                            ? guideLine(world.point(source.origin), world.vector(source.direction))
+                            : source;
+                guide = offsetGuide(guide, point(command["normal"]), number(command["distance"]));
+            } else
+                throw std::runtime_error("Unavailable guide command");
+            if (worldSpace && context) {
+                const auto inverse = staged.worldTransform(context).inverse();
+                guide = guide.kind == GuideKind::Point ? guidePoint(inverse.point(guide.origin))
+                                                       : guideLine(inverse.point(guide.origin),
+                                                                   inverse.vector(guide.direction));
+            }
+            compose(staged.addGuide(context, guide));
+        } else if (name == "geometry.face") {
             fields(command, {"command", "loops", "name"});
             if (command.contains("name") && !command["name"].isString())
                 throw std::runtime_error("Expected face name");
@@ -534,7 +590,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             QJsonObject{{"vertices", entityChanges(change.vertices)},
                         {"edges", entityChanges(change.edges)},
                         {"faces", entityChanges(change.faces)},
-                        {"curves", entityChanges(change.curves)}};
+                        {"curves", entityChanges(change.curves)},
+                        {"guides", entityChanges(change.guides)}};
     return {{"status", "committed"},
             {"revision", QString::number(doc.revision())},
             {"created", created},
@@ -552,7 +609,8 @@ QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
             QJsonObject{{"vertices", entityChanges(change.vertices)},
                         {"edges", entityChanges(change.edges)},
                         {"faces", entityChanges(change.faces)},
-                        {"curves", entityChanges(change.curves)}};
+                        {"curves", entityChanges(change.curves)},
+                        {"guides", entityChanges(change.guides)}};
     result["changes"] = changes;
     result["amended"] = true;
     return result;

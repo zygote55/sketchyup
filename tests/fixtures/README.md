@@ -8,3 +8,9 @@ original experimental schema. All geometry is the project's own room recipe.
 
 R015 must read these without source mutation, allocate deterministic initial edge
 IDs, and preserve those edge records across the current schema roundtrip.
+
+`container-curves-v4.sketchyup` was captured from commit `25594d6` with the
+project's `examples/curves.json` recipe before adding guide support. It has five
+curve contexts (circle, center arc, two-point arc, three-point arc and pie).
+`raw-curves-v4.json` is its unmodified document chunk. R027 must preserve its
+analytic records and topology while initializing an empty guide collection.

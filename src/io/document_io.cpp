@@ -54,10 +54,18 @@ QJsonObject encodeCurve(Id id, const Curve &curve) {
             {"segments", int(curve.segments)},
             {"edges", edges}};
 }
+QJsonObject encodeGuide(Id id, const Guide &guide) {
+    QJsonObject result{{"id", sid(id)},
+                       {"kind", guide.kind == GuideKind::Point ? "point" : "line"},
+                       {"origin", QJsonArray{guide.origin.x, guide.origin.y, guide.origin.z}}};
+    if (guide.kind == GuideKind::Line)
+        result["direction"] = QJsonArray{guide.direction.x, guide.direction.y, guide.direction.z};
+    return result;
+}
 QByteArray encodeDocument(const Document &doc) {
     QJsonArray bodies;
     for (const auto &[id, b] : doc.bodies()) {
-        QJsonArray vertices, faces, wires, edges, curves;
+        QJsonArray vertices, faces, wires, edges, curves, guides;
         for (auto [vid, p] : b->surface.vertices)
             vertices.append(QJsonArray{sid(vid), p.x, p.y, p.z});
         for (const auto &[fid, f] : b->surface.faces) {
@@ -76,6 +84,8 @@ QByteArray encodeDocument(const Document &doc) {
             edges.append(QJsonArray{sid(edgeId), sid(edge.a), sid(edge.b), edge.wire});
         for (const auto &[curveId, curve] : b->curves)
             curves.append(encodeCurve(curveId, curve));
+        for (const auto &[guideId, guide] : b->guides)
+            guides.append(encodeGuide(guideId, guide));
         QJsonArray transform;
         for (auto value : b->transform.m)
             transform.append(value);
@@ -100,12 +110,13 @@ QByteArray encodeDocument(const Document &doc) {
                                   {"nextEdgeId", sid(b->topology.nextId)},
                                   {"edges", edges},
                                   {"curves", curves},
+                                  {"guides", guides},
                                   {"vertices", vertices},
                                   {"faces", faces},
                                   {"wires", wires}});
     }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 4},
+                                           {"version", 5},
                                            {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
@@ -127,7 +138,8 @@ Document decodeDocument(const QByteArray &bytes) {
     auto root = json.object();
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
         (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
-         root["version"].toDouble() != 3 && root["version"].toDouble() != 4) ||
+         root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
+         root["version"].toDouble() != 5) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -137,7 +149,7 @@ Document decodeDocument(const QByteArray &bytes) {
     if (records.size() > 10000)
         throw std::runtime_error("Too many bodies");
     std::map<Id, BodyPtr> bodies;
-    size_t totalVertices = 0, totalFaces = 0;
+    size_t totalVertices = 0, totalFaces = 0, totalGuides = 0;
     for (auto record : records) {
         auto o = object(record);
         QStringList allowed{"id", "name", "color", "nextId", "vertices", "faces", "wires"};
@@ -147,6 +159,8 @@ Document decodeDocument(const QByteArray &bytes) {
             allowed += {"nextEdgeId", "edges"};
         if (root["version"].toInt() >= 4)
             allowed.append("curves");
+        if (root["version"].toInt() >= 5)
+            allowed.append("guides");
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
@@ -279,6 +293,35 @@ Document decodeDocument(const QByteArray &bytes) {
                 }
                 if (!b->curves.emplace(readId(c["id"]), std::move(curve)).second)
                     throw std::runtime_error("Duplicate curve ID");
+            }
+        }
+        if (root["version"].toInt() >= 5) {
+            const auto guides = array(o["guides"]);
+            totalGuides += guides.size();
+            if (guides.size() > 1024 || totalGuides > 10000)
+                throw std::runtime_error("Guide count exceeds editing limits");
+            auto vector = [&](const QJsonValue &value) {
+                const auto values = array(value);
+                if (values.size() != 3)
+                    throw std::runtime_error("Guide vector requires three coordinates");
+                return Vec3{number(values[0]), number(values[1]), number(values[2])};
+            };
+            for (const auto &value : guides) {
+                const auto record = object(value);
+                Guide guide;
+                if (record["kind"] == "point") {
+                    supportedFields(record, {"id", "kind", "origin"});
+                    guide.kind = GuideKind::Point;
+                } else if (record["kind"] == "line") {
+                    supportedFields(record, {"id", "kind", "origin", "direction"});
+                    guide.kind = GuideKind::Line;
+                    guide.direction = vector(record["direction"]);
+                } else
+                    throw std::runtime_error("Unsupported guide kind");
+                guide.origin = vector(record["origin"]);
+                guide.validate();
+                if (!b->guides.emplace(readId(record["id"]), guide).second)
+                    throw std::runtime_error("Duplicate guide identity");
             }
         }
         if (!bodies.emplace(b->id, b).second)

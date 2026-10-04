@@ -12,6 +12,7 @@ size_t bytes(const BodyPtr &b) {
     size_t n = sizeof(Body) + b->name.size() + b->surface.vertices.size() * (sizeof(Vec3) + 64) +
                b->surface.wires.size() * sizeof(std::array<Id, 2>) +
                b->topology.edges.size() * (sizeof(EdgeRecord) + 64);
+    n += b->guides.size() * (sizeof(Guide) + 64);
     for (const auto &[id, curve] : b->curves)
         n += sizeof(Curve) + 64 + curve.edges.size() * sizeof(OrientedEdge);
     for (const auto &[id, f] : b->surface.faces) {
@@ -41,19 +42,28 @@ Transform worldTransformIn(const std::map<Id, BodyPtr> &bodies, Id id) {
     return result;
 }
 void validateDocumentSize(const std::map<Id, BodyPtr> &bodies) {
-    size_t vertices = 0, faces = 0, wires = 0, edges = 0, curves = 0;
+    size_t vertices = 0, faces = 0, wires = 0, edges = 0, curves = 0, guides = 0;
     for (const auto &[id, b] : bodies) {
         vertices += b->surface.vertices.size();
         faces += b->surface.faces.size();
         wires += b->surface.wires.size();
         edges += b->topology.edges.size();
         curves += b->curves.size();
+        guides += b->guides.size();
         const auto world = worldTransformIn(bodies, id);
         for (const auto &[vertex, point] : b->surface.vertices)
             checkPoint(world.point(point));
+        for (const auto &[guideId, guide] : b->guides) {
+            checkPoint(world.point(guide.origin));
+            if (guide.kind == GuideKind::Line) {
+                const auto n = length(world.vector(guide.direction));
+                if (!std::isfinite(n) || n == 0)
+                    throw std::runtime_error("Guide direction is singular in world space");
+            }
+        }
     }
     if (bodies.size() > 10000 || vertices > 100000 || faces > 100000 || wires > 100000 ||
-        edges > Topology::edgeLimit || curves > 10000)
+        edges > Topology::edgeLimit || curves > 10000 || guides > 10000)
         throw std::runtime_error("Document complexity exceeds editing limits");
 }
 void validate(const Body &b) {
@@ -82,6 +92,10 @@ void validate(const Body &b) {
             value);
     }
     b.surface.validate();
+    validateGuides(b.guides, b.surface);
+    for (const auto &[id, guide] : b.guides)
+        if (b.curves.contains(id))
+            throw std::runtime_error("Guide identity collides with a curve");
 }
 } // namespace
 Document::Document() {
@@ -152,6 +166,40 @@ ChangeReport Document::addCurve(Id context, Curve curve) {
         throw std::runtime_error("Curve identity space exhausted");
     body->curves.emplace(body->surface.nextId++, std::move(curve));
     return apply({"Draw curve", {{body->id, old, body, std::move(result.faces)}}}, revision_);
+}
+ChangeReport Document::addGuide(Id context, Guide guide) {
+    guide.validate();
+    const BodyPtr old = context ? bodies_.at(context) : nullptr;
+    auto body = old ? std::make_shared<Body>(*old) : std::make_shared<Body>();
+    if (!old) {
+        body->id = nextId_;
+        body->name = "Guides";
+    }
+    if (body->surface.nextId == UINT64_MAX)
+        throw std::runtime_error("Guide identity space exhausted");
+    body->guides.emplace(body->surface.nextId++, guide);
+    return apply({"Create guide", {{body->id, old, body}}}, revision_);
+}
+ChangeReport Document::eraseGuide(Id context, Id id) {
+    const auto old = bodies_.at(context);
+    if (!old->guides.contains(id))
+        throw std::runtime_error("Guide does not exist");
+    auto body = std::make_shared<Body>(*old);
+    body->guides.erase(id);
+    return apply({"Delete guide", {{context, old, body}}}, revision_);
+}
+ChangeReport Document::clearGuides(Id context) {
+    if (context && !bodies_.contains(context))
+        throw std::runtime_error("Guide context does not exist");
+    Edit edit{"Delete guides", {}};
+    for (const auto &[id, old] : bodies_) {
+        if ((context && context != id) || old->guides.empty())
+            continue;
+        auto body = std::make_shared<Body>(*old);
+        body->guides.clear();
+        edit.changes.push_back({id, old, body});
+    }
+    return edit.changes.empty() ? ChangeReport{} : apply(std::move(edit), revision_);
 }
 ChangeReport Document::splitEdge(Id context, Id edge, double fraction) {
     const auto old = bodies_.at(context);
@@ -313,6 +361,9 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             for (const auto &[id, curve] : c.after->curves)
                 if (id < floor && (!c.before || !c.before->curves.contains(id)))
                     throw std::runtime_error("Retired curve ID cannot be reused");
+            for (const auto &[id, guide] : c.after->guides)
+                if (id < floor && (!c.before || !c.before->guides.contains(id)))
+                    throw std::runtime_error("Retired guide ID cannot be reused");
             floors[c.id] = std::max(floor, c.after->surface.nextId);
             next = std::max(next, c.id + 1);
         }
@@ -402,6 +453,9 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         const std::map<Id, Curve> noCurves;
         changes.curves = compareCurves(change.before ? change.before->curves : noCurves,
                                        change.after ? change.after->curves : noCurves);
+        const std::map<Id, Guide> noGuides;
+        changes.guides = compareGuides(change.before ? change.before->guides : noGuides,
+                                       change.after ? change.after->guides : noGuides);
         report.emplace(change.id, std::move(changes));
     }
     if (edit.bytes > historyLimit)
@@ -506,6 +560,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
                                                after ? after->topology : empty.topology));
             report.at(id).curves = compareCurves(before ? before->curves : empty.curves,
                                                  after ? after->curves : empty.curves);
+            report.at(id).guides = compareGuides(before ? before->guides : empty.guides,
+                                                 after ? after->guides : empty.guides);
         }
     }
     *this = std::move(staged);

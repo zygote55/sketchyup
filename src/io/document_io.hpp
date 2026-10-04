@@ -5,6 +5,7 @@
 #include <QString>
 namespace sketchy {
 QJsonObject encodeCurve(Id id, const Curve &curve);
+QJsonObject encodeGuide(Id id, const Guide &guide);
 QByteArray encodeDocument(const Document &doc);
 Document decodeDocument(const QByteArray &bytes);
 QByteArray encodeContainer(const Document &doc);
