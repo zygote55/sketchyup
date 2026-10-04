@@ -79,7 +79,8 @@ Id normalizeRoot(Document &draft, Id root) {
     return geometry;
 }
 std::pair<DefinitionPtr, InstancePtr> capture(const Document &draft, Id root, Id definitionId,
-                                              std::string name, bool includeDraftRoots = false) {
+                                              std::string name, bool includeDraftRoots = false,
+                                              Transform rootDelta = {}, Transform fromWorld = {}) {
     auto definition = std::make_shared<ComponentDefinition>();
     definition->id = definitionId;
     definition->root = root;
@@ -96,8 +97,11 @@ std::pair<DefinitionPtr, InstancePtr> capture(const Document &draft, Id root, Id
                 children[root].push_back(id);
     auto visit = [&](auto &&self, Id id) -> void {
         auto body = std::make_shared<Body>(*draft.bodies().at(id));
-        if (includeDraftRoots && id != root && !body->parent)
+        if (includeDraftRoots && id != root && !body->parent) {
             body->parent = root;
+            body->transform = fromWorld * body->transform;
+        } else if (body->parent == root)
+            body->transform = rootDelta * body->transform;
         instance->members[id] = id;
         if (id == root) {
             body->kind = BodyKind::Group;
@@ -269,6 +273,12 @@ ComponentResult createComponent(Document &doc, Id root, std::string name) {
         throw std::runtime_error("This group is already a component instance");
     Document draft = doc;
     const auto geometry = normalizeRoot(draft, root);
+    if (draft.bodies().at(root)->name != name) {
+        const auto old = draft.bodies().at(root);
+        auto named = std::make_shared<Body>(*old);
+        named->name = name;
+        draft.apply({"Name component placement", {{root, old, named}}}, draft.revision());
+    }
     Id nextDefinition = doc.nextDefinitionId();
     const auto id = allocate(nextDefinition);
     const auto [definition, binding] = capture(draft, root, id, std::move(name));
@@ -385,11 +395,17 @@ ComponentResult makeComponentUnique(Document &doc, Id root) {
             {}};
 }
 ComponentResult editComponentDefinition(Document &doc, Id id,
-                                        const std::function<ChangeReport(Document &)> &edit) {
+                                        const std::function<ChangeReport(Document &)> &edit,
+                                        Transform editingFrame) {
+    editingFrame.validate();
     const auto original = doc.definitions().at(id);
+    auto members = original->members;
+    auto placedRoot = std::make_shared<Body>(*members.at(original->root));
+    placedRoot->transform = editingFrame;
+    members[original->root] = placedRoot;
     Document draft;
-    draft.restore(draft.identity(), original->nextMemberId, original->members, 0, doc.definitions(),
-                  {}, doc.nextDefinitionId());
+    draft.restore(draft.identity(), original->nextMemberId, members, 0, doc.definitions(), {},
+                  doc.nextDefinitionId());
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
@@ -400,6 +416,10 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     if (!references.empty())
         publish(draft, draft.definitions(), references, draft.bodies(), draft.nextId(),
                 draft.nextDefinitionId(), "Resolve definition references");
+    std::map<Id, std::map<Id, Id>> existingMembers;
+    for (const auto &[root, instance] : doc.instances())
+        if (instance->definition == id)
+            existingMembers[root] = componentScopeMembers(doc, draft, root);
     const auto baselineDefinitions = draft.definitions();
     const auto baseline = draft.saveStamp();
     const auto report = edit(draft);
@@ -420,34 +440,50 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         if (member != original->root && !body->parent && original->members.contains(member))
             throw std::runtime_error("A shared edit cannot move a member out of its definition");
     const auto moved = normalizeRoot(draft, original->root);
-    // Root transforms in the draft move geometry in definition coordinates.
-    if (root->transform != Transform{}) {
-        Edit bake{"Bake definition frame edit", {}};
-        const auto oldRoot = draft.bodies().at(original->root);
-        auto frame = std::make_shared<Body>(*oldRoot);
-        frame->transform = {};
-        bake.changes.push_back({original->root, oldRoot, frame});
-        for (const auto &[member, body] : draft.bodies())
-            if (body->parent == original->root) {
-                auto transformed = std::make_shared<Body>(*body);
-                transformed->transform = root->transform * body->transform;
-                bake.changes.push_back({member, body, transformed});
-            }
-        draft.apply(std::move(bake), draft.revision());
-    }
-    const auto [definition, unused] = capture(draft, original->root, id, original->name, true);
+    // Keep the temporary editing placement out of canonical records. Real root
+    // movement is baked into its children; newly created world-root records are
+    // re-expressed in the definition frame. Avoid numerical drift for no movement.
+    const auto inverse = editingFrame.inverse();
+    const auto delta = root->transform == editingFrame ? Transform{} : inverse * root->transform;
+    const auto [definition, unused] =
+        capture(draft, original->root, id, original->name, true, delta, inverse);
     auto definitions = doc.definitions();
     for (const auto &[created, record] : draft.definitions())
         if (!definitions.contains(created))
             definitions[created] = record;
     definitions[id] = definition;
+    auto bindings = doc.instances();
+    for (const auto &[root, members] : existingMembers) {
+        auto binding = std::make_shared<ComponentInstance>(*bindings.at(root));
+        for (const auto &[member, body] : definition->members)
+            if (!binding->members.contains(member) && members.contains(member))
+                binding->members[member] = members.at(member);
+        bindings[root] = binding;
+    }
     ComponentResult result{id, 0, {}, {}};
     result.changes =
-        publish(doc, definitions, doc.instances(), doc.bodies(), doc.nextId(),
-                draft.nextDefinitionId(), "Edit shared component definition", id, report);
+        publish(doc, definitions, bindings, doc.bodies(), doc.nextId(), draft.nextDefinitionId(),
+                "Edit shared component definition", id, report);
     if (moved)
         result.movedGeometry[original->root] = moved;
     return result;
+}
+std::map<Id, Id> componentScopeMembers(const Document &doc, const Document &draft, Id instance) {
+    auto members = doc.instances().at(instance)->members;
+    auto nested = [&](auto &&self, Id sceneRoot, Id draftRoot) -> void {
+        const auto scene = doc.instances().at(sceneRoot),
+                   canonical = draft.instances().at(draftRoot);
+        for (auto [member, id] : scene->members) {
+            const auto target = canonical->members.at(member);
+            members[target] = id;
+            if (id != sceneRoot && doc.instances().contains(id))
+                self(self, id, target);
+        }
+    };
+    const auto definition = doc.definitions().at(doc.instances().at(instance)->definition);
+    for (auto [member, target] : definition->references)
+        nested(nested, doc.instances().at(instance)->members.at(member), member);
+    return members;
 }
 ComponentResult setComponentAxes(Document &doc, Id id, Transform axes) {
     axes.validate();

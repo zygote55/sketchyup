@@ -1,13 +1,16 @@
 #include "app/viewport.hpp"
 #include "automation/commands.hpp"
+#include "automation/component_scope.hpp"
 #include <algorithm>
 namespace sketchy {
 namespace {
-QJsonObject commit(Document &doc, const QJsonArray &commands) {
-    return executeBatch(doc, {{"apiVersion", 1},
-                              {"documentId", QString::fromStdString(doc.identity())},
-                              {"expectedRevision", QString::number(doc.revision())},
-                              {"commands", commands}});
+QJsonObject commit(Document &doc, const QJsonArray &commands, Id scope) {
+    return executeBatch(
+        doc,
+        {{"apiVersion", 1},
+         {"documentId", QString::fromStdString(doc.identity())},
+         {"expectedRevision", QString::number(doc.revision())},
+         {"commands", scope ? QJsonArray{componentScopeCommand(doc, scope, commands)} : commands}});
 }
 QJsonArray entities(const Selection &selection) {
     QJsonArray result;
@@ -41,10 +44,10 @@ void Viewport::makeGroup() {
     cancel();
     selection_.sync(doc_);
     const auto result =
-        commit(doc_, {QJsonObject{{"command", "group.selection"},
-                                  {"context", QString::number(selection_.context())},
-                                  {"showHidden", selection_.showingHidden()},
-                                  {"entities", entities(selection_)}}});
+        commitCommands({QJsonObject{{"command", "group.selection"},
+                                    {"context", QString::number(selection_.context())},
+                                    {"showHidden", selection_.showingHidden()},
+                                    {"entities", entities(selection_)}}});
     Id group = 0;
     for (const auto &created : result["created"].toArray()) {
         const auto id = created.toString().toULongLong();
@@ -81,11 +84,11 @@ void Viewport::explodeGroups() {
     // Evaluate the promoted hierarchy privately to preserve temporary editor
     // hiding/locking as well as the persistent policy used by the public command.
     Document preview = doc_;
-    commit(preview, commands);
+    commit(preview, commands, componentScope());
     auto policy = selection_;
     policy.sync(preview);
     commands.append(mergeCommand(preview, policy));
-    const auto result = commit(doc_, commands);
+    const auto result = commitCommands(commands);
     for (const auto &value : result["transfers"].toArray()) {
         const auto transfer = value.toObject();
         const auto source = transfer["sourceBody"].toString().toULongLong();
@@ -111,7 +114,7 @@ void Viewport::explodeGroups() {
 void Viewport::mergeContextGeometry() {
     cancel();
     selection_.sync(doc_);
-    commit(doc_, {mergeCommand(doc_, selection_)});
+    commitCommands({mergeCommand(doc_, selection_)});
     refresh();
     selectEntities({});
     emit changed();
@@ -137,33 +140,29 @@ void Viewport::setPersistentState(bool hide, bool lock) {
     }
     if (commands.empty())
         throw std::runtime_error("Select a whole group or context first");
-    commit(doc_, commands);
+    commitCommands(commands);
     selectionChanged(true);
     emit changed();
 }
 void Viewport::revealPersistentEntities() {
-    QJsonArray commands;
-    for (const auto &[id, body] : doc_.bodies())
-        if (body->hidden)
-            commands.append(QJsonObject{
-                {"command", "scene.state"}, {"body", QString::number(id)}, {"hidden", false}});
-    if (commands.empty())
+    const bool hidden = std::any_of(doc_.bodies().begin(), doc_.bodies().end(),
+                                    [](const auto &entry) { return entry.second->hidden; });
+    if (!hidden)
         return;
     cancel();
-    commit(doc_, commands);
+    commitCommands({QJsonObject{{"command", "scene.state"}, {"body", "0"}, {"hidden", false}}},
+                   false);
     selectionChanged(true);
     emit changed();
 }
 void Viewport::unlockPersistentEntities() {
-    QJsonArray commands;
-    for (const auto &[id, body] : doc_.bodies())
-        if (body->locked)
-            commands.append(QJsonObject{
-                {"command", "scene.state"}, {"body", QString::number(id)}, {"locked", false}});
-    if (commands.empty())
+    const bool locked = std::any_of(doc_.bodies().begin(), doc_.bodies().end(),
+                                    [](const auto &entry) { return entry.second->locked; });
+    if (!locked)
         return;
     cancel();
-    commit(doc_, commands);
+    commitCommands({QJsonObject{{"command", "scene.state"}, {"body", "0"}, {"locked", false}}},
+                   false);
     selectionChanged(true);
     emit changed();
 }

@@ -4,6 +4,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMainWindow>
+#include <QMenu>
 #include <functional>
 namespace sketchy {
 class Window : public QMainWindow {
@@ -28,6 +29,7 @@ class Window : public QMainWindow {
     QLabel *status_{};
     QLabel *title_{};
     QLabel *breadcrumb_{};
+    QLabel *componentBanner_{};
     QLineEdit *measurements_{};
     QWidget *tray_{};
     QString path_;
@@ -35,6 +37,9 @@ class Window : public QMainWindow {
     QAction *redo_{};
     std::vector<QAction *> publicActions_;
     void sync();
+    void addComponentActions(QMenu *menu);
+    void componentDialog(const QString &operation);
+    void syncComponentActions();
     void measurementError(bool invalid);
     void applyTheme();
     int themeMode_{0}; // System, light, dark.

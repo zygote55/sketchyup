@@ -1,6 +1,7 @@
 # R033.b: component operations and explicit shared mutation
 
-Date: 2026-10-04. Local checks passed; CI pending. Requires merged
+Date: 2026-10-04. Merged in [PR #39](https://github.com/zygote55/sketchyup/pull/39);
+both CI jobs passed. Requires merged
 [PR #38](https://github.com/zygote55/sketchyup/pull/38). The R033 native UX gate
 remains open until R033.c.
 

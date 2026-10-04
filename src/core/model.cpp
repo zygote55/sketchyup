@@ -243,7 +243,27 @@ ChangeReport Document::clearGuides(Id context) {
         body->guides.clear();
         edit.changes.push_back({id, old, body});
     }
-    return edit.changes.empty() ? ChangeReport{} : apply(std::move(edit), revision_);
+    std::set<Id> placedDefinitions;
+    for (const auto &[root, instance] : instances_)
+        placedDefinitions.insert(instance->definition);
+    if (!context)
+        for (const auto &[id, old] : definitions_) {
+            if (!placedDefinitions.contains(id))
+                continue;
+            auto definition = std::make_shared<ComponentDefinition>(*old);
+            bool changed = false;
+            for (auto &[member, body] : definition->members)
+                if (!body->guides.empty()) {
+                    auto cleared = std::make_shared<Body>(*body);
+                    cleared->guides.clear();
+                    body = cleared;
+                    changed = true;
+                }
+            if (changed)
+                edit.definitions.push_back({id, old, definition});
+        }
+    return edit.changes.empty() && edit.definitions.empty() ? ChangeReport{}
+                                                            : apply(std::move(edit), revision_);
 }
 ChangeReport Document::splitEdge(Id context, Id edge, double fraction) {
     const auto old = bodies_.at(context);
