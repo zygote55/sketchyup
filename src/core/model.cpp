@@ -7,6 +7,35 @@
 #include <sstream>
 namespace sketchy {
 namespace {
+size_t bytes(const BodyPtr &body);
+size_t componentBytes(const DefinitionPtr &definition) {
+    if (!definition)
+        return 0;
+    size_t result =
+        sizeof(ComponentDefinition) + definition->name.size() + definition->references.size() * 96;
+    for (const auto &[id, body] : definition->members)
+        result += bytes(body) + 64;
+    return result;
+}
+size_t componentBytes(const InstancePtr &instance) {
+    return instance ? sizeof(ComponentInstance) + instance->members.size() * 96 : 0;
+}
+template <class Floor>
+DefinitionPtr freezeDefinition(const DefinitionPtr &source, const Floor &floor) {
+    auto definition = std::make_shared<ComponentDefinition>(*source);
+    definition->nextMemberId = std::max(definition->nextMemberId, floor.nextMemberId);
+    for (auto &[id, record] : definition->members) {
+        if (!record)
+            throw std::runtime_error("Null component definition member");
+        auto body = std::make_shared<Body>(*record);
+        if (floor.geometry.contains(id)) {
+            body->surface.nextId = std::max(body->surface.nextId, floor.geometry.at(id).first);
+            body->topology.nextId = std::max(body->topology.nextId, floor.geometry.at(id).second);
+        }
+        record = std::move(body);
+    }
+    return definition;
+}
 size_t bytes(const BodyPtr &b) {
     if (!b)
         return 0;
@@ -335,6 +364,22 @@ void Document::erase(Id id) { apply({"Delete", {{id, bodies_.at(id), nullptr}}},
 void Document::update(Edit edit, bool forward) {
     // Allocate into a temporary map before replacing authoritative state.
     auto next = bodies_;
+    auto definitions = definitions_;
+    auto instances = instances_;
+    for (const auto &change : edit.definitions) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            definitions[change.id] = freezeDefinition(target, definitionFloors_.at(change.id));
+        else
+            definitions.erase(change.id);
+    }
+    for (const auto &change : edit.instances) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            instances[change.root] = target;
+        else
+            instances.erase(change.root);
+    }
     for (const auto &c : edit.changes) {
         auto p = forward ? c.after : c.before;
         if (p) {
@@ -353,14 +398,83 @@ void Document::update(Edit edit, bool forward) {
             next.erase(c.id);
     }
     bodies_.swap(next);
+    definitions_.swap(definitions);
+    instances_.swap(instances);
 }
 ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (revision_ == UINT64_MAX)
         throw std::runtime_error("Document revision space exhausted");
     if (expected != revision_)
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
-    if (edit.changes.empty())
+    if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty())
         throw std::runtime_error("Empty edit");
+    auto definitions = definitions_;
+    auto instances = instances_;
+    auto definitionFloors = definitionFloors_;
+    Id nextDefinition = std::max(nextDefinitionId_, edit.nextDefinitionFloor);
+    std::set<Id> definitionIds, instanceRoots;
+    for (auto &change : edit.definitions) {
+        if (!change.id || change.id == UINT64_MAX || !definitionIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (definitions_.contains(change.id) ? definitions_.at(change.id) : nullptr) !=
+                change.before)
+            throw std::runtime_error("Invalid or stale component definition change");
+        if (!change.before && change.id < nextDefinitionId_)
+            throw std::runtime_error("Retired component definition ID cannot be reused");
+        if (!change.after) {
+            definitions.erase(change.id);
+            continue;
+        }
+        if (change.after->id != change.id ||
+            (change.before && change.before->root != change.after->root))
+            throw std::runtime_error("Component definition identity/root mismatch");
+        auto &floor = definitionFloors[change.id];
+        for (const auto &[member, body] : change.after->members) {
+            if (!body)
+                throw std::runtime_error("Null component member");
+            const auto before = change.before && change.before->members.contains(member)
+                                    ? change.before->members.at(member)
+                                    : nullptr;
+            if (!before && member < floor.nextMemberId)
+                throw std::runtime_error("Retired component member ID cannot be reused");
+            auto &geometryFloor = floor.geometry[member];
+            const Body empty;
+            const auto &previous = before ? *before : empty;
+            auto checkIds = [](const auto &oldRecords, const auto &newRecords, Id floor) {
+                for (const auto &[id, record] : newRecords)
+                    if (id < floor && !oldRecords.contains(id))
+                        throw std::runtime_error("Retired definition geometry ID cannot be reused");
+            };
+            checkIds(previous.surface.vertices, body->surface.vertices, geometryFloor.first);
+            checkIds(previous.surface.faces, body->surface.faces, geometryFloor.first);
+            checkIds(previous.curves, body->curves, geometryFloor.first);
+            checkIds(previous.guides, body->guides, geometryFloor.first);
+            checkIds(previous.topology.edges, body->topology.edges, geometryFloor.second);
+            for (const auto &[edge, record] : body->topology.edges)
+                if (previous.topology.edges.contains(edge) &&
+                    (record.a != previous.topology.edges.at(edge).a ||
+                     record.b != previous.topology.edges.at(edge).b))
+                    throw std::runtime_error("Definition edge ID cannot be reassigned");
+            geometryFloor.first = std::max(geometryFloor.first, body->surface.nextId);
+            geometryFloor.second = std::max(geometryFloor.second, body->topology.nextId);
+        }
+        floor.nextMemberId = std::max(floor.nextMemberId, change.after->nextMemberId);
+        change.after = freezeDefinition(change.after, floor);
+        definitions[change.id] = change.after;
+        nextDefinition = std::max(nextDefinition, change.id + 1);
+    }
+    for (auto &change : edit.instances) {
+        if (!change.root || !instanceRoots.insert(change.root).second ||
+            (!change.before && !change.after) ||
+            (instances_.contains(change.root) ? instances_.at(change.root) : nullptr) !=
+                change.before)
+            throw std::runtime_error("Invalid or stale component instance change");
+        if (change.after) {
+            change.after = std::make_shared<ComponentInstance>(*change.after);
+            instances[change.root] = change.after;
+        } else
+            instances.erase(change.root);
+    }
     std::set<Id> ids;
     Id next = std::max(nextId_, edit.nextIdFloor);
     auto floors = surfaceFloors_;
@@ -485,6 +599,12 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                                        change.after ? change.after->guides : noGuides);
         report.emplace(change.id, std::move(changes));
     }
+    for (const auto &change : edit.definitions)
+        edit.bytes +=
+            sizeof(DefinitionChange) + componentBytes(change.before) + componentBytes(change.after);
+    for (const auto &change : edit.instances)
+        edit.bytes +=
+            sizeof(InstanceChange) + componentBytes(change.before) + componentBytes(change.after);
     if (edit.bytes > historyLimit)
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     auto updated = bodies_;
@@ -495,6 +615,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             updated.erase(c.id);
     }
     validateDocumentSize(updated);
+    validateComponentDefinitions(definitions, nextDefinition);
+    validateComponentInstances(definitions, instances, updated);
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
     auto lockedIn = [](const auto &records, Id id) {
@@ -515,6 +637,9 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                            (change.after && lockedIn(bodies_, change.after->parent))))
             throw std::runtime_error("Cannot edit a locked entity or its contents");
     }
+    for (const auto &change : edit.instances)
+        if (lockedIn(bodies_, change.root))
+            throw std::runtime_error("Cannot change a locked component instance binding");
     for (const auto &[id, body] : bodies_) {
         if (!body->locked)
             continue;
@@ -522,7 +647,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         // indirectly by an ancestor edit. Compare ancestry, not just world points.
         for (auto ancestor = id; ancestor; ancestor = bodies_.at(ancestor)->parent) {
             const auto &before = *bodies_.at(ancestor);
-            if (!updated.contains(ancestor) || updated.at(ancestor)->parent != before.parent ||
+            if (instanceRoots.contains(ancestor) || !updated.contains(ancestor) ||
+                updated.at(ancestor)->parent != before.parent ||
                 updated.at(ancestor)->transform != before.transform ||
                 updated.at(ancestor)->kind != before.kind)
                 throw std::runtime_error("Cannot restructure a locked descendant");
@@ -540,6 +666,31 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         reachable.insert(change.id);
     std::erase_if(floors, [&](const auto &entry) { return !reachable.contains(entry.first); });
     std::erase_if(edgeFloors, [&](const auto &entry) { return !reachable.contains(entry.first); });
+    std::map<Id, std::set<Id>> reachableDefinitions;
+    auto retainDefinition = [&](Id id, const DefinitionPtr &definition) {
+        if (!definition)
+            return;
+        auto &members = reachableDefinitions[id];
+        for (const auto &[member, body] : definition->members)
+            members.insert(member);
+    };
+    for (const auto &[id, definition] : definitions)
+        retainDefinition(id, definition);
+    for (const auto &entry : undo_)
+        for (const auto &change : entry.edit.definitions) {
+            retainDefinition(change.id, change.before);
+            retainDefinition(change.id, change.after);
+        }
+    for (const auto &change : edit.definitions) {
+        retainDefinition(change.id, change.before);
+        retainDefinition(change.id, change.after);
+    }
+    std::erase_if(definitionFloors,
+                  [&](const auto &entry) { return !reachableDefinitions.contains(entry.first); });
+    for (auto &[id, floor] : definitionFloors)
+        std::erase_if(floor.geometry, [&](const auto &entry) {
+            return !reachableDefinitions.at(id).contains(entry.first);
+        });
     History h{std::move(edit), state_, std::make_shared<State>()};
     undo_.push_back(h); // Allocation can still fail before any committed change.
     for (const auto &r : redo_)
@@ -547,6 +698,10 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     redo_.clear();
     historyBytes_ += h.edit.bytes;
     bodies_.swap(updated);
+    definitions_.swap(definitions);
+    instances_.swap(instances);
+    definitionFloors_.swap(definitionFloors);
+    nextDefinitionId_ = nextDefinition;
     nextId_ = next;
     surfaceFloors_.swap(floors);
     edgeFloors_.swap(edgeFloors);
@@ -579,15 +734,26 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     if (!canAmend(stamp))
         throw std::runtime_error("The most recent operation can no longer be revised");
     std::set<Id> contexts;
+    std::set<Id> definitionContexts;
     size_t createdContexts = 0;
+    size_t createdDefinitions = 0;
     for (const auto &change : undo_.back().edit.changes) {
         contexts.insert(change.id);
         if (!change.before && change.after)
             ++createdContexts;
     }
+    for (const auto &change : undo_.back().edit.instances)
+        contexts.insert(change.root);
+    for (const auto &change : undo_.back().edit.definitions) {
+        definitionContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdDefinitions;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
+    const auto baselineDefinitions = staged.definitions_;
+    const auto baselineInstances = staged.instances_;
     // Rewind only the private candidate. A replacement publishes one revision,
     // and retains the pre-operation history entry and monotonic allocator floors.
     staged.revision_ = revision_;
@@ -599,6 +765,24 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!contexts.contains(id) &&
             (!staged.bodies_.contains(id) || staged.bodies_.at(id) != body))
             throw std::runtime_error("Replacement cannot change another editing context");
+    for (const auto &[id, definition] : baselineDefinitions)
+        if (!definitionContexts.contains(id) &&
+            (!staged.definitions_.contains(id) || staged.definitions_.at(id) != definition))
+            throw std::runtime_error("Replacement cannot change another component definition");
+    size_t newDefinitions = 0;
+    for (const auto &[id, definition] : staged.definitions_)
+        if (!baselineDefinitions.contains(id))
+            ++newDefinitions;
+    if (newDefinitions != createdDefinitions)
+        throw std::runtime_error("Replacement must preserve definition creation count");
+    for (const auto &[root, instance] : baselineInstances)
+        if (!contexts.contains(root) &&
+            (!staged.instances_.contains(root) || staged.instances_.at(root) != instance))
+            throw std::runtime_error("Replacement cannot change another instance binding");
+    for (const auto &[root, instance] : staged.instances_)
+        if (!baselineInstances.contains(root) && baseline.contains(root) &&
+            !contexts.contains(root))
+            throw std::runtime_error("Replacement cannot bind another scene context");
     size_t newContexts = 0;
     for (const auto &[id, body] : staged.bodies_)
         if (!baseline.contains(id))
@@ -677,7 +861,8 @@ bool Document::markSaved(const SaveStamp &stamp) {
     return true;
 }
 void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
-                       std::uint64_t revision) {
+                       std::uint64_t revision, ComponentDefinitions definitions,
+                       ComponentInstances instances, Id nextDefinitionId) {
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
@@ -698,11 +883,27 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         floors.emplace(id, b->surface.nextId);
     }
     validateDocumentSize(bodies);
+    validateComponentDefinitions(definitions, nextDefinitionId);
+    validateComponentInstances(definitions, instances, bodies);
+    std::map<Id, DefinitionFloor> definitionFloors;
+    for (auto &[id, definition] : definitions) {
+        auto &floor = definitionFloors[id];
+        floor.nextMemberId = definition->nextMemberId;
+        for (const auto &[member, body] : definition->members)
+            floor.geometry[member] = {body->surface.nextId, body->topology.nextId};
+        definition = freezeDefinition(definition, floor);
+    }
+    for (auto &[root, instance] : instances)
+        instance = std::make_shared<ComponentInstance>(*instance);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
     nextId_ = next;
     bodies_ = std::move(bodies);
+    definitions_ = std::move(definitions);
+    instances_ = std::move(instances);
+    definitionFloors_ = std::move(definitionFloors);
+    nextDefinitionId_ = nextDefinitionId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     undo_.clear();

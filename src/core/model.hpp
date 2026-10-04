@@ -1,46 +1,30 @@
 #pragma once
-#include "core/transform.hpp"
-#include "geometry/cleanup.hpp"
-#include "geometry/curves.hpp"
-#include "geometry/guides.hpp"
-#include "geometry/planar.hpp"
-#include "geometry/push_pull.hpp"
-#include "geometry/topology.hpp"
+#include "core/component_records.hpp"
 #include <deque>
 #include <functional>
-#include <memory>
 #include <optional>
-#include <string>
-#include <variant>
 namespace sketchy {
-enum class BodyKind { Geometry, Group };
-struct Body {
-    Id id{};
-    std::string name{"Face"};
-    std::array<float, 3> color{0.73f, 0.79f, 0.73f};
-    Surface surface;
-    Topology topology;
-    std::map<Id, std::array<float, 3>> faceColors;
-    std::map<Id, Curve> curves;
-    std::map<Id, Guide> guides;
-    Transform transform;
-    Id parent{};
-    BodyKind kind{BodyKind::Geometry};
-    bool hidden{}, locked{};
-    std::map<std::string, std::variant<bool, double, std::string>> properties;
-    bool operator==(const Body &) const = default;
-};
-using BodyPtr = std::shared_ptr<const Body>;
 struct Change {
     Id id;
     BodyPtr before, after;
     std::map<Id, std::vector<Id>> faceDescendants{}, vertexDescendants{}, edgeDescendants{};
+};
+struct DefinitionChange {
+    Id id{};
+    DefinitionPtr before, after;
+};
+struct InstanceChange {
+    Id root{};
+    InstancePtr before, after;
 };
 struct Edit {
     std::string label;
     std::vector<Change> changes;
     size_t bytes{};
     Id nextIdFloor{};
+    std::vector<DefinitionChange> definitions{};
+    std::vector<InstanceChange> instances{};
+    Id nextDefinitionFloor{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -58,6 +42,9 @@ class Document {
         std::uint64_t revision{};
     };
     const std::map<Id, BodyPtr> &bodies() const { return bodies_; }
+    const ComponentDefinitions &definitions() const { return definitions_; }
+    const ComponentInstances &instances() const { return instances_; }
+    Id nextDefinitionId() const { return nextDefinitionId_; }
     std::uint64_t revision() const { return revision_; }
     Id nextId() const { return nextId_; }
     const std::string &identity() const { return identity_; }
@@ -106,12 +93,21 @@ class Document {
     bool markSaved(const SaveStamp &stamp);
     void markSaved() { savedState_ = state_; }
     void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
-                 std::uint64_t revision = 0);
+                 std::uint64_t revision = 0, ComponentDefinitions definitions = {},
+                 ComponentInstances instances = {}, Id nextDefinitionId = 1);
 
   private:
     std::string identity_;
     std::map<Id, BodyPtr> bodies_;
     Id nextId_{1};
+    ComponentDefinitions definitions_;
+    ComponentInstances instances_;
+    Id nextDefinitionId_{1};
+    struct DefinitionFloor {
+        Id nextMemberId{1};
+        std::map<Id, std::pair<Id, Id>> geometry;
+    };
+    std::map<Id, DefinitionFloor> definitionFloors_;
     std::map<Id, Id> surfaceFloors_, edgeFloors_;
     std::uint64_t revision_{0};
     StatePtr session_{std::make_shared<State>()};

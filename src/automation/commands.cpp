@@ -110,40 +110,61 @@ QJsonObject topologyDescription(const Document &doc, Id context) {
 }
 } // namespace
 QJsonObject capabilities() {
-    return {{"apiVersion", 1},
-            {"status", "experimental"},
-            {"units", "m"},
-            {"up", "Z"},
-            {"commands",
-             [] {
-                 QJsonArray names;
-                 for (const auto &item : commandCatalog())
-                     names.append(item.toObject()["name"]);
-                 return names;
-             }()},
-            {"commandSchemas", commandCatalog()},
-            {"queries", QJsonArray{"document.describe", "geometry.inspect", "geometry.infer",
-                                   "geometry.measure_distance", "geometry.measure_angle",
-                                   "geometry.preview", "commands.describe", "capabilities"}},
-            {"transactionContract",
-             QJsonObject{{"atomic", true},
-                         {"history", "one undo item per batch"},
-                         {"precondition", "document identity and expected content revision"},
-                         {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
-            {"limits", QJsonObject{{"fileBytes", 16 + 33 * 1024 * 1024},
-                                   {"documentBytes", 32 * 1024 * 1024},
-                                   {"bodies", 10000},
-                                   {"vertices", 100000},
-                                   {"guides", 10000},
-                                   {"guidesPerContext", 1024},
-                                   {"batchCommands", 100}}},
-            {"limitations", QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
-                                       "sweeps; general solid booleans are unavailable",
-                                       "No durable transaction outcomes or remote retry protocol",
-                                       "No AI provider or Blender integration"}}};
+    return {
+        {"apiVersion", 1},
+        {"status", "experimental"},
+        {"units", "m"},
+        {"up", "Z"},
+        {"commands",
+         [] {
+             QJsonArray names;
+             for (const auto &item : commandCatalog())
+                 names.append(item.toObject()["name"]);
+             return names;
+         }()},
+        {"commandSchemas", commandCatalog()},
+        {"queries", QJsonArray{"document.describe", "geometry.inspect", "geometry.infer",
+                               "geometry.measure_distance", "geometry.measure_angle",
+                               "geometry.preview", "commands.describe", "capabilities"}},
+        {"transactionContract",
+         QJsonObject{{"atomic", true},
+                     {"history", "one undo item per batch"},
+                     {"precondition", "document identity and expected content revision"},
+                     {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
+        {"limits", QJsonObject{{"fileBytes", 16 + 33 * 1024 * 1024},
+                               {"documentBytes", 32 * 1024 * 1024},
+                               {"bodies", 10000},
+                               {"componentDefinitions", 1024},
+                               {"vertices", 100000},
+                               {"guides", 10000},
+                               {"guidesPerContext", 1024},
+                               {"batchCommands", 100}}},
+        {"limitations",
+         QJsonArray{
+             "Push/pull supports prismatic cap edits and bounded face "
+             "sweeps; general solid booleans are unavailable",
+             "No durable transaction outcomes or remote retry protocol",
+             "Component records persist; shared edit commands and scope UI are not yet available",
+             "No AI provider or Blender integration"}}};
 }
 QJsonObject describe(const Document &doc) {
-    QJsonArray bodies;
+    QJsonArray bodies, definitions, instances;
+    std::map<Id, size_t> uses;
+    for (const auto &[root, instance] : doc.instances()) {
+        ++uses[instance->definition];
+        QJsonObject members;
+        for (auto [member, target] : instance->members)
+            members[QString::number(member)] = QString::number(target);
+        instances.append(QJsonObject{{"root", QString::number(root)},
+                                     {"definition", QString::number(instance->definition)},
+                                     {"members", members}});
+    }
+    for (const auto &[id, definition] : doc.definitions())
+        definitions.append(QJsonObject{{"id", QString::number(id)},
+                                       {"name", QString::fromStdString(definition->name)},
+                                       {"root", QString::number(definition->root)},
+                                       {"members", qint64(definition->members.size())},
+                                       {"instances", qint64(uses[id])}});
     for (const auto &[id, b] : doc.bodies()) {
         QJsonArray faces;
         for (const auto &[fid, f] : b->surface.faces)
@@ -166,7 +187,7 @@ QJsonObject describe(const Document &doc) {
     }
     return {{"documentId", QString::fromStdString(doc.identity())},
             {"revision", QString::number(doc.revision())},
-            {"bodies", bodies}};
+            {"bodies", bodies}, {"definitions", definitions}, {"instances", instances}};
 }
 QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     const auto name = request["query"].toString();
@@ -811,6 +832,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             throw std::runtime_error("Unavailable command");
     }
     Edit edit{"Command batch", {}};
+    appendComponentChanges(edit, doc, staged);
     std::set<Id> all;
     for (const auto &[id, b] : doc.bodies())
         all.insert(id);
@@ -834,7 +856,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                                     std::move(mapping.vertices), std::move(mapping.edges)});
         }
     }
-    if (edit.changes.empty())
+    if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty())
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();

@@ -194,6 +194,82 @@ int main(int argc, char **argv) {
         for (const auto &[id, body] : v6.bodies())
             require(body->faceColors.empty(),
                     "Version-6 migration preserves inherited body colors");
+        const auto v7 = decodeContainer(
+            read(QString(SKETCHYUP_TEST_FIXTURES) + "/container-face-colors-v7.sketchyup"));
+        require(v7.definitions().empty() && v7.instances().empty() &&
+                    !v7.bodies().at(1)->faceColors.empty(),
+                "Version-7 migration retains face colors without inventing components");
+        Document component;
+        component.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+        createGroup(component, {1});
+        auto definition = std::make_shared<ComponentDefinition>();
+        definition->id = 1;
+        definition->root = 2;
+        definition->nextMemberId = 3;
+        definition->name = "Reusable panel";
+        definition->members = component.bodies();
+        auto instance = std::make_shared<ComponentInstance>();
+        instance->definition = 1;
+        instance->members = {{1, 1}, {2, 2}};
+        Edit bind{"Bind component fixture", {}};
+        bind.definitions.push_back({1, nullptr, definition});
+        bind.instances.push_back({2, nullptr, instance});
+        component.apply(bind, component.revision());
+        auto secondRoot = std::make_shared<Body>(*component.bodies().at(2));
+        secondRoot->id = 3;
+        secondRoot->transform = Transform::translation({4, 0, 0}) * Transform::scaling({-2, 1, 1});
+        auto secondMember = std::make_shared<Body>(*component.bodies().at(1));
+        secondMember->id = 4;
+        secondMember->parent = 3;
+        auto secondInstance = std::make_shared<ComponentInstance>();
+        secondInstance->definition = 1;
+        secondInstance->members = {{1, 4}, {2, 3}};
+        Edit place{"Place second fixture", {{3, nullptr, secondRoot}, {4, nullptr, secondMember}}};
+        place.instances.push_back({3, nullptr, secondInstance});
+        component.apply(place, component.revision());
+        const auto componentBytes = encodeContainer(component);
+        auto componentReopened = decodeContainer(componentBytes);
+        require(encodeContainer(componentReopened) == componentBytes &&
+                    componentReopened.instances().size() == 2 &&
+                    componentReopened.definitions().size() == 1 &&
+                    componentReopened.worldArea(4, 5) == 2,
+                "Component definitions, instance bindings and affine placement roundtrip exactly");
+        const auto componentRoot = QJsonDocument::fromJson(encodeDocument(component)).object();
+        auto corruptComponent = [&](auto change) {
+            auto root = componentRoot;
+            change(root);
+            rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
+        };
+        corruptComponent([](auto &root) { root["definitions"] = 1; });
+        corruptComponent([](auto &root) { root["instances"] = QJsonObject{}; });
+        corruptComponent([](auto &root) { root["nextDefinitionId"] = "1"; });
+        corruptComponent([](auto &root) { root.remove("instances"); });
+        corruptComponent([](auto &root) {
+            auto records = root["definitions"].toArray();
+            records.append(records[0]);
+            root["definitions"] = records;
+        });
+        corruptComponent([](auto &root) {
+            auto records = root["instances"].toArray();
+            auto record = records[0].toObject();
+            record["definition"] = "999";
+            records[0] = record;
+            root["instances"] = records;
+        });
+        corruptComponent([](auto &root) {
+            auto records = root["bodies"].toArray();
+            auto record = records[0].toObject();
+            record["color"] = QJsonArray{1, 0, 0};
+            records[0] = record;
+            root["bodies"] = records;
+        });
+        rejects([&] {
+            decodeContainer(changeManifest(componentBytes, [](auto &manifest) {
+                auto floors = manifest["allocatorFloors"].toObject();
+                floors["nextDefinitionId"] = "99";
+                manifest["allocatorFloors"] = floors;
+            }));
+        });
         Document painted;
         painted.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
         auto faceColored = std::make_shared<Body>(*painted.bodies().at(1));
@@ -256,6 +332,9 @@ int main(int argc, char **argv) {
         auto legacy = QJsonDocument::fromJson(encodeDocument(doc)).object();
         legacy["version"] = 1;
         legacy.remove("revision");
+        legacy.remove("definitions");
+        legacy.remove("instances");
+        legacy.remove("nextDefinitionId");
         auto records = legacy["bodies"].toArray();
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();

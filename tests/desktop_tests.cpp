@@ -77,6 +77,9 @@ int main(int argc, char **argv) {
         auto legacy = QJsonDocument::fromJson(bytes).object();
         legacy["version"] = 1;
         legacy.remove("revision");
+        legacy.remove("definitions");
+        legacy.remove("instances");
+        legacy.remove("nextDefinitionId");
         auto legacyBodies = legacy["bodies"].toArray();
         for (int i = 0; i < legacyBodies.size(); ++i) {
             auto record = legacyBodies[i].toObject();
@@ -127,7 +130,7 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 1.5;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
-        root["version"] = 7;
+        root["version"] = 8;
         root["nextId"] = "1";
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["nextId"] = "2";

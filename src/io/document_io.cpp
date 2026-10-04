@@ -62,9 +62,9 @@ QJsonObject encodeGuide(Id id, const Guide &guide) {
         result["direction"] = QJsonArray{guide.direction.x, guide.direction.y, guide.direction.z};
     return result;
 }
-QByteArray encodeDocument(const Document &doc) {
+QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
     QJsonArray bodies;
-    for (const auto &[id, b] : doc.bodies()) {
+    for (const auto &[id, b] : records) {
         QJsonArray vertices, faces, wires, edges, curves, guides;
         for (auto [vid, p] : b->surface.vertices)
             vertices.append(QJsonArray{sid(vid), p.x, p.y, p.z});
@@ -122,38 +122,47 @@ QByteArray encodeDocument(const Document &doc) {
                                   {"faces", faces},
                                   {"wires", wires}});
     }
+    return bodies;
+}
+QByteArray encodeDocument(const Document &doc) {
+    const auto bodies = encodeBodies(doc.bodies());
+    QJsonArray definitions, instances;
+    for (const auto &[id, definition] : doc.definitions()) {
+        QJsonObject references;
+        for (auto [member, target] : definition->references)
+            references[sid(member)] = sid(target);
+        definitions.append(QJsonObject{{"id", sid(id)},
+                                       {"root", sid(definition->root)},
+                                       {"nextMemberId", sid(definition->nextMemberId)},
+                                       {"name", QString::fromStdString(definition->name)},
+                                       {"members", encodeBodies(definition->members)},
+                                       {"references", references}});
+    }
+    for (const auto &[root, instance] : doc.instances()) {
+        QJsonObject members;
+        for (auto [member, target] : instance->members)
+            members[sid(member)] = sid(target);
+        instances.append(QJsonObject{
+            {"root", sid(root)}, {"definition", sid(instance->definition)}, {"members", members}});
+    }
     auto bytes = QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                           {"version", 7},
+                                           {"version", 8},
                                            {"revision", sid(doc.revision())},
                                            {"units", "m"},
                                            {"up", "Z"},
                                            {"documentId", QString::fromStdString(doc.identity())},
                                            {"nextId", sid(doc.nextId())},
-                                           {"bodies", bodies}})
+                                           {"bodies", bodies},
+                                           {"definitions", definitions},
+                                           {"instances", instances},
+                                           {"nextDefinitionId", sid(doc.nextDefinitionId())}})
                      .toJson(QJsonDocument::Compact);
     if (bytes.size() > fileLimit)
         throw std::runtime_error("Document exceeds the 32 MiB file limit");
     return bytes;
 }
-Document decodeDocument(const QByteArray &bytes) {
-    if (bytes.size() > fileLimit)
-        throw std::runtime_error("Document exceeds the 32 MiB file limit");
-    QJsonParseError error;
-    auto json = QJsonDocument::fromJson(bytes, &error);
-    if (error.error != QJsonParseError::NoError || !json.isObject())
-        throw std::runtime_error("Invalid JSON document");
-    auto root = json.object();
-    if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
-        (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
-         root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
-         root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
-         root["version"].toDouble() != 7) ||
-        root["units"] != "m" || root["up"] != "Z")
-        throw std::runtime_error(
-            "Unsupported document format, version, units or coordinate system");
-    supportedFields(
-        root, {"format", "version", "revision", "units", "up", "documentId", "nextId", "bodies"});
-    auto records = array(root["bodies"]);
+std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
+    auto records = array(value);
     if (records.size() > 10000)
         throw std::runtime_error("Too many bodies");
     std::map<Id, BodyPtr> bodies;
@@ -161,22 +170,22 @@ Document decodeDocument(const QByteArray &bytes) {
     for (auto record : records) {
         auto o = object(record);
         QStringList allowed{"id", "name", "color", "nextId", "vertices", "faces", "wires"};
-        if (root["version"].toInt() >= 2)
+        if (version >= 2)
             allowed += {"parent", "transform", "properties"};
-        if (root["version"].toInt() >= 3)
+        if (version >= 3)
             allowed += {"nextEdgeId", "edges"};
-        if (root["version"].toInt() >= 4)
+        if (version >= 4)
             allowed.append("curves");
-        if (root["version"].toInt() >= 5)
+        if (version >= 5)
             allowed.append("guides");
-        if (root["version"].toInt() >= 6)
+        if (version >= 6)
             allowed += {"kind", "hidden", "locked"};
-        if (root["version"].toInt() >= 7)
+        if (version >= 7)
             allowed.append("faceColors");
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
-        if (root["version"].toInt() >= 6) {
+        if (version >= 6) {
             if ((o["kind"] != "geometry" && o["kind"] != "group") || !o["hidden"].isBool() ||
                 !o["locked"].isBool())
                 throw std::runtime_error("Invalid entity kind, visibility or lock");
@@ -196,7 +205,7 @@ Document decodeDocument(const QByteArray &bytes) {
                 throw std::runtime_error("Color component outside range");
             b->color[i] = component;
         }
-        if (root["version"].toInt() >= 2) {
+        if (version >= 2) {
             b->parent = readId(o["parent"], true);
             auto transform = array(o["transform"]);
             if (transform.size() != 16)
@@ -216,7 +225,7 @@ Document decodeDocument(const QByteArray &bytes) {
                     throw std::runtime_error("Unsupported entity property value");
             }
         }
-        if (root["version"].toInt() >= 7) {
+        if (version >= 7) {
             const auto colors = object(o["faceColors"]);
             for (auto it = colors.begin(); it != colors.end(); ++it) {
                 const auto values = array(it.value());
@@ -266,7 +275,7 @@ Document decodeDocument(const QByteArray &bytes) {
                 throw std::runtime_error("Invalid wire record");
             b->surface.wires.push_back({readId(a[0]), readId(a[1])});
         }
-        if (root["version"].toInt() >= 3) {
+        if (version >= 3) {
             b->topology.nextId = readId(o["nextEdgeId"]);
             const auto edges = array(o["edges"]);
             if (size_t(edges.size()) > Topology::edgeLimit)
@@ -285,7 +294,7 @@ Document decodeDocument(const QByteArray &bytes) {
             b->topology.validate(b->surface);
         } else
             b->topology = Topology::rebuild(b->surface, {});
-        if (root["version"].toInt() >= 4) {
+        if (version >= 4) {
             const auto curves = array(o["curves"]);
             if (curves.size() > 1024)
                 throw std::runtime_error("Too many curve records");
@@ -331,7 +340,7 @@ Document decodeDocument(const QByteArray &bytes) {
                     throw std::runtime_error("Duplicate curve ID");
             }
         }
-        if (root["version"].toInt() >= 5) {
+        if (version >= 5) {
             const auto guides = array(o["guides"]);
             totalGuides += guides.size();
             if (guides.size() > 1024 || totalGuides > 10000)
@@ -363,12 +372,76 @@ Document decodeDocument(const QByteArray &bytes) {
         if (!bodies.emplace(b->id, b).second)
             throw std::runtime_error("Duplicate body ID");
     }
+    return bodies;
+}
+Document decodeDocument(const QByteArray &bytes) {
+    if (bytes.size() > fileLimit)
+        throw std::runtime_error("Document exceeds the 32 MiB file limit");
+    QJsonParseError error;
+    auto json = QJsonDocument::fromJson(bytes, &error);
+    if (error.error != QJsonParseError::NoError || !json.isObject())
+        throw std::runtime_error("Invalid JSON document");
+    auto root = json.object();
+    if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
+        (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
+         root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
+         root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
+         root["version"].toDouble() != 7 && root["version"].toDouble() != 8) ||
+        root["units"] != "m" || root["up"] != "Z")
+        throw std::runtime_error(
+            "Unsupported document format, version, units or coordinate system");
+    QStringList rootFields{"format", "version",    "revision", "units",
+                           "up",     "documentId", "nextId",   "bodies"};
+    if (root["version"].toInt() >= 8)
+        rootFields += {"definitions", "instances", "nextDefinitionId"};
+    supportedFields(root, rootFields);
+    auto bodies = decodeBodies(root["bodies"], root["version"].toInt());
+    ComponentDefinitions definitions;
+    ComponentInstances instances;
+    Id nextDefinitionId = 1;
+    if (root["version"].toInt() >= 8) {
+        nextDefinitionId = readId(root["nextDefinitionId"]);
+        const auto definitionRecords = array(root["definitions"]);
+        const auto instanceRecords = array(root["instances"]);
+        if (definitionRecords.size() > 1024 || instanceRecords.size() > 10000)
+            throw std::runtime_error("Too many component records");
+        for (auto value : definitionRecords) {
+            const auto record = object(value);
+            supportedFields(record,
+                            {"id", "root", "nextMemberId", "name", "members", "references"});
+            auto definition = std::make_shared<ComponentDefinition>();
+            definition->id = readId(record["id"]);
+            definition->root = readId(record["root"]);
+            definition->nextMemberId = readId(record["nextMemberId"]);
+            if (!record["name"].isString())
+                throw std::runtime_error("Invalid component definition name");
+            definition->name = record["name"].toString().toStdString();
+            definition->members = decodeBodies(record["members"], 8);
+            const auto references = object(record["references"]);
+            for (auto it = references.begin(); it != references.end(); ++it)
+                definition->references[readId(it.key())] = readId(it.value());
+            if (!definitions.emplace(definition->id, definition).second)
+                throw std::runtime_error("Duplicate component definition");
+        }
+        for (auto value : instanceRecords) {
+            const auto record = object(value);
+            supportedFields(record, {"root", "definition", "members"});
+            auto instance = std::make_shared<ComponentInstance>();
+            instance->definition = readId(record["definition"]);
+            const auto members = object(record["members"]);
+            for (auto it = members.begin(); it != members.end(); ++it)
+                instance->members[readId(it.key())] = readId(it.value());
+            if (!instances.emplace(readId(record["root"]), instance).second)
+                throw std::runtime_error("Duplicate component instance root");
+        }
+    }
     if (!root["documentId"].isString())
         throw std::runtime_error("Missing document ID");
     Document doc;
     doc.restore(root["documentId"].toString().toStdString(), readId(root["nextId"]),
                 std::move(bodies),
-                root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0);
+                root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0,
+                std::move(definitions), std::move(instances), nextDefinitionId);
     return doc;
 }
 } // namespace sketchy
