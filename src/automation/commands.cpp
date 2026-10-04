@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "core/selection.hpp"
+#include "core/transform_selection.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
@@ -89,7 +90,11 @@ QJsonObject topologyDescription(const Document &doc, Id context) {
         curves.append(encodeCurve(id, curve));
     for (const auto &[id, guide] : body.guides)
         guides.append(encodeGuide(id, guide));
+    QJsonArray world;
+    for (auto value : doc.worldTransform(context).m)
+        world.append(value);
     return {{"documentId", QString::fromStdString(doc.identity())},
+            {"worldTransform", world},
             {"context", QString::number(context)},
             {"revision", QString::number(doc.revision())},
             {"vertices", vertices},
@@ -313,7 +318,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     if (commands.empty() || commands.size() > 100)
         throw std::runtime_error("Batch must contain 1–100 commands");
     Document staged = doc;
-    QJsonArray created;
+    QJsonArray created, copies;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
     };
@@ -573,6 +578,72 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         } else if (name == "geometry.extrude_isolated") {
             fields(command, {"command", "body", "face", "distance"});
             staged.extrude(id(command["body"]), id(command["face"]), number(command["distance"]));
+        } else if (name == "geometry.transform_selection") {
+            const auto records = array(command["entities"]);
+            if (records.empty() || records.size() > 10000)
+                throw std::runtime_error("Transform requires 1–10000 targets");
+            TransformTargets targets;
+            for (const auto &record : records) {
+                if (!record.isObject())
+                    throw std::runtime_error("Expected transform target object");
+                const auto object = record.toObject();
+                fields(object, {"body", "kind", "entity"});
+                const auto kind = object["kind"];
+                TransformTarget target{id(object["body"]), TransformKind::Context, 0};
+                if (kind == "context") {
+                    if (object["entity"] != "0")
+                        throw std::runtime_error("Context target requires entity zero");
+                } else {
+                    target.entity = id(object["entity"]);
+                    if (kind == "face")
+                        target.kind = TransformKind::Face;
+                    else if (kind == "edge")
+                        target.kind = TransformKind::Edge;
+                    else if (kind == "vertex")
+                        target.kind = TransformKind::Vertex;
+                    else if (kind == "guide")
+                        target.kind = TransformKind::Guide;
+                    else
+                        throw std::runtime_error("Unknown transform target kind");
+                }
+                if (!targets.insert(target).second)
+                    throw std::runtime_error("Duplicate transform target");
+            }
+            const auto values = array(command["matrix"]);
+            if (values.size() != 16)
+                throw std::runtime_error("Transform matrix requires sixteen numbers");
+            Transform matrix;
+            for (int i = 0; i < 16; ++i)
+                matrix.m[i] = number(values[i]);
+            if (command.contains("space") && command["space"] != "local" &&
+                command["space"] != "world")
+                throw std::runtime_error("Transform space must be local or world");
+            if (command.contains("copy") && !command["copy"].isBool())
+                throw std::runtime_error("copy must be boolean");
+            const auto result = transformSelected(
+                staged, targets, matrix,
+                command.contains("pivot") ? point(command["pivot"]) : Vec3{},
+                command["space"] == "local" ? TransformSpace::Local : TransformSpace::World,
+                command["copy"].toBool());
+            compose(result.changes);
+            for (const auto &[source, copied] : result.copies)
+                copies.append(QJsonObject{{"sourceBody", QString::number(source)},
+                                          {"body", QString::number(copied)}});
+            for (const auto &[body, copied] : result.geometryCopies) {
+                auto ids = [](const auto &mapping) {
+                    QJsonObject result;
+                    for (const auto &[source, target] : mapping)
+                        result[QString::number(source)] = QString::number(target);
+                    return result;
+                };
+                copies.append(QJsonObject{{"sourceBody", QString::number(body)},
+                                          {"body", QString::number(body)},
+                                          {"vertices", ids(copied.vertices)},
+                                          {"edges", ids(copied.edges)},
+                                          {"faces", ids(copied.faces)},
+                                          {"curves", ids(copied.curves)},
+                                          {"guides", ids(copied.guides)}});
+            }
         } else if (name == "geometry.translate") {
             fields(command, {"command", "body", "delta"});
             staged.move(id(command["body"]), point(command["delta"]));
@@ -641,11 +712,35 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                         {"faces", entityChanges(change.faces)},
                         {"curves", entityChanges(change.curves)},
                         {"guides", entityChanges(change.guides)}};
-    return {{"status", "committed"},
-            {"revision", QString::number(doc.revision())},
-            {"created", created},
-            {"changes", changes},
-            {"document", describe(doc)}};
+    QJsonArray survivingCopies;
+    for (const auto &copy : copies) {
+        auto record = copy.toObject();
+        const auto context = id(record["body"]);
+        if (!doc.bodies().contains(context))
+            continue;
+        const auto &body = *doc.bodies().at(context);
+        auto prune = [&](const QString &key, const auto &entities) {
+            if (!record.contains(key))
+                return;
+            auto mapping = record[key].toObject();
+            for (auto it = mapping.begin(); it != mapping.end();) {
+                if (!entities.contains(id(it.value())))
+                    it = mapping.erase(it);
+                else
+                    ++it;
+            }
+            record[key] = mapping;
+        };
+        prune("vertices", body.surface.vertices);
+        prune("edges", body.topology.edges);
+        prune("faces", body.surface.faces);
+        prune("curves", body.curves);
+        prune("guides", body.guides);
+        survivingCopies.append(record);
+    }
+    return {{"status", "committed"}, {"revision", QString::number(doc.revision())},
+            {"created", created},    {"copies", survivingCopies},
+            {"changes", changes},    {"document", describe(doc)}};
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {
@@ -672,7 +767,8 @@ QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
     result["baseRevision"] = QString::number(doc.revision());
     QJsonObject geometry;
     for (const auto &[id, body] : candidate.bodies())
-        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body)
+        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body ||
+            doc.worldTransform(id) != candidate.worldTransform(id))
             geometry[QString::number(id)] = topologyDescription(candidate, id);
     result["geometry"] = geometry;
     return result;
@@ -684,7 +780,8 @@ QJsonObject previewBatch(const Document &doc, const QJsonObject &request) {
     result["baseRevision"] = QString::number(doc.revision());
     QJsonObject geometry;
     for (const auto &[id, body] : candidate.bodies())
-        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body)
+        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body ||
+            doc.worldTransform(id) != candidate.worldTransform(id))
             geometry[QString::number(id)] = topologyDescription(candidate, id);
     result["geometry"] = geometry;
     return result;

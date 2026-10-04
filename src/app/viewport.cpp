@@ -1268,10 +1268,14 @@ void Viewport::previewCommand(const QJsonObject &command) {
         const auto result = session_.preview(command);
         const auto geometry = result["geometry"].toObject();
         for (auto it = geometry.begin(); it != geometry.end(); ++it) {
-            const auto id = it.key().toULongLong();
-            const auto world = doc_.bodies().contains(id) ? doc_.worldTransform(id) : Transform{};
             std::map<QString, Vec3> vertices;
             const auto body = it.value().toObject();
+            const auto values = body["worldTransform"].toArray();
+            if (values.size() != 16)
+                throw std::runtime_error("Preview omitted its world transform");
+            Transform world;
+            for (int i = 0; i < 16; ++i)
+                world.m[i] = values[i].toDouble();
             for (const auto &value : body["vertices"].toArray()) {
                 const auto vertex = value.toObject();
                 const auto p = vertex["point"].toArray();

@@ -13,7 +13,7 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation and M2 editable geometry gates; drawing interaction is in progress. Components,
+M1 native foundation, M2 editable geometry and M3 manual drawing gates; M4 modeling tools are in progress. Components,
 recovery, AI providers,
 Blender integration and exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
@@ -144,8 +144,19 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --script examples/tilted-drawing.json --output /tmp/tilted.sketchyup
 ./build/dev/sketchyup-cli --script examples/curves.json --output /tmp/curves.sketchyup
 ./build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
+./build/dev/sketchyup-cli --script examples/transforms.json --output /tmp/transforms.sketchyup
 ./build/dev/sketchyup-cli --input /tmp/curves.sketchyup --query-file examples/inference-query.json
 ```
+
+`geometry.transform_selection` accepts typed context/face/edge/vertex/guide
+entities, a column-major affine `matrix`, an optional `pivot`, `space` (`world`
+or `local`) and boolean `copy`. Shared vertices move once; incident geometry
+stays attached, and invalid nonplanar or collapsed results reject atomically.
+Raw copies receive fresh geometry IDs inside their existing context; whole-context
+copies duplicate the hierarchy. The result includes typed copy mappings. Preview
+geometry includes world transforms, including children moved by a parent.
+The [transform contract](docs/verification/R030a-scoped-transforms.md) records
+limits; native Move/Rotate/Scale tools are the next roadmap step.
 
 Guide points and infinite guide lines are available through `guide.point`,
 `guide.line`, `guide.angle`, `guide.offset`, `guide.erase` and `guide.clear`.

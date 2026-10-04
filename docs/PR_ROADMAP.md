@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0–M2 gates passed; M3 drawing interaction in progress. Updated: 2026-10-03.
+Status: M0–M3 gates passed; M4 editing and organization in progress. Updated: 2026-10-03.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -73,7 +73,7 @@ R022 numeric input and guarded operation revision are merged in [PR #21](https:/
 R023 plane-aware drawing tools merged in [PR #22](https://github.com/zygote55/sketchyup/pull/22).
 R024 curve records and native tools merged in PRs #23–24.
 R025 indexed inference and R026 direction constraints are merged in PRs #25–26.
-R027 guide records and persistence merged in [PR #27](https://github.com/zygote55/sketchyup/pull/27); native tools merged in [PR #28](https://github.com/zygote55/sketchyup/pull/28). R028 selection merged in PRs #29–30. The M3 gate still awaits navigation and its checkpoint evidence.
+R027 guide records and persistence merged in [PR #27](https://github.com/zygote55/sketchyup/pull/27); native tools merged in [PR #28](https://github.com/zygote55/sketchyup/pull/28). R028 selection merged in PRs #29–30. R029 navigation merged in [PR #31](https://github.com/zygote55/sketchyup/pull/31); the [M3 checkpoint](verification/M3.md) passes.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -510,7 +510,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R029 — Complete drawing navigation and push/pull UX
 
-**Status:** Locally verified; CI/merge pending. **Evidence:** [navigation and push/pull](verification/R029-navigation-push-pull.md), [M3 checkpoint candidate](verification/M3.md). **Track:** Desktop. **Scope:** G09, E01, N03. **UX:** §3.1, §4.1–§4.4.
+**Status:** Verified. **Evidence:** [navigation and push/pull](verification/R029-navigation-push-pull.md), [M3 checkpoint](verification/M3.md). **Track:** Desktop. **Scope:** G09, E01, N03. **UX:** §3.1, §4.1–§4.4.
 
 **Requires:** [R028](#r028), [R027](#r027), [R021](#r021); milestone gate rule above.
 
@@ -524,13 +524,16 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R030 — Implement precise move, rotate, scale and flip
 
-**Status:** Planned. **Track:** Geometry. **Scope:** E02, D03. **UX:** §4.2–§4.3.
+**Status:** In progress; split into scoped transform commands and native manipulation. **Track:** Geometry. **Scope:** E02, D03. **UX:** §4.2–§4.3.
 
 **Requires:** [R028](#r028), [R022](#r022), [R015](#r015); milestone gate rule above.
 
 **Build:** Transform vertices/edges/faces with defined connected-geometry behavior, pivots and local/world frames. Add copy mode and negative-scale/flip handling with identity mapping.
 
 **Verify:** Rotated/mirrored and connected-face fixtures pass; transformed topology validates; numerical and interactive paths agree and one gesture is one undo step.
+
+- **R030.a — Scoped transform/copy core:** Local validation passed; CI pending. [Evidence](verification/R030a-scoped-transforms.md). Shared vertices, pivots, local/world frames, reflection, typed copy mappings and atomic validation.
+- **R030.b — Native move/rotate/scale/flip:** Planned. Pointer/numeric tools, copy mode, selection feedback and one-gesture undo. Requires R030.a.
 
 <a id="r031"></a>
 

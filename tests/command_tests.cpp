@@ -308,6 +308,66 @@ int main(int argc, char **argv) {
         QJsonArray matrix;
         for (auto value : Transform::translation({2, 0, 0}).m)
             matrix.append(value);
+        Document transformedSelection = source;
+        const auto transformBaseline = encodeDocument(transformedSelection);
+        QJsonObject transformCommand{
+            {"command", "geometry.transform_selection"},
+            {"matrix", matrix},
+            {"entities", QJsonArray{QJsonObject{{"body", "1"}, {"kind", "face"}, {"entity", "5"}}}},
+            {"copy", true}};
+        auto transformRequest = [&] {
+            return QJsonObject{
+                {"apiVersion", 1},
+                {"documentId", QString::fromStdString(transformedSelection.identity())},
+                {"expectedRevision", QString::number(transformedSelection.revision())},
+                {"commands", QJsonArray{transformCommand}}};
+        };
+        const auto copyPreview = previewBatch(transformedSelection, transformRequest());
+        check(encodeDocument(transformedSelection) == transformBaseline &&
+                  copyPreview["copies"].toArray().size() == 1,
+              "Scoped copy preview reports new identities without editing the source");
+        const auto goodTransform = transformCommand;
+        for (auto bad :
+             QJsonArray{QJsonObject{{"copy", 1}}, QJsonObject{{"space", "screen"}},
+                        QJsonObject{{"matrix", QJsonArray{1, 2, 3}}},
+                        QJsonObject{{"entities",
+                                     QJsonArray{QJsonObject{
+                                         {"body", "1"}, {"kind", "vertex"}, {"entity", "01"}}}}},
+                        QJsonObject{{"entities", QJsonArray{QJsonObject{{"body", "1"},
+                                                                        {"kind", "face"},
+                                                                        {"entity", "5"},
+                                                                        {"unknown", 0}}}}}}) {
+            transformCommand = goodTransform;
+            const auto fields = bad.toObject();
+            for (auto it = fields.begin(); it != fields.end(); ++it)
+                transformCommand[it.key()] = it.value();
+            rejects([&] { executeBatch(transformedSelection, transformRequest()); });
+            check(encodeDocument(transformedSelection) == transformBaseline,
+                  "Malformed transform rejects atomically");
+        }
+        transformCommand = goodTransform;
+        const auto copyResult = executeBatch(transformedSelection, transformRequest());
+        const auto copyIds = copyResult["copies"].toArray()[0].toObject();
+        const auto copiedFace = copyIds["faces"].toObject()["5"].toString().toULongLong();
+        check(copyIds["sourceBody"] == "1" && copyIds["body"] == "1" && copiedFace > 5 &&
+                  transformedSelection.bodies().at(1)->surface.faces.contains(copiedFace) &&
+                  transformedSelection.bodies().size() == 1,
+              "Public raw copy returns new subentity mappings inside the same context");
+        transformedSelection.undo();
+        check(transformedSelection.bodies().at(1)->surface.faces.size() == 1,
+              "One undo removes a scoped copy");
+        transformedSelection.addWire(0, {0, 0, 0}, {1, 0, 0});
+        const auto child = transformedSelection.bodies().rbegin()->first;
+        transformedSelection.transform(child, Transform::translation({0, 3, 0}), 1);
+        transformCommand["copy"] = false;
+        transformCommand["entities"] =
+            QJsonArray{QJsonObject{{"body", "1"}, {"kind", "context"}, {"entity", "0"}}};
+        const auto hierarchyPreview = previewBatch(transformedSelection, transformRequest());
+        const auto childGeometry =
+            hierarchyPreview["geometry"].toObject()[QString::number(child)].toObject();
+        check(!childGeometry.isEmpty() && childGeometry["worldTransform"].toArray()[12] == 2 &&
+                  childGeometry["worldTransform"].toArray()[13] == 3,
+              "Parent-transform preview includes unchanged child meshes at their new world frame");
         const QJsonArray cases{
             QJsonObject{{"command", "geometry.face"},
                         {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{1, 0, 0},
@@ -397,6 +457,10 @@ int main(int argc, char **argv) {
                         {"body", "1"},
                         {"face", "5"},
                         {"distance", 2}},
+            QJsonObject{{"command", "geometry.transform_selection"},
+                        {"matrix", matrix},
+                        {"entities", QJsonArray{QJsonObject{
+                                         {"body", "1"}, {"kind", "face"}, {"entity", "5"}}}}},
             QJsonObject{
                 {"command", "geometry.translate"}, {"body", "1"}, {"delta", QJsonArray{1, 0, 0}}},
             QJsonObject{{"command", "geometry.erase_selection"},

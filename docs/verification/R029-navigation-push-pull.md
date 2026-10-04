@@ -1,6 +1,6 @@
 # R029: camera navigation and push/pull interaction
 
-Date: 2026-10-03. Local validation passed; CI/merge pending.
+Date: 2026-10-03. Local validation and both CI jobs passed. PR #31 merged as `df19bf5`.
 Owner/implementer: coding agent under the owner's full-roadmap authorization.
 
 The camera now has perspective/orthographic projection, top/front/right/back/left/

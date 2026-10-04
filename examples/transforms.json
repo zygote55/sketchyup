@@ -1,0 +1,20 @@
+[
+  {
+    "command": "geometry.face",
+    "name": "Transform samples",
+    "loops": [[[0,0,0],[4,0,0],[4,3,0],[0,3,0]]]
+  },
+  {
+    "command": "geometry.transform_selection",
+    "entities": [{"body":"1","kind":"face","entity":"5"}],
+    "matrix": [1,0,0,0, 0,1,0,0, 0,0,1,0, 5,0,0,1],
+    "copy": true
+  },
+  {
+    "command": "geometry.transform_selection",
+    "entities": [{"body":"1","kind":"face","entity":"10"}],
+    "matrix": [0,1,0,0, -1,0,0,0, 0,0,1,0, 0,0,0,1],
+    "pivot": [7,1.5,0],
+    "space": "world"
+  }
+]

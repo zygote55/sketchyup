@@ -17,6 +17,32 @@ Transform Transform::scaling(Vec3 scale) {
     result.validate();
     return result;
 }
+Transform Transform::rotation(Vec3 axis, double angleRadians) {
+    if (!std::isfinite(angleRadians))
+        throw std::runtime_error("Rotation angle must be finite");
+    const auto n = normalized(axis);
+    angleRadians = std::remainder(angleRadians, 2 * std::numbers::pi);
+    const auto c = std::cos(angleRadians), s = std::sin(angleRadians), t = 1 - c;
+    Transform result;
+    result.m = {t * n.x * n.x + c,
+                t * n.x * n.y + s * n.z,
+                t * n.x * n.z - s * n.y,
+                0,
+                t * n.x * n.y - s * n.z,
+                t * n.y * n.y + c,
+                t * n.y * n.z + s * n.x,
+                0,
+                t * n.x * n.z + s * n.y,
+                t * n.y * n.z - s * n.x,
+                t * n.z * n.z + c,
+                0,
+                0,
+                0,
+                0,
+                1};
+    result.validate();
+    return result;
+}
 Vec3 Transform::vector(Vec3 p) const {
     return {m[0] * p.x + m[4] * p.y + m[8] * p.z, m[1] * p.x + m[5] * p.y + m[9] * p.z,
             m[2] * p.x + m[6] * p.y + m[10] * p.z};
