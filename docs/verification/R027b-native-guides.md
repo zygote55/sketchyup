@@ -1,6 +1,6 @@
 # R027.b: native tape, protractor and guide inference
 
-Date: 2026-10-03. Local validation passed; CI/merge pending.
+Date: 2026-10-03. Local validation and both CI jobs passed. PR #28 merged as `a90e887`.
 
 Tape starts from an edge/guide line to construct a signed parallel offset, or
 from a point to measure a distance and create a guide point. Protractor uses a
