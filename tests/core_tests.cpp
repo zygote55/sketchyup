@@ -89,6 +89,10 @@ int main() {
         auto id = d.addFace({square});
         require(d.dirty(), "New edit dirty");
         d.markSaved();
+        d.markRecovered();
+        require(d.dirty(), "Recovered checkpoint requires explicit save");
+        d.markSaved();
+        require(!d.dirty(), "Explicit save acknowledges recovered state");
         auto saved = d.bodies().at(id);
         auto rev = d.revision();
         rejects([&] { d.apply({"stale", {{id, saved, nullptr}}}, rev - 1); });

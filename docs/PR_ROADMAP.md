@@ -616,7 +616,7 @@ Implementation split: R035.a core measurements, solid classification and public 
 
 #### R036 — Implement materials and managed asset storage
 
-**Status:** In progress. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and packaged manifests pass 35 development and 28 sanitizer suites. Front/back opacity rendering, swatches, local presets, paint/sample and resource controls pass native checks on X11/Weston at scales 1 and 2. R036.a is merged; remaining layers await CI/merge. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
+**Status:** In progress. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and packaged manifests pass 35 development and 28 sanitizer suites. Front/back opacity rendering, swatches, local presets, paint/sample and resource controls pass native checks on X11/Weston at scales 1 and 2. R036.a and R036.b are merged; rendering/native-control layers await CI/merge. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
 
 **Requires:** [R033](#r033), [R012](#r012); milestone gate rule above.
 
@@ -642,7 +642,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R038 — Implement durable recovery and recovery UI
 
-**Status:** Planned. **Track:** Core. **Scope:** D04, D02. **UX:** §6.1–§6.3.
+**Status:** In progress. R038.a adds checksummed checkpoint/journal storage, immutable capture, verified-prefix recovery, process locks and fault injection; 38 development and 28 sanitizer suites pass. [Storage evidence](verification/R038a-recovery-storage.md). R038.b adds background scheduling, configurable intervals and native recovery selection. [Storage decision](decisions/0015-recovery-storage.md). **Track:** Core. **Scope:** D04, D02. **UX:** §6.1–§6.3.
 
 **Requires:** [R037](#r037); milestone gate rule above.
 
