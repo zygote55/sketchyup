@@ -227,8 +227,12 @@ Shared component member assignments use explicit component scope; swatch table
 edits remain document-wide. `materials.describe` lists swatches and
 `material.sample` reports both sides without editing. See the
 [material contract](docs/decisions/0010-material-records.md) and
-[recipe](examples/materials.json). Native material rendering, swatches and
-paint/sample controls follow in R036.c.
+[recipe](examples/materials.json). The viewport renders independent front/back
+colors and opacity, including mirrored placements. Fully transparent sides pass
+face picking through; topology edges remain visible. Editing a swatch refreshes
+only dependent appearance buffers. Intersecting transparent surfaces retain the
+centroid-sorting limitation. Native swatches and paint/sample controls follow in
+R036.d. See the [rendering contract](docs/decisions/0012-material-rendering.md).
 
 `asset.import` stores canonical base64 bytes; `asset.missing` retains an explicit
 missing-resource record. `asset.replace` resolves/replaces bytes under the same

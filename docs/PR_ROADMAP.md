@@ -616,7 +616,7 @@ Implementation split: R035.a core measurements, solid classification and public 
 
 #### R036 — Implement materials and managed asset storage
 
-**Status:** In progress. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and packaged manifests pass focused checks; full validation is running. Native swatch/paint controls remain. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
+**Status:** In progress. Material records, independent front/back assignments, lineage and schema-10 persistence pass 33 development and 27 sanitizer suites. Managed assets and packaged manifests pass 35 development and 28 sanitizer suites. Front/back opacity rendering and picking pass native framebuffer checks on X11/Weston at scales 1 and 2. Native swatch/paint controls remain. **Track:** Core. **Scope:** P01, D02. **UX:** §5, §6.4.
 
 **Requires:** [R033](#r033), [R012](#r012); milestone gate rule above.
 
@@ -624,7 +624,7 @@ Implementation split: R035.a core measurements, solid classification and public 
 
 **Verify:** Assignments survive split/transform/undo/save; copied documents resolve packaged assets; missing assets are explicit and imported paths cannot escape the container.
 
-Implementation split: R036.a material records, assignments, public commands and persistence; R036.b managed assets and container manifests; R036.c native swatches, paint/sample and opacity rendering. [Material decision](decisions/0010-material-records.md). [Foundation evidence](verification/R036a-material-records.md). [Asset decision](decisions/0011-managed-assets.md). [Asset evidence](verification/R036b-managed-assets.md).
+Implementation split: R036.a material records, assignments, public commands and persistence; R036.b managed assets and container manifests; R036.c front/back opacity rendering and picking; R036.d native swatches, resources and paint/sample. [Material decision](decisions/0010-material-records.md). [Foundation evidence](verification/R036a-material-records.md). [Asset decision](decisions/0011-managed-assets.md). [Asset evidence](verification/R036b-managed-assets.md).
 
 <a id="r037"></a>
 

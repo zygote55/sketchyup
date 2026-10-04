@@ -194,8 +194,16 @@ void Viewport::rebuildPickGeometry() {
             if (!visible(entity))
                 continue;
             const auto c = color(entity);
-            for (auto point : {triangle.a, triangle.b, triangle.c})
-                faces.push_back(vertex(point, c));
+            auto front = surfaceAppearance(doc_.materials(), *cache->record, triangle.face);
+            auto back = surfaceAppearance(doc_.materials(), *cache->record, triangle.face, true);
+            if (cache->world.determinant() < 0)
+                std::swap(front, back);
+            for (auto point : {triangle.a, triangle.b, triangle.c}) {
+                auto v = vertex(point, c);
+                v.a = front.opacity;
+                v.ba = back.opacity;
+                faces.push_back(v);
+            }
         }
         for (const auto &edge : cache->worldEdges) {
             const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
@@ -283,7 +291,9 @@ Viewport::PickPixels Viewport::selectionPixels(QRectF region) {
     }
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(1, 1);
+    shader_->setUniformValue("surfacePass", 3);
     draw(pickFacesGpu_, GL_TRIANGLES);
+    shader_->setUniformValue("surfacePass", 0);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glLineWidth(1);
     draw(pickEdgesGpu_, GL_LINES);

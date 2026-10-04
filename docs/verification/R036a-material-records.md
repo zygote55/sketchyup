@@ -1,8 +1,9 @@
 # R036.a: material swatches and front/back assignments
 
-Date: 2026-10-04. Local checks passed; CI pending.
-Requires the R035 work in [PR #43](https://github.com/zygote55/sketchyup/pull/43)
-and [PR #44](https://github.com/zygote55/sketchyup/pull/44).
+Date: 2026-10-04. [PR #45](https://github.com/zygote55/sketchyup/pull/45) merged
+after both CI jobs passed at head `d7d4149` (29m47s and 30m25s), including native
+X11/Weston checks, sanitizers and disposable Arch package acceptance.
+Merge commit: `99c1e73`.
 
 Materials are immutable document-owned RGB/opacity swatches with monotonic IDs.
 Each record has default front/back IDs and sparse face overrides. Zero retains
