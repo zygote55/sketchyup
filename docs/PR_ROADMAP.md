@@ -532,8 +532,8 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 **Verify:** Rotated/mirrored and connected-face fixtures pass; transformed topology validates; numerical and interactive paths agree and one gesture is one undo step.
 
-- **R030.a — Scoped transform/copy core:** Local validation passed; CI pending. [Evidence](verification/R030a-scoped-transforms.md). Shared vertices, pivots, local/world frames, reflection, typed copy mappings and atomic validation.
-- **R030.b — Native move/rotate/scale/flip:** Planned. Pointer/numeric tools, copy mode, selection feedback and one-gesture undo. Requires R030.a.
+- **R030.a — Scoped transform/copy core:** Merged in [PR #32](https://github.com/zygote55/sketchyup/pull/32); both CI jobs passed. [Evidence](verification/R030a-scoped-transforms.md). Shared vertices, pivots, local/world frames, reflection, typed copy mappings and atomic validation.
+- **R030.b — Native move/rotate/scale/flip:** Local core/X11 validation passed; CI pending. Wayland retest remains a tracked M4 checkpoint requirement. [Evidence](verification/R030b-native-transforms.md). Pointer/numeric tools, copy mode, selection feedback and one-gesture undo. Requires R030.a.
 
 <a id="r031"></a>
 
