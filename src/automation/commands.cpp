@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
 #include "core/groups.hpp"
@@ -57,6 +58,33 @@ QJsonObject entityChanges(const EntityChanges &changes) {
             {"modified", ids(changes.modified)},
             {"descendants", mappings}};
 }
+ChangeReport decodedChanges(const QJsonObject &objects) {
+    ChangeReport report;
+    for (auto it = objects.begin(); it != objects.end(); ++it) {
+        const auto object = it.value().toObject();
+        auto &change = report[id(it.key())];
+        auto decode = [&](const char *key, EntityChanges &entities) {
+            const auto record = object[key].toObject();
+            for (auto [name, values] :
+                 {std::pair{"created", &entities.created}, std::pair{"deleted", &entities.deleted},
+                  std::pair{"modified", &entities.modified}})
+                for (auto value : record[name].toArray())
+                    values->push_back(id(value));
+            const auto mappings = record["descendants"].toObject();
+            for (auto mapping = mappings.begin(); mapping != mappings.end(); ++mapping) {
+                auto &values = entities.descendants[id(mapping.key())];
+                for (auto value : mapping.value().toArray())
+                    values.push_back(id(value));
+            }
+        };
+        decode("faces", change.faces);
+        decode("edges", change.edges);
+        decode("vertices", change.vertices);
+        decode("curves", change.curves);
+        decode("guides", change.guides);
+    }
+    return report;
+}
 QJsonObject topologyDescription(const Document &doc, Id context) {
     const auto &body = *doc.bodies().at(context);
     const auto adjacency = body.topology.adjacency(body.surface);
@@ -110,42 +138,41 @@ QJsonObject topologyDescription(const Document &doc, Id context) {
 }
 } // namespace
 QJsonObject capabilities() {
-    return {
-        {"apiVersion", 1},
-        {"status", "experimental"},
-        {"units", "m"},
-        {"up", "Z"},
-        {"commands",
-         [] {
-             QJsonArray names;
-             for (const auto &item : commandCatalog())
-                 names.append(item.toObject()["name"]);
-             return names;
-         }()},
-        {"commandSchemas", commandCatalog()},
-        {"queries", QJsonArray{"document.describe", "geometry.inspect", "geometry.infer",
-                               "geometry.measure_distance", "geometry.measure_angle",
-                               "geometry.preview", "commands.describe", "capabilities"}},
-        {"transactionContract",
-         QJsonObject{{"atomic", true},
-                     {"history", "one undo item per batch"},
-                     {"precondition", "document identity and expected content revision"},
-                     {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
-        {"limits", QJsonObject{{"fileBytes", 16 + 33 * 1024 * 1024},
-                               {"documentBytes", 32 * 1024 * 1024},
-                               {"bodies", 10000},
-                               {"componentDefinitions", 1024},
-                               {"vertices", 100000},
-                               {"guides", 10000},
-                               {"guidesPerContext", 1024},
-                               {"batchCommands", 100}}},
-        {"limitations",
-         QJsonArray{
-             "Push/pull supports prismatic cap edits and bounded face "
-             "sweeps; general solid booleans are unavailable",
-             "No durable transaction outcomes or remote retry protocol",
-             "Component records persist; shared edit commands and scope UI are not yet available",
-             "No AI provider or Blender integration"}}};
+    return {{"apiVersion", 1},
+            {"status", "experimental"},
+            {"units", "m"},
+            {"up", "Z"},
+            {"commands",
+             [] {
+                 QJsonArray names;
+                 for (const auto &item : commandCatalog())
+                     names.append(item.toObject()["name"]);
+                 return names;
+             }()},
+            {"commandSchemas", commandCatalog()},
+            {"queries",
+             QJsonArray{"document.describe", "component.inspect", "geometry.inspect",
+                        "geometry.infer", "geometry.measure_distance", "geometry.measure_angle",
+                        "geometry.preview", "commands.describe", "capabilities"}},
+            {"transactionContract",
+             QJsonObject{{"atomic", true},
+                         {"history", "one undo item per batch"},
+                         {"precondition", "document identity and expected content revision"},
+                         {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
+            {"limits", QJsonObject{{"fileBytes", 16 + 33 * 1024 * 1024},
+                                   {"documentBytes", 32 * 1024 * 1024},
+                                   {"bodies", 10000},
+                                   {"componentDefinitions", 1024},
+                                   {"vertices", 100000},
+                                   {"guides", 10000},
+                                   {"guidesPerContext", 1024},
+                                   {"batchCommands", 100}}},
+            {"limitations",
+             QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
+                        "sweeps; general solid booleans are unavailable",
+                        "No durable transaction outcomes or remote retry protocol",
+                        "Component shared edit commands are available; native scope UI is pending",
+                        "No AI provider or Blender integration"}}};
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies, definitions, instances;
@@ -191,6 +218,27 @@ QJsonObject describe(const Document &doc) {
 }
 QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     const auto name = request["query"].toString();
+    if (name == "component.inspect") {
+        fields(request, {"query", "definition"});
+        const auto definition = doc.definitions().at(id(request["definition"]));
+        QJsonObject references;
+        for (auto [member, target] : definition->references)
+            references[QString::number(member)] = QString::number(target);
+        QJsonArray instances;
+        for (const auto &[root, instance] : doc.instances())
+            if (instance->definition == definition->id)
+                instances.append(QString::number(root));
+        return {{"scope", "definition"},
+                {"definition", QString::number(definition->id)},
+                {"name", QString::fromStdString(definition->name)},
+                {"root", QString::number(definition->root)},
+                {"nextMemberId", QString::number(definition->nextMemberId)},
+                {"members", encodeBodies(definition->members)},
+                {"references", references},
+                {"instances", instances},
+                {"documentId", QString::fromStdString(doc.identity())},
+                {"revision", QString::number(doc.revision())}};
+    }
     if (name == "geometry.measure_distance") {
         fields(request, {"query", "start", "end"});
         return {{"distance", measureDistance(point(request["start"]), point(request["end"]))},
@@ -345,7 +393,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     if (commands.empty() || commands.size() > 100)
         throw std::runtime_error("Batch must contain 1–100 commands");
     Document staged = doc;
-    QJsonArray created, copies, transfers;
+    QJsonArray created, copies, transfers, componentOperations;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
     };
@@ -779,6 +827,80 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             if (command.contains("parent"))
                 parent = command["parent"] == "0" ? 0 : id(command["parent"]);
             staged.transform(target, transform, parent);
+        } else if (name.startsWith("component.")) {
+            if (command.contains("name") && !command["name"].isString())
+                throw std::runtime_error("Component name must be a string");
+            auto matrix = [&] {
+                const auto values = array(command["matrix"]);
+                if (values.size() != 16)
+                    throw std::runtime_error("Expected 16 matrix coefficients");
+                Transform result;
+                for (int i = 0; i < 16; ++i)
+                    result.m[i] = number(values[i]);
+                result.validate();
+                return result;
+            };
+            ComponentResult result;
+            if (name == "component.create")
+                result = createComponent(staged, id(command["body"]),
+                                         command.value("name").toString("Component").toStdString());
+            else if (name == "component.instance")
+                result = placeComponent(staged, id(command["definition"]), matrix(),
+                                        command.contains("parent") && command["parent"] != "0"
+                                            ? id(command["parent"])
+                                            : 0,
+                                        command.value("name").toString().toStdString());
+            else if (name == "component.make_unique")
+                result = makeComponentUnique(staged, id(command["body"]));
+            else if (name == "component.replace")
+                result = replaceComponent(staged, id(command["body"]), id(command["definition"]));
+            else if (name == "component.axes")
+                result = setComponentAxes(staged, id(command["definition"]), matrix());
+            else if (name == "component.edit") {
+                const auto commands = array(command["commands"]);
+                for (auto value : commands) {
+                    const auto nested = value.toObject().value("command");
+                    if (nested == "component.edit" || nested == "component.axes")
+                        throw std::runtime_error(
+                            "Use a separate explicit scope for shared definition or axis edits");
+                }
+                result = editComponentDefinition(
+                    staged, id(command["definition"]), [&](Document &draft) {
+                        const auto edited = executeBatch(
+                            draft, {{"apiVersion", 1},
+                                    {"documentId", QString::fromStdString(draft.identity())},
+                                    {"expectedRevision", QString::number(draft.revision())},
+                                    {"commands", commands}});
+                        return decodedChanges(edited["changes"].toObject());
+                    });
+            } else
+                throw std::runtime_error("Unavailable component command");
+            compose(result.changes);
+            QJsonObject operation{{"definition", QString::number(result.definition)},
+                                  {"instance", QString::number(result.instance)}};
+            if (name == "component.edit") {
+                QJsonObject normalized;
+                for (auto [source, target] : result.movedGeometry)
+                    normalized[QString::number(source)] = QString::number(target);
+                operation["normalizedMembers"] = normalized;
+            } else if (name == "component.create")
+                for (auto [source, target] : result.movedGeometry) {
+                    const auto &body = *staged.bodies().at(target);
+                    auto identities = [](const auto &records) {
+                        QJsonObject mapping;
+                        for (const auto &[id, record] : records)
+                            mapping[QString::number(id)] = QString::number(id);
+                        return mapping;
+                    };
+                    transfers.append(QJsonObject{{"sourceBody", QString::number(source)},
+                                                 {"body", QString::number(target)},
+                                                 {"vertices", identities(body.surface.vertices)},
+                                                 {"edges", identities(body.topology.edges)},
+                                                 {"faces", identities(body.surface.faces)},
+                                                 {"curves", identities(body.curves)},
+                                                 {"guides", identities(body.guides)}});
+                }
+            componentOperations.append(operation);
         } else if (name == "group.create") {
             std::set<Id> members;
             for (const auto &value : array(command["members"]))
@@ -863,7 +985,17 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     for (const auto &change : edit.changes)
         if (!change.before && change.after)
             created.append(QString::number(change.id));
+    QJsonArray createdDefinitions;
+    for (const auto &change : edit.definitions)
+        if (!change.before && change.after)
+            createdDefinitions.append(QString::number(change.id));
     const auto report = doc.apply(std::move(edit), doc.revision());
+    for (qsizetype i = 0; i < componentOperations.size(); ++i) {
+        auto operation = componentOperations[i].toObject();
+        if (!doc.instances().contains(operation["instance"].toString().toULongLong()))
+            operation["instance"] = "0";
+        componentOperations[i] = operation;
+    }
     QJsonObject changes;
     for (const auto &[context, change] : report)
         changes[QString::number(context)] =
@@ -904,6 +1036,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     return {{"status", "committed"},
             {"revision", QString::number(doc.revision())},
             {"created", created},
+            {"createdDefinitions", createdDefinitions},
+            {"componentOperations", componentOperations},
             {"copies", surviving(copies)},
             {"transfers", surviving(transfers)},
             {"changes", changes},

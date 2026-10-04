@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "core/components.hpp"
 #include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
@@ -480,7 +481,172 @@ int main(int argc, char **argv) {
         componentCopy.undo();
         check(componentCopy.instances().size() == 1,
               "Public component array undoes bindings and scene records together");
+        Document componentWorkflow = source;
+        auto componentCommand = [&](const QJsonObject &command) {
+            return executeBatch(
+                componentWorkflow,
+                {{"apiVersion", 1},
+                 {"documentId", QString::fromStdString(componentWorkflow.identity())},
+                 {"expectedRevision", QString::number(componentWorkflow.revision())},
+                 {"commands", QJsonArray{command}}});
+        };
+        const auto componentCreated =
+            componentCommand({{"command", "component.create"}, {"body", "1"}});
+        check(componentCreated["createdDefinitions"].toArray() == QJsonArray{"1"} &&
+                  componentCreated["componentOperations"].toArray()[0].toObject()["instance"] ==
+                      "1",
+              "Component creation reports separate definition and placement identities");
+        componentCommand(
+            {{"command", "component.instance"}, {"definition", "1"}, {"matrix", matrix}});
+        auto shared = QJsonObject{
+            {"command", "component.edit"},
+            {"definition", "1"},
+            {"commands",
+             QJsonArray{QJsonObject{
+                 {"command", "geometry.insert_edges"},
+                 {"body", "2"},
+                 {"origin", QJsonArray{0, 0, 0}},
+                 {"normal", QJsonArray{0, 0, 1}},
+                 {"edges", QJsonArray{QJsonArray{QJsonArray{.5, 0, 0}, QJsonArray{.5, 1, 0}}}}}}}};
+        const auto beforeShared = encodeDocument(componentWorkflow);
+        const QJsonObject sharedBatch{
+            {"apiVersion", 1},
+            {"documentId", QString::fromStdString(componentWorkflow.identity())},
+            {"expectedRevision", QString::number(componentWorkflow.revision())},
+            {"commands", QJsonArray{shared}}};
+        const auto sharedPreview = previewBatch(componentWorkflow, sharedBatch);
+        check(encodeDocument(componentWorkflow) == beforeShared,
+              "Shared component preview preserves document, identity and revision");
+        const auto sharedResult = componentCommand(shared);
+        check(sharedResult["document"] == sharedPreview["document"] &&
+                  sharedResult["changes"] == sharedPreview["changes"],
+              "Shared component preview and commit have identical instances and lineage");
+        check(componentWorkflow.bodies().at(2)->surface.faces.size() == 2 &&
+                  componentWorkflow.bodies().at(4)->surface.faces.size() == 2 &&
+                  sharedResult["changes"]
+                          .toObject()["4"]
+                          .toObject()["faces"]
+                          .toObject()["descendants"]
+                          .toObject()["5"]
+                          .toArray()
+                          .size() == 2,
+              "Explicit shared command scope updates every instance with typed lineage");
+        const auto sharedSnapshot = encodeDocument(componentWorkflow);
+        rejects([&] {
+            componentCommand(
+                {{"command", "geometry.translate"}, {"body", "2"}, {"delta", QJsonArray{0, 0, 1}}});
+        });
+        auto recursive = shared;
+        recursive["commands"] = QJsonArray{shared};
+        rejects([&] { componentCommand(recursive); });
+        check(encodeDocument(componentWorkflow) == sharedSnapshot,
+              "Unscoped and recursively scoped edits reject atomically");
+        rejects([&] {
+            componentCommand({{"command", "component.instance"},
+                              {"definition", "1"},
+                              {"matrix", QJsonArray{1, 0}}});
+        });
+        rejects([&] {
+            componentCommand(
+                {{"command", "component.edit"},
+                 {"definition", "1"},
+                 {"commands", QJsonArray{QJsonObject{{"command", "geometry.translate"},
+                                                     {"body", "4"},
+                                                     {"delta", QJsonArray{0, 0, 1}}}}}});
+        });
+        componentCommand({{"command", "scene.state"}, {"body", "3"}, {"locked", true}});
+        const auto lockedShared = encodeDocument(componentWorkflow);
+        rejects([&] {
+            componentCommand(
+                {{"command", "component.edit"},
+                 {"definition", "1"},
+                 {"commands", QJsonArray{QJsonObject{{"command", "geometry.translate"},
+                                                     {"body", "2"},
+                                                     {"delta", QJsonArray{0, 0, 1}}}}}});
+        });
+        check(encodeDocument(componentWorkflow) == lockedShared,
+              "A locked peer rejects public shared commands without changing any instance");
+        componentWorkflow.undo();
+        componentCommand({{"command", "component.make_unique"}, {"body", "3"}});
+        componentCommand({{"command", "component.edit"},
+                          {"definition", "2"},
+                          {"commands", QJsonArray{QJsonObject{{"command", "geometry.translate"},
+                                                              {"body", "2"},
+                                                              {"delta", QJsonArray{0, 0, 1}}}}}});
+        check(componentWorkflow.worldTransform(4).point({}).z == 1 &&
+                  componentWorkflow.worldTransform(2).point({}).z == 0,
+              "Public make-unique isolates the selected instance's subsequent shared edit");
+        const auto inspected =
+            executeQuery(componentWorkflow, {{"query", "component.inspect"}, {"definition", "2"}});
+        check(inspected["scope"] == "definition" && inspected["members"].toArray().size() == 2 &&
+                  inspected["instances"].toArray() == QJsonArray{"3"},
+              "Definition inspection exposes canonical member IDs and affected instances");
+        componentCommand({{"command", "group.explode"}, {"body", "3"}});
+        check(!componentWorkflow.instances().contains(3) &&
+                  componentWorkflow.instances().contains(1),
+              "Explode removes only the selected component binding");
+        componentWorkflow.undo();
+        componentCommand({{"command", "geometry.erase_selection"},
+                          {"entities", QJsonArray{QJsonObject{
+                                           {"body", "3"}, {"kind", "context"}, {"entity", "0"}}}}});
+        check(componentWorkflow.instances().size() == 1 && !componentWorkflow.bodies().contains(4),
+              "Typed deletion removes component members and binding in one batch");
+        componentWorkflow.undo();
+        check(componentWorkflow.instances().size() == 2 && componentWorkflow.bodies().contains(4),
+              "Component deletion undo restores sharing and placed records");
+        const auto componentRoundTrip = decodeContainer(encodeContainer(componentWorkflow));
+        check(encodeDocument(componentRoundTrip) == encodeDocument(componentWorkflow),
+              "Public shared edits and unique definitions survive exact container round trips");
+        Document sharedAmend = source;
+        createComponent(sharedAmend, 1);
+        placeComponent(sharedAmend, 1, Transform::translation({3, 0, 0}));
+        const auto amendBaseline = sharedAmend.bodies();
+        auto sharedSweep = [&](double distance) {
+            return QJsonObject{
+                {"apiVersion", 1},
+                {"documentId", QString::fromStdString(sharedAmend.identity())},
+                {"expectedRevision", QString::number(sharedAmend.revision())},
+                {"commands",
+                 QJsonArray{QJsonObject{
+                     {"command", "component.edit"},
+                     {"definition", "1"},
+                     {"commands", QJsonArray{QJsonObject{{"command", "geometry.push_pull"},
+                                                         {"body", "2"},
+                                                         {"face", "5"},
+                                                         {"distance", distance}}}}}}}};
+        };
+        executeBatch(sharedAmend, sharedSweep(.2));
+        const auto amendment = sharedAmend.amendmentStamp();
+        previewAmend(sharedAmend, amendment, sharedSweep(.4));
+        executeAmend(sharedAmend, amendment, sharedSweep(.4));
+        for (auto body : {2, 4}) {
+            double height = 0;
+            for (const auto &[vertex, point] : sharedAmend.bodies().at(body)->surface.vertices)
+                height = std::max(height, point.z);
+            check(std::abs(height - .4) < tolerance,
+                  "Shared numeric amendment replaces geometry in every instance");
+        }
+        sharedAmend.undo();
+        for (const auto &[id, body] : amendBaseline)
+            check(sharedAmend.bodies().at(id)->surface.faces == body->surface.faces &&
+                      sharedAmend.bodies().at(id)->surface.vertices == body->surface.vertices,
+                  "Shared numeric amendment retains one-undo behavior");
         const QJsonArray cases{
+            QJsonObject{{"command", "component.create"}, {"body", "1"}, {"name", "Panel"}},
+            QJsonObject{{"command", "component.instance"}, {"definition", "1"}, {"matrix", matrix}},
+            QJsonObject{{"command", "component.make_unique"}, {"body", "1"}},
+            QJsonObject{{"command", "component.replace"}, {"body", "1"}, {"definition", "2"}},
+            QJsonObject{{"command", "component.axes"}, {"definition", "1"}, {"matrix", matrix}},
+            QJsonObject{
+                {"command", "component.edit"},
+                {"definition", "1"},
+                {"commands",
+                 QJsonArray{QJsonObject{{"command", "geometry.insert_edges"},
+                                        {"body", "2"},
+                                        {"origin", QJsonArray{0, 0, 0}},
+                                        {"normal", QJsonArray{0, 0, 1}},
+                                        {"edges", QJsonArray{QJsonArray{QJsonArray{.5, 0, 0},
+                                                                        QJsonArray{.5, 1, 0}}}}}}}},
             QJsonObject{{"command", "geometry.merge_context"}, {"context", "0"}},
             QJsonObject{{"command", "group.selection"},
                         {"context", "0"},
@@ -632,6 +798,14 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("component.") &&
+                command["command"] != "component.create") {
+                createComponent(doc, 1);
+                if (command["command"] == "component.replace") {
+                    const auto raw = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});
+                    createComponent(doc, raw);
+                }
+            }
             if (command["command"] == "geometry.merge_context")
                 doc.addFace({{{1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 1, 0}}});
             if (command["command"] == "group.explode" || command["command"] == "scene.reparent")

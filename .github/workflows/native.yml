@@ -66,6 +66,8 @@ jobs:
           build/dev/sketchyup-cli --input /tmp/room.sketchyup
           build/dev/sketchyup-cli --script examples/colored-explode.json --output /tmp/colored-explode.sketchyup
           build/dev/sketchyup-cli --input /tmp/colored-explode.sketchyup
+          build/dev/sketchyup-cli --script examples/components.json --output /tmp/components.sketchyup
+          build/dev/sketchyup-cli --input /tmp/components.sketchyup
           build/dev/sketchyup-cli --script examples/groups.json --output /tmp/groups.sketchyup
           build/dev/sketchyup-cli --input /tmp/groups.sketchyup
           build/dev/sketchyup-cli --script examples/copy-arrays.json --output /tmp/arrays.sketchyup

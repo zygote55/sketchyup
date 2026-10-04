@@ -574,7 +574,7 @@ Implementation split:
 
 #### R033 — Implement component definitions and instances
 
-**Status:** Record/transaction foundation passes local checks; CI pending. Shared mutation and native component scope remain open. **Track:** Core. **Scope:** O02, E03. **UX:** §4.6, §5.
+**Status:** Record/transaction foundation merged in [PR #38](https://github.com/zygote55/sketchyup/pull/38), both CI jobs passed. Shared mutation and public component commands pass local checks; CI and native component scope remain open. **Track:** Core. **Scope:** O02, E03. **UX:** §4.6, §5.
 
 **Requires:** [R032](#r032), [R031](#r031); milestone gate rule above.
 
@@ -582,7 +582,7 @@ Implementation split:
 
 **Verify:** Definition edits propagate to all instances; make-unique isolates exactly one; mirror/scale/nesting and cyclic-definition rejection pass with undo/persistence.
 
-Implementation split: R033.a records, transactions and persistence; R033.b shared mutation, instance operations and public commands; R033.c native context workflow and scope feedback. Each child requires its predecessor; R033 remains open until all pass. [Record decision](decisions/0007-component-records.md). [Foundation evidence](verification/R033a-component-records.md).
+Implementation split: R033.a records, transactions and persistence; R033.b shared mutation, instance operations and public commands; R033.c native context workflow and scope feedback. Each child requires its predecessor; R033 remains open until all pass. [Record decision](decisions/0007-component-records.md). [Foundation evidence](verification/R033a-component-records.md). [Operation evidence](verification/R033b-component-operations.md).
 
 <a id="r034"></a>
 

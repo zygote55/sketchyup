@@ -322,6 +322,9 @@ ChangeReport eraseSelected(Document &doc, Selection &selection) {
                 contexts.changes.push_back({id, body, nullptr});
                 break;
             }
+    for (const auto &change : contexts.changes)
+        if (doc.instances().contains(change.id))
+            contexts.instances.push_back({change.id, doc.instances().at(change.id), nullptr});
     if (!contexts.changes.empty())
         compose(staged.apply(std::move(contexts), staged.revision()));
     // Whole contexts first, then faces before their retained boundary edges.
@@ -346,6 +349,7 @@ ChangeReport eraseSelected(Document &doc, Selection &selection) {
             }
         }
     Edit edit{"Delete selection", {}};
+    appendComponentChanges(edit, doc, staged);
     for (const auto &[id, before] : doc.bodies()) {
         const auto after = staged.bodies().contains(id) ? staged.bodies().at(id) : BodyPtr{};
         if (before != after) {
