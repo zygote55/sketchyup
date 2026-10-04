@@ -25,6 +25,7 @@ void placementState(Body &body, const Body &placement) {
     body.properties = placement.properties;
     body.hidden = placement.hidden;
     body.locked = placement.locked;
+    body.tag = placement.tag;
 }
 void bodyDifference(Edit &edit, const Document &doc, const std::map<Id, BodyPtr> &scene) {
     std::set<Id> ids;
@@ -67,6 +68,7 @@ Id normalizeRoot(Document &draft, Id root) {
         member->transform = {};
         member->kind = BodyKind::Geometry;
         member->hidden = member->locked = false;
+        member->tag = 0;
         member->name = "Geometry";
         member->properties.clear();
         edit.changes.push_back({geometry, nullptr, member});
@@ -108,6 +110,7 @@ std::pair<DefinitionPtr, InstancePtr> capture(const Document &draft, Id root, Id
             body->parent = 0;
             body->transform = {};
             body->hidden = body->locked = false;
+            body->tag = 0;
         } else if (draft.instances().contains(id)) {
             emptyGeometry(*body);
             definition->references[id] = draft.instances().at(id)->definition;
@@ -169,7 +172,8 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
                      const ComponentInstances &bindings, const std::map<Id, BodyPtr> &seed, Id next,
                      Id nextDefinition, std::string label, Id editedDefinition = 0,
                      const ChangeReport &lineage = {}) {
-    const auto sizes = validateComponentDefinitions(definitions, nextDefinition);
+    const auto sizes =
+        validateComponentDefinitions(definitions, nextDefinition, doc.tags(), doc.nextTagId());
     std::set<Id> owned, nestedRoots;
     for (const auto &[root, binding] : doc.instances())
         for (const auto &[member, id] : binding->members) {
@@ -405,7 +409,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     members[original->root] = placedRoot;
     Document draft;
     draft.restore(draft.identity(), original->nextMemberId, members, 0, doc.definitions(), {},
-                  doc.nextDefinitionId());
+                  doc.nextDefinitionId(), doc.tags(), doc.nextTagId());
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
@@ -421,6 +425,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         if (instance->definition == id)
             existingMembers[root] = componentScopeMembers(doc, draft, root);
     const auto baselineDefinitions = draft.definitions();
+    const auto baselineTags = draft.tags();
     const auto baseline = draft.saveStamp();
     const auto report = edit(draft);
     if (draft.isCurrentSnapshot(baseline))
@@ -430,8 +435,11 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     const auto root = draft.bodies().at(original->root);
     const auto previousRoot = original->members.at(original->root);
     if (root->parent || root->hidden || root->locked || root->kind != BodyKind::Group ||
-        root->name != previousRoot->name || root->properties != previousRoot->properties)
+        root->name != previousRoot->name || root->properties != previousRoot->properties ||
+        root->tag != previousRoot->tag)
         throw std::runtime_error("Instance root state is outside shared geometry edit scope");
+    if (draft.tags() != baselineTags)
+        throw std::runtime_error("Edit document tags outside a shared geometry scope");
     for (const auto &[other, definition] : baselineDefinitions)
         if (other != id &&
             (!draft.definitions().contains(other) || draft.definitions().at(other) != definition))

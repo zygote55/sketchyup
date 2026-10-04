@@ -80,6 +80,8 @@ int main(int argc, char **argv) {
         legacy.remove("definitions");
         legacy.remove("instances");
         legacy.remove("nextDefinitionId");
+        legacy.remove("tags");
+        legacy.remove("nextTagId");
         auto legacyBodies = legacy["bodies"].toArray();
         for (int i = 0; i < legacyBodies.size(); ++i) {
             auto record = legacyBodies[i].toObject();
@@ -91,6 +93,7 @@ int main(int argc, char **argv) {
             record.remove("hidden");
             record.remove("locked");
             record.remove("faceColors");
+            record.remove("tag");
             record.remove("parent");
             record.remove("transform");
             record.remove("properties");
@@ -130,7 +133,7 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 1.5;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
-        root["version"] = 8;
+        root["version"] = 9;
         root["nextId"] = "1";
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["nextId"] = "2";

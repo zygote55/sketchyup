@@ -5,6 +5,7 @@
 #include "core/copy_array.hpp"
 #include "core/groups.hpp"
 #include "core/selection.hpp"
+#include "core/tags.hpp"
 #include "core/transform_selection.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
@@ -137,6 +138,17 @@ QJsonObject topologyDescription(const Document &doc, Id context) {
             {"nextId", QString::number(body.surface.nextId)},
             {"nextEdgeId", QString::number(body.topology.nextId)}};
 }
+QJsonArray tagDescription(const Document &doc) {
+    QJsonArray tags;
+    for (const auto &[id, tag] : doc.tags())
+        tags.append(QJsonObject{{"id", QString::number(id)},
+                                {"parent", QString::number(tag->parent)},
+                                {"name", QString::fromStdString(tag->name)},
+                                {"folder", tag->folder},
+                                {"visible", tag->visible},
+                                {"effectiveVisible", tagVisible(doc.tags(), id)}});
+    return tags;
+}
 } // namespace
 QJsonObject capabilities() {
     return {{"apiVersion", 1},
@@ -151,10 +163,10 @@ QJsonObject capabilities() {
                  return names;
              }()},
             {"commandSchemas", commandCatalog()},
-            {"queries",
-             QJsonArray{"document.describe", "component.inspect", "geometry.inspect",
-                        "geometry.infer", "geometry.measure_distance", "geometry.measure_angle",
-                        "geometry.preview", "commands.describe", "capabilities"}},
+            {"queries", QJsonArray{"document.describe", "tags.describe", "component.inspect",
+                                   "geometry.inspect", "geometry.infer",
+                                   "geometry.measure_distance", "geometry.measure_angle",
+                                   "geometry.preview", "commands.describe", "capabilities"}},
             {"transactionContract",
              QJsonObject{{"atomic", true},
                          {"history", "one undo item per batch"},
@@ -167,7 +179,9 @@ QJsonObject capabilities() {
                                    {"vertices", 100000},
                                    {"guides", 10000},
                                    {"guidesPerContext", 1024},
-                                   {"batchCommands", 100}}},
+                                   {"batchCommands", 100},
+                                   {"tagsAndFolders", 1024},
+                                   {"tagFolderDepth", 32}}},
             {"limitations", QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
                                        "sweeps; general solid booleans are unavailable",
                                        "No durable transaction outcomes or remote retry protocol",
@@ -177,6 +191,8 @@ QJsonObject capabilities() {
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies, definitions, instances;
+    const auto tags = tagDescription(doc);
+    Selection presentation;
     std::map<Id, size_t> uses;
     for (const auto &[root, instance] : doc.instances()) {
         ++uses[instance->definition];
@@ -202,23 +218,37 @@ QJsonObject describe(const Document &doc) {
         QJsonArray world;
         for (auto value : doc.worldTransform(id).m)
             world.append(value);
-        bodies.append(QJsonObject{{"id", QString::number(id)},
-                                  {"parent", QString::number(b->parent)},
-                                  {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
-                                  {"hidden", b->hidden},
-                                  {"locked", b->locked},
-                                  {"worldTransform", world},
-                                  {"name", QString::fromStdString(b->name)},
-                                  {"vertices", int(b->surface.vertices.size())},
-                                  {"guides", int(b->guides.size())},
-                                  {"faces", faces}});
+        bodies.append(
+            QJsonObject{{"id", QString::number(id)},
+                        {"parent", QString::number(b->parent)},
+                        {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
+                        {"hidden", b->hidden},
+                        {"effectiveHidden", presentation.hidden(doc, {id, SelectionKind::Body, 0})},
+                        {"locked", b->locked},
+                        {"tag", QString::number(b->tag)},
+                        {"worldTransform", world},
+                        {"name", QString::fromStdString(b->name)},
+                        {"vertices", int(b->surface.vertices.size())},
+                        {"guides", int(b->guides.size())},
+                        {"faces", faces}});
     }
     return {{"documentId", QString::fromStdString(doc.identity())},
             {"revision", QString::number(doc.revision())},
-            {"bodies", bodies}, {"definitions", definitions}, {"instances", instances}};
+            {"bodies", bodies},
+            {"definitions", definitions},
+            {"instances", instances},
+            {"tags", tags},
+            {"nextTagId", QString::number(doc.nextTagId())}};
 }
 QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     const auto name = request["query"].toString();
+    if (name == "tags.describe") {
+        fields(request, {"query"});
+        return {{"documentId", QString::fromStdString(doc.identity())},
+                {"revision", QString::number(doc.revision())},
+                {"tags", tagDescription(doc)},
+                {"nextTagId", QString::number(doc.nextTagId())}};
+    }
     if (name == "component.inspect") {
         fields(request, {"query", "definition"});
         const auto definition = doc.definitions().at(id(request["definition"]));
@@ -435,22 +465,24 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         }
     };
     auto mergeContext = [&](Id context, std::optional<std::set<Id>> members = {}) {
-        const auto result = consolidateContext(staged, context, members);
-        compose(result.changes);
-        for (const auto &[source, mapping] : result.transfers) {
-            auto encode = [](const auto &map) {
-                QJsonObject object;
-                for (auto [from, to] : map)
-                    object[QString::number(from)] = QString::number(to);
-                return object;
-            };
-            transfers.append(QJsonObject{{"sourceBody", QString::number(source)},
-                                         {"body", QString::number(result.destination)},
-                                         {"vertices", encode(mapping.vertices)},
-                                         {"edges", encode(mapping.edges)},
-                                         {"faces", encode(mapping.faces)},
-                                         {"curves", encode(mapping.curves)},
-                                         {"guides", encode(mapping.guides)}});
+        for (const auto &partition : consolidationGroups(staged, context, members)) {
+            const auto result = consolidateContext(staged, context, partition);
+            compose(result.changes);
+            for (const auto &[source, mapping] : result.transfers) {
+                auto encode = [](const auto &map) {
+                    QJsonObject object;
+                    for (auto [from, to] : map)
+                        object[QString::number(from)] = QString::number(to);
+                    return object;
+                };
+                transfers.append(QJsonObject{{"sourceBody", QString::number(source)},
+                                             {"body", QString::number(result.destination)},
+                                             {"vertices", encode(mapping.vertices)},
+                                             {"edges", encode(mapping.edges)},
+                                             {"faces", encode(mapping.faces)},
+                                             {"curves", encode(mapping.curves)},
+                                             {"guides", encode(mapping.guides)}});
+            }
         }
     };
     for (const auto &value : commands) {
@@ -466,8 +498,37 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name == "geometry.erase_selection" || name == "group.selection" ||
-            name == "component.selection") {
+        if (name.startsWith("tag.")) {
+            auto parent = [&] { return command["parent"] == "0" ? Id{0} : id(command["parent"]); };
+            if (command.contains("name") && !command["name"].isString())
+                throw std::runtime_error("Tag name must be a string");
+            if (name == "tag.create") {
+                if (command.contains("folder") && !command["folder"].isBool())
+                    throw std::runtime_error("Tag folder flag must be boolean");
+                createTag(staged, command["name"].toString().toStdString(),
+                          command.contains("parent") ? parent() : 0, command["folder"].toBool());
+            } else if (name == "tag.edit") {
+                if (command.contains("visible") && !command["visible"].isBool())
+                    throw std::runtime_error("Tag visibility must be boolean");
+                editTag(staged, id(command["tag"]),
+                        command.contains("name")
+                            ? std::optional{command["name"].toString().toStdString()}
+                            : std::nullopt,
+                        command.contains("parent") ? std::optional{parent()} : std::nullopt,
+                        command.contains("visible") ? std::optional{command["visible"].toBool()}
+                                                    : std::nullopt);
+            } else if (name == "tag.delete")
+                eraseTag(staged, id(command["tag"]));
+            else
+                compose(assignTag(staged, id(command["body"]),
+                                  command["tag"] == "0" ? 0 : id(command["tag"])));
+        } else if (name == "scene.rename") {
+            if (!command["name"].isString())
+                throw std::runtime_error("Entity name must be a string");
+            compose(renameEntity(staged, id(command["body"]),
+                                 command["name"].toString().toStdString()));
+        } else if (name == "geometry.erase_selection" || name == "group.selection" ||
+                   name == "component.selection") {
             const auto records = array(command["entities"]);
             if (records.empty() || records.size() > 10000)
                 throw std::runtime_error("Selection must contain 1–10000 entities");
@@ -888,7 +949,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                 }
                 for (auto value : commands) {
                     const auto nested = value.toObject().value("command");
-                    if (nested == "component.edit" || nested == "component.axes")
+                    if (nested == "component.edit" || nested == "component.axes" ||
+                        (nested.toString().startsWith("tag.") && nested != "tag.assign"))
                         throw std::runtime_error(
                             "Use a separate explicit scope for shared definition or axis edits");
                 }
@@ -1022,7 +1084,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             throw std::runtime_error("Unavailable command");
     }
     Edit edit{"Command batch", {}};
-    appendComponentChanges(edit, doc, staged);
+    appendSceneMetadataChanges(edit, doc, staged);
     std::set<Id> all;
     for (const auto &[id, b] : doc.bodies())
         all.insert(id);
@@ -1046,7 +1108,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
                                     std::move(mapping.vertices), std::move(mapping.edges)});
         }
     }
-    if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty())
+    if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
+        edit.tags.empty())
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();
@@ -1057,6 +1120,10 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
     for (const auto &change : edit.definitions)
         if (!change.before && change.after)
             createdDefinitions.append(QString::number(change.id));
+    QJsonArray createdTags;
+    for (const auto &change : edit.tags)
+        if (!change.before && change.after)
+            createdTags.append(QString::number(change.id));
     const auto report = doc.apply(std::move(edit), doc.revision());
     for (qsizetype i = 0; i < componentOperations.size(); ++i) {
         auto operation = componentOperations[i].toObject();
@@ -1101,15 +1168,11 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         }
         return survivors;
     };
-    return {{"status", "committed"},
-            {"revision", QString::number(doc.revision())},
-            {"created", created},
-            {"createdDefinitions", createdDefinitions},
-            {"componentOperations", componentOperations},
-            {"copies", surviving(copies)},
-            {"transfers", surviving(transfers)},
-            {"changes", changes},
-            {"document", describe(doc)}};
+    return {{"status", "committed"},       {"revision", QString::number(doc.revision())},
+            {"created", created},          {"createdDefinitions", createdDefinitions},
+            {"createdTags", createdTags},  {"componentOperations", componentOperations},
+            {"copies", surviving(copies)}, {"transfers", surviving(transfers)},
+            {"changes", changes},          {"document", describe(doc)}};
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {

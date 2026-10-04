@@ -23,7 +23,8 @@ bool Selection::hidden(const Document &doc, SelectedEntity e) const {
         return true;
     for (auto body = e.body; body && doc.bodies().contains(body);
          body = doc.bodies().at(body)->parent)
-        if (doc.bodies().at(body)->hidden || hidden_.contains({body, SelectionKind::Body, 0}))
+        if (doc.bodies().at(body)->hidden || !tagVisible(doc.tags(), doc.bodies().at(body)->tag) ||
+            hidden_.contains({body, SelectionKind::Body, 0}))
             return true;
     return false;
 }
@@ -349,7 +350,7 @@ ChangeReport eraseSelected(Document &doc, Selection &selection) {
             }
         }
     Edit edit{"Delete selection", {}};
-    appendComponentChanges(edit, doc, staged);
+    appendSceneMetadataChanges(edit, doc, staged);
     for (const auto &[id, before] : doc.bodies()) {
         const auto after = staged.bodies().contains(id) ? staged.bodies().at(id) : BodyPtr{};
         if (before != after) {

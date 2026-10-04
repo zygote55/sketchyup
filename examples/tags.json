@@ -1,0 +1,97 @@
+[
+  {
+    "command": "tag.create",
+    "name": "Assembly",
+    "folder": true
+  },
+  {
+    "command": "tag.create",
+    "name": "Panels",
+    "parent": "1"
+  },
+  {
+    "command": "tag.create",
+    "name": "Shared surfaces"
+  },
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0
+        ]
+      ]
+    ],
+    "name": "Panel"
+  },
+  {
+    "command": "component.create",
+    "body": "1",
+    "name": "Panel"
+  },
+  {
+    "command": "component.instance",
+    "definition": "1",
+    "matrix": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      3,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "command": "tag.assign",
+    "body": "1",
+    "tag": "2"
+  },
+  {
+    "command": "scene.rename",
+    "body": "1",
+    "name": "Original panel"
+  },
+  {
+    "command": "component.edit",
+    "definition": "1",
+    "commands": [
+      {
+        "command": "tag.assign",
+        "body": "2",
+        "tag": "3"
+      }
+    ]
+  },
+  {
+    "command": "tag.edit",
+    "tag": "1",
+    "visible": false
+  }
+]

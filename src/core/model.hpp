@@ -17,6 +17,10 @@ struct InstanceChange {
     Id root{};
     InstancePtr before, after;
 };
+struct TagChange {
+    Id id{};
+    TagPtr before, after;
+};
 struct Edit {
     std::string label;
     std::vector<Change> changes;
@@ -25,6 +29,8 @@ struct Edit {
     std::vector<DefinitionChange> definitions{};
     std::vector<InstanceChange> instances{};
     Id nextDefinitionFloor{};
+    std::vector<TagChange> tags{};
+    Id nextTagFloor{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -45,6 +51,8 @@ class Document {
     const ComponentDefinitions &definitions() const { return definitions_; }
     const ComponentInstances &instances() const { return instances_; }
     Id nextDefinitionId() const { return nextDefinitionId_; }
+    const TagRecords &tags() const { return tags_; }
+    Id nextTagId() const { return nextTagId_; }
     std::uint64_t revision() const { return revision_; }
     Id nextId() const { return nextId_; }
     const std::string &identity() const { return identity_; }
@@ -94,7 +102,8 @@ class Document {
     void markSaved() { savedState_ = state_; }
     void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
                  std::uint64_t revision = 0, ComponentDefinitions definitions = {},
-                 ComponentInstances instances = {}, Id nextDefinitionId = 1);
+                 ComponentInstances instances = {}, Id nextDefinitionId = 1, TagRecords tags = {},
+                 Id nextTagId = 1);
 
   private:
     std::string identity_;
@@ -103,6 +112,8 @@ class Document {
     ComponentDefinitions definitions_;
     ComponentInstances instances_;
     Id nextDefinitionId_{1};
+    TagRecords tags_;
+    Id nextTagId_{1};
     struct DefinitionFloor {
         Id nextMemberId{1};
         std::map<Id, std::pair<Id, Id>> geometry;

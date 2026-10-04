@@ -391,6 +391,14 @@ void Document::update(Edit edit, bool forward) {
     auto next = bodies_;
     auto definitions = definitions_;
     auto instances = instances_;
+    auto tags = tags_;
+    for (const auto &change : edit.tags) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            tags[change.id] = target;
+        else
+            tags.erase(change.id);
+    }
     for (const auto &change : edit.definitions) {
         const auto target = forward ? change.after : change.before;
         if (target)
@@ -425,14 +433,36 @@ void Document::update(Edit edit, bool forward) {
     bodies_.swap(next);
     definitions_.swap(definitions);
     instances_.swap(instances);
+    tags_.swap(tags);
 }
 ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (revision_ == UINT64_MAX)
         throw std::runtime_error("Document revision space exhausted");
     if (expected != revision_)
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
-    if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty())
+    if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
+        edit.tags.empty())
         throw std::runtime_error("Empty edit");
+    auto tags = tags_;
+    Id nextTag = std::max(nextTagId_, edit.nextTagFloor);
+    std::set<Id> tagIds;
+    for (auto &change : edit.tags) {
+        if (!change.id || change.id == UINT64_MAX || !tagIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (tags_.contains(change.id) ? tags_.at(change.id) : nullptr) != change.before)
+            throw std::runtime_error("Invalid or stale tag change");
+        if (!change.before && change.id < nextTagId_)
+            throw std::runtime_error("Retired tag ID cannot be reused");
+        if (change.after) {
+            if (change.before && change.before->folder != change.after->folder)
+                throw std::runtime_error("Tag identities cannot change between tags and folders");
+            change.after = std::make_shared<TagRecord>(*change.after);
+            tags[change.id] = change.after;
+            nextTag = std::max(nextTag, change.id + 1);
+        } else
+            tags.erase(change.id);
+    }
+    validateTagRecords(tags, nextTag);
     auto definitions = definitions_;
     auto instances = instances_;
     auto definitionFloors = definitionFloors_;
@@ -630,6 +660,10 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     for (const auto &change : edit.instances)
         edit.bytes +=
             sizeof(InstanceChange) + componentBytes(change.before) + componentBytes(change.after);
+    for (const auto &change : edit.tags)
+        edit.bytes += sizeof(TagChange) +
+                      (change.before ? sizeof(TagRecord) + change.before->name.size() + 64 : 0) +
+                      (change.after ? sizeof(TagRecord) + change.after->name.size() + 64 : 0);
     if (edit.bytes > historyLimit)
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     auto updated = bodies_;
@@ -640,7 +674,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             updated.erase(c.id);
     }
     validateDocumentSize(updated);
-    validateComponentDefinitions(definitions, nextDefinition);
+    validateTagAssignments(tags, updated);
+    validateComponentDefinitions(definitions, nextDefinition, tags, nextTag);
     validateComponentInstances(definitions, instances, updated);
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
@@ -727,6 +762,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     instances_.swap(instances);
     definitionFloors_.swap(definitionFloors);
     nextDefinitionId_ = nextDefinition;
+    tags_.swap(tags);
+    nextTagId_ = nextTag;
     nextId_ = next;
     surfaceFloors_.swap(floors);
     edgeFloors_.swap(edgeFloors);
@@ -760,8 +797,10 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("The most recent operation can no longer be revised");
     std::set<Id> contexts;
     std::set<Id> definitionContexts;
+    std::set<Id> tagContexts;
     size_t createdContexts = 0;
     size_t createdDefinitions = 0;
+    size_t createdTags = 0;
     for (const auto &change : undo_.back().edit.changes) {
         contexts.insert(change.id);
         if (!change.before && change.after)
@@ -774,11 +813,17 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!change.before && change.after)
             ++createdDefinitions;
     }
+    for (const auto &change : undo_.back().edit.tags) {
+        tagContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdTags;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
     const auto baselineDefinitions = staged.definitions_;
     const auto baselineInstances = staged.instances_;
+    const auto baselineTags = staged.tags_;
     // Rewind only the private candidate. A replacement publishes one revision,
     // and retains the pre-operation history entry and monotonic allocator floors.
     staged.revision_ = revision_;
@@ -800,6 +845,14 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
             ++newDefinitions;
     if (newDefinitions != createdDefinitions)
         throw std::runtime_error("Replacement must preserve definition creation count");
+    for (const auto &[id, tag] : baselineTags)
+        if (!tagContexts.contains(id) && (!staged.tags_.contains(id) || staged.tags_.at(id) != tag))
+            throw std::runtime_error("Replacement cannot change another tag");
+    size_t newTags = 0;
+    for (const auto &[id, tag] : staged.tags_)
+        newTags += !baselineTags.contains(id);
+    if (newTags != createdTags)
+        throw std::runtime_error("Replacement must preserve tag creation count");
     for (const auto &[root, instance] : baselineInstances)
         if (!contexts.contains(root) &&
             (!staged.instances_.contains(root) || staged.instances_.at(root) != instance))
@@ -887,7 +940,8 @@ bool Document::markSaved(const SaveStamp &stamp) {
 }
 void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
                        std::uint64_t revision, ComponentDefinitions definitions,
-                       ComponentInstances instances, Id nextDefinitionId) {
+                       ComponentInstances instances, Id nextDefinitionId, TagRecords tags,
+                       Id nextTagId) {
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
@@ -908,7 +962,9 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         floors.emplace(id, b->surface.nextId);
     }
     validateDocumentSize(bodies);
-    validateComponentDefinitions(definitions, nextDefinitionId);
+    validateTagRecords(tags, nextTagId);
+    validateTagAssignments(tags, bodies);
+    validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId);
     validateComponentInstances(definitions, instances, bodies);
     std::map<Id, DefinitionFloor> definitionFloors;
     for (auto &[id, definition] : definitions) {
@@ -920,6 +976,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     }
     for (auto &[root, instance] : instances)
         instance = std::make_shared<ComponentInstance>(*instance);
+    for (auto &[id, tag] : tags)
+        tag = std::make_shared<TagRecord>(*tag);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -929,6 +987,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     instances_ = std::move(instances);
     definitionFloors_ = std::move(definitionFloors);
     nextDefinitionId_ = nextDefinitionId;
+    tags_ = std::move(tags);
+    nextTagId_ = nextTagId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     undo_.clear();

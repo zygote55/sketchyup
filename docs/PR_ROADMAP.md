@@ -574,7 +574,7 @@ Implementation split:
 
 #### R033 — Implement component definitions and instances
 
-**Status:** Records and shared operations merged in [PR #38](https://github.com/zygote55/sketchyup/pull/38) and [PR #39](https://github.com/zygote55/sketchyup/pull/39), both CI jobs passed for each. Native scope workflow passes all local core, sanitizer and native X11/Wayland checks; CI remains open. **Track:** Core. **Scope:** O02, E03. **UX:** §4.6, §5.
+**Status:** Records and shared operations merged in [PR #38](https://github.com/zygote55/sketchyup/pull/38) and [PR #39](https://github.com/zygote55/sketchyup/pull/39), both CI jobs passed for each. Native scope workflow merged in [PR #40](https://github.com/zygote55/sketchyup/pull/40), with both CI jobs and local core, sanitizer and native X11/Wayland checks passing. R033 is complete. **Track:** Core. **Scope:** O02, E03. **UX:** §4.6, §5.
 
 **Requires:** [R032](#r032), [R031](#r031); milestone gate rule above.
 
@@ -588,13 +588,15 @@ Implementation split: R033.a records, transactions and persistence; R033.b share
 
 #### R034 — Implement Outliner, tags and hierarchy operations
 
-**Status:** Planned. **Track:** Desktop. **Scope:** O04, N05. **UX:** §5, §10.
+**Status:** In progress. Tag records, history, persistence and public commands are implemented locally; native Outliner/tag controls remain. **Track:** Desktop. **Scope:** O04, N05. **UX:** §5, §10.
 
 **Requires:** [R033](#r033), [R010](#r010); milestone gate rule above.
 
 **Build:** Add searchable hierarchy, bidirectional selection, rename/hide/lock, tag folders and drag/keyboard reparenting. Keep tagging separate from geometry ownership.
 
 **Verify:** Keyboard operations match pointer actions; world transforms survive reparenting; visibility changes preserve topology and scene ownership.
+
+Implementation split: R034.a tag records, visibility, public commands and persistence; R034.b searchable Outliner, tag controls and pointer/keyboard hierarchy operations. R034 remains open until both pass. [Record decision](decisions/0008-tag-records.md). [Foundation evidence](verification/R034a-tag-records.md).
 
 <a id="r035"></a>
 
