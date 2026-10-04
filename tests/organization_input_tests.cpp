@@ -36,14 +36,25 @@ void current(QTreeWidget *tree, Id id) {
           "Hierarchy window active for keyboard input");
     tree->setCurrentItem(row(tree, id));
     tree->setFocus();
+    // A modal dialog's deferred focus restoration can arrive after activation.
+    // Set the test's input target after draining those events and verify it.
     QTest::qWait(10);
+    tree->setFocus();
+    check(QTest::qWaitFor([&] { return tree->hasFocus(); }),
+          "Hierarchy tree focused before shortcut input");
 }
 void submit(Window &window, const std::function<void(QDialog *)> &fill) {
     QTimer::singleShot(20, &window, [&window, fill] {
         auto *dialog = window.findChild<QDialog *>("organizationDialog");
         if (!dialog)
             return;
-
+        // Wait for the compositor to activate the modal before closing it.
+        // Otherwise its delayed activation can steal focus from the next test.
+        dialog->activateWindow();
+        if (!QTest::qWaitForWindowActive(dialog)) {
+            dialog->reject();
+            return;
+        }
         fill(dialog);
         dialog->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Ok)->click();
         if (dialog->isVisible())
@@ -264,7 +275,14 @@ int main(int argc, char **argv) {
         QTest::keyClick(tree, Qt::Key_F2);
         check(doc.bodies().at(b)->name == "Local placement" &&
                   doc.bodies().at(peer)->name != "Local placement",
-              "Open component root rename remains local");
+              ("Open component root rename remains local: name=" + doc.bodies().at(b)->name +
+               " peer=" + doc.bodies().at(peer)->name + " current=" +
+               std::to_string(tree->currentItem()
+                                  ? tree->currentItem()->data(0, Qt::UserRole).toULongLong()
+                                  : 0) +
+               " selected=" + std::to_string(view->selectedBody()) +
+               " error=" + window.findChild<QLabel *>("organizationError")->text().toStdString())
+                  .c_str());
         QTemporaryDir files;
         const auto path = files.filePath("organized.sketchyup");
         saveDocument(doc, path);
