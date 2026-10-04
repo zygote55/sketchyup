@@ -447,8 +447,8 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 **Verify:** Radius, angle, tangent and segment-count fixtures pass across arbitrary planes; invalid constraints explain failure without changing committed geometry.
 
-- **R024.a — Curve records, commands and persistence:** locally verified; [evidence](verification/R024a-curve-records.md). Analytic circle/arc/pie parameters, derived edge associations, undo, inspection and version-4 migration.
-- **R024.b — Native circle, arc and pie interaction:** next. Pointer phases, configurable segmentation, typed radius/angle/bulge, amendment, cancellation and native fixtures. Requires R024.a.
+- **R024.a — Curve records, commands and persistence:** [PR #23](https://github.com/zygote55/sketchyup/pull/23), locally verified; [evidence](verification/R024a-curve-records.md). Analytic circle/arc/pie parameters, derived edge associations, undo, inspection and version-4 migration.
+- **R024.b — Native circle, arc and pie interaction:** locally verified; [evidence](verification/R024b-native-curves.md). Pointer phases, configurable segmentation, typed radius/angle/bulge, amendment, cancellation and native fixtures. Requires R024.a.
 
 <a id="r025"></a>
 

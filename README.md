@@ -7,7 +7,7 @@ is MIT licensed. Arch/Omarchy is the primary development environment.
 ## Current build
 
 **Working native editor foundation, not a complete editor or release.** Draw lines,
-freehand strokes, rectangles and polygons on explicit or hovered planes, select
+freehand strokes, rectangles, polygons, circles, arcs and pie sectors on explicit or hovered planes, select
 faces, push/pull planar regions, translate and
 color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain
 editable loops and holes. A headless driver uses the same core operations.
@@ -15,8 +15,7 @@ editable loops and holes. A headless driver uses the same core operations.
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
 M1 native foundation and M2 editable geometry gates; drawing interaction is in progress. Components,
 inference, recovery, AI providers,
-Blender integration and exchange formats are not implemented. Circle geometry is
-currently a 48-sided polygon in the UI; the command API now stores analytic circles, arcs and pie sectors. Native curve tools are the next slice. Surface topology and file format remain experimental.
+Blender integration and exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
 checksummed container and preserve the previous valid file as `.sketchyup.bak`.
 Files and the containing directory are synced before showing Saved. Open a backup
@@ -54,9 +53,16 @@ ctest --preset headless
 - `R`: rectangle. Click the first corner, then the second; or enter `width, depth`
   in Measurements and press Enter. Values default to meters; `mm`, `cm`, `ft`, `in`,
   feet/inches and fractions override units. Pointer snapping is 0.1 m.
-- `C`: circle. Click center, then radius; or enter the radius.
+- `C`: circle. Click center, then radius; or enter the radius. `24s` sets segments.
 - Draw menu: Freehand, Regular polygon (`6s` sets sides), and Rotated rectangle
   (first corner, baseline endpoint, height).
+- Draw → Center arc / Pie: center, radius point, end direction; or enter
+  `radius, angle` such as `2m,90deg`. With a radius point set, a single value is
+  the angle. Angles default to degrees; `rad` is supported. Pointer sweeps go
+  counterclockwise around the plane normal; type a negative angle to reverse.
+- Draw → Two-point arc: endpoints, then bulge point; or type a signed bulge.
+  Three-point arc: start, a point on the arc, then end. Coordinates work at each
+  phase. `24s` changes segmentation for all curves, including immediate re-entry.
 - Draw → Drawing plane: automatic from the first hovered face, ground, selected
   face or custom origin/normal/horizontal direction. Drawing on an existing face
   subdivides its editing context.
