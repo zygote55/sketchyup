@@ -4,6 +4,8 @@ Date: 2026-10-04. Local checks passed; CI pending. No component UX gate claimed.
 Requires merged R032.c, PR #37. [Record decision](../decisions/0007-component-records.md).
 
 Definitions own canonical immutable geometry in one rooted member hierarchy.
+The root is an empty placement frame; member records own the geometry, so
+replacement can retain the root ID without reusing unrelated geometry IDs.
 Instances bind canonical member IDs to stable resolved scene IDs. A nested
 reference is a leaf group node with its own instance binding; canonical reference
 cycles, missing nodes, duplicate bindings, unbound children and divergent resolved

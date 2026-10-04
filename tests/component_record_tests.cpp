@@ -297,6 +297,13 @@ void graphAndLimits() {
     graph = definitions;
     graph[1] = malformed;
     rejects([&] { validateComponentDefinitions(graph, 3); }, "Definition roots cannot be placed");
+    root = std::make_shared<Body>(*definitions.at(1)->members.at(definitions.at(1)->root));
+    root->surface = definitions.at(1)->members.at(1)->surface;
+    root->topology = definitions.at(1)->members.at(1)->topology;
+    root->guides = definitions.at(1)->members.at(1)->guides;
+    malformed->members[root->id] = root;
+    rejects([&] { validateComponentDefinitions(graph, 3); },
+            "Placement roots cannot acquire geometry identities that replacement would reuse");
     graph = {{1, fixture()}};
     for (Id i = 2; i <= 20; ++i)
         graph[i] = reference(i, i - 1, 2);

@@ -85,6 +85,10 @@ std::map<Id, ComponentSize> validateComponentDefinitions(const ComponentDefiniti
             root->transform != Transform{} || root->hidden || root->locked ||
             definition->references.contains(definition->root))
             throw std::runtime_error("Component definition root must be an unplaced group");
+        if (!root->surface.vertices.empty() || !root->surface.faces.empty() ||
+            !root->surface.wires.empty() || !root->curves.empty() || !root->guides.empty())
+            throw std::runtime_error(
+                "Component root is a placement frame; geometry belongs to members");
         // Reuse authoritative geometry, topology, curve, guide, hierarchy and
         // world-bound validation instead of accepting a looser prototype format.
         Document canonical;

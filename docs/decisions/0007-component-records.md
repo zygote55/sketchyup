@@ -6,8 +6,10 @@ Definitions own reusable local geometry and a rooted hierarchy. A definition has
 its own stable ID, a root member, a member allocator floor, and optional references
 to other definitions at leaf group nodes. Reference cycles and expansion beyond
 the existing document geometry/hierarchy budgets reject before publication.
-The definition root uses an identity frame; placed instance roots carry the
-instance's transform and parent. Local axes changes must compensate both local
+The definition root is an empty identity frame; reusable geometry lives in
+member records. Placed instance roots carry the instance's transform and parent.
+Keeping root geometry empty lets replacement retain the placement ID while
+allocating fresh member contexts, without reusing unrelated geometry identities. Local axes changes must compensate both local
 geometry and instance transforms so existing world placement remains unchanged.
 
 A placed instance maps canonical definition member IDs to stable scene record
