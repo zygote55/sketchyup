@@ -24,12 +24,18 @@ int main(int argc, char **argv) {
         {"recovery-list", "List verified inactive recovery sessions in a directory", "directory"});
     parser.addOption(
         {"recover", "Open a verified recovery session directory as an unsaved copy", "directory"});
+    parser.addOption(
+        {"history-position", "Move retained history cursor after input or script", "position"});
     parser.addOption({"output", "Save the resulting model", "path"});
     parser.addOption(
         {"preview", "Validate a script and return prospective geometry without committing"});
     parser.addOption({"script", "Read a command array from a local JSON file", "path"});
     parser.process(app);
     try {
+        if (parser.isSet("history-position") &&
+            (parser.isSet("preview") || parser.isSet("query") || parser.isSet("query-file")))
+            throw std::runtime_error(
+                "History navigation cannot be combined with a query or preview");
         if (parser.isSet("preview") && (!parser.isSet("script") || parser.isSet("output")))
             throw std::runtime_error(
                 "Preview requires --script and cannot be combined with --output");
@@ -45,8 +51,8 @@ int main(int argc, char **argv) {
             return 0;
         }
         if (parser.isSet("recovery-list")) {
-            for (const auto &option :
-                 {"input", "import-formline", "recover", "output", "script", "query", "query-file"})
+            for (const auto &option : {"input", "import-formline", "recover", "output", "script",
+                                       "query", "query-file", "history-position"})
                 if (parser.isSet(option))
                     throw std::runtime_error(
                         "--recovery-list cannot be combined with model operations");
@@ -134,6 +140,15 @@ int main(int argc, char **argv) {
                                              : sketchy::executeBatch(doc, batch);
         } else
             result = sketchy::describe(doc);
+        if (parser.isSet("history-position")) {
+            const auto navigation = sketchy::executeHistory(
+                doc, {{"apiVersion", 1},
+                      {"documentId", QString::fromStdString(doc.identity())},
+                      {"expectedRevision", QString::number(doc.revision())},
+                      {"position", parser.value("history-position")}});
+            result = sketchy::describe(doc);
+            result["historyNavigation"] = navigation;
+        }
         if (!recoveryReport.isEmpty())
             result["recoveryReport"] = recoveryReport;
         if (!importReport.isEmpty())

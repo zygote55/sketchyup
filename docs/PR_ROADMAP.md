@@ -636,7 +636,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R037 — Persist complete hierarchy and prototype geometry
 
-**Status:** Implemented; CI/merge pending. Formline conversion and the complete M4 golden fixture pass 37 development suites; cylinder solid regressions pass 28 sanitizer suites. Import/report/save checks pass X11 and Weston at scales 1 and 2. [Format decision](decisions/0014-formline-import.md). [Evidence](verification/R037-formline-persistence.md). **Track:** Interchange. **Scope:** D02, X01. **UX:** §6.4.
+**Status:** Complete. PR #49 passed both Native build runs and merged. Formline conversion and the complete M4 golden fixture pass 37 development suites; cylinder solid regressions pass 28 sanitizer suites. Import/report/save checks pass X11 and Weston at scales 1 and 2. [Format decision](decisions/0014-formline-import.md). [Evidence](verification/R037-formline-persistence.md). **Track:** Interchange. **Scope:** D02, X01. **UX:** §6.4.
 
 **Requires:** [R036](#r036), [R035](#r035); milestone gate rule above.
 
@@ -660,7 +660,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R039 — Expose history and integrated M4 editing workflows
 
-**Status:** Planned. **Track:** Desktop. **Scope:** D03, N03, O01, O02. **UX:** §4.2, §5–§6.
+**Status:** In progress. R039.a implements bounded labels/task metadata and guarded history navigation; 42 development and 29 sanitizer suites plus native regressions pass; native History, document units and the integrated M4 fixture follow. [History decision](decisions/0017-labeled-history.md). [API evidence](verification/R039a-labeled-history.md). **Track:** Desktop. **Scope:** D03, N03, O01, O02. **UX:** §4.2, §5–§6.
 
 **Requires:** [R038](#r038), [R034](#r034); milestone gate rule above.
 

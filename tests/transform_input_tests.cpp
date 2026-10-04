@@ -5,6 +5,7 @@
 #include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
+#include <iomanip>
 #include <iostream>
 #include <numbers>
 using namespace sketchy;
@@ -151,7 +152,11 @@ int main(int argc, char **argv) {
         click(*view, {0, 0, 0});
         click(*view, {2, 0, 0});
         click(*view, {4, 0, 0});
-        check(doc.bodies().at(1)->surface.vertices.at(2) == Vec3{8, 0, 0},
+        const auto pointerScaled = doc.bodies().at(1)->surface.vertices.at(2);
+        if (length(pointerScaled - Vec3{8, 0, 0}) >= tolerance)
+            std::cerr << std::setprecision(17) << "Pointer scale result: " << pointerScaled.x
+                      << ", " << pointerScaled.y << ", " << pointerScaled.z << '\n';
+        check(length(pointerScaled - Vec3{8, 0, 0}) < tolerance,
               "Pointer reference sets uniform scale");
         doc.undo();
         view->refresh();

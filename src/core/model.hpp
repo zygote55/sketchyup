@@ -31,6 +31,22 @@ struct AssetChange {
     Id id{};
     AssetPtr before, after;
 };
+struct HistoryMetadata {
+    std::string taskId, request;
+    bool assistant{};
+    bool operator==(const HistoryMetadata &) const = default;
+};
+struct HistoryEntry {
+    size_t position{};
+    std::string label;
+    HistoryMetadata metadata;
+    bool applied{}, saved{};
+};
+struct HistoryPage {
+    size_t total{}, position{}, offset{}, bytes{};
+    bool pruned{}, baseSaved{};
+    std::vector<HistoryEntry> entries;
+};
 struct Edit {
     std::string label;
     std::vector<Change> changes;
@@ -45,6 +61,7 @@ struct Edit {
     Id nextMaterialFloor{};
     std::vector<AssetChange> assets{};
     Id nextAssetFloor{};
+    HistoryMetadata metadata{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -111,6 +128,9 @@ class Document {
                            AmendPolicy policy = AmendPolicy::FixedContextCount);
     void undo();
     void redo();
+    HistoryPage history(size_t offset = 0, size_t limit = 200) const;
+    void navigateHistory(size_t position, std::uint64_t expectedRevision);
+    static constexpr size_t historyEntryLimit = 10000;
     SaveStamp saveStamp() const;
     bool owns(const SaveStamp &stamp) const { return stamp.session == session_; }
     bool isCurrentSnapshot(const SaveStamp &stamp) const {
@@ -154,6 +174,7 @@ class Document {
     };
     std::deque<History> undo_, redo_;
     size_t historyBytes_{};
+    bool historyPruned_{};
     void update(Edit edit, bool forward);
 };
 } // namespace sketchy
