@@ -43,3 +43,8 @@ present and absent resources. `assets.describe` omits payload bytes.
 
 This is implementation-agent evidence. Native asset controls, swatches,
 paint/sample and front/back opacity rendering remain R036.c.
+
+PR #46 merged on 2026-10-04 after both Native build runs passed at
+head `83f3813ecb2879d39a0ca2c7ec965ee1164d318c` (30m34s / 30m11s).
+The final update only merged current main ancestry; its tree matched the earlier
+validated implementation. Merge commit: `c0dfbbe`.

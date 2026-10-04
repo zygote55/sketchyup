@@ -2,7 +2,8 @@
 
 Date: 2026-10-03. R004.b. Status: selected contract for implementation; the current
 R012 implements the bounded single-document container and explicit durable save.
-Journal recovery and durable remote outcomes remain future work.
+M4 interval recovery is specified in [decision 0015](0015-recovery-storage.md);
+per-command durable remote outcomes remain future work.
 
 ## Identity and coordinates
 
@@ -127,6 +128,9 @@ Failure before replacement preserves the prior target. Failure after rename but
 before directory sync reports uncertain durability, not a fictional rollback.
 Never delete the last-known-good copy before a replacement is durable. Permission,
 full-disk, partial-write, disconnect and process-kill fixtures belong to R012.
+
+The M4 implementation specializes the following protocol with journal references
+to immutable full native checkpoints; see [decision 0015](0015-recovery-storage.md).
 
 Recovery uses an application data directory keyed by document ID and epoch,
 including unnamed documents. It never overwrites the explicit save. A checkpoint

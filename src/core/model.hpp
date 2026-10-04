@@ -118,6 +118,8 @@ class Document {
     }
     bool markSaved(const SaveStamp &stamp);
     void markSaved() { savedState_ = state_; }
+    // Recovered bytes are not an explicit save, even when there is no undo history.
+    void markRecovered() { savedState_.reset(); }
     void restore(std::string identity, Id next, std::map<Id, BodyPtr> bodies,
                  std::uint64_t revision = 0, ComponentDefinitions definitions = {},
                  ComponentInstances instances = {}, Id nextDefinitionId = 1, TagRecords tags = {},
