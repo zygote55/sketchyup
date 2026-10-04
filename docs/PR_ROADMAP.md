@@ -77,9 +77,11 @@ R027 guide records and persistence merged in [PR #27](https://github.com/zygote5
 
 M4 transforms, copy arrays, groups, shared components, tags/Outliner, entity Info
 and materials (R030–R036) are merged in PRs #32–48. Formline and complete M4
-persistence are implemented in [PR #49](https://github.com/zygote55/sketchyup/pull/49).
-Recovery storage is implemented in [PR #50](https://github.com/zygote55/sketchyup/pull/50);
-native scheduling/selection passes local validation and awaits CI.
+persistence are merged in [PR #49](https://github.com/zygote55/sketchyup/pull/49).
+Recovery storage is merged in [PR #50](https://github.com/zygote55/sketchyup/pull/50);
+native scheduling/selection is merged in [PR #51](https://github.com/zygote55/sketchyup/pull/51).
+The labeled history API is [PR #52](https://github.com/zygote55/sketchyup/pull/52);
+native History controls are implemented locally; document units and the M4 gate follow.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -648,7 +650,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R038 — Implement durable recovery and recovery UI
 
-**Status:** Implemented; CI/merge pending. R038.a adds checksummed checkpoint/journal storage, immutable capture, verified-prefix recovery, process locks and fault injection; 38 development and 28 sanitizer suites pass. [Storage evidence](verification/R038a-recovery-storage.md). R038.b adds background scheduling, configurable intervals, native recovery selection and headless access; 40 development suites and native X11/Weston at scales 1 and 2 pass. [Native evidence](verification/R038b-native-recovery.md). [Storage decision](decisions/0015-recovery-storage.md). **Track:** Core. **Scope:** D04, D02. **UX:** §6.1–§6.3.
+**Status:** Merged in PRs #50–51. R038.a adds checksummed checkpoint/journal storage, immutable capture, verified-prefix recovery, process locks and fault injection; 38 development and 28 sanitizer suites pass. [Storage evidence](verification/R038a-recovery-storage.md). R038.b adds background scheduling, configurable intervals, native recovery selection and headless access; 40 development suites and native X11/Weston at scales 1 and 2 pass. [Native evidence](verification/R038b-native-recovery.md). [Storage decision](decisions/0015-recovery-storage.md). **Track:** Core. **Scope:** D04, D02. **UX:** §6.1–§6.3.
 
 **Requires:** [R037](#r037); milestone gate rule above.
 
@@ -660,7 +662,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R039 — Expose history and integrated M4 editing workflows
 
-**Status:** In progress. R039.a implements bounded labels/task metadata and guarded history navigation; 42 development and 29 sanitizer suites plus native regressions pass; native History, document units and the integrated M4 fixture follow. [History decision](decisions/0017-labeled-history.md). [API evidence](verification/R039a-labeled-history.md). **Track:** Desktop. **Scope:** D03, N03, O01, O02. **UX:** §4.2, §5–§6.
+**Status:** In progress. R039.a implements bounded labels/task metadata and guarded history navigation; 42 development and 29 sanitizer suites plus native regressions pass; R039.b adds native History navigation, labeled menus and focus handling. Document units and the integrated M4 fixture follow. [History decision](decisions/0017-labeled-history.md). [API evidence](verification/R039a-labeled-history.md). [Native evidence](verification/R039b-native-history.md). **Track:** Desktop. **Scope:** D03, N03, O01, O02. **UX:** §4.2, §5–§6.
 
 **Requires:** [R038](#r038), [R034](#r034); milestone gate rule above.
 

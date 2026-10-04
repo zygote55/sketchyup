@@ -343,8 +343,11 @@ The headless `history.describe` query exposes bounded labeled undo/redo pages.
 A batch may attach a human label and task/request metadata; this remains local
 session history and is not stored in model files. `--history-position N` navigates
 the retained cursor after a CLI recipe. See the
-[history contract](docs/decisions/0017-labeled-history.md). Native History controls
-are in progress.
+[history contract](docs/decisions/0017-labeled-history.md). Open **View → History**
+to browse labeled steps, saved markers and attached task requests. Click a step,
+or select it and press Enter, to move through the same stack as Undo/Redo. The
+panel pages large histories and marks the retained baseline when old steps have
+been pruned. History navigation returns keyboard focus to the model.
 
 ## Viewport verification
 
