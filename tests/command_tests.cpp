@@ -632,7 +632,51 @@ int main(int argc, char **argv) {
             check(sharedAmend.bodies().at(id)->surface.faces == body->surface.faces &&
                       sharedAmend.bodies().at(id)->surface.vertices == body->surface.vertices,
                   "Shared numeric amendment retains one-undo behavior");
+        Document info;
+        const auto infoBody = info.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});
+        const auto infoStamp = info.saveStamp();
+        const auto openInfo = executeQuery(info, {{"query", "entity.inspect"}, {"body", "1"}});
+        check(openInfo["world"].toObject()["volume"].isNull() &&
+                  openInfo["solid"].toObject()["status"] == "open_boundary" &&
+                  info.isCurrentSnapshot(infoStamp),
+              "Open-geometry info is read-only and reports null volume");
+        info.extrude(infoBody, 5, 4);
+        const auto solidInfo = executeQuery(info, {{"query", "entity.inspect"}, {"body", "1"}});
+        check(solidInfo["world"].toObject()["volume"] == 24 &&
+                  solidInfo["parent"].toObject()["bounds"].toObject()["dimensions"].toArray() ==
+                      QJsonArray{2, 3, 4},
+              "Entity query exposes solid volume and explicit parent dimensions");
+        const auto infoBytes = encodeDocument(info);
+        rejects([&] {
+            executeQuery(info, {{"query", "entity.inspect"}, {"body", "1"}, {"kind", "face"}});
+        });
+        rejects([&] {
+            executeQuery(info, {{"query", "entity.inspect"}, {"body", "1"}, {"entity", "5"}});
+        });
+        rejects([&] {
+            executeBatch(
+                info, {{"apiVersion", 1},
+                       {"documentId", QString::fromStdString(info.identity())},
+                       {"expectedRevision", QString::number(info.revision())},
+                       {"commands", QJsonArray{QJsonObject{{"command", "entity.position"},
+                                                           {"body", "1"},
+                                                           {"position", QJsonArray{2, 3, 4}}},
+                                               QJsonObject{{"command", "entity.dimensions"},
+                                                           {"body", "1"},
+                                                           {"dimensions", QJsonArray{2, 0, 4}}}}}});
+        });
+        check(encodeDocument(info) == infoBytes,
+              "Invalid dimension batch rolls back its earlier placement change");
         const QJsonArray cases{
+            QJsonObject{
+                {"command", "entity.position"}, {"body", "1"}, {"position", QJsonArray{2, 3, 4}}},
+            QJsonObject{{"command", "entity.dimensions"},
+                        {"body", "1"},
+                        {"dimensions", QJsonArray{8, 6, 0}}},
+            QJsonObject{
+                {"command", "entity.properties"},
+                {"body", "1"},
+                {"values", QJsonObject{{"role", "wall"}, {"height", 2.4}, {"structural", true}}}},
             QJsonObject{{"command", "tag.create"}, {"name", "Architecture"}, {"folder", true}},
             QJsonObject{
                 {"command", "tag.edit"}, {"tag", "1"}, {"name", "Walls"}, {"visible", false}},

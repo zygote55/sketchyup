@@ -588,7 +588,7 @@ Implementation split: R033.a records, transactions and persistence; R033.b share
 
 #### R034 — Implement Outliner, tags and hierarchy operations
 
-**Status:** In progress. Tag records and persistence are in [PR #41](https://github.com/zygote55/sketchyup/pull/41), with CI pending. Native Outliner/tag controls pass all local development and native X11/Wayland checks; their CI remains open. **Track:** Desktop. **Scope:** O04, N05. **UX:** §5, §10.
+**Status:** In progress. Tag records and persistence merged in [PR #41](https://github.com/zygote55/sketchyup/pull/41), with both CI jobs passing. Native Outliner/tag controls in [PR #42](https://github.com/zygote55/sketchyup/pull/42) pass all local development and native X11/Wayland checks; CI remains open. **Track:** Desktop. **Scope:** O04, N05. **UX:** §5, §10.
 
 **Requires:** [R033](#r033), [R010](#r010); milestone gate rule above.
 
@@ -602,13 +602,15 @@ Implementation split: R034.a tag records, visibility, public commands and persis
 
 #### R035 — Implement Entity info and measured properties
 
-**Status:** Planned. **Track:** Core. **Scope:** O06, D01. **UX:** §5.
+**Status:** In progress. Measurement queries, conservative solid-volume checks and framed edit commands pass local core and sanitizer validation; the native Entity info adapter remains. **Track:** Core. **Scope:** O06, D01. **UX:** §5.
 
 **Requires:** [R034](#r034), [R015](#r015); milestone gate rule above.
 
 **Build:** Expose names, bounds, position, dimensions, length and area with explicit frames; support validated editable fields. Classify solids before showing volume and prepare semantic attributes for recipes.
 
 **Verify:** Unit-aware edits update geometry rather than display-only numbers; bounds and areas match rotated/mirrored fixtures; invalid solids do not show a fabricated volume.
+
+Implementation split: R035.a core measurements, solid classification and public commands; R035.b native fields and unit-aware editing. [Frame/volume decision](decisions/0009-entity-measurements.md). [Foundation evidence](verification/R035a-entity-measurements.md).
 
 <a id="r036"></a>
 

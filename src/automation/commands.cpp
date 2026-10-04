@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "automation/component_scope.hpp"
+#include "automation/entity_info.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
@@ -163,8 +164,8 @@ QJsonObject capabilities() {
                  return names;
              }()},
             {"commandSchemas", commandCatalog()},
-            {"queries", QJsonArray{"document.describe", "tags.describe", "component.inspect",
-                                   "geometry.inspect", "geometry.infer",
+            {"queries", QJsonArray{"document.describe", "entity.inspect", "tags.describe",
+                                   "component.inspect", "geometry.inspect", "geometry.infer",
                                    "geometry.measure_distance", "geometry.measure_angle",
                                    "geometry.preview", "commands.describe", "capabilities"}},
             {"transactionContract",
@@ -242,6 +243,23 @@ QJsonObject describe(const Document &doc) {
 }
 QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
     const auto name = request["query"].toString();
+    if (name == "entity.inspect") {
+        fields(request, {"query", "body", "kind", "entity"});
+        const auto kind =
+            request.contains("kind") ? request["kind"].toString() : QString("context");
+        if (kind != "context" && kind != "face" && kind != "edge" && kind != "guide")
+            throw std::runtime_error("Unknown entity measurement kind");
+        const auto entity =
+            request.contains("entity") && request["entity"] != "0" ? id(request["entity"]) : Id{};
+        if ((kind == "context") != (entity == 0))
+            throw std::runtime_error("Subentity measurements require a nonzero identity");
+        return entityDescription(doc, {id(request["body"]),
+                                       kind == "context" ? SelectionKind::Body
+                                       : kind == "face"  ? SelectionKind::Face
+                                       : kind == "edge"  ? SelectionKind::Edge
+                                                         : SelectionKind::Guide,
+                                       entity});
+    }
     if (name == "tags.describe") {
         fields(request, {"query"});
         return {{"documentId", QString::fromStdString(doc.identity())},
@@ -498,7 +516,36 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name.startsWith("tag.")) {
+        if (name == "entity.position" || name == "entity.dimensions") {
+            const auto frame =
+                command.contains("frame") ? command["frame"].toString() : QString("world");
+            if (frame != "world" && frame != "parent")
+                throw std::runtime_error("Unknown entity edit frame");
+            if (name == "entity.position")
+                compose(positionEntity(staged, id(command["body"]), point(command["position"]),
+                                       frame == "world"));
+            else
+                compose(dimensionEntity(staged, id(command["body"]), point(command["dimensions"]),
+                                        frame == "world"));
+        } else if (name == "entity.properties") {
+            if (!command["values"].isObject())
+                throw std::runtime_error("Entity properties must be an object");
+            EntityProperties properties;
+            const auto values = command["values"].toObject();
+            for (auto it = values.begin(); it != values.end(); ++it) {
+                const auto key = it.key().toStdString();
+                if (it.value().isBool())
+                    properties[key] = it.value().toBool();
+                else if (it.value().isDouble())
+                    properties[key] = number(it.value());
+                else if (it.value().isString())
+                    properties[key] = it.value().toString().toStdString();
+                else
+                    throw std::runtime_error(
+                        "Property values must be booleans, finite numbers or strings");
+            }
+            compose(setEntityProperties(staged, id(command["body"]), std::move(properties)));
+        } else if (name.startsWith("tag.")) {
             auto parent = [&] { return command["parent"] == "0" ? Id{0} : id(command["parent"]); };
             if (command.contains("name") && !command["name"].isString())
                 throw std::runtime_error("Tag name must be a string");

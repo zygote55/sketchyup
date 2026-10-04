@@ -1,0 +1,65 @@
+[
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          3,
+          0
+        ],
+        [
+          0,
+          3,
+          0
+        ]
+      ]
+    ],
+    "name": "Measured block"
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "1",
+    "face": "5",
+    "distance": 4
+  },
+  {
+    "command": "entity.position",
+    "body": "1",
+    "position": [
+      1,
+      2,
+      0
+    ],
+    "frame": "world"
+  },
+  {
+    "command": "entity.dimensions",
+    "body": "1",
+    "dimensions": [
+      4,
+      6,
+      8
+    ],
+    "frame": "world"
+  },
+  {
+    "command": "entity.properties",
+    "body": "1",
+    "values": {
+      "role": "measured-block",
+      "nominalWidth": 4,
+      "verified": true
+    }
+  }
+]
