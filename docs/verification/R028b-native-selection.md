@@ -1,6 +1,6 @@
 # R028.b: native selection and shared view policy
 
-Date: 2026-10-03. Local validation passed; CI/merge pending.
+Date: 2026-10-03. Local validation and both CI jobs passed. PR #30 merged as `06d563d`.
 Owner/implementer: coding agent under the owner's full-roadmap authorization.
 
 Viewport selection identifies faces, stable edges and guides. Hover uses the

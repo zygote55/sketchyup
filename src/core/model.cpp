@@ -248,10 +248,10 @@ ChangeReport Document::cleanup(Id context) {
                     std::move(result.edges)}}},
                  revision_);
 }
-ChangeReport Document::pushPull(Id context, Id face, double distance) {
+ChangeReport Document::pushPull(Id context, Id face, double distance, bool newFace) {
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);
-    auto result = sketchy::pushPull(old->surface, face, distance);
+    auto result = sketchy::pushPull(old->surface, face, distance, newFace);
     body->surface = std::move(result.surface);
     return apply({"Push/pull face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }

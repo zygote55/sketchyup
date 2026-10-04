@@ -147,12 +147,14 @@ QMatrix4x4 Viewport::matrix() const {
         projection.ortho(-distance_ * aspect * .45f, distance_ * aspect * .45f, -distance_ * .45f,
                          distance_ * .45f, .01f, std::max(1000.f, distance_ * 10));
     else
-        projection.perspective(45, aspect, std::max(.001f, distance_ / 10000),
+        projection.perspective(fov_, aspect, std::max(.001f, distance_ / 10000),
                                std::max(1000.f, distance_ * 10));
     QVector3D direction(std::cos(pitch_ * degreesToRadians) * std::cos(yaw_ * degreesToRadians),
                         std::cos(pitch_ * degreesToRadians) * std::sin(yaw_ * degreesToRadians),
                         std::sin(pitch_ * degreesToRadians));
-    view.lookAt(target_ + direction * distance_, target_, {0, 0, 1});
+    const auto up =
+        std::abs(pitch_) > 89.999f ? QVector3D{0, pitch_ > 0 ? 1.f : -1.f, 0} : QVector3D{0, 0, 1};
+    view.lookAt(target_ + direction * distance_, target_, up);
     return projection * view;
 }
 QPointF Viewport::project(Vec3 p) const {
@@ -858,6 +860,15 @@ void Viewport::paintScene() {
     p.drawText(20, 28, ortho_ ? "ORTHOGRAPHIC  /  METERS" : "PERSPECTIVE  /  METERS");
     p.setPen(colors_.muted);
     p.drawText(20, height() - 22, "Z up   ·   Inference 8 px   ·   Grid fallback 0.1 m");
+    if (tool_ == Tool::Extrude)
+        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+                   QString("Ctrl: create new face %1 · Double-click: repeat distance · Alt-drag: "
+                           "orbit · Esc: cancel")
+                       .arg(pushNewFace_ ? "on" : "off"));
+    if (tool_ == Tool::Orbit || tool_ == Tool::Pan || tool_ == Tool::Zoom)
+        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+                   trackpad_ ? "Two fingers: pan · Alt-scroll: orbit · Ctrl-scroll / pinch: zoom"
+                             : "Drag: active camera tool · Shift/right drag: pan · Wheel: zoom");
     if (drawingTool() && tool_ != Tool::Freehand)
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Shift: hold inference · Arrows: axis / edge lock · Tab: alternatives · Hover: "
@@ -1083,6 +1094,7 @@ void Viewport::cancel() {
     clickCount_ = 0;
     session_.cancel();
     guideControlPending_ = false;
+    pushControlPending_ = false;
     clearConstraints();
     inference_ = {};
     inferenceChoice_ = 0;
@@ -1130,14 +1142,12 @@ void Viewport::fit() {
         return;
     }
     target_ = (lo + hi) / 2;
-    distance_ = std::max(2.f, (hi - lo).length() * 1.7f);
-    update();
-}
-void Viewport::standardView(int view) {
-    ortho_ = view != 0;
-    yaw_ = view == 2 ? -90 : -45;
-    pitch_ = view == 1 ? 89.99f : (view == 2 ? .01f : 35);
-    update();
+    const auto aspect = double(width()) / std::max(1, height());
+    const auto halfAngle = std::atan(std::tan(fov_ * degreesToRadians / 2) * std::min(1., aspect));
+    const auto radius = (hi - lo).length() * .5;
+    distance_ =
+        std::max(2., radius * 1.1 / (ortho_ ? .45 * std::min(1., aspect) : std::sin(halfAngle)));
+    cameraChanged();
 }
 QJsonObject Viewport::shapeCommand(Vec3 end) const {
     if (guideTool())
@@ -1251,12 +1261,6 @@ QJsonObject Viewport::shapeCommand(Vec3 end) const {
     command["height"] = height;
     return command;
 }
-QJsonObject Viewport::extrusionCommand(double distance) const {
-    return {{"command", "geometry.push_pull"},
-            {"body", QString::number(session_.canRevise() ? committedBody_ : selected_)},
-            {"face", QString::number(session_.canRevise() ? committedFace_ : selectedFace_)},
-            {"distance", distance}};
-}
 void Viewport::previewCommand(const QJsonObject &command) {
     previewValid_ = false;
     previewEdges_.clear();
@@ -1306,9 +1310,8 @@ void Viewport::updateToolPreview(QPointF point) {
             update();
             return;
         }
-        previewDistance_ = std::round((dot(extrusionAxis_, w) - b * dot(direction, w)) /
-                                      denominator / extrusionScale_ * 10) /
-                           10;
+        previewDistance_ =
+            std::round((dot(extrusionAxis_, w) - b * dot(direction, w)) / denominator * 10) / 10;
         previewCommand(extrusionCommand(previewDistance_));
         emit measurementPreview(QLocale().toString(previewDistance_, 'g', 8));
     } else if (auto end = ground(point)) {
@@ -1429,17 +1432,6 @@ void Viewport::finishShape(Vec3 end, std::optional<QJsonObject> overrideCommand)
         emit message(previewError_);
         update();
     }
-}
-void Viewport::finishExtrusion(double distance) {
-    const auto body = session_.canRevise() ? committedBody_ : selected_;
-    const auto face = session_.canRevise() ? committedFace_ : selectedFace_;
-    session_.commit(extrusionCommand(distance));
-    committedBody_ = body;
-    committedFace_ = face;
-    clearPreview();
-    refresh();
-    emit changed();
-    emit message("Pushed/pulled face. Ctrl+Z undoes this edit.");
 }
 void Viewport::setTheme(const ThemeColors &colors) {
     if (colors_.dark != colors.dark)
@@ -1666,6 +1658,8 @@ bool Viewport::measurements(const QString &text) {
     return doc_.revision() != revision || measurementCompleted_;
 }
 bool Viewport::event(QEvent *event) {
+    if (nativeNavigation(event))
+        return true;
     if (event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (tool_ == Tool::Select && (key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab)) {
@@ -1690,9 +1684,12 @@ bool Viewport::event(QEvent *event) {
     }
     if (event->type() == QEvent::ShortcutOverride) {
         const auto *key = static_cast<QKeyEvent *>(event);
-        if (key->key() != Qt::Key_Control)
+        if (key->key() != Qt::Key_Control) {
             guideControlPending_ = false;
+            pushControlPending_ = false;
+        }
         if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
+            tool_ != Tool::Zoom &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
             !key->text().isEmpty() && QString("0123456789.+-[<").contains(key->text()[0])) {
             event->accept();
@@ -1706,6 +1703,7 @@ bool Viewport::event(QEvent *event) {
         cancel();
     } else if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::FocusOut) {
         guideControlPending_ = false;
+        pushControlPending_ = false;
         selectionPressed_ = selectingBox_ = false;
         releaseInferenceHold();
         // Keep the anchor when focus moves to Measurements. End every button
@@ -1720,9 +1718,10 @@ bool Viewport::event(QEvent *event) {
 void Viewport::mousePressEvent(QMouseEvent *e) {
     setFocus();
     guideControlPending_ = false;
+    pushControlPending_ = false;
     previous_ = e->position();
     if (e->button() != Qt::LeftButton || tool_ == Tool::Orbit || tool_ == Tool::Pan ||
-        e->modifiers().testFlag(Qt::AltModifier)) {
+        tool_ == Tool::Zoom || e->modifiers().testFlag(Qt::AltModifier)) {
         dragging_ = true;
         dragButton_ = e->button();
         toolPressed_ = false;
@@ -1803,13 +1802,8 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         body = face = 0;
     setSelection(body, face);
     if (tool_ == Tool::Extrude && body && face) {
-        session_.begin();
         const auto [origin, direction] = ray(e->position());
-        anchor_ = origin + direction * nearestFace(e->position()).distance;
-        const auto vector =
-            doc_.worldTransform(body).vector(doc_.bodies().at(body)->surface.normal(face));
-        extrusionScale_ = length(vector);
-        extrusionAxis_ = vector * (1 / extrusionScale_);
+        beginExtrusion(body, face, origin + direction * nearestFace(e->position()).distance);
         emit message("Move to preview, click or drag to finish, or enter a distance · Esc cancels");
     }
     update();
@@ -1828,15 +1822,13 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
             cancel();
     }
     if (dragging_) {
-        if (tool_ == Tool::Pan || dragButton_ == Qt::RightButton ||
-            e->modifiers().testFlag(Qt::ShiftModifier)) {
-            auto [a, da] = ray(e->position());
-            auto [b, db] = ray(e->position() - delta);
-            target_ += qv((b + db * distance_) - (a + da * distance_));
-        } else {
-            yaw_ -= delta.x() * .4f;
-            pitch_ = std::clamp(pitch_ + float(delta.y()) * .4f, -89.f, 89.f);
-        }
+        if (tool_ == Tool::Zoom && dragButton_ == Qt::LeftButton)
+            zoomCamera(e->position(), std::exp(std::clamp(delta.y() * .01, -2., 2.)));
+        else if (tool_ == Tool::Pan || dragButton_ == Qt::RightButton ||
+                 e->modifiers().testFlag(Qt::ShiftModifier))
+            panCamera(e->position(), delta);
+        else
+            orbitCamera(delta);
     } else if (tool_ == Tool::Select) {
         if (selectionPressed_) {
             if (!e->buttons().testFlag(Qt::LeftButton))
@@ -1908,17 +1900,13 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
             finishShape(*cursor_);
     }
 }
-void Viewport::wheelEvent(QWheelEvent *e) {
-    inference_ = {};
-    directions_.clear();
-    hoverReference_.reset();
-    const auto steps =
-        e->pixelDelta().isNull() ? e->angleDelta().y() / 120.f : e->pixelDelta().y() / 15.f;
-    distance_ = std::clamp(distance_ * std::exp(-steps * .12f), .05f, 1e7f);
-    update();
-    e->accept();
-}
 void Viewport::keyPressEvent(QKeyEvent *e) {
+    if (tool_ == Tool::Extrude && e->key() == Qt::Key_Control) {
+        if (!e->isAutoRepeat())
+            pushControlPending_ = true;
+        e->accept();
+        return;
+    }
     if (guideTool() && e->key() == Qt::Key_Control) {
         if (!e->isAutoRepeat())
             guideControlPending_ = true;
@@ -1934,6 +1922,7 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
         return;
     }
     if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
+        tool_ != Tool::Zoom &&
         !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
         !e->text().isEmpty() && QString("0123456789.+-[<").contains(e->text()[0])) {
         emit measurementsRequested(e->text());

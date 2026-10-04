@@ -40,7 +40,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         ThreePointArc = 12,
         Pie = 13,
         Tape = 14,
-        Protractor = 15
+        Protractor = 15,
+        Zoom = 16
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -86,6 +87,19 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void refresh();
     void fit();
     void standardView(int view);
+    void setOrthographic(bool enabled);
+    bool orthographic() const { return ortho_; }
+    void setFieldOfView(double degrees);
+    double fieldOfView() const { return fov_; }
+    void setTrackpadNavigation(bool enabled);
+    bool trackpadNavigation() const { return trackpad_; }
+    void setPushPullNewFace(bool enabled);
+    bool pushPullNewFace() const { return pushNewFace_; }
+    void repeatPushPull();
+    bool canRepeatPushPull() const {
+        return lastPushDistance_ && doc_.owns(repeatSession_) && selectedFace_ &&
+               selectable({selected_, SelectionKind::Face, selectedFace_});
+    }
     void cancel();
     bool measurements(const QString &value);
     void setTheme(const ThemeColors &colors);
@@ -116,6 +130,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void selected(qulonglong body, qulonglong face);
     void toolChanged(int tool);
     void guideCreationChanged(bool enabled);
+    void navigationChanged();
+    void pushPullModeChanged(bool enabled);
     void measurementsRequested(const QString &text);
     void measurementPreview(const QString &text);
     void changed();
@@ -235,7 +251,18 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     std::vector<std::array<Vec3, 2>> previewEdges_;
     QVector3D target_{0, 0, 0};
     float yaw_{-45}, pitch_{35}, distance_{14};
-    bool ortho_{false};
+    bool ortho_{false}, trackpad_{};
+    float fov_{45};
+    bool pushNewFace_{}, pushControlPending_{};
+    Vec3 extrusionLocalOrigin_{}, extrusionLocalNormal_{0, 0, 1};
+    void beginExtrusion(Id body, Id face, Vec3 anchor);
+    std::optional<double> lastPushDistance_;
+    Document::SaveStamp repeatSession_;
+    void cameraChanged();
+    void panCamera(QPointF position, QPointF delta);
+    void orbitCamera(QPointF delta);
+    void zoomCamera(QPointF position, double factor);
+    bool nativeNavigation(QEvent *event);
     int instances_{0}, benchmarkTriangles_{0};
     double frameMs_{};
     QString graphics_;

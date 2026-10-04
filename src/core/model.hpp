@@ -65,7 +65,7 @@ class Document {
     Document();
     Id addFace(const std::vector<std::vector<Vec3>> &loops, std::string name = "Face");
     void extrude(Id body, Id face, double distance);
-    ChangeReport pushPull(Id body, Id face, double distance);
+    ChangeReport pushPull(Id body, Id face, double distance, bool newFace = false);
     void move(Id body, Vec3 delta);
     void erase(Id body);
     void paint(Id body, std::array<float, 3> color);
