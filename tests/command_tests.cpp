@@ -741,6 +741,7 @@ int main(int argc, char **argv) {
         check(assetDoc.assets().empty() && assetDoc.materials().empty(),
               "Combined asset and material creation undoes atomically");
         const QJsonArray cases{
+            QJsonObject{{"command", "document.units"}, {"units", "mm"}},
             QJsonObject{{"command", "asset.import"},
                         {"name", "Data"},
                         {"mediaType", "application/octet-stream"},

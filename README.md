@@ -339,6 +339,12 @@ an experimental local driver, not yet the durable AI/MCP protocol. The example's
 IDs are specific to its empty-document fixture. Query live IDs before editing an
 existing document; do not reuse them across documents.
 
+The `document.units` command sets per-document display/entry preferences to `m`,
+`mm` or `ft-in`. Coordinate arguments remain meters. Changing units is undoable
+and survives save/reopen and recovery; it never resizes geometry. The
+[units contract](docs/decisions/0018-document-units.md) describes schema 12 and
+migration of older models. Native unit controls follow in the next slice.
+
 The headless `history.describe` query exposes bounded labeled undo/redo pages.
 A batch may attach a human label and task/request metadata; this remains local
 session history and is not stored in model files. `--history-position N` navigates

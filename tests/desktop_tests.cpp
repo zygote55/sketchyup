@@ -76,6 +76,7 @@ int main(int argc, char **argv) {
                 "Transform command is one undo step");
         auto legacy = QJsonDocument::fromJson(bytes).object();
         legacy["version"] = 1;
+        legacy.remove("displayUnits");
         legacy.remove("revision");
         legacy.remove("definitions");
         legacy.remove("instances");
@@ -140,7 +141,7 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 1.5;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
-        root["version"] = 11;
+        root["version"] = 12;
         root["nextId"] = "1";
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["nextId"] = "2";

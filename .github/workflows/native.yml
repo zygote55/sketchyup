@@ -94,6 +94,8 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sketchyup --smoke
       - name: Headless recipe
         run: |
+          build/dev/sketchyup-cli --script examples/document-units.json --output /tmp/units.sketchyup
+          build/dev/sketchyup-cli --input /tmp/units.sketchyup --query document.describe
           build/dev/sketchyup-cli --import-formline tests/fixtures/formline-v1.formline --output /tmp/formline.sketchyup
           build/dev/sketchyup-cli --input /tmp/formline.sketchyup --query entity.inspect --context 2
           build/dev/sketchyup-cli --script examples/managed-assets.json --output /tmp/managed-assets.sketchyup

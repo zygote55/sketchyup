@@ -139,13 +139,22 @@ void validate(const Body &b) {
             throw std::runtime_error("Guide identity collides with a curve");
 }
 } // namespace
-Document::Document() {
+Document::Document(DisplayUnit units) : displayUnits_(units) {
+    unitCode(units);
     std::random_device random;
     std::ostringstream out;
     out << std::hex << std::setfill('0');
     for (int i = 0; i < 4; ++i)
         out << std::setw(8) << random();
     identity_ = out.str();
+}
+void Document::setDisplayUnits(DisplayUnit units) {
+    unitCode(units);
+    if (units == displayUnits_)
+        return;
+    Edit edit{"Change document units", {}};
+    edit.displayUnits = std::pair{displayUnits_, units};
+    apply(std::move(edit), revision_);
 }
 Id Document::addFace(const std::vector<std::vector<Vec3>> &loops, std::string name) {
     auto b = std::make_shared<Body>();
@@ -456,6 +465,8 @@ void Document::update(Edit edit, bool forward) {
     tags_.swap(tags);
     materials_.swap(materials);
     assets_.swap(assets);
+    if (edit.displayUnits)
+        displayUnits_ = forward ? edit.displayUnits->second : edit.displayUnits->first;
 }
 ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     auto boundedText = [](const std::string &text, size_t limit) {
@@ -471,8 +482,15 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (expected != revision_)
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
-        edit.tags.empty() && edit.materials.empty() && edit.assets.empty())
+        edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits)
         throw std::runtime_error("Empty edit");
+    if (edit.displayUnits) {
+        unitCode(edit.displayUnits->first);
+        unitCode(edit.displayUnits->second);
+        if (edit.displayUnits->first != displayUnits_ ||
+            edit.displayUnits->first == edit.displayUnits->second)
+            throw std::runtime_error("Invalid or stale document unit change");
+    }
     auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
@@ -849,6 +867,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     nextId_ = next;
     surfaceFloors_.swap(floors);
     edgeFloors_.swap(edgeFloors);
+    if (h.edit.displayUnits)
+        displayUnits_ = h.edit.displayUnits->second;
     state_ = h.after;
     ++revision_;
     while ((historyBytes_ > historyLimit || undo_.size() > historyEntryLimit) && undo_.size() > 1) {
@@ -921,6 +941,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineTags = staged.tags_;
     const auto baselineMaterials = staged.materials_;
     const auto baselineAssets = staged.assets_;
+    const auto baselineUnits = staged.displayUnits_;
     // Rewind only the private candidate. A replacement publishes one revision,
     // and retains the pre-operation history entry and monotonic allocator floors.
     staged.revision_ = revision_;
@@ -928,6 +949,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     if (staged.identity_ != identity_ || staged.session_ != session_ ||
         staged.revision_ != revision_ + 1 || staged.undo_.empty() || staged.state_ == state_)
         throw std::runtime_error("Replacement must commit exactly one atomic operation");
+    if (!undo_.back().edit.displayUnits && staged.displayUnits_ != baselineUnits)
+        throw std::runtime_error("Replacement cannot change document units outside its scope");
     for (const auto &[id, body] : baseline)
         if (!contexts.contains(id) &&
             (!staged.bodies_.contains(id) || staged.bodies_.at(id) != body))
@@ -1075,7 +1098,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        std::uint64_t revision, ComponentDefinitions definitions,
                        ComponentInstances instances, Id nextDefinitionId, TagRecords tags,
                        Id nextTagId, MaterialRecords materials, Id nextMaterialId,
-                       AssetRecords assets, Id nextAssetId) {
+                       AssetRecords assets, Id nextAssetId, DisplayUnit units) {
+    unitCode(units);
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
@@ -1124,6 +1148,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
+    displayUnits_ = units;
     nextId_ = next;
     bodies_ = std::move(bodies);
     definitions_ = std::move(definitions);

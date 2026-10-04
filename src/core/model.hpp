@@ -2,6 +2,7 @@
 #include "core/asset_records.hpp"
 #include "core/component_records.hpp"
 #include "core/material_records.hpp"
+#include "core/units.hpp"
 #include <deque>
 #include <functional>
 #include <optional>
@@ -62,6 +63,7 @@ struct Edit {
     std::vector<AssetChange> assets{};
     Id nextAssetFloor{};
     HistoryMetadata metadata{};
+    std::optional<std::pair<DisplayUnit, DisplayUnit>> displayUnits{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -96,7 +98,9 @@ class Document {
     bool canRedo() const { return !redo_.empty(); }
     size_t historyBytes() const { return historyBytes_; }
     static constexpr size_t historyLimit = 64 * 1024 * 1024;
-    Document();
+    explicit Document(DisplayUnit units = DisplayUnit::Meters);
+    DisplayUnit displayUnits() const { return displayUnits_; }
+    void setDisplayUnits(DisplayUnit units);
     Id addFace(const std::vector<std::vector<Vec3>> &loops, std::string name = "Face");
     void extrude(Id body, Id face, double distance);
     ChangeReport pushPull(Id body, Id face, double distance, bool newFace = false);
@@ -144,10 +148,12 @@ class Document {
                  std::uint64_t revision = 0, ComponentDefinitions definitions = {},
                  ComponentInstances instances = {}, Id nextDefinitionId = 1, TagRecords tags = {},
                  Id nextTagId = 1, MaterialRecords materials = {}, Id nextMaterialId = 1,
-                 AssetRecords assets = {}, Id nextAssetId = 1);
+                 AssetRecords assets = {}, Id nextAssetId = 1,
+                 DisplayUnit units = DisplayUnit::Meters);
 
   private:
     std::string identity_;
+    DisplayUnit displayUnits_{DisplayUnit::Meters};
     std::map<Id, BodyPtr> bodies_;
     Id nextId_{1};
     ComponentDefinitions definitions_;
