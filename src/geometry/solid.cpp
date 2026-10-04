@@ -9,21 +9,29 @@ struct Boundary {
     std::vector<Vec3> vertices;
     std::vector<std::array<Vec3, 2>> edges;
 };
+bool onEdge(const std::array<Vec3, 2> &edge, Vec3 point) {
+    const auto delta = edge[1] - edge[0];
+    const auto size = length(delta);
+    const auto along = dot(point - edge[0], delta) / size;
+    return along >= -tolerance * 4 && along <= size + tolerance * 4 &&
+           length(cross(point - edge[0], delta)) / size <= tolerance * 4;
+}
 bool contains(const Boundary &boundary, Vec3 point) {
     for (auto vertex : boundary.vertices)
         if (length(point - vertex) <= tolerance * 4)
             return true;
-    for (auto edge : boundary.edges) {
-        const auto delta = edge[1] - edge[0];
-        const auto size = length(delta);
-        const auto along = dot(point - edge[0], delta) / size;
-        if (along >= -tolerance * 4 && along <= size + tolerance * 4 &&
-            length(cross(point - edge[0], delta)) / size <= tolerance * 4)
+    for (auto edge : boundary.edges)
+        if (onEdge(edge, point))
             return true;
-    }
     return false;
 }
 bool contains(const Boundary &boundary, Vec3 a, Vec3 b) {
+    // Both endpoints inside one shared-edge tolerance tube imply the whole
+    // segment is inside it. Do not extrapolate a direction from a tiny noisy
+    // contact segment to the far endpoints of a long authoritative edge.
+    for (auto edge : boundary.edges)
+        if (onEdge(edge, a) && onEdge(edge, b))
+            return true;
     const auto size = length(b - a);
     if (size <= tolerance * 4)
         return contains(boundary, (a + b) * .5);
@@ -71,7 +79,8 @@ void contacts(const Triangle &source, const Triangle &target, Vec3 normal,
 }
 bool coplanarConflict(const Triangle &a, const Triangle &b, Vec3 normal, const Boundary &boundary) {
     using namespace Clipper2Lib;
-    const auto u = normalized(a.b - a.a), v = cross(normal, u);
+    const auto edge = a.b - a.a;
+    const auto u = edge * (1 / length(edge)), v = cross(normal, u);
     auto path = [&](const Triangle &triangle) {
         Path64 result;
         for (auto point : points(triangle)) {
@@ -114,8 +123,10 @@ bool coplanarConflict(const Triangle &a, const Triangle &b, Vec3 normal, const B
     return false;
 }
 bool conflict(const Triangle &a, const Triangle &b, const Boundary &boundary) {
-    const auto na = normalized(cross(a.b - a.a, a.c - a.a));
-    const auto nb = normalized(cross(b.b - b.a, b.c - b.a));
+    const auto crossA = cross(a.b - a.a, a.c - a.a);
+    const auto crossB = cross(b.b - b.a, b.c - b.a);
+    const auto na = crossA * (1 / length(crossA));
+    const auto nb = crossB * (1 / length(crossB));
     auto separated = [](const Triangle &t, Vec3 origin, Vec3 normal) {
         const auto p = points(t);
         bool positive = true, negative = true;
@@ -235,8 +246,14 @@ SolidReport inspectSolid(const Surface &surface, const Topology &topology) {
         return {"multiple_shells", {}};
     std::vector<BoundedTriangle> triangles;
     for (const auto &[face, record] : surface.faces) {
-        for (auto triangle : surface.triangulate(face))
+        for (auto triangle : surface.triangulate(face)) {
+            // A cross product has area units; linear direction tolerances would
+            // reject valid small triangles (including 1 cm faceted cylinders).
+            const auto area = length(cross(triangle.b - triangle.a, triangle.c - triangle.a));
+            if (!std::isfinite(area) || area <= tolerance * tolerance)
+                return {"degenerate", {}, {face}};
             triangles.push_back(bounded(triangle));
+        }
         if (triangles.size() > 200000)
             return {"analysis_limit", {}};
     }

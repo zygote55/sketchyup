@@ -15,13 +15,20 @@ editable loops and holes. A headless driver uses the same core operations.
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
 M1 native foundation, M2 editable geometry and M3 manual drawing gates; M4 modeling tools are in progress. Shared components now support native editing.
 Recovery, AI providers,
-Blender integration and exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
+Blender integration and general exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Save explicitly: there is no autosave or recovery journal. Explicit saves use a
 checksummed container and preserve the previous valid file as `.sketchyup.bak`.
 Files and the containing directory are synced before showing Saved. Open a backup
 through the file dialog's all-files filter or the CLI if you need the previous save. Light, Dark and System
 themes are available in View. Groups and reusable components support nested, mirrored
 and nonuniform transforms through both native tools and the headless command API.
+
+Formline v1 files can be imported through File → Import Formline or
+`sketchyup-cli --import-formline source.formline --output copy.sketchyup`.
+Imports become editable boxes and 48-sided cylinders in a new unsaved model,
+with names, colors, visibility and source identities retained. The report explains
+conversion details; the original file stays unchanged. See the
+[format decision](docs/decisions/0014-formline-import.md).
 
 ## Build and run
 
@@ -329,8 +336,8 @@ The [viewport follow-up](docs/verification/R002-viewport.md) records native pixe
 picking, GPU-cache and context-recreation checks, including both physical display
 scales. Run `build/dev/viewport_tests` in a graphical session. The `--benchmark`
 option now measures independent triangle buffers; add `--instanced` for the
-original repeated-triangle comparison. Transparency and clipping are currently
-renderer test APIs, not finished material or section tools.
+original repeated-triangle comparison. Front/back material opacity is available in the Materials panel; clipping remains
+a renderer test API pending section tools.
 
 ## Development package
 

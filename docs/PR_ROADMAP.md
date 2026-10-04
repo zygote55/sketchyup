@@ -630,7 +630,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R037 — Persist complete hierarchy and prototype geometry
 
-**Status:** Planned. **Track:** Interchange. **Scope:** D02, X01. **UX:** §6.4.
+**Status:** Implemented; CI/merge pending. Formline conversion and the complete M4 golden fixture pass 37 development suites; cylinder solid regressions pass 28 sanitizer suites. Import/report/save checks pass X11 and Weston at scales 1 and 2. [Format decision](decisions/0014-formline-import.md). [Evidence](verification/R037-formline-persistence.md). **Track:** Interchange. **Scope:** D02, X01. **UX:** §6.4.
 
 **Requires:** [R036](#r036), [R035](#r035); milestone gate rule above.
 

@@ -1,0 +1,13 @@
+{
+  "format": "formline",
+  "version": 1,
+  "name": "Migration study",
+  "objects": [
+    {"id":"rotated-box","type":"box","name":"Rotated box","color":"#C45F42","visible":true,
+     "x":2,"y":3,"z":5,"w":4,"h":2,"d":6,"rotation":90},
+    {"id":"hidden-cylinder","type":"cylinder","name":"Hidden cylinder","color":"#123abc","visible":false,
+     "x":-3,"y":0.5,"z":-7,"w":2,"h":4,"d":5,"rotation":22.5},
+    {"id":"small-box","type":"box","name":"Small box","color":"#c45f42",
+     "x":-2,"y":-3,"z":-5,"w":0.01,"h":0.02,"d":0.03,"rotation":-30}
+  ]
+}

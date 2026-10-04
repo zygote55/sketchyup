@@ -163,6 +163,12 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         if (!p.isEmpty())
             openPath(p);
     }));
+    file->addAction(action("file.importFormline", "Import Formline…", {}, [this] {
+        const auto path = QFileDialog::getOpenFileName(this, "Import Formline v1", {},
+                                                       "Formline models (*.formline *.json)");
+        if (!path.isEmpty())
+            importFormlinePath(path);
+    }));
     file->addAction(action("file.save", "Save", QKeySequence::Save, [this] { save(); }));
     file->addAction(
         action("file.saveAs", "Save as…", QKeySequence::SaveAs, [this] { save(true); }));
