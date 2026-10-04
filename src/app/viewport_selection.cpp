@@ -571,6 +571,19 @@ void Viewport::selectionRelease(QPointF point) {
     update();
 }
 void Viewport::mouseDoubleClickEvent(QMouseEvent *event) {
+    if (tool_ == Tool::Extrude && event->button() == Qt::LeftButton) {
+        try {
+            const auto [body, face] = pick(event->position());
+            if (!body || !selectable({body, SelectionKind::Face, face}))
+                throw std::runtime_error("Choose an editable face to repeat push/pull");
+            setSelection(body, face);
+            repeatPushPull();
+        } catch (const std::exception &error) {
+            emit message(error.what());
+        }
+        event->accept();
+        return;
+    }
     if (tool_ != Tool::Select || event->button() != Qt::LeftButton) {
         QOpenGLWidget::mouseDoubleClickEvent(event);
         return;

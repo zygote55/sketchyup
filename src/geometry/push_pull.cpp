@@ -230,7 +230,7 @@ std::vector<Id> difference(Surface &s, Id old, const Plane &p, const Paths64 &cu
     return created;
 }
 } // namespace
-TopologyEdit pushPull(const Surface &source, Id face, double distance) {
+TopologyEdit pushPull(const Surface &source, Id face, double distance, bool newFace) {
     source.validate();
     if (!std::isfinite(distance) || std::abs(distance) <= 2 * tolerance)
         throw std::runtime_error(
@@ -300,7 +300,10 @@ TopologyEdit pushPull(const Surface &source, Id face, double distance) {
                 "Destination must be one opposing face covering the complete pushed profile");
         opposite = id;
     }
-    if (!opposite && moveCap(source, face, delta, result.surface)) {
+    if (opposite && newFace)
+        throw std::runtime_error(
+            "Create new face cannot terminate on an opposing face; disable it to cut an opening");
+    if (!newFace && !opposite && moveCap(source, face, delta, result.surface)) {
         checkCoplanarOverlap(result.surface);
         return result;
     }
@@ -317,12 +320,16 @@ TopologyEdit pushPull(const Surface &source, Id face, double distance) {
     for (auto &loop : top)
         for (auto &v : loop)
             v = result.surface.vertex(source.vertices.at(v) + delta);
-    result.surface.faces.erase(face);
+    if (!newFace)
+        result.surface.faces.erase(face);
     if (opposite) {
         auto destination = p;
         destination.origin = destination.origin + delta;
         result.faces[opposite] = difference(result.surface, opposite, destination, profile);
         result.faces[face] = {};
+    } else if (newFace) {
+        const auto cap = result.surface.addFaceIds(top);
+        result.faces[face] = {face, cap};
     } else {
         result.surface.faces.emplace(face, Face{face, top});
     }

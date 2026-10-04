@@ -566,8 +566,10 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         } else if (name == "geometry.cleanup") {
             compose(staged.cleanup(id(command["body"])));
         } else if (name == "geometry.push_pull") {
+            if (command.contains("newFace") && !command["newFace"].isBool())
+                throw std::runtime_error("newFace must be boolean");
             compose(staged.pushPull(id(command["body"]), id(command["face"]),
-                                    number(command["distance"])));
+                                    number(command["distance"]), command["newFace"].toBool()));
         } else if (name == "geometry.extrude_isolated") {
             fields(command, {"command", "body", "face", "distance"});
             staged.extrude(id(command["body"]), id(command["face"]), number(command["distance"]));

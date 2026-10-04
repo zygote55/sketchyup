@@ -236,6 +236,14 @@ bool Viewport::constraintKey(QKeyEvent *event) {
     return true;
 }
 void Viewport::keyReleaseEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Control && tool_ == Tool::Extrude && !event->isAutoRepeat()) {
+        const auto toggle = pushControlPending_;
+        pushControlPending_ = false;
+        if (toggle)
+            setPushPullNewFace(!pushNewFace_);
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_Control && guideTool() && !event->isAutoRepeat()) {
         const auto toggle = guideControlPending_;
         guideControlPending_ = false;

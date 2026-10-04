@@ -73,7 +73,7 @@ R022 numeric input and guarded operation revision are merged in [PR #21](https:/
 R023 plane-aware drawing tools merged in [PR #22](https://github.com/zygote55/sketchyup/pull/22).
 R024 curve records and native tools merged in PRs #23–24.
 R025 indexed inference and R026 direction constraints are merged in PRs #25–26.
-R027 guide records and persistence merged in [PR #27](https://github.com/zygote55/sketchyup/pull/27); native tools merged in [PR #28](https://github.com/zygote55/sketchyup/pull/28). The M3 gate still awaits selection and navigation.
+R027 guide records and persistence merged in [PR #27](https://github.com/zygote55/sketchyup/pull/27); native tools merged in [PR #28](https://github.com/zygote55/sketchyup/pull/28). R028 selection merged in PRs #29–30. The M3 gate still awaits navigation and its checkpoint evidence.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -495,7 +495,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R028 — Implement full geometry selection behavior
 
-**Status:** In progress; split into shared selection state and native interaction. **Track:** Desktop. **Scope:** G08, N05. **UX:** §4.5–§4.6.
+**Status:** Verified; shared selection and native interaction are merged. **Track:** Desktop. **Scope:** G08, N05. **UX:** §4.5–§4.6.
 
 **Requires:** [R025](#r025), [R013](#r013); milestone gate rule above.
 
@@ -504,13 +504,13 @@ and the linked scope requirements apply even when not repeated in the entry.
 **Verify:** Selection IDs match visual feedback under occlusion and mixed geometry; keyboard traversal works; selections never bypass locked or inactive contexts.
 
 - **R028.a — Typed selection state and deletion:** Merged in [PR #29](https://github.com/zygote55/sketchyup/pull/29); both CI jobs passed. Shared eligibility, boundary/connected expansion, keyboard order, session isolation and atomic typed deletion. [Evidence](verification/R028a-selection-model.md).
-- **R028.b — Native selection interaction:** Locally verified. Hover, modifiers, window/crossing selection, click expansion, keyboard traversal, hidden geometry, feedback and Outliner integration. [Evidence](verification/R028b-native-selection.md). Requires R028.a.
+- **R028.b — Native selection interaction:** Merged in [PR #30](https://github.com/zygote55/sketchyup/pull/30); both CI jobs passed. Hover, modifiers, window/crossing selection, click expansion, keyboard traversal, hidden geometry, feedback and Outliner integration. [Evidence](verification/R028b-native-selection.md). Requires R028.a.
 
 <a id="r029"></a>
 
 #### R029 — Complete drawing navigation and push/pull UX
 
-**Status:** Planned. **Track:** Desktop. **Scope:** G09, E01, N03. **UX:** §3.1, §4.1–§4.4.
+**Status:** Locally verified; CI/merge pending. **Evidence:** [navigation and push/pull](verification/R029-navigation-push-pull.md), [M3 checkpoint candidate](verification/M3.md). **Track:** Desktop. **Scope:** G09, E01, N03. **UX:** §3.1, §4.1–§4.4.
 
 **Requires:** [R028](#r028), [R027](#r027), [R021](#r021); milestone gate rule above.
 

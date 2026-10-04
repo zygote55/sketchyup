@@ -45,7 +45,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     QSettings preferences("SketchyUp", "SketchyUp");
     recentFiles_ = preferences.value("recentFiles").toStringList().mid(0, 10);
     themeMode_ = std::clamp(preferences.value("theme", 0).toInt(), 0, 2);
-    setWindowTitle("SketchyUp — Native modeling spike");
+    setWindowTitle("SketchyUp — Native modeling");
     resize(1200, 800);
     setMinimumSize(640, 480);
     auto *root = new QWidget(this);
@@ -96,7 +96,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     outliner_->installEventFilter(this);
     info_->setAccessibleName("Selection summary");
     trayLayout->addWidget(outliner_, 1);
-    auto *hint = new QLabel("Native development spike\n\nRectangle or circle → select face → "
+    auto *hint = new QLabel("Manual drawing development build\n\nDraw a face → select → "
                             "Extrude → enter distance.\n\nMiddle drag: orbit\nRight drag: "
                             "pan\nWheel: zoom\n\nSave explicitly. Recovery is not implemented.");
     hint->setWordWrap(true);
@@ -187,6 +187,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     }));
     edit->addAction(action("context.leave", "Close editing context", {},
                            [this] { viewport_->leaveContext(); }));
+    edit->addAction(action("edit.repeatPushPull", "Repeat push/pull distance", {},
+                           [this] { viewport_->repeatPushPull(); }));
     edit->addAction(
         action("guides.clear", "Delete all guides", {}, [this] { viewport_->clearGuides(); }));
     edit->addAction(action("edit.move", "Move selection…", QKeySequence("M"), [this] {
@@ -243,7 +245,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     addTool("Circle", "C", Viewport::Tool::Circle,
             "Choose center and radius · Type 24s to set segments");
     addTool("Push/pull", "P", Viewport::Tool::Extrude,
-            "Select a face · Enter push/pull distance in meters");
+            "Select a face · Drag or type distance · Ctrl: new face · Double-click: repeat");
     addTool("Regular polygon", "", Viewport::Tool::Polygon,
             "Choose center and radius · Type 6s to set sides", false);
     addTool("Freehand", "", Viewport::Tool::Freehand, "Press and draw a stroke · Release to commit",
@@ -317,9 +319,18 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
         });
         dialog.exec();
     }));
+    auto *newFace =
+        action("draw.pushPullNewFace", "Create new face when pushing/pulling", {}, [this] {
+            viewport_->setPushPullNewFace(
+                findChild<QAction *>("draw.pushPullNewFace")->isChecked());
+        });
+    newFace->setCheckable(true);
+    tools->addAction(newFace);
+    connect(viewport_, &Viewport::pushPullModeChanged, newFace, &QAction::setChecked);
     tools->addSeparator();
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
+    addTool("Zoom", "Z", Viewport::Tool::Zoom, "Drag up to zoom in · Drag down to zoom out", false);
     auto *view = menuBar()->addMenu("&View");
     auto *hidden = action("selection.showHidden", "Show hidden geometry", {}, [this] {
         viewport_->showHiddenGeometry(findChild<QAction *>("selection.showHidden")->isChecked());
@@ -335,11 +346,58 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     view->addAction(
         action("view.fit", "Fit model", QKeySequence("Shift+Z"), [this] { viewport_->fit(); }));
     view->addAction(action("view.perspective", "Perspective", QKeySequence("1"),
-                           [this] { viewport_->standardView(0); }));
+                           [this] { viewport_->setOrthographic(false); }));
     view->addAction(
         action("view.top", "Top", QKeySequence("2"), [this] { viewport_->standardView(1); }));
     view->addAction(
         action("view.front", "Front", QKeySequence("3"), [this] { viewport_->standardView(2); }));
+    view->addAction(action("view.orthographic", "Orthographic", {},
+                           [this] { viewport_->setOrthographic(true); }));
+    for (const auto &[id, label, preset] : {std::tuple{"view.right", "Right", 3},
+                                            {"view.back", "Back", 4},
+                                            {"view.left", "Left", 5},
+                                            {"view.bottom", "Bottom", 6},
+                                            {"view.isometric", "Isometric", 7}})
+        view->addAction(action(id, label, {}, [this, preset] { viewport_->standardView(preset); }));
+    view->addAction(action("view.fov", "Field of view…", {}, [this] {
+        bool ok = false;
+        const auto degrees =
+            QInputDialog::getDouble(this, "Field of view", "Vertical angle in degrees",
+                                    viewport_->fieldOfView(), 5, 120, 1, &ok);
+        if (ok) {
+            viewport_->setFieldOfView(degrees);
+            QSettings("SketchyUp", "SketchyUp").setValue("fieldOfView", degrees);
+        }
+    }));
+    auto *projection = new QActionGroup(this);
+    for (const auto *id : {"view.perspective", "view.orthographic"}) {
+        auto *item = findChild<QAction *>(id);
+        item->setCheckable(true);
+        projection->addAction(item);
+    }
+    connect(viewport_, &Viewport::navigationChanged, this, [this] {
+        findChild<QAction *>("view.perspective")->setChecked(!viewport_->orthographic());
+        findChild<QAction *>("view.orthographic")->setChecked(viewport_->orthographic());
+    });
+    auto *navigation = view->addMenu("Navigation");
+    auto *navigationGroup = new QActionGroup(this);
+    for (const bool trackpad : {false, true}) {
+        auto *item =
+            action(trackpad ? "view.trackpad" : "view.mouse", trackpad ? "Trackpad" : "Mouse", {},
+                   [this, trackpad] {
+                       viewport_->setTrackpadNavigation(trackpad);
+                       QSettings("SketchyUp", "SketchyUp").setValue("trackpadNavigation", trackpad);
+                   });
+        item->setCheckable(true);
+        navigationGroup->addAction(item);
+        navigation->addAction(item);
+    }
+    const QSettings navigationSettings("SketchyUp", "SketchyUp");
+    const bool trackpad = navigationSettings.value("trackpadNavigation", false).toBool();
+    findChild<QAction *>(trackpad ? "view.trackpad" : "view.mouse")->setChecked(true);
+    viewport_->setTrackpadNavigation(trackpad);
+    const auto fov = navigationSettings.value("fieldOfView", 45).toDouble();
+    viewport_->setFieldOfView(std::isfinite(fov) && fov >= 5 && fov <= 120 ? fov : 45);
     auto *panel = action("view.tray", "Model panel", QKeySequence("Ctrl+Shift+T"), [this] {
         tray_->setVisible(findChild<QAction *>("view.tray")->isChecked());
     });
@@ -530,6 +588,7 @@ void Window::sync() {
         findChild<QAction *>(id)->setEnabled(doc_.bodies().contains(viewport_->selectedBody()));
     for (const auto &id : {"edit.delete", "selection.hide", "selection.lock"})
         findChild<QAction *>(id)->setEnabled(!viewport_->selectionState().entities().empty());
+    findChild<QAction *>("edit.repeatPushPull")->setEnabled(viewport_->canRepeatPushPull());
     findChild<QAction *>("context.leave")->setEnabled(viewport_->selectionState().context() != 0);
     findChild<QAction *>("selection.showHidden")
         ->setChecked(viewport_->selectionState().showingHidden());

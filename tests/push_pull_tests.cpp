@@ -55,6 +55,36 @@ bool same(const Body &a, const Body &b) {
 }
 int main() {
     try {
+        auto retained = box();
+        const auto retainedBefore = retained.bodies().at(1);
+        const auto retainedFace = upward(retainedBefore->surface);
+        const auto retainedChange = retained.pushPull(1, retainedFace, 1, true);
+        const auto &retainedAfter = retained.bodies().at(1)->surface;
+        retainedAfter.validate();
+        check(retainedAfter.faces.at(retainedFace) ==
+                  retainedBefore->surface.faces.at(retainedFace),
+              "New-face push/pull retains the original cap and vertex identities");
+        check(retainedAfter.faces.size() == retainedBefore->surface.faces.size() + 5,
+              "New-face push/pull adds a cap and four sides without moving old walls");
+        for (const auto &[id, point] : retainedBefore->surface.vertices)
+            check(retainedAfter.vertices.at(id) == point,
+                  "Existing vertices stay fixed in new-face mode");
+        const auto caps = retainedChange.at(1).faces.descendants.at(retainedFace);
+        check(caps.size() == 2, "Retained and new cap identities are reported");
+        const auto tip = caps[0] == retainedFace ? caps[1] : caps[0];
+        retained.pushPull(1, tip, 1, true);
+        check(retained.bodies().at(1)->surface.faces.size() == retainedAfter.faces.size() + 5,
+              "New cap can be extended again while keeping an intermediate face");
+        retained.undo();
+        retained.undo();
+        check(same(*retained.bodies().at(1), *retainedBefore),
+              "Two retained-face steps undo exactly");
+        auto retainedOpening = box();
+        const auto openingFace = patch(retainedOpening);
+        const auto openingBefore = retainedOpening.bodies().at(1);
+        rejects([&] { retainedOpening.pushPull(1, openingFace, -2, true); });
+        check(retainedOpening.bodies().at(1) == openingBefore,
+              "Retaining a face at an opening rejects atomically");
         auto d = box();
         auto before = d.bodies().at(1);
         auto top = upward(before->surface);

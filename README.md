@@ -84,7 +84,12 @@ ctest --preset headless
 - Guides appear as dotted overlays through faces and never form model faces.
   Guide points, lines and true 3D intersections can be acquired by drawing tools;
   guide lines also supply parallel/perpendicular references.
-- `Space`: select. `P`: select a face, move to preview, then click/drag to finish or enter a signed distance along its local normal.
+- `Space`: select. `P`: select a face, move to preview, then click/drag to finish
+  or enter a signed world distance along its transformed local normal. Numeric
+  re-entry revises the last operation. Double-click a face to repeat that distance
+  as a new undo step. Tap `Ctrl` to retain the starting face while creating a new
+  cap and sides; Draw exposes the same mode. Retaining intermediate faces can
+  create non-manifold internal boundaries; turn it off to cut a through opening.
 - With Select active, click faces/edges/guides; `Ctrl` adds and `Shift` toggles.
   Drag left-to-right to select fully enclosed visible entities, right-to-left to
   select touched visible entities. Occluded geometry is excluded in both modes.
@@ -103,8 +108,16 @@ ctest --preset headless
   result; `Tab` cycles nearby alternatives. Drawing from loose geometry adopts
   its context. Locked planes exclude off-plane points. Index preparation runs in
   the background; the 0.1 m grid remains the fallback when no candidate is acquired.
-- Middle drag or `O`: orbit. Right drag or `H`: pan. Wheel: zoom. `Shift+Z`: fit.
-- `1/2/3` with Select active: perspective/top/front. `Escape`: cancel drawing.
+- Middle drag or `O`: orbit. Right drag or `H`: pan. `Z`: drag to zoom.
+  `Alt`+left drag temporarily orbits within a drawing tool; add `Shift` to pan.
+  Wheel: zoom around the pointer on the camera target plane. `Shift+Z`: fit.
+- View → Navigation → Trackpad enables two-finger scrolling to pan,
+  `Alt`+scroll to orbit and `Ctrl`+scroll to zoom. Native pinch/pan/rotate events
+  also navigate while preserving an anchored tool. Navigation mode is remembered.
+- `1/2/3` with Select active: perspective/top/front. View adds orthographic,
+  right/back/left/bottom/isometric presets and a remembered 5–120° vertical FOV.
+  Projection changes preserve target-plane scale; fit accounts for FOV and aspect.
+  `Escape`: cancel drawing.
 - `Ctrl+Z` / `Ctrl+Shift+Z`: undo/redo. `Ctrl+K`: commands, objects and recent files.
 - `F6` / `Shift+F6`: move between window regions. `Ctrl+Shift+T`: toggle the Model panel.
 - `Ctrl+O` / `Ctrl+S`: native open/save dialogs. Unsaved changes prompt before replacement or close.

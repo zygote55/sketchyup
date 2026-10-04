@@ -243,6 +243,31 @@ int main(int argc, char **argv) {
         badGuide = worldGuide;
         badGuide["space"] = "screen";
         rejects([&] { executeBatch(guided, guideRequest({badGuide})); });
+        Document newFaceDoc = source;
+        newFaceDoc.extrude(1, 5, 2);
+        Id newFaceCap = 0;
+        for (const auto &[id, face] : newFaceDoc.bodies().at(1)->surface.faces)
+            if (newFaceDoc.bodies().at(1)->surface.normal(id).z > .99)
+                newFaceCap = id;
+        const auto newFaceBaseline = encodeDocument(newFaceDoc);
+        QJsonObject newFaceCommand{{"command", "geometry.push_pull"},
+                                   {"body", "1"},
+                                   {"face", QString::number(newFaceCap)},
+                                   {"distance", 1},
+                                   {"newFace", 1}};
+        auto newFaceRequest = [&] {
+            return QJsonObject{{"apiVersion", 1},
+                               {"documentId", QString::fromStdString(newFaceDoc.identity())},
+                               {"expectedRevision", QString::number(newFaceDoc.revision())},
+                               {"commands", QJsonArray{newFaceCommand}}};
+        };
+        rejects([&] { executeBatch(newFaceDoc, newFaceRequest()); });
+        check(encodeDocument(newFaceDoc) == newFaceBaseline, "New-face flag requires a boolean");
+        newFaceCommand["newFace"] = true;
+        const auto oldCapLoop = newFaceDoc.bodies().at(1)->surface.faces.at(newFaceCap);
+        executeBatch(newFaceDoc, newFaceRequest());
+        check(newFaceDoc.bodies().at(1)->surface.faces.at(newFaceCap) == oldCapLoop,
+              "Public push/pull new-face mode retains source cap identity");
         Document selected = source;
         selected.addGuide(1, guidePoint({0, 0, 1}));
         const auto selectedGuide = selected.bodies().at(1)->guides.rbegin()->first;
