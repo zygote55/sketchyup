@@ -6,6 +6,7 @@ struct Transform {
     std::array<double, 16> m{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
     static Transform translation(Vec3 delta);
     static Transform scaling(Vec3 scale);
+    static Transform rotation(Vec3 axis, double angleRadians);
     Transform operator*(const Transform &rhs) const;
     Vec3 point(Vec3 value) const;
     Vec3 vector(Vec3 value) const;
