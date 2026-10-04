@@ -1,6 +1,6 @@
 # R032.b: raw selection grouping and native nested editing
 
-Date: 2026-10-04. Local validation passed; CI pending. Requires merged R032.a, PR #35.
+Date: 2026-10-04. Merged in [PR #36](https://github.com/zygote55/sketchyup/pull/36); both CI jobs passed. Requires merged R032.a, PR #35.
 
 Make Group (`Ctrl+G`) transfers selected faces, edges and guides into a new group,
 retaining per-source raw records so colors, analytic curves and local identities

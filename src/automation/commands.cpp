@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
 #include "core/groups.hpp"
 #include "core/selection.hpp"
@@ -361,6 +362,25 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             update(mapping.faces, changes.faces);
             update(mapping.vertices, changes.vertices);
             update(mapping.edges, changes.edges);
+        }
+    };
+    auto mergeContext = [&](Id context, std::optional<std::set<Id>> members = {}) {
+        const auto result = consolidateContext(staged, context, members);
+        compose(result.changes);
+        for (const auto &[source, mapping] : result.transfers) {
+            auto encode = [](const auto &map) {
+                QJsonObject object;
+                for (auto [from, to] : map)
+                    object[QString::number(from)] = QString::number(to);
+                return object;
+            };
+            transfers.append(QJsonObject{{"sourceBody", QString::number(source)},
+                                         {"body", QString::number(result.destination)},
+                                         {"vertices", encode(mapping.vertices)},
+                                         {"edges", encode(mapping.edges)},
+                                         {"faces", encode(mapping.faces)},
+                                         {"curves", encode(mapping.curves)},
+                                         {"guides", encode(mapping.guides)}});
         }
     };
     for (const auto &value : commands) {
@@ -746,8 +766,26 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             if (command.contains("name") && !command["name"].isString())
                 throw std::runtime_error("Group name must be a string");
             createGroup(staged, members, command.value("name").toString("Group").toStdString());
+        } else if (name == "geometry.merge_context") {
+            std::optional<std::set<Id>> members;
+            if (command.contains("members")) {
+                members.emplace();
+                const auto records = array(command["members"]);
+                if (records.size() > 10000)
+                    throw std::runtime_error("Too many merge members");
+                for (const auto &record : records)
+                    if (!members->insert(id(record)).second)
+                        throw std::runtime_error("Duplicate merge member");
+            }
+            mergeContext(command["context"] == "0" ? 0 : id(command["context"]), members);
         } else if (name == "group.explode") {
-            compose(explodeGroup(staged, id(command["body"])));
+            const auto body = id(command["body"]);
+            const auto context = enclosingGroup(staged, body);
+            if (command.contains("merge") && !command["merge"].isBool())
+                throw std::runtime_error("Explode merge must be boolean");
+            compose(explodeGroup(staged, body));
+            if (command.value("merge").toBool(true))
+                mergeContext(context);
         } else if (name == "scene.reparent") {
             compose(reparentPreservingWorld(staged, id(command["body"]),
                                             command["parent"] == "0" ? 0 : id(command["parent"])));

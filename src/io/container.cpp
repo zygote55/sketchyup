@@ -51,11 +51,11 @@ QByteArray encodeContainer(const Document &doc) {
                 {"writer", "SketchyUp/0.1.0"},
                 {"units", "m"},
                 {"up", "Z"},
-                {"requiredFeatures",
-                 QJsonArray{"scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1"}},
+                {"requiredFeatures", QJsonArray{"scene-v2", "topology-v1", "curves-v1", "guides-v1",
+                                                "groups-v1", "face-colors-v1"}},
                 {"allocatorFloors", floors(doc)},
                 {"chunks", QJsonArray{QJsonObject{{"kind", "document"},
-                                                  {"encoding", "json-v6"},
+                                                  {"encoding", "json-v7"},
                                                   {"offset", "0"},
                                                   {"bytes", QString::number(payload.size())},
                                                   {"sha256", hash(payload)}}}}})
@@ -94,8 +94,12 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    const bool groups = features == std::set<QString>{"scene-v2", "topology-v1", "curves-v1",
-                                                      "guides-v1", "groups-v1"};
+    const bool faceColors =
+        features == std::set<QString>{"scene-v2",  "topology-v1", "curves-v1",
+                                      "guides-v1", "groups-v1",   "face-colors-v1"};
+    const bool groups =
+        faceColors || features == std::set<QString>{"scene-v2", "topology-v1", "curves-v1",
+                                                    "guides-v1", "groups-v1"};
     const bool guides = groups || features == std::set<QString>{"scene-v2", "topology-v1",
                                                                 "curves-v1", "guides-v1"};
     const bool curves =
@@ -111,7 +115,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto chunk = manifest["chunks"].toArray().first().toObject();
     fields(chunk, {"kind", "encoding", "offset", "bytes", "sha256"});
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (groups     ? "json-v6"
+        chunk["encoding"] != (faceColors ? "json-v7"
+                              : groups   ? "json-v6"
                               : guides   ? "json-v5"
                               : curves   ? "json-v4"
                               : topology ? "json-v3"
@@ -123,7 +128,12 @@ Document decodeContainer(const QByteArray &bytes) {
     if (chunk["sha256"] != hash(payload))
         throw std::runtime_error("Document checksum mismatch");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != (groups ? 6 : guides ? 5 : curves ? 4 : topology ? 3 : 2))
+    if (payloadTree["version"] != (faceColors ? 7
+                                   : groups   ? 6
+                                   : guides   ? 5
+                                   : curves   ? 4
+                                   : topology ? 3
+                                              : 2))
         throw std::runtime_error("Document chunk encoding mismatch");
     auto doc = decodeDocument(payload);
     if (manifest["documentId"] != QString::fromStdString(doc.identity()) ||

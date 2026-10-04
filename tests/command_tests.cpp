@@ -406,7 +406,45 @@ int main(int argc, char **argv) {
               "Array command creates exact copy count");
         arrayDoc.undo();
         check(arrayDoc.bodies().at(1)->surface.faces.size() == 1, "Public array is one undo item");
+        Document exploded = source;
+        exploded.addFace({{{1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 1, 0}}});
+        exploded.paint(2, {.1f, .2f, .9f});
+        createGroup(exploded, {2});
+        auto explodeRequest = [&](QJsonObject command) {
+            return QJsonObject{{"apiVersion", 1},
+                               {"documentId", QString::fromStdString(exploded.identity())},
+                               {"expectedRevision", QString::number(exploded.revision())},
+                               {"commands", QJsonArray{command}}};
+        };
+        const auto intact = encodeDocument(exploded);
+        rejects([&] {
+            executeBatch(
+                exploded,
+                explodeRequest({{"command", "group.explode"}, {"body", "3"}, {"merge", 1}}));
+        });
+        rejects([&] {
+            executeBatch(exploded, explodeRequest({{"command", "geometry.merge_context"},
+                                                   {"context", "0"},
+                                                   {"members", QJsonArray{"1", "2"}}}));
+        });
+        check(encodeDocument(exploded) == intact, "Invalid merge requests preserve the document");
+        const auto explosion =
+            executeBatch(exploded, explodeRequest({{"command", "group.explode"}, {"body", "3"}}));
+        check(exploded.bodies().size() == 1 &&
+                  exploded.bodies().at(1)->surface.vertices.size() == 6 &&
+                  exploded.bodies().at(1)->faceColors.size() == 1 &&
+                  explosion["transfers"].toArray().size() == 2,
+              "Public explode welds colored geometry and returns typed transfers");
+        exploded.undo();
+        check(exploded.bodies().size() == 3 && exploded.bodies().at(2)->parent == 3,
+              "Public explode plus consolidation is one undo");
+        executeBatch(
+            exploded,
+            explodeRequest({{"command", "group.explode"}, {"body", "3"}, {"merge", false}}));
+        check(exploded.bodies().size() == 2 && exploded.bodies().at(1)->surface.faces.size() == 1,
+              "Boundary-only explode is explicitly available");
         const QJsonArray cases{
+            QJsonObject{{"command", "geometry.merge_context"}, {"context", "0"}},
             QJsonObject{{"command", "group.selection"},
                         {"context", "0"},
                         {"entities", QJsonArray{QJsonObject{
@@ -557,6 +595,8 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"] == "geometry.merge_context")
+                doc.addFace({{{1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 1, 0}}});
             if (command["command"] == "group.explode" || command["command"] == "scene.reparent")
                 createGroup(doc, {1});
             if (command["command"] == "guide.offset" || command["command"] == "guide.erase" ||

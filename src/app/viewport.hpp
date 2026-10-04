@@ -80,6 +80,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void leaveContext();
     void makeGroup();
     void explodeGroups();
+    void mergeContextGeometry();
     void setPersistentState(bool hide, bool lock);
     void revealPersistentEntities();
     void unlockPersistentEntities();

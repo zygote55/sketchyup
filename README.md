@@ -179,11 +179,13 @@ space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
 queries for world-coordinate points. `geometry.infer` accepts `includeGuides`
 (default true) and an optional direction reference with `body` plus `guide`
 in place of `edge`; results identify both sources of mixed intersections.
-The current file schema is version 6; versions 1–5 migrate without inventing
-groups or visibility/lock state, and versions 1–4 retain migration without guide data.
+The current file schema is version 7; versions 1–6 migrate without invented
+per-face color overrides. Earlier migrations preserve the absence of group,
+visibility/lock and guide state.
 
 `group.create` groups sibling context IDs while preserving their geometry, colors
-and world placement. `group.explode` removes one group boundary;
+and world placement. `group.explode` removes one group boundary and merges eligible
+promoted raw geometry; `merge: false` requests boundary removal alone;
 `scene.reparent` moves a record to a group (or parent `"0"`) while preserving its
 world transform. `scene.state` stores boolean `hidden` and `locked` flags, with
 inherited visibility and authoritative protection of locked descendants. See
@@ -191,8 +193,11 @@ inherited visibility and authoritative protection of locked descendants. See
 Double-click or Enter opens it; Esc closes one level. The viewport breadcrumb
 links to parent contexts. `Ctrl+Shift+G` explodes selected groups. The Edit menu
 also exposes persistent group hide/lock and document-wide reveal/unlock.
-Drawing and deletion stay in the active context; separate raw-record consolidation
-and merge-on-explode remain the final R032 layer.
+Drawing and deletion stay in the active context. The Edit menu can merge raw
+geometry in that context through `geometry.merge_context`, with coincident seam
+welding and per-face colors preserved. Nested groups, locked records and hidden
+geometry stay isolated. This operation does not boolean intersecting faces. See
+[consolidation semantics and evidence](docs/verification/R032c-context-consolidation.md).
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
 adjacency, plus analytic curve parameters and ordered derived-edge references.

@@ -1,0 +1,113 @@
+[
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          1,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "material.color",
+    "body": "1",
+    "color": [
+      0.9,
+      0.1,
+      0.1
+    ]
+  },
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          1,
+          0
+        ],
+        [
+          1,
+          1,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "material.color",
+    "body": "2",
+    "color": [
+      0.1,
+      0.1,
+      0.9
+    ]
+  },
+  {
+    "command": "group.create",
+    "members": [
+      "2"
+    ],
+    "name": "Blue half"
+  },
+  {
+    "command": "group.explode",
+    "body": "3"
+  },
+  {
+    "command": "geometry.insert_edges",
+    "body": "1",
+    "origin": [
+      0,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      0,
+      1
+    ],
+    "edges": [
+      [
+        [
+          0,
+          0.5,
+          0
+        ],
+        [
+          2,
+          0.5,
+          0
+        ]
+      ]
+    ]
+  }
+]

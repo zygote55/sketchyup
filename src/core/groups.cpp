@@ -145,6 +145,9 @@ GroupSelectionResult groupSelected(Document &doc, Selection &selection, std::str
             remaining->kind = BodyKind::Group;
         for (auto face : part.faces)
             remaining->surface.faces.erase(face);
+        std::erase_if(remaining->faceColors, [&](const auto &entry) {
+            return !remaining->surface.faces.contains(entry.first);
+        });
         for (auto guide : part.guides)
             remaining->guides.erase(guide);
         std::set<std::array<Id, 2>> movedEdges;
