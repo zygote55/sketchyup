@@ -260,6 +260,8 @@ QJsonObject describe(const Document &doc) {
     }
     return {{"documentId", QString::fromStdString(doc.identity())},
             {"revision", QString::number(doc.revision())},
+            {"units", "m"},
+            {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
             {"bodies", bodies},
             {"definitions", definitions},
             {"instances", instances},
@@ -633,7 +635,11 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name.startsWith("asset.")) {
+        if (name == "document.units") {
+            if (!command["units"].isString())
+                throw std::runtime_error("Document units must be a string");
+            staged.setDisplayUnits(parseDisplayUnit(command["units"].toString().toStdString()));
+        } else if (name.startsWith("asset.")) {
             if ((command.contains("name") && !command["name"].isString()) ||
                 (command.contains("mediaType") && !command["mediaType"].isString()))
                 throw std::runtime_error("Asset name and media type must be strings");
@@ -1342,7 +1348,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         }
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
-        edit.tags.empty() && edit.materials.empty() && edit.assets.empty())
+        edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits)
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();

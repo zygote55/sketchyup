@@ -181,25 +181,27 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
             {"root", sid(root)}, {"definition", sid(instance->definition)}, {"members", members}});
     }
     auto bytes =
-        QJsonDocument(QJsonObject{{"format", "sketchyup"},
-                                  {"version", 11},
-                                  {"revision", sid(doc.revision())},
-                                  {"units", "m"},
-                                  {"up", "Z"},
-                                  {"documentId", QString::fromStdString(doc.identity())},
-                                  {"nextId", sid(doc.nextId())},
-                                  {"bodies", bodies},
-                                  {"definitions", definitions},
-                                  {"instances", instances},
-                                  {"nextDefinitionId", sid(doc.nextDefinitionId())},
-                                  {"tags", tags},
-                                  {"nextTagId", sid(doc.nextTagId())},
-                                  {"materials", materials},
-                                  {"nextMaterialId", sid(doc.nextMaterialId())},
-                                  {"assets", assets},
-                                  {"nextAssetId", sid(doc.nextAssetId())},
-                                  {"assetStorage",
-                                   assetStorage == AssetStorage::Inline ? "inline" : "external"}})
+        QJsonDocument(
+            QJsonObject{
+                {"format", "sketchyup"},
+                {"version", 12},
+                {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
+                {"revision", sid(doc.revision())},
+                {"units", "m"},
+                {"up", "Z"},
+                {"documentId", QString::fromStdString(doc.identity())},
+                {"nextId", sid(doc.nextId())},
+                {"bodies", bodies},
+                {"definitions", definitions},
+                {"instances", instances},
+                {"nextDefinitionId", sid(doc.nextDefinitionId())},
+                {"tags", tags},
+                {"nextTagId", sid(doc.nextTagId())},
+                {"materials", materials},
+                {"nextMaterialId", sid(doc.nextMaterialId())},
+                {"assets", assets},
+                {"nextAssetId", sid(doc.nextAssetId())},
+                {"assetStorage", assetStorage == AssetStorage::Inline ? "inline" : "external"}})
             .toJson(QJsonDocument::Compact);
     if (bytes.size() > (assetStorage == AssetStorage::Inline ? fileLimit : modelLimit))
         throw std::runtime_error("Document exceeds its JSON storage limit");
@@ -452,7 +454,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
          root["version"].toDouble() != 7 && root["version"].toDouble() != 8 &&
          root["version"].toDouble() != 9 && root["version"].toDouble() != 10 &&
-         root["version"].toDouble() != 11) ||
+         root["version"].toDouble() != 11 && root["version"].toDouble() != 12) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -468,6 +470,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         rootFields += {"assets", "nextAssetId", "assetStorage"};
     else if (bytes.size() > modelLimit || !payloads.empty())
         throw std::runtime_error("Legacy document exceeds model limit or has unexpected assets");
+    if (root["version"].toInt() >= 12)
+        rootFields.append("displayUnits");
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         bytes.size() > modelLimit)
@@ -615,7 +619,10 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
                 std::move(bodies),
                 root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0,
                 std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
-                nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId);
+                nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
+                root["version"].toInt() >= 12
+                    ? parseDisplayUnit(root["displayUnits"].toString().toStdString())
+                    : DisplayUnit::Meters);
     return doc;
 }
 } // namespace sketchy
