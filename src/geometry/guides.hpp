@@ -13,6 +13,8 @@ struct Guide {
 };
 Guide guidePoint(Vec3 point);
 Guide guideLine(Vec3 origin, Vec3 direction);
+// Finite portion inside the editable world cube, for rendering and acquisition.
+std::array<Vec3, 2> boundedGuideLine(const Guide &line);
 Guide offsetGuide(const Guide &line, Vec3 normal, double distance);
 Guide angledGuide(const DrawingPlane &plane, double angle);
 double measureDistance(Vec3 start, Vec3 end);

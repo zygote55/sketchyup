@@ -11,9 +11,18 @@ struct InferenceCamera {
     std::optional<ScreenPoint> project(Vec3 point) const;
     std::pair<Vec3, Vec3> ray(double x, double y) const;
 };
-enum class InferenceKind { Endpoint, Intersection, Midpoint, Center, OnEdge, OnFace };
+enum class InferenceKind {
+    Endpoint,
+    GuidePoint,
+    Intersection,
+    Midpoint,
+    Center,
+    OnEdge,
+    OnGuide,
+    OnFace
+};
 const char *inferenceLabel(InferenceKind kind);
-enum class InferenceEntity { Vertex, Edge, Face, Curve };
+enum class InferenceEntity { Vertex, Edge, Face, Curve, Guide };
 const char *inferenceEntityLabel(InferenceEntity entity);
 struct InferenceCandidate {
     InferenceKind kind{};
@@ -21,12 +30,14 @@ struct InferenceCandidate {
     Id body{}, entity{}, otherBody{}, otherEntity{};
     double pixels{}, depth{};
     InferenceEntity entityType{InferenceEntity::Vertex};
+    InferenceEntity otherEntityType{InferenceEntity::Vertex};
 };
 struct InferenceQuery {
     InferenceCamera camera;
     double x{}, y{}, radius{8};
     std::optional<DrawingPlane> plane;
     Id context{}; // Zero searches all visible editing contexts.
+    bool includeGuides{true};
 };
 struct InferenceResult {
     std::vector<InferenceCandidate> candidates;

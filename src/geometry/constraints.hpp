@@ -15,6 +15,7 @@ struct DirectionConstraint {
     DirectionKind kind{};
     Vec3 origin{}, direction{1, 0, 0};
     Id body{}, entity{};
+    std::optional<InferenceEntity> entityType{};
     bool operator==(const DirectionConstraint &) const = default;
 };
 struct DirectionCandidate {

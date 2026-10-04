@@ -208,14 +208,18 @@ std::optional<Vec3> Viewport::ground(QPointF point) {
 bool Viewport::drawingTool() const {
     return tool_ == Tool::Line || tool_ == Tool::Rectangle || tool_ == Tool::Circle ||
            tool_ == Tool::Polygon || tool_ == Tool::Freehand || tool_ == Tool::RotatedRectangle ||
-           arcTool();
+           arcTool() || guideTool();
 }
 bool Viewport::arcTool() const {
     return tool_ == Tool::CenterArc || tool_ == Tool::TwoPointArc || tool_ == Tool::ThreePointArc ||
            tool_ == Tool::Pie;
 }
-bool Viewport::threePointTool() const { return tool_ == Tool::RotatedRectangle || arcTool(); }
+bool Viewport::threePointTool() const {
+    return tool_ == Tool::RotatedRectangle || arcTool() || tool_ == Tool::Protractor;
+}
 QString Viewport::nextPointHint() const {
+    if (tool_ == Tool::Protractor)
+        return "Choose the angle point or enter an angle (degrees)";
     if (tool_ == Tool::RotatedRectangle)
         return "Choose the height or enter width, height";
     if (tool_ == Tool::TwoPointArc)
@@ -297,7 +301,8 @@ void Viewport::choosePlane(QPointF point) {
                    body.curves.contains(candidate->entity)) {
             for (auto edge : body.curves.at(candidate->entity).edges)
                 edges.push_back(edge.edge);
-        } else if (body.topology.edges.contains(candidate->entity))
+        } else if (candidate->entityType == InferenceEntity::Edge &&
+                   body.topology.edges.contains(candidate->entity))
             edges.push_back(candidate->entity);
         for (auto edge : edges) {
             const auto &incidence = adjacency.edgeFaces.at(edge);
@@ -305,6 +310,19 @@ void Viewport::choosePlane(QPointF point) {
                 face = incidence.front().face;
                 break;
             }
+        }
+    }
+    if (!face && candidate && candidate->entityType == InferenceEntity::Guide) {
+        const auto hit = pick(point);
+        if (hit.first == context && hit.second) {
+            const auto &loop = body.surface.faces.at(hit.second).loops[0];
+            const auto local = DrawingPlane::make(
+                body.surface.vertices.at(loop[0]), body.surface.normal(hit.second),
+                body.surface.vertices.at(loop[1]) - body.surface.vertices.at(loop[0]));
+            const auto normal =
+                normalized(cross(world.vector(local.xAxis), world.vector(local.yAxis)));
+            if (std::abs(dot(candidate->point - world.point(local.origin), normal)) <= tolerance)
+                face = hit.second;
         }
     }
     drawingContext_ = context;
@@ -791,6 +809,7 @@ void Viewport::paintScene() {
     frameMs_ = timer.nsecsElapsed() / 1e6;
     p.endNativePainting();
     p.setRenderHint(QPainter::Antialiasing);
+    paintGuides(p);
     if (hasFocus()) {
         p.setPen(QPen(colors_.accent, 2));
         p.setBrush(Qt::NoBrush);
@@ -804,6 +823,12 @@ void Viewport::paintScene() {
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Shift: hold inference · Arrows: axis / edge lock · Tab: alternatives · Hover: "
                    "arm reference");
+    if (guideTool()) {
+        p.setPen(colors_.muted);
+        p.drawText(20, 88,
+                   createGuides_ ? "Create guides · Ctrl: measure only"
+                                 : "Measure only · Ctrl: create guides");
+    }
     if (inferencePending_) {
         p.setPen(colors_.muted);
         p.drawText(20, 48, "Preparing inference · grid fallback available");
@@ -865,8 +890,13 @@ void Viewport::paintScene() {
                 p.drawLine(project(world.point(body.surface.vertices.at(edge.a))),
                            project(world.point(body.surface.vertices.at(edge.b))));
             };
-            if (constraint.kind == DirectionKind::Parallel ||
-                constraint.kind == DirectionKind::Perpendicular)
+            if (constraint.entityType == InferenceEntity::Guide &&
+                body.guides.contains(constraint.entity)) {
+                const auto &guide = body.guides.at(constraint.entity);
+                if (guide.kind == GuideKind::Line)
+                    paintGuide(p,
+                               guideLine(world.point(guide.origin), world.vector(guide.direction)));
+            } else if (constraint.entityType == InferenceEntity::Edge)
                 highlight(constraint.entity);
             else if (constraint.kind == DirectionKind::Tangent &&
                      body.curves.contains(constraint.entity))
@@ -899,6 +929,7 @@ void Viewport::paintScene() {
         p.setPen(QPen(colors_.accent, 2));
         p.setBrush(colors_.accent);
         switch (candidate->kind) {
+        case InferenceKind::GuidePoint:
         case InferenceKind::Endpoint:
             p.drawEllipse(pos, 4, 4);
             break;
@@ -912,6 +943,7 @@ void Viewport::paintScene() {
             p.setBrush(colors_.accent);
             p.drawEllipse(pos, 1.5, 1.5);
             break;
+        case InferenceKind::OnGuide:
         case InferenceKind::OnEdge:
             p.setBrush(Qt::NoBrush);
             p.drawRect(QRectF(pos - QPointF(4, 4), QSizeF(8, 8)));
@@ -995,6 +1027,7 @@ void Viewport::clearPreview() {
     anchor_.reset();
     cursor_.reset();
     previewEdges_.clear();
+    previewGuide_.reset();
     previewError_.clear();
     previewValid_ = false;
     baseline_.reset();
@@ -1005,11 +1038,13 @@ void Viewport::clearPreview() {
 }
 void Viewport::cancel() {
     session_.cancel();
+    guideControlPending_ = false;
     clearConstraints();
     inference_ = {};
     inferenceChoice_ = 0;
     chainPending_ = false;
     chainContext_ = 0;
+    tapeReference_.reset();
     committedBaseline_.reset();
     committedAnchor_.reset();
     committedEnd_.reset();
@@ -1030,14 +1065,19 @@ void Viewport::fit() {
     bool hasVertices = false;
     for (const auto &[id, b] : doc_.bodies()) {
         const auto world = doc_.worldTransform(id);
-        for (auto [vid, local] : b->surface.vertices) {
+        auto include = [&](Vec3 local) {
             hasVertices = true;
             const auto point = qv(world.point(local));
             for (int i = 0; i < 3; ++i) {
                 lo[i] = std::min(lo[i], point[i]);
                 hi[i] = std::max(hi[i], point[i]);
             }
-        }
+        };
+        for (auto [vid, local] : b->surface.vertices)
+            include(local);
+        if (guidesVisible_)
+            for (const auto &[gid, guide] : b->guides)
+                include(guide.origin);
     }
     if (!hasVertices) {
         target_ = {0, 0, 0};
@@ -1056,6 +1096,8 @@ void Viewport::standardView(int view) {
     update();
 }
 QJsonObject Viewport::shapeCommand(Vec3 end) const {
+    if (guideTool())
+        return guideCommand(end);
     const auto origin =
         anchor_ ? anchor_ : (session_.canRevise() ? committedAnchor_ : std::nullopt);
     if (!origin)
@@ -1215,6 +1257,7 @@ void Viewport::updateToolPreview(QPointF point) {
         if (denominator < 1e-6) {
             previewValid_ = false;
             previewEdges_.clear();
+            previewGuide_.reset();
             previewError_ = "Orbit away from the face normal or enter a distance";
             update();
             return;
@@ -1247,6 +1290,20 @@ void Viewport::updateToolPreview(QPointF point) {
             samples_.push_back(*end);
         }
         try {
+            if (guideTool()) {
+                previewEdges_.clear();
+                previewGuide_.reset();
+                guideMeasurement(*end);
+                if (createGuides_) {
+                    session_.preview(guideCommand(*end));
+                    previewGuide_ = prospectiveGuide(*end);
+                }
+                previewValid_ = true;
+                previewError_.clear();
+                emit measurementPreview(guideMeasurementText(*end));
+                update();
+                return;
+            }
             previewCommand(shapeCommand(*end));
         } catch (const std::exception &error) {
             previewValid_ = false;
@@ -1257,6 +1314,8 @@ void Viewport::updateToolPreview(QPointF point) {
         }
         const auto delta = plane_.coordinates(*end) - plane_.coordinates(*anchor_);
         const auto locale = QLocale();
+        if (guideTool())
+            return;
         if (arcTool()) {
             try {
                 const auto command = shapeCommand(*end);
@@ -1287,6 +1346,7 @@ void Viewport::updateToolPreview(QPointF point) {
     } else {
         previewValid_ = false;
         previewEdges_.clear();
+        previewGuide_.reset();
         previewError_ = directionLocks_.current()
                             ? "Orbit to view the locked direction or enter a length"
                             : "Orbit to view the drawing plane";
@@ -1295,6 +1355,10 @@ void Viewport::updateToolPreview(QPointF point) {
 }
 void Viewport::finishShape(Vec3 end, std::optional<QJsonObject> overrideCommand) {
     try {
+        if (guideTool()) {
+            finishGuide(end);
+            return;
+        }
         validateLockedPoint(end);
         const auto origin = anchor_ ? anchor_ : committedAnchor_;
         const auto command = overrideCommand ? *overrideCommand : shapeCommand(end);
@@ -1340,11 +1404,25 @@ void Viewport::setTheme(const ThemeColors &colors) {
     refresh();
 }
 bool Viewport::measurements(const QString &text) {
+    measurementCompleted_ = false;
     const auto revision = doc_.revision();
     try {
         const auto trimmed = text.trimmed();
         if (trimmed.isEmpty() || trimmed.size() > 1024)
             throw std::runtime_error("Measurements must contain 1–1024 characters");
+        if (tool_ == Tool::Protractor && !trimmed.startsWith('[') && !trimmed.startsWith('<')) {
+            const auto origin =
+                anchor_ ? anchor_ : (session_.canRevise() ? committedAnchor_ : std::nullopt);
+            const auto base =
+                baseline_ ? baseline_ : (session_.canRevise() ? committedBaseline_ : std::nullopt);
+            if (!origin || !base)
+                throw std::runtime_error("Choose the center and baseline before entering an angle");
+            const auto line =
+                angledGuide(DrawingPlane::make(*origin, plane_.normal, *base - *origin),
+                            parseAngle(trimmed, "deg", QLocale()));
+            finishShape(*origin + line.direction * length(*base - *origin));
+            return doc_.revision() != revision || measurementCompleted_;
+        }
         const bool centerInput = tool_ == Tool::CenterArc || tool_ == Tool::Pie;
         if (centerInput && !trimmed.startsWith('[') && !trimmed.startsWith('<') &&
             !trimmed.endsWith('s', Qt::CaseInsensitive)) {
@@ -1462,6 +1540,7 @@ bool Viewport::measurements(const QString &text) {
             validateLockedPoint(point);
             if (!origin) {
                 clearPreview();
+                tapeReference_.reset();
                 session_.begin();
                 anchor_ = point;
                 cursor_ = point;
@@ -1510,9 +1589,13 @@ bool Viewport::measurements(const QString &text) {
                     throw std::runtime_error("Choose both endpoints before entering a bulge");
                 finishShape((*origin + *base) * .5 +
                             cross(plane_.normal, normalized(*base - *origin)) * values[0]);
+            } else if (tool_ == Tool::Tape && values.size() == 1 && tapeReference_) {
+                finishShape(tapeReference_->origin +
+                            cross(plane_.normal, tapeReference_->direction) * values[0]);
             } else if (tool_ == Tool::Line && values.size() == 2) {
                 finishShape(*origin + plane_.xAxis * values[0] + plane_.yAxis * values[1]);
-            } else if (tool_ == Tool::Line && values.size() == 1 && (cursor_ || committedEnd_)) {
+            } else if ((tool_ == Tool::Line || tool_ == Tool::Tape) && values.size() == 1 &&
+                       (cursor_ || committedEnd_)) {
                 if (values[0] <= 0)
                     throw std::runtime_error("Length must be greater than zero");
                 if (const auto lock = directionLocks_.current()) {
@@ -1532,7 +1615,7 @@ bool Viewport::measurements(const QString &text) {
     } catch (const std::exception &error) {
         emit message(error.what());
     }
-    return doc_.revision() != revision;
+    return doc_.revision() != revision || measurementCompleted_;
 }
 bool Viewport::event(QEvent *event) {
     if (event->type() == QEvent::KeyPress) {
@@ -1554,6 +1637,8 @@ bool Viewport::event(QEvent *event) {
     }
     if (event->type() == QEvent::ShortcutOverride) {
         const auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() != Qt::Key_Control)
+            guideControlPending_ = false;
         if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
             !key->text().isEmpty() && QString("0123456789.+-[<").contains(key->text()[0])) {
@@ -1567,6 +1652,7 @@ bool Viewport::event(QEvent *event) {
         event->type() == QEvent::TouchCancel) {
         cancel();
     } else if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::FocusOut) {
+        guideControlPending_ = false;
         releaseInferenceHold();
         // Keep the anchor when focus moves to Measurements. End every button
         // gesture so a late release cannot publish an unintended edit.
@@ -1579,6 +1665,7 @@ bool Viewport::event(QEvent *event) {
 }
 void Viewport::mousePressEvent(QMouseEvent *e) {
     setFocus();
+    guideControlPending_ = false;
     previous_ = e->position();
     if (e->button() != Qt::LeftButton || tool_ == Tool::Orbit || tool_ == Tool::Pan ||
         e->modifiers().testFlag(Qt::AltModifier)) {
@@ -1604,6 +1691,7 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
             if (auto point = ground(e->position())) {
                 if (!session_.active()) {
                     clearPreview();
+                    captureTapeReference();
                     session_.begin();
                     anchor_ = point;
                     cursor_ = point;
@@ -1745,6 +1833,12 @@ void Viewport::wheelEvent(QWheelEvent *e) {
     e->accept();
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
+    if (guideTool() && e->key() == Qt::Key_Control) {
+        if (!e->isAutoRepeat())
+            guideControlPending_ = true;
+        e->accept();
+        return;
+    }
     if (constraintKey(e)) {
         e->accept();
         return;

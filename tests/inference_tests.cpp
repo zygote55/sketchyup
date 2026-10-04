@@ -101,6 +101,50 @@ int main(int argc, char **argv) {
         result = index.query({perspective, (screenA.x + screenB.x) / 2, 400, 8, {}, {}});
         check(has(result, InferenceKind::OnEdge, {-1.0 / 3, 0, -8.0 / 3}),
               "Perspective-correct edge acquisition");
+        Document guides;
+        guides.addGuide(0, guideLine({0, .2, 0}, {1, 0, 0}));
+        guides.addGuide(1, guideLine({.3, 0, 0}, {0, 1, 0}));
+        guides.addGuide(1, guidePoint({-.4, -.3, 0}));
+        index.sync(guides);
+        check(index.primitiveCount() == 3, "Infinite guides have no artificial endpoints or midpoints");
+        for (auto scale : {.5, 1., 2.}) {
+            check(has(at(index, {-.4, -.3, 0}, camera(scale), 7, 0),
+                      InferenceKind::GuidePoint, {-.4, -.3, 0}), "Guide point uses logical pixels");
+            check(has(at(index, {.1, .2, 0}, camera(scale), 0, 5),
+                      InferenceKind::OnGuide, {.1, .2, 0}), "Guide line acquisition across zooms");
+        }
+        result = at(index, {.3, .2, 0});
+        check(has(result, InferenceKind::Intersection, {.3, .2, 0}), "Infinite guide intersection");
+        check(std::any_of(result.candidates.begin(), result.candidates.end(), [](const auto &c) {
+            return c.kind == InferenceKind::Intersection && c.entityType == InferenceEntity::Guide &&
+                   c.otherEntityType == InferenceEntity::Guide;
+        }), "Guide intersection retains both typed identities");
+        check(index.query({camera(), 650, 320, 8, {}, 0, false}).candidates.empty(),
+              "Hidden guides cannot be acquired");
+        guides.addWire(0, {.3, -.5, 0}, {.3, .5, 0});
+        index.sync(guides);
+        result = at(index, {.3, .2, 0});
+        check(std::any_of(result.candidates.begin(), result.candidates.end(), [](const auto &c) {
+            return c.kind == InferenceKind::Intersection && c.otherBody &&
+                   c.entityType != c.otherEntityType;
+        }), "Mixed guide and model intersection has distinct identity namespaces");
+        guides.addFace({{{-.9, -.9, 1}, {.9, -.9, 1}, {.9, .9, 1}, {-.9, .9, 1}}});
+        index.sync(guides);
+        result = at(index, {.3, .2, 0});
+        check(has(result, InferenceKind::OnGuide, {.3, .2, 0}), "Guide overlay is visible through faces");
+        check(std::none_of(result.candidates.begin(), result.candidates.end(), [](const auto &c) {
+            return c.kind == InferenceKind::Intersection && c.otherBody &&
+                   c.entityType != c.otherEntityType;
+        }), "Occluded model/guide intersections remain hidden");
+        Document guideDepth;
+        guideDepth.addGuide(0, guideLine({0, 0, -3}, {1, 0, -1}));
+        index.sync(guideDepth);
+        check(has(at(index, {-.3, 0, -2.7}, perspective), InferenceKind::OnGuide, {-.3, 0, -2.7}),
+              "Perspective guide acquisition is world accurate");
+        guideDepth.addGuide(1, guideLine({0, 0, -2}, {0, 1, 0}));
+        index.sync(guideDepth);
+        check(!has(at(index, {0, 0, -3}, perspective), InferenceKind::Intersection, {0, 0, -3}),
+              "Projected guide crossings do not create false 3D intersections");
         // Dense benchmark uses 1,000 independently transformed bodies / 100k
         // triangles; component instancing remains a later milestone.
         const bool benchmark = argc > 1 && std::string(argv[1]) == "--benchmark";

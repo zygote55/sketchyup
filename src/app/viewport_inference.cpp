@@ -6,7 +6,7 @@ namespace {
 bool sameSource(const InferenceCandidate &a, const InferenceCandidate &b) {
     return a.kind == b.kind && a.body == b.body && a.entity == b.entity &&
            a.entityType == b.entityType && a.otherBody == b.otherBody &&
-           a.otherEntity == b.otherEntity;
+           a.otherEntity == b.otherEntity && a.otherEntityType == b.otherEntityType;
 }
 } // namespace
 std::optional<InferenceCandidate> Viewport::acquiredInference() const {
@@ -55,7 +55,8 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
         if (tool_ == Tool::Line && std::abs(dot(lock->direction, plane_.normal)) > 1e-10)
             queryPlane.reset();
     }
-    inference_ = index ? index->query({camera, queryPoint.x(), queryPoint.y(), 8, queryPlane, 0})
+    inference_ = index ? index->query({camera, queryPoint.x(), queryPoint.y(), 8, queryPlane, 0,
+                                       guidesVisible_})
                        : InferenceResult{};
     std::erase_if(inference_.candidates, [&](const auto &candidate) {
         return clipped(candidate.point) ||
@@ -223,6 +224,14 @@ bool Viewport::constraintKey(QKeyEvent *event) {
     return true;
 }
 void Viewport::keyReleaseEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Control && guideTool() && !event->isAutoRepeat()) {
+        const auto toggle = guideControlPending_;
+        guideControlPending_ = false;
+        if (toggle)
+            setGuideCreation(!createGuides_);
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_Shift && !event->isAutoRepeat()) {
         releaseInferenceHold();
         if (session_.active())

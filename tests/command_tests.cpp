@@ -62,6 +62,23 @@ int main(int argc, char **argv) {
         rejects([&] { executeQuery(source, invalidInference); });
         rejects(
             [&] { executeQuery(source, {{"query", "document.describe"}, {"mutation", true}}); });
+        Document guideInference;
+        guideInference.addGuide(0, guideLine({}, {1, 0, 0}));
+        auto guideQuery = inferenceQuery;
+        guideQuery["anchor"] = QJsonArray{0, 0, 0};
+        guideQuery["pointer"] = QJsonArray{700, 403};
+        guideQuery["reference"] = QJsonObject{{"body", "1"}, {"guide", "1"}};
+        auto guideResults = executeQuery(guideInference, guideQuery);
+        check(guideResults["candidates"].toArray()[0].toObject()["entityType"] == "guide" &&
+                  guideResults["directions"].toArray().size() == 2,
+              "Guide query exposes acquisition and typed parallel direction");
+        guideQuery["includeGuides"] = false;
+        rejects([&] { executeQuery(guideInference, guideQuery); });
+        guideQuery.remove("reference");
+        check(executeQuery(guideInference, guideQuery)["candidates"].toArray().empty(),
+              "CLI hidden guides do not acquire");
+        guideQuery["includeGuides"] = "false";
+        rejects([&] { executeQuery(guideInference, guideQuery); });
         const QJsonObject sweep{
             {"apiVersion", 1},
             {"documentId", QString::fromStdString(source.identity())},
