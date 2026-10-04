@@ -358,6 +358,11 @@ or select it and press Enter, to move through the same stack as Undo/Redo. The
 panel pages large histories and marks the retained baseline when old steps have
 been pruned. History navigation returns keyboard focus to the model.
 
+The [M4 room study](examples/m4-room-study.sketchyup) is an editable native model
+with two window assemblies, nested frame groups, materials and millimeter units.
+The [integrated workflow record](docs/verification/M4.md) documents its construction,
+shared/unique edits, History navigation, save/reopen and simulated crash recovery.
+
 ## Viewport verification
 
 The [viewport follow-up](docs/verification/R002-viewport.md) records native pixel,

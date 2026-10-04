@@ -807,8 +807,11 @@ bool Window::canReplace() {
         return false;
     if (choice == QMessageBox::Save)
         return save();
-    clearRecovery();
-    return true;
+    if (choice == QMessageBox::Discard) {
+        clearRecovery();
+        return true;
+    }
+    return false;
 }
 void Window::openPath(const QString &path) {
     // Validate before asking to discard the current document.

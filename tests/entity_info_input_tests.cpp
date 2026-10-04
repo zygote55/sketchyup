@@ -84,6 +84,7 @@ int main(int argc, char **argv) {
         view->setSelection(body);
         view->fit();
         auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
+        window.findChild<QAction *>("view.history")->trigger();
         tabs->setCurrentIndex(2);
         QTest::qWait(30);
         auto *frame = window.findChild<QComboBox *>("entityInfoFrame");
