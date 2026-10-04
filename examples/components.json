@@ -1,0 +1,137 @@
+[
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0
+        ]
+      ]
+    ],
+    "name": "Panel"
+  },
+  {
+    "command": "component.create",
+    "body": "1",
+    "name": "Panel"
+  },
+  {
+    "command": "component.instance",
+    "definition": "1",
+    "matrix": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      3,
+      0,
+      0,
+      1
+    ]
+  },
+  {
+    "command": "component.edit",
+    "definition": "1",
+    "commands": [
+      {
+        "command": "geometry.push_pull",
+        "body": "2",
+        "face": "5",
+        "distance": 0.2
+      }
+    ]
+  },
+  {
+    "command": "component.make_unique",
+    "body": "3"
+  },
+  {
+    "command": "component.edit",
+    "definition": "2",
+    "commands": [
+      {
+        "command": "material.color",
+        "body": "2",
+        "color": [
+          0.15,
+          0.35,
+          0.8
+        ]
+      }
+    ]
+  },
+  {
+    "command": "component.axes",
+    "definition": "1",
+    "matrix": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0.5,
+      0,
+      1
+    ]
+  },
+  {
+    "command": "component.instance",
+    "definition": "1",
+    "matrix": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      6,
+      0.5,
+      0,
+      1
+    ]
+  },
+  {
+    "command": "component.replace",
+    "body": "5",
+    "definition": "2"
+  }
+]

@@ -1,6 +1,7 @@
 # R033.a: canonical component records, transactions and persistence
 
-Date: 2026-10-04. Local checks passed; CI pending. No component UX gate claimed.
+Date: 2026-10-04. Merged in [PR #38](https://github.com/zygote55/sketchyup/pull/38);
+both CI jobs passed. No component UX gate claimed.
 Requires merged R032.c, PR #37. [Record decision](../decisions/0007-component-records.md).
 
 Definitions own canonical immutable geometry in one rooted member hierarchy.

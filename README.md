@@ -99,7 +99,7 @@ ctest --preset headless
   `Enter` on a context opens it; `Escape` clears selection, then exits one level.
 - Edit offers temporary hide/reveal and context lock/unlock. View → Show hidden
   geometry exposes hidden entities but does not bypass locks or the active context.
-  These view states are session-only. Group/component organization is still planned.
+  These view states are session-only. Persistent group visibility and locks are separate.
 - `M`: move; `Q`: rotate; `S`: scale. Select geometry, choose a pivot, then a
   destination (plus a baseline/reference for rotation or scale). Type exact
   displacement, angle or scale factors in Measurements. Re-entry revises the same
@@ -156,6 +156,7 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
 ./build/dev/sketchyup-cli --script examples/transforms.json --output /tmp/transforms.sketchyup
 ./build/dev/sketchyup-cli --script examples/copy-arrays.json --output /tmp/arrays.sketchyup
+./build/dev/sketchyup-cli --script examples/components.json --output /tmp/components.sketchyup
 ./build/dev/sketchyup-cli --input /tmp/curves.sketchyup --query-file examples/inference-query.json
 ```
 
@@ -182,8 +183,22 @@ in place of `edge`; results identify both sources of mixed intersections.
 The current file schema is version 8. It stores canonical component definitions
 and stable instance-member bindings; versions 1–7 migrate with no invented
 components. Version 7 face colors and earlier group/guide records retain their
-previous migration behavior. Component records are a foundation: shared edit
-commands and the native definition-scope banner remain under development.
+previous migration behavior.
+
+`component.create` converts a geometry/group root into a reusable definition;
+`component.instance` places it with a parent-local affine matrix. `component.edit`
+runs a nested command batch using canonical member IDs from `component.inspect`
+and propagates the change to every instance in one undo step. Its `world` space
+means definition coordinates. New model-root records created inside this scope
+become children of the definition root. Editing resolved member geometry outside
+this explicit scope rejects; a locked affected instance rejects the whole edit.
+`component.make_unique` isolates a placement; for nested placements it also clones
+the ancestor ownership path. `component.replace` keeps placement while replacing
+members with fresh scene IDs. `component.axes` changes a definition's local frame
+while preserving world geometry in all placements. Whole-context copies/arrays
+continue sharing definitions; explode removes the selected binding and retains
+geometry. See the [command contract](docs/verification/R033b-component-operations.md).
+Native component controls and the definition-scope banner remain under development.
 
 `group.create` groups sibling context IDs while preserving their geometry, colors
 and world placement. `group.explode` removes one group boundary and merges eligible

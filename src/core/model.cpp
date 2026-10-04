@@ -360,7 +360,12 @@ void Document::transform(Id id, Transform local, Id parent) {
     body->parent = parent;
     apply({"Transform", {{id, old, body}}}, revision_);
 }
-void Document::erase(Id id) { apply({"Delete", {{id, bodies_.at(id), nullptr}}}, revision_); }
+void Document::erase(Id id) {
+    Edit edit{"Delete", {{id, bodies_.at(id), nullptr}}};
+    if (instances_.contains(id))
+        edit.instances.push_back({id, instances_.at(id), nullptr});
+    apply(std::move(edit), revision_);
+}
 void Document::update(Edit edit, bool forward) {
     // Allocate into a temporary map before replacing authoritative state.
     auto next = bodies_;

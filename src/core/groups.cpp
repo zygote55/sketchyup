@@ -56,6 +56,8 @@ ChangeReport explodeGroup(Document &doc, Id id) {
     if (old->kind != BodyKind::Group)
         throw std::runtime_error("Explode requires a group");
     Edit edit{"Explode group", {}};
+    if (doc.instances().contains(id))
+        edit.instances.push_back({id, doc.instances().at(id), nullptr});
     // Groups may own geometry drawn directly in their editing context. Retain
     // that record and its IDs as raw geometry when removing the group boundary.
     const bool geometry = !old->surface.vertices.empty() || !old->guides.empty();
