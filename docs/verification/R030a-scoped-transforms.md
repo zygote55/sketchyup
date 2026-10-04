@@ -1,7 +1,7 @@
 # R030.a: scoped transforms and copies
 
-Date: 2026-10-03. Development, all 17 ASan/UBSan suites and native preview checks pass; CI
-validation is pending. R030.b native manipulation remains a separate step.
+Date: 2026-10-03. Development, all 17 ASan/UBSan suites, native preview checks and both CI jobs
+passed. PR #32 merged as `a053a31`. R030.b native manipulation remains a separate step.
 Owner/implementer: coding agent under the owner's full-roadmap authorization.
 
 The shared `transformSelected` operation and public `geometry.transform_selection`

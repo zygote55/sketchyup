@@ -8,7 +8,7 @@ is MIT licensed. Arch/Omarchy is the primary development environment.
 
 **Working native editor foundation, not a complete editor or release.** Draw lines,
 freehand strokes, rectangles, polygons, circles, arcs and pie sectors on explicit or hovered planes, select
-faces, push/pull planar regions, translate and
+faces, push/pull planar regions, move/rotate/scale/flip selected geometry, copy and
 color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain
 editable loops and holes. A headless driver uses the same core operations.
 
@@ -100,7 +100,14 @@ ctest --preset headless
 - Edit offers temporary hide/reveal and context lock/unlock. View → Show hidden
   geometry exposes hidden entities but does not bypass locks or the active context.
   These view states are session-only. Group/component organization is still planned.
-- `M`: translate the selected context numerically. `B`: change its color.
+- `M`: move; `Q`: rotate; `S`: scale. Select geometry, choose a pivot, then a
+  destination (plus a baseline/reference for rotation or scale). Type exact
+  displacement, angle or scale factors in Measurements. Re-entry revises the same
+  undo item. With no selection, Move can target an inferred vertex.
+- `Ctrl` toggles transform copy mode; Edit also provides copy/local-axis settings
+  and X/Y/Z flips about the selection center. Raw copies stay in their editing
+  context; whole-context copies duplicate the hierarchy. Local mode requires one
+  context. `[x,y,z]` always denotes world coordinates. `B`: change context color.
   `Delete` erases the selected entities as one undo step. Mixed deletion is bounded
   to 100 subentities per operation; select a whole context for bulk deletion.
 - Point inference acquires endpoints, midpoints, curve centers, intersections,
@@ -156,7 +163,8 @@ Raw copies receive fresh geometry IDs inside their existing context; whole-conte
 copies duplicate the hierarchy. The result includes typed copy mappings. Preview
 geometry includes world transforms, including children moved by a parent.
 The [transform contract](docs/verification/R030a-scoped-transforms.md) records
-limits; native Move/Rotate/Scale tools are the next roadmap step.
+limits; the [native tool evidence](docs/verification/R030b-native-transforms.md)
+describes pointer input, numeric amendment and frame semantics.
 
 Guide points and infinite guide lines are available through `guide.point`,
 `guide.line`, `guide.angle`, `guide.offset`, `guide.erase` and `guide.clear`.

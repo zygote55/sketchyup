@@ -191,27 +191,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
                            [this] { viewport_->repeatPushPull(); }));
     edit->addAction(
         action("guides.clear", "Delete all guides", {}, [this] { viewport_->clearGuides(); }));
-    edit->addAction(action("edit.move", "Move selection…", QKeySequence("M"), [this] {
-        auto id = viewport_->selectedBody();
-        if (!id)
-            return;
-        bool ok = false;
-        auto text = QInputDialog::getText(this, "Move", "Translation in meters: x, y, z",
-                                          QLineEdit::Normal, "0, 0, 0", &ok);
-        if (!ok)
-            return;
-        auto values = text.split(',');
-        if (values.size() != 3)
-            throw std::runtime_error("Enter x, y, z");
-        Vec3 delta;
-        double *fields[] = {&delta.x, &delta.y, &delta.z};
-        for (int i = 0; i < 3; ++i) {
-            *fields[i] = values[i].trimmed().toDouble(&ok);
-            if (!ok)
-                throw std::runtime_error("Invalid translation");
-        }
-        doc_.move(id, delta);
-        sync();
+    edit->addAction(action("edit.move", "Move selection", {}, [this] {
+        tool(Viewport::Tool::Move, "Choose a pivot and destination · Ctrl: copy");
     }));
     edit->addAction(action("edit.paint", "Paint selection…", QKeySequence("B"), [this] {
         auto id = viewport_->selectedBody();
@@ -246,6 +227,33 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             "Choose center and radius · Type 24s to set segments");
     addTool("Push/pull", "P", Viewport::Tool::Extrude,
             "Select a face · Drag or type distance · Ctrl: new face · Double-click: repeat");
+    addTool("Move", "M", Viewport::Tool::Move,
+            "Select geometry · Choose pivot and destination · Type displacement · Ctrl: copy");
+    addTool("Rotate", "Q", Viewport::Tool::Rotate,
+            "Choose pivot and baseline, then angle · Type degrees · Ctrl: copy");
+    addTool(
+        "Scale", "S", Viewport::Tool::Scale,
+        "Choose pivot and reference, then destination · Type one or three factors · Ctrl: copy");
+    auto *copyTransform = action("transform.copy", "Copy when transforming", {}, [this] {
+        viewport_->setTransformCopy(findChild<QAction *>("transform.copy")->isChecked());
+    });
+    copyTransform->setCheckable(true);
+    edit->addAction(copyTransform);
+    auto *localTransform = action("transform.local", "Use local transform axes", {}, [this] {
+        viewport_->setTransformLocal(findChild<QAction *>("transform.local")->isChecked());
+    });
+    localTransform->setCheckable(true);
+    edit->addAction(localTransform);
+    connect(viewport_, &Viewport::transformOptionsChanged, this,
+            [this, copyTransform, localTransform] {
+                copyTransform->setChecked(viewport_->transformCopy());
+                localTransform->setChecked(viewport_->transformLocal());
+            });
+    auto *flip = edit->addMenu("Flip about selection center");
+    for (int axis = 0; axis < 3; ++axis)
+        flip->addAction(action("transform.flip." + QString::number(axis),
+                               QString("%1 axis").arg(QString("XYZ")[axis]), {},
+                               [this, axis] { viewport_->flipSelection(axis); }));
     addTool("Regular polygon", "", Viewport::Tool::Polygon,
             "Choose center and radius · Type 6s to set sides", false);
     addTool("Freehand", "", Viewport::Tool::Freehand, "Press and draw a stroke · Release to commit",
@@ -425,14 +433,19 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     action("view.commands", "Commands…", QKeySequence("Ctrl+K"), [this] { palette(); });
     focusRegions_ = {search, tools, viewport_, outliner_, measurements_};
     for (const auto &binding :
-         std::vector<std::pair<QString, QString>>{{"edit.move", "geometry.translate"},
+         std::vector<std::pair<QString, QString>>{{"edit.move", "geometry.transform_selection"},
                                                   {"edit.paint", "material.color"},
                                                   {"edit.delete", "geometry.erase_selection"}}) {
         auto *entry = findChild<QAction *>(binding.first);
         entry->setProperty("command", binding.second);
         entry->setProperty("requiresSelection", true);
     }
-    findChild<QAction *>("edit.move")->setProperty("form", QStringList{"x", "y", "z"});
+    for (const auto &name : {"edit.move", "tool.17", "tool.18", "tool.19", "transform.flip.0",
+                             "transform.flip.1", "transform.flip.2"}) {
+        auto *entry = findChild<QAction *>(name);
+        entry->setProperty("command", "geometry.transform_selection");
+        entry->setProperty("form", QStringList{"pivot", "space", "copy", "measurements"});
+    }
     findChild<QAction *>("edit.paint")->setProperty("form", QStringList{"color"});
     action("view.nextRegion", "Next region", QKeySequence("F6"), [this] { focusRegion(); });
     action("view.previousRegion", "Previous region", QKeySequence("Shift+F6"),
@@ -567,15 +580,18 @@ void Window::tool(Viewport::Tool t, const QString &text) {
     viewport_->setTool(t);
     viewport_->setFocus();
     status_->setText(text);
-    measurements_->setPlaceholderText(t == Viewport::Tool::Tape         ? "distance or [x,y,z]"
-                                      : t == Viewport::Tool::Protractor ? "angle (deg) or [x,y,z]"
-                                      : t == Viewport::Tool::Extrude    ? "distance"
-                                      : t == Viewport::Tool::Circle     ? "radius or 24s"
-                                      : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie
-                                          ? "radius, angle (deg) or 24s"
-                                      : t == Viewport::Tool::TwoPointArc   ? "signed bulge or 24s"
-                                      : t == Viewport::Tool::ThreePointArc ? "[x,y,z] or 24s"
-                                                                           : "width, depth");
+    measurements_->setPlaceholderText(
+        t == Viewport::Tool::Move         ? "distance, dx,dy,dz or [x,y,z]"
+        : t == Viewport::Tool::Rotate     ? "angle (deg) or [pivot / reference]"
+        : t == Viewport::Tool::Scale      ? "factor or x,y,z factors"
+        : t == Viewport::Tool::Tape       ? "distance or [x,y,z]"
+        : t == Viewport::Tool::Protractor ? "angle (deg) or [x,y,z]"
+        : t == Viewport::Tool::Extrude    ? "distance"
+        : t == Viewport::Tool::Circle     ? "radius or 24s"
+        : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
+        : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"
+        : t == Viewport::Tool::ThreePointArc                         ? "[x,y,z] or 24s"
+                                                                     : "width, depth");
 }
 void Window::sync() {
     viewport_->refresh();
@@ -584,9 +600,9 @@ void Window::sync() {
         (path_.isEmpty() ? "  ·  Not saved" : (doc_.dirty() ? "  •  Edited" : "  ·  Saved")));
     undo_->setEnabled(doc_.canUndo());
     redo_->setEnabled(doc_.canRedo());
-    for (const auto &id : {"edit.move", "edit.paint", "context.enter"})
+    for (const auto &id : {"edit.paint", "context.enter"})
         findChild<QAction *>(id)->setEnabled(doc_.bodies().contains(viewport_->selectedBody()));
-    for (const auto &id : {"edit.delete", "selection.hide", "selection.lock"})
+    for (const auto &id : {"edit.move", "edit.delete", "selection.hide", "selection.lock"})
         findChild<QAction *>(id)->setEnabled(!viewport_->selectionState().entities().empty());
     findChild<QAction *>("edit.repeatPushPull")->setEnabled(viewport_->canRepeatPushPull());
     findChild<QAction *>("context.leave")->setEnabled(viewport_->selectionState().context() != 0);

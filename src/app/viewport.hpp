@@ -41,7 +41,10 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Pie = 13,
         Tape = 14,
         Protractor = 15,
-        Zoom = 16
+        Zoom = 16,
+        Move = 17,
+        Rotate = 18,
+        Scale = 19
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -100,6 +103,11 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         return lastPushDistance_ && doc_.owns(repeatSession_) && selectedFace_ &&
                selectable({selected_, SelectionKind::Face, selectedFace_});
     }
+    void setTransformCopy(bool enabled);
+    bool transformCopy() const { return transformCopy_; }
+    void setTransformLocal(bool enabled);
+    bool transformLocal() const { return transformLocal_; }
+    void flipSelection(int axis);
     void cancel();
     bool measurements(const QString &value);
     void setTheme(const ThemeColors &colors);
@@ -132,6 +140,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void guideCreationChanged(bool enabled);
     void navigationChanged();
     void pushPullModeChanged(bool enabled);
+    void transformOptionsChanged();
     void measurementsRequested(const QString &text);
     void measurementPreview(const QString &text);
     void changed();
@@ -245,10 +254,29 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QJsonObject committedShape_;
     bool toolPressed_{false}, dragCommit_{false}, previewValid_{false};
     QPointF toolPressPosition_;
+    bool transformTool() const {
+        return tool_ == Tool::Move || tool_ == Tool::Rotate || tool_ == Tool::Scale;
+    }
+    bool transformCopy_{}, transformLocal_{}, transformControlPending_{};
+    QJsonArray transformTargets_;
+    SelectionSet transformSelection_;
+    Transform transformFrame_;
+    Vec3 transformPivot_{}, transformAxis_{0, 0, 1};
+    std::optional<Vec3> transformBase_, transformEnd_;
+    QJsonObject transformPreview_;
+    void captureTransformTargets();
+    void beginTransform(Vec3 pivot);
+    void transformClick(QPointF point);
+    void updateTransformPreview(QPointF point);
+    QJsonObject transformCommand(const Transform &operation) const;
+    QJsonObject transformAt(Vec3 point) const;
+    void finishTransform(const QJsonObject &command);
+    bool transformMeasurements(const QString &text);
     Vec3 extrusionAxis_{};
     double extrusionScale_{1}, previewDistance_{};
     QString previewError_;
     std::vector<std::array<Vec3, 2>> previewEdges_;
+    std::vector<Guide> previewGuides_;
     QVector3D target_{0, 0, 0};
     float yaw_{-45}, pitch_{35}, distance_{14};
     bool ortho_{false}, trackpad_{};

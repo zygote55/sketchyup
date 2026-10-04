@@ -52,7 +52,8 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
         if (const auto projected = projectDirection(*lock, camera, point.x(), point.y()))
             if (const auto screen = camera.project(projected->point))
                 queryPoint = QPointF(screen->x, screen->y);
-        if (tool_ == Tool::Line && std::abs(dot(lock->direction, plane_.normal)) > 1e-10)
+        if ((tool_ == Tool::Line || tool_ == Tool::Move) &&
+            std::abs(dot(lock->direction, plane_.normal)) > 1e-10)
             queryPlane.reset();
     }
     InferenceQuery query{camera,     queryPoint.x(),       queryPoint.y(), 8,
@@ -114,7 +115,7 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
 }
 void Viewport::armReference() {
     if (!hoverReference_ || !referenceTimer_.isValid() || referenceTimer_.elapsed() < 450 ||
-        !hasFocus() || dragging_ || shiftHeld_ || !drawingTool() ||
+        !hasFocus() || dragging_ || shiftHeld_ || (!drawingTool() && tool_ != Tool::Move) ||
         (reference_ && sameSource(*reference_, *hoverReference_) &&
          length(reference_->point - hoverReference_->point) <= tolerance))
         return;
@@ -153,7 +154,7 @@ void Viewport::validateLockedPoint(Vec3 point) const {
         throw std::runtime_error("Coordinate differs from the held inference point");
 }
 bool Viewport::constraintKey(QKeyEvent *event) {
-    if (!drawingTool() || tool_ == Tool::Freehand ||
+    if ((!drawingTool() && tool_ != Tool::Move) || tool_ == Tool::Freehand ||
         (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)))
         return false;
     const auto key = event->key();
@@ -216,7 +217,8 @@ bool Viewport::constraintKey(QKeyEvent *event) {
                     throw std::runtime_error("Hover an edge to use parallel or perpendicular");
                 constraint = *found;
             }
-            if (tool_ != Tool::Line && std::abs(dot(constraint.direction, plane_.normal)) > 1e-10)
+            if (tool_ != Tool::Line && tool_ != Tool::Move &&
+                std::abs(dot(constraint.direction, plane_.normal)) > 1e-10)
                 throw std::runtime_error("This axis is outside the shape's drawing plane");
             releaseInferenceHold();
             directionLocks_.toggle(constraint);
@@ -236,6 +238,14 @@ bool Viewport::constraintKey(QKeyEvent *event) {
     return true;
 }
 void Viewport::keyReleaseEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Control && transformTool() && !event->isAutoRepeat()) {
+        const auto toggle = transformControlPending_;
+        transformControlPending_ = false;
+        if (toggle)
+            setTransformCopy(!transformCopy_);
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_Control && tool_ == Tool::Extrude && !event->isAutoRepeat()) {
         const auto toggle = pushControlPending_;
         pushControlPending_ = false;

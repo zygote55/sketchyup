@@ -860,6 +860,11 @@ void Viewport::paintScene() {
     p.drawText(20, 28, ortho_ ? "ORTHOGRAPHIC  /  METERS" : "PERSPECTIVE  /  METERS");
     p.setPen(colors_.muted);
     p.drawText(20, height() - 22, "Z up   ·   Inference 8 px   ·   Grid fallback 0.1 m");
+    if (transformTool())
+        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+                   QString("%1 axes · Ctrl: copy %2 · Choose pivot, then destination · Esc: cancel")
+                       .arg(transformLocal_ ? "Local" : "World")
+                       .arg(transformCopy_ ? "on" : "off"));
     if (tool_ == Tool::Extrude)
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
                    QString("Ctrl: create new face %1 · Double-click: repeat distance · Alt-drag: "
@@ -887,6 +892,8 @@ void Viewport::paintScene() {
         p.setPen(QPen(previewValid_ ? QColor("#b9762f") : QColor("#bc4343"), 2, Qt::DashLine));
         for (const auto &edge : previewEdges_)
             p.drawLine(project(edge[0]), project(edge[1]));
+        for (const auto &guide : previewGuides_)
+            paintGuide(p, guide);
         if (anchor_) {
             p.setBrush(colors_.canvas);
             p.drawEllipse(project(*anchor_), 4, 4);
@@ -1078,6 +1085,7 @@ void Viewport::clearPreview() {
     anchor_.reset();
     cursor_.reset();
     previewEdges_.clear();
+    previewGuides_.clear();
     previewGuide_.reset();
     previewError_.clear();
     previewValid_ = false;
@@ -1093,6 +1101,12 @@ void Viewport::cancel() {
     overlayDirty_ = true;
     clickCount_ = 0;
     session_.cancel();
+    transformTargets_ = {};
+    transformSelection_.clear();
+    transformBase_.reset();
+    transformEnd_.reset();
+    transformPreview_ = {};
+    transformControlPending_ = false;
     guideControlPending_ = false;
     pushControlPending_ = false;
     clearConstraints();
@@ -1264,6 +1278,7 @@ QJsonObject Viewport::shapeCommand(Vec3 end) const {
 void Viewport::previewCommand(const QJsonObject &command) {
     previewValid_ = false;
     previewEdges_.clear();
+    previewGuides_.clear();
     try {
         const auto result = session_.preview(command);
         const auto geometry = result["geometry"].toObject();
@@ -1282,6 +1297,21 @@ void Viewport::previewCommand(const QJsonObject &command) {
                 vertices[vertex["id"].toString()] =
                     world.point({p[0].toDouble(), p[1].toDouble(), p[2].toDouble()});
             }
+            if (transformTool())
+                for (const auto &value : body["guides"].toArray()) {
+                    const auto guide = value.toObject();
+                    const auto origin = guide["origin"].toArray();
+                    const auto p = world.point(
+                        {origin[0].toDouble(), origin[1].toDouble(), origin[2].toDouble()});
+                    if (guide["kind"].toString() == "point")
+                        previewGuides_.push_back(guidePoint(p));
+                    else {
+                        const auto direction = guide["direction"].toArray();
+                        previewGuides_.push_back(guideLine(
+                            p, world.vector({direction[0].toDouble(), direction[1].toDouble(),
+                                             direction[2].toDouble()})));
+                    }
+                }
             for (const auto &value : body["edges"].toArray()) {
                 const auto edge = value.toObject()["vertices"].toArray();
                 previewEdges_.push_back(
@@ -1301,6 +1331,10 @@ void Viewport::previewCommand(const QJsonObject &command) {
 void Viewport::updateToolPreview(QPointF point) {
     if (!session_.active() || !anchor_)
         return;
+    if (transformTool()) {
+        updateTransformPreview(point);
+        return;
+    }
     if (tool_ == Tool::Extrude) {
         const auto [origin, direction] = ray(point);
         const auto w = origin - *anchor_;
@@ -1463,6 +1497,8 @@ bool Viewport::measurements(const QString &text) {
             finishShape(*origin + line.direction * length(*base - *origin));
             return doc_.revision() != revision || measurementCompleted_;
         }
+        if (transformTool())
+            return transformMeasurements(trimmed);
         const bool centerInput = tool_ == Tool::CenterArc || tool_ == Tool::Pie;
         if (centerInput && !trimmed.startsWith('[') && !trimmed.startsWith('<') &&
             !trimmed.endsWith('s', Qt::CaseInsensitive)) {
@@ -1671,7 +1707,8 @@ bool Viewport::event(QEvent *event) {
             event->accept();
             return true;
         }
-        if (key->key() == Qt::Key_Tab && !key->modifiers() && drawingTool() && inferenceCount() &&
+        if (key->key() == Qt::Key_Tab && !key->modifiers() &&
+            (drawingTool() || tool_ == Tool::Move) && inferenceCount() &&
             !directionLocks_.current() && !heldPoint_) {
             inferenceChoice_ = (inferenceChoice_ + 1) % inferenceCount();
             inferenceCycled_ = true;
@@ -1691,6 +1728,7 @@ bool Viewport::event(QEvent *event) {
         if (key->key() != Qt::Key_Control) {
             guideControlPending_ = false;
             pushControlPending_ = false;
+            transformControlPending_ = false;
         }
         if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
             tool_ != Tool::Zoom &&
@@ -1708,6 +1746,7 @@ bool Viewport::event(QEvent *event) {
     } else if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::FocusOut) {
         guideControlPending_ = false;
         pushControlPending_ = false;
+        transformControlPending_ = false;
         selectionPressed_ = selectingBox_ = false;
         releaseInferenceHold();
         // Keep the anchor when focus moves to Measurements. End every button
@@ -1723,6 +1762,7 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     setFocus();
     guideControlPending_ = false;
     pushControlPending_ = false;
+    transformControlPending_ = false;
     previous_ = e->position();
     if (e->button() != Qt::LeftButton || tool_ == Tool::Orbit || tool_ == Tool::Pan ||
         tool_ == Tool::Zoom || e->modifiers().testFlag(Qt::AltModifier)) {
@@ -1745,6 +1785,10 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     toolPressed_ = true;
     dragCommit_ = false;
     toolPressPosition_ = e->position();
+    if (transformTool()) {
+        transformClick(e->position());
+        return;
+    }
     if (drawingTool()) {
         try {
             if (chainPending_) {
@@ -1854,7 +1898,7 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
             (e->position() - toolPressPosition_).manhattanLength() >= 4)
             dragCommit_ = true;
         updateToolPreview(e->position());
-    } else if (drawingTool() && tool_ != Tool::Freehand) {
+    } else if ((drawingTool() || transformTool()) && tool_ != Tool::Freehand) {
         try {
             acquireInference(e->position(), false);
         } catch (const std::exception &error) {
@@ -1894,7 +1938,13 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
         }
         if (!previewValid_)
             return;
-        if (tool_ == Tool::Extrude) {
+        if (transformTool()) {
+            try {
+                finishTransform(transformPreview_);
+            } catch (const std::exception &error) {
+                emit message(error.what());
+            }
+        } else if (tool_ == Tool::Extrude) {
             try {
                 finishExtrusion(previewDistance_);
             } catch (const std::exception &error) {
@@ -1905,6 +1955,12 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     }
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
+    if (transformTool() && e->key() == Qt::Key_Control) {
+        if (!e->isAutoRepeat())
+            transformControlPending_ = true;
+        e->accept();
+        return;
+    }
     if (tool_ == Tool::Extrude && e->key() == Qt::Key_Control) {
         if (!e->isAutoRepeat())
             pushControlPending_ = true;
