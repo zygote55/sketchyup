@@ -1,0 +1,76 @@
+[
+  {
+    "command": "geometry.rectangle",
+    "body": "0",
+    "origin": [
+      0,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      0.5,
+      1
+    ],
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "width": 4,
+    "height": 3
+  },
+  {
+    "command": "geometry.polygon",
+    "body": "0",
+    "origin": [
+      6,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      0.5,
+      1
+    ],
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "radius": 1.5,
+    "sides": 6
+  },
+  {
+    "command": "geometry.polyline",
+    "body": "0",
+    "origin": [
+      0,
+      0,
+      0
+    ],
+    "normal": [
+      0,
+      0.5,
+      1
+    ],
+    "points": [
+      [
+        0,
+        4,
+        -2
+      ],
+      [
+        1,
+        5,
+        -2.5
+      ],
+      [
+        2,
+        4,
+        -2
+      ]
+    ],
+    "closed": false
+  }
+]

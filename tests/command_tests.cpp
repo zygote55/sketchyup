@@ -62,6 +62,41 @@ int main(int argc, char **argv) {
               "Push/pull container round trip");
         committed.undo();
         rejects([&] { previewBatch(committed, sweep); });
+        Document transformedDrawing;
+        const auto context =
+            transformedDrawing.addFace({{{0, 0, 0}, {4, 0, 0}, {4, 4, 0}, {0, 4, 0}}});
+        transformedDrawing.transform(context, Transform::translation({5, 6, 7}) *
+                                                  Transform::scaling({2, 3, 1}));
+        const QJsonObject worldRectangle{{"command", "geometry.rectangle"},
+                                         {"body", QString::number(context)},
+                                         {"space", "world"},
+                                         {"origin", QJsonArray{6, 7, 7}},
+                                         {"normal", QJsonArray{0, 0, 1}},
+                                         {"xAxis", QJsonArray{1, 1, 0}},
+                                         {"width", 2},
+                                         {"height", 1}};
+        auto worldRequest = [&](QJsonObject command) {
+            return QJsonObject{
+                {"apiVersion", 1},
+                {"documentId", QString::fromStdString(transformedDrawing.identity())},
+                {"expectedRevision", QString::number(transformedDrawing.revision())},
+                {"commands", QJsonArray{command}}};
+        };
+        executeBatch(transformedDrawing, worldRequest(worldRectangle));
+        bool foundWorldArea = false;
+        for (const auto &[id, face] : transformedDrawing.bodies().at(context)->surface.faces)
+            foundWorldArea |= std::abs(transformedDrawing.worldArea(context, id) - 2) < 1e-6;
+        check(foundWorldArea,
+              "World-space rotated rectangle retains dimensions in nonuniform context");
+        auto drawingReopened = decodeContainer(encodeContainer(transformedDrawing));
+        check(encodeDocument(drawingReopened) == encodeDocument(transformedDrawing),
+              "Plane drawing topology and transform persist");
+        auto malformedRectangle = worldRectangle;
+        malformedRectangle["space"] = "screen";
+        const auto drawingBefore = encodeDocument(transformedDrawing);
+        rejects([&] { executeBatch(transformedDrawing, worldRequest(malformedRectangle)); });
+        check(encodeDocument(transformedDrawing) == drawingBefore,
+              "Invalid drawing space rejects atomically");
         QJsonArray matrix;
         for (auto value : Transform::translation({2, 0, 0}).m)
             matrix.append(value);
@@ -75,6 +110,27 @@ int main(int argc, char **argv) {
                 {"origin", QJsonArray{0, 0, 0}},
                 {"normal", QJsonArray{0, 0, 1}},
                 {"edges", QJsonArray{QJsonArray{QJsonArray{0, .5, 0}, QJsonArray{1, .5, 0}}}}},
+            QJsonObject{{"command", "geometry.rectangle"},
+                        {"body", "0"},
+                        {"origin", QJsonArray{0, 0, 1}},
+                        {"normal", QJsonArray{0, 0, 1}},
+                        {"xAxis", QJsonArray{1, 0, 0}},
+                        {"width", 2},
+                        {"height", 1}},
+            QJsonObject{{"command", "geometry.polygon"},
+                        {"body", "0"},
+                        {"origin", QJsonArray{0, 0, 1}},
+                        {"normal", QJsonArray{0, 0, 1}},
+                        {"xAxis", QJsonArray{1, 0, 0}},
+                        {"radius", 2},
+                        {"sides", 6}},
+            QJsonObject{{"command", "geometry.polyline"},
+                        {"body", "0"},
+                        {"origin", QJsonArray{0, 0, 1}},
+                        {"normal", QJsonArray{0, 0, 1}},
+                        {"points",
+                         QJsonArray{QJsonArray{0, 0, 1}, QJsonArray{2, 0, 1}, QJsonArray{2, 1, 1}}},
+                        {"closed", false}},
             QJsonObject{{"command", "geometry.wire"},
                         {"body", "0"},
                         {"start", QJsonArray{0, 0, 0}},

@@ -6,8 +6,9 @@ is MIT licensed. Arch/Omarchy is the primary development environment.
 
 ## Current build
 
-**Working native spike, not a complete editor or release.** Draw ground-plane
-rectangles and circles, select faces, push/pull planar regions, translate and
+**Working native editor foundation, not a complete editor or release.** Draw lines,
+freehand strokes, rectangles and polygons on explicit or hovered planes, select
+faces, push/pull planar regions, translate and
 color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain
 editable loops and holes. A headless driver uses the same core operations.
 
@@ -48,11 +49,17 @@ ctest --preset headless
 
 ## Modeling
 
-- `L`: line. Click–move–click or press–drag–release; Escape cancels the pending edge.
+- `L`: line. Click–move–click or press–drag–release; movement continues a chain.
+  Escape disconnects it while keeping committed edges. Closed chains form faces.
 - `R`: rectangle. Click the first corner, then the second; or enter `width, depth`
   in Measurements and press Enter. Values default to meters; `mm`, `cm`, `ft`, `in`,
   feet/inches and fractions override units. Pointer snapping is 0.1 m.
 - `C`: circle. Click center, then radius; or enter the radius.
+- Draw menu: Freehand, Regular polygon (`6s` sets sides), and Rotated rectangle
+  (first corner, baseline endpoint, height).
+- Draw → Drawing plane: automatic from the first hovered face, ground, selected
+  face or custom origin/normal/horizontal direction. Drawing on an existing face
+  subdivides its editing context.
 - `Space`: select. `P`: select a face, move to preview, then click/drag to finish or enter a signed distance along its local normal.
 - `M`: translate selected object numerically. `B`: change its color. `Delete`: remove it.
 - Middle drag or `O`: orbit. Right drag or `H`: pan. Wheel: zoom. `Shift+Z`: fit.
@@ -63,8 +70,7 @@ ctest --preset headless
 
 With a drawing tool active, typing a digit or `[` sends input to Measurements.
 `[x,y,z]` sets an absolute point; `<x,y,z>` sets a relative point. Comma-decimal
-locales use semicolons between dimensions/coordinates. The current drawing plane
-is Z=0. Entering another value immediately after completion revises that operation
+locales use semicolons between dimensions/coordinates. The selected drawing plane constrains the point. Entering another value immediately after completion revises that operation
 as one undo item; an intervening edit or undo/redo invalidates re-entry. Escape in
 Measurements returns focus to the viewport. Invalid input remains selected and
 marked with an explanation.
@@ -81,6 +87,7 @@ marked with an explanation.
 ./build/dev/sketchyup-cli --script examples/split-wire.json --output /tmp/wire.sketchyup
 ./build/dev/sketchyup-cli --script examples/planar-grid.json --output /tmp/grid.sketchyup
 ./build/dev/sketchyup-cli --preview --script examples/through-opening.json
+./build/dev/sketchyup-cli --script examples/tilted-drawing.json --output /tmp/tilted.sketchyup
 ```
 
 The topology query exposes stable context-scoped edges, oriented loops and radial

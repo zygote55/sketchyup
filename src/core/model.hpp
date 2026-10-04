@@ -72,7 +72,8 @@ class Document {
     ChangeReport apply(Edit edit, std::uint64_t expectedRevision);
     Id addWire(Id context, Vec3 a, Vec3 b);
     ChangeReport insertEdges(Id context, Vec3 origin, Vec3 normal,
-                             const std::vector<std::array<Vec3, 2>> &edges);
+                             const std::vector<std::array<Vec3, 2>> &edges,
+                             std::string name = "Planar geometry");
     ChangeReport splitEdge(Id context, Id edge, double fraction);
     ChangeReport eraseFace(Id context, Id face);
     ChangeReport eraseEdge(Id context, Id edge);

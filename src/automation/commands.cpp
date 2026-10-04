@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "geometry/drawing.hpp"
 #include <QString>
 #include <algorithm>
 #include <set>
@@ -257,6 +258,54 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
             const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
             compose(staged.insertEdges(context, point(command["origin"]), point(command["normal"]),
                                        edges));
+        } else if (name == "geometry.rectangle" || name == "geometry.polygon" ||
+                   name == "geometry.polyline") {
+            const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
+            const auto origin = point(command["origin"]), normal = point(command["normal"]);
+            std::vector<Vec3> points;
+            bool closed = true;
+            std::string label;
+            if (name == "geometry.polyline") {
+                if (!command["closed"].isBool())
+                    throw std::runtime_error("Polyline closed flag must be boolean");
+                closed = command["closed"].toBool();
+                for (const auto &value : array(command["points"]))
+                    points.push_back(point(value));
+                label = "Polyline";
+            } else {
+                const auto plane = DrawingPlane::make(origin, normal, point(command["xAxis"]));
+                if (name == "geometry.rectangle") {
+                    points = rectangleOutline(plane, number(command["width"]),
+                                              number(command["height"]));
+                    label = "Rectangle";
+                } else {
+                    const auto sides = number(command["sides"]);
+                    if (sides < 3 || sides > 256 || sides != std::floor(sides))
+                        throw std::runtime_error("Polygon sides must be an integer from 3 to 256");
+                    points = polygonOutline(plane, number(command["radius"]), unsigned(sides));
+                    label = "Polygon";
+                }
+            }
+            auto localOrigin = origin, localNormal = normal;
+            if (command.contains("space") && command["space"] != "local" &&
+                command["space"] != "world")
+                throw std::runtime_error("Drawing space must be local or world");
+            if (command["space"] == "world" && context) {
+                const auto inverse = staged.worldTransform(context).inverse();
+                const auto n = normalized(normal);
+                const auto frame = DrawingPlane::make(
+                    origin, n, std::abs(n.x) < .8 ? Vec3{1, 0, 0} : Vec3{0, 1, 0});
+                localOrigin = inverse.point(origin);
+                localNormal = cross(inverse.vector(frame.xAxis), inverse.vector(frame.yAxis));
+                const auto magnitude = length(localNormal);
+                if (!std::isfinite(magnitude) || magnitude == 0)
+                    throw std::runtime_error("Drawing plane is singular in this context");
+                localNormal = localNormal * (1 / magnitude);
+                for (auto &p : points)
+                    p = inverse.point(p);
+            }
+            compose(staged.insertEdges(context, localOrigin, localNormal,
+                                       polylineEdges(points, closed), label));
         } else if (name == "geometry.wire") {
             const auto context = command["body"] == "0" ? Id{0} : id(command["body"]);
             staged.addWire(context, point(command["start"]), point(command["end"]));

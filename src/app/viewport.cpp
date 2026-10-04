@@ -132,18 +132,90 @@ std::pair<Vec3, Vec3> Viewport::ray(QPointF p) const {
          b = (inv * QVector4D(x, y, 1, 1)).toVector3DAffine();
     return {vec(a), normalized(vec(b - a))};
 }
-std::optional<Vec3> Viewport::ground(QPointF p) const {
-    auto [o, d] = ray(p);
-    if (std::abs(d.z) < 1e-7)
+std::optional<Vec3> Viewport::ground(QPointF point) const {
+    const auto [origin, direction] = ray(point);
+    const auto denominator = dot(direction, plane_.normal);
+    if (std::abs(denominator) < 1e-7)
         return {};
-    double t = -o.z / d.z;
-    if (t < 0)
+    const auto distance = dot(plane_.origin - origin, plane_.normal) / denominator;
+    if (distance < 0)
         return {};
-    auto v = o + d * t;
-    v.x = std::round(v.x * 10) / 10;
-    v.y = std::round(v.y * 10) / 10;
-    v.z = 0;
-    return v;
+    auto local = plane_.coordinates(origin + direction * distance);
+    if (tool_ != Tool::Freehand) {
+        local.x = std::round(local.x * 10) / 10;
+        local.y = std::round(local.y * 10) / 10;
+    }
+    const auto result = plane_.point(local.x, local.y);
+    if (std::abs(result.x) > coordinateLimit || std::abs(result.y) > coordinateLimit ||
+        std::abs(result.z) > coordinateLimit)
+        return {};
+    return result;
+}
+bool Viewport::drawingTool() const {
+    return tool_ == Tool::Line || tool_ == Tool::Rectangle || tool_ == Tool::Circle ||
+           tool_ == Tool::Polygon || tool_ == Tool::Freehand || tool_ == Tool::RotatedRectangle;
+}
+void Viewport::setDrawingPlane(std::optional<DrawingPlane> plane, Id context) {
+    if (context && !doc_.bodies().contains(context))
+        throw std::runtime_error("Drawing context does not exist");
+    if (plane)
+        *plane = DrawingPlane::make(plane->origin, plane->normal, plane->xAxis);
+    cancel();
+    configuredPlane_ = plane;
+    configuredContext_ = plane ? context : 0;
+    plane_ = plane.value_or(DrawingPlane{});
+    drawingContext_ = configuredContext_;
+    emit message(plane ? "Drawing plane locked" : "Drawing plane follows the first hovered face");
+}
+void Viewport::useSelectedFacePlane() {
+    if (!selected_ || !selectedFace_)
+        throw std::runtime_error("Select a face to use its plane");
+    const auto &body = *doc_.bodies().at(selected_);
+    const auto world = doc_.worldTransform(selected_);
+    const auto &loop = body.surface.faces.at(selectedFace_).loops[0];
+    const auto a = world.point(body.surface.vertices.at(loop[0]));
+    const auto u =
+        world.vector(body.surface.vertices.at(loop[1]) - body.surface.vertices.at(loop[0]));
+    const auto n = body.surface.normal(selectedFace_);
+    const auto localFrame =
+        DrawingPlane::make({}, n, std::abs(n.x) < .8 ? Vec3{1, 0, 0} : Vec3{0, 1, 0});
+    const auto normal = cross(world.vector(localFrame.xAxis), world.vector(localFrame.yAxis));
+    setDrawingPlane(DrawingPlane::make(a, normal, u), selected_);
+}
+void Viewport::choosePlane(QPointF point) {
+    if (configuredPlane_) {
+        if (configuredContext_ && !doc_.bodies().contains(configuredContext_))
+            throw std::runtime_error("Locked drawing context no longer exists");
+        plane_ = *configuredPlane_;
+        drawingContext_ = configuredContext_;
+        return;
+    }
+    plane_ = DrawingPlane{};
+    drawingContext_ = 0;
+    const auto hit = pick(point);
+    if (!hit.first || !hit.second)
+        return;
+    const auto &body = *doc_.bodies().at(hit.first);
+    const auto world = doc_.worldTransform(hit.first);
+    const auto &loop = body.surface.faces.at(hit.second).loops[0];
+    const auto local =
+        DrawingPlane::make(body.surface.vertices.at(loop[0]), body.surface.normal(hit.second),
+                           body.surface.vertices.at(loop[1]) - body.surface.vertices.at(loop[0]));
+    plane_ = DrawingPlane::make(world.point(local.origin),
+                                cross(world.vector(local.xAxis), world.vector(local.yAxis)),
+                                world.vector(local.xAxis));
+    drawingContext_ = hit.first;
+}
+void Viewport::beginChain() {
+    if (!chainPending_ || !committedEnd_)
+        return;
+    const auto point = *committedEnd_;
+    clearPreview();
+    session_.begin();
+    anchor_ = point;
+    cursor_ = point;
+    drawingContext_ = chainContext_;
+    chainPending_ = false;
 }
 Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
     auto [o, d] = ray(p);
@@ -319,6 +391,11 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
 }
 void Viewport::rebuild() {
     if (selectionDocument_ != doc_.identity()) {
+        cancel();
+        configuredPlane_.reset();
+        configuredContext_ = 0;
+        drawingContext_ = 0;
+        plane_ = DrawingPlane{};
         selected_ = selectedFace_ = 0;
         selectionDocument_ = doc_.identity();
     }
@@ -634,6 +711,11 @@ void Viewport::refresh() {
         emit message("Document changed; the uncommitted operation was canceled");
     }
     if (selectionDocument_ != doc_.identity()) {
+        cancel();
+        configuredPlane_.reset();
+        configuredContext_ = 0;
+        drawingContext_ = 0;
+        plane_ = DrawingPlane{};
         selected_ = selectedFace_ = 0;
         selectionDocument_ = doc_.identity();
     }
@@ -666,12 +748,17 @@ void Viewport::clearPreview() {
     previewEdges_.clear();
     previewError_.clear();
     previewValid_ = false;
+    baseline_.reset();
+    samples_.clear();
     toolPressed_ = false;
     dragCommit_ = false;
     update();
 }
 void Viewport::cancel() {
     session_.cancel();
+    chainPending_ = false;
+    chainContext_ = 0;
+    committedBaseline_.reset();
     committedAnchor_.reset();
     committedEnd_.reset();
     committedBody_ = committedFace_ = 0;
@@ -722,28 +809,62 @@ QJsonObject Viewport::shapeCommand(Vec3 end) const {
         throw std::runtime_error("Choose a first point");
     const auto a = *origin;
     auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
-    if (tool_ == Tool::Line)
-        return {{"command", "geometry.insert_edges"},
-                {"body", "0"},
-                {"origin", QJsonArray{0, 0, 0}},
-                {"normal", QJsonArray{0, 0, 1}},
-                {"edges", QJsonArray{QJsonArray{point(a), point(end)}}}};
-    QJsonArray loop;
-    if (tool_ == Tool::Circle) {
-        const auto radius = length(end - a);
-        for (int i = 0; i < 48; ++i) {
-            const auto angle = i * 2 * std::numbers::pi / 48;
-            loop.append(point(a + Vec3{radius * std::cos(angle), radius * std::sin(angle), 0}));
+    QJsonObject command{{"body", QString::number(drawingContext_)},
+                        {"space", "world"},
+                        {"origin", point(plane_.origin)},
+                        {"normal", point(plane_.normal)}};
+    if (tool_ == Tool::Line || tool_ == Tool::Freehand) {
+        QJsonArray points;
+        if (tool_ == Tool::Line)
+            points = {point(a), point(end)};
+        else {
+            for (auto sample : samples_)
+                points.append(point(sample));
+            if (samples_.empty() || length(samples_.back() - end) >= tolerance)
+                points.append(point(end));
         }
-    } else {
-        const auto x = std::min(a.x, end.x), y = std::min(a.y, end.y);
-        const auto w = std::abs(end.x - a.x), h = std::abs(end.y - a.y);
-        for (auto p : {Vec3{x, y, 0}, Vec3{x + w, y, 0}, Vec3{x + w, y + h, 0}, Vec3{x, y + h, 0}})
-            loop.append(point(p));
+        command["command"] = "geometry.polyline";
+        command["points"] = points;
+        command["closed"] = false;
+        return command;
     }
-    return {{"command", "geometry.face"},
-            {"loops", QJsonArray{loop}},
-            {"name", tool_ == Tool::Circle ? "Circle" : "Rectangle"}};
+    const auto delta = end - a;
+    if (tool_ == Tool::Circle || tool_ == Tool::Polygon) {
+        const auto radius = length(delta);
+        auto axis = length(delta) > tolerance ? normalized(delta) : plane_.xAxis;
+        command["command"] = "geometry.polygon";
+        command["origin"] = point(a);
+        command["xAxis"] = point(axis);
+        command["radius"] = radius;
+        command["sides"] = tool_ == Tool::Circle ? 48 : int(polygonSides_);
+        return command;
+    }
+    Vec3 axis = plane_.xAxis, corner = a;
+    double width = std::abs(dot(delta, plane_.xAxis)), height = std::abs(dot(delta, plane_.yAxis));
+    if (tool_ == Tool::RotatedRectangle) {
+        const auto base =
+            baseline_ ? baseline_ : (session_.canRevise() ? committedBaseline_ : std::nullopt);
+        if (!base)
+            throw std::runtime_error("Choose the rectangle baseline endpoint first");
+        width = length(*base - a);
+        axis = normalized(*base - a);
+        const auto perpendicular = cross(plane_.normal, axis);
+        const auto signedHeight = dot(delta, perpendicular);
+        height = std::abs(signedHeight);
+        if (signedHeight < 0)
+            corner = corner + perpendicular * signedHeight;
+    } else {
+        if (dot(delta, plane_.xAxis) < 0)
+            corner = corner + plane_.xAxis * dot(delta, plane_.xAxis);
+        if (dot(delta, plane_.yAxis) < 0)
+            corner = corner + plane_.yAxis * dot(delta, plane_.yAxis);
+    }
+    command["command"] = "geometry.rectangle";
+    command["origin"] = point(corner);
+    command["xAxis"] = point(axis);
+    command["width"] = width;
+    command["height"] = height;
+    return command;
 }
 QJsonObject Viewport::extrusionCommand(double distance) const {
     return {{"command", "geometry.push_pull"},
@@ -805,9 +926,29 @@ void Viewport::updateToolPreview(QPointF point) {
         previewCommand(extrusionCommand(previewDistance_));
         emit measurementPreview(QLocale().toString(previewDistance_, 'g', 8));
     } else if (auto end = ground(point)) {
+        if (tool_ == Tool::Freehand && samples_.size() >= 3 &&
+            (point - project(*anchor_)).manhattanLength() <= 6)
+            end = anchor_;
         cursor_ = end;
+        if (tool_ == Tool::RotatedRectangle && !baseline_) {
+            previewEdges_ = {{{*anchor_, *end}}};
+            previewValid_ = false;
+            previewError_.clear();
+            update();
+            return;
+        }
+        if (tool_ == Tool::Freehand &&
+            (samples_.empty() || length(*end - samples_.back()) > tolerance)) {
+            if (samples_.size() >= 512) {
+                previewValid_ = false;
+                previewError_ = "Freehand stroke reached its 512-point limit";
+                update();
+                return;
+            }
+            samples_.push_back(*end);
+        }
         previewCommand(shapeCommand(*end));
-        const auto delta = *end - *anchor_;
+        const auto delta = plane_.coordinates(*end) - plane_.coordinates(*anchor_);
         const auto locale = QLocale();
         emit measurementPreview(tool_ == Tool::Rectangle
                                     ? locale.toString(std::abs(delta.x), 'g', 8) +
@@ -822,8 +963,12 @@ void Viewport::finishShape(Vec3 end) {
         const auto result = session_.commit(shapeCommand(end));
         committedAnchor_ = origin;
         committedEnd_ = end;
+        committedBaseline_ = baseline_ ? baseline_ : committedBaseline_;
         const auto created = result["created"].toArray();
-        const auto id = created.empty() ? Id{0} : created[0].toString().toULongLong();
+        const auto id = created.empty() ? drawingContext_ : created[0].toString().toULongLong();
+        chainPending_ = tool_ == Tool::Line;
+        chainContext_ = id;
+        committedPointer_ = previous_;
         clearPreview();
         if (id)
             setSelection(id, doc_.bodies().at(id)->surface.faces.empty()
@@ -859,6 +1004,17 @@ bool Viewport::measurements(const QString &text) {
     try {
         const auto input = parseMeasurements(text, "m", QLocale());
         const auto &values = input.values;
+        if (input.kind == MeasurementKind::Segments && tool_ == Tool::Polygon) {
+            if (values[0] < 3 || values[0] > 256)
+                throw std::runtime_error("Polygon requires 3–256 sides");
+            polygonSides_ = unsigned(values[0]);
+            if (session_.canRevise() && committedEnd_)
+                finishShape(*committedEnd_);
+            else if (session_.active() && cursor_)
+                previewCommand(shapeCommand(*cursor_));
+            emit message(QString("Polygon: %1 sides").arg(polygonSides_));
+            return true;
+        }
         if (input.kind == MeasurementKind::Segments || input.kind == MeasurementKind::Copies ||
             input.kind == MeasurementKind::Divisions)
             throw std::runtime_error("This tool expects a length, dimensions or coordinates");
@@ -868,43 +1024,67 @@ bool Viewport::measurements(const QString &text) {
             finishExtrusion(values[0]);
             return true;
         }
-        if (tool_ != Tool::Rectangle && tool_ != Tool::Circle && tool_ != Tool::Line)
+        if (!drawingTool())
             throw std::runtime_error("Choose a drawing tool before entering geometry");
         if (session_.phase() == ToolSession::Phase::Committed && !session_.canRevise())
             throw std::runtime_error("Another edit changed the document; start a new operation");
         auto origin = anchor_ ? anchor_ : (session_.canRevise() ? committedAnchor_ : std::nullopt);
+        if (!origin) {
+            plane_ = configuredPlane_.value_or(DrawingPlane{});
+            drawingContext_ = configuredContext_;
+            if (drawingContext_ && !doc_.bodies().contains(drawingContext_))
+                throw std::runtime_error("Locked drawing context no longer exists");
+        }
         if (input.kind == MeasurementKind::AbsolutePoint ||
             input.kind == MeasurementKind::RelativePoint) {
             auto point = Vec3{values[0], values[1], values[2]};
             if (input.kind == MeasurementKind::RelativePoint)
                 point = point + origin.value_or(Vec3{});
             checkPoint(point);
-            if (std::abs(point.z) > tolerance)
-                throw std::runtime_error("The current drawing plane is Z=0");
-            point.z = 0;
+            const auto local = plane_.coordinates(point);
+            if (std::abs(local.z) > tolerance)
+                throw std::runtime_error("Coordinate is outside the active drawing plane");
+            point = plane_.point(local.x, local.y);
             if (!origin) {
                 clearPreview();
                 session_.begin();
                 anchor_ = point;
                 cursor_ = point;
+                if (tool_ == Tool::Freehand)
+                    samples_ = {point};
                 emit message("First point set · Enter the endpoint or dimensions");
                 update();
+                return true;
+            }
+            if (tool_ == Tool::RotatedRectangle && !baseline_ && !session_.canRevise()) {
+                if (length(point - *origin) <= tolerance)
+                    throw std::runtime_error("Rectangle baseline must have length");
+                baseline_ = point;
+                emit message("Baseline set · Enter the height endpoint");
                 return true;
             }
             finishShape(point);
         } else {
             if (!origin)
                 throw std::runtime_error("Choose the first point or enter [x,y,z]");
-            if (tool_ == Tool::Rectangle && values.size() == 2) {
+            if ((tool_ == Tool::Rectangle || tool_ == Tool::RotatedRectangle) &&
+                values.size() == 2) {
                 if (values[0] <= 0 || values[1] <= 0)
                     throw std::runtime_error("Rectangle dimensions must be greater than zero");
-                finishShape(*origin + Vec3{values[0], values[1], 0});
-            } else if (tool_ == Tool::Circle && values.size() == 1) {
+                auto axis = plane_.xAxis;
+                if (tool_ == Tool::RotatedRectangle) {
+                    const auto previous = baseline_ ? baseline_ : committedBaseline_;
+                    if (previous)
+                        axis = normalized(*previous - *origin);
+                    baseline_ = *origin + axis * values[0];
+                }
+                finishShape(*origin + axis * values[0] + cross(plane_.normal, axis) * values[1]);
+            } else if ((tool_ == Tool::Circle || tool_ == Tool::Polygon) && values.size() == 1) {
                 if (values[0] <= 0)
                     throw std::runtime_error("Radius must be greater than zero");
-                finishShape(*origin + Vec3{values[0], 0, 0});
+                finishShape(*origin + plane_.xAxis * values[0]);
             } else if (tool_ == Tool::Line && values.size() == 2) {
-                finishShape(*origin + Vec3{values[0], values[1], 0});
+                finishShape(*origin + plane_.xAxis * values[0] + plane_.yAxis * values[1]);
             } else if (tool_ == Tool::Line && values.size() == 1 && (cursor_ || committedEnd_)) {
                 if (values[0] <= 0)
                     throw std::runtime_error("Length must be greater than zero");
@@ -959,19 +1139,47 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     toolPressed_ = true;
     dragCommit_ = false;
     toolPressPosition_ = e->position();
-    if (tool_ == Tool::Rectangle || tool_ == Tool::Circle || tool_ == Tool::Line) {
-        if (auto point = ground(e->position())) {
-            if (!session_.active()) {
-                clearPreview();
-                session_.begin();
-                anchor_ = point;
-                cursor_ = point;
-                toolPressed_ = true;
-                toolPressPosition_ = e->position();
-                emit message("Click the endpoint, drag, or enter measurements · Esc cancels");
-            } else
-                finishShape(*point);
+    if (drawingTool()) {
+        try {
+            if (chainPending_) {
+                if (session_.canRevise())
+                    beginChain();
+                else
+                    cancel();
+            }
+            if (!session_.active())
+                choosePlane(e->position());
+            if (auto point = ground(e->position())) {
+                if (!session_.active()) {
+                    clearPreview();
+                    session_.begin();
+                    anchor_ = point;
+                    cursor_ = point;
+                    if (tool_ == Tool::Freehand)
+                        samples_ = {*point};
+                    toolPressed_ = true;
+                    toolPressPosition_ = e->position();
+                    emit message(
+                        tool_ == Tool::RotatedRectangle
+                            ? "Choose the baseline endpoint, then the height"
+                            : "Click the endpoint, drag, or enter measurements · Esc cancels");
+                } else if (tool_ == Tool::RotatedRectangle && !baseline_) {
+                    if (length(*point - *anchor_) <= tolerance)
+                        throw std::runtime_error("Rectangle baseline must have length");
+                    baseline_ = point;
+                    cursor_ = point;
+                    toolPressed_ = false;
+                    emit message("Choose the height or enter width, height");
+                } else {
+                    if (tool_ == Tool::Freehand)
+                        updateToolPreview(e->position());
+                    finishShape(tool_ == Tool::Freehand && cursor_ ? *cursor_ : *point);
+                }
+            }
+        } catch (const std::exception &error) {
+            emit message(error.what());
         }
+        update();
         return;
     }
     if (tool_ == Tool::Extrude && session_.active()) {
@@ -1007,6 +1215,12 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
     }
     const auto delta = e->position() - previous_;
     previous_ = e->position();
+    if (!dragging_ && chainPending_ && (e->position() - committedPointer_).manhattanLength() >= 4) {
+        if (session_.canRevise())
+            beginChain();
+        else
+            cancel();
+    }
     if (dragging_) {
         if (tool_ == Tool::Pan || dragButton_ == Qt::RightButton ||
             e->modifiers().testFlag(Qt::ShiftModifier)) {
@@ -1038,6 +1252,12 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     dragCommit_ = false;
     if (finish) {
         updateToolPreview(e->position());
+        if (tool_ == Tool::RotatedRectangle && !baseline_ && cursor_ && anchor_ &&
+            length(*cursor_ - *anchor_) > tolerance) {
+            baseline_ = cursor_;
+            emit message("Baseline set · Choose the height");
+            return;
+        }
         if (!previewValid_)
             return;
         if (tool_ == Tool::Extrude) {
@@ -1066,7 +1286,7 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
         return;
     }
     if (e->key() == Qt::Key_Escape) {
-        if (session_.active()) {
+        if (session_.active() || chainPending_) {
             cancel();
             emit message("Operation canceled");
         } else {

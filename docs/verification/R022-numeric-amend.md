@@ -1,6 +1,6 @@
 # R022: numeric entry and guarded operation revision
 
-Date: 2026-10-03. Local checks passed; PR merge pending.
+Date: 2026-10-03. Local and pinned CI checks passed; merged in [PR #21](https://github.com/zygote55/sketchyup/pull/21).
 
 The Measurements parser supports implicit document-unit values, explicit m/mm/cm/
 ft/in, compound feet/inches, signed and mixed fractions, locale decimal separators,

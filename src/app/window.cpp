@@ -1,4 +1,5 @@
 #include "app/window.hpp"
+#include "automation/measurements.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QActionGroup>
@@ -9,6 +10,7 @@
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
@@ -201,12 +203,13 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
     auto *draw = menuBar()->addMenu("&Draw");
     auto *group = new QActionGroup(this);
     auto addTool = [&](const QString &name, const QString &key, Viewport::Tool mode,
-                       const QString &instruction) {
+                       const QString &instruction, bool inRail = true) {
         auto *a = action("tool." + QString::number(int(mode)), name, QKeySequence(key),
                          [this, mode, instruction] { tool(mode, instruction); });
         a->setCheckable(true);
         group->addAction(a);
-        tools->addAction(a);
+        if (inRail)
+            tools->addAction(a);
         draw->addAction(a);
         return a;
     };
@@ -219,6 +222,57 @@ Window::Window(QWidget *parent) : QMainWindow(parent) {
             "Click center · Then click radius or enter a radius");
     addTool("Push/pull", "P", Viewport::Tool::Extrude,
             "Select a face · Enter push/pull distance in meters");
+    addTool("Regular polygon", "", Viewport::Tool::Polygon,
+            "Choose center and radius · Type 6s to set sides", false);
+    addTool("Freehand", "", Viewport::Tool::Freehand, "Press and draw a stroke · Release to commit",
+            false);
+    addTool("Rotated rectangle", "", Viewport::Tool::RotatedRectangle,
+            "Choose first corner, baseline endpoint and height", false);
+    auto *planes = draw->addMenu("Drawing plane");
+    planes->addAction(action("drawing.plane.auto", "Automatic from hovered face", {},
+                             [this] { viewport_->setDrawingPlane(std::nullopt); }));
+    planes->addAction(action("drawing.plane.ground", "Ground (Z=0)", {},
+                             [this] { viewport_->setDrawingPlane(DrawingPlane{}); }));
+    planes->addAction(action("drawing.plane.selected", "Use selected face", {},
+                             [this] { viewport_->useSelectedFacePlane(); }));
+    planes->addAction(action("drawing.plane.custom", "Custom plane…", {}, [this] {
+        QDialog dialog(this);
+        dialog.setWindowTitle("Drawing plane");
+        dialog.setObjectName("drawingPlaneDialog");
+        QFormLayout form(&dialog);
+        const auto separator = QLocale().decimalPoint() == "," ? ";" : ",";
+        auto *origin = new QLineEdit(QStringList{"0", "0", "0"}.join(separator));
+        auto *normal = new QLineEdit(QStringList{"0", "0", "1"}.join(separator));
+        auto *axis = new QLineEdit(QStringList{"1", "0", "0"}.join(separator));
+        origin->setAccessibleName("Plane origin");
+        normal->setAccessibleName("Plane normal direction");
+        axis->setAccessibleName("Plane horizontal direction");
+        form.addRow("Origin (x, y, z)", origin);
+        form.addRow("Normal direction", normal);
+        form.addRow("Horizontal direction", axis);
+        auto *error = new QLabel;
+        error->setWordWrap(true);
+        form.addRow(error);
+        QDialogButtonBox buttons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        form.addRow(&buttons);
+        connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        connect(&buttons, &QDialogButtonBox::accepted, &dialog, [&] {
+            try {
+                auto vector = [](const QString &text) {
+                    const auto input = parseMeasurements(text, "m", QLocale());
+                    if (input.kind != MeasurementKind::Values || input.values.size() != 3)
+                        throw std::runtime_error("Enter three values for each plane vector");
+                    return Vec3{input.values[0], input.values[1], input.values[2]};
+                };
+                viewport_->setDrawingPlane(DrawingPlane::make(
+                    vector(origin->text()), vector(normal->text()), vector(axis->text())));
+                dialog.accept();
+            } catch (const std::exception &failure) {
+                error->setText(failure.what());
+            }
+        });
+        dialog.exec();
+    }));
     tools->addSeparator();
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
