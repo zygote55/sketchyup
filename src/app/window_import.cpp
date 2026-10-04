@@ -13,6 +13,7 @@ void Window::importFormlinePath(const QString &path) {
     if (!canReplace())
         return;
     doc_ = std::move(imported.document);
+    resetRecoveryContext();
     path_.clear(); // Save must choose a new native file, never overwrite the source.
     viewport_->cancel();
     viewport_->setSelection(0);

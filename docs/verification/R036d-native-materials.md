@@ -29,3 +29,7 @@ button layout during the shared-component fixture.
 These are implementation-agent checks, not independent human acceptance. Image
 UV mapping/rendering remains later work. Intersecting transparency retains the
 limitation described in the renderer decision.
+
+PR #48 merged on 2026-10-04 after both Native build runs passed at
+`ef8faed03bfc170b92a07cc1bbeb461588588adf`; merge commit `884594b`.
+All four R036 implementation layers are now merged.

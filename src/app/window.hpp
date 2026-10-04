@@ -1,9 +1,10 @@
 #pragma once
+#include "app/organization_panel.hpp"
+#include "app/recovery_controller.hpp"
 #include "app/viewport.hpp"
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
-#include "app/organization_panel.hpp"
 #include <QMainWindow>
 #include <QMenu>
 #include <functional>
@@ -12,6 +13,9 @@ class Window : public QMainWindow {
     Q_OBJECT
   public:
     explicit Window(QWidget *parent = nullptr);
+    ~Window() override;
+    void startRecovery(const QString &root = {});
+    void showRecovery(bool onlyIfPresent = false);
     Document &document() { return doc_; }
     Viewport *viewport() { return viewport_; }
     void demo();
@@ -36,6 +40,16 @@ class Window : public QMainWindow {
     QLineEdit *measurements_{};
     QWidget *tray_{};
     QString path_;
+    RecoveryController *recovery_{};
+    RecoveryContext recoveryContext_;
+    QLabel *recoveryStatus_{};
+    QString recoveredName_, saveFailure_;
+    QWidget *saveBanner_{};
+    QLabel *saveBannerText_{};
+    void syncRecovery();
+    void recoverySettings();
+    void clearRecovery();
+    void resetRecoveryContext();
     QAction *undo_{};
     QAction *redo_{};
     std::vector<QAction *> publicActions_;

@@ -26,3 +26,7 @@ by actual faces; the regression requires exactly two visible-instance uploads.
 
 These are implementation-agent checks. Native swatches, resource controls and
 paint/sample tools remain R036.d; image texture mapping remains later work.
+
+PR #47 merged on 2026-10-04 after both Native build checks passed for
+`42378cd951db59d71bbd7fe3d993ee1b89348bd5`; merge commit `cd153fe`.
+The final update merged dependency ancestry without changing the tested tree.
