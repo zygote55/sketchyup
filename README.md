@@ -192,7 +192,11 @@ JSON lines; see the [session protocol](docs/decisions/0026-headless-session.md).
 Versioned recipes pass typed results between those same requests:
 `--recipe examples/transaction-face-recipe.json --new --output /tmp/face.sketchyup --outcomes /tmp/face-outcomes`.
 See the [recipe contract](docs/decisions/0027-transaction-recipes.md) and
-`--recipe-capabilities`. MCP transport remains in progress.
+`--recipe-capabilities`. A local MCP stdio client can use `--mcp` with the same
+explicit document/outcome options. It targets protocol 2026-07-28; see the
+[MCP contract](docs/decisions/0028-local-mcp.md) and `--mcp-capabilities`.
+The headless binding reports desktop selection as unavailable; native window
+binding remains in progress.
 
 
 ```sh
