@@ -31,3 +31,5 @@ Blender. CI installs Blender for interoperability and explicitly runs this test.
 CPU PNG and result manifest from the real test.
 
 The native render setup/result UI is R050 and is not part of this acceptance.
+
+Both CI runs 37265562973 and 37265565479 passed. PR [#71](https://github.com/zygote55/sketchyup/pull/71) merged as `002a6045761867070df2894a140f98f88b44b0f1` on 2026-10-05 at 05:58:02 UTC.

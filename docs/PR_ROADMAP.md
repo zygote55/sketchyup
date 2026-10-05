@@ -738,7 +738,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R045 — Implement and measure a local model configuration
 
-**Status:** Planned. **Track:** Automation. **Scope:** A05. **UX:** §8.5.
+**Status:** In progress. A bounded loopback Ollama adapter now shares the asynchronous lifecycle with OpenAI. Runtime/model capability checks, no-truncation controls and native-schema compatibility hints are implemented. All 61 development suites and both provider sanitizer suites pass. The measured CPU configuration and initial failed live trials are recorded; corrected-catalog corpus trials and CI acceptance remain pending. [Evidence](verification/R045-local-provider.md), [contract](decisions/0036-local-provider.md). **Track:** Automation. **Scope:** A05. **UX:** §8.5.
 
 **Requires:** [R044](#r044); milestone gate rule above.
 
@@ -774,7 +774,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R048 — Export immutable GLB snapshots for rendering
 
-**Status:** In progress. Immutable GLB/manifest export, explicit camera/settings, hierarchy/shared meshes, managed asset embedding and bounded CLI publication are implemented. All 58 development suites, the exporter sanitizer suite, installed export checks, official Khronos validation and real Blender 5.2.1 imports pass. CI/merge acceptance remains pending. [Evidence](verification/R048-glb-snapshots.md), [subset contract](decisions/0032-glb-snapshots.md). **Track:** Interchange. **Scope:** X02, P08. **UX:** —.
+**Status:** Complete. Immutable GLB/manifest export, explicit camera/settings, hierarchy/shared meshes, managed asset embedding and bounded CLI publication are implemented. All 58 development suites, the exporter sanitizer suite, installed export checks, official Khronos validation and real Blender 5.2.1 imports pass. Both CI runs passed and the implementation merged. [Evidence](verification/R048-glb-snapshots.md), [subset contract](decisions/0032-glb-snapshots.md). **Track:** Interchange. **Scope:** X02, P08. **UX:** —.
 
 **Requires:** [R036](#r036), [R040](#r040); milestone gate rule above.
 
@@ -786,7 +786,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R049 — Render a snapshot in an optional Blender worker
 
-**Status:** In progress. The optional Blender 5.2 LTS worker, isolated job directories, explicit device selection, bounded cancellation/timeouts, one CPU retry and verified PNG publication are implemented. Lifecycle fixtures, targeted sanitizers and real CPU render/fallback/cancellation checks pass. The full development run also passes (59 passed, real-Blender opt-in skipped and tested separately). CI/merge acceptance remains pending. [Evidence](verification/R049-blender-worker.md), [contract](decisions/0033-blender-worker.md). **Track:** Rendering. **Scope:** P08. **UX:** —.
+**Status:** Complete. The optional Blender 5.2 LTS worker, isolated job directories, explicit device selection, bounded cancellation/timeouts, one CPU retry and verified PNG publication are implemented. Lifecycle fixtures, targeted sanitizers and real CPU render/fallback/cancellation checks pass. The full development run also passes (59 passed, real-Blender opt-in skipped and tested separately). Both CI runs passed and the implementation merged. [Evidence](verification/R049-blender-worker.md), [contract](decisions/0033-blender-worker.md). **Track:** Rendering. **Scope:** P08. **UX:** —.
 
 **Requires:** [R048](#r048); milestone gate rule above.
 
