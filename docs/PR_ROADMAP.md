@@ -714,7 +714,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R043 — Expose the shared tools through local MCP
 
-**Status:** Planned. **Track:** Automation. **Scope:** A06, A01. **UX:** —.
+**Status:** In progress. R043.a MCP 2026-07-28 stdio discovery, shared tools, scoped resources and bounded subscriptions pass all 55 development suites, four targeted sanitizer suites and independent upstream-schema validation of 199 synthetic messages. CI/merge acceptance and R043.b actual native window selection binding remain pending; the headless binding truthfully reports desktop selection unavailable. [Protocol evidence](verification/R043a-local-mcp.md), [contract](decisions/0028-local-mcp.md). **Track:** Automation. **Scope:** A06, A01. **UX:** —.
 
 **Requires:** [R042](#r042); milestone gate rule above.
 

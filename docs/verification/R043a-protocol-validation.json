@@ -1,0 +1,22 @@
+{
+  "protocolVersion": "2026-07-28",
+  "source": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/271ecc9accafdd9b83a3c869fa67c22953b2af80/schema/2026-07-28/schema.json",
+  "schemaSha256": "ef70b61f99b6d2e5e3b46863822eab08dff6a45bedc7a08914e0e5b133f40203",
+  "validator": "jsonschema",
+  "validatorVersion": "4.26.0",
+  "messages": 199,
+  "bySchema": {
+    "ListToolsResultResponse": 1,
+    "JSONRPCErrorResponse": 12,
+    "UnsupportedProtocolVersionError": 1,
+    "CallToolResultResponse": 164,
+    "DiscoverResultResponse": 1,
+    "ListResourcesResultResponse": 1,
+    "SubscriptionsAcknowledgedNotification": 9,
+    "ResourceUpdatedNotification": 1,
+    "ReadResourceResultResponse": 1,
+    "SubscriptionsListenResultResponse": 8
+  },
+  "maximumMessageBytes": 73457,
+  "passed": true
+}

@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "automation/inspection.hpp"
+#include "automation/mcp.hpp"
 #include "automation/recipe.hpp"
 #include "automation/session.hpp"
 #include "io/document_io.hpp"
@@ -16,6 +17,8 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption({"mcp", "Run the explicitly scoped local MCP stdio server"});
+    parser.addOption({"mcp-capabilities", "Print supported MCP version, tools and bounds"});
     parser.addOption({"recipe", "Run a versioned transaction recipe", "path"});
     parser.addOption({"recipe-capabilities", "Print recipe schema and reference rules"});
     parser.addOption({"session", "Run a persistent bounded JSON-lines automation session"});
@@ -50,8 +53,9 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
-        if (parser.isSet("session") || parser.isSet("session-capabilities") ||
-            parser.isSet("recipe") || parser.isSet("recipe-capabilities")) {
+        if (parser.isSet("mcp") || parser.isSet("mcp-capabilities") || parser.isSet("session") ||
+            parser.isSet("session-capabilities") || parser.isSet("recipe") ||
+            parser.isSet("recipe-capabilities")) {
             for (const auto *option :
                  {"capabilities", "describe-command", "query", "query-file", "inspect",
                   "inspect-file", "context", "import-formline", "recovery-list", "recover",
@@ -63,18 +67,22 @@ int main(int argc, char **argv) {
             if (!parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",
                                                "Unexpected positional arguments");
-            if (int(parser.isSet("session")) + int(parser.isSet("session-capabilities")) +
+            if (int(parser.isSet("mcp")) + int(parser.isSet("mcp-capabilities")) +
+                    int(parser.isSet("session")) + int(parser.isSet("session-capabilities")) +
                     int(parser.isSet("recipe")) + int(parser.isSet("recipe-capabilities")) !=
                 1)
                 throw sketchy::InspectionError(
                     "INVALID_REQUEST", "Choose exactly one session, recipe or discovery mode");
-            if (parser.isSet("session-capabilities") || parser.isSet("recipe-capabilities")) {
+            if (parser.isSet("mcp-capabilities") || parser.isSet("session-capabilities") ||
+                parser.isSet("recipe-capabilities")) {
                 for (const auto *option :
                      {"session", "input", "output", "new", "outcomes", "recover-latest"})
                     if (parser.isSet(option))
                         throw sketchy::InspectionError(
                             "INVALID_REQUEST", "Session discovery is a standalone operation");
-                std::cout << QJsonDocument(parser.isSet("recipe-capabilities")
+                std::cout << QJsonDocument(parser.isSet("mcp-capabilities")
+                                               ? sketchy::mcpCapabilities()
+                                           : parser.isSet("recipe-capabilities")
                                                ? sketchy::recipeCapabilities()
                                                : sketchy::sessionCapabilities())
                                  .toJson()
@@ -91,13 +99,17 @@ int main(int argc, char **argv) {
             if (!input.open(stdin, QIODevice::ReadOnly) ||
                 !output.open(stdout, QIODevice::WriteOnly))
                 throw sketchy::InspectionError("INPUT_ERROR", "Cannot open automation streams");
+            if (parser.isSet("mcp")) {
+                sketchy::McpServer server(session);
+                return sketchy::runMcpStream(server, input, output);
+            }
             return recipe ? recipe->run(session, output)
                           : sketchy::runAutomationStream(session, input, output);
         }
         for (const auto *option : {"new", "outcomes", "recover-latest"})
             if (parser.isSet(option))
-                throw sketchy::InspectionError("INVALID_REQUEST",
-                                               "Session options require --session or --recipe");
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST", "Session options require --session, --recipe or --mcp");
         if (parser.isSet("inspect") || parser.isSet("inspect-file")) {
             if (!parser.isSet("input") || (parser.isSet("inspect") && parser.isSet("inspect-file")))
                 throw sketchy::InspectionError("INVALID_REQUEST",

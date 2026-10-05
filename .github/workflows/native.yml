@@ -13,7 +13,7 @@ jobs:
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston
+          pacman -Syyuu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-jsonschema
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Configure and build
@@ -21,7 +21,13 @@ jobs:
           cmake --preset dev
           cmake --build --preset dev --parallel 2
       - name: Geometry, document and persistence tests
-        run: ctest --preset dev
+        run: |
+          rm -f build/mcp-transcript.jsonl
+          SKETCHYUP_MCP_TRANSCRIPT="$PWD/build/mcp-transcript.jsonl" ctest --preset dev
+      - name: Pinned MCP protocol schema validation
+        run: |
+          curl -fLsS https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/271ecc9accafdd9b83a3c869fa67c22953b2af80/schema/2026-07-28/schema.json -o build/mcp-schema.json
+          python scripts/verify-mcp-schema.py build/mcp-schema.json build/mcp-transcript.jsonl > build/mcp-schema-validation.json
       - name: Native interaction and OpenGL tests
         run: |
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 70s build/dev/desktop_inspection_tests
@@ -138,8 +144,8 @@ jobs:
       - name: Sanitized bounded inspection and CLI
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON
-          cmake --build --preset sanitize --target inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests --parallel 2
-          ctest --test-dir build/sanitize -R '^(inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes)$' --output-on-failure
+          cmake --build --preset sanitize --target inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
+          ctest --test-dir build/sanitize -R '^(inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
       - name: Disposable Arch package acceptance
         run: |
           useradd --create-home builder
