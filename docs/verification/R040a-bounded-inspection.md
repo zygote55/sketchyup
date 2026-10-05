@@ -45,3 +45,13 @@ schema removal on uninstall. Full install/upgrade/removal CI remains pending.
 Follow-up test review found a `QJsonValueRef` retained from a temporary JSON
 object in the reflected-normal assertion. It now stores an owning `QJsonValue`.
 The inspection engine and published schemas are unchanged.
+
+CI runs 37244758087 and 37244755725 passed the build and all 45 package test
+suites, then exposed the minimal Arch image's `NoExtract = usr/share/doc/*`
+setting: installation excluded the new contracts and `pacman -Qkk` failed.
+The guarded disposable acceptance script now removes only that exclusion before
+installing packages. A fresh container probe reproduced the missing directory,
+then verified that the correction installs the schema, passes `pacman -Qkk`
+with zero altered files, and removes the schema on uninstall. This changes only
+the disposable test container; application packages do not alter pacman settings.
+The complete package acceptance CI is rerunning.
