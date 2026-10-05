@@ -690,7 +690,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R041 — Implement staged previews and commit reconciliation
 
-**Status:** In progress. R041.a private immutable proposals, guarded core application, bounded staged queries/diffs and monotonic expiry pass targeted tests. All 49 development and 35 sanitizer suites plus native M4/inspection regressions pass; CI is pending. Durable outcomes and idempotent commit reconciliation remain the following slices. [Contract](decisions/0022-private-staging.md). [Evidence](verification/R041a-private-staging.md). **Track:** Automation. **Scope:** A03, D03. **UX:** §8.2–§8.3.
+**Status:** In progress. R041.a [PR #60](https://github.com/zygote55/sketchyup/pull/60) private immutable proposals, guarded core application, bounded staged queries/diffs and monotonic expiry pass targeted tests. All 49 development and 35 sanitizer suites plus native M4/inspection regressions pass; CI is pending. R041.b durable co-recorded outcomes pass targeted retention, corruption and killed-writer checks; 50 development suites, focused ASan/UBSan and checkpoint benchmarks also pass; CI is pending. Coordinator publication and idempotent transaction dispatch remain R041.c. [Outcome evidence](verification/R041b-durable-outcomes.md). [Contract](decisions/0022-private-staging.md). [Evidence](verification/R041a-private-staging.md). **Track:** Automation. **Scope:** A03, D03. **UX:** §8.2–§8.3.
 
 **Requires:** [R040](#r040), [R009](#r009), [R039](#r039); milestone gate rule above.
 

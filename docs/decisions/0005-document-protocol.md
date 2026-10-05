@@ -180,7 +180,10 @@ fill the cap, reject new remote mutations with a storage-limit error before
 execution, rather than silently weakening the guarantee. Expired/unknown request
 identities return an explicit reconciliation-required error and are never
 silently replayed. Authentication and authorization are checked on every retry.
-R041 implements and fault-injects this contract; it is not enabled in today's CLI.
+R041 implements and fault-injects this contract. [R041.b](0023-durable-outcomes.md)
+specializes the initial storage as an atomically replaced co-recorded checkpoint,
+with the same durability/outcome ordering and explicit size limits. Transaction
+dispatch is not enabled in today's CLI.
 
 ## Budgets and verification
 
