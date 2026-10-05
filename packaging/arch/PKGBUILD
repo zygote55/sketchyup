@@ -7,6 +7,7 @@ arch=('x86_64')
 url='https://github.com/zygote55/sketchyup'
 license=('MIT' 'BSL-1.0')
 depends=('qt6-base' 'qt6-wayland' 'shared-mime-info' 'ttf-dejavu')
+optdepends=('libsecret: OpenAI credential storage through the desktop Secret Service')
 makedepends=('cmake' 'ninja' 'gcc')
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('REPLACE_WITH_SOURCE_SHA256') # Filled by package-source.sh.
