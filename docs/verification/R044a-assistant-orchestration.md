@@ -50,3 +50,5 @@ without a provider; the task engine introduces no startup service or network cal
 
 The local installation includes the orchestration decision record, and the source
 archive includes the task engine and deterministic fixtures.
+
+Both CI runs on final engine head `93a8f0cebc49deca473ec555189653882f845186` passed: `37260495059` and `37260491934`. PR #68 merged as `9a995e5`. The user subsequently selected OpenAI as the first remote provider; credentials may be configured later. This closes engine acceptance only.
