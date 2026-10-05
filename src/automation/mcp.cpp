@@ -295,7 +295,8 @@ QJsonObject McpServer::call(const QJsonObject &params) {
         }
     require(found, "Unknown tool");
     const auto args = params["arguments"].toObject();
-    require(args["operation"] == name || args["query"] == name,
+    require(args.contains("operation") != args.contains("query") &&
+                (args["operation"] == name || args["query"] == name),
             "Tool name must match the shared operation or query in its arguments");
     const auto now = StagingSession::Clock::now();
     tokens_ = std::min(120.0, tokens_ + std::chrono::duration<double>(now - refilled_).count() * 2);
@@ -325,6 +326,19 @@ void McpServer::updates(QJsonArray &messages) {
         if (subscription.resource)
             messages.append(
                 notice("notifications/resources/updated", subscription.id, {{"uri", uri_}}));
+}
+QJsonArray McpServer::poll() {
+    owner();
+    if (active_)
+        throw InspectionError("REENTRANT_TRANSACTION", "Cannot poll during MCP dispatch");
+    struct Guard {
+        bool &active;
+        ~Guard() { active = false; }
+    } guard{active_};
+    active_ = true;
+    QJsonArray messages;
+    updates(messages);
+    return messages;
 }
 QJsonArray McpServer::close() {
     owner();

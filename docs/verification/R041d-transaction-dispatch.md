@@ -1,6 +1,6 @@
 # R041.d incremental transaction dispatch
 
-Date: 2026-10-05 UTC. Local verification passed; CI acceptance pending. Requires
+Date: 2026-10-05 UTC. Local verification and both CI runs passed; merged. Requires
 [PR #62](https://github.com/zygote55/sketchyup/pull/62).
 [Dispatch contract](../decisions/0025-transaction-dispatch.md).
 
@@ -41,3 +41,7 @@ contracts and fixture. Disposable package CI now checks schema equality after
 installation and removal of the artifacts during uninstall. Native modeling
 semantics and desktop actions are unchanged; this slice introduces no transport
 or provider integration.
+
+PR [#63](https://github.com/zygote55/sketchyup/pull/63) merged at
+2026-10-05 02:42:48 UTC as `63eed11d8b1fe9a79ceec99628ac662d0b2c8238`.
+Both CI runs, `37253039684` and `37253019799`, passed before merge.

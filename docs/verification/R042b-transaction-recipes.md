@@ -1,6 +1,6 @@
 # R042.b deterministic transaction recipes
 
-Date: 2026-10-05 UTC. Local verification passed; CI acceptance pending. Requires
+Date: 2026-10-05 UTC. Local verification and both CI runs passed; merged. Requires
 [PR #64](https://github.com/zygote55/sketchyup/pull/64).
 [Recipe contract](../decisions/0027-transaction-recipes.md).
 
@@ -34,3 +34,7 @@ variables and reports the expected 6 m² measurement. The source archive include
 the recipe, schema, contract and tests. Disposable package CI repeats installed
 schema equality, the actual recipe and artifact removal after uninstall. Parent
 R042 remains pending until its PR stack passes CI and merges.
+
+PR [#65](https://github.com/zygote55/sketchyup/pull/65) merged at
+2026-10-05 03:11:00 UTC as `7369316ccb84aedd895504f7f29c88545870115e`.
+Both CI runs, `37254864880` and `37254897049`, passed before merge.

@@ -1,6 +1,6 @@
 # R042.a persistent headless sessions
 
-Date: 2026-10-05 UTC. Local verification passed; CI acceptance pending. Requires
+Date: 2026-10-05 UTC. Local verification and both CI runs passed; merged. Requires
 [PR #63](https://github.com/zygote55/sketchyup/pull/63).
 [Session contract](../decisions/0026-headless-session.md).
 
@@ -37,3 +37,7 @@ The source archive includes the session schema, contract and process fixture.
 Disposable package acceptance checks installed schema equality and artifact
 removal. The versioned recipe runner remains R042.b; no provider or MCP integration
 is claimed by this slice.
+
+PR [#64](https://github.com/zygote55/sketchyup/pull/64) merged at
+2026-10-05 02:58:30 UTC as `5fe821d7ded80c02624b3f0d6dc240dc30150071`.
+Both CI runs, `37254075648` and `37254101621`, passed before merge.

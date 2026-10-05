@@ -1,0 +1,1449 @@
+{
+    "capabilities": {
+        "resources": {
+            "listChanged": false,
+            "subscribe": true
+        },
+        "tools": {
+            "listChanged": false
+        }
+    },
+    "limits": {
+        "clients": 2,
+        "queuedOutputBytesPerClient": 2097152,
+        "requestDepth": 64,
+        "responseBytes": 1048576,
+        "retainedSnapshotBytesPerClient": 33554432,
+        "subscriptions": 8,
+        "toolBurst": 120,
+        "toolRequestsPerSecond": 2,
+        "wireBytes": 67584
+    },
+    "mutationAvailable": false,
+    "protocolVersion": "2026-07-28",
+    "scope": "One explicitly opened native document session; replacement closes the endpoint",
+    "selection": "Actual native window selection, context and camera",
+    "tools": [
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "session.describe: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "operation": {
+                        "const": "session.describe"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "operation"
+                ],
+                "type": "object"
+            },
+            "name": "session.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "document.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "document.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "document.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "selection.get: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "selection.get"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "selection.get"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "entities.query: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "includeHidden": {
+                        "type": "boolean"
+                    },
+                    "kind": {
+                        "enum": [
+                            "any",
+                            "geometry",
+                            "group",
+                            "component"
+                        ],
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "nameContains": {
+                        "maxLength": 256,
+                        "type": "string"
+                    },
+                    "parent": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    },
+                    "query": {
+                        "const": "entities.query"
+                    },
+                    "recursive": {
+                        "type": "boolean"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "entities.query"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "entity.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "entity.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "target": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "target",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "entity.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "entity.properties: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "entity.properties"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "target": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "target",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "entity.properties"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "topology.query: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "kind": {
+                        "enum": [
+                            "vertex",
+                            "edge",
+                            "face",
+                            "guide",
+                            "curve"
+                        ],
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "topology.query"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "space": {
+                        "enum": [
+                            "local",
+                            "world"
+                        ],
+                        "type": "string"
+                    },
+                    "target": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "target",
+                    "kind",
+                    "space",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "topology.query"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "topology.face_loop: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "loop": {
+                        "maximum": 100000,
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "topology.face_loop"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "space": {
+                        "enum": [
+                            "local",
+                            "world"
+                        ],
+                        "type": "string"
+                    },
+                    "target": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "target",
+                    "loop",
+                    "space",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "topology.face_loop"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "topology.curve_edges: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "topology.curve_edges"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "target": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "target",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "topology.curve_edges"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "topology.incidence: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "topology.incidence"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "target": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "target",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "topology.incidence"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "component.instances: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "definition": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "component.instances"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "definition",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "component.instances"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "measure.entity: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "measure.entity"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "space": {
+                        "enum": [
+                            "local",
+                            "world"
+                        ],
+                        "type": "string"
+                    },
+                    "target": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "target",
+                    "space",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "measure.entity"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "measure.distance: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "end": {
+                        "items": {
+                            "maximum": 1000000,
+                            "minimum": -1000000,
+                            "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "type": "array"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "frame": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    },
+                    "query": {
+                        "const": "measure.distance"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "space": {
+                        "enum": [
+                            "local",
+                            "world"
+                        ],
+                        "type": "string"
+                    },
+                    "start": {
+                        "items": {
+                            "maximum": 1000000,
+                            "minimum": -1000000,
+                            "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "space",
+                    "start",
+                    "end",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "measure.distance"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "measure.angle: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "first": {
+                        "items": {
+                            "maximum": 1000000,
+                            "minimum": -1000000,
+                            "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "type": "array"
+                    },
+                    "frame": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "contextPath": {
+                                "items": {
+                                    "maxLength": 20,
+                                    "pattern": "^[1-9][0-9]*$",
+                                    "type": "string"
+                                },
+                                "maxItems": 128,
+                                "minItems": 0,
+                                "type": "array"
+                            },
+                            "documentId": {
+                                "maxLength": 128,
+                                "type": "string"
+                            },
+                            "id": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "body",
+                                    "face",
+                                    "edge",
+                                    "vertex",
+                                    "guide",
+                                    "curve"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "documentId",
+                            "contextPath",
+                            "body",
+                            "kind",
+                            "id"
+                        ],
+                        "type": "object"
+                    },
+                    "normal": {
+                        "items": {
+                            "maximum": 1000000,
+                            "minimum": -1000000,
+                            "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "type": "array"
+                    },
+                    "origin": {
+                        "items": {
+                            "maximum": 1000000,
+                            "minimum": -1000000,
+                            "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "type": "array"
+                    },
+                    "query": {
+                        "const": "measure.angle"
+                    },
+                    "second": {
+                        "items": {
+                            "maximum": 1000000,
+                            "minimum": -1000000,
+                            "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 3,
+                        "type": "array"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "space": {
+                        "enum": [
+                            "local",
+                            "world"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "space",
+                    "origin",
+                    "first",
+                    "second",
+                    "normal",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "measure.angle"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "snapshot.begin: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "snapshot.begin"
+                    },
+                    "ttlSeconds": {
+                        "maximum": 300,
+                        "minimum": 1,
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "snapshot.begin"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "snapshot.release: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "snapshot.release"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "snapshotId",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "snapshot.release"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "view.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "view.describe"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "view.describe"
+        }
+    ],
+    "transport": "stdio bridge to an explicitly launched private Linux filesystem socket",
+    "versions": "Modern per-request metadata protocol only; no legacy initialize handshake",
+    "viewCaptureAvailable": false
+}

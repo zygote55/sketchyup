@@ -18,6 +18,7 @@ class McpServer {
     ~McpServer();
     QJsonArray handle(const QJsonObject &request);
     QJsonArray close();
+    QJsonArray poll();
     static QJsonObject error(int code, QString message, QJsonValue id = QJsonValue::Undefined,
                              QJsonObject data = {});
 

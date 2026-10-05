@@ -1,4 +1,5 @@
 #include "app/inspection_service.hpp"
+#include "app/native_mcp.hpp"
 #include "app/window.hpp"
 #include <QApplication>
 #include <QCommandLineParser>
@@ -21,6 +22,11 @@ int main(int argc, char **argv) {
     QApplication::setOrganizationName("SketchyUp");
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption(
+        {"mcp-inspection-capabilities", "Print native MCP inspection schemas and exit"});
+    parser.addOption({"mcp-inspection-socket",
+                      "Expose this model through a private native MCP inspection socket",
+                      "socket"});
     parser.addOption({"inspection-capabilities", "Print native inspection schemas and exit"});
     parser.addOption({"demo", "Open original courtyard example"});
     parser.addOption({"smoke", "Run native graphics/picking smoke check and exit"});
@@ -32,36 +38,50 @@ int main(int argc, char **argv) {
         {"instanced", "Use repeated-triangle instancing instead of independent triangles"});
     parser.addPositionalArgument("model", "Optional .sketchyup file");
     parser.process(app);
-    if (parser.isSet("inspection-capabilities")) {
+    if (parser.isSet("inspection-capabilities") || parser.isSet("mcp-inspection-capabilities")) {
         if (parser.optionNames().size() != 1 || !parser.positionalArguments().empty()) {
             std::cerr
                 << "Inspection discovery cannot be combined with model or rendering options\n";
             return 2;
         }
-        std::cout << QJsonDocument(sketchy::desktopInspectionCapabilities())
+        std::cout << QJsonDocument(parser.isSet("mcp-inspection-capabilities")
+                                       ? sketchy::nativeMcpCapabilities()
+                                       : sketchy::desktopInspectionCapabilities())
                          .toJson(QJsonDocument::Compact)
                          .toStdString()
                   << '\n';
         return 0;
     }
+    if (parser.isSet("mcp-inspection-socket") &&
+        (parser.optionNames().size() != 1 || parser.positionalArguments().size() != 1)) {
+        std::cerr
+            << "Native MCP requires exactly one model and no rendering or discovery options\n";
+        return 2;
+    }
     sketchy::Window window;
+    std::unique_ptr<sketchy::NativeMcpService> mcp;
     try {
         if (parser.isSet("demo") || parser.isSet("smoke"))
             window.demo();
         if (!parser.positionalArguments().empty())
             window.openPath(parser.positionalArguments()[0]);
+        if (parser.isSet("mcp-inspection-socket"))
+            mcp = std::make_unique<sketchy::NativeMcpService>(
+                *window.viewport(), parser.value("mcp-inspection-socket"));
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';
         return 1;
     }
     window.show();
-    if (!parser.isSet("smoke") && !parser.isSet("capture") && !parser.isSet("benchmark")) {
+    if (!parser.isSet("smoke") && !parser.isSet("capture") && !parser.isSet("benchmark") && !mcp) {
         QTimer::singleShot(0, &window, [&window] {
             window.startUnits();
             window.startRecovery();
             window.showRecovery(true);
         });
     }
+    if (mcp)
+        QTimer::singleShot(0, &window, [&window] { window.startRecovery(); });
     if (parser.isSet("benchmark")) {
         bool ok = false;
         int n = parser.value("benchmark").toInt(&ok);

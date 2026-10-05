@@ -3,6 +3,7 @@
 namespace sketchy {
 class Viewport;
 QJsonObject desktopInspectionCapabilities();
+QByteArray desktopInspectionStamp(const Viewport &viewport);
 class DesktopInspection {
   public:
     explicit DesktopInspection(Viewport &viewport) : viewport_(viewport) {}

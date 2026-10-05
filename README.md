@@ -195,8 +195,12 @@ See the [recipe contract](docs/decisions/0027-transaction-recipes.md) and
 `--recipe-capabilities`. A local MCP stdio client can use `--mcp` with the same
 explicit document/outcome options. It targets protocol 2026-07-28; see the
 [MCP contract](docs/decisions/0028-local-mcp.md) and `--mcp-capabilities`.
-The headless binding reports desktop selection as unavailable; native window
-binding remains in progress.
+For actual desktop selection and camera inspection, launch an explicit native
+model with `--mcp-inspection-socket` and connect using
+`sketchyup-cli --mcp-connect SOCKET`; see the
+[native MCP binding](docs/decisions/0029-native-mcp.md).
+The headless binding reports desktop selection as unavailable. The native binding
+exposes inspection only; staged mutation tools are currently available headlessly.
 
 
 ```sh

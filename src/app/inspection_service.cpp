@@ -84,6 +84,7 @@ QByteArray viewStamp(const Viewport &view) {
     return hash.result();
 }
 } // namespace
+QByteArray desktopInspectionStamp(const Viewport &viewport) { return viewStamp(viewport); }
 QJsonObject desktopInspectionCapabilities() {
     auto result = inspectionSessionCapabilities();
     auto queries = result["queries"].toArray();
