@@ -6,6 +6,29 @@
 #include <set>
 #include <sstream>
 namespace sketchy {
+Document Document::readSnapshot() const {
+    Document result(displayUnits_);
+    result.identity_ = identity_;
+    result.bodies_ = bodies_;
+    result.nextId_ = nextId_;
+    result.definitions_ = definitions_;
+    result.instances_ = instances_;
+    result.nextDefinitionId_ = nextDefinitionId_;
+    result.tags_ = tags_;
+    result.nextTagId_ = nextTagId_;
+    result.materials_ = materials_;
+    result.nextMaterialId_ = nextMaterialId_;
+    result.assets_ = assets_;
+    result.nextAssetId_ = nextAssetId_;
+    result.definitionFloors_ = definitionFloors_;
+    result.surfaceFloors_ = surfaceFloors_;
+    result.edgeFloors_ = edgeFloors_;
+    result.revision_ = revision_;
+    result.session_ = session_;
+    result.state_ = state_;
+    result.savedState_ = savedState_;
+    return result;
+}
 namespace {
 size_t bytes(const BodyPtr &body);
 size_t componentBytes(const DefinitionPtr &definition) {
@@ -139,6 +162,25 @@ void validate(const Body &b) {
             throw std::runtime_error("Guide identity collides with a curve");
 }
 } // namespace
+size_t Document::readSnapshotBytes() const {
+    size_t result = sizeof(Document) + identity_.size() + 256;
+    for (const auto &[id, body] : bodies_)
+        result += bytes(body) + 64;
+    for (const auto &[id, definition] : definitions_)
+        result += componentBytes(definition) + 64;
+    for (const auto &[id, instance] : instances_)
+        result += componentBytes(instance) + 64;
+    for (const auto &[id, tag] : tags_)
+        result += sizeof(TagRecord) + tag->name.size() + 64;
+    for (const auto &[id, material] : materials_)
+        result += sizeof(MaterialRecord) + material->name.size() + 64;
+    for (const auto &[id, asset] : assets_)
+        result += assetBytes(asset) + 64;
+    result += (surfaceFloors_.size() + edgeFloors_.size()) * 96;
+    for (const auto &[id, floor] : definitionFloors_)
+        result += sizeof(DefinitionFloor) + 64 + floor.geometry.size() * 96;
+    return result;
+}
 Document::Document(DisplayUnit units) : displayUnits_(units) {
     unitCode(units);
     std::random_device random;

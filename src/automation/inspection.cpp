@@ -1,4 +1,5 @@
 #include "automation/inspection.hpp"
+#include "automation/inspection_validation.hpp"
 #include "core/entity_measure.hpp"
 #include "core/material_records.hpp"
 #include <QCryptographicHash>
@@ -353,6 +354,9 @@ class Page {
     QJsonArray items_;
 };
 } // namespace
+void inspection_detail::validateParameters(const QJsonObject &request, const QJsonObject &schema) {
+    validate(request, schema);
+}
 QJsonObject inspectionReference(const Document &doc, Id body, const QString &kind, Id entity) {
     if (!doc.bodies().contains(body))
         fail("NOT_FOUND", "Body does not exist");

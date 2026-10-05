@@ -1,6 +1,6 @@
 # R039.d: native document units
 
-Date: 2026-10-04. Local validation passed; CI pending. Builds on
+Date: 2026-10-04. Local and CI validation passed; merged. Builds on
 [PR #54](https://github.com/zygote55/sketchyup/pull/54).
 
 The native application asks for default units on first run and exposes File →
@@ -38,3 +38,5 @@ The full development suite passes 44/44. Native X11 units, History, numeric entr
 components, Entity info, guides, transforms, recovery and shell regressions pass.
 The core is unchanged from R039.c's passing 30/30 sanitizer suites. The inspected
 [capture](R039-units-x11.png) shows imperial Info values and the Measurements label.
+
+[PR #55](https://github.com/zygote55/sketchyup/pull/55) merged on 2026-10-04 as `b0bcb88` after both Native build runs passed: [37241710599](https://github.com/zygote55/sketchyup/actions/runs/37241710599) and [37241707249](https://github.com/zygote55/sketchyup/actions/runs/37241707249).

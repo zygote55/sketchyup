@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0–M3 gates passed; M4 editing and organization in progress. Updated: 2026-10-04.
+Status: M0–M4 gates passed; M5 automation and rendering in progress. Updated: 2026-10-04.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -82,8 +82,8 @@ Recovery storage is merged in [PR #50](https://github.com/zygote55/sketchyup/pul
 native scheduling/selection is merged in [PR #51](https://github.com/zygote55/sketchyup/pull/51).
 The labeled history API merged in [PR #52](https://github.com/zygote55/sketchyup/pull/52);
 native History controls merged in [PR #53](https://github.com/zygote55/sketchyup/pull/53).
-Document unit data/API/persistence merged in [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences are [PR #55](https://github.com/zygote55/sketchyup/pull/55).
-The integrated [M4 workflow](verification/M4.md) passes locally; dependency merges and CI remain pending.
+Document unit data/API/persistence merged in [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences merged in [PR #55](https://github.com/zygote55/sketchyup/pull/55).
+The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4 is complete; M5 bounded inspection is in progress.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -534,7 +534,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 
 #### R030 — Implement precise move, rotate, scale and flip
 
-**Status:** Verified on core/X11; Wayland retest is tracked for the M4 checkpoint. **Track:** Geometry. **Scope:** E02, D03. **UX:** §4.2–§4.3.
+**Status:** Complete. Core/X11 and the M4 Wayland retest pass. **Track:** Geometry. **Scope:** E02, D03. **UX:** §4.2–§4.3.
 
 **Requires:** [R028](#r028), [R022](#r022), [R015](#r015); milestone gate rule above.
 
@@ -543,7 +543,7 @@ and the linked scope requirements apply even when not repeated in the entry.
 **Verify:** Rotated/mirrored and connected-face fixtures pass; transformed topology validates; numerical and interactive paths agree and one gesture is one undo step.
 
 - **R030.a — Scoped transform/copy core:** Merged in [PR #32](https://github.com/zygote55/sketchyup/pull/32); both CI jobs passed. [Evidence](verification/R030a-scoped-transforms.md). Shared vertices, pivots, local/world frames, reflection, typed copy mappings and atomic validation.
-- **R030.b — Native move/rotate/scale/flip:** Merged in [PR #33](https://github.com/zygote55/sketchyup/pull/33); both CI jobs passed. Wayland retest remains a tracked M4 checkpoint requirement. [Evidence](verification/R030b-native-transforms.md). Pointer/numeric tools, copy mode, selection feedback and one-gesture undo. Requires R030.a.
+- **R030.b — Native move/rotate/scale/flip:** Merged in [PR #33](https://github.com/zygote55/sketchyup/pull/33); both CI jobs passed. The carried Wayland retest passed in the M4 gate. [Evidence](verification/R030b-native-transforms.md). Pointer/numeric tools, copy mode, selection feedback and one-gesture undo. Requires R030.a.
 
 <a id="r031"></a>
 
@@ -664,7 +664,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R039 — Expose history and integrated M4 editing workflows
 
-**Status:** In progress. R039.a implements bounded labels/task metadata and guarded history navigation; 42 development and 29 sanitizer suites plus native regressions pass; R039.b adds native History navigation, labeled menus and focus handling. R039.c adds per-document units with schema 12, atomic edits and save/recovery preservation; R039.d adds first-run/default units and native input/readout integration. R039.e verifies the integrated room, shared/unique windows and killed-writer recovery on X11/Weston and actual Hyprland. Local validation passes; dependency merges/CI remain pending. [M4 evidence](verification/M4.md). [Units decision](decisions/0018-document-units.md). [Units evidence](verification/R039c-document-units.md). [Native units evidence](verification/R039d-native-units.md). [History decision](decisions/0017-labeled-history.md). [API evidence](verification/R039a-labeled-history.md). [Native evidence](verification/R039b-native-history.md). **Track:** Desktop. **Scope:** D03, N03, O01, O02. **UX:** §4.2, §5–§6.
+**Status:** Complete. PRs #52–56 passed CI and merged; the M4 gate passes. R039.a implements bounded labels/task metadata and guarded history navigation; 42 development and 29 sanitizer suites plus native regressions pass; R039.b adds native History navigation, labeled menus and focus handling. R039.c adds per-document units with schema 12, atomic edits and save/recovery preservation; R039.d adds first-run/default units and native input/readout integration. R039.e verifies the integrated room, shared/unique windows and killed-writer recovery on X11/Weston and actual Hyprland. Local and CI validation pass; all dependencies are merged. [M4 evidence](verification/M4.md). [Units decision](decisions/0018-document-units.md). [Units evidence](verification/R039c-document-units.md). [Native units evidence](verification/R039d-native-units.md). [History decision](decisions/0017-labeled-history.md). [API evidence](verification/R039a-labeled-history.md). [Native evidence](verification/R039b-native-history.md). **Track:** Desktop. **Scope:** D03, N03, O01, O02. **UX:** §4.2, §5–§6.
 
 **Requires:** [R038](#r038), [R034](#r034); milestone gate rule above.
 
@@ -678,7 +678,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R040 — Publish bounded document inspection and measurement tools
 
-**Status:** In progress. R040.a implements versioned bounded read-only queries, typed references, revision/editor-bound pagination, measurements and generated schemas. Targeted headless checks pass. R040.b retained snapshots and desktop view capture remain pending; M4 gate acceptance is still required. [Contract](decisions/0019-bounded-inspection.md). [Evidence](verification/R040a-bounded-inspection.md). **Track:** Automation. **Scope:** A01, A02. **UX:** —.
+**Status:** In progress. R040.a implements versioned bounded read-only queries, typed references, revision/editor-bound pagination, measurements and generated schemas. Targeted headless checks pass. R040.a is [PR #57](https://github.com/zygote55/sketchyup/pull/57). R040.b adds bounded retained snapshots with captured editor state, monotonic expiry and document-session guards; targeted tests pass. R040.c desktop view capture remains pending; The prerequisite M4 gate is complete. [Snapshot evidence](verification/R040b-inspection-snapshots.md). [Contract](decisions/0019-bounded-inspection.md). [Evidence](verification/R040a-bounded-inspection.md). **Track:** Automation. **Scope:** A01, A02. **UX:** —.
 
 **Requires:** [R035](#r035), [R037](#r037); milestone gate rule above.
 
