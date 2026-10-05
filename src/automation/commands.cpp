@@ -1026,6 +1026,12 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                                     point(command["origin"]), point(command["normal"])));
         } else if (name == "geometry.cleanup") {
             compose(staged.cleanup(id(command["body"])));
+        } else if (name == "geometry.offset") {
+            if (command.contains("space") && command["space"] != "local" &&
+                command["space"] != "world")
+                throw std::runtime_error("Offset space must be local or world");
+            compose(staged.offsetFace(id(command["body"]), id(command["face"]),
+                                      number(command["distance"]), command["space"] == "world"));
         } else if (name == "geometry.push_pull") {
             if (command.contains("newFace") && !command["newFace"].isBool())
                 throw std::runtime_error("newFace must be boolean");

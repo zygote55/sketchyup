@@ -218,6 +218,12 @@ QJsonArray commandCatalog() {
              {"body", "edge", "origin", "normal"}),
         spec("geometry.cleanup", "Merge coincident topology", "Geometry", {{"body", stableId()}},
              {"body"}),
+        spec("geometry.offset",
+             "Offset face boundaries (positive outward, negative inward; preserves source coverage "
+             "and holes)",
+             "Geometry",
+             {{"body", stableId()}, {"face", stableId()}, {"distance", number()}, {"space", space}},
+             {"body", "face", "distance"}),
         spec("geometry.push_pull", "Push/pull selected face", "Geometry",
              {{"body", stableId()},
               {"face", stableId()},

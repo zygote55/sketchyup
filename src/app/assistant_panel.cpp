@@ -416,16 +416,32 @@ struct AssistantPanel::Impl {
                 request["target"] = inspectionReference(document, id);
             result.context.append(request);
         }
-        const QStringList routine{
-            "assembly.room",      "assembly.window.resize", "geometry.face",
-            "geometry.rectangle", "geometry.circle",        "geometry.polygon",
-            "geometry.polyline",  "geometry.wire",          "geometry.extrude_isolated",
-            "geometry.push_pull", "geometry.translate",     "geometry.transform_selection",
-            "entity.position",    "entity.dimensions",      "entity.properties",
-            "group.create",       "group.selection",        "component.create",
-            "component.instance", "component.make_unique",  "component.edit_instance",
-            "material.assign",    "material.color",         "material.create",
-            "material.edit"};
+        const QStringList routine{"assembly.room",
+                                  "assembly.window.resize",
+                                  "geometry.face",
+                                  "geometry.rectangle",
+                                  "geometry.circle",
+                                  "geometry.polygon",
+                                  "geometry.polyline",
+                                  "geometry.wire",
+                                  "geometry.extrude_isolated",
+                                  "geometry.offset",
+                                  "geometry.push_pull",
+                                  "geometry.translate",
+                                  "geometry.transform_selection",
+                                  "entity.position",
+                                  "entity.dimensions",
+                                  "entity.properties",
+                                  "group.create",
+                                  "group.selection",
+                                  "component.create",
+                                  "component.instance",
+                                  "component.make_unique",
+                                  "component.edit_instance",
+                                  "material.assign",
+                                  "material.color",
+                                  "material.create",
+                                  "material.edit"};
         result.allowedCommands = routine;
         if (destructive->isChecked())
             result.allowedCommands.append({"geometry.delete", "geometry.erase_selection",
