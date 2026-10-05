@@ -1189,8 +1189,26 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 result = replaceComponent(staged, id(command["body"]), id(command["definition"]));
             else if (name == "component.axes")
                 result = setComponentAxes(staged, id(command["definition"]), matrix());
-            else if (name == "component.edit") {
+            else if (name == "component.edit" || name == "component.edit_instance") {
                 auto commands = array(command["commands"]);
+                if (name == "component.edit_instance") {
+                    // This command never grants shared-definition or global-resource edits.
+                    for (auto value : commands) {
+                        const auto nested = value.toObject();
+                        const auto operation = nested.value("command").toString();
+                        if (nested.contains("commands") ||
+                            !(operation.startsWith("geometry.") || operation == "entity.position" ||
+                              operation == "entity.dimensions" ||
+                              operation == "entity.properties" || operation == "material.assign" ||
+                              operation == "material.color"))
+                            throw std::runtime_error("Instance edit requires ordinary scoped "
+                                                     "geometry or appearance commands");
+                    }
+                    const auto unique = makeComponentUnique(staged, id(command["body"]));
+                    compose(unique.changes);
+                    command["instance"] = QString::number(unique.instance);
+                    command["definition"] = QString::number(unique.definition);
+                }
                 Transform frame;
                 if (command.contains("instance")) {
                     scopeInstance = id(command["instance"]);
@@ -1203,7 +1221,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 for (auto value : commands) {
                     const auto nested = value.toObject().value("command");
                     if (nested.toString().startsWith("assembly.") || nested == "component.edit" ||
-                        nested == "component.axes" ||
+                        nested == "component.edit_instance" || nested == "component.axes" ||
                         (nested.toString().startsWith("tag.") && nested != "tag.assign"))
                         throw std::runtime_error(
                             "Use a separate explicit scope for shared definition or axis edits");
@@ -1236,7 +1254,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
             compose(result.changes);
             QJsonObject operation{{"definition", QString::number(result.definition)},
                                   {"instance", QString::number(result.instance)}};
-            if (name == "component.edit") {
+            if (name == "component.edit" || name == "component.edit_instance") {
                 QJsonObject normalized;
                 for (auto [source, target] : result.movedGeometry)
                     normalized[QString::number(source)] = QString::number(target);

@@ -34,6 +34,7 @@ QJsonObject spec(QString name, QString label, QString category, QJsonObject prop
             {"category", category},
             {"parameters", QJsonObject{{"$schema", "https://json-schema.org/draft/2020-12/schema"},
                                        {"type", "object"},
+                                       {"description", label},
                                        {"properties", properties},
                                        {"required", required},
                                        {"additionalProperties", false}}},
@@ -46,6 +47,10 @@ QJsonArray commandCatalog() {
         {"type", "number"}, {"minimum", -coordinateLimit}, {"maximum", coordinateLimit}};
     auto point = list(coordinate, 3, 3);
     const QJsonObject space{{"type", "string"}, {"enum", QJsonArray{"local", "world"}}};
+    auto affine = list(number(), 16, 16);
+    affine["description"] = "Column-major affine 4x4. Translation is at indices 12, 13, 14. "
+                            "Transform only inspected vertex IDs to preserve member thickness; "
+                            "uniform bounds scaling changes thickness.";
     return {
         spec("document.units", "Change document units", "Document",
              {{"units", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"m", "mm", "ft-in"}}}}},
@@ -224,7 +229,7 @@ QJsonArray commandCatalog() {
              {"body", "face", "distance"}),
         spec("geometry.transform_selection", "Transform selected geometry", "Geometry",
              {{"entities", targetsSchema()},
-              {"matrix", list(number(), 16, 16)},
+              {"matrix", affine},
               {"pivot", point},
               {"space", space},
               {"copy", QJsonObject{{"type", "boolean"}, {"default", false}}}},
@@ -370,6 +375,10 @@ QJsonArray commandCatalog() {
         spec("component.axes", "Change component local axes", "Scene",
              {{"definition", stableId()}, {"matrix", list(number(), 16, 16)}},
              {"definition", "matrix"}),
+        spec("component.edit_instance", "Make one component instance unique and edit its geometry",
+             "Scene",
+             {{"body", stableId()}, {"commands", list(QJsonObject{{"type", "object"}}, 1, 100)}},
+             {"body", "commands"}),
         spec("component.edit", "Edit shared component definition", "Scene",
              {{"definition", stableId()},
               {"instance", stableId()},

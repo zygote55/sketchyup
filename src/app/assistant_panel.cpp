@@ -423,8 +423,9 @@ struct AssistantPanel::Impl {
             "geometry.push_pull", "geometry.translate",     "geometry.transform_selection",
             "entity.position",    "entity.dimensions",      "entity.properties",
             "group.create",       "group.selection",        "component.create",
-            "component.instance", "component.make_unique",  "material.assign",
-            "material.color",     "material.create",        "material.edit"};
+            "component.instance", "component.make_unique",  "component.edit_instance",
+            "material.assign",    "material.color",         "material.create",
+            "material.edit"};
         result.allowedCommands = routine;
         if (destructive->isChecked())
             result.allowedCommands.append({"geometry.delete", "geometry.erase_selection",

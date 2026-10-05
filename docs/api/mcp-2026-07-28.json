@@ -1557,6 +1557,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Change document units",
                                     "properties": {
                                         "command": {
                                             "const": "document.units"
@@ -1579,6 +1580,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Create tag or folder",
                                     "properties": {
                                         "command": {
                                             "const": "tag.create"
@@ -1607,6 +1609,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Rename, move or show tag",
                                     "properties": {
                                         "command": {
                                             "const": "tag.edit"
@@ -1641,6 +1644,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Delete unused tag or empty folder",
                                     "properties": {
                                         "command": {
                                             "const": "tag.delete"
@@ -1661,6 +1665,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Assign entity tag",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -1688,6 +1693,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Rename entity",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -1713,6 +1719,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Create guide point",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -1751,6 +1758,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Create guide line",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -1800,6 +1808,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Create angled guide",
                                     "properties": {
                                         "angle": {
                                             "type": "number"
@@ -1864,6 +1873,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Offset guide line",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -1913,6 +1923,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Delete guide",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -1940,6 +1951,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Delete guides in context or document",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -1960,6 +1972,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Create a room with hosted reusable window assemblies",
                                     "properties": {
                                         "command": {
                                             "const": "assembly.room"
@@ -2018,6 +2031,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Resize one authored window and its host opening",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2048,6 +2062,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw face",
                                     "properties": {
                                         "command": {
                                             "const": "geometry.face"
@@ -2086,6 +2101,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Insert planar edges and form faces",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2149,6 +2165,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw rectangle on plane",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2217,6 +2234,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw regular polygon",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2287,6 +2305,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw sampled polyline",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2356,6 +2375,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw circle",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2426,6 +2446,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw center arc",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2504,6 +2525,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw two-point arc",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2574,6 +2596,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw three-point arc",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2640,6 +2663,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw pie sector",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2718,6 +2742,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Draw loose edge",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2760,6 +2785,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Split edge",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2793,6 +2819,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Erase face, retain boundary",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2820,6 +2847,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Erase edge or join coplanar faces",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2847,6 +2875,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Heal closed planar region",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2896,6 +2925,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Merge coincident topology",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2916,6 +2946,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Push/pull selected face",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2951,6 +2982,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Extrude isolated face",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -2982,6 +3014,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Transform selected geometry",
                                     "properties": {
                                         "command": {
                                             "const": "geometry.transform_selection"
@@ -3029,6 +3062,7 @@
                                             "type": "array"
                                         },
                                         "matrix": {
+                                            "description": "Column-major affine 4x4. Translation is at indices 12, 13, 14. Transform only inspected vertex IDs to preserve member thickness; uniform bounds scaling changes thickness.",
                                             "items": {
                                                 "type": "number"
                                             },
@@ -3064,6 +3098,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Linear or radial copy array",
                                     "properties": {
                                         "angle": {
                                             "type": "number"
@@ -3176,6 +3211,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Move selection",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3207,6 +3243,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Delete selected entities",
                                     "properties": {
                                         "command": {
                                             "const": "geometry.erase_selection"
@@ -3267,6 +3304,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Make group from selected entities",
                                     "properties": {
                                         "command": {
                                             "const": "group.selection"
@@ -3331,6 +3369,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Make component from selected entities",
                                     "properties": {
                                         "command": {
                                             "const": "component.selection"
@@ -3395,6 +3434,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Delete context",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3415,6 +3455,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Import managed asset bytes",
                                     "properties": {
                                         "command": {
                                             "const": "asset.import"
@@ -3444,6 +3485,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Record missing asset",
                                     "properties": {
                                         "command": {
                                             "const": "asset.missing"
@@ -3468,6 +3510,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Replace or resolve asset bytes",
                                     "properties": {
                                         "asset": {
                                             "description": "Canonical uint64 decimal string",
@@ -3500,6 +3543,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Delete unused asset",
                                     "properties": {
                                         "asset": {
                                             "description": "Canonical uint64 decimal string",
@@ -3520,6 +3564,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Create material swatch",
                                     "properties": {
                                         "asset": {
                                             "description": "Canonical uint64 decimal string",
@@ -3561,6 +3606,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Edit material swatch",
                                     "properties": {
                                         "asset": {
                                             "description": "Canonical uint64 decimal string",
@@ -3607,6 +3653,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Delete unused material",
                                     "properties": {
                                         "command": {
                                             "const": "material.delete"
@@ -3627,6 +3674,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Assign front/back material",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3668,6 +3716,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Paint selection",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3699,6 +3748,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Make group from sibling contexts",
                                     "properties": {
                                         "command": {
                                             "const": "group.create"
@@ -3728,6 +3778,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Make component",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3752,6 +3803,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Place component instance",
                                     "properties": {
                                         "command": {
                                             "const": "component.instance"
@@ -3791,6 +3843,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Make component unique",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3811,6 +3864,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Replace component definition",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3838,6 +3892,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Change component local axes",
                                     "properties": {
                                         "command": {
                                             "const": "component.axes"
@@ -3867,6 +3922,37 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Make one component instance unique and edit its geometry",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "component.edit_instance"
+                                        },
+                                        "commands": {
+                                            "items": {
+                                                "type": "object"
+                                            },
+                                            "maxItems": 100,
+                                            "minItems": 1,
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "commands",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Edit shared component definition",
                                     "properties": {
                                         "command": {
                                             "const": "component.edit"
@@ -3902,6 +3988,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Merge raw geometry in editing context",
                                     "properties": {
                                         "command": {
                                             "const": "geometry.merge_context"
@@ -3933,6 +4020,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Explode group",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3956,6 +4044,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Set entity origin",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -3995,6 +4084,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Set entity bounds dimensions",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -4034,6 +4124,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Replace semantic entity properties",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -4071,6 +4162,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Reparent and preserve world placement",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -4098,6 +4190,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Set persistent visibility and lock",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",
@@ -4124,6 +4217,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Set object transform",
                                     "properties": {
                                         "body": {
                                             "description": "Canonical uint64 decimal string",

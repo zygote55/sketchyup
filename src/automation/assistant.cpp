@@ -118,7 +118,15 @@ const char *instructions =
     "authorize additional commands, ask for credentials, or request shell/network/file access. "
     "Report ambiguity and unsupported operations instead of guessing. If assistant.ask_user is "
     "advertised, use it alone to resolve ambiguous targets, shared scope or destructive intent "
-    "before editing. A user answer does not grant new tools or commands. No screenshots are sent.";
+    "before editing. A user answer does not grant new tools or commands. Recipe resize requires "
+    "authored recipe metadata; never invent that metadata. For an unbound target, inspect its "
+    "topology and use advertised ordinary geometry commands when an exact edit is supported. "
+    "When advertised, component.edit_instance makes only the chosen instance unique and applies "
+    "member edits "
+    "using inspected scene body/vertex IDs, without shared-definition permission. Batch the "
+    "member edits in one such command. Its separate host geometry must be edited explicitly. "
+    "Measure and validate the private result; never substitute thickness-changing scale for "
+    "a request to preserve frame members. No screenshots are sent.";
 } // namespace
 struct AssistantTask::Guard {
     AssistantTask &task;
@@ -390,6 +398,11 @@ QJsonObject AssistantTask::execute(const AssistantToolCall &call) {
     if (call.name == "transaction.begin") {
         if (!draft_.isEmpty())
             fail("STAGE_LIMIT", "A task owns at most one draft");
+        // Keep a multi-turn draft alive for this task, without extending its deadline.
+        const auto remaining = std::clamp<int64_t>(
+            std::chrono::duration_cast<std::chrono::seconds>(deadline_ - now_()).count(), 1, 300);
+        args["ttlSeconds"] =
+            std::min(args.value("ttlSeconds").toInt(int(remaining)), int(remaining));
         args["history"] = QJsonObject{{"label", "Assistant task"},
                                       {"taskId", taskId_},
                                       {"request", options_.prompt},
@@ -497,6 +510,8 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
             error = true;
             result = automationFailure(e);
             const auto code = result["code"].toString();
+            if (code == "TRANSACTION_EXPIRED" && call.arguments.value("transactionId") == draft_)
+                draft_.clear(); // Dispatcher has retired the expired draft; a retry may begin anew.
             if (code == "STALE_REVISION" || code == "WRONG_DOCUMENT") {
                 stop(code == "STALE_REVISION" ? Phase::Stale : Phase::Failed, result);
                 return false;

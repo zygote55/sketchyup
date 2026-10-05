@@ -932,6 +932,12 @@ int main(int argc, char **argv) {
                         {"distance", .9}},
             QJsonObject{{"command", "guide.erase"}, {"body", "1"}, {"guide", "6"}},
             QJsonObject{{"command", "guide.clear"}, {"body", "0"}}};
+        cases.append(
+            QJsonObject{{"command", "component.edit_instance"},
+                        {"body", "1"},
+                        {"commands", QJsonArray{QJsonObject{{"command", "geometry.translate"},
+                                                            {"body", "2"},
+                                                            {"delta", QJsonArray{.1, 0, 0}}}}}});
         cases.append(QJsonObject{{"command", "assembly.room"}});
         cases.append(QJsonObject{{"command", "assembly.window.resize"},
                                  {"body", "6"},
