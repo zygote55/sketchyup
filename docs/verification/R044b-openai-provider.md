@@ -38,3 +38,5 @@ The full development run passed in 35.95 s: 60 suites passed, with the explicit 
 The source archive includes provider implementation, credential helper, tests and ADR 0034; installation passed. The optional libsecret dependency is declared without making assistant configuration mandatory for modeling.
 
 CI run `37266404866` initially failed before compilation because downloads from the pinned Arch archive timed out. The failed run was rerun on the same head; CI acceptance remains pending.
+
+Both CI runs 37266408772 and the rerun of 37266404866 passed. PR [#72](https://github.com/zygote55/sketchyup/pull/72) merged as `15ad1d6b556051bdf307af7e54d7870d66079948` on 2026-10-05 at 06:09:44 UTC. Native setup and the configured live trial remain pending.
