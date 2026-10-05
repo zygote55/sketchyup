@@ -6,6 +6,9 @@ set -euo pipefail
   exit 1
 }
 cd /work/package
+# The minimal Arch image excludes documentation. Include it in this disposable
+# acceptance environment so the installed API contracts are actually verified.
+sed -i '/^[[:space:]]*NoExtract[[:space:]]*=/s@usr/share/doc/\*@@g' /etc/pacman.conf
 pacman -S --noconfirm --needed desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu
 chown -R builder:builder /work/package
 cp PKGBUILD PKGBUILD.current
