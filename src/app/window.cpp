@@ -344,6 +344,21 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             "Select a face · Preview or type distance · Positive: outward · Negative: inward");
     addTool("Follow Me", "Shift+F", Viewport::Tool::Sweep,
             "Select one profile face and a connected edge path · Enter or click applies · Esc cancels");
+    addTool("Intersect", "I", Viewport::Tool::Intersect,
+            "Select target faces · Choose reference scope in Draw · Enter or click applies · Esc "
+            "cancels");
+    auto *references = draw->addMenu("Intersection references");
+    auto *referenceGroup = new QActionGroup(this);
+    for (const auto &[mode, label] : {std::pair{QString("selected"), QString("Selected faces")},
+                                      std::pair{QString("context"), QString("Active context")},
+                                      std::pair{QString("model"), QString("Model")}}) {
+        auto *choice = action("intersection.mode." + mode, label, {},
+                              [this, mode] { viewport_->setIntersectionMode(mode); });
+        choice->setCheckable(true);
+        choice->setChecked(mode == "selected");
+        referenceGroup->addAction(choice);
+        references->addAction(choice);
+    }
     addTool("Move", "M", Viewport::Tool::Move,
             "Select geometry · Choose pivot and destination · Type displacement · Ctrl: copy");
     addTool("Rotate", "Q", Viewport::Tool::Rotate,
@@ -709,6 +724,7 @@ void Window::tool(Viewport::Tool t, const QString &text) {
         : t == Viewport::Tool::Extrude    ? "distance"
         : t == Viewport::Tool::Offset     ? "signed offset distance (+ outward, - inward)"
         : t == Viewport::Tool::Sweep      ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Intersect  ? "Enter applies the preview · Esc cancels"
         : t == Viewport::Tool::Circle     ? "radius or 24s"
         : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
         : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"

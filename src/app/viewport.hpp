@@ -55,7 +55,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Scale = 19,
         Paint = 20,
         Offset = 21,
-        Sweep = 22
+        Sweep = 22,
+        Intersect = 23
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -75,6 +76,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     bool planeHeld() const { return bool(heldPlane_); }
     bool inferenceReady() const { return bool(inferenceWorker_.ready(doc_)); }
     bool previewValid() const { return previewValid_; }
+    void setIntersectionMode(const QString &mode);
+    QString intersectionMode() const { return intersectionMode_; }
     void setGuideCreation(bool enabled);
     bool guideCreation() const { return createGuides_; }
     void clearGuides();
@@ -333,6 +336,10 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     Id offsetBody_{}, offsetFace_{};
     Vec3 offsetNormal_{}, offsetAxis_{};
     std::optional<QJsonObject> sweepCommand_;
+    std::optional<QJsonObject> intersectionCommand_;
+    QString intersectionMode_{"selected"};
+    void beginIntersection();
+    void finishIntersection();
     void beginSweep();
     void finishSweep();
     void beginOffset(Id body, Id face, Vec3 anchor);

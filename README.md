@@ -422,6 +422,17 @@ metadata survives edge splits and retires when an edit breaks its outline. The w
 these operations currently have command paths while direct edge tools are in progress.
 The planar-grid recipe forms four editable faces from finite segments. Planar insertion
 handles intersections, overlaps and holes within the documented arrangement limits.
+Intersect (**I**) inserts crossing or coplanar intersection edges into selected
+faces. Use Select and Ctrl-click to choose targets, then I to preview; Enter or
+click applies, Escape cancels, and Alt-drag orbits. Draw → Intersection references
+chooses Selected faces, Active context, or Model. Context and Model retain
+unselected reference bodies; only target bodies change, with target descendants
+selected and one Undo item. Context stops at group boundaries; Model reads
+persistently visible scene geometry across groups, including from an explicit
+component edit. Existing seams produce an actionable no-change message. The same
+operation is available as `geometry.intersect`; see the
+[intersection contract](docs/decisions/0045-face-intersections.md).
+
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected
 path edges. Use Select and Ctrl-click to add the face and path, then Shift+F to
 preview; Enter or click applies, and Escape cancels. Alt-drag can orbit during
