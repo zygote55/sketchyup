@@ -1,0 +1,470 @@
+#include "integrations/blender_job.hpp"
+#include <QBuffer>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFileInfo>
+#include <QImageReader>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <QSaveFile>
+#include <QStandardPaths>
+#include <QThread>
+#include <QTimer>
+#include <atomic>
+#include <future>
+static void initializeBlenderResource() { Q_INIT_RESOURCE(blender_worker); }
+namespace sketchy {
+namespace {
+std::atomic<int> activeJobs{};
+void require(bool ok, const char *message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
+QString hash(const QByteArray &bytes) {
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+QByteArray read(const QString &path, qsizetype limit) {
+    const QFileInfo info(path);
+    require(info.isFile() && !info.isSymLink() && info.size() <= limit,
+            "Expected a bounded regular worker artifact");
+    QFile file(path);
+    require(file.open(QIODevice::ReadOnly), "Cannot read worker artifact");
+    const auto bytes = file.read(limit + 1);
+    require(bytes.size() <= limit && file.error() == QFileDevice::NoError,
+            "Worker artifact read failed or exceeded bound");
+    return bytes;
+}
+QJsonObject object(const QByteArray &bytes) {
+    QJsonParseError error;
+    const auto json = QJsonDocument::fromJson(bytes, &error);
+    require(error.error == QJsonParseError::NoError && json.isObject(),
+            "Worker result is not a JSON object");
+    return json.object();
+}
+void write(const QString &path, const QByteArray &bytes) {
+    QSaveFile file(path);
+    require(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size() && file.commit(),
+            "Cannot prepare Blender worker input");
+}
+bool terminal(BlenderJob::Phase phase) {
+    return phase == BlenderJob::Phase::Succeeded || phase == BlenderJob::Phase::Failed ||
+           phase == BlenderJob::Phase::Unavailable || phase == BlenderJob::Phase::Canceled ||
+           phase == BlenderJob::Phase::TimedOut;
+}
+bool backend(const QString &name) {
+    return QStringList{"CPU", "CUDA", "OPTIX", "HIP", "ONEAPI", "METAL"}.contains(name);
+}
+void version(const QJsonObject &result) {
+    require(result.value("apiVersion") == 1 && result.value("adapter") == "sketchyup-blender-v1",
+            "Worker protocol mismatch");
+    const auto v = result.value("blenderVersion").toArray();
+    require(v.size() == 3 && v[0] == 5 && v[1] == 2 && v[2].isDouble() &&
+                v[2].toDouble() == v[2].toInt(-1) && v[2].toInt(-1) >= 0,
+            "Unsupported Blender version in result");
+}
+std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const QString &directory,
+                                            const QJsonObject &result,
+                                            const QString &requestedBackend,
+                                            const QString &requestedDevice) {
+    version(result);
+    const auto &source = input.manifest();
+    require(result.value("status") == "succeeded" &&
+                result.value("documentId") == source.value("documentId") &&
+                result.value("revision") == source.value("revision") &&
+                result.value("settings") == source.value("settings") &&
+                result.value("manifestSha256") == input.manifestHash() &&
+                result.value("sceneSha256") == source.value("scene").toObject().value("sha256"),
+            "Worker result does not match captured source");
+    const auto device = result.value("device").toObject();
+    require(device.value("backend") == requestedBackend && device.value("id") == requestedDevice,
+            "Worker did not use the explicitly requested device");
+    const auto preset = result.value("preset").toObject();
+    require(preset.value("name") == "studio-v1" && preset.value("engine") == "CYCLES" &&
+                preset.value("threads") == 4,
+            "Worker render preset mismatch");
+    const auto image = result.value("image").toObject(),
+               settings = source.value("settings").toObject();
+    require(image.value("file") == "image.png" && image.value("width") == settings.value("width") &&
+                image.value("height") == settings.value("height"),
+            "Worker image dimensions or filename mismatch");
+    const auto bytes = read(directory + "/image.png", 64 * 1024 * 1024);
+    require(image.value("bytes").toInteger(-1) == bytes.size() &&
+                image.value("sha256") == hash(bytes),
+            "Worker PNG hash or size mismatch");
+    QBuffer buffer;
+    buffer.setData(bytes);
+    require(buffer.open(QIODevice::ReadOnly), "Cannot decode verified image bytes");
+    QImageReader reader(&buffer);
+    reader.setDecideFormatFromContent(true);
+    const QSize expected(settings.value("width").toInt(), settings.value("height").toInt());
+    require(reader.format() == "png" && reader.size() == expected,
+            "Worker output is not the expected PNG");
+    const auto decoded = reader.read();
+    require(!decoded.isNull() && decoded.size() == expected, "Worker PNG failed full decoding");
+    auto verified = std::make_shared<BlenderResult>();
+    verified->manifest = result;
+    verified->png = bytes;
+    verified->image = decoded;
+    return verified;
+}
+} // namespace
+std::shared_ptr<const PreparedRender> PreparedRender::prepare(const RenderSnapshot &snapshot) {
+    auto result = std::shared_ptr<PreparedRender>(new PreparedRender);
+    result->root_ = std::make_shared<QTemporaryDir>(QDir::tempPath() + "/sketchyup-render-XXXXXX");
+    require(result->root_->isValid(), "Cannot create private render directory");
+    const auto scene = exportGlb(snapshot);
+    writeGlbExport(scene, result->sourceDirectory());
+    result->manifest_ = scene.manifest;
+    result->manifestHash_ =
+        hash(read(result->sourceDirectory() + "/manifest.json", 16 * 1024 * 1024));
+    return result;
+}
+struct BlenderJob::Impl {
+    BlenderJob &owner;
+    QProcess process;
+    QTimer deadline, killTimer, poll;
+    Phase phase{Phase::Idle}, stopPhase{Phase::Failed};
+    Options options;
+    bool probing{}, slot{}, stopping{};
+    int attempt{}, outputBytes{};
+    QString executable, currentBackend, currentDevice, progressText, attemptDirectory, errorCode,
+        errorMessage;
+    QByteArray log, line;
+    QJsonArray attempts;
+    QJsonObject workerReport;
+    std::shared_ptr<const PreparedRender> input;
+    std::shared_ptr<QTemporaryDir> jobRoot;
+    std::shared_ptr<const BlenderResult> result;
+    std::future<std::shared_ptr<const BlenderResult>> verification;
+    explicit Impl(BlenderJob &owner)
+        : owner(owner), process(&owner), deadline(&owner), killTimer(&owner), poll(&owner) {
+        deadline.setSingleShot(true);
+        killTimer.setSingleShot(true);
+        poll.setInterval(10);
+        QObject::connect(&deadline, &QTimer::timeout, &owner, [this] {
+            stop(Phase::TimedOut, "TIMED_OUT", "Blender exceeded the job deadline");
+        });
+        QObject::connect(&killTimer, &QTimer::timeout, &owner, [this] {
+            if (process.state() != QProcess::NotRunning)
+                process.kill();
+        });
+        QObject::connect(&process, &QProcess::readyReadStandardOutput, &owner, [this] { drain(); });
+        QObject::connect(&process, &QProcess::errorOccurred, &owner,
+                         [this](QProcess::ProcessError error) {
+                             if (error == QProcess::FailedToStart)
+                                 finish(Phase::Unavailable, "START_FAILED", process.errorString());
+                         });
+        QObject::connect(&process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+                         &owner,
+                         [this](int code, QProcess::ExitStatus status) { finished(code, status); });
+        QObject::connect(&poll, &QTimer::timeout, &owner, [this] {
+            if (!verification.valid() ||
+                verification.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+                return;
+            poll.stop();
+            try {
+                auto candidate = verification.get();
+                if (stopping) {
+                    finish(stopPhase, errorCode, errorMessage);
+                    return;
+                }
+                auto published = std::make_shared<BlenderResult>(*candidate);
+                published->manifest["attempts"] = attempts;
+                published->manifest["cpuFallbackUsed"] = attempt > 1;
+                result = std::move(published);
+                finish(Phase::Succeeded);
+            } catch (const std::exception &error) {
+                finish(stopping ? stopPhase : Phase::Failed,
+                       stopping ? errorCode : "INVALID_RESULT",
+                       stopping ? errorMessage : QString::fromUtf8(error.what()));
+            }
+        });
+    }
+    ~Impl() {
+        QObject::disconnect(&process, nullptr, &owner, nullptr);
+        if (process.state() != QProcess::NotRunning) {
+            process.kill();
+            process.waitForFinished(2000);
+        }
+        if (slot)
+            --activeJobs;
+    }
+    void checkOwner() const {
+        require(QThread::currentThread() == owner.thread(),
+                "Blender job requires its owner thread");
+    }
+    void changed(Phase next) {
+        phase = next;
+        emit owner.changed();
+    }
+    void finish(Phase next, QString code = {}, QString message = {}) {
+        if (terminal(phase))
+            return;
+        deadline.stop();
+        killTimer.stop();
+        poll.stop();
+        errorCode = std::move(code);
+        errorMessage = std::move(message);
+        if (slot) {
+            --activeJobs;
+            slot = false;
+        }
+        changed(next);
+    }
+    QString root() const { return jobRoot->path(); }
+    void begin(bool probe, std::shared_ptr<const PreparedRender> prepared, Options requested) {
+        checkOwner();
+        require(phase == Phase::Idle, "A Blender job can start only once");
+        require(backend(requested.backend) && requested.deviceId.size() <= 512 &&
+                    requested.timeoutMs >= 1 && requested.timeoutMs <= 3600000,
+                "Invalid Blender job options");
+        require(requested.backend == "CPU" || !requested.deviceId.isEmpty(),
+                "Select an explicit GPU device");
+        probing = probe;
+        input = std::move(prepared);
+        options = std::move(requested);
+        if (!probing)
+            require(bool(input), "Render requires a prepared immutable snapshot");
+        executable = options.executable.isEmpty() ? QStandardPaths::findExecutable("blender")
+                                                  : options.executable;
+        const QFileInfo file(executable);
+        if (executable.isEmpty() || !file.isAbsolute() || !file.isFile() || !file.isExecutable()) {
+            finish(Phase::Unavailable, "BLENDER_UNAVAILABLE",
+                   "Choose an installed Blender 5.2 LTS executable");
+            return;
+        }
+        executable = file.canonicalFilePath();
+        const int previous = activeJobs.fetch_add(1);
+        if (previous >= 2) {
+            --activeJobs;
+            finish(Phase::Failed, "BUSY", "Two Blender jobs are already active");
+            return;
+        }
+        slot = true;
+        jobRoot = std::make_shared<QTemporaryDir>(QDir::tempPath() + "/sketchyup-worker-XXXXXX");
+        if (!jobRoot->isValid()) {
+            finish(Phase::Failed, "PREPARE_FAILED", "Cannot create private worker directory");
+            return;
+        }
+        currentBackend = options.backend;
+        currentDevice = currentBackend == "CPU" ? "CPU" : options.deviceId;
+        deadline.start(probing ? std::min(options.timeoutMs, 15000) : options.timeoutMs);
+        launch();
+    }
+    void launch() {
+        try {
+            ++attempt;
+            outputBytes = 0;
+            log.clear();
+            line.clear();
+            workerReport = {};
+            attemptDirectory = root() + "/attempt-" + QString::number(attempt);
+            require(QDir().mkdir(attemptDirectory),
+                    "Cannot create fresh Blender attempt directory");
+            require(QFile::setPermissions(attemptDirectory, QFileDevice::ReadOwner |
+                                                                QFileDevice::WriteOwner |
+                                                                QFileDevice::ExeOwner),
+                    "Cannot protect Blender attempt directory");
+            initializeBlenderResource();
+            QFile script(":/sketchyup/blender_worker.py");
+            require(script.open(QIODevice::ReadOnly), "Embedded Blender adapter is unavailable");
+            write(attemptDirectory + "/worker.py", script.readAll());
+            QJsonObject request{{"apiVersion", 1},
+                                {"operation", probing ? "probe" : "render"},
+                                {"backend", currentBackend},
+                                {"deviceId", currentDevice}};
+            if (input) {
+                request["sourceDirectory"] = input->sourceDirectory();
+                request["manifestSha256"] = input->manifestHash();
+            }
+            write(attemptDirectory + "/request.json",
+                  QJsonDocument(request).toJson(QJsonDocument::Compact));
+            auto environment = QProcessEnvironment::systemEnvironment();
+            for (const auto &key : environment.keys())
+                if (key.startsWith("BLENDER_") || key == "PYTHONPATH" || key == "PYTHONHOME")
+                    environment.remove(key);
+            for (const auto *key : {"DISPLAY", "WAYLAND_DISPLAY"})
+                environment.remove(key);
+            require(QDir(attemptDirectory).mkdir("config") &&
+                        QDir(attemptDirectory).mkdir("scripts"),
+                    "Cannot isolate Blender preferences");
+            environment.insert("BLENDER_USER_CONFIG", attemptDirectory + "/config");
+            environment.insert("BLENDER_USER_SCRIPTS", attemptDirectory + "/scripts");
+            process.setProcessEnvironment(environment);
+            process.setWorkingDirectory(attemptDirectory);
+            process.setProcessChannelMode(QProcess::MergedChannels);
+            process.setProgram(executable);
+            process.setArguments({"--background", "--factory-startup", "--disable-autoexec",
+                                  "--threads", "4", "--python-exit-code", "1", "--python",
+                                  attemptDirectory + "/worker.py", "--",
+                                  attemptDirectory + "/request.json"});
+            progressText = probing ? "Checking Blender" : "Starting Blender";
+            changed(probing ? Phase::Probing : Phase::Rendering);
+            if (stopping) {
+                finish(stopPhase, errorCode, errorMessage);
+                return;
+            }
+            process.start();
+            process.closeWriteChannel();
+        } catch (const std::exception &error) {
+            finish(Phase::Failed, "PREPARE_FAILED", QString::fromUtf8(error.what()));
+        }
+    }
+    void stop(Phase target, QString code, QString message) {
+        if (terminal(phase) || stopping)
+            return;
+        stopping = true;
+        stopPhase = target;
+        errorCode = std::move(code);
+        errorMessage = std::move(message);
+        deadline.stop();
+        changed(Phase::Canceling);
+        if (process.state() != QProcess::NotRunning) {
+            process.terminate();
+            killTimer.start(1000);
+        } else if (!verification.valid())
+            finish(stopPhase, errorCode, errorMessage);
+    }
+    void drain() {
+        const auto bytes = process.readAllStandardOutput();
+        log.append(bytes);
+        if (log.size() > 64 * 1024)
+            log = log.right(64 * 1024);
+        if (bytes.size() > 2 * 1024 * 1024 - outputBytes) {
+            stop(Phase::Failed, "OUTPUT_LIMIT", "Blender output exceeded 2 MiB");
+            return;
+        }
+        outputBytes += bytes.size();
+        line.append(bytes);
+        while (true) {
+            const auto newline = line.indexOf('\n');
+            if (newline < 0)
+                break;
+            const auto row = line.left(newline);
+            line.remove(0, newline + 1);
+            if (row.startsWith("SKETCHYUP_PROGRESS ") && row.size() < 1024 && !stopping) {
+                const auto phase =
+                    QJsonDocument::fromJson(row.mid(19)).object().value("phase").toString();
+                if (QStringList{"loading", "rendering", "verifying-output"}.contains(phase)) {
+                    progressText = phase;
+                    emit owner.changed();
+                }
+            }
+        }
+        if (line.size() > 16 * 1024)
+            line.clear();
+    }
+    void finished(int code, QProcess::ExitStatus status) {
+        if (terminal(phase))
+            return;
+        drain();
+        killTimer.stop();
+        if (stopping) {
+            finish(stopPhase, errorCode, errorMessage);
+            return;
+        }
+        try {
+            workerReport = object(read(attemptDirectory + "/result.json", 64 * 1024));
+        } catch (const std::exception &) {
+            workerReport = {};
+        }
+        attempts.append(QJsonObject{{"backend", currentBackend},
+                                    {"deviceId", currentDevice},
+                                    {"exitCode", code},
+                                    {"normalExit", status == QProcess::NormalExit},
+                                    {"workerStatus", workerReport.value("status")},
+                                    {"code", workerReport.value("code")},
+                                    {"logTail", QString::fromUtf8(log)}});
+        const auto failure = workerReport.value("code").toString();
+        if (code != 0 || status != QProcess::NormalExit ||
+            workerReport.value("status") == "failed") {
+            const bool mayRetry =
+                failure.isEmpty() || failure == "render_error" || failure == "device_unavailable";
+            if (!probing && attempt == 1 && currentBackend != "CPU" && options.allowCpuFallback &&
+                mayRetry) {
+                currentBackend = "CPU";
+                currentDevice = "CPU";
+                progressText = "Retrying on CPU";
+                emit owner.changed();
+                if (!stopping && !terminal(phase))
+                    launch();
+                return;
+            }
+            const bool unavailable =
+                failure == "unsupported_version" || failure == "cycles_unavailable";
+            finish(unavailable ? Phase::Unavailable : Phase::Failed,
+                   failure.isEmpty() ? "BLENDER_FAILED" : failure,
+                   workerReport.value("message").toString("Blender did not complete successfully"));
+            return;
+        }
+        try {
+            version(workerReport);
+            if (probing) {
+                require(workerReport.value("status") == "available" &&
+                            workerReport.value("backends").isArray() &&
+                            workerReport.value("devices").isArray(),
+                        "Malformed Blender capabilities");
+                const auto backends = workerReport.value("backends").toArray(),
+                           devices = workerReport.value("devices").toArray();
+                require(backends.size() <= 6 && devices.size() <= 64,
+                        "Blender capabilities exceed bounds");
+                for (auto name : backends)
+                    require(name.isString() && backend(name.toString()), "Unknown Blender backend");
+                for (auto value : devices) {
+                    const auto device = value.toObject();
+                    require(device.value("id").isString() && device.value("name").isString() &&
+                                device.value("id").toString().size() <= 512 &&
+                                device.value("name").toString().size() <= 512 &&
+                                device.value("backend") == currentBackend,
+                            "Malformed Blender device");
+                }
+                finish(Phase::Succeeded);
+                return;
+            }
+            progressText = "Verifying image";
+            verification =
+                std::async(std::launch::async,
+                           [captured = input, directory = attemptDirectory, report = workerReport,
+                            kind = currentBackend, device = currentDevice] {
+                               return verify(*captured, directory, report, kind, device);
+                           });
+            poll.start();
+            changed(Phase::Verifying);
+        } catch (const std::exception &error) {
+            finish(Phase::Failed, "INVALID_RESULT", QString::fromUtf8(error.what()));
+        }
+    }
+};
+BlenderJob::BlenderJob(QObject *parent) : QObject(parent), impl_(std::make_unique<Impl>(*this)) {}
+BlenderJob::~BlenderJob() = default;
+void BlenderJob::probe(Options options) { impl_->begin(true, {}, std::move(options)); }
+void BlenderJob::start(std::shared_ptr<const PreparedRender> input, Options options) {
+    impl_->begin(false, std::move(input), std::move(options));
+}
+void BlenderJob::cancel() {
+    impl_->checkOwner();
+    impl_->stop(Phase::Canceled, "CANCELED", "Render canceled");
+}
+BlenderJob::Phase BlenderJob::phase() const {
+    impl_->checkOwner();
+    return impl_->phase;
+}
+bool BlenderJob::done() const { return terminal(phase()); }
+QString BlenderJob::progress() const {
+    impl_->checkOwner();
+    return impl_->progressText;
+}
+QJsonObject BlenderJob::report() const {
+    impl_->checkOwner();
+    return {{"phase", int(impl_->phase)},      {"code", impl_->errorCode},
+            {"message", impl_->errorMessage},  {"progress", impl_->progressText},
+            {"executable", impl_->executable}, {"attempts", impl_->attempts},
+            {"worker", impl_->workerReport},   {"cpuFallbackUsed", impl_->attempt > 1}};
+}
+std::shared_ptr<const BlenderResult> BlenderJob::result() const {
+    impl_->checkOwner();
+    return impl_->result;
+}
+} // namespace sketchy

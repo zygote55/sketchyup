@@ -36,6 +36,9 @@ jobs:
           build/dev/glb_export_tests build/glb-fixtures
           node scripts/verify-glb.mjs build/gltf-validator build/glb-fixtures > build/glb-validation.json
           blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-glb.py -- build/glb-fixtures
+      - name: Actual Blender worker lifecycle
+        run: |
+          SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^blender_real$' --output-on-failure
       - name: Native interaction and OpenGL tests
         run: |
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/native_mcp_tests
@@ -156,8 +159,8 @@ jobs:
       - name: Sanitized bounded inspection and CLI
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON
-          cmake --build --preset sanitize --target glb_export_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
-          ctest --test-dir build/sanitize -R '^(glb_export|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
+          cmake --build --preset sanitize --target blender_job_tests glb_export_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
+          ctest --test-dir build/sanitize -R '^(blender_job|glb_export|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
       - name: Sanitized native MCP inspection
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON

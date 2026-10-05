@@ -726,7 +726,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R044 — Implement assistant orchestration and a remote provider
 
-**Status:** In progress. R044.a provider-neutral task orchestration is implemented over the real transaction/inspection engine, with scoped command authorization, preview-first Apply, bounded provider retries, cancellation and durable-outcome reconciliation. All 56 development suites and three targeted sanitizer suites pass. CI/merge acceptance, the explicitly chosen remote adapter, credential storage and live provider trial remain pending. [Engine evidence](verification/R044a-assistant-orchestration.md), [contract](decisions/0030-assistant-orchestration.md). **Track:** Automation. **Scope:** A04, A05, A08. **UX:** §8.2, §8.5.
+**Status:** In progress. R044.a provider-neutral task orchestration is implemented over the real transaction/inspection engine, with scoped command authorization, preview-first Apply, bounded provider retries, cancellation and durable-outcome reconciliation. All 56 development suites and three targeted sanitizer suites pass. The engine merged in PR [#68](https://github.com/zygote55/sketchyup/pull/68) after both CI runs passed. The user explicitly selected **OpenAI** as the first remote provider; its adapter, credential storage and live provider trial remain pending. Credentials can be configured later. [Engine evidence](verification/R044a-assistant-orchestration.md), [contract](decisions/0030-assistant-orchestration.md). **Track:** Automation. **Scope:** A04, A05, A08. **UX:** §8.2, §8.5.
 
 **Requires:** [R041](#r041); milestone gate rule above.
 
@@ -786,7 +786,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R049 — Render a snapshot in an optional Blender worker
 
-**Status:** Planned. **Track:** Rendering. **Scope:** P08. **UX:** —.
+**Status:** In progress. The optional Blender 5.2 LTS worker, isolated job directories, explicit device selection, bounded cancellation/timeouts, one CPU retry and verified PNG publication are implemented. Lifecycle fixtures, targeted sanitizers and real CPU render/fallback/cancellation checks pass. The full development run also passes (59 passed, real-Blender opt-in skipped and tested separately). CI/merge acceptance remains pending. [Evidence](verification/R049-blender-worker.md), [contract](decisions/0033-blender-worker.md). **Track:** Rendering. **Scope:** P08. **UX:** —.
 
 **Requires:** [R048](#r048); milestone gate rule above.
 
