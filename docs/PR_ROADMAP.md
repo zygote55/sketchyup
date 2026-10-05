@@ -714,7 +714,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R043 — Expose the shared tools through local MCP
 
-**Status:** In progress. R043.a [PR #66](https://github.com/zygote55/sketchyup/pull/66) headless MCP discovery, tools, resources and subscriptions merged after local regression, sanitizer, protocol-schema verification and both CI runs passed. R043.b native selection/camera inspection, private socket transport and stdio bridge pass all 55 development suites, X11/Wayland at DPR 1/2, the actual desktop, native/shared MCP sanitizers and installed executable checks. Native inspection is read-only; the headless binding exposes staged transactions. CI/merge acceptance remains pending. [Native evidence](verification/R043b-native-mcp.md), [protocol evidence](verification/R043a-local-mcp.md), [native contract](decisions/0029-native-mcp.md). **Track:** Automation. **Scope:** A06, A01. **UX:** —.
+**Status:** Complete. Headless MCP [PR #66](https://github.com/zygote55/sketchyup/pull/66) and native inspection [PR #67](https://github.com/zygote55/sketchyup/pull/67) merged after local regression, sanitizer, installed executable and both CI runs passed. Native selection/camera inspection uses a private socket and stdio bridge; staged transactions are available in the headless binding. [Native evidence](verification/R043b-native-mcp.md), [protocol evidence](verification/R043a-local-mcp.md), [native contract](decisions/0029-native-mcp.md). **Track:** Automation. **Scope:** A06, A01. **UX:** —.
 
 **Requires:** [R042](#r042); milestone gate rule above.
 
@@ -762,7 +762,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R047 — Implement exact room and instance-only window recipes
 
-**Status:** Planned. **Track:** Automation. **Scope:** A07, A08, O02. **UX:** §8.1–§8.4.
+**Status:** In progress. Exact room and instance-only window commands, bounded ordinary-command expansion and executable transaction recipes are implemented. All 57 development suites, both targeted sanitizer suites, installed recipes and an actual native Wayland open/render check pass. CI/merge acceptance remains pending. [Evidence](verification/R047-room-window-recipes.md), [contract](decisions/0031-room-window-recipes.md). **Track:** Automation. **Scope:** A07, A08, O02. **UX:** §8.1–§8.4.
 
 **Requires:** [R042](#r042), [R040](#r040), [R033](#r033), [R030](#r030); milestone gate rule above.
 

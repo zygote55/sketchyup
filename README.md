@@ -191,6 +191,19 @@ new baseline with `--session --new --output MODEL --outcomes DIRECTORY`.
 JSON lines; see the [session protocol](docs/decisions/0026-headless-session.md).
 Versioned recipes pass typed results between those same requests:
 `--recipe examples/transaction-face-recipe.json --new --output /tmp/face.sketchyup --outcomes /tmp/face-outcomes`.
+The [room/window recipe](docs/decisions/0031-room-window-recipes.md) creates a 6 × 4 m
+room and widens one window from 1.2 to 1.4 m while preserving its sibling and frame
+thickness:
+
+```sh
+sketchyup-cli --recipe examples/room-window-resize-recipe-v1.json --new \
+  --output /tmp/recipe-room.sketchyup --outcomes /tmp/recipe-room-outcomes
+```
+
+Window dimensions are outer-frame dimensions. The room-only variant is
+`examples/room-recipe-v1.json`; installed recipes live under
+`/usr/share/doc/sketchyup/examples/`.
+
 See the [recipe contract](docs/decisions/0027-transaction-recipes.md) and
 `--recipe-capabilities`. A local MCP stdio client can use `--mcp` with the same
 explicit document/outcome options. It targets protocol 2026-07-28; see the

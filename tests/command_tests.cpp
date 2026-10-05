@@ -740,7 +740,7 @@ int main(int argc, char **argv) {
         assetDoc.undo();
         check(assetDoc.assets().empty() && assetDoc.materials().empty(),
               "Combined asset and material creation undoes atomically");
-        const QJsonArray cases{
+        QJsonArray cases{
             QJsonObject{{"command", "document.units"}, {"units", "mm"}},
             QJsonObject{{"command", "asset.import"},
                         {"name", "Data"},
@@ -932,6 +932,11 @@ int main(int argc, char **argv) {
                         {"distance", .9}},
             QJsonObject{{"command", "guide.erase"}, {"body", "1"}, {"guide", "6"}},
             QJsonObject{{"command", "guide.clear"}, {"body", "0"}}};
+        cases.append(QJsonObject{{"command", "assembly.room"}});
+        cases.append(QJsonObject{{"command", "assembly.window.resize"},
+                                 {"body", "6"},
+                                 {"width", 1.4},
+                                 {"scope", "instance"}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -946,6 +951,18 @@ int main(int argc, char **argv) {
                                    {"commands", QJsonArray{item}}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("assembly.")) {
+                doc = Document{};
+                if (command["command"] == "assembly.window.resize") {
+                    const auto room =
+                        executeBatch(doc, request(doc, {{"command", "assembly.room"}}));
+                    command["body"] = room["recipeOperations"]
+                                          .toArray()[0]
+                                          .toObject()["windows"]
+                                          .toArray()[0]
+                                          .toObject()["body"];
+                }
+            }
             if (command["command"].toString().startsWith("asset.") &&
                 command["command"] != "asset.import" && command["command"] != "asset.missing")
                 createAsset(doc, "Data", "application/octet-stream",
@@ -1003,14 +1020,18 @@ int main(int argc, char **argv) {
             }
             check(doc.revision() == revision + 1, "Registered command commits once");
             doc.undo();
-            auto expectedBody = *baseline.bodies().at(1);
-            check(doc.bodies().at(1)->surface.nextId >= expectedBody.surface.nextId,
-                  "Undo retains surface allocator high-water mark");
-            expectedBody.surface.nextId = doc.bodies().at(1)->surface.nextId;
-            expectedBody.topology.nextId = doc.bodies().at(1)->topology.nextId;
-            check(doc.bodies().size() == baseline.bodies().size() &&
-                      *doc.bodies().at(1) == expectedBody,
-                  "Registered command undo restores source geometry and metadata");
+            if (baseline.bodies().empty()) {
+                check(doc.bodies().empty(), "Room creation undo restores an empty model");
+            } else {
+                auto expectedBody = *baseline.bodies().at(1);
+                check(doc.bodies().at(1)->surface.nextId >= expectedBody.surface.nextId,
+                      "Undo retains surface allocator high-water mark");
+                expectedBody.surface.nextId = doc.bodies().at(1)->surface.nextId;
+                expectedBody.topology.nextId = doc.bodies().at(1)->topology.nextId;
+                check(doc.bodies().size() == baseline.bodies().size() &&
+                          *doc.bodies().at(1) == expectedBody,
+                      "Registered command undo restores source geometry and metadata");
+            }
             check(doc.tags() == baseline.tags(), "Registered command undo restores tag records");
             check(doc.materials() == baseline.materials(),
                   "Registered command undo restores material records");

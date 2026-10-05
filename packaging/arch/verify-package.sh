@@ -103,6 +103,11 @@ runuser -u builder -- env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
   --new --output /work/acceptance/recipe.sketchyup --outcomes /work/acceptance/recipe-outcomes \
   > /work/acceptance/recipe.jsonl
 jq -e 'select(.id == "measurement") | .ok and (.result.data.area == 6)' /work/acceptance/recipe.jsonl
+runuser -u builder -- env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
+  sketchyup-cli --recipe /usr/share/doc/sketchyup/examples/room-window-resize-recipe-v1.json \
+  --new --output /work/acceptance/recipe-room.sketchyup --outcomes /work/acceptance/recipe-room-outcomes \
+  > /work/acceptance/recipe-room.jsonl
+jq -e 'select(.id == "resize_draw") | .ok and (.result.createdIds.recipeOperations[0].outerWidth == 1.4) and .result.createdIds.recipeOperations[0].madeUnique' /work/acceptance/recipe-room.jsonl
 mv PKGBUILD.current PKGBUILD
 chown builder:builder PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force --nocheck
@@ -135,3 +140,5 @@ grep -q packageSentinel=retain /work/acceptance/config/SketchyUp/SketchyUp.conf
 grep -q retain-data /work/acceptance/data/SketchyUp/sentinel
 grep -q retain-cache /work/acceptance/cache/SketchyUp/sentinel
 printf 'Install, desktop launch, MIME, upgrade, reopen and removal acceptance passed.\n'
+
+[[ ! -e /usr/share/doc/sketchyup/examples/room-window-resize-recipe-v1.json ]]

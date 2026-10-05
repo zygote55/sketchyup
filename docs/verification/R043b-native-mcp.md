@@ -1,7 +1,10 @@
 # R043.b native MCP inspection
 
-Date: 2026-10-05 UTC. CI/merge acceptance pending. Requires
-[PR #66](https://github.com/zygote55/sketchyup/pull/66).
+Date: 2026-10-05 UTC. [PR #67](https://github.com/zygote55/sketchyup/pull/67)
+merged after both CI runs passed:
+[37258481496](https://github.com/zygote55/sketchyup/actions/runs/37258481496) and
+[37258485215](https://github.com/zygote55/sketchyup/actions/runs/37258485215).
+Native transport and platform acceptance are complete.
 [Binding contract](../decisions/0029-native-mcp.md).
 
 The native test opens the actual M4 room fixture in a visible `Window`, enters the

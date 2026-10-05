@@ -1911,6 +1911,94 @@
                                         "additionalProperties": false,
                                         "properties": {
                                             "command": {
+                                                "const": "assembly.room"
+                                            },
+                                            "depth": {
+                                                "maximum": 100,
+                                                "minimum": 2,
+                                                "type": "number"
+                                            },
+                                            "frameDepth": {
+                                                "maximum": 1,
+                                                "minimum": 0.01,
+                                                "type": "number"
+                                            },
+                                            "height": {
+                                                "maximum": 10,
+                                                "minimum": 1,
+                                                "type": "number"
+                                            },
+                                            "memberThickness": {
+                                                "maximum": 0.5,
+                                                "minimum": 0.01,
+                                                "type": "number"
+                                            },
+                                            "sill": {
+                                                "maximum": 5,
+                                                "minimum": 0.05,
+                                                "type": "number"
+                                            },
+                                            "wallThickness": {
+                                                "maximum": 1,
+                                                "minimum": 0.05,
+                                                "type": "number"
+                                            },
+                                            "width": {
+                                                "maximum": 100,
+                                                "minimum": 2,
+                                                "type": "number"
+                                            },
+                                            "windowHeight": {
+                                                "maximum": 5,
+                                                "minimum": 0.3,
+                                                "type": "number"
+                                            },
+                                            "windowWidth": {
+                                                "maximum": 10,
+                                                "minimum": 0.3,
+                                                "type": "number"
+                                            }
+                                        },
+                                        "required": [
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "body": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "command": {
+                                                "const": "assembly.window.resize"
+                                            },
+                                            "scope": {
+                                                "const": "instance"
+                                            },
+                                            "width": {
+                                                "maximum": 10,
+                                                "minimum": 0.3,
+                                                "type": "number"
+                                            }
+                                        },
+                                        "required": [
+                                            "body",
+                                            "width",
+                                            "scope",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "command": {
                                                 "const": "geometry.face"
                                             },
                                             "loops": {
