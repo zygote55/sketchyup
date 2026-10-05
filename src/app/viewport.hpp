@@ -57,7 +57,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Offset = 21,
         Sweep = 22,
         Intersect = 23,
-        Boolean = 24
+        Boolean = 24,
+        Orientation = 25
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -77,6 +78,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     bool planeHeld() const { return bool(heldPlane_); }
     bool inferenceReady() const { return bool(inferenceWorker_.ready(doc_)); }
     bool previewValid() const { return previewValid_; }
+    void setOrientationMode(bool orient);
+    QString orientationSummary() const;
     void setBooleanOperation(const QString &operation);
     void setBooleanKeepOperands(bool keep);
     void swapBooleanOperands();
@@ -340,6 +343,11 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     double extrusionScale_{1}, previewDistance_{};
     Id offsetBody_{}, offsetFace_{};
     Vec3 offsetNormal_{}, offsetAxis_{};
+    std::optional<QJsonObject> orientationCommand_;
+    bool orientConnected_{};
+    std::vector<std::array<Vec3, 2>> orientationNormals_;
+    void beginOrientation();
+    void finishOrientation();
     std::optional<QJsonObject> booleanCommand_;
     QString booleanOperation_{"union"};
     bool booleanKeepOperands_{true}, booleanSwap_{};
@@ -431,7 +439,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void finishShape(Vec3 end, std::optional<QJsonObject> command = std::nullopt);
     QJsonObject shapeCommand(Vec3 end) const;
     QJsonObject extrusionCommand(double distance) const;
-    void previewCommand(const QJsonObject &command);
+    QJsonObject previewCommand(const QJsonObject &command);
     void updateToolPreview(QPointF point);
     void finishExtrusion(double distance);
     void clearPreview();

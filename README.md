@@ -471,6 +471,13 @@ item and return region/provenance records in `solidOperations`. See the installe
 [Outer Shell](examples/solid-outer-shell.json) examples and the
 [publication contract](docs/decisions/0048-split-outer-shell.md).
 
+Face orientation (**Shift+O**) previews selected faces with arrows showing their
+new front direction. Draw → Face orientation options chooses **Reverse selected
+faces** or **Orient connected faces to selected reference**. Orient requires one
+reference face and keeps its direction. Enter or click applies, Escape cancels,
+and Alt-drag orbits. Physical front/back appearance and selection are retained;
+shared component edits affect all instances. Use Make Unique for an isolated edit.
+
 `geometry.reverse_faces` reverses explicitly selected faces while preserving the
 appearance of their physical sides, including front/back materials and opacity.
 `geometry.orient_faces` preserves a reference face and makes its edge-connected
