@@ -935,6 +935,10 @@ void Viewport::paintScene() {
                    QString("Ctrl: create new face %1 · Double-click: repeat distance · Alt-drag: "
                            "orbit · Esc: cancel")
                        .arg(pushNewFace_ ? "on" : "off"));
+    if (tool_ == Tool::Offset)
+        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+                   "Offset: choose a face · Move across its nearest edge · Positive: outward · "
+                   "Negative: inward · Esc: cancel");
     if (tool_ == Tool::Orbit || tool_ == Tool::Pan || tool_ == Tool::Zoom)
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
                    trackpad_ ? "Two fingers: pan · Alt-scroll: orbit · Ctrl-scroll / pinch: zoom"
@@ -1185,6 +1189,7 @@ void Viewport::cancel() {
     committedAnchor_.reset();
     committedEnd_.reset();
     committedBody_ = committedFace_ = 0;
+    offsetBody_ = offsetFace_ = 0;
     committedShape_ = {};
     clearPreview();
     dragging_ = false;
@@ -1399,6 +1404,10 @@ void Viewport::updateToolPreview(QPointF point) {
         return;
     if (transformTool()) {
         updateTransformPreview(point);
+        return;
+    }
+    if (tool_ == Tool::Offset) {
+        updateOffsetPreview(point);
         return;
     }
     if (tool_ == Tool::Extrude) {
@@ -1657,6 +1666,20 @@ bool Viewport::measurements(const QString &text) {
             finishExtrusion(values[0]);
             return true;
         }
+        if (tool_ == Tool::Offset) {
+            if (input.kind != MeasurementKind::Values || values.size() != 1)
+                throw std::runtime_error("Offset expects one signed distance");
+            if (session_.phase() == ToolSession::Phase::Ready) {
+                if (!selected_ || !selectedFace_)
+                    throw std::runtime_error("Select one editable face to offset");
+                const auto &surface = doc_.bodies().at(selected_)->surface;
+                const auto anchor = doc_.worldTransform(selected_).point(
+                    surface.vertices.at(surface.faces.at(selectedFace_).loops[0][0]));
+                beginOffset(selected_, selectedFace_, anchor);
+            }
+            finishOffset(values[0]);
+            return true;
+        }
         if (!drawingTool())
             throw std::runtime_error("Choose a drawing tool before entering geometry");
         if (session_.phase() == ToolSession::Phase::Committed && !session_.canRevise())
@@ -1908,11 +1931,14 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         update();
         return;
     }
-    if (tool_ == Tool::Extrude && session_.active()) {
+    if ((tool_ == Tool::Extrude || tool_ == Tool::Offset) && session_.active()) {
         updateToolPreview(e->position());
         if (previewValid_) {
             try {
-                finishExtrusion(previewDistance_);
+                if (tool_ == Tool::Offset)
+                    finishOffset(previewDistance_);
+                else
+                    finishExtrusion(previewDistance_);
             } catch (const std::exception &error) {
                 emit message(error.what());
             }
@@ -1928,6 +1954,18 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         const auto [origin, direction] = ray(e->position());
         beginExtrusion(body, face, origin + direction * nearestFace(e->position()).distance);
         emit message("Move to preview, click or drag to finish, or enter a distance · Esc cancels");
+    }
+    if (tool_ == Tool::Offset && body && face) {
+        try {
+            const auto [origin, direction] = ray(e->position());
+            beginOffset(body, face, origin + direction * nearestFace(e->position()).distance);
+            toolPressed_ = true;
+            toolPressPosition_ = e->position();
+            emit message("Move across the nearest edge to preview · Click, drag or enter a signed "
+                         "distance · Esc cancels");
+        } catch (const std::exception &error) {
+            emit message(error.what());
+        }
     }
     update();
 }
@@ -2019,9 +2057,12 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
             } catch (const std::exception &error) {
                 emit message(error.what());
             }
-        } else if (tool_ == Tool::Extrude) {
+        } else if (tool_ == Tool::Extrude || tool_ == Tool::Offset) {
             try {
-                finishExtrusion(previewDistance_);
+                if (tool_ == Tool::Offset)
+                    finishOffset(previewDistance_);
+                else
+                    finishExtrusion(previewDistance_);
             } catch (const std::exception &error) {
                 emit message(error.what());
             }

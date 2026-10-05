@@ -422,6 +422,22 @@ metadata survives edge splits and retires when an edit breaks its outline. The w
 these operations currently have command paths while direct edge tools are in progress.
 The planar-grid recipe forms four editable faces from finite segments. Planar insertion
 handles intersections, overlaps and holes within the documented arrangement limits.
+Offset (**F**) draws parallel boundaries for a selected planar face, including
+concave outlines and holes. Click a face and move across its nearest edge to
+preview, then click or finish a drag; Escape cancels. Measurements accepts an
+exact signed distance: positive outward, negative inward. Select a face first
+for keyboard-only entry. Re-enter the distance to revise the last eligible offset
+as one Undo item. The tool uses world distance even in scaled components.
+
+The same `geometry.offset` command accepts `body`, `face`, `distance` and optional
+`space` (`local` by default or `world`). All surviving islands contribute
+boundaries; complete collapse rejects without changing the source. Original
+faces and holes are retained: insets partition coverage, outsets can add exterior
+faces, and contracted hole outlines remain wires inside the original void. The
+tool does not automatically heal those holes. See
+[the contract](docs/decisions/0043-planar-offset.md) and
+[CLI example](examples/planar-offset.json).
+
 `geometry.push_pull` supports isolated profiles, complete prism caps, recessed face
 regions and push-to-opposite-face openings. Unsupported intersections reject before
 committing. Use `--preview --script recipe.json` to inspect prospective geometry and
