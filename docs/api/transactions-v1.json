@@ -1526,6 +1526,64 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Insert intersection edges into explicit target faces",
+                                    "properties": {
+                                        "command": {
+                                            "const": "geometry.intersect"
+                                        },
+                                        "context": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "entities": {
+                                            "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "body": {
+                                                        "description": "Canonical uint64 decimal string",
+                                                        "maxLength": 20,
+                                                        "pattern": "^[1-9][0-9]*$",
+                                                        "type": "string"
+                                                    },
+                                                    "face": {
+                                                        "description": "Canonical uint64 decimal string",
+                                                        "maxLength": 20,
+                                                        "pattern": "^[1-9][0-9]*$",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "body",
+                                                    "face"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "maxItems": 128,
+                                            "minItems": 1,
+                                            "type": "array"
+                                        },
+                                        "mode": {
+                                            "enum": [
+                                                "selected",
+                                                "context",
+                                                "model"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "context",
+                                        "mode",
+                                        "entities",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Sweep a profile into a separate solid; retain source profile",
                                     "properties": {
                                         "body": {

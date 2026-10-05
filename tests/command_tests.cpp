@@ -890,6 +890,9 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "geometry.cleanup"}, {"body", "1"}},
             QJsonObject{
                 {"command", "geometry.offset"}, {"body", "1"}, {"face", "5"}, {"distance", -.1}},
+            QJsonObject{{"command", "geometry.intersect"},
+                        {"context", "0"}, {"mode", "context"},
+                        {"entities", QJsonArray{QJsonObject{{"body", "1"}, {"face", "5"}}}}},
             QJsonObject{{"command", "geometry.sweep"},
                         {"body", "1"},
                         {"face", "5"},
@@ -994,6 +997,8 @@ int main(int argc, char **argv) {
                     createComponent(doc, raw);
                 }
             }
+            if (command["command"] == "geometry.intersect")
+                doc.addFace({{{.5, 0, -1}, {.5, 1, -1}, {.5, 1, 1}, {.5, 0, 1}}});
             if (command["command"] == "geometry.merge_context")
                 doc.addFace({{{1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 1, 0}}});
             if (command["command"] == "group.explode" || command["command"] == "scene.reparent")

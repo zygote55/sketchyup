@@ -179,6 +179,8 @@ jobs:
           build/dev/sketchyup-cli --script examples/groups.json --output /tmp/groups.sketchyup
           build/dev/sketchyup-cli --input /tmp/groups.sketchyup
           build/dev/sketchyup-cli --script examples/copy-arrays.json --output /tmp/arrays.sketchyup
+          build/dev/sketchyup-cli --script examples/face-intersection.json --output /tmp/face-intersection.sketchyup
+          build/dev/sketchyup-cli --input /tmp/face-intersection.sketchyup
           build/dev/sketchyup-cli --script examples/profile-sweep.json --output /tmp/profile-sweep.sketchyup
           build/dev/sketchyup-cli --input /tmp/profile-sweep.sketchyup
           build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
@@ -191,8 +193,8 @@ jobs:
       - name: Sanitized bounded inspection and CLI
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON
-          cmake --build --preset sanitize --target sweep_command_tests offset_command_tests chatgpt_auth_tests native_assistant_session_tests ollama_provider_tests openai_provider_tests blender_job_tests glb_export_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
-          ctest --test-dir build/sanitize -R '^(sweep_commands|offset_commands|chatgpt_auth|native_assistant_session|ollama_provider|openai_provider|blender_job|glb_export|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
+          cmake --build --preset sanitize --target intersection_command_tests sweep_command_tests offset_command_tests chatgpt_auth_tests native_assistant_session_tests ollama_provider_tests openai_provider_tests blender_job_tests glb_export_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
+          ctest --test-dir build/sanitize -R '^(intersection_commands|sweep_commands|offset_commands|chatgpt_auth|native_assistant_session|ollama_provider|openai_provider|blender_job|glb_export|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
       - name: Sanitized native MCP inspection
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON

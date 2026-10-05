@@ -848,7 +848,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R054 — Implement context-scoped geometry intersections
 
-**Status:** In progress. R054.a adds immutable crossing/coplanar face intersection geometry, holes, contact edges, bounded normalization and precision rejection ([contract](decisions/0045-face-intersections.md), [fixtures](verification/R054a-face-intersections.md)). The branch follows R053.c in the review stack. Context/mode integration, native controls and Undo/persistence remain outstanding. **Track:** Geometry. **Scope:** E06. **UX:** —.
+**Status:** In progress. R054.a ([PR #89](https://github.com/zygote55/sketchyup/pull/89)) adds immutable crossing/coplanar face intersection geometry, holes, contact edges, bounded normalization and precision rejection ([contract](decisions/0045-face-intersections.md), [fixtures](verification/R054a-face-intersections.md)). The branch follows R053.c in the review stack. R054.b adds selected/context/model reference modes, transformed target insertion, lineage and preview/Undo/persistence ([command evidence](verification/R054b-intersection-command.md)); it depends on R054.a. Native controls and acceptance remain outstanding. **Track:** Geometry. **Scope:** E06. **UX:** —.
 
 **Requires:** [R020](#r020), [R033](#r033); milestone gate rule above.
 

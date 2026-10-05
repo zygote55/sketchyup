@@ -1,0 +1,10 @@
+[
+  {"command":"geometry.face", "name":"Intersection target", "loops":[
+    [[0,0,0],[4,0,0],[4,3,0],[0,3,0]]
+  ]},
+  {"command":"geometry.face", "name":"Read-only reference", "loops":[
+    [[1,-1,-1],[1,4,-1],[1,4,1],[1,-1,1]]
+  ]},
+  {"command":"geometry.intersect", "context":"0", "mode":"context",
+   "entities":[{"body":"1","face":"5"}]}
+]
