@@ -1,4 +1,5 @@
 #include "automation/recipe.hpp"
+#include "core/entity_measure.hpp"
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QFile>
@@ -109,6 +110,37 @@ int main(int argc, char **argv) {
                       std::abs(reopened.rows[0].toObject()["data"].toObject()["area"].toDouble() -
                                6) < tolerance,
                   "Saved recipe reopens and measures without a display or provider");
+        }
+        for (bool resize : {false, true}) {
+            const QString name =
+                resize ? "room-window-resize-recipe-v1.json" : "room-recipe-v1.json";
+            const auto model = files.path() + "/" + name + ".sketchyup";
+            const auto result =
+                cli({"--recipe", QStringLiteral(SOURCE_DIR "/examples/") + name, "--new",
+                     "--output", model, "--outcomes", files.path() + "/" + name + "-outcomes"});
+            check(result.code == 0 && result.rows.size() == (resize ? 16 : 8),
+                  "Shipped modeling recipe completes all steps");
+            for (const auto &row : result.rows)
+                check(row.toObject()["ok"] == true, "Modeling recipe step succeeds");
+            const auto saved = loadDocument(model);
+            const auto authored = result.rows[2]
+                                      .toObject()["result"]
+                                      .toObject()["createdIds"]
+                                      .toObject()["recipeOperations"]
+                                      .toArray()[0]
+                                      .toObject();
+            const auto windows = authored["windows"].toArray();
+            check(saved.revision() == (resize ? 2 : 1) && saved.bodies().size() == 9 &&
+                      saved.definitions().size() == (resize ? 2 : 1),
+                  "Installed recipe saves exact transaction count and component scope");
+            for (int index = 0; index < 2; ++index) {
+                const Id window = windows[index].toObject()["body"].toString().toULongLong();
+                const auto measured = measureEntity(saved, {window, SelectionKind::Body, 0});
+                check(measured.local.bounds &&
+                          std::abs(measured.local.bounds->dimensions().x -
+                                   (resize && index == 0 ? 1.4 : 1.2)) < tolerance,
+                      "Saved recipe preserves sibling and requested window width");
+            }
         }
         const auto info = step("info", op("session.describe"));
         rejects("INVALID_REQUEST", [&] { AutomationRecipe::parse("[]"); });

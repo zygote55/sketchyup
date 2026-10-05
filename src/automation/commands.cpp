@@ -3,6 +3,7 @@
 #include "automation/entity_info.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_session.hpp"
+#include "automation/model_recipes.hpp"
 #include "automation/transactions.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
@@ -570,7 +571,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
             throw std::runtime_error("History task metadata is incomplete");
     }
     Document staged = doc.readSnapshot();
-    QJsonArray created, copies, transfers, componentOperations;
+    QJsonArray created, copies, transfers, componentOperations, recipeOperations;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
     };
@@ -644,7 +645,12 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name == "document.units") {
+        if (name.startsWith("assembly.")) {
+            const auto recipe = executeModelRecipe(staged, command);
+            for (const auto &step : recipe.steps)
+                compose(decodedChanges(step.toObject()["changes"].toObject()));
+            recipeOperations.append(recipe.report);
+        } else if (name == "document.units") {
             if (!command["units"].isString())
                 throw std::runtime_error("Document units must be a string");
             staged.setDisplayUnits(parseDisplayUnit(command["units"].toString().toStdString()));
@@ -1196,7 +1202,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 }
                 for (auto value : commands) {
                     const auto nested = value.toObject().value("command");
-                    if (nested == "component.edit" || nested == "component.axes" ||
+                    if (nested.toString().startsWith("assembly.") || nested == "component.edit" ||
+                        nested == "component.axes" ||
                         (nested.toString().startsWith("tag.") && nested != "tag.assign"))
                         throw std::runtime_error(
                             "Use a separate explicit scope for shared definition or axis edits");
@@ -1391,7 +1398,8 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 {"createdDefinitions", createdDefinitions},
                 {"createdTags", createdTags},
                 {"createdMaterials", createdMaterials},
-                {"createdAssets", createdAssets}};
+                {"createdAssets", createdAssets},
+                {"recipeOperations", recipeOperations}};
     for (qsizetype i = 0; i < componentOperations.size(); ++i) {
         auto operation = componentOperations[i].toObject();
         if (!doc.instances().contains(operation["instance"].toString().toULongLong()))
@@ -1443,6 +1451,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                        {"createdMaterials", createdMaterials},
                        {"createdAssets", createdAssets},
                        {"componentOperations", componentOperations},
+                       {"recipeOperations", recipeOperations},
                        {"copies", surviving(copies)},
                        {"transfers", surviving(transfers)},
                        {"changes", changes}};
