@@ -104,6 +104,13 @@ int main(int argc, char **argv) {
                                        files.path() + "/protocol-outcomes",
                                        true});
             McpServer server(session);
+            check(invoke(server, callRequest(900, "session.describe",
+                                             {{"apiVersion", 1},
+                                              {"operation", "session.describe"},
+                                              {"query", "view.capture"}}))
+                      .contains("error"),
+                  "Mixed dispatch discriminators rejected before backend execution");
+
             const auto tools = invoke(server, rpc(1, "tools/list"))["result"].toObject();
             check(tools["resultType"] == "complete" &&
                       tools["tools"].toArray() == mcpToolCatalog() &&

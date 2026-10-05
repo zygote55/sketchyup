@@ -30,6 +30,8 @@ jobs:
           python scripts/verify-mcp-schema.py build/mcp-schema.json build/mcp-transcript.jsonl > build/mcp-schema-validation.json
       - name: Native interaction and OpenGL tests
         run: |
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/native_mcp_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/native_mcp_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 70s build/dev/desktop_inspection_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 70s build/dev/desktop_inspection_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/m4_workflow_tests
@@ -79,6 +81,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/shell_tests
       - name: Isolated Wayland interaction and rendering
         run: |
+          scripts/test-wayland.sh build/dev/native_mcp_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/native_mcp_tests
           scripts/test-wayland.sh build/dev/desktop_inspection_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/desktop_inspection_tests
           scripts/test-wayland.sh build/dev/m4_workflow_tests
@@ -146,6 +150,11 @@ jobs:
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON
           cmake --build --preset sanitize --target inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
           ctest --test-dir build/sanitize -R '^(inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
+      - name: Sanitized native MCP inspection
+        run: |
+          cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON
+          cmake --build --preset sanitize --target native_mcp_tests --parallel 2
+          QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/native_mcp_tests
       - name: Disposable Arch package acceptance
         run: |
           useradd --create-home builder

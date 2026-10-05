@@ -16,6 +16,10 @@ sed -i 's/^pkgrel=2$/pkgrel=1/' PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force
 pacman -U --noconfirm sketchyup-0.1.0-1-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
+test -s /usr/share/doc/sketchyup/decisions/0029-native-mcp.md
+QT_QPA_PLATFORM=offscreen sketchyup --mcp-inspection-capabilities | jq -S . > /work/package/mcp-native-installed.json
+jq -S . /usr/share/doc/sketchyup/api/mcp-native-2026-07-28.json > /work/package/mcp-native-schema.json
+cmp /work/package/mcp-native-installed.json /work/package/mcp-native-schema.json
 test -s /usr/share/doc/sketchyup/decisions/0028-local-mcp.md
 sketchyup-cli --mcp-capabilities | jq -S . > /work/package/mcp-installed.json
 jq -S . /usr/share/doc/sketchyup/api/mcp-2026-07-28.json > /work/package/mcp-schema.json
@@ -109,6 +113,8 @@ cmp /work/acceptance/expected.json /work/acceptance/reopened.json
 runuser -u builder -- env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a timeout 40s sketchyup --smoke > /work/acceptance/upgraded-smoke.json
 pacman -R --noconfirm sketchyup
 [[ ! -e /usr/bin/sketchyup && ! -e /usr/bin/sketchyup-cli ]]
+[[ ! -e /usr/share/doc/sketchyup/api/mcp-native-2026-07-28.json ]]
+[[ ! -e /usr/share/doc/sketchyup/decisions/0029-native-mcp.md ]]
 [[ ! -e /usr/share/doc/sketchyup/api/mcp-2026-07-28.json ]]
 [[ ! -e /usr/share/doc/sketchyup/decisions/0028-local-mcp.md ]]
 [[ ! -e /usr/share/doc/sketchyup/api/recipe-v1.json ]]

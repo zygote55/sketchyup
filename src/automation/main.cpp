@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "automation/inspection.hpp"
+#include "automation/local_mcp.hpp"
 #include "automation/mcp.hpp"
 #include "automation/recipe.hpp"
 #include "automation/session.hpp"
@@ -17,6 +18,8 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption({"mcp-connect",
+                      "Bridge stdio to an explicitly launched native inspection socket", "socket"});
     parser.addOption({"mcp", "Run the explicitly scoped local MCP stdio server"});
     parser.addOption({"mcp-capabilities", "Print supported MCP version, tools and bounds"});
     parser.addOption({"recipe", "Run a versioned transaction recipe", "path"});
@@ -53,6 +56,12 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("mcp-connect")) {
+            if (parser.optionNames().size() != 1 || !parser.positionalArguments().isEmpty())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "MCP connection is a standalone mode");
+            return sketchy::bridgeMcpStdio(parser.value("mcp-connect"));
+        }
         if (parser.isSet("mcp") || parser.isSet("mcp-capabilities") || parser.isSet("session") ||
             parser.isSet("session-capabilities") || parser.isSet("recipe") ||
             parser.isSet("recipe-capabilities")) {
