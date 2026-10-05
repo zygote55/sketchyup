@@ -342,22 +342,30 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             "Select a face · Drag or type distance · Ctrl: new face · Double-click: repeat");
     addTool("Offset", "F", Viewport::Tool::Offset,
             "Select a face · Preview or type distance · Positive: outward · Negative: inward");
-    addTool("Follow Me", "Shift+F", Viewport::Tool::Sweep,
-            "Select one profile face and a connected edge path · Enter or click applies · Esc cancels");
+    addTool(
+        "Follow Me", "Shift+F", Viewport::Tool::Sweep,
+        "Select one profile face and a connected edge path · Enter or click applies · Esc cancels");
     addTool("Intersect", "I", Viewport::Tool::Intersect,
             "Select target faces · Choose reference scope in Draw · Enter or click applies · Esc "
             "cancels");
-    addTool("Solid Boolean", "Shift+B", Viewport::Tool::Boolean,
+    addTool("Solid tools", "Shift+B", Viewport::Tool::Boolean,
             "Select two solids or their faces · Choose operation and originals in Draw")
-        ->setIconText("Boolean");
-    auto *booleans = draw->addMenu("Solid Boolean options");
+        ->setIconText("Solids");
+    auto *booleans = draw->addMenu("Solid operation options");
     auto *booleanGroup = new QActionGroup(this);
     for (const auto &[operation, label] :
          {std::pair{QString("union"), QString("Union")},
           std::pair{QString("subtract"), QString("Subtract tool from target")},
-          std::pair{QString("intersection"), QString("Intersection")}}) {
-        auto *choice = action("boolean.operation." + operation, label, {},
-                              [this, operation] { viewport_->setBooleanOperation(operation); });
+          std::pair{QString("intersection"), QString("Intersection")},
+          std::pair{QString("trim"), QString("Trim target (retain tool)")},
+          std::pair{QString("split"), QString("Split into target, tool and overlap")},
+          std::pair{QString("outer_shell"), QString("Outer shell (fill enclosed cavities)")}}) {
+        auto *choice = action("boolean.operation." + operation, label, {}, [this, operation] {
+            findChild<QAction *>("boolean.keep")
+                ->setText(operation == "trim" ? "Keep target (tool always retained)"
+                                              : "Keep originals");
+            viewport_->setBooleanOperation(operation);
+        });
         choice->setCheckable(true);
         choice->setChecked(operation == "union");
         booleanGroup->addAction(choice);
