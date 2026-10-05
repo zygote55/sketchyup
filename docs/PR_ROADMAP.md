@@ -824,7 +824,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R052 — Implement robust planar offset
 
-**Status:** In progress; local acceptance passes, CI/merges pending. R052.a ([PR #83](https://github.com/zygote55/sketchyup/pull/83)) defines signed region offset, holes, splitting/collapse, bounded joins and precision using the existing Clipper2 dependency. [Contract](decisions/0043-planar-offset.md), [fixtures](verification/R052a-planar-offset.md). R052.b ([PR #84](https://github.com/zygote55/sketchyup/pull/84)) adds the shared boundary-insertion command, world/local distance, context/lineage preservation and preview/Undo/persistence tests ([evidence](verification/R052b-offset-command.md)); it depends on R052.a. R052.c adds native F/Offset controls, visible preview, numeric amendment and X11/Wayland interaction evidence ([native acceptance](verification/R052c-native-offset.md)); it depends on R052.b. Delivery remains behind the M5 gate. **Track:** Geometry. **Scope:** E04. **UX:** §4, §11.
+**Status:** In progress; local acceptance passes, CI/merges pending. R052.a ([PR #83](https://github.com/zygote55/sketchyup/pull/83)) defines signed region offset, holes, splitting/collapse, bounded joins and precision using the existing Clipper2 dependency. [Contract](decisions/0043-planar-offset.md), [fixtures](verification/R052a-planar-offset.md). R052.b ([PR #84](https://github.com/zygote55/sketchyup/pull/84)) adds the shared boundary-insertion command, world/local distance, context/lineage preservation and preview/Undo/persistence tests ([evidence](verification/R052b-offset-command.md)); it depends on R052.a. R052.c ([PR #85](https://github.com/zygote55/sketchyup/pull/85)) adds native F/Offset controls, visible preview, numeric amendment and X11/Wayland interaction evidence ([native acceptance](verification/R052c-native-offset.md)); it depends on R052.b. R052.a and R052.b are merged; native R052.c CI/merge remains pending. The M5 gate is accepted. **Track:** Geometry. **Scope:** E04. **UX:** §4, §11.
 
 **Requires:** [R020](#r020), [R022](#r022); milestone gate rule above.
 
@@ -848,7 +848,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R054 — Implement context-scoped geometry intersections
 
-**Status:** In progress. R054.a ([PR #89](https://github.com/zygote55/sketchyup/pull/89)) adds immutable crossing/coplanar face intersection geometry, holes, contact edges, bounded normalization and precision rejection ([contract](decisions/0045-face-intersections.md), [fixtures](verification/R054a-face-intersections.md)). The branch follows R053.c in the review stack. R054.b ([PR #90](https://github.com/zygote55/sketchyup/pull/90)) adds selected/context/model reference modes, transformed target insertion, lineage and preview/Undo/persistence ([command evidence](verification/R054b-intersection-command.md)); it depends on R054.a. R054.c adds native Intersect (I), reference-scope controls, preview/Apply/cancel, descendant selection and component interaction ([native evidence](verification/R054c-native-intersections.md)); it depends on R054.b. Local display acceptance passes; CI/dependency merges remain pending. **Track:** Geometry. **Scope:** E06. **UX:** —.
+**Status:** In progress. R054.a ([PR #89](https://github.com/zygote55/sketchyup/pull/89)) adds immutable crossing/coplanar face intersection geometry, holes, contact edges, bounded normalization and precision rejection ([contract](decisions/0045-face-intersections.md), [fixtures](verification/R054a-face-intersections.md)). The branch follows R053.c in the review stack. R054.b ([PR #90](https://github.com/zygote55/sketchyup/pull/90)) adds selected/context/model reference modes, transformed target insertion, lineage and preview/Undo/persistence ([command evidence](verification/R054b-intersection-command.md)); it depends on R054.a. R054.c ([PR #91](https://github.com/zygote55/sketchyup/pull/91)) adds native Intersect (I), reference-scope controls, preview/Apply/cancel, descendant selection and component interaction ([native evidence](verification/R054c-native-intersections.md)); it depends on R054.b. Local display acceptance passes; CI/dependency merges remain pending. **Track:** Geometry. **Scope:** E06. **UX:** —.
 
 **Requires:** [R020](#r020), [R033](#r033); milestone gate rule above.
 
@@ -860,7 +860,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R055 — Implement solid union, subtraction and intersection
 
-**Status:** Planned. **Track:** Geometry. **Scope:** E07. **UX:** —.
+**Status:** In progress. R055.a adds the immutable Manifold-backed adapter with native solid preconditions, polygon reconstruction, source-face provenance, bounded precision and disconnected outputs ([contract](decisions/0046-solid-booleans.md), [fixtures](verification/R055a-solid-booleans.md)); it depends on R054.c. Shared commands, native controls and full acceptance remain outstanding. Enclosed cavity shells reject until native containment support is implemented. **Track:** Geometry. **Scope:** E07. **UX:** —.
 
 **Requires:** [R054](#r054); milestone gate rule above.
 
