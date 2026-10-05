@@ -1,6 +1,6 @@
 # R039.c: document units data, API and persistence
 
-Date: 2026-10-04. Local validation passed; CI pending. Builds on
+Date: 2026-10-04. Local and CI validation passed; merged. Builds on
 [PR #53](https://github.com/zygote55/sketchyup/pull/53).
 
 The [units decision](../decisions/0018-document-units.md) separates canonical
@@ -20,3 +20,5 @@ The new units recipe is included in headless CI.
 
 Native X11 History, shared component and recovery regressions pass. A CLI-created
 millimeter document reopens with `displayUnits: mm` and canonical `units: m`.
+
+[PR #54](https://github.com/zygote55/sketchyup/pull/54) merged on 2026-10-04 as `de065cd` after both Native build runs passed: [37241019986](https://github.com/zygote55/sketchyup/actions/runs/37241019986), [37241017877](https://github.com/zygote55/sketchyup/actions/runs/37241017877).

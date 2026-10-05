@@ -6,6 +6,9 @@ set -euo pipefail
   exit 1
 }
 cd /work/package
+# The minimal Arch image excludes documentation. Include it in this disposable
+# acceptance environment so the installed API contracts are actually verified.
+sed -i '/^[[:space:]]*NoExtract[[:space:]]*=/s@usr/share/doc/\*@@g' /etc/pacman.conf
 pacman -S --noconfirm --needed desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu
 chown -R builder:builder /work/package
 cp PKGBUILD PKGBUILD.current
@@ -13,6 +16,11 @@ sed -i 's/^pkgrel=2$/pkgrel=1/' PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force
 pacman -U --noconfirm sketchyup-0.1.0-1-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
+test -s /usr/share/doc/sketchyup/api/inspection-v1.json
+test -s /usr/share/doc/sketchyup/decisions/0019-bounded-inspection.md
+sketchyup-cli --capabilities | jq -S '.inspection' > /work/package/inspection-installed.json
+jq -S . /usr/share/doc/sketchyup/api/inspection-v1.json > /work/package/inspection-schema.json
+cmp /work/package/inspection-installed.json /work/package/inspection-schema.json
 desktop-file-validate /usr/share/applications/io.sketchyup.SketchyUp.desktop
 update-mime-database /usr/share/mime
 install -d -o builder -g builder /work/acceptance
@@ -71,6 +79,7 @@ cmp /work/acceptance/expected.json /work/acceptance/reopened.json
 runuser -u builder -- env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a timeout 40s sketchyup --smoke > /work/acceptance/upgraded-smoke.json
 pacman -R --noconfirm sketchyup
 [[ ! -e /usr/bin/sketchyup && ! -e /usr/bin/sketchyup-cli ]]
+[[ ! -e /usr/share/doc/sketchyup/api/inspection-v1.json ]]
 [[ ! -e /usr/share/applications/io.sketchyup.SketchyUp.desktop ]]
 [[ ! -e /usr/share/icons/hicolor/scalable/apps/io.sketchyup.SketchyUp.svg ]]
 [[ ! -e /usr/share/mime/packages/io.sketchyup.SketchyUp.xml ]]

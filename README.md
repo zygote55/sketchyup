@@ -170,6 +170,13 @@ marked with an explanation.
 
 ## Headless commands
 
+Versioned bounded inspection is available through `--inspect document.describe --input MODEL`
+for summary discovery, or `--inspect-file REQUEST.json --input MODEL` for typed
+hierarchy, topology and measurement requests. Pages are limited to 100 rows and
+256 KiB; stale references fail explicitly. File-only queries do not claim access
+to desktop selection. See the [inspection contract and schemas](docs/decisions/0019-bounded-inspection.md).
+
+
 ```sh
 ./build/dev/sketchyup-cli --capabilities
 ./build/dev/sketchyup-cli --describe-command geometry.translate

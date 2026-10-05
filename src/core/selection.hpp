@@ -17,6 +17,7 @@ enum class SelectionMode { Replace, Add, Toggle };
 class Selection {
   public:
     void sync(const Document &doc);
+    bool belongsTo(const Document &doc) const { return doc.owns(session_); }
     const SelectionSet &entities() const { return entities_; }
     const SelectionSet &hiddenEntities() const { return hidden_; }
     const std::set<Id> &lockedBodies() const { return locked_; }
