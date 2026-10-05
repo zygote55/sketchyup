@@ -54,6 +54,11 @@ Successful preflights are retained across retries. No transport retries a tool
 receipt or commit. A dropped provider connection cannot publish a draft or erase
 a committed edit. Manual modeling and saving remain independent of this service.
 
+The corrected CPU corpus exhausted its five-minute budget on all four live tasks;
+no measurement, room or resize quality pass was obtained. This profile is
+experimental, not an M5 quality-gate success. The stopped-endpoint case preserved
+manual editing and saving. See the retained verification summary for exact results.
+
 Images are unsupported in this profile: the host sends text and structured
 inspection data only, with no screenshot or image-asset attachment. Hardware
 admission does not promise throughput or quality. The measured CPU deployment

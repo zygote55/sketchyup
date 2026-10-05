@@ -1,6 +1,6 @@
 # R045 local provider verification
 
-Date: 2026-10-05 UTC. Acceptance in progress; failures are reported as failures.
+Date: 2026-10-05 UTC. Local acceptance complete; CI pending. Live task failures are reported as failures.
 [Protocol and bounds](../decisions/0036-local-provider.md).
 
 ## Reproducible profile
@@ -49,10 +49,10 @@ independently; model text is never the geometry oracle. All reports also exercis
 manual edit/save/reopen after the provider task. It never sends user files.
 
 ```
-build/dev/local_provider_trial http://127.0.0.1:11435 qwen3:4b-instruct measure /tmp/measure.json
-build/dev/local_provider_trial http://127.0.0.1:11435 qwen3:4b-instruct room /tmp/room.json
-build/dev/local_provider_trial http://127.0.0.1:11435 qwen3:4b-instruct resize /tmp/resize.json
-build/dev/local_provider_trial http://127.0.0.1:11435 qwen3:4b-instruct unsupported /tmp/unsupported.json
+build/dev/local_provider_trial http://127.0.0.1:11435 qwen3:4b-instruct measure build/evidence/r045/measure.json
+build/dev/local_provider_trial http://127.0.0.1:11435 qwen3:4b-instruct room build/evidence/r045/room.json
+build/dev/local_provider_trial http://127.0.0.1:11435 qwen3:4b-instruct resize build/evidence/r045/resize.json
+build/dev/local_provider_trial http://127.0.0.1:11435 qwen3:4b-instruct unsupported build/evidence/r045/unsupported.json
 ```
 
 Each task uses 768 output tokens per turn, at most 12 attempts and 300 seconds
@@ -73,9 +73,39 @@ The first room trial also failed (217.927 s, three attempts, two rejected calls,
 Ollama's pinned `ToolProperty` decoder omits JSON Schema `const`, so the native
 prompt lost those discriminator values. No call reached the backend and no
 geometry was applied. The final adapter adds redundant type/enum and alternative
-hints and bound descriptions, retaining the original host schemas. The corpus is
-rerun after this correction; these earlier runs remain failures, not quality
-results for the corrected adapter.
+hints and bound descriptions, retaining the original host schemas. The corrected corpus results follow; these earlier runs remain failures, not
+quality results for the corrected adapter.
+
+## Corrected live corpus (retained after the host reboot)
+
+The complete corrected run produced **no successful modeling or measurement task**.
+The local CPU profile is experimental and unsuitable for claiming the M5 assistant
+quality gate. Compilation ran concurrently, so these are observed latency limits,
+not an isolated inference benchmark. The discriminator correction did allow one
+valid `document.describe` execution; it did not solve task latency or quality.
+
+| Task | Elapsed | Attempts | Accepted tool calls | Result |
+| --- | ---: | ---: | ---: | --- |
+| Measure face area | 300.018 s | 3 | 1 | Deadline; document description only, no verified area |
+| Build room | 300.022 s | 3 | 0 | Deadline; no proposal |
+| Resize one window | 300.054 s | 3 | 0 | Deadline; no proposal |
+| Unsupported request | 300.031 s | 3 | 0 | Deadline; no verified explanation |
+| Endpoint stopped | 0.800 s | 3 | 0 | Bounded connection failure |
+
+All five left the document revision unchanged, reported `applied:false`, and
+passed manual edit/save/reopen afterward. No model output was treated as a
+measurement or geometry success. The measurement task reported 6,381 tokens;
+other tasks had no completed provider response and therefore no reported usage.
+Missing usage is not proof of zero runtime computation. Requests interrupted by
+the timeout have transport status zero, not a successful HTTP response.
+
+[Compact machine-readable evidence](R045-corpus-summary.json) retains results,
+actual receipts, exchange timing and SHA-256 hashes of the raw reports. Raw
+synthetic exchanges remain in gitignored `build/evidence/r045/`; they repeat the
+full schemas and runtime metadata. Earlier `/tmp` artifacts were lost in the
+host reboot; their recorded observations above are distinguished from these
+retained reruns. The owned service is stopped after measurement; its model volume
+is retained. No GPU performance or live remote-provider success is claimed.
 
 ## Automated verification
 
@@ -87,5 +117,4 @@ sealed preview and host Apply, full replay, version/model checks before document
 transfer, no proxy/credential/redirect, invalid usage/tool responses, cancellation
 and bounded retry. It asserts the discriminator/type/enum hints on actual wire
 requests. Existing OpenAI protocol/credential tests pass after transport sharing.
-Source-package and install checks also passed. Corrected live corpus acceptance
-is still being measured and is not inferred from these fixtures.
+Source-package and install checks also passed. The corrected live corpus above is independent of these fixture passes.
