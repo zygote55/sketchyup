@@ -2934,6 +2934,61 @@
                                     {
                                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                                         "additionalProperties": false,
+                                        "description": "Sweep a profile into a separate solid; retain source profile",
+                                        "properties": {
+                                            "body": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "closed": {
+                                                "default": false,
+                                                "type": "boolean"
+                                            },
+                                            "command": {
+                                                "const": "geometry.sweep"
+                                            },
+                                            "face": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "path": {
+                                                "items": {
+                                                    "items": {
+                                                        "maximum": 1000000,
+                                                        "minimum": -1000000,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                },
+                                                "maxItems": 129,
+                                                "minItems": 2,
+                                                "type": "array"
+                                            },
+                                            "space": {
+                                                "enum": [
+                                                    "local",
+                                                    "world"
+                                                ],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "body",
+                                            "face",
+                                            "path",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
                                         "description": "Push/pull selected face",
                                         "properties": {
                                             "body": {

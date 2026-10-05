@@ -1,0 +1,7 @@
+[
+  {"command":"geometry.face", "name":"Sweep profile", "loops":[
+    [[-0.2,-0.1,0],[0.2,-0.1,0],[0.2,0.1,0],[-0.2,0.1,0]]
+  ]},
+  {"command":"geometry.sweep", "body":"1", "face":"5",
+   "path":[[0,0,0],[0,0,3],[3,0,3]], "space":"world"}
+]
