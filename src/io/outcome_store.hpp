@@ -45,6 +45,8 @@ class OutcomeStore {
     QByteArray latestAfter() const;
     QJsonObject latestOutcome() const;
     QString directory() const;
+    // Bounded internal enumeration for the owning coordinator to abort lost staging.
+    std::vector<QJsonObject> pendingRequests() const;
 
   private:
     struct State;

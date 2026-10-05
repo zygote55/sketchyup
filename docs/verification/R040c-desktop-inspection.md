@@ -1,6 +1,6 @@
 # R040.c native inspection and view feedback
 
-Date: 2026-10-04 (local), 2026-10-05 UTC. Local verification passed; CI pending. Requires [PR #58](https://github.com/zygote55/sketchyup/pull/58).
+Date: 2026-10-04 (local), 2026-10-05 UTC. Local and CI verification passed; merged. Builds on merged [PR #58](https://github.com/zygote55/sketchyup/pull/58).
 [Contract and generated registry](../decisions/0021-desktop-inspection.md).
 
 The native fixture opens the M4 room in a real Window, enters Room study and
@@ -39,3 +39,7 @@ model/render options fail before window construction or model access. The source
 archive includes the desktop schema, contract and native fixture. CI adds the new
 capture fixture to all four X11/Weston DPR configurations and compares installed
 native discovery during disposable package acceptance.
+
+Final CI runs 37247831301 and 37247828686 passed, including native and disposable
+package acceptance. Merged on 2026-10-05 UTC as `d880136cfcd99762a6359bb53ea20a2dbbab499e`.
+R040 is complete across the three accepted slices.

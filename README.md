@@ -179,6 +179,9 @@ to desktop selection. See the [inspection contract and schemas](docs/decisions/0
 Native in-process inspection reads the actual window selection and captures a
 bounded PNG with camera metadata. `sketchyup --inspection-capabilities` prints
 its registry; see the [desktop inspection contract](docs/decisions/0021-desktop-inspection.md).
+Private transaction preparation and durable outcome reconciliation are implemented
+in-process; see the [coordinator contract](docs/decisions/0024-transaction-coordinator.md).
+Incremental transaction tools and their CLI/MCP transports are still in progress.
 
 
 ```sh

@@ -451,8 +451,19 @@ QJsonObject OutcomeStore::commit(const QString &id, const QString &hash, const D
     record["result"] = result;
     next.latest = id;
     next.records[id] = record;
+    // Allocate the response before the durability boundary. Returning it must not
+    // leave a successful disk commit hidden behind a later allocation failure.
+    auto response = s.publicResult(record);
     s.write(std::move(next));
-    return s.publicResult(record);
+    return response;
+}
+std::vector<QJsonObject> OutcomeStore::pendingRequests() const {
+    state_->ready();
+    std::vector<QJsonObject> result;
+    for (const auto &value : state_->checkpoint.records)
+        if (value.toObject()["status"] == "pending")
+            result.push_back(value.toObject());
+    return result;
 }
 QByteArray OutcomeStore::latestBefore() const {
     state_->ready();

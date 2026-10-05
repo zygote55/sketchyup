@@ -1205,11 +1205,14 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                             scopeInstance
                                 ? canonicalComponentCommands(staged, draft, scopeInstance, commands)
                                 : commands;
-                        innerResult = executeBatch(
-                            draft, {{"apiVersion", 1},
-                                    {"documentId", QString::fromStdString(draft.identity())},
-                                    {"expectedRevision", QString::number(draft.revision())},
-                                    {"commands", scopedCommands}});
+                        innerResult =
+                            executeBatch(draft,
+                                         {{"apiVersion", 1},
+                                          {"documentId", QString::fromStdString(draft.identity())},
+                                          {"expectedRevision", QString::number(draft.revision())},
+                                          {"commands", scopedCommands}},
+                                         response == BatchResponse::Full ? BatchResponse::Full
+                                                                         : BatchResponse::Changes);
                         if (scopeInstance)
                             scopeDraft = draft;
                         return decodedChanges(innerResult["changes"].toObject());
@@ -1427,18 +1430,20 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
         }
         return survivors;
     };
-    return {{"status", "committed"},
-            {"revision", QString::number(doc.revision())},
-            {"created", created},
-            {"createdDefinitions", createdDefinitions},
-            {"createdTags", createdTags},
-            {"createdMaterials", createdMaterials},
-            {"createdAssets", createdAssets},
-            {"componentOperations", componentOperations},
-            {"copies", surviving(copies)},
-            {"transfers", surviving(transfers)},
-            {"changes", changes},
-            {"document", describe(doc)}};
+    QJsonObject result{{"status", "committed"},
+                       {"revision", QString::number(doc.revision())},
+                       {"created", created},
+                       {"createdDefinitions", createdDefinitions},
+                       {"createdTags", createdTags},
+                       {"createdMaterials", createdMaterials},
+                       {"createdAssets", createdAssets},
+                       {"componentOperations", componentOperations},
+                       {"copies", surviving(copies)},
+                       {"transfers", surviving(transfers)},
+                       {"changes", changes}};
+    if (response == BatchResponse::Full)
+        result["document"] = describe(doc);
+    return result;
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {
