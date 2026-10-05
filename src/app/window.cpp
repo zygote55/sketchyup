@@ -855,7 +855,8 @@ bool Window::canReplace() {
         const auto choice = QMessageBox::warning(
             this, "Unsaved changes", "Save this model before continuing?",
             QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
-        if (choice == QMessageBox::Cancel || (choice == QMessageBox::Save && !save()))
+        if ((choice != QMessageBox::Save && choice != QMessageBox::Discard) ||
+            (choice == QMessageBox::Save && !save()))
             return false;
     }
     try {

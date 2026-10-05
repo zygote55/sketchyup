@@ -44,3 +44,10 @@ native Intel run passes at reported DPR 1.6 (actual compositor-selected sizes ar
 recorded in its log). Final X11/Wayland DPR 1/2 and sanitizer runs also pass,
 including replacement of an already-open informational disclosure by the actual
 first-request permission card. CI acceptance is pending. No model-quality result is inferred from these fixtures.
+
+The subsequent integrated M4/M5 workflow exposed a native close-dialog regression:
+a programmatic/nonstandard dismissal had been treated like Discard. The close
+path now requires an explicit Save or Discard choice before retiring the assistant
+session or recovery data. The existing full M4 native workflow (including both
+Cancel and nonstandard dismissal) passes with a recording, and the native
+assistant regression passes after the fix.
