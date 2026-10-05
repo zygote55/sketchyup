@@ -860,7 +860,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R055 — Implement solid union, subtraction and intersection
 
-**Status:** In progress. R055.a ([PR #92](https://github.com/zygote55/sketchyup/pull/92)) adds the immutable Manifold-backed adapter with native solid preconditions, polygon reconstruction, source-face provenance, bounded precision and disconnected outputs ([contract](decisions/0046-solid-booleans.md), [fixtures](verification/R055a-solid-booleans.md)); it depends on R054.c. R055.b ([PR #93](https://github.com/zygote55/sketchyup/pull/93)) adds the shared command with explicit operand retention, transformed placement, source material sides, generated provenance and scoped instance edits ([command evidence](verification/R055b-boolean-command.md)). R055.c adds native Solid Boolean (Shift+B), operation/retention controls, target/tool swap, visible preview, generated selection and X11/Wayland acceptance ([native evidence](verification/R055c-native-booleans.md)). Local acceptance passes; CI/dependency merges remain pending. Enclosed cavity shells reject until native containment support is implemented. **Track:** Geometry. **Scope:** E07. **UX:** —.
+**Status:** In progress. R055.a ([PR #92](https://github.com/zygote55/sketchyup/pull/92)) adds the immutable Manifold-backed adapter with native solid preconditions, polygon reconstruction, source-face provenance, bounded precision and disconnected outputs ([contract](decisions/0046-solid-booleans.md), [fixtures](verification/R055a-solid-booleans.md)); it depends on R054.c. R055.b ([PR #93](https://github.com/zygote55/sketchyup/pull/93)) adds the shared command with explicit operand retention, transformed placement, source material sides, generated provenance and scoped instance edits ([command evidence](verification/R055b-boolean-command.md)). R055.c ([PR #94](https://github.com/zygote55/sketchyup/pull/94)) adds native Solid Boolean (Shift+B), operation/retention controls, target/tool swap, visible preview, generated selection and X11/Wayland acceptance ([native evidence](verification/R055c-native-booleans.md)). Local acceptance passes; CI/dependency merges remain pending. Enclosed cavity shells reject until native containment support is implemented. **Track:** Geometry. **Scope:** E07. **UX:** —.
 
 **Requires:** [R054](#r054); milestone gate rule above.
 
@@ -872,7 +872,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R056 — Complete trim, split and outer-shell tools
 
-**Status:** Planned. **Track:** Geometry. **Scope:** E07. **UX:** —.
+**Status:** In progress. R056.a adds bounded native shell containment, signed material-volume analysis and classified winding/contact rejection ([contract](decisions/0047-shell-containment.md), [evidence](verification/R056a-shell-containment.md)). It follows R055.c in the review stack. Existing editing/Boolean operations retain single-shell acceptance until adapter integration passes. Trim, split, outer-shell commands and native controls remain outstanding. **Track:** Geometry. **Scope:** E07. **UX:** —.
 
 **Requires:** [R055](#r055); milestone gate rule above.
 

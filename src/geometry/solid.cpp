@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <clipper2/clipper.h>
 #include <limits>
+#include <numbers>
 #include <set>
 namespace sketchy {
 namespace {
@@ -209,8 +210,53 @@ BoundedTriangle bounded(Triangle t) {
     }
     return {t, low, high};
 }
-} // namespace
-SolidReport inspectSolid(const Surface &surface, const Topology &topology) {
+// Closed-shell winding number by accumulated oriented triangle solid angles.
+// Called only after disjoint manifold boundaries have been established.
+std::optional<bool> encloses(const std::vector<Triangle> &triangles, Vec3 point, size_t &budget) {
+    long double angle = 0, correction = 0;
+    auto preciseDot = [](Vec3 a, Vec3 b) {
+        return static_cast<long double>(a.x) * b.x + static_cast<long double>(a.y) * b.y +
+               static_cast<long double>(a.z) * b.z;
+    };
+    for (const auto &t : triangles) {
+        if (!budget--)
+            throw std::length_error("Shell containment work limit");
+        const auto crossNormal = cross(t.b - t.a, t.c - t.a);
+        const auto normal = crossNormal * (1 / length(crossNormal));
+        const auto distance = dot(point - t.a, normal);
+        if (std::abs(distance) <= tolerance * 4 && inside(point, t, normal))
+            return {};
+        const auto corners = points(t);
+        for (size_t i = 0; i < 3; ++i) {
+            const auto a = corners[i], edge = corners[(i + 1) % 3] - a;
+            const auto u = std::clamp(dot(point - a, edge) / dot(edge, edge), 0., 1.);
+            if (length(point - (a + edge * u)) <= tolerance * 4)
+                return {};
+        }
+        const auto a = normalized(t.a - point), b = normalized(t.b - point),
+                   c = normalized(t.c - point);
+        const long double numerator =
+            static_cast<long double>(a.x) *
+                (static_cast<long double>(b.y) * c.z - static_cast<long double>(b.z) * c.y) +
+            static_cast<long double>(a.y) *
+                (static_cast<long double>(b.z) * c.x - static_cast<long double>(b.x) * c.z) +
+            static_cast<long double>(a.z) *
+                (static_cast<long double>(b.x) * c.y - static_cast<long double>(b.y) * c.x);
+        const auto denominator = 1 + preciseDot(a, b) + preciseDot(b, c) + preciseDot(c, a);
+        const auto value = 2 * std::atan2(numerator, denominator) - correction;
+        const auto next = angle + value;
+        correction = (next - angle) - value;
+        angle = next;
+    }
+    const auto winding = std::abs(angle / (4 * std::numbers::pi_v<long double>));
+    if (winding < 1e-6L)
+        return false;
+    if (std::abs(winding - 1) < 1e-6L)
+        return true;
+    return {};
+}
+SolidReport inspectShells(const Surface &surface, const Topology &topology,
+                          std::vector<SolidShell> &shells) {
     if (surface.faces.empty())
         return {"empty", {}};
     if (!surface.wires.empty())
@@ -268,18 +314,26 @@ SolidReport inspectSolid(const Surface &surface, const Topology &topology) {
                 if (a < b)
                     boundaries[{a, b}].vertices.push_back(point);
     }
-    std::set<Id> connected;
-    std::vector<Id> queue{surface.faces.begin()->first};
-    while (!queue.empty()) {
-        const auto face = queue.back();
-        queue.pop_back();
-        if (!connected.insert(face).second)
+    std::map<Id, size_t> shellForFace;
+    for (const auto &[first, record] : surface.faces) {
+        if (shellForFace.contains(first))
             continue;
-        for (auto next : neighbors[face])
-            queue.push_back(next);
+        if (shells.size() >= 64)
+            return {"analysis_limit", {}};
+        const auto index = shells.size();
+        shells.emplace_back();
+        std::vector<Id> queue{first};
+        while (!queue.empty()) {
+            const auto face = queue.back();
+            queue.pop_back();
+            if (!shellForFace.emplace(face, index).second)
+                continue;
+            shells.back().faces.push_back(face);
+            for (auto next : neighbors[face])
+                queue.push_back(next);
+        }
+        std::sort(shells.back().faces.begin(), shells.back().faces.end());
     }
-    if (connected.size() != surface.faces.size())
-        return {"multiple_shells", {}};
     std::vector<BoundedTriangle> triangles;
     for (const auto &[face, record] : surface.faces) {
         for (auto triangle : surface.triangulate(face)) {
@@ -314,17 +368,105 @@ SolidReport inspectSolid(const Surface &surface, const Topology &topology) {
                 return {"self_intersection", {}, {key.first, key.second}};
         }
     }
-    long double sum = 0;
-    double area = 0;
-    const auto origin = surface.vertices.begin()->second;
-    for (const auto &entry : triangles) {
-        const auto &t = entry.triangle;
-        sum += dot(t.a - origin, cross(t.b - origin, t.c - origin));
-        area += length(cross(t.b - t.a, t.c - t.a)) * .5;
+    std::vector<std::vector<Triangle>> shellTriangles(shells.size());
+    for (const auto &entry : triangles)
+        shellTriangles[shellForFace.at(entry.triangle.face)].push_back(entry.triangle);
+    std::vector<Vec3> samples, opposite;
+    for (size_t i = 0; i < shells.size(); ++i) {
+        const auto origin = surface.vertices.at(surface.faces.at(shells[i].faces[0]).loops[0][0]);
+        Vec3 farthest = origin;
+        double extent{}, area{};
+        long double sum{};
+        for (const auto &t : shellTriangles[i]) {
+            sum += dot(t.a - origin, cross(t.b - origin, t.c - origin));
+            area += length(cross(t.b - t.a, t.c - t.a)) * .5;
+            for (auto point : points(t)) {
+                const auto distance = length(point - origin);
+                if (distance > extent) {
+                    extent = distance;
+                    farthest = point;
+                }
+            }
+        }
+        const auto volume = double(sum / 6);
+        if (!std::isfinite(volume) || std::abs(volume) <= tolerance * area / 3)
+            return {"degenerate", {}, {shells[i].faces[0]}};
+        shells[i].signedVolume = volume;
+        samples.push_back(origin);
+        opposite.push_back(farthest);
     }
-    const auto volume = double(std::abs(sum) / 6);
-    if (!std::isfinite(volume) || volume <= tolerance * area / 3)
+    std::vector<std::vector<bool>> contained(shells.size(), std::vector<bool>(shells.size()));
+    size_t containmentBudget = 4000000;
+    try {
+        for (size_t inner = 0; inner < shells.size(); ++inner)
+            for (size_t outer = 0; outer < shells.size(); ++outer) {
+                if (inner == outer)
+                    continue;
+                const auto first =
+                    encloses(shellTriangles[outer], samples[inner], containmentBudget);
+                const auto second =
+                    encloses(shellTriangles[outer], opposite[inner], containmentBudget);
+                if (!first || !second || *first != *second)
+                    return {"ambiguous_containment",
+                            {},
+                            {shells[inner].faces[0], shells[outer].faces[0]}};
+                contained[inner][outer] = *first;
+            }
+    } catch (const std::length_error &) {
+        return {"analysis_limit", {}};
+    }
+    for (size_t inner = 0; inner < shells.size(); ++inner) {
+        auto &shell = shells[inner];
+        for (size_t outer = 0; outer < shells.size(); ++outer)
+            if (contained[inner][outer]) {
+                if (contained[outer][inner] ||
+                    std::abs(shells[outer].signedVolume) <= std::abs(shell.signedVolume))
+                    return {"ambiguous_containment", {}, {shell.faces[0], shells[outer].faces[0]}};
+                if (!shell.parent || std::abs(shells[outer].signedVolume) <
+                                         std::abs(shells[*shell.parent].signedVolume))
+                    shell.parent = outer;
+            }
+    }
+    long double materialVolume{};
+    for (size_t i = 0; i < shells.size(); ++i) {
+        auto &shell = shells[i];
+        std::set<size_t> ancestors;
+        auto parent = shell.parent;
+        while (parent) {
+            if (*parent == i || !ancestors.insert(*parent).second || !contained[i][*parent])
+                return {"ambiguous_containment", {}, {shell.faces[0]}};
+            parent = shells[*parent].parent;
+        }
+        for (size_t outer = 0; outer < shells.size(); ++outer)
+            if (contained[i][outer] != ancestors.contains(outer))
+                return {"ambiguous_containment", {}, {shell.faces[0], shells[outer].faces[0]}};
+        shell.depth = unsigned(ancestors.size());
+        if (shell.parent && (shell.signedVolume < 0) == (shells[*shell.parent].signedVolume < 0))
+            return {"inconsistent_winding", {}, {shell.faces[0], shells[*shell.parent].faces[0]}};
+        materialVolume += (shell.depth % 2 ? -1 : 1) * std::abs(shell.signedVolume);
+    }
+    const auto volume = double(materialVolume);
+    if (!std::isfinite(volume) || volume <= 0)
         return {"degenerate", {}};
-    return {"solid", volume};
+    return {"validated_shells", volume};
+}
+} // namespace
+SolidShellAnalysis analyzeSolidShells(const Surface &surface, const Topology &topology) {
+    SolidShellAnalysis result;
+    result.report = inspectShells(surface, topology, result.shells);
+    if (result.report.status != "validated_shells")
+        result.shells.clear();
+    return result;
+}
+SolidReport inspectSolid(const Surface &surface, const Topology &topology) {
+    auto analysis = analyzeSolidShells(surface, topology);
+    if (analysis.report.status != "validated_shells")
+        return analysis.report;
+    // Existing editing operations retain their single-shell acceptance contract.
+    // R056's adapter integration will opt into validated material components.
+    if (analysis.shells.size() != 1)
+        return {"multiple_shells", {}};
+    analysis.report.status = "solid";
+    return analysis.report;
 }
 } // namespace sketchy
