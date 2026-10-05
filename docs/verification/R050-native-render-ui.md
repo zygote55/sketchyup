@@ -26,3 +26,19 @@ real-Blender opt-in test skipped. Native real rendering was tested separately.
 Native MCP and desktop inspection regressions pass on isolated X11 and Wayland. The shell regression passes on X11 across 640/900/1200/1600 logical widths and both themes. Live-desktop attempts could not acquire focus and are not counted as passes; isolation resolved that environment issue.
 
 Source archive and installation passed, including render controller, tests, embedded worker and contract. Screenshots and logs are local acceptance artifacts, not source files.
+
+Both first CI runs (37267811941 and 37267815273) failed in the newly added
+isolated-Wayland render sanitizer test. This was reproduced locally with the
+same Qt 6.11.2 / Mesa 26.2.3 software stack: a 4,090,296-byte framebuffer leak
+allocated by QtWayland's client decoration `contentFBO`, with no application
+allocation in its ownership stack. The earlier physical Intel run did not
+reproduce it. Unsuccessful application teardown experiments were discarded.
+
+The sanitizer job now sets `QT_WAYLAND_DISABLE_WINDOWDECORATION=1` for these two
+native tests, alongside the existing isolated theme/input settings. Both render
+and native MCP tests pass in isolated Weston with ASan/UBSan and leak detection
+still enabled. This avoids the Qt client-decoration framebuffer path, whose
+allocation/deletion is visible in [Qt's implementation](https://github.com/qt/qtbase/blob/v6.11.2/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow.cpp).
+It is a test-environment workaround, not an application fix or a claim that the
+upstream leak is resolved. Ordinary X11/Wayland DPR 1/2 tests still exercise the
+normal native window configuration; no application or system setting changed.
