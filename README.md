@@ -200,6 +200,10 @@ default. The job renders an immutable snapshot while editing continues. Results
 identify the source revision, show when the model has changed, and can be saved
 as PNG. Blender is optional. See [render evidence](docs/verification/R050-native-render-ui.md).
 
+The [M5 acceptance procedure](docs/M5_ACCEPTANCE.md) describes the reproducible
+room/window workflow, retained evidence, live provider corpus and package setup.
+The live gate remains open.
+
 ## Headless commands
 
 Versioned bounded inspection is available through `--inspect document.describe --input MODEL`

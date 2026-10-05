@@ -1,14 +1,20 @@
-// Explicit opt-in live corpus. Only synthetic models are sent to the chosen loopback runtime.
+// Explicit opt-in corpus. Only synthetic models are sent to the selected provider.
 #include "automation/commands.hpp"
 #include "core/entity_measure.hpp"
+#include "integrations/credential_store.hpp"
 #include "integrations/ollama_provider.hpp"
+#include "integrations/openai_provider.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QDir>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QSaveFile>
-#include <QTemporaryDir>
+#include <QSettings>
 #include <QThread>
 #include <iostream>
 using namespace sketchy;
@@ -44,7 +50,12 @@ class TrialNetwork : public QNetworkAccessManager {
             (*record)["status"] =
                 reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             (*record)["elapsedMs"] = elapsed->elapsed();
-            (*record)["response"] = QJsonDocument::fromJson(*bytes).object();
+            // Authentication errors can echo credential fragments. Retain status/timing,
+            // not error bodies; successful responses contain only synthetic task data.
+            if ((*record).value("status").toInt() >= 200 && (*record).value("status").toInt() < 300)
+                (*record)["response"] = QJsonDocument::fromJson(*bytes).object();
+            else
+                (*record)["responseOmitted"] = true;
             exchanges.append(*record);
         });
         return reply;
@@ -54,18 +65,32 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
         const auto args = app.arguments();
-        check(args.size() == 5, "Usage: local_provider_trial ENDPOINT MODEL "
+        check(args.size() == 5, "Usage: provider_trial ENDPOINT|--openai MODEL|configured "
                                 "measure|room|resize|unsupported|unavailable REPORT.json");
         const auto trial = args[3];
         check(
             QStringList{"measure", "room", "resize", "unsupported", "unavailable"}.contains(trial),
             "Unknown corpus task");
+        const bool remote = args[1] == "--openai";
         OllamaConfiguration config;
-        config.endpoint = QUrl(args[1]);
-        config.model = args[2];
-        validateOllamaConfiguration(config);
-        QTemporaryDir files;
-        check(files.isValid(), "Synthetic corpus directory");
+        config.endpoint = remote ? QUrl("https://api.openai.com/v1/responses") : QUrl(args[1]);
+        config.model =
+            remote && args[2] == "configured"
+                ? QSettings("SketchyUp", "SketchyUp").value("assistant/openaiModel").toString()
+                : args[2];
+        if (remote)
+            check(QRegularExpression("^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+                      .match(config.model)
+                      .hasMatch(),
+                  "Configure an explicit OpenAI model ID");
+        else
+            validateOllamaConfiguration(config);
+        const QDir files(QFileInfo(args[4]).absoluteFilePath() + ".files");
+        check(!QFileInfo::exists(args[4]) && !files.exists(), "Use a fresh evidence path");
+        check(QDir().mkdir(files.path()) &&
+                  QFile::setPermissions(files.path(),
+                                        QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner),
+              "Create private retained synthetic corpus directory");
         Document fixture;
         Id first{}, second{}, room{}, wall{}, frame{}, glass{};
         if (trial == "resize") {
@@ -116,20 +141,25 @@ int main(int argc, char **argv) {
             },
             state};
         AssistantTask::Options options;
-        options.provider = "Ollama";
+        options.provider = remote ? "OpenAI" : "Ollama";
+        options.remote = remote;
+        // --openai explicitly authorizes this bounded synthetic corpus, not user models.
+        options.remoteContextApproved = remote;
         options.model = config.model;
         options.limits.seconds = 300;
-        options.limits.outputTokens = 768;
+        options.limits.outputTokens = remote ? 2048 : 768;
         options.limits.turns = 12;
         if (trial == "room") {
             options.prompt = "Create a 6 m by 4 m room, 2.7 m high, with two 1.2 m wide windows "
-                             "using the default room assembly. Inspect and measure the private "
+                             "using outer-frame window dimensions and the default room assembly. "
+                             "Inspect and measure the private "
                              "result, then present a preview. Do not claim it is applied.";
             options.allowedCommands = {"assembly.room"};
         } else if (trial == "resize") {
             options.prompt =
                 "Widen only window body " + QString::number(first) +
-                " from 1.2 m to 1.4 m, keeping its 80 mm frame members, height, sill and center. "
+                " from 1.2 m to 1.4 m outer-frame width, keeping its 80 mm frame members, height, "
+                "sill and center. "
                 "Preserve the other window and resize the real wall opening. Use explicit instance "
                 "scope. Inspect and measure the private result, then present a preview.";
             options.allowedCommands = {"assembly.window.resize"};
@@ -146,8 +176,26 @@ int main(int argc, char **argv) {
         const auto initial = state();
         const auto prompt = options.prompt;
         TrialNetwork network;
-        OllamaProvider provider(std::make_unique<AssistantTask>(backend, options), config,
-                                &network);
+        std::unique_ptr<AssistantNetworkProvider> ownedProvider;
+        if (remote) {
+            OpenAiCredentialStore credentials;
+            credentials.lookup();
+            QElapsedTimer lookup;
+            lookup.start();
+            while (credentials.phase() == OpenAiCredentialStore::Phase::Working &&
+                   lookup.elapsed() < 63000) {
+                QCoreApplication::processEvents();
+                QThread::msleep(5);
+            }
+            check(credentials.phase() == OpenAiCredentialStore::Phase::Available,
+                  "OpenAI credential unavailable; configure it in native Assistant Preferences");
+            ownedProvider =
+                std::make_unique<OpenAiProvider>(std::make_unique<AssistantTask>(backend, options),
+                                                 credentials.takeCredential(), &network);
+        } else
+            ownedProvider = std::make_unique<OllamaProvider>(
+                std::make_unique<AssistantTask>(backend, options), config, &network);
+        auto &provider = *ownedProvider;
         QString lastStatus;
         QObject::connect(&provider, &AssistantNetworkProvider::changed, [&] {
             const auto status = provider.status();
@@ -180,13 +228,15 @@ int main(int argc, char **argv) {
         for (const auto &value : receipts) {
             const auto receipt = value.toObject();
             const auto request = receipt.value("request").toObject();
-            if (request.value("query") == "measure.entity" && near(receipt.value("result")
-                                                                       .toObject()
-                                                                       .value("data")
-                                                                       .toObject()
-                                                                       .value("area")
-                                                                       .toDouble(-1),
-                                                                   6))
+            if (request.value("query") == "measure.entity" && request.value("space") == "world" &&
+                request.value("target").toObject().value("body") == QString::number(first) &&
+                near(receipt.value("result")
+                         .toObject()
+                         .value("data")
+                         .toObject()
+                         .value("area")
+                         .toDouble(-1),
+                     6))
                 inspectionVerified = true;
         }
         if (result.value("applied") == true) {
@@ -260,28 +310,35 @@ int main(int argc, char **argv) {
         const auto manualPath = files.path() + "/manual.sketchyup";
         saveDocument(manual, manualPath);
         const bool manualVerified = loadDocument(manualPath).revision() == oldRevision + 1;
-        QJsonObject report{{"trial", trial},
-                           {"endpoint", config.endpoint.toString()},
-                           {"model", config.model},
-                           {"contextTokens", config.contextTokens},
-                           {"threads", config.threads},
-                           {"outputTokensPerTurn", options.limits.outputTokens},
-                           {"taskSeconds", options.limits.seconds},
-                           {"prompt", prompt},
-                           {"elapsedMs", timer.elapsed()},
-                           {"proposal", proposal},
-                           {"result", result},
-                           {"activity", activity},
-                           {"exchanges", network.exchanges},
-                           {"executedReceipts", receipts},
-                           {"geometryVerified", geometryVerified},
-                           {"inspectionVerified", inspectionVerified},
-                           {"unrelatedPreserved", unrelatedPreserved},
-                           {"revisionUnchanged", unchanged},
-                           {"manualEditSaveReopenVerified", manualVerified},
-                           {"measurements", measurements}};
+        QJsonObject report{
+            {"trial", trial},
+            {"provider", options.provider},
+            {"recordedAt", QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
+            {"qtVersion", qVersion()},
+            {"fixtureDirectory", files.path()},
+            {"transcript", provider.task().transcript()},
+            {"endpoint", config.endpoint.toString()},
+            {"model", config.model},
+            {"contextTokens", remote ? QJsonValue{} : QJsonValue(config.contextTokens)},
+            {"threads", remote ? QJsonValue{} : QJsonValue(config.threads)},
+            {"outputTokensPerTurn", options.limits.outputTokens},
+            {"taskSeconds", options.limits.seconds},
+            {"prompt", prompt},
+            {"elapsedMs", timer.elapsed()},
+            {"proposal", proposal},
+            {"result", result},
+            {"activity", activity},
+            {"exchanges", network.exchanges},
+            {"executedReceipts", receipts},
+            {"geometryVerified", geometryVerified},
+            {"inspectionVerified", inspectionVerified},
+            {"unrelatedPreserved", unrelatedPreserved},
+            {"revisionUnchanged", unchanged},
+            {"manualEditSaveReopenVerified", manualVerified},
+            {"measurements", measurements}};
         QSaveFile file(args[4]);
         check(file.open(QIODevice::WriteOnly), "Open evidence path");
+        check(file.setPermissions(QFile::ReadOwner | QFile::WriteOwner), "Private evidence file");
         const auto bytes = QJsonDocument(report).toJson();
         check(file.write(bytes) == bytes.size() && file.commit(), "Write evidence");
         std::cout << QJsonDocument(QJsonObject{{"trial", trial},

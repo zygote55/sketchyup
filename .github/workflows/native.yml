@@ -13,7 +13,7 @@ jobs:
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-jsonschema nodejs npm blender
+          pacman -Syyuu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-jsonschema nodejs npm blender ffmpeg
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Configure and build
@@ -137,6 +137,14 @@ jobs:
           scripts/test-wayland.sh build/dev/array_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/array_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sketchyup --smoke
+      - name: Reproducible M5 offline acceptance and recordings
+        run: scripts/verify-m5-offline.sh build/dev "$PWD/build/m5-evidence" /usr/bin/blender
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m5-offline-evidence
+          path: build/m5-evidence
+          if-no-files-found: ignore
       - name: Headless recipe
         run: |
           build/dev/sketchyup-cli --input examples/m4-room-study.sketchyup --query document.describe
