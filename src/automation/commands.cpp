@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "automation/component_scope.hpp"
+#include "core/profile_sweep.hpp"
 #include "automation/entity_info.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_session.hpp"
@@ -571,7 +572,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
             throw std::runtime_error("History task metadata is incomplete");
     }
     Document staged = doc.readSnapshot();
-    QJsonArray created, copies, transfers, componentOperations, recipeOperations;
+    QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
     };
@@ -1032,6 +1033,33 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 throw std::runtime_error("Offset space must be local or world");
             compose(staged.offsetFace(id(command["body"]), id(command["face"]),
                                       number(command["distance"]), command["space"] == "world"));
+        } else if (name == "geometry.sweep") {
+            if (command.contains("space") && command["space"] != "local" &&
+                command["space"] != "world")
+                throw std::runtime_error("Sweep space must be local or world");
+            if (command.contains("closed") && !command["closed"].isBool())
+                throw std::runtime_error("closed must be boolean");
+            const auto stations = array(command["path"]);
+            if (stations.size() > 129)
+                throw SweepError("SWEEP_LIMIT", "Sweep accepts at most 128 path stations");
+            std::vector<Vec3> path;
+            for (auto station : stations)
+                path.push_back(point(station));
+            const auto result = sweepFace(staged, id(command["body"]), id(command["face"]),
+                                          path, command["closed"].toBool(),
+                                          command["space"] == "world");
+            compose(result.changes);
+            QJsonArray sides, segments;
+            for (const auto &[edge, faces] : result.sides)
+                sides.append(QJsonObject{{"vertices", ids(std::vector<Id>{edge[0], edge[1]})},
+                                         {"faces", ids(faces)}});
+            for (const auto &faces : result.segments)
+                segments.append(ids(faces));
+            sweeps.append(QJsonObject{{"sourceBody", command["body"]},
+                                      {"sourceFace", command["face"]},
+                                      {"body", QString::number(result.body)},
+                                      {"caps", ids(result.caps)}, {"sides", sides},
+                                      {"segments", segments}});
         } else if (name == "geometry.push_pull") {
             if (command.contains("newFace") && !command["newFace"].isBool())
                 throw std::runtime_error("newFace must be boolean");
@@ -1265,6 +1293,9 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 for (auto [source, target] : result.movedGeometry)
                     normalized[QString::number(source)] = QString::number(target);
                 operation["normalizedMembers"] = normalized;
+                // Definition-only callers receive canonical member IDs here;
+                // instance-scoped callers also get scene-resolved top-level maps.
+                operation["sweeps"] = innerResult["sweeps"].toArray();
                 if (scopeInstance) {
                     const auto after = componentScopeMembers(staged, *scopeDraft, scopeInstance);
                     QJsonArray scopedCreated;
@@ -1292,6 +1323,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                     };
                     resolve("copies", copies);
                     resolve("transfers", transfers);
+                    resolve("sweeps", sweeps);
                 }
             } else if (name == "component.create")
                 for (auto [source, target] : result.movedGeometry) {
@@ -1414,6 +1446,35 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
     for (const auto &change : edit.tags)
         if (!change.before && change.after)
             createdTags.append(QString::number(change.id));
+    // Generated mappings name only faces that survive subsequent commands in
+    // this batch. Preserve segment/edge slots even when their face list is empty.
+    QJsonArray survivingSweeps;
+    for (auto value : sweeps) {
+        auto record = value.toObject();
+        const auto body = id(record["body"]);
+        if (!staged.bodies().contains(body))
+            continue;
+        const auto &faces = staged.bodies().at(body)->surface.faces;
+        auto prune = [&](QJsonArray values) {
+            QJsonArray kept;
+            for (auto face : values)
+                if (faces.contains(id(face)))
+                    kept.append(face);
+            return kept;
+        };
+        record["caps"] = prune(record["caps"].toArray());
+        QJsonArray sides, segments;
+        for (auto value : record["sides"].toArray()) {
+            auto side = value.toObject();
+            side["faces"] = prune(side["faces"].toArray());
+            sides.append(side);
+        }
+        for (auto value : record["segments"].toArray())
+            segments.append(prune(value.toArray()));
+        record["sides"] = sides;
+        record["segments"] = segments;
+        survivingSweeps.append(record);
+    }
     const auto report = doc.apply(std::move(edit), doc.revision());
     if (response == BatchResponse::CreatedIds)
         return {{"status", "committed"},
@@ -1423,7 +1484,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 {"createdTags", createdTags},
                 {"createdMaterials", createdMaterials},
                 {"createdAssets", createdAssets},
-                {"recipeOperations", recipeOperations}};
+                {"recipeOperations", recipeOperations}, {"sweeps", survivingSweeps}};
     for (qsizetype i = 0; i < componentOperations.size(); ++i) {
         auto operation = componentOperations[i].toObject();
         if (!doc.instances().contains(operation["instance"].toString().toULongLong()))
@@ -1476,6 +1537,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                        {"createdAssets", createdAssets},
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
+                       {"sweeps", survivingSweeps},
                        {"copies", surviving(copies)},
                        {"transfers", surviving(transfers)},
                        {"changes", changes}};

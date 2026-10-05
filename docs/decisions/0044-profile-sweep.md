@@ -1,6 +1,6 @@
 # 0044 — Profile sweep frames and validation
 
-Status: immutable kernel verified locally; document/native integration pending.
+Status: immutable kernel and shared command verified locally; native acceptance pending.
 
 R053 sweeps one planar face along a bounded polyline without changing the source
 surface or its allocator. The path starts in the profile plane; its start point
@@ -39,6 +39,26 @@ one authoritative shared-edge tube (including covered collinear edge chains) or
 one shared-vertex ball. It still rejects overlap elsewhere. This does not merge
 identities, increase tolerance, or accept unrelated coincident surfaces.
 
-No new dependency, persistence format, provider behavior or user-facing command
-is introduced by the kernel slice. R053 remains incomplete until shared-command,
-selection, preview/cancel, Undo/Redo and native workflow acceptance are verified.
+The shared `geometry.sweep` command takes `body`, `face`, `path`, optional `closed`
+(false), and `space` (`local` by default, or `world`). It preserves the source and
+creates a separate editable sibling body, or a child when the profile belongs
+directly to a group. Local paths use the source coordinate frame; world paths
+sweep the transformed profile, then convert output back to that frame. Thus
+nonuniform and mirrored placement does not distort a world-space sweep. The
+result inherits the selected face's color and front/back materials and source tag.
+Locked sources reject. Component edits use the existing explicit shared or unique
+instance scope, including scene/canonical member translation.
+
+The response's `sweeps` array names `sourceBody`, `sourceFace`, output `body`,
+`caps`, `sides` (`vertices` source pair and generated `faces`), and `segments`.
+These identify surviving originally generated faces, not descendants produced
+by later batch operations. Deleted output bodies are omitted; deleted faces are
+removed while edge/segment slots remain. Instance-scoped results resolve body
+IDs to scene IDs; `componentOperations[].sweeps` retains canonical definition
+member IDs for definition clients. Mapping keys describe the original source
+even if a later explicitly requested operation deletes it.
+
+Read-only preview and atomic publication use the same command. Cancel publishes
+nothing, and Undo removes only the generated body. Persistent output uses ordinary
+native geometry; no new file format or dependency is needed. R053 remains open
+until native interaction acceptance and prerequisite CI/merges are complete.
