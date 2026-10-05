@@ -943,6 +943,9 @@ void Viewport::paintScene() {
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Follow Me: select a profile face and path edges, then Shift+F · Enter or click "
                    "applies · Esc cancels · Alt-drag orbits");
+    if (tool_ == Tool::Boolean)
+        p.drawText(QRect(20, height() - 88, width() - 40, 62), Qt::TextWordWrap,
+                   booleanSummary() + " · Enter applies · Esc cancels");
     if (tool_ == Tool::Intersect)
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Intersect · References: " + intersectionMode_ +
@@ -1157,12 +1160,14 @@ void Viewport::setTool(Tool tool) {
         curveSegments_ = std::max(2u, curveSegments_);
     emit toolChanged(int(tool));
     setCursor(tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
-    if (tool == Tool::Sweep || tool == Tool::Intersect) {
+    if (tool == Tool::Sweep || tool == Tool::Intersect || tool == Tool::Boolean) {
         try {
             if (tool == Tool::Sweep)
                 beginSweep();
-            else
+            else if (tool == Tool::Intersect)
                 beginIntersection();
+            else
+                beginBoolean();
         } catch (const std::exception &error) {
             emit message(error.what());
         }
@@ -1183,6 +1188,7 @@ void Viewport::clearPreview() {
     update();
 }
 void Viewport::cancel() {
+    booleanCommand_.reset();
     sweepCommand_.reset();
     intersectionCommand_.reset();
     selectionPressed_ = selectingBox_ = false;
@@ -1842,7 +1848,7 @@ bool Viewport::event(QEvent *event) {
         }
         if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
             tool_ != Tool::Zoom && tool_ != Tool::Paint && tool_ != Tool::Sweep &&
-            tool_ != Tool::Intersect &&
+            tool_ != Tool::Intersect && tool_ != Tool::Boolean &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
             !key->text().isEmpty() && QString("0123456789.+-[<xX/").contains(key->text()[0])) {
             event->accept();
@@ -1901,12 +1907,14 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         boxBase_ = selection_.entities();
         return;
     }
-    if (tool_ == Tool::Sweep || tool_ == Tool::Intersect) {
+    if (tool_ == Tool::Sweep || tool_ == Tool::Intersect || tool_ == Tool::Boolean) {
         try {
             if (tool_ == Tool::Sweep)
                 finishSweep();
-            else
+            else if (tool_ == Tool::Intersect)
                 finishIntersection();
+            else
+                finishBoolean();
         } catch (const std::exception &error) {
             emit message(error.what());
         }
@@ -2103,13 +2111,15 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     }
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
-    if ((tool_ == Tool::Sweep || tool_ == Tool::Intersect) &&
+    if ((tool_ == Tool::Sweep || tool_ == Tool::Intersect || tool_ == Tool::Boolean) &&
         (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)) {
         try {
             if (tool_ == Tool::Sweep)
                 finishSweep();
-            else
+            else if (tool_ == Tool::Intersect)
                 finishIntersection();
+            else
+                finishBoolean();
         } catch (const std::exception &error) {
             emit message(error.what());
         }
@@ -2144,7 +2154,7 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
     }
     if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
         tool_ != Tool::Zoom && tool_ != Tool::Paint && tool_ != Tool::Sweep &&
-        tool_ != Tool::Intersect &&
+        tool_ != Tool::Intersect && tool_ != Tool::Boolean &&
         !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
         !e->text().isEmpty() && QString("0123456789.+-[<xX/").contains(e->text()[0])) {
         emit measurementsRequested(e->text());
