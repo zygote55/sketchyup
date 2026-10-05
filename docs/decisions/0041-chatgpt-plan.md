@@ -64,8 +64,8 @@ Known plan-usage errors point to Manage ChatGPT usage. Output is still checked
 against the host's 8,192-token per-response, 262,144-total-reported-token,
 16-turn and five-minute native task budgets. Total tokens include cached input;
 the initial 131,072 limit stopped the measured window workflow before preview.
-Preferences discloses the revised limits. The development corpus retains its
-separate 12-turn / 131,072-total profile for the initial comparison;
+Preferences discloses the revised limits. The initial development corpus used a separate 12-turn / 131,072-total profile;
+subsequent subscription trials use the native limits and record them explicitly;
 these are acceptance limits, not a server-side generation-token cap. Existing
 consent, tool authorization, immutable preview, sealed Apply and one-entry Undo
 remain authoritative.

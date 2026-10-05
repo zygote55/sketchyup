@@ -1,8 +1,8 @@
 # M5 alpha acceptance procedure
 
-M5 remains open until the required manual-target edit passes. Live OpenAI
-ChatGPT-plan gpt-6-astra inference and the authored-window native preview/direct
-workflows now pass; [recorded results and failures](verification/R051b-live-acceptance.md).
+[Local M5 workflow acceptance passes](verification/M5.md) with ChatGPT-plan
+**gpt-6-astra**, including the manually drawn target. CI and dependency merges
+remain required before closing the gate. [Results and retained failures](verification/R051c-instance-edit.md).
 Deterministic tool replies are labeled fixtures. A successful render, tool receipt
 or provider explanation alone is not proof that the requested geometry is right.
 
@@ -81,9 +81,12 @@ See the [authored recipe contract](decisions/0031-room-window-recipes.md).
    live sequence distinct from the fixture recordings.
 
 The live gate must also cover a manually authored target without recipe metadata,
-using ordinary supported geometry tools or clearly recorded rejection. Do not
+using ordinary supported geometry tools or clearly recorded rejection.
+`component.edit_instance` supports scoped member edits after making the chosen
+placement unique; it does not require authored recipe metadata. Do not
 claim that the authored fixture proves general window recognition or automatic
-host discovery. If the required manual-target edit fails, M5 remains open.
+host discovery. If the required manual-target edit fails, M5 remains open. The measured native
+manual target now passes via inspected vertices and ordinary scoped transforms.
 
 ## Repeatable provider corpus
 

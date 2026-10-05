@@ -162,7 +162,9 @@ int main(int argc, char **argv) {
         options.model = config.model;
         options.limits.seconds = 300;
         options.limits.outputTokens = plan ? 8192 : remote ? 2048 : 768;
-        options.limits.turns = 12;
+        options.limits.turns = plan ? 16 : 12;
+        if (plan)
+            options.limits.totalReportedTokens = 262144;
         if (trial == "room") {
             options.prompt = "Create a 6 m by 4 m room, 2.7 m high, with two 1.2 m wide windows "
                              "using outer-frame window dimensions and the default room assembly. "
@@ -357,6 +359,8 @@ int main(int argc, char **argv) {
             {"threads", remote ? QJsonValue{} : QJsonValue(config.threads)},
             {"outputTokensPerTurn", options.limits.outputTokens},
             {"taskSeconds", options.limits.seconds},
+            {"taskTurns", options.limits.turns},
+            {"taskReportedTokens", double(options.limits.totalReportedTokens)},
             {"prompt", prompt},
             {"elapsedMs", timer.elapsed()},
             {"proposal", proposal},

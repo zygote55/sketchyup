@@ -3,6 +3,7 @@
 #include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
+#include <QJsonDocument>
 #include <iostream>
 using namespace sketchy;
 void check(bool value, const char *message) {
@@ -128,6 +129,82 @@ int main(int argc, char **argv) {
                   !doc.definitions().at(1)->members.at(2)->locked,
               "Global reveal/unlock resets canonical and placed member states atomically");
         rejects([&] { setEntityState(doc, 0, true, {}); });
+        for (bool nested : {false, true}) {
+            Document isolated;
+            isolated.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}});
+            createComponent(isolated, 1);
+            Id outer = 1;
+            if (nested) {
+                outer = createGroup(isolated, {1});
+                createComponent(isolated, outer);
+            }
+            placeComponent(isolated, isolated.instances().at(outer)->definition,
+                           Transform::translation({10, 0, 0}));
+            const auto baseline = isolated.readSnapshot();
+            const auto history = isolated.history().position;
+            auto scoped = [&](QJsonArray commands) {
+                return QJsonObject{
+                    {"apiVersion", 1},
+                    {"documentId", QString::fromStdString(isolated.identity())},
+                    {"expectedRevision", QString::number(isolated.revision())},
+                    {"commands", QJsonArray{QJsonObject{{"command", "component.edit_instance"},
+                                                        {"body", "1"},
+                                                        {"commands", commands}}}}};
+            };
+            const QJsonObject shift{
+                {"command", "geometry.translate"}, {"body", "2"}, {"delta", QJsonArray{.25, 0, 0}}};
+            const auto bytes = encodeDocument(isolated);
+            previewBatch(isolated, scoped({shift}));
+            check(encodeDocument(isolated) == bytes,
+                  "Instance-only preview leaves shared model unchanged");
+            executeBatch(isolated, scoped({shift}));
+            check(isolated.history().position == history + 1 &&
+                      isolated.instances().at(1)->definition !=
+                          baseline.instances().at(1)->definition,
+                  "Instance edit makes definition unique and occupies one undo entry");
+            for (const auto &[id, record] : baseline.bodies())
+                if (id != 2)
+                    check(*isolated.bodies().at(id) == *record,
+                          "Instance edit preserves all other body records");
+            for (const auto &[id, record] : baseline.definitions())
+                check(isolated.definitions().at(id) == record,
+                      "Shared and ancestor source definitions remain intact");
+            check(std::abs(isolated.worldTransform(2)
+                               .point(isolated.bodies().at(2)->surface.vertices.begin()->second)
+                               .x -
+                           .25) < tolerance,
+                  "Selected component geometry moves by exact requested amount");
+            const auto after = encodeDocument(isolated);
+            auto reopened = decodeDocument(after);
+            check(encodeDocument(reopened) == after,
+                  "Unique instance edits persist with coherent bindings");
+            isolated.undo();
+            check(isolated.instances().size() == baseline.instances().size() &&
+                      isolated.definitions().size() == baseline.definitions().size() &&
+                      *isolated.bodies().at(2) == *baseline.bodies().at(2),
+                  "One Undo restores unique edit and ancestor ownership");
+            for (const auto &[id, record] : baseline.instances())
+                check(*isolated.instances().at(id) == *record,
+                      "Undo restores all component bindings");
+            check(QJsonDocument::fromJson(encodeDocument(isolated)).object()["definitions"] ==
+                      QJsonDocument::fromJson(encodeDocument(baseline)).object()["definitions"],
+                  "Undo restores all definition records");
+            isolated.redo();
+            check(isolated.instances().at(1)->definition == reopened.instances().at(1)->definition,
+                  "One Redo restores instance edit");
+            const auto stableBytes = encodeDocument(isolated);
+            auto outside = shift;
+            outside["body"] = QString::number(isolated.nextId() - 1);
+            rejects([&] { executeBatch(isolated, scoped({outside})); });
+            for (auto forbidden : {QJsonObject{{"command", "component.edit"},
+                                               {"definition", "1"},
+                                               {"commands", QJsonArray{shift}}},
+                                   QJsonObject{{"command", "material.edit"}, {"material", "1"}},
+                                   QJsonObject{{"command", "document.units"}, {"units", "mm"}}})
+                rejects([&] { executeBatch(isolated, scoped({shift, forbidden})); });
+            check(encodeDocument(isolated) == stableBytes,
+                  "Invalid scoped commands roll back geometry and unique definitions");
+        }
         std::cout << "Component scene-ID scopes, placement frames, preview, selection, arrays and "
                      "undo passed\n";
     } catch (const std::exception &error) {

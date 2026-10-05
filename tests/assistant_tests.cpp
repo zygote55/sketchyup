@@ -95,8 +95,9 @@ struct Driver {
 struct ActorBackend {
     TransactionCoordinator actor;
     TransactionDispatcher dispatch;
-    ActorBackend(QString path, TransactionCoordinator::Options options = {})
-        : actor(Document(), path, options), dispatch(actor) {}
+    ActorBackend(QString path, TransactionCoordinator::Options options = {},
+                 StagingSession::Now now = StagingSession::Clock::now)
+        : actor(Document(), path, options), dispatch(actor, TransactionDispatcher::Limits{}, now) {}
     QJsonObject state() const {
         return {{"documentId", QString::fromStdString(actor.document().identity())},
                 {"revision", QString::number(actor.document().revision())},
@@ -552,19 +553,69 @@ int main(int argc, char **argv) {
                       state(*model)["revision"] == "0",
                   "Provider ending before preview explicitly discards staging");
         }
+        for (int requested : {0, 5, 300}) {
+            auto model = session();
+            auto now = AssistantTask::Clock::now();
+            int observed{};
+            AssistantBackend backend{[&](const QJsonObject &request) {
+                                         if (request.value("operation") == "transaction.begin")
+                                             observed = request.value("ttlSeconds").toInt();
+                                         return model->execute(request);
+                                     },
+                                     [&] { return state(*model); }};
+            AssistantTask task(backend, options(), [&] { return now; });
+            Driver driver(task);
+            now += std::chrono::seconds(40);
+            auto request = op(state(*model), "transaction.begin", {{"expectedRevision", "0"}});
+            if (requested)
+                request["ttlSeconds"] = requested;
+            driver.tool("transaction.begin", request);
+            check(
+                observed == (requested == 5 ? 5 : 140),
+                "Draft lifetime defaults to remaining task time and caps explicit longer requests");
+        }
         {
+            QTemporaryDir directory;
+            auto now = AssistantTask::Clock::now();
+            ActorBackend backend(directory.path(), {}, [&] { return now; });
+            AssistantTask task(backend.backend(), options(), [&] { return now; });
+            Driver driver(task);
+            const auto s = backend.state();
+            const auto begun = driver.tool(
+                "transaction.begin",
+                op(s, "transaction.begin", {{"expectedRevision", "0"}, {"ttlSeconds", 1}}));
+            const auto oldDraft = begun.value("transactionId").toString();
+            now += std::chrono::seconds(2);
+            const auto expired =
+                driver.tool("transaction.describe",
+                            op(s, "transaction.describe", {{"transactionId", oldDraft}}), true);
+            check(expired.value("code") == "TRANSACTION_EXPIRED",
+                  "Real dispatcher expires the owned draft");
+            const auto replacement = driver.begin(s);
+            check(replacement != oldDraft,
+                  "Retired draft ownership does not block a fresh bounded retry");
+            driver.stage(s, replacement);
+            driver.seal(s, replacement);
+            task.cancel();
+            check(backend.actor.document().bodies().empty(),
+                  "Expired and replacement drafts never publish implicitly");
+        }
+        for (const auto *wrapper : {"component.edit", "component.edit_instance"}) {
             auto model = session();
             const auto s = state(*model);
             auto settings = options();
-            settings.allowedCommands.append("component.edit");
+            settings.allowedCommands.append(wrapper);
             AssistantTask task(*model, settings);
             Driver driver(task);
             const auto draft = driver.begin(s);
-            const QJsonObject nested{
-                {"command", "component.edit"},
-                {"definition", "1"},
-                {"commands",
-                 QJsonArray{QJsonObject{{"command", "geometry.delete"}, {"body", "1"}}}}};
+            QJsonObject nested{{"command", wrapper},
+                               {"definition", "1"},
+                               {"commands", QJsonArray{QJsonObject{{"command", "geometry.delete"},
+                                                                   {"body", "1"}}}}};
+            if (QString(wrapper) == "component.edit_instance") {
+                nested.remove("definition");
+                nested["body"] = "1";
+            }
             const auto denied = driver.tool("transaction.apply",
                                             op(s, "transaction.apply",
                                                {{"transactionId", draft},
