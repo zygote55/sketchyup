@@ -1,5 +1,6 @@
 #include "automation/session.hpp"
 #include "automation/inspection_validation.hpp"
+#include "geometry/offset.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -282,6 +283,8 @@ QJsonObject automationFailure(const std::exception &error) {
     else if (auto typed = dynamic_cast<const OutcomeStoreError *>(&error))
         code = QString::fromStdString(typed->code());
     else if (auto typed = dynamic_cast<const PlanarError *>(&error))
+        code = QString::fromStdString(typed->code());
+    else if (auto typed = dynamic_cast<const OffsetError *>(&error))
         code = QString::fromStdString(typed->code());
     return {{"code", code}, {"message", QString::fromUtf8(error.what()).left(2048)}};
 }

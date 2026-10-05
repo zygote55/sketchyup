@@ -1,6 +1,6 @@
 # 0043 — Planar offset region contract
 
-Status: kernel and fixtures; document command and native tool pending.
+Status: kernel and fixtures in PR #83; shared command verified locally, native tool pending.
 
 R052 starts with an immutable numerical adapter so collapse and splitting can be
 verified before connecting it to document history. `offsetFaceRegion` accepts one
@@ -49,3 +49,13 @@ preserve these distinctions and reject complete collapse without changing the
 document. Native preview, selected-context integration, topology lineage, one-
 entry Undo/Redo, and the shared tool/AI command remain required before R052 is
 delivered. This preparatory slice does not accept M6 ahead of M5.
+
+The document integration draws the computed boundaries through the existing
+planar arrangement. It retains original coverage and explicit holes, while
+subdividing faces and forming exterior regions as ordinary drawing does. In
+particular, an outward offset contracts hole outlines into the original void:
+those outlines remain wires instead of silently filling a hole. This preserves
+the source geometry as an offset drawing operation. A separate erase/heal edit
+is required to change the original void. The command supports local and world
+distance; world offsets operate on transformed loops before returning to local
+coordinates, so nonuniform scales do not distort the requested distance.

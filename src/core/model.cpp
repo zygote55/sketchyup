@@ -1,5 +1,6 @@
 #include "core/model.hpp"
 #include "core/appearance.hpp"
+#include "geometry/offset.hpp"
 #include <algorithm>
 #include <iomanip>
 #include <random>
@@ -370,6 +371,40 @@ ChangeReport Document::cleanup(Id context) {
     return apply({"Merge coincident topology",
                   {{context, old, body, std::move(result.faces), std::move(result.vertices),
                     std::move(result.edges)}}},
+                 revision_);
+}
+ChangeReport Document::offsetFace(Id context, Id face, double distance, bool worldSpace) {
+    const auto old = bodies_.at(context);
+    // Only the selected face enters the offset kernel; unrelated geometry is
+    // retained by the subsequent context-scoped planar arrangement.
+    Surface input;
+    input.faces.emplace(face, old->surface.faces.at(face));
+    const auto transform = worldSpace ? worldTransform(context) : Transform{};
+    const auto inverse = transform.inverse();
+    for (const auto &loop : input.faces.at(face).loops)
+        for (auto vertex : loop)
+            input.vertices[vertex] = transform.point(old->surface.vertices.at(vertex));
+    const auto offset = offsetFaceRegion(input, face, distance);
+    if (distance == 0)
+        return {};
+    if (offset.collapsed())
+        throw OffsetError("OFFSET_COLLAPSED",
+                          "The offset removes every region; choose a smaller inset distance");
+    std::vector<std::array<Vec3, 2>> edges;
+    for (const auto &region : offset.regions)
+        for (const auto &loop : region.loops)
+            for (size_t i = 0; i < loop.size(); ++i)
+                edges.push_back(
+                    {inverse.point(loop[i]), inverse.point(loop[(i + 1) % loop.size()])});
+    const auto origin = old->surface.vertices.at(old->surface.faces.at(face).loops[0][0]);
+    auto result = insertPlanarEdges(old->surface, origin, old->surface.normal(face), edges);
+    if (result.surface == old->surface)
+        return {};
+    auto body = std::make_shared<Body>(*old);
+    body->surface = std::move(result.surface);
+    inheritFaceAppearance(*old, *body, result.faces, faceColor(*old, face),
+                          faceMaterials(*old, face));
+    return apply({"Offset face boundaries", {{context, old, body, std::move(result.faces)}}},
                  revision_);
 }
 ChangeReport Document::pushPull(Id context, Id face, double distance, bool newFace) {
