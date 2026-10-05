@@ -2895,6 +2895,45 @@
                                     {
                                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                                         "additionalProperties": false,
+                                        "description": "Offset face boundaries (positive outward, negative inward; preserves source coverage and holes)",
+                                        "properties": {
+                                            "body": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "command": {
+                                                "const": "geometry.offset"
+                                            },
+                                            "distance": {
+                                                "type": "number"
+                                            },
+                                            "face": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "space": {
+                                                "enum": [
+                                                    "local",
+                                                    "world"
+                                                ],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "body",
+                                            "face",
+                                            "distance",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
                                         "description": "Push/pull selected face",
                                         "properties": {
                                             "body": {
