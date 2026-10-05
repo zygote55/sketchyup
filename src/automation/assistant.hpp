@@ -59,6 +59,8 @@ class AssistantTask {
     AssistantTask &operator=(const AssistantTask &) = delete;
     QJsonObject disclosure() const;
     QJsonObject result() const;
+    // Bounded in-memory host diagnostics; never contains provider credentials.
+    QJsonArray transcript() const;
     // Empty when awaiting a completion, backing off, or terminal. No blocking waits.
     std::optional<QJsonObject> nextRequest();
     bool accept(const QString &attempt, const AssistantReply &reply);

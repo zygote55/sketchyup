@@ -224,6 +224,10 @@ QJsonObject AssistantTask::disclosure() const {
             {"credentialsIncluded", false},
             {"mode", "preview-first"}};
 }
+QJsonArray AssistantTask::transcript() const {
+    owner();
+    return messages_;
+}
 QJsonObject AssistantTask::result() const {
     owner();
     return {{"taskId", taskId_},

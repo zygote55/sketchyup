@@ -30,3 +30,6 @@ Source packaging and installation also pass. CI is pending.
 These are in-process transaction/selection tests. They do not stand in for the
 forthcoming native panel, provider setup, hatched overlay, keyboard/layout or
 live-provider acceptance.
+
+Both CI runs passed (37328455986, 1h5m37s; 37328605854, 1h6m36s). PR #75
+merged as `9be2d34f136f02cc378d27a7f3ef9c695ac3c66a` at 16:04:24 UTC.

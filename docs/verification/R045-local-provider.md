@@ -118,3 +118,6 @@ transfer, no proxy/credential/redirect, invalid usage/tool responses, cancellati
 and bounded retry. It asserts the discriminator/type/enum hints on actual wire
 requests. Existing OpenAI protocol/credential tests pass after transport sharing.
 Source-package and install checks also passed. The corrected live corpus above is independent of these fixture passes.
+
+Both final-head CI runs passed (37328478974, 1h1m22s; 37328489356, 1h8m10s).
+PR #74 merged as `f7bb8742ef48be1d9873580c3dc707f626c7fe83` at 16:03:51 UTC.

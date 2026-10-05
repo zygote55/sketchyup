@@ -1,4 +1,5 @@
 #pragma once
+#include "app/assistant_panel.hpp"
 #include "app/organization_panel.hpp"
 #include "app/recovery_controller.hpp"
 #include "app/viewport.hpp"
@@ -7,14 +8,18 @@
 #include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
+#include <QPointer>
 #include <functional>
+class QTabWidget;
+class QDialog;
+class QHBoxLayout;
 namespace sketchy {
 class DesktopInspection;
 class RenderPanel;
 class Window : public QMainWindow {
     Q_OBJECT
   public:
-    explicit Window(QWidget *parent = nullptr);
+    explicit Window(QWidget *parent = nullptr, AssistantPanel::HostServices assistantServices = {});
     ~Window() override;
     void startUnits();
     void startRecovery(const QString &root = {});
@@ -22,6 +27,7 @@ class Window : public QMainWindow {
     Document &document() { return doc_; }
     Viewport *viewport() { return viewport_; }
     RenderPanel *renderPanel() { return render_; }
+    AssistantPanel *assistantPanel() { return assistant_; }
     QJsonObject inspect(const QJsonObject &request);
     void demo();
     void openPath(const QString &path);
@@ -36,6 +42,17 @@ class Window : public QMainWindow {
     Document doc_;
     Viewport *viewport_{};
     RenderPanel *render_{};
+    AssistantPanel *assistant_{};
+    QHBoxLayout *content_{};
+    QTabWidget *sideTabs_{};
+    QPointer<QDialog> assistantSheet_;
+    bool assistantShown_{}, assistantFenced_{};
+    int assistantRecoveryInterval_{};
+    std::map<QAction *, bool> assistantActionStates_;
+    std::vector<std::pair<QWidget *, bool>> assistantWidgetStates_;
+    void layoutAssistant();
+    void toggleAssistant();
+    void assistantFence(bool uncertain);
     std::unique_ptr<DesktopInspection> inspection_;
     QTreeWidget *outliner_{};
     OrganizationPanel *organization_{};
@@ -70,7 +87,7 @@ class Window : public QMainWindow {
     void measurementError(bool invalid);
     void applyTheme();
     int themeMode_{0}; // System, light, dark.
-    void run(const std::function<void()> &action);
+    void run(const std::function<void()> &action, bool viewOnly = false);
     bool save(bool saveAs = false);
     bool canReplace();
     void palette();
