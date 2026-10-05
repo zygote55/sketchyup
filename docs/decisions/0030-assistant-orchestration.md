@@ -46,7 +46,9 @@ transaction begin/apply/describe/inspect/diff/preview/abort. It does not adverti
 retained snapshots, save, commit, cancel, reconcile, shell or filesystem operations.
 The initial context already includes session identity and revision.
 
-Every tool name must match exactly one operation/query discriminator. Shared schema
+Every document tool name must match exactly one operation/query discriminator.
+Opt-in host dialogue is handled separately by the
+[bounded clarification contract](0038-assistant-clarification.md). Shared schema
 validation enforces all arguments. Requests must use the bound document and inspected
 base revision. Each task owns at most one draft; another task's transaction ID is
 rejected. The begin schema omits `history`: the host injects the original user request,

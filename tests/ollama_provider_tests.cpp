@@ -135,6 +135,16 @@ class Network : public QNetworkAccessManager {
                                             .toObject()
                                             .value("properties")
                                             .toObject();
+                if (value.toObject()
+                        .value("function")
+                        .toObject()
+                        .value("description")
+                        .toString()
+                        .startsWith("assistant.ask_user:")) {
+                    check(properties.contains("question") && properties.contains("choices"),
+                          "Clarification is host dialogue, not a document operation");
+                    continue;
+                }
                 const auto discriminator = properties.contains("query") ? "query" : "operation";
                 const auto field = properties.value(discriminator).toObject();
                 check(field.value("type") == "string" &&
@@ -200,6 +210,49 @@ int main(int argc, char **argv) {
             o.allowedCommands = {"geometry.face"};
             return o;
         };
+        {
+            auto model = session();
+            auto opts = options();
+            opts.clarificationAvailable = true;
+            Network network;
+            network.respond = [&](QString path, QJsonObject request, int turn) {
+                if (path == "/api/version")
+                    return Spec{200, {{"version", "0.35.1"}}};
+                if (path == "/api/show")
+                    return Spec{200, capabilities()};
+                if (turn == 0) {
+                    const QJsonObject question{
+                        {"question", "Which instance?"},
+                        {"allowFreeText", true},
+                        {"choices", QJsonArray{QJsonObject{{"id", "one"}, {"label", "Selected"}},
+                                               QJsonObject{{"id", "all"}, {"label", "All"}}}}};
+                    return Spec{200, response(call(request, "assistant.ask_user", question))};
+                }
+                const auto last = request.value("messages").toArray().last().toObject();
+                const auto output =
+                    QJsonDocument::fromJson(last.value("content").toString().toUtf8()).object();
+                check(turn == 1 && last.value("role") == "tool" &&
+                          last.value("tool_name") == alias(request, "assistant.ask_user") &&
+                          output.value("data").toObject().value("text") == "The left window only.",
+                      "Host answer resumes the matching Ollama tool alias");
+                return Spec{200, response(message())};
+            };
+            OllamaProvider provider(std::make_unique<AssistantTask>(*model, opts), config,
+                                    &network);
+            provider.start();
+            wait([&] { return provider.task().phase() == Phase::AwaitingClarification; });
+            QElapsedTimer pause;
+            pause.start();
+            wait([&] { return pause.elapsed() >= 100; });
+            check(network.chats == 1,
+                  "Local provider waits for host answer without network requests");
+            provider.answer(
+                provider.task().result().value("clarification").toObject().value("id").toString(),
+                {}, "The left window only.");
+            wait([&] { return provider.task().phase() == Phase::Completed; });
+            check(network.chats == 2 && network.probes == 1 && network.versions == 1,
+                  "Resumption keeps accepted preflight and provider replay");
+        }
         {
             auto model = session();
             Network network;

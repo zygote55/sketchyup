@@ -25,6 +25,7 @@ class AssistantTask {
         AwaitingProvider,
         Backoff,
         PreviewReady,
+        AwaitingClarification,
         Completed,
         Canceled,
         Failed,
@@ -41,6 +42,8 @@ class AssistantTask {
     struct Options {
         QString prompt, provider, model;
         bool remote{}, remoteContextApproved{};
+        // Only hosts with a structured user-answer UI advertise clarification.
+        bool clarificationAvailable{};
         // Trusted host-selected inspection requests; never executable instructions.
         QJsonArray context;
         // Empty permits inspection only. Every staged command must be authorized here.
@@ -63,6 +66,7 @@ class AssistantTask {
     void cancel();
     void apply();
     void reconcile();
+    void answer(const QString &clarificationId, const QString &choiceId, const QString &text = {});
     Phase phase() const;
 
   private:
@@ -74,7 +78,8 @@ class AssistantTask {
     Phase phase_{Phase::Ready};
     QString taskId_, documentId_, revision_, draft_, attempt_, modelText_;
     QJsonArray tools_, messages_;
-    QJsonObject sealed_, receipt_, error_, context_;
+    QJsonObject sealed_, receipt_, error_, context_, clarification_;
+    QString clarificationCall_;
     std::set<QString> callIds_;
     int turns_{}, calls_{}, retries_{};
     uint64_t tokens_{};

@@ -26,7 +26,8 @@ QJsonObject parse(const QByteArray &bytes) {
 bool running(AssistantTask::Phase phase) {
     return phase == AssistantTask::Phase::Ready ||
            phase == AssistantTask::Phase::AwaitingProvider ||
-           phase == AssistantTask::Phase::Backoff || phase == AssistantTask::Phase::PreviewReady;
+           phase == AssistantTask::Phase::Backoff || phase == AssistantTask::Phase::PreviewReady ||
+           phase == AssistantTask::Phase::AwaitingClarification;
 }
 } // namespace
 struct AssistantNetworkProvider::Impl {
@@ -276,6 +277,12 @@ void AssistantNetworkProvider::apply() {
 void AssistantNetworkProvider::reconcile() {
     impl_->checkOwner();
     impl_->task->reconcile();
+    impl_->notify();
+}
+void AssistantNetworkProvider::answer(const QString &id, const QString &choice,
+                                      const QString &text) {
+    impl_->checkOwner();
+    impl_->task->answer(id, choice, text);
     impl_->notify();
 }
 AssistantTask &AssistantNetworkProvider::task() {

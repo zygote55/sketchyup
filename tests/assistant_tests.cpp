@@ -575,6 +575,113 @@ int main(int argc, char **argv) {
             check(denied["code"] == "UNSUPPORTED_CAPABILITY" && state(*model)["revision"] == "0",
                   "Nested component commands cannot bypass the trusted allowlist");
         }
+        {
+            auto model = session();
+            auto opts = options();
+            opts.clarificationAvailable = true;
+            AssistantTask task(*model, opts);
+            auto request = task.nextRequest().value();
+            const QJsonObject question{
+                {"question", "Which window should change?"},
+                {"allowFreeText", true},
+                {"choices", QJsonArray{QJsonObject{{"id", "first"}, {"label", "First window"}},
+                                       QJsonObject{{"id", "second"}, {"label", "Second window"}}}}};
+            AssistantReply reply;
+            reply.calls.push_back({"ask", "assistant.ask_user", question});
+            check(task.accept(request.value("attemptId").toString(), reply), "Question accepted");
+            const auto card = task.result().value("clarification").toObject();
+            const auto id = card.value("id").toString();
+            check(task.phase() == AssistantTask::Phase::AwaitingClarification && !id.isEmpty() &&
+                      !task.nextRequest() && state(*model).value("revision") == "0",
+                  "Structured clarification waits without a provider request or live edit");
+            rejects("INVALID_STATE", [&] { task.answer("other", "first"); });
+            rejects("INVALID_REQUEST", [&] { task.answer(id, "other"); });
+            rejects("INVALID_REQUEST", [&] { task.answer(id, "", QString(1025, 'x')); });
+            rejects("INVALID_REQUEST", [&] { task.answer(id, "", "  "); });
+            rejects("INVALID_STATE", [&] { task.apply(); });
+            task.answer(id, "second", "Only this instance; keep the other window unchanged.");
+            rejects("INVALID_STATE", [&] { task.answer(id, "second"); });
+            auto resumed = task.nextRequest().value();
+            const auto receipt = resumed.value("messages").toArray().last().toObject();
+            check(receipt.value("callId") == "ask" && receipt.value("isError") == false &&
+                      receipt.value("data").toObject().value("choiceId") == "second" &&
+                      task.result().value("clarification").toObject().isEmpty() &&
+                      task.result().value("providerTurns") == 2,
+                  "One matching host-answer receipt resumes the same bounded task");
+            AssistantReply unauthorized;
+            unauthorized.calls.push_back({"forbidden", "geometry.delete", {{"body", "1"}}});
+            task.accept(resumed.value("attemptId").toString(), unauthorized);
+            auto denied = task.nextRequest().value().value("messages").toArray().last().toObject();
+            check(denied.value("isError") == true &&
+                      denied.value("data").toObject().value("code") == "UNSUPPORTED_CAPABILITY",
+                  "An answer does not authorize additional commands");
+        }
+        for (const auto mode :
+             {"cancel", "deadline", "stale", "duplicate", "mixed", "disabled", "closed-choice"}) {
+            auto model = session();
+            auto opts = options();
+            opts.clarificationAvailable = QString(mode) != "disabled";
+            auto now = AssistantTask::Clock::now();
+            AssistantTask task(*model, opts, [&] { return now; });
+            const auto s = state(*model);
+            Driver driver(task);
+            const auto draft = driver.begin(s);
+            driver.stage(s, draft);
+            QJsonObject question{
+                {"question", "Apply to which scope?"},
+                {"allowFreeText", false},
+                {"choices",
+                 QJsonArray{QJsonObject{{"id", "one"}, {"label", "One instance"}},
+                            QJsonObject{{"id", QString(mode) == "duplicate" ? "one" : "all"},
+                                        {"label", "All instances"}}}}};
+            AssistantReply reply;
+            reply.calls.push_back({"ask", "assistant.ask_user", question});
+            if (QString(mode) == "mixed")
+                reply.calls.push_back({"extra", "transaction.abort",
+                                       op(s, "transaction.abort", {{"transactionId", draft}})});
+            task.accept(driver.pending->value("attemptId").toString(), reply);
+            const auto id = task.result().value("clarification").toObject().value("id").toString();
+            if (QString(mode) == "duplicate" || QString(mode) == "disabled") {
+                auto next = task.nextRequest().value();
+                check(next.value("messages").toArray().last().toObject().value("isError") == true &&
+                          id.isEmpty(),
+                      "Invalid or unadvertised question receives a tool error");
+            } else if (QString(mode) == "mixed") {
+                check(task.phase() == AssistantTask::Phase::Failed && id.isEmpty(),
+                      "A mixed question/command reply fails before execution");
+            } else if (QString(mode) == "deadline") {
+                now += std::chrono::seconds(301);
+                task.answer(id, "one");
+                check(task.phase() == AssistantTask::Phase::Failed &&
+                          task.result().value("error").toObject().value("code") == "TIME_LIMIT",
+                      "Waiting does not reset the task budget");
+            } else if (QString(mode) == "stale") {
+                model->execute(op(s, "transaction.abort", {{"transactionId", draft}}));
+                // A real independent transaction advances the live revision while waiting.
+                AssistantTask human(*model, options());
+                Driver humanDriver(human);
+                const auto other = humanDriver.begin(s);
+                humanDriver.stage(s, other);
+                humanDriver.seal(s, other);
+                human.apply();
+                check(!task.nextRequest() && task.phase() == AssistantTask::Phase::Stale,
+                      "Polling while waiting observes human revision changes");
+                rejects("INVALID_STATE", [&] { task.answer(id, "one"); });
+            } else if (QString(mode) == "closed-choice") {
+                rejects("INVALID_REQUEST", [&] { task.answer(id, "one", "extra"); });
+                task.answer(id, "all");
+                check(task.phase() == AssistantTask::Phase::Ready,
+                      "Valid offered choice needs no free-text authorization");
+            } else {
+                task.cancel();
+                check(task.phase() == AssistantTask::Phase::Canceled &&
+                          task.result().value("clarification").toObject().isEmpty(),
+                      "Stop clears question and retires the private draft");
+                rejects("INVALID_STATE", [&] { task.answer(id, "one"); });
+            }
+            check(state(*model).value("revision") == (QString(mode) == "stale" ? "1" : "0"),
+                  "Clarification never publishes a private draft");
+        }
         std::cout << "Assistant preview gate, scoped tools, cancellation, budgets and durable "
                      "outcomes passed\n";
         return 0;

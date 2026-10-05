@@ -28,6 +28,7 @@ class AssistantNetworkProvider : public QObject {
     void cancel();
     void apply();
     void reconcile();
+    void answer(const QString &clarificationId, const QString &choiceId, const QString &text = {});
     AssistantTask &task();
     QString status() const;
   signals:
