@@ -1,0 +1,54 @@
+{
+    "apiVersion": 1,
+    "atomicity": "Each transaction commits independently; later failure preserves earlier commits and saves",
+    "execution": "Sequential registered session requests; stops at the first failure",
+    "expressions": false,
+    "limits": {
+        "depth": 64,
+        "inputBytes": 1048576,
+        "outputBytes": 8388608,
+        "responseReservationBytes": 1048576,
+        "retainedBytes": 8388608,
+        "steps": 1000
+    },
+    "references": "Exact {$ref: previous-step#/result/path} objects use typed JSON pointers; {$literal: value} suppresses expansion",
+    "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+            "apiVersion": {
+                "const": 1
+            },
+            "steps": {
+                "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "id": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9_-]+$",
+                            "type": "string"
+                        },
+                        "request": {
+                            "type": "object"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "request"
+                    ],
+                    "type": "object"
+                },
+                "maxItems": 1000,
+                "minItems": 1,
+                "type": "array"
+            }
+        },
+        "required": [
+            "apiVersion",
+            "steps"
+        ],
+        "type": "object"
+    },
+    "shell": false
+}

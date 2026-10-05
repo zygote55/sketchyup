@@ -31,6 +31,8 @@ class AutomationSession {
     QJsonObject save(const QJsonObject &request);
 };
 QJsonObject automationFailure(const std::exception &error);
+void checkAutomationDepth(const QByteArray &bytes);
+void writeAutomationResponse(QIODevice &output, const QJsonObject &response);
 // One bounded JSON object per line. EOF closes staging; request errors yield a
 // nonzero final exit status while allowing subsequent reconciliation requests.
 int runAutomationStream(AutomationSession &session, QIODevice &input, QIODevice &output);

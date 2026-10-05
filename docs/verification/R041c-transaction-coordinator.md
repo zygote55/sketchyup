@@ -1,6 +1,6 @@
 # R041.c durable publication and reconciliation
 
-Date: 2026-10-05 UTC. Local regression and sanitizer verification passed; CI pending. Requires [PR #61](https://github.com/zygote55/sketchyup/pull/61).
+Date: 2026-10-05 UTC. Local regression, sanitizer and both CI runs passed. [PR #62](https://github.com/zygote55/sketchyup/pull/62) merged at 02:17:18 UTC as `0ff65c0bbb289fc15b1cb8a6cea927fd1db3ebe8`; runs `37251419787` and `37251416297` succeeded.
 [Coordinator contract](../decisions/0024-transaction-coordinator.md).
 
 The actual M4 room fixture prepares, inspects and commits Window A's move and a

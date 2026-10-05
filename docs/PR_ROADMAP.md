@@ -690,7 +690,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R041 — Implement staged previews and commit reconciliation
 
-**Status:** In progress. R041.a [PR #60](https://github.com/zygote55/sketchyup/pull/60) private immutable proposals and R041.b [PR #61](https://github.com/zygote55/sketchyup/pull/61) durable co-recorded outcomes merged after all local and CI checks passed. R041.c [PR #62](https://github.com/zygote55/sketchyup/pull/62) publication/reconciliation and R041.d [PR #63](https://github.com/zygote55/sketchyup/pull/63) incremental drafts and versioned transaction schemas pass local regression and sanitizer checks; remaining CI/merge acceptance is pending. [Dispatch evidence](verification/R041d-transaction-dispatch.md), [coordinator evidence](verification/R041c-transaction-coordinator.md), [outcome evidence](verification/R041b-durable-outcomes.md), [private proposal evidence](verification/R041a-private-staging.md). **Track:** Automation. **Scope:** A03, D03. **UX:** §8.2–§8.3.
+**Status:** In progress. R041.a [PR #60](https://github.com/zygote55/sketchyup/pull/60) private immutable proposals and R041.b [PR #61](https://github.com/zygote55/sketchyup/pull/61) durable co-recorded outcomes merged after all local and CI checks passed. R041.c [PR #62](https://github.com/zygote55/sketchyup/pull/62) publication/reconciliation also merged after both CI runs passed. R041.d [PR #63](https://github.com/zygote55/sketchyup/pull/63) incremental drafts and versioned transaction schemas pass local regression and sanitizer checks; its CI/merge acceptance is pending. [Dispatch evidence](verification/R041d-transaction-dispatch.md), [coordinator evidence](verification/R041c-transaction-coordinator.md), [outcome evidence](verification/R041b-durable-outcomes.md), [private proposal evidence](verification/R041a-private-staging.md). **Track:** Automation. **Scope:** A03, D03. **UX:** §8.2–§8.3.
 
 **Requires:** [R040](#r040), [R009](#r009), [R039](#r039); milestone gate rule above.
 
@@ -702,7 +702,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R042 — Add the headless automation CLI and recipe runner
 
-**Status:** In progress. R042.a persistent headless sessions, explicit document/save scope, bounded JSON-lines I/O, recovery and cleanup pass all 53 development and six targeted sanitizer suites. CI/merge acceptance is pending; deterministic recipe execution remains R042.b. [Session evidence](verification/R042a-headless-session.md), [contract](decisions/0026-headless-session.md). **Track:** Automation. **Scope:** A06, A07. **UX:** —.
+**Status:** In progress. R042.a [PR #64](https://github.com/zygote55/sketchyup/pull/64) persistent sessions and R042.b versioned recipe execution are implemented with explicit document/save scope, bounded I/O and shared transaction/inspection dispatch. All 54 development and five targeted recipe/CLI sanitizer suites pass; the shipped installed recipe creates, saves, reopens and measures its model without a display or provider. CI/merge acceptance remains pending. [Recipe evidence](verification/R042b-transaction-recipes.md), [session evidence](verification/R042a-headless-session.md). **Track:** Automation. **Scope:** A06, A07. **UX:** —.
 
 **Requires:** [R041](#r041); milestone gate rule above.
 

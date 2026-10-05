@@ -1,0 +1,258 @@
+#include "automation/recipe.hpp"
+#include <QBuffer>
+#include <QCoreApplication>
+#include <QFile>
+#include <QJsonDocument>
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <QTemporaryDir>
+#include <iostream>
+using namespace sketchy;
+void check(bool ok, const char *message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
+QByteArray encode(QJsonObject object) {
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+QJsonObject ref(QString step, QString path) { return {{"$ref", step + "#" + path}}; }
+QJsonObject op(QString name, QJsonObject fields = {}) {
+    fields["apiVersion"] = 1;
+    fields["operation"] = name;
+    return fields;
+}
+QJsonObject step(QString id, QJsonObject request) { return {{"id", id}, {"request", request}}; }
+QJsonObject recipe(QJsonArray steps) { return {{"apiVersion", 1}, {"steps", steps}}; }
+template <class F> void rejects(QString code, F action) {
+    try {
+        action();
+    } catch (const std::exception &error) {
+        check(automationFailure(error)["code"] == code, error.what());
+        return;
+    }
+    throw std::runtime_error("Expected " + code.toStdString());
+}
+QJsonArray lines(const QByteArray &bytes) {
+    QJsonArray rows;
+    for (const auto &line : bytes.split('\n')) {
+        if (line.isEmpty())
+            continue;
+        const auto parsed = QJsonDocument::fromJson(line);
+        check(parsed.isObject(), "Every recipe output line must be a JSON object");
+        rows.append(parsed.object());
+    }
+    return rows;
+}
+struct Run {
+    int code;
+    QJsonArray rows;
+    QJsonObject error;
+};
+Run cli(QStringList args) {
+    QProcess process;
+    auto env = QProcessEnvironment::systemEnvironment();
+    for (const auto *name : {"DISPLAY", "WAYLAND_DISPLAY", "QT_QPA_PLATFORM"})
+        env.remove(name);
+    process.setProcessEnvironment(env);
+    process.start(QStringLiteral(CLI_PATH), args);
+    check(process.waitForStarted(10000), "Start recipe CLI");
+    process.closeWriteChannel();
+    check(process.waitForFinished(30000) && process.exitStatus() == QProcess::NormalExit,
+          "Recipe CLI finishes normally");
+    return {process.exitCode(), lines(process.readAllStandardOutput()),
+            QJsonDocument::fromJson(process.readAllStandardError()).object()};
+}
+void write(const QString &path, const QByteArray &bytes) {
+    QFile file(path);
+    check(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size(),
+          "Write recipe fixture");
+}
+int main(int argc, char **argv) {
+    QCoreApplication app(argc, argv);
+    try {
+        QFile schema(QStringLiteral(SOURCE_DIR "/docs/api/recipe-v1.json"));
+        check(schema.open(QIODevice::ReadOnly) &&
+                  QJsonDocument::fromJson(schema.readAll()).object() == recipeCapabilities(),
+              "Recipe schema matches installed discovery");
+        QFile example(QStringLiteral(SOURCE_DIR "/examples/transaction-face-recipe.json"));
+        check(example.open(QIODevice::ReadOnly), "Read shipped recipe");
+        const auto exampleBytes = example.readAll();
+        const auto exampleObject = QJsonDocument::fromJson(exampleBytes).object();
+        QTemporaryDir files;
+        check(files.isValid(), "Recipe test directory");
+        for (int iteration = 0; iteration < 2; ++iteration) {
+            const auto model = files.path() + "/face-" + QString::number(iteration) + ".sketchyup";
+            const auto outcomes = files.path() + "/outcomes-" + QString::number(iteration);
+            const auto result = cli({"--recipe", example.fileName(), "--new", "--output", model,
+                                     "--outcomes", outcomes});
+            check(result.code == 0 && result.rows.size() == 8, "Shipped headless recipe succeeds");
+            for (const auto &row : result.rows)
+                check(row.toObject()["ok"] == true, "Every recipe step succeeds");
+            const auto staged = result.rows[3].toObject()["result"].toObject()["data"].toObject();
+            const auto measured = result.rows[7].toObject()["result"].toObject()["data"].toObject();
+            check(std::abs(staged["area"].toDouble() - 6) < tolerance &&
+                      std::abs(measured["area"].toDouble() - 6) < tolerance,
+                  "Typed references measure private and committed geometry identically");
+            const auto saved = loadDocument(model);
+            check(saved.revision() == 1 && saved.bodies().size() == 1,
+                  "Recipe saves one composed edit");
+            const auto inspectionPath = files.path() + "/measure.json";
+            write(inspectionPath,
+                  encode({{"apiVersion", 1},
+                          {"documentId", QString::fromStdString(saved.identity())},
+                          {"expectedRevision", "1"},
+                          {"query", "measure.entity"},
+                          {"space", "world"},
+                          {"target", inspectionReference(saved, saved.bodies().begin()->first)}}));
+            const auto reopened = cli({"--input", model, "--inspect-file", inspectionPath});
+            check(reopened.code == 0 &&
+                      std::abs(reopened.rows[0].toObject()["data"].toObject()["area"].toDouble() -
+                               6) < tolerance,
+                  "Saved recipe reopens and measures without a display or provider");
+        }
+        const auto info = step("info", op("session.describe"));
+        rejects("INVALID_REQUEST", [&] { AutomationRecipe::parse("[]"); });
+        rejects("UNSUPPORTED_VERSION", [&] {
+            AutomationRecipe::parse(encode({{"apiVersion", 2}, {"steps", QJsonArray{info}}}));
+        });
+        rejects("INVALID_REQUEST", [&] { AutomationRecipe::parse(encode(recipe({info, info}))); });
+        rejects("INVALID_REFERENCE", [&] {
+            AutomationRecipe::parse(
+                encode(recipe({step("first", {{"value", ref("future", "/result")}}), info})));
+        });
+        rejects("INVALID_REFERENCE", [&] {
+            AutomationRecipe::parse(
+                encode(recipe({info, step("bad", {{"value", ref("info", "/bad~2escape")}})})));
+        });
+        rejects("LIMIT_EXCEEDED",
+                [&] { AutomationRecipe::parse(QByteArray(recipeInputBytes + 1, ' ')); });
+        QJsonArray tooMany;
+        for (int i = 0; i < 1001; ++i)
+            tooMany.append(step(QString::number(i), op("session.describe")));
+        rejects("LIMIT_EXCEEDED", [&] { AutomationRecipe::parse(encode(recipe(tooMany))); });
+        const auto malformed = files.path() + "/malformed.json";
+        write(malformed, encode(recipe({info, info})));
+        const auto unopened = files.path() + "/unopened.sketchyup";
+        const auto invalid = cli({"--recipe", malformed, "--new", "--output", unopened,
+                                  "--outcomes", files.path() + "/unopened-outcomes"});
+        check(invalid.code == 1 && invalid.error["code"] == "INVALID_REQUEST" &&
+                  !QFile::exists(unopened),
+              "Malformed recipe fails before creating model");
+        {
+            auto broken = exampleObject;
+            auto steps = broken["steps"].toArray();
+            steps.append(step(
+                "stale", op("transaction.begin", {{"documentId", ref("info", "/result/documentId")},
+                                                  {"expectedRevision", "0"}})));
+            steps.append(step("never", op("session.describe")));
+            broken["steps"] = steps;
+            const auto file = files.path() + "/partial.json",
+                       model = files.path() + "/partial.sketchyup";
+            write(file, encode(broken));
+            const auto result = cli({"--recipe", file, "--new", "--output", model, "--outcomes",
+                                     files.path() + "/partial-outcomes"});
+            check(result.code == 1 && result.rows.size() == 9 &&
+                      result.rows.last().toObject()["error"].toObject()["code"] ==
+                          "STALE_REVISION" &&
+                      loadDocument(model).revision() == 1,
+                  "Later failure preserves earlier commit/save and stops remaining steps");
+        }
+        {
+            auto steps = exampleObject["steps"].toArray();
+            while (steps.size() > 5)
+                steps.removeLast();
+            steps.append(step("bad", op("transaction.status",
+                                        {{"documentId", ref("info", "/missing")},
+                                         {"requestId", ref("seal", "/result/requestId")},
+                                         {"payloadHash", ref("seal", "/result/payloadHash")}})));
+            const auto file = files.path() + "/abort.json",
+                       model = files.path() + "/abort.sketchyup",
+                       outcomes = files.path() + "/abort-outcomes";
+            write(file, encode(recipe(steps)));
+            const auto result =
+                cli({"--recipe", file, "--new", "--output", model, "--outcomes", outcomes});
+            check(result.code == 1 && result.rows.size() == 6 &&
+                      result.rows.last().toObject()["error"].toObject()["code"] ==
+                          "INVALID_REFERENCE",
+                  "Missing response field fails explicitly");
+            const auto sealed = result.rows[4].toObject()["result"].toObject();
+            AutomationSession reopened({model, {}, outcomes});
+            const auto status = reopened.execute(
+                op("transaction.status", {{"documentId", sealed["documentId"]},
+                                          {"requestId", sealed["requestId"]},
+                                          {"payloadHash", sealed["payloadHash"]}}));
+            check(status["status"] == "aborted" && loadDocument(model).revision() == 0,
+                  "Recipe failure cleans up accepted uncommitted work");
+        }
+        {
+            // Referencing a large registry repeatedly is rejected during expansion,
+            // before constructing an arbitrarily large materialized request.
+            QJsonArray refs;
+            for (int i = 0; i < 1000; ++i)
+                refs.append(ref("schema", "/result/transactions/operations/0"));
+            const auto program = AutomationRecipe::parse(
+                encode(recipe({step("schema", op("session.capabilities")),
+                               step("large", op("session.describe", {{"padding", refs}}))})));
+            AutomationSession session({{},
+                                       files.path() + "/bounded.sketchyup",
+                                       files.path() + "/bounded-outcomes",
+                                       true});
+            QBuffer output;
+            output.open(QIODevice::WriteOnly);
+            check(program.run(session, output) == 1 &&
+                      lines(output.data()).last().toObject()["error"].toObject()["code"] ==
+                          "LIMIT_EXCEEDED",
+                  "Reference expansion is bounded before effects");
+        }
+        {
+            const auto program = AutomationRecipe::parse(
+                encode(recipe({info, step("next", op("session.describe"))})));
+            AutomationSession session(
+                {{}, files.path() + "/budget.sketchyup", files.path() + "/budget-outcomes", true});
+            QBuffer output;
+            output.open(QIODevice::WriteOnly);
+            check(
+                program.run(session, output,
+                            {recipeBudgetBytes, size_t(sessionResponseBytes + 16 * 1024)}) == 1 &&
+                    lines(output.data()).size() == 2 &&
+                    lines(output.data()).last().toObject()["error"].toObject()["code"] ==
+                        "LIMIT_EXCEEDED",
+                "Output reservation rejects the next step before exceeding the configured budget");
+        }
+        {
+            const auto program = AutomationRecipe::parse(
+                encode(recipe({step("schema", op("session.capabilities")), info})));
+            AutomationSession session({{},
+                                       files.path() + "/retained.sketchyup",
+                                       files.path() + "/retained-outcomes",
+                                       true});
+            QBuffer output;
+            output.open(QIODevice::WriteOnly);
+            check(program.run(session, output,
+                              {size_t(2 * sessionResponseBytes + 4096), recipeBudgetBytes}) == 1 &&
+                      lines(output.data()).size() == 2 &&
+                      lines(output.data()).last().toObject()["error"].toObject()["code"] ==
+                          "LIMIT_EXCEEDED",
+                  "Prior responses are charged before accepting another recipe step");
+        }
+        {
+            // Literal tags leave user data untouched instead of treating it as a reference.
+            const auto program = AutomationRecipe::parse(
+                encode(recipe({step("literal", {{"$literal", op("session.describe")}})})));
+            AutomationSession session({{},
+                                       files.path() + "/literal.sketchyup",
+                                       files.path() + "/literal-outcomes",
+                                       true});
+            QBuffer output;
+            output.open(QIODevice::WriteOnly);
+            check(program.run(session, output) == 0 &&
+                      lines(output.data())[0].toObject()["ok"] == true,
+                  "Literal escape suppresses template expansion");
+        }
+        std::cout << "Headless recipes, typed references, deterministic measurements, partial "
+                     "outcomes and budgets passed\n";
+    } catch (const std::exception &error) {
+        std::cerr << error.what() << '\n';
+        return 1;
+    }
+}
