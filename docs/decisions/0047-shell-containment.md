@@ -41,11 +41,13 @@ triangles. Containment adds a 4,000,000 point/triangle budget. Limits reject
 without exposing a partial result. The analysis is bounded floating-point
 classification, not an exact-predicate containment guarantee.
 
-R056.a deliberately leaves `inspectSolid` and its editing/Boolean callers at
-single-shell acceptance. Those consumers report `multiple_shells` for a validated
-hierarchy with more than one boundary; invalid multiple-shell inputs now identify
-the actual defect instead of stopping before analysis. The next adapter layer
-must group cavity boundaries with their material shell, preserve source-face
-provenance and independently verify output volumes before enabling operations
-on those solids. Disconnected material components and islands need separate
-output identities. Trim/split/outer-shell semantics remain later R056 work.
+R056.a initially retained single-shell editing acceptance. R056.b enables
+`inspectSolid` for exactly one even-depth material component: an outer shell with
+zero or more direct inward cavities. Multiple roots and islands still report
+`multiple_shells` without a single-body volume. Boolean reconstruction emits
+those islands as separate material parts. Measurement/Info therefore reports the
+outer volume minus enclosed voids, including after transformed placements.
+Invalid multiple-shell inputs identify their actual boundary/winding/containment
+defect. The Boolean adapter must preserve source-face provenance and independently
+verify each reconstructed material body and aggregate volume; see
+[0046](0046-solid-booleans.md). Trim/split/outer-shell semantics remain later R056 work.

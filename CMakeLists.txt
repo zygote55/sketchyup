@@ -421,6 +421,6 @@ install(FILES examples/m5-room-before.sketchyup examples/m5-room-after.sketchyup
 install(FILES docs/decisions/0043-planar-offset.md docs/decisions/0044-profile-sweep.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/planar-offset.json examples/profile-sweep.json DESTINATION share/doc/sketchyup/examples)
 install(FILES docs/decisions/0045-face-intersections.md DESTINATION share/doc/sketchyup/decisions)
-install(FILES examples/solid-boolean.json examples/face-intersection.json DESTINATION share/doc/sketchyup/examples)
+install(FILES examples/enclosed-cavity.json examples/solid-boolean.json examples/face-intersection.json DESTINATION share/doc/sketchyup/examples)
 
 install(FILES docs/decisions/0047-shell-containment.md docs/decisions/0046-solid-booleans.md DESTINATION share/doc/sketchyup/decisions)

@@ -223,8 +223,8 @@ QJsonObject capabilities() {
         {"limitations",
          QJsonArray{
              "Push/pull supports prismatic cap edits and bounded face "
-             "sweeps; solid booleans require validated single-shell operands and reject enclosed "
-             "cavities",
+             "sweeps; solid booleans require validated material solids, with disconnected "
+             "results returned separately",
              "Local JSON-lines sessions are available; remote MCP transport is not yet implemented",
              "Component geometry is materialized per instance; instanced "
              "rendering and component libraries are not yet implemented",

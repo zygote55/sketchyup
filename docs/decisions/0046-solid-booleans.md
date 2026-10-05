@@ -11,10 +11,11 @@ MIT licensed. Its unmodified source/header trees are vendored for offline builds
 A local static serial target disables optional cross-section, TBB, bindings and
 downloads, retaining upstream's floating-point contraction/precision flags.
 
-The immutable adapter accepts two native, validated single-shell solids in a
+The immutable adapter accepts two native, validated material solids in a
 common coordinate frame. Native solid classification rejects open boundaries,
 loose/non-manifold geometry, inconsistent winding, self-intersection, analysis
-limits and multiple shells before running a Boolean. Invalid operand errors
+limits and disconnected material components before running a Boolean. Enclosed
+inward cavity boundaries belong to their surrounding outer material shell. Invalid operand errors
 retain the operand index and native defect face/edge/vertex IDs. A consistently
 inward-wound input is normalized to outward adapter winding without changing the
 source. Double-precision meshes are recentered at the joint bounds and oriented to an
@@ -29,10 +30,22 @@ Native tessellation corners recover their source identities within tolerance;
 ambiguous or unrepresentable tessellation rejects instead of welding nearby
 sheets. Manifold performs its own closed-mesh validation as an additional check.
 
-Union, subtraction and intersection return zero or more disconnected positive
-shells. Empty and exactly zero-volume contacts are valid empty kernel results. Enclosed negative cavity shells currently
-reject with `BOOLEAN_CAVITY`; they must not be published as filled positive solids.
-Native multiple-shell containment remains required before that case is enabled.
+Union, subtraction and intersection return zero or more disconnected material
+parts. Empty and exactly zero-volume contacts are valid empty kernel results.
+R056.b attaches each enclosed negative boundary to its smallest enclosing positive
+shell using [native containment](0047-shell-containment.md). Native polygon and
+source-face identities are remapped without welding independent boundaries.
+Each material part is independently revalidated; material islands inside a cavity
+are separate parts. Independent positive point/edge contacts keep separate bodies.
+
+Candidate bounds only exclude impossible parents. Every remaining positive/cavity
+pair runs native manifold, intersection, winding and containment analysis. The
+cavity must be an immediate enclosed boundary in that pair. Candidate-pair work
+has a conservative four-million budget, charged by squared combined triangle count
+plus four times that count before each analysis. Every assembled body and aggregate
+output volume are independently checked. Input winding normalization reverses the
+entire material boundary together, preserving relative cavity orientation. A hollow
+result can be reused as an operand; it is never silently filled.
 
 Each source operand receives an adapter original ID and each input triangle its
 native source face ID. Reconstruction follows [Manifold's face provenance
@@ -71,7 +84,11 @@ predicates or unrestricted solid guarantees.
 (`union`, `subtract`, `intersection`) and boolean `keepOperands`. Both operands
 must be different editable, visible raw geometry bodies in the explicit context;
 enter group containers first. Surfaces are evaluated in world space, including
-mirrored/nonuniform placements. Each disconnected output becomes a sibling body
+mirrored/nonuniform placements. Baking reflected source placements into world
+geometry and results back to the target frame reverses loop order, preserving
+physical front/back consistently with rendering and consolidation. Provenance
+therefore describes physical material-side reversal even when only one operand
+is reflected. Each disconnected output becomes a sibling body
 in the target's local frame, inheriting its tag and default appearance. Each face
 inherits its source color and material sides, swapping front/back when reversed.
 Recipe properties are not copied onto newly generated solids.

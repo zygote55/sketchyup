@@ -1,6 +1,7 @@
 #include "core/solid_boolean.hpp"
 #include "core/appearance.hpp"
 #include "core/selection.hpp"
+#include <algorithm>
 #include <limits>
 namespace sketchy {
 SolidBooleanResult booleanBodies(Document &doc, Id target, Id tool, BooleanOperation operation,
@@ -19,10 +20,18 @@ SolidBooleanResult booleanBodies(Document &doc, Id target, Id tool, BooleanOpera
     const auto a = doc.bodies().at(target), b = doc.bodies().at(tool);
     const auto frame = doc.worldTransform(target), toolFrame = doc.worldTransform(tool);
     auto left = a->surface, right = b->surface;
-    for (auto &[id, point] : left.vertices)
-        point = frame.point(point);
-    for (auto &[id, point] : right.vertices)
-        point = toolFrame.point(point);
+    auto transformSurface = [](Surface &surface, const Transform &transform) {
+        for (auto &[id, point] : surface.vertices)
+            point = transform.point(point);
+        // Placement reflections preserve physical front/back, as in rendering
+        // and consolidation. Keep that orientation when baking either frame.
+        if (transform.determinant() < 0)
+            for (auto &[id, face] : surface.faces)
+                for (auto &loop : face.loops)
+                    std::reverse(loop.begin(), loop.end());
+    };
+    transformSurface(left, frame);
+    transformSurface(right, toolFrame);
     BooleanResult result;
     try {
         result = booleanSolids(left, right, operation);
@@ -63,8 +72,7 @@ SolidBooleanResult booleanBodies(Document &doc, Id target, Id tool, BooleanOpera
         created->materials = a->materials;
         created->tag = a->tag;
         created->surface = std::move(part.surface);
-        for (auto &[id, point] : created->surface.vertices)
-            point = inverse.point(point);
+        transformSurface(created->surface, inverse);
         for (const auto &[face, source] : part.sources) {
             const auto &body = source.operand ? *b : *a;
             const auto color = faceColor(body, source.face);

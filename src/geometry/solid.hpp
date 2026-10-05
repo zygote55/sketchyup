@@ -22,7 +22,8 @@ struct SolidShellAnalysis {
 // Success is "validated_shells" and its volume sums material across all roots/islands.
 // A failure returns no hierarchy or volume. Surface/topology must already be valid.
 SolidShellAnalysis analyzeSolidShells(const Surface &surface, const Topology &topology);
-// Conservative single-shell classification. A volume is returned only after
+// One material component: an outer shell with optional inward cavity boundaries.
+// A volume is returned only after
 // manifold, orientation and geometric intersection checks complete within budget.
 SolidReport inspectSolid(const Surface &surface, const Topology &topology);
 } // namespace sketchy

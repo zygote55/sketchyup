@@ -187,6 +187,8 @@ jobs:
           build/dev/sketchyup-cli --script examples/groups.json --output /tmp/groups.sketchyup
           build/dev/sketchyup-cli --input /tmp/groups.sketchyup
           build/dev/sketchyup-cli --script examples/copy-arrays.json --output /tmp/arrays.sketchyup
+          build/dev/sketchyup-cli --script examples/enclosed-cavity.json --output /tmp/enclosed-cavity.sketchyup
+          build/dev/sketchyup-cli --input /tmp/enclosed-cavity.sketchyup
           build/dev/sketchyup-cli --script examples/solid-boolean.json --output /tmp/solid-boolean.sketchyup
           build/dev/sketchyup-cli --input /tmp/solid-boolean.sketchyup
           build/dev/sketchyup-cli --script examples/face-intersection.json --output /tmp/face-intersection.sketchyup

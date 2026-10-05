@@ -84,7 +84,63 @@ int main() {
         const auto inside = box({.5, .5, .5}, {1, 1, 1});
         verify(booleanSolids(a, inside, BooleanOperation::Union), 8, 1);
         verify(booleanSolids(a, inside, BooleanOperation::Intersect), 1, 1);
-        rejects([&] { booleanSolids(a, inside, BooleanOperation::Subtract); }, "BOOLEAN_CAVITY");
+        const auto hollow = booleanSolids(a, inside, BooleanOperation::Subtract);
+        verify(hollow, 7, 1);
+        const auto &hollowSurface = hollow.parts[0].surface;
+        check(
+            analyzeSolidShells(hollowSurface, Topology::rebuild(hollowSurface, {})).shells.size() ==
+                2,
+            "Enclosed cavity stays in its material body with two native boundaries");
+        verify(booleanSolids(hollowSurface, inside, BooleanOperation::Union), 8, 1);
+        verify(booleanSolids(hollowSurface, inside, BooleanOperation::Intersect), 0, 0);
+        verify(booleanSolids(hollowSurface, inside, BooleanOperation::Subtract), 7, 1);
+        verify(booleanSolids(hollowSurface, corner, BooleanOperation::Union), 15, 2);
+        const auto secondVoid = box({.1, .1, .1}, {.2, .2, .2});
+        const auto twoVoids = booleanSolids(hollowSurface, secondVoid, BooleanOperation::Subtract);
+        verify(twoVoids, 6.992, 1);
+        check(analyzeSolidShells(twoVoids.parts[0].surface,
+                                 Topology::rebuild(twoVoids.parts[0].surface, {}))
+                      .shells.size() == 3,
+              "Multiple enclosed cavities attach to the same material body");
+        auto hollowAgain = booleanSolids(a, inside, BooleanOperation::Subtract);
+        check(hollowAgain.parts[0].surface == hollowSurface &&
+                  hollowAgain.parts[0].sources == hollow.parts[0].sources,
+              "Repeated cavity geometry and provenance are deterministic");
+        const auto nestedOuter = box({.25, .25, .25}, {1.5, 1.5, 1.5});
+        const auto islandTool = box({.75, .75, .75}, {.5, .5, .5});
+        const auto nestedTool = booleanSolids(nestedOuter, islandTool, BooleanOperation::Subtract);
+        verify(nestedTool, 3.25, 1);
+        const auto islands =
+            booleanSolids(a, nestedTool.parts[0].surface, BooleanOperation::Subtract);
+        verify(islands, 4.75, 2);
+        size_t cavityParts{}, islandParts{};
+        for (const auto &part : islands.parts) {
+            cavityParts += std::abs(part.volume - 4.625) < 1e-6;
+            islandParts += std::abs(part.volume - .125) < 1e-6;
+        }
+        check(cavityParts == 1 && islandParts == 1,
+              "Subtracting a hollow tool produces a cavity body and separate material island");
+        verify(booleanSolids(hollowSurface, nestedTool.parts[0].surface, BooleanOperation::Union),
+               7.875, 1);
+        verify(
+            booleanSolids(hollowSurface, nestedTool.parts[0].surface, BooleanOperation::Intersect),
+            2.375, 1);
+        verify(
+            booleanSolids(hollowSurface, nestedTool.parts[0].surface, BooleanOperation::Subtract),
+            4.625, 1);
+        for (const auto &[face, source] : hollow.parts[0].sources) {
+            const auto &input = source.operand ? inside : a;
+            const auto alignment = dot(hollowSurface.normal(face), input.normal(source.face));
+            check(source.reversed ? alignment < -.999 : alignment > .999,
+                  "Cavity face provenance preserves outward/inward material sides");
+            check(!source.operand || source.reversed, "Every enclosed tool face is reversed");
+        }
+        auto reversedHollow = hollowSurface;
+        for (auto &[id, face] : reversedHollow.faces)
+            for (auto &loop : face.loops)
+                std::reverse(loop.begin(), loop.end());
+        verify(booleanSolids(reversedHollow, inside, BooleanOperation::Union), 8, 1);
+        verify(booleanSolids(reversedHollow, b, BooleanOperation::Subtract), 3.5, 1);
         auto reversed = a;
         for (auto &[id, face] : reversed.faces)
             for (auto &loop : face.loops)
@@ -109,6 +165,10 @@ int main() {
             verify(booleanSolids(left, right, BooleanOperation::Union), 12, 1);
             verify(booleanSolids(left, right, BooleanOperation::Subtract), 4, 1);
             verify(booleanSolids(left, right, BooleanOperation::Intersect), 4, 1);
+            auto inner = inside;
+            for (auto &[id, p] : inner.vertices)
+                p = transform.point(p);
+            verify(booleanSolids(left, inner, BooleanOperation::Subtract), 7, 1);
         }
         auto mirror = Transform::translation({20, -10, 4}) * Transform::rotation({2, 1, 3}, .37) *
                       Transform::scaling({-1.5, .75, 1.2});
@@ -120,6 +180,13 @@ int main() {
         verify(booleanSolids(mirroredA, mirroredB, BooleanOperation::Union), 16.2, 1);
         verify(booleanSolids(mirroredA, mirroredB, BooleanOperation::Subtract), 5.4, 1);
         verify(booleanSolids(mirroredA, mirroredB, BooleanOperation::Intersect), 5.4, 1);
+        auto mirroredInner = inside;
+        for (auto &[id, p] : mirroredInner.vertices)
+            p = mirror.point(p);
+        verify(booleanSolids(mirroredA, mirroredInner, BooleanOperation::Subtract), 9.45, 1);
+        verify(booleanSolids(box({}, {.02, .02, .02}), box({.005, .005, .005}, {.01, .01, .01}),
+                             BooleanOperation::Subtract),
+               7e-6, 1);
         verify(booleanSolids(tube.parts[0].surface, disjoint, BooleanOperation::Union), 14, 2);
         verify(booleanSolids(a, box({2, 2, 0}), BooleanOperation::Union), 16, 2);
         verify(booleanSolids(box({}, {.01, .01, .01}), box({.005, 0, 0}, {.01, .01, .01}),

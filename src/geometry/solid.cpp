@@ -462,9 +462,10 @@ SolidReport inspectSolid(const Surface &surface, const Topology &topology) {
     auto analysis = analyzeSolidShells(surface, topology);
     if (analysis.report.status != "validated_shells")
         return analysis.report;
-    // Existing editing operations retain their single-shell acceptance contract.
-    // R056's adapter integration will opt into validated material components.
-    if (analysis.shells.size() != 1)
+    // A material solid has one outer shell with zero or more direct cavities.
+    // Disconnected roots and islands inside cavities are separate material parts.
+    if (std::count_if(analysis.shells.begin(), analysis.shells.end(),
+                      [](const auto &shell) { return shell.depth % 2 == 0; }) != 1)
         return {"multiple_shells", {}};
     analysis.report.status = "solid";
     return analysis.report;

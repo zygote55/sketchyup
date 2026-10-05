@@ -75,8 +75,8 @@ int main() {
         check(result.shells[0].depth == 0 && result.shells[1].parent == 0 &&
                   result.shells[0].signedVolume > 0 && result.shells[1].signedVolume < 0,
               "Inward enclosed shell is a cavity of the outer shell");
-        check(inspectSolid(cavity, Topology::rebuild(cavity, {})).status == "multiple_shells",
-              "Existing Boolean/editing consumers retain conservative single-shell acceptance");
+        check(inspectSolid(cavity, Topology::rebuild(cavity, {})).status == "solid",
+              "A cavity and its outer boundary form one native material solid");
         auto reversed = cavity;
         reverse(reversed);
         result = valid(reversed, 56, 2);
@@ -93,6 +93,8 @@ int main() {
         result = valid(island, 160, 3);
         check(result.shells[2].parent == 1 && result.shells[2].depth == 2,
               "Material island chooses nearest cavity boundary as parent");
+        check(inspectSolid(island, Topology::rebuild(island, {})).status == "multiple_shells",
+              "An island inside a cavity is a separate material component");
         auto twoCavities = box({}, {6, 6, 6});
         append(twoCavities, box({1, 1, 1}, {1, 1, 1}), true);
         append(twoCavities, box({4, 4, 4}, {1, 1, 1}), true);

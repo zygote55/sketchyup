@@ -27,7 +27,8 @@ square meters and cubic meters in the named frame.
 
 Volume is conservative. A context must contain one nonempty geometry record;
 its surface must have no loose geometry, exactly two oppositely oriented faces
-per edge, a connected face fan at every vertex, and one connected shell. Triangle
+per edge, a connected face fan at every vertex, and one material component
+(an outer shell with optional inward cavity boundaries). Triangle
 intersection checks reject contacts away from shared topological boundaries,
 including coplanar area overlaps. Predicates use the model tolerance, with a
 four-tolerance allowance when matching computed contacts to shared boundaries.
@@ -35,16 +36,26 @@ Signed tetrahedral integration uses a nearby origin and a long-double sum;
 absolute affine determinants convert volume between frames and preserve a
 positive result under mirroring.
 
-Multiple geometry records or shells, boundary defects, inconsistent winding,
+Multiple geometry records or disconnected material components, boundary defects, inconsistent winding,
 self-intersections, degeneracy and exhausted analysis budgets have no volume.
 The query returns a status and available offending entity IDs, with null frame
-volumes. Multiple shells/records and budget exhaustion are unresolved analysis,
+volumes. Multiple material components/records and budget exhaustion are unresolved analysis,
 not proof that the model is invalid. Limits are 200,000 triangles, 200,000
 shared-vertex face-pair contributions and 1,000,000 broad-phase triangle pair
-visits. General boolean union, shell nesting and repair remain later work.
+visits, plus 64 shells and 4,000,000 containment point/triangle visits. Boolean
+operations use the shared [adapter contract](0046-solid-booleans.md); explicit
+repair remains later work.
 
 `entity.properties` replaces the typed semantic map atomically. Booleans, finite
 numbers and strings use the existing 128-property, 128-byte key and 2,048-byte
 string limits. Placement properties remain local; canonical member properties
 use explicit component edit scope. File schema remains 9 because these property
 and transform records already persist exactly.
+
+R056 extends the original single-shell restriction through the bounded
+[shell-containment contract](0047-shell-containment.md). One outer boundary with
+validated inward cavity boundaries is one material solid: measured volume
+subtracts voids. Disconnected material roots or islands in one geometry record
+still return no single-solid volume. Ambiguous containment is explicit; no void
+is silently filled. Boolean outputs group cavities with their material body and
+return independent islands as separate bodies.
