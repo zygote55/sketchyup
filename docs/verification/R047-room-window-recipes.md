@@ -40,3 +40,5 @@ nine bodies at DPR 2, renders both framed openings, captures successfully and
 reports no GL errors on Intel Arc / Mesa 26.2.2. Its model bytes are preserved.
 The capture is a renderer/open check; selection-driven assistant interaction and
 live provider acceptance remain R046/R051 work.
+
+Both final-head CI runs passed: `37262785265` completed at 2026-10-05 05:00:09 UTC and `37262782727` at 05:14:54 UTC. PR #69 merged as `ac57cdd8e51e4dd99bdc079c8ebccb9344246db8`; R047 acceptance is complete.

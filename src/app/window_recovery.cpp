@@ -1,4 +1,5 @@
 #include "app/inspection_service.hpp"
+#include "app/render_panel.hpp"
 #include "app/window.hpp"
 #include <QAction>
 #include <QCheckBox>
@@ -14,7 +15,10 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 namespace sketchy {
-Window::~Window() { delete recovery_; }
+Window::~Window() {
+    delete render_;
+    delete recovery_;
+}
 void Window::resetRecoveryContext() {
     recoveryContext_ = {};
     recoveredName_.clear();

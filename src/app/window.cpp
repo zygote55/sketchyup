@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "app/inspection_service.hpp"
+#include "app/render_panel.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "io/document_io.hpp"
@@ -24,6 +25,8 @@
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QStyleHints>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QToolBar>
 #include <QVBoxLayout>
 namespace sketchy {
@@ -102,7 +105,14 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
     content->addWidget(tools);
     viewport_ = new Viewport(doc_);
     inspection_ = std::make_unique<DesktopInspection>(*viewport_);
-    content->addWidget(viewport_, 1);
+    auto *modelTabs = new QTabWidget;
+    modelTabs->setObjectName("modelTabs");
+    modelTabs->setTabBarAutoHide(true);
+    modelTabs->setTabsClosable(true);
+    modelTabs->addTab(viewport_, "Model");
+    modelTabs->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
+    modelTabs->tabBar()->setTabButton(0, QTabBar::LeftSide, nullptr);
+    content->addWidget(modelTabs, 1);
     breadcrumb_ = new QLabel(viewport_);
     breadcrumb_->setObjectName("contextBreadcrumb");
     breadcrumb_->setAccessibleName("Editing context breadcrumb");
@@ -160,6 +170,9 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     bottomLayout->addWidget(status_, 1);
+    auto *renderChip = new QPushButton;
+    bottomLayout->addWidget(renderChip);
+    render_ = new RenderPanel(doc_, *viewport_, *modelTabs, *renderChip, *this);
     measurementUnits_ = new QLabel;
     measurementUnits_->setObjectName("measurementUnits");
     bottomLayout->addWidget(measurementUnits_);
@@ -435,6 +448,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
     addTool("Zoom", "Z", Viewport::Tool::Zoom, "Drag up to zoom in · Drag down to zoom out", false);
+    auto *cameraMenu = menuBar()->addMenu("&Camera");
+    cameraMenu->addAction(action("camera.render", "Render…", {}, [this] { render_->showSetup(); }));
     auto *view = menuBar()->addMenu("&View");
     auto *hidden = action("selection.showHidden", "Show hidden geometry", {}, [this] {
         viewport_->showHiddenGeometry(findChild<QAction *>("selection.showHidden")->isChecked());
@@ -674,6 +689,8 @@ void Window::tool(Viewport::Tool t, const QString &text) {
                                                                      : "width, depth");
 }
 void Window::sync() {
+    if (render_)
+        render_->refreshProvenance();
     measurementUnits_->setText("Measurements · " +
                                QString::fromLatin1(unitCode(doc_.displayUnits()).data()));
     measurements_->setAccessibleName("Measurements in " + unitName(doc_.displayUnits()).toLower());
