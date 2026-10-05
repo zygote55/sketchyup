@@ -1,0 +1,16 @@
+{
+  "apiVersion": 1,
+  "width": 1024,
+  "height": 768,
+  "samples": 32,
+  "seed": 0,
+  "camera": {
+    "projection": "perspective",
+    "position": [10, -8, 7],
+    "target": [3, 2, 1.35],
+    "up": [0, 0, 1],
+    "verticalFov": 0.7853981633974483,
+    "nearClip": 0.01,
+    "farClip": 1000
+  }
+}

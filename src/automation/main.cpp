@@ -4,6 +4,7 @@
 #include "automation/mcp.hpp"
 #include "automation/recipe.hpp"
 #include "automation/session.hpp"
+#include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
 #include "io/formline.hpp"
 #include "io/recovery.hpp"
@@ -31,6 +32,9 @@ int main(int argc, char **argv) {
     parser.addOption(
         {"recover-latest", "Explicitly recover the latest durable transaction in this session"});
     parser.addOption({"session-capabilities", "Print the bounded session and transaction schemas"});
+    parser.addOption(
+        {"export-glb", "Export an immutable scene and manifest to a new directory", "directory"});
+    parser.addOption({"render-settings", "Read versioned camera and render settings", "path"});
     parser.addOption({"capabilities", "Print supported local commands"});
     parser.addOption({"describe-command", "Print a command parameter schema", "name"});
     parser.addOption({"query", "Run a read-only document or geometry query", "name"});
@@ -56,6 +60,42 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("export-glb")) {
+            if (!parser.isSet("input") || !parser.positionalArguments().isEmpty())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "GLB export requires an explicit input model");
+            for (const auto &option : parser.optionNames())
+                if (option != "input" && option != "export-glb" && option != "render-settings")
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "GLB export is a standalone operation");
+            sketchy::RenderOptions options;
+            if (parser.isSet("render-settings")) {
+                QFile file(parser.value("render-settings"));
+                if (!QFileInfo(file.fileName()).isFile() || !file.open(QIODevice::ReadOnly) ||
+                    file.size() > 16 * 1024)
+                    throw sketchy::InspectionError(
+                        "INPUT_ERROR", "Cannot read render settings or settings exceed 16 KiB");
+                const auto bytes = file.read(16 * 1024 + 1);
+                QJsonParseError error;
+                const auto json = QJsonDocument::fromJson(bytes, &error);
+                if (bytes.size() > 16 * 1024 || error.error != QJsonParseError::NoError ||
+                    !json.isObject())
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "Expected bounded render settings JSON");
+                options = sketchy::parseRenderOptions(json.object());
+            }
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            const auto exported =
+                sketchy::exportGlb(sketchy::RenderSnapshot::capture(document, options));
+            sketchy::writeGlbExport(exported, parser.value("export-glb"));
+            std::cout
+                << QJsonDocument(exported.manifest).toJson(QJsonDocument::Compact).toStdString()
+                << '\n';
+            return 0;
+        }
+        if (parser.isSet("render-settings"))
+            throw sketchy::InspectionError("INVALID_REQUEST",
+                                           "Render settings require --export-glb");
         if (parser.isSet("mcp-connect")) {
             if (parser.optionNames().size() != 1 || !parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",
