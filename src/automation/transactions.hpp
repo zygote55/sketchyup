@@ -15,6 +15,7 @@ class TransactionDispatcher {
     TransactionDispatcher(TransactionCoordinator &actor, Limits limits,
                           StagingSession::Now now = StagingSession::Clock::now);
     QJsonObject execute(const QJsonObject &request);
+    void clear();
 
   private:
     struct Applied {

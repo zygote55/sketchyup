@@ -28,6 +28,18 @@ TransactionDispatcher::TransactionDispatcher(TransactionCoordinator &actor, Limi
         limits.retainedBytes > 128 * 1024 * 1024 || !now_)
         fail("INVALID_REQUEST", "Invalid transaction draft limits");
 }
+void TransactionDispatcher::clear() {
+    (void)actor_.document();
+    if (active_)
+        fail("REENTRANT_TRANSACTION", "Cannot clear during transaction dispatch");
+    struct Guard {
+        bool &active;
+        ~Guard() { active = false; }
+    } guard{active_};
+    active_ = true;
+    while (!drafts_.empty())
+        retire(drafts_.begin()->first);
+}
 size_t TransactionDispatcher::charge(const Draft &draft) const {
     size_t total = sizeof(Draft) + 2048 + (draft.stage ? draft.stage->retainedBytes() : 0);
     total +=

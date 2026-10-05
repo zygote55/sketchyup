@@ -83,7 +83,7 @@ native scheduling/selection is merged in [PR #51](https://github.com/zygote55/sk
 The labeled history API merged in [PR #52](https://github.com/zygote55/sketchyup/pull/52);
 native History controls merged in [PR #53](https://github.com/zygote55/sketchyup/pull/53).
 Document unit data/API/persistence merged in [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences merged in [PR #55](https://github.com/zygote55/sketchyup/pull/55).
-The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4 is complete; M5 bounded inspection is in progress.
+The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4 and R040 bounded inspection are complete; M5 transactions and headless automation are in progress.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -690,7 +690,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R041 — Implement staged previews and commit reconciliation
 
-**Status:** In progress. R041.a [PR #60](https://github.com/zygote55/sketchyup/pull/60) private immutable proposals merged after all local and CI checks passed. R041.b [PR #61](https://github.com/zygote55/sketchyup/pull/61) durable co-recorded outcomes and R041.c [PR #62](https://github.com/zygote55/sketchyup/pull/62) publication/reconciliation pass their local regression and sanitizer checks; remaining CI is pending. R041.d incremental drafts, bounded inspection/diffs, immutable seals, append retries and versioned transaction schemas pass 52 development and seven relevant sanitizer suites; PR/CI acceptance remains pending. [Dispatch evidence](verification/R041d-transaction-dispatch.md), [coordinator evidence](verification/R041c-transaction-coordinator.md), [outcome evidence](verification/R041b-durable-outcomes.md), [private proposal evidence](verification/R041a-private-staging.md). **Track:** Automation. **Scope:** A03, D03. **UX:** §8.2–§8.3.
+**Status:** In progress. R041.a [PR #60](https://github.com/zygote55/sketchyup/pull/60) private immutable proposals and R041.b [PR #61](https://github.com/zygote55/sketchyup/pull/61) durable co-recorded outcomes merged after all local and CI checks passed. R041.c [PR #62](https://github.com/zygote55/sketchyup/pull/62) publication/reconciliation and R041.d [PR #63](https://github.com/zygote55/sketchyup/pull/63) incremental drafts and versioned transaction schemas pass local regression and sanitizer checks; remaining CI/merge acceptance is pending. [Dispatch evidence](verification/R041d-transaction-dispatch.md), [coordinator evidence](verification/R041c-transaction-coordinator.md), [outcome evidence](verification/R041b-durable-outcomes.md), [private proposal evidence](verification/R041a-private-staging.md). **Track:** Automation. **Scope:** A03, D03. **UX:** §8.2–§8.3.
 
 **Requires:** [R040](#r040), [R009](#r009), [R039](#r039); milestone gate rule above.
 
@@ -702,7 +702,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R042 — Add the headless automation CLI and recipe runner
 
-**Status:** Planned. **Track:** Automation. **Scope:** A06, A07. **UX:** —.
+**Status:** In progress. R042.a persistent headless sessions, explicit document/save scope, bounded JSON-lines I/O, recovery and cleanup pass all 53 development and six targeted sanitizer suites. CI/merge acceptance is pending; deterministic recipe execution remains R042.b. [Session evidence](verification/R042a-headless-session.md), [contract](decisions/0026-headless-session.md). **Track:** Automation. **Scope:** A06, A07. **UX:** —.
 
 **Requires:** [R041](#r041); milestone gate rule above.
 

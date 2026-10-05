@@ -216,12 +216,13 @@ QJsonObject capabilities() {
                                {"tagsAndFolders", 1024},
                                {"tagFolderDepth", 32}}},
         {"limitations",
-         QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
-                    "sweeps; general solid booleans are unavailable",
-                    "Persistent CLI and remote transaction transports are not yet implemented",
-                    "Component geometry is materialized per instance; instanced "
-                    "rendering and component libraries are not yet implemented",
-                    "No AI provider or Blender integration"}}};
+         QJsonArray{
+             "Push/pull supports prismatic cap edits and bounded face "
+             "sweeps; general solid booleans are unavailable",
+             "Local JSON-lines sessions are available; remote MCP transport is not yet implemented",
+             "Component geometry is materialized per instance; instanced "
+             "rendering and component libraries are not yet implemented",
+             "No AI provider or Blender integration"}}};
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies, definitions, instances;
