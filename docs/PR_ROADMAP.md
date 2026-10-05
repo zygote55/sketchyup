@@ -824,7 +824,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R052 — Implement robust planar offset
 
-**Status:** Planned. **Track:** Geometry. **Scope:** E04. **UX:** §4, §11.
+**Status:** In progress (preparatory kernel/fixtures). R052.a defines signed region offset, holes, splitting/collapse, bounded joins and precision using the existing Clipper2 dependency. [Contract](decisions/0043-planar-offset.md), [fixtures](verification/R052a-planar-offset.md). R052.b must add the shared command, native preview, context/lineage preservation and Undo/Redo. Delivery remains behind the M5 gate. **Track:** Geometry. **Scope:** E04. **UX:** §4, §11.
 
 **Requires:** [R020](#r020), [R022](#r022); milestone gate rule above.
 
