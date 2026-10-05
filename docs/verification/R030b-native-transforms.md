@@ -83,3 +83,7 @@ R031 follow-up: isolated Weston/llvmpipe transform workflows passed at DPR 1 and
 with explicit Qt pointer events and unchanged activation checks. See the
 [Wayland evidence and CI runner](R031-copy-arrays.md); this does not replace a
 physical-desktop check.
+
+The carried Wayland checkpoint is complete: PR #56 passed the native transform
+fixture on Weston at DPR 1 and 2, alongside the integrated M4 workflow. See
+[M4 evidence](M4.md) and its linked CI runs.

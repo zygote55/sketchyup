@@ -13,7 +13,7 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation, M2 editable geometry and M3 manual drawing gates; M4 modeling tools are in progress. Shared components now support native editing.
+M1 native foundation, M2 editable geometry, M3 manual drawing and M4 editing/recovery gates. M5 automation is in progress. Shared components now support native editing.
 AI providers,
 Blender integration and general exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Automatic recovery copies are enabled every 30 seconds; File → Recovery settings
@@ -172,7 +172,8 @@ marked with an explanation.
 
 Versioned bounded inspection is available through `--inspect document.describe --input MODEL`
 for summary discovery, or `--inspect-file REQUEST.json --input MODEL` for typed
-hierarchy, topology and measurement requests. Pages are limited to 100 rows and
+hierarchy, topology and measurement requests. The in-process inspection session
+also supports bounded, expiring snapshots; see the [snapshot contract](docs/decisions/0020-inspection-snapshots.md). Pages are limited to 100 rows and
 256 KiB; stale references fail explicitly. File-only queries do not claim access
 to desktop selection. See the [inspection contract and schemas](docs/decisions/0019-bounded-inspection.md).
 

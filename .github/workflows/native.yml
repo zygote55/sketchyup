@@ -134,8 +134,8 @@ jobs:
       - name: Sanitized bounded inspection and CLI
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON
-          cmake --build --preset sanitize --target inspection_tests --parallel 2
-          ctest --test-dir build/sanitize -R '^inspection$' --output-on-failure
+          cmake --build --preset sanitize --target inspection_tests inspection_session_tests --parallel 2
+          ctest --test-dir build/sanitize -R '^inspection(_session)?$' --output-on-failure
       - name: Disposable Arch package acceptance
         run: |
           useradd --create-home builder

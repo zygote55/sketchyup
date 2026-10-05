@@ -136,6 +136,12 @@ class Document {
     void navigateHistory(size_t position, std::uint64_t expectedRevision);
     static constexpr size_t historyEntryLimit = 10000;
     SaveStamp saveStamp() const;
+    // Share immutable scene records and preserve identity, allocator floors,
+    // session and saved-state markers, without retaining undo/redo history.
+    Document readSnapshot() const;
+    // Conservative admission charge for all retained records, including assets
+    // and allocator bookkeeping; shared records are charged at full size.
+    size_t readSnapshotBytes() const;
     bool owns(const SaveStamp &stamp) const { return stamp.session == session_; }
     bool isCurrentSnapshot(const SaveStamp &stamp) const {
         return owns(stamp) && stamp.state == state_;
