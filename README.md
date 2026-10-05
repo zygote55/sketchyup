@@ -2,7 +2,9 @@
 
 An independent native Linux 3D modeler in development. C++20, Qt 6 and OpenGL;
 ordinary editing runs locally without an account or browser runtime. Own code
-is MIT licensed. Arch/Omarchy is the primary development environment.
+is MIT licensed. Bundled Clipper2 retains its Boost Software License 1.0 and
+Manifold retains Apache License 2.0; their notices ship with the application.
+Arch/Omarchy is the primary development environment.
 
 ## Current build
 
