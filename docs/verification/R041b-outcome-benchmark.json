@@ -1,0 +1,114 @@
+[
+    {
+        "checkpointBytes": 4124,
+        "fixture": "empty",
+        "modelBytes": 966,
+        "modelSha256": "a84ac009c90ca1d9fd7b485a73bf97eaea76c4c98eb1ee485e85cd8748f1df22",
+        "samples": [
+            {
+                "beginMs": 0.875631,
+                "commitMs": 0.951085
+            },
+            {
+                "beginMs": 0.690992,
+                "commitMs": 0.837459
+            },
+            {
+                "beginMs": 0.671602,
+                "commitMs": 0.760617
+            },
+            {
+                "beginMs": 0.643433,
+                "commitMs": 0.762314
+            },
+            {
+                "beginMs": 0.598051,
+                "commitMs": 0.70033
+            }
+        ]
+    },
+    {
+        "checkpointBytes": 41234,
+        "fixture": "room",
+        "modelBytes": 19515,
+        "modelSha256": "b6f60d4857da0a0d2de995042ed2e72afafe323b28dc66d446c2e5e7d762e714",
+        "samples": [
+            {
+                "beginMs": 2.355192,
+                "commitMs": 4.342437
+            },
+            {
+                "beginMs": 2.508194,
+                "commitMs": 4.309651
+            },
+            {
+                "beginMs": 2.168809,
+                "commitMs": 4.85553
+            },
+            {
+                "beginMs": 2.628554,
+                "commitMs": 4.407043
+            },
+            {
+                "beginMs": 2.648925,
+                "commitMs": 4.33682
+            }
+        ]
+    },
+    {
+        "checkpointBytes": 1141500,
+        "fixture": "1000-faces",
+        "modelBytes": 569651,
+        "modelSha256": "075b0b0cb481126b4d716453e3007f0215b1e78cd635cdca938c5c7387fac403",
+        "samples": [
+            {
+                "beginMs": 54.007144,
+                "commitMs": 94.311022
+            },
+            {
+                "beginMs": 43.782185,
+                "commitMs": 88.270399
+            },
+            {
+                "beginMs": 45.682334,
+                "commitMs": 88.212364
+            },
+            {
+                "beginMs": 43.664482,
+                "commitMs": 83.365259
+            },
+            {
+                "beginMs": 40.970876,
+                "commitMs": 80.632637
+            }
+        ]
+    },
+    {
+        "checkpointBytes": 16782380,
+        "fixture": "8MiB-asset",
+        "modelBytes": 8390090,
+        "modelSha256": "1d3f3fe4656dabd6edcbfe530ea3687001c41792a8c24becb281cbe8b0c25bef",
+        "samples": [
+            {
+                "beginMs": 37.701699,
+                "commitMs": 123.319011
+            },
+            {
+                "beginMs": 89.951146,
+                "commitMs": 108.250716
+            },
+            {
+                "beginMs": 89.188581,
+                "commitMs": 102.979965
+            },
+            {
+                "beginMs": 89.532176,
+                "commitMs": 102.116807
+            },
+            {
+                "beginMs": 92.180828,
+                "commitMs": 112.816014
+            }
+        ]
+    }
+]
