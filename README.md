@@ -181,7 +181,10 @@ bounded PNG with camera metadata. `sketchyup --inspection-capabilities` prints
 its registry; see the [desktop inspection contract](docs/decisions/0021-desktop-inspection.md).
 Private transaction preparation and durable outcome reconciliation are implemented
 in-process; see the [coordinator contract](docs/decisions/0024-transaction-coordinator.md).
-Incremental transaction tools and their CLI/MCP transports are still in progress.
+Incremental begin/apply/inspect/preview/commit dispatch uses versioned schemas,
+immutable commit identities and cached append receipts; see the
+[transaction contract](docs/decisions/0025-transaction-dispatch.md).
+CLI/MCP transaction transports remain in progress.
 
 
 ```sh

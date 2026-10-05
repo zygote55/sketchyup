@@ -174,6 +174,10 @@ bool TransactionCoordinator::uncertain() const {
     owner();
     return publication_.has_value() || store_->uncertain();
 }
+size_t TransactionCoordinator::retainedStagingBytes() const {
+    owner();
+    return staging_.retainedBytes();
+}
 void TransactionCoordinator::edit(const std::function<void(Document &)> &operation) {
     Operation guard(*this);
     auto candidate = document_;

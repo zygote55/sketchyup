@@ -1,6 +1,6 @@
 # R041.a private proposals and staged inspection
 
-Date: 2026-10-05 UTC. Local regression and sanitizer verification passed; CI pending. Requires [PR #59](https://github.com/zygote55/sketchyup/pull/59).
+Date: 2026-10-05 UTC. Local regression, sanitizer and both CI runs passed. [PR #60](https://github.com/zygote55/sketchyup/pull/60) merged at 01:30:26 UTC as `70bf4d695753b663ecfc14a6f6ea43304def4580`; CI runs `37248907134` and `37248903593` succeeded.
 [Preparation contract](../decisions/0022-private-staging.md).
 
 The core fixture verifies immutable preparation, unchanged live model/history and
