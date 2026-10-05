@@ -28,6 +28,8 @@ class OpenAiCredentialStore : public QObject {
     QByteArray takeCredential();
     // Trusted host/test configuration; not model controlled. Must be absolute.
     void setExecutable(QString executable);
+    // Separate bounded credential record for a validated ChatGPT registration.
+    void setChatGptAccount(QString clientId);
   signals:
     void changed();
 

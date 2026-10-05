@@ -114,6 +114,7 @@ class Reply : public QNetworkReply {
 class Network : public QNetworkAccessManager {
   public:
     int calls{}, aborts{};
+    bool plan{}, rawStream{};
     std::function<Response(QJsonObject, int)> respond;
     std::vector<QJsonObject> requests;
     QNetworkReply *createRequest(Operation op, const QNetworkRequest &request,
@@ -128,16 +129,32 @@ class Network : public QNetworkAccessManager {
         const auto bytes = out->readAll();
         check(!bytes.contains("sk-fixture-only"), "No credential in JSON");
         const auto body = QJsonDocument::fromJson(bytes).object();
-        check(body.value("store") == false && body.value("stream") == false &&
+        check(body.value("store") == false && body.value("stream") == plan &&
                   body.value("parallel_tool_calls") == false,
               "Stateless bounded serial function calling");
         requests.push_back(body);
-        const auto response = respond ? respond(body, calls++) : (++calls, Response{});
+        auto response = respond ? respond(body, calls++) : (++calls, Response{});
+        if (plan && !rawStream) {
+            check(!body.contains("max_output_tokens") &&
+                      request.rawHeader("Accept") == "text/event-stream",
+                  "Plan request omits unsupported cap and accepts SSE");
+            response.bytes =
+                "event: response.completed\r\ndata: " +
+                json({{"type", "response.completed"},
+                      {"response", QJsonDocument::fromJson(response.bytes).object()}}) +
+                "\r\n\r\n";
+        }
         return new Reply(request, response, aborts, this);
     }
 };
 QString alias(const QJsonObject &body, const QString &name) {
-    for (auto value : body.value("tools").toArray()) {
+    auto tools = body.value("tools").toArray();
+    if (body.value("stream") == true) {
+        check(tools.size() == 1 && tools[0].toObject().value("name") == "sketchyup",
+              "Namespace groups only advertised tools");
+        tools = tools[0].toObject().value("tools").toArray();
+    }
+    for (auto value : tools) {
         const auto tool = value.toObject();
         check(tool.value("strict") == false, "Original optional schema semantics retained");
         if (tool.value("description").toString().startsWith(name + ":"))
@@ -146,7 +163,8 @@ QString alias(const QJsonObject &body, const QString &name) {
     throw std::runtime_error("Advertised tool missing");
 }
 QJsonObject call(const QJsonObject &body, QString name, QJsonObject args, int index) {
-    return {{"type", "function_call"},
+    return {{"namespace", body.value("stream") == true ? QJsonValue("sketchyup") : QJsonValue()},
+            {"type", "function_call"},
             {"id", "fc_" + QString::number(index)},
             {"call_id", "call_" + QString::number(index)},
             {"status", "completed"},
@@ -259,9 +277,10 @@ int main(int argc, char **argv) {
                                        "sk-fixture-only", &network);
             });
         }
-        {
+        for (bool plan : {false, true}) {
             auto model = session();
             Network network;
+            network.plan = plan;
             const auto state =
                 model->execute({{"apiVersion", 1}, {"operation", "session.describe"}});
             QString draft;
@@ -311,7 +330,7 @@ int main(int argc, char **argv) {
                 return response;
             };
             OpenAiProvider provider(std::make_unique<AssistantTask>(*model, options()),
-                                    "sk-fixture-only", &network);
+                                    "sk-fixture-only", &network, nullptr, plan);
             provider.start();
             wait([&] {
                 return provider.task().phase() == Phase::PreviewReady ||
@@ -333,6 +352,46 @@ int main(int argc, char **argv) {
             provider.cancel();
             check(provider.task().result().value("applied") == true,
                   "Late cancellation preserves applied receipt");
+        }
+        for (const auto &stream : std::vector<QByteArray>{
+                 "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
+                 "data: {\"type\":\"response.incomplete\"}\n\n",
+                 "data: "
+                 "{\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"subscription_"
+                 "sharing_usage_limit_exceeded\"}}}\n\n",
+                 "data: [DONE]\n\n", QByteArray(1024 * 1024 + 1, 'x')}) {
+            auto model = session();
+            Network network;
+            network.plan = true;
+            network.rawStream = true;
+            network.respond = [&](QJsonObject, int) { return Response{200, 1, stream}; };
+            OpenAiProvider provider(std::make_unique<AssistantTask>(*model, options()),
+                                    "sk-fixture-only", &network, nullptr, true);
+            provider.start();
+            wait([&] { return provider.task().phase() == Phase::Failed; });
+            check(provider.task().result().value("applied") == false && network.calls == 1,
+                  "Failed/partial stream executes no edits and does not retry");
+            if (stream.contains("usage_limit"))
+                check(provider.status().contains("Manage ChatGPT usage"),
+                      "Plan limit directs to usage settings");
+        }
+        {
+            auto model = session();
+            AssistantTask task(*model, options());
+            const auto request = task.nextRequest();
+            check(request.has_value(), "Task request for codec");
+            OpenAiConversation codec(true);
+            const auto body = codec.request(*request);
+            auto fn = call(body, "document.describe", {}, 0);
+            fn["namespace"] = "other";
+            rejects([&] { codec.decode(json(completed(QJsonArray{fn}))); });
+            const auto good = "data: " +
+                              json({{"type", "response.completed"},
+                                    {"response", completed(QJsonArray{message()})}}) +
+                              "\n\n";
+            check(!completedOpenAiStream(good).isEmpty(), "Completed SSE accepted");
+            rejects([&] { completedOpenAiStream(good + good); });
+            rejects([&] { completedOpenAiStream(good + "data: {\"type\":\"error\"}\n\n"); });
         }
         for (const auto mode :
              {"text", "429", "503", "408", "auth", "redirect", "invalid", "incomplete", "usage",

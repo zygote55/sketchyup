@@ -90,6 +90,15 @@ QJsonObject OpenAiConversation::request(const QJsonObject &source) {
                      {"store", false},
                      {"stream", false},
                      {"include", QJsonArray{"reasoning.encrypted_content"}}};
+    if (chatGptPlan_) {
+        body.remove("max_output_tokens");
+        body["stream"] = true;
+        body["tools"] = QJsonArray{
+            QJsonObject{{"type", "namespace"},
+                        {"name", "sketchyup"},
+                        {"description", "Inspect and propose validated SketchyUp model changes."},
+                        {"tools", tools}}};
+    }
     require(json(body).size() <= 8 * 1024 * 1024, "OpenAI request exceeds wire budget");
     return body;
 }
@@ -110,6 +119,8 @@ AssistantReply OpenAiConversation::decode(const QByteArray &response) {
         const auto item = value.toObject();
         const auto type = item.value("type").toString();
         if (type == "function_call") {
+            require(!chatGptPlan_ || item.value("namespace") == "sketchyup",
+                    "Invalid tool namespace");
             require(item.value("status").toString("completed") == "completed" &&
                         names_.contains(item.value("name").toString()) &&
                         item.value("arguments").isString() && item.value("call_id").isString(),
@@ -146,25 +157,80 @@ void OpenAiConversation::accepted() {
     outputs_.push_back(candidate_);
     candidate_ = {};
 }
+QByteArray completedOpenAiStream(const QByteArray &stream) {
+    require(stream.size() <= 1024 * 1024, "OpenAI stream exceeds byte budget");
+    QByteArray data, completed;
+    bool terminal = false;
+    auto dispatch = [&] {
+        if (data.isEmpty())
+            return;
+        if (data == "[DONE]") {
+            require(terminal, "OpenAI stream ended before completion");
+            data.clear();
+            return;
+        }
+        require(!terminal, "Unexpected event after completion");
+        const auto event = parse(data);
+        const auto type = event.value("type").toString();
+        const auto errorCode =
+            event.value("response").toObject().value("error").toObject().value("code").toString();
+        if (type == "response.failed" &&
+            (errorCode == "subscription_sharing_usage_limit_exceeded" ||
+             errorCode == "subscription_sharing_usage_unavailable"))
+            throw ProviderUsageLimit();
+        require(!type.isEmpty() && type != "error" && type != "response.failed" &&
+                    type != "response.incomplete",
+                "OpenAI stream did not complete");
+        if (type == "response.completed") {
+            require(event.value("response").isObject(), "Missing terminal response");
+            completed = json(event.value("response").toObject());
+            terminal = true;
+        }
+        data.clear();
+    };
+    for (auto line : stream.split('\n')) {
+        if (line.endsWith('\r'))
+            line.chop(1);
+        if (line.isEmpty())
+            dispatch();
+        else if (line.startsWith("data:")) {
+            auto value = line.mid(5);
+            if (value.startsWith(' '))
+                value.remove(0, 1);
+            if (!data.isEmpty())
+                data += '\n';
+            data += value;
+        } else
+            require(line.startsWith(':') || line.startsWith("event:") || line.startsWith("id:") ||
+                        line.startsWith("retry:"),
+                    "Invalid SSE line");
+    }
+    require(data.isEmpty() && terminal, "Interrupted OpenAI stream");
+    return completed;
+}
 namespace {
-AssistantNetworkProvider::Protocol openAiProtocol(QByteArray key) {
-    auto conversation = std::make_shared<OpenAiConversation>();
+AssistantNetworkProvider::Protocol openAiProtocol(QByteArray key, bool plan) {
+    auto conversation = std::make_shared<OpenAiConversation>(plan);
     AssistantNetworkProvider::Protocol protocol;
     protocol.provider = "OpenAI";
     protocol.remote = true;
+    protocol.eventStream = plan;
+    if (plan)
+        protocol.timeoutMs = 120000;
     protocol.endpoint = QUrl("https://api.openai.com/v1/responses");
     protocol.key = std::move(key);
     protocol.request = [conversation](const QJsonObject &request) {
         return conversation->request(request);
     };
-    protocol.decode = [conversation](const QByteArray &response) {
-        return conversation->decode(response);
+    protocol.decode = [conversation, plan](const QByteArray &response) {
+        return conversation->decode(plan ? completedOpenAiStream(response) : response);
     };
     protocol.accepted = [conversation] { conversation->accepted(); };
     return protocol;
 }
 } // namespace
 OpenAiProvider::OpenAiProvider(std::unique_ptr<AssistantTask> task, QByteArray key,
-                               QNetworkAccessManager *manager, QObject *parent)
-    : AssistantNetworkProvider(std::move(task), openAiProtocol(std::move(key)), manager, parent) {}
+                               QNetworkAccessManager *manager, QObject *parent, bool plan)
+    : AssistantNetworkProvider(std::move(task), openAiProtocol(std::move(key), plan), manager,
+                               parent) {}
 } // namespace sketchy

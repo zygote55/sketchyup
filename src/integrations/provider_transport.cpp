@@ -58,8 +58,8 @@ struct AssistantNetworkProvider::Impl {
                 "Invalid provider protocol");
         const auto &key = this->protocol.key;
         require(!this->protocol.remote ||
-                    (key.size() >= 8 && key.size() <= 4096 && !key.contains('\r') &&
-                     !key.contains('\n') && !key.contains('\0')),
+                    (key.size() >= 8 && key.size() <= (this->protocol.eventStream ? 16384 : 4096) &&
+                     !key.contains('\r') && !key.contains('\n') && !key.contains('\0')),
                 "Configure a valid API credential");
         require(this->protocol.remote || key.isEmpty(),
                 "Local provider must not receive a credential");
@@ -139,6 +139,22 @@ struct AssistantNetworkProvider::Impl {
         bool delayValid{};
         const auto seconds = reply->rawHeader("Retry-After").toInt(&delayValid);
         const int retryAfter = delayValid ? std::clamp(seconds, 0, 10) * 1000 : 0;
+        if (protocol.eventStream && code != 200) {
+            // Never expose arbitrary provider diagnostics: inspect allowlisted codes only.
+            const auto root = QJsonDocument::fromJson(bytes).object();
+            const auto error = root.value("error").toObject().value("code").toString();
+            if (error == "subscription_sharing_usage_limit_exceeded") {
+                fail(AssistantTask::ProviderFailure::Fatal,
+                     QString::fromUtf8(ProviderUsageLimit().what()));
+                return;
+            }
+            if (error == "subscription_sharing_user_not_eligible") {
+                fail(AssistantTask::ProviderFailure::Fatal,
+                     "ChatGPT plan usage is unavailable for this account or workspace. Check "
+                     "Manage ChatGPT usage.");
+                return;
+            }
+        }
         if (code == 429) {
             fail(AssistantTask::ProviderFailure::RateLimited,
                  "Provider rate limit; retrying within the task budget", retryAfter);
@@ -185,6 +201,10 @@ struct AssistantNetworkProvider::Impl {
                 protocol.accepted();
             status = "Provider response received";
             notify();
+        } catch (const ProviderUsageLimit &error) {
+            task->providerFailed(attempt, AssistantTask::ProviderFailure::Fatal);
+            status = QString::fromUtf8(error.what());
+            notify();
         } catch (const std::exception &) {
             task->providerFailed(attempt, AssistantTask::ProviderFailure::Fatal);
             status = "Provider returned an incomplete or invalid response";
@@ -197,7 +217,8 @@ struct AssistantNetworkProvider::Impl {
         network.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         if (protocol.remote)
             network.setRawHeader("Authorization", "Bearer " + protocol.key);
-        network.setRawHeader("Accept", "application/json");
+        network.setRawHeader("Accept", protocol.eventStream && !get ? "text/event-stream"
+                                                                    : "application/json");
         network.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::ManualRedirectPolicy);
         network.setTransferTimeout(timeout);

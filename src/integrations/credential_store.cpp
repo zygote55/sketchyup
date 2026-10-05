@@ -1,6 +1,7 @@
 #include "integrations/credential_store.hpp"
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QThread>
 #include <QTimer>
@@ -10,8 +11,8 @@ void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
 }
-bool valid(const QByteArray &key) {
-    if (key.size() < 8 || key.size() > 4096)
+bool valid(const QByteArray &key, int maximum = 4096) {
+    if (key.size() < 8 || key.size() > maximum)
         return false;
     for (char c : key)
         if (c < 33 || c > 126)
@@ -24,7 +25,8 @@ struct OpenAiCredentialStore::Impl {
     QProcess process;
     QTimer deadline, kill;
     Phase phase{Phase::Idle}, target{Phase::Failed};
-    QString executable, operation;
+    QString executable, operation, account;
+    int maximum() const { return account.isEmpty() ? 4096 : 65536; }
     QByteArray input, output, credential;
     bool stopping{}, stderrSeen{};
     int errorBytes{};
@@ -71,7 +73,7 @@ struct OpenAiCredentialStore::Impl {
                              if (operation == "lookup") {
                                  if (output.endsWith('\n'))
                                      output.chop(1);
-                                 if (!valid(output)) {
+                                 if (!valid(output, maximum())) {
                                      finish(Phase::Failed);
                                      return;
                                  }
@@ -121,7 +123,8 @@ struct OpenAiCredentialStore::Impl {
         const auto bytes = process.readAllStandardOutput();
         const auto errors = process.readAllStandardError();
         stderrSeen |= !errors.isEmpty();
-        if (bytes.size() > 4097 - output.size() || errors.size() > 64 * 1024 - errorBytes) {
+        if (bytes.size() > maximum() + 1 - output.size() ||
+            errors.size() > 64 * 1024 - errorBytes) {
             stop(Phase::Failed);
             return;
         }
@@ -132,7 +135,7 @@ struct OpenAiCredentialStore::Impl {
         checkOwner();
         require(phase != Phase::Working, "Credential operation already active");
         if (action == "store")
-            require(valid(key),
+            require(valid(key, maximum()),
                     "Credential must be 8–4096 printable ASCII characters without spaces");
         credential.fill('\0');
         credential.clear();
@@ -151,9 +154,11 @@ struct OpenAiCredentialStore::Impl {
         }
         QStringList arguments{operation};
         if (operation == "store")
-            arguments << "--label=SketchyUp OpenAI API key";
-        arguments << "application" << "org.sketchyup.SketchyUp" << "provider" << "OpenAI"
-                  << "account" << "default";
+            arguments << (account.isEmpty() ? "--label=SketchyUp OpenAI API key"
+                                            : "--label=SketchyUp ChatGPT session");
+        arguments << "application" << "org.sketchyup.SketchyUp" << "provider"
+                  << (account.isEmpty() ? "OpenAI" : "ChatGPT") << "account"
+                  << (account.isEmpty() ? "default" : account);
         process.setProgram(file.canonicalFilePath());
         process.setArguments(arguments);
         process.setProcessChannelMode(QProcess::SeparateChannels);
@@ -192,5 +197,12 @@ void OpenAiCredentialStore::setExecutable(QString path) {
     require(path.isEmpty() || QFileInfo(path).isAbsolute(),
             "Credential executable must be absolute");
     impl_->executable = std::move(path);
+}
+void OpenAiCredentialStore::setChatGptAccount(QString clientId) {
+    impl_->checkOwner();
+    require(impl_->phase != Phase::Working, "Credential operation already active");
+    require(QRegularExpression("^oaiapp_[A-Za-z0-9_-]{1,200}$").match(clientId).hasMatch(),
+            "Invalid ChatGPT registration");
+    impl_->account = std::move(clientId);
 }
 } // namespace sketchy

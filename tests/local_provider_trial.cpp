@@ -1,6 +1,7 @@
 // Explicit opt-in corpus. Only synthetic models are sent to the selected provider.
 #include "automation/commands.hpp"
 #include "core/entity_measure.hpp"
+#include "integrations/chatgpt_auth.hpp"
 #include "integrations/credential_store.hpp"
 #include "integrations/ollama_provider.hpp"
 #include "integrations/openai_provider.hpp"
@@ -52,9 +53,18 @@ class TrialNetwork : public QNetworkAccessManager {
             (*record)["elapsedMs"] = elapsed->elapsed();
             // Authentication errors can echo credential fragments. Retain status/timing,
             // not error bodies; successful responses contain only synthetic task data.
-            if ((*record).value("status").toInt() >= 200 && (*record).value("status").toInt() < 300)
-                (*record)["response"] = QJsonDocument::fromJson(*bytes).object();
-            else
+            if ((*record).value("status").toInt() >= 200 &&
+                (*record).value("status").toInt() < 300) {
+                if (record->value("request").toObject().value("stream") == true) {
+                    try {
+                        (*record)["response"] =
+                            QJsonDocument::fromJson(completedOpenAiStream(*bytes)).object();
+                    } catch (const std::exception &) {
+                        (*record)["streamIncomplete"] = true;
+                    }
+                } else
+                    (*record)["response"] = QJsonDocument::fromJson(*bytes).object();
+            } else
                 (*record)["responseOmitted"] = true;
             exchanges.append(*record);
         });
@@ -65,19 +75,22 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
         const auto args = app.arguments();
-        check(args.size() == 5, "Usage: provider_trial ENDPOINT|--openai MODEL|configured "
-                                "measure|room|resize|unsupported|unavailable REPORT.json");
+        check(args.size() == 5,
+              "Usage: provider_trial ENDPOINT|--openai|--chatgpt MODEL|configured "
+              "measure|room|resize|unsupported|unavailable REPORT.json");
         const auto trial = args[3];
         check(
             QStringList{"measure", "room", "resize", "unsupported", "unavailable"}.contains(trial),
             "Unknown corpus task");
-        const bool remote = args[1] == "--openai";
+        const bool plan = args[1] == "--chatgpt";
+        const bool remote = plan || args[1] == "--openai";
         OllamaConfiguration config;
         config.endpoint = remote ? QUrl("https://api.openai.com/v1/responses") : QUrl(args[1]);
-        config.model =
-            remote && args[2] == "configured"
-                ? QSettings("SketchyUp", "SketchyUp").value("assistant/openaiModel").toString()
-                : args[2];
+        config.model = remote && args[2] == "configured"
+                           ? QSettings("SketchyUp", "SketchyUp")
+                                 .value(plan ? "assistant/chatgptModel" : "assistant/openaiModel")
+                                 .toString()
+                           : args[2];
         if (remote)
             check(QRegularExpression("^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
                       .match(config.model)
@@ -147,7 +160,7 @@ int main(int argc, char **argv) {
         options.remoteContextApproved = remote;
         options.model = config.model;
         options.limits.seconds = 300;
-        options.limits.outputTokens = remote ? 2048 : 768;
+        options.limits.outputTokens = plan ? 8192 : remote ? 2048 : 768;
         options.limits.turns = 12;
         if (trial == "room") {
             options.prompt = "Create a 6 m by 4 m room, 2.7 m high, with two 1.2 m wide windows "
@@ -177,7 +190,27 @@ int main(int argc, char **argv) {
         const auto prompt = options.prompt;
         TrialNetwork network;
         std::unique_ptr<AssistantNetworkProvider> ownedProvider;
-        if (remote) {
+        if (plan) {
+            // Use a separate manager: OAuth exchanges and model catalogs are never evidence.
+            ChatGptAuth auth;
+            QByteArray access;
+            QObject::connect(&auth, &ChatGptAuth::credentialReady,
+                             [&](const QByteArray &token) { access = token; });
+            auth.prepare(
+                QSettings("SketchyUp", "SketchyUp").value("assistant/chatgptAccount").toString(),
+                config.model);
+            QElapsedTimer lookup;
+            lookup.start();
+            while (auth.busy() && lookup.elapsed() < 123000) {
+                QCoreApplication::processEvents();
+                QThread::msleep(5);
+            }
+            check(!access.isEmpty(),
+                  "ChatGPT session unavailable; connect in Assistant Preferences first");
+            ownedProvider = std::make_unique<OpenAiProvider>(
+                std::make_unique<AssistantTask>(backend, options), access, &network, nullptr, true);
+            access.fill('\0');
+        } else if (remote) {
             OpenAiCredentialStore credentials;
             credentials.lookup();
             QElapsedTimer lookup;
