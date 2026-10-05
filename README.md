@@ -471,6 +471,14 @@ item and return region/provenance records in `solidOperations`. See the installe
 [Outer Shell](examples/solid-outer-shell.json) examples and the
 [publication contract](docs/decisions/0048-split-outer-shell.md).
 
+`geometry.reverse_faces` reverses explicitly selected faces while preserving the
+appearance of their physical sides, including front/back materials and opacity.
+`geometry.orient_faces` preserves a reference face and makes its edge-connected
+surface consistent. Both require an explicit `context`; non-manifold connections
+and contradictory cycles reject with diagnostics. Preview, component editing and
+Undo use the shared command path. See the [orientation example](examples/face-orientation.json)
+and [contract](docs/decisions/0049-face-orientation.md).
+
 
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected
 path edges. Use Select and Ctrl-click to add the face and path, then Shift+F to

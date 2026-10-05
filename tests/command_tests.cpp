@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "core/assets.hpp"
 #include "core/components.hpp"
+#include "core/face_orientation.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
 #include "core/tags.hpp"
@@ -893,6 +894,13 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "geometry.cleanup"}, {"body", "1"}},
             QJsonObject{
                 {"command", "geometry.offset"}, {"body", "1"}, {"face", "5"}, {"distance", -.1}},
+            QJsonObject{{"command", "geometry.reverse_faces"},
+                        {"context", "0"},
+                        {"entities", QJsonArray{QJsonObject{{"body", "1"}, {"face", "5"}}}}},
+            QJsonObject{{"command", "geometry.orient_faces"},
+                        {"context", "0"},
+                        {"body", "1"},
+                        {"face", "5"}},
             QJsonObject{{"command", "geometry.boolean"},
                         {"body", "1"},
                         {"tool", "2"},
@@ -1021,6 +1029,13 @@ int main(int argc, char **argv) {
                     const auto raw = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});
                     createComponent(doc, raw);
                 }
+            }
+            if (command["command"] == "geometry.orient_faces") {
+                doc.extrude(1, 5, 1);
+                reverseSelectedFaces(
+                    doc,
+                    {{1, SelectionKind::Face, doc.bodies().at(1)->surface.faces.rbegin()->first}},
+                    0);
             }
             if (command["command"] == "geometry.boolean" || command["command"] == "geometry.trim" ||
                 command["command"] == "geometry.split" ||

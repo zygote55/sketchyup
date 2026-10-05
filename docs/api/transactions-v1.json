@@ -1525,6 +1525,90 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Reverse selected faces; preserve physical-side materials",
+                                    "properties": {
+                                        "command": {
+                                            "const": "geometry.reverse_faces"
+                                        },
+                                        "context": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "entities": {
+                                            "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "body": {
+                                                        "description": "Canonical uint64 decimal string",
+                                                        "maxLength": 20,
+                                                        "pattern": "^[1-9][0-9]*$",
+                                                        "type": "string"
+                                                    },
+                                                    "face": {
+                                                        "description": "Canonical uint64 decimal string",
+                                                        "maxLength": 20,
+                                                        "pattern": "^[1-9][0-9]*$",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "body",
+                                                    "face"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "maxItems": 4096,
+                                            "minItems": 1,
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": [
+                                        "context",
+                                        "entities",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Orient connected faces to a reference face; preserve physical-side materials",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "geometry.orient_faces"
+                                        },
+                                        "context": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "face": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "context",
+                                        "body",
+                                        "face",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Combine two editable solids; explicitly retain or consume operands",
                                     "properties": {
                                         "body": {

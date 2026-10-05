@@ -8,6 +8,7 @@
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
+#include "core/face_orientation.hpp"
 #include "core/groups.hpp"
 #include "core/intersection_edit.hpp"
 #include "core/materials.hpp"
@@ -1041,6 +1042,25 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 throw std::runtime_error("Offset space must be local or world");
             compose(staged.offsetFace(id(command["body"]), id(command["face"]),
                                       number(command["distance"]), command["space"] == "world"));
+        } else if (name == "geometry.reverse_faces") {
+            const auto entities = array(command["entities"]);
+            if (entities.empty() || entities.size() > 4096)
+                throw OrientationError("ORIENTATION_SELECTION", "Choose 1–4096 editable faces");
+            SelectionSet selected;
+            for (auto value : entities) {
+                if (!value.isObject())
+                    throw std::runtime_error("Expected selected face object");
+                const auto entity = value.toObject();
+                fields(entity, {"body", "face"});
+                if (!selected.insert({id(entity["body"]), SelectionKind::Face, id(entity["face"])})
+                         .second)
+                    throw OrientationError("ORIENTATION_SELECTION", "Duplicate selected face");
+            }
+            compose(reverseSelectedFaces(staged, selected,
+                                         command["context"] == "0" ? 0 : id(command["context"])));
+        } else if (name == "geometry.orient_faces") {
+            compose(orientConnectedFaces(staged, id(command["body"]), id(command["face"]),
+                                         command["context"] == "0" ? 0 : id(command["context"])));
         } else if (name == "geometry.boolean" || name == "geometry.trim" ||
                    name == "geometry.split" || name == "geometry.outer_shell") {
             const bool legacy = name == "geometry.boolean";
