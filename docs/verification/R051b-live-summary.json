@@ -1,0 +1,827 @@
+{
+  "recordedAt": "2026-10-05",
+  "provider": "OpenAI",
+  "connection": "ChatGPT plan",
+  "model": "gpt-6-astra",
+  "liveProviderTested": true,
+  "m5GatePassed": false,
+  "localEvidenceRoot": "build/evidence/r051-live-astra",
+  "initialCorpusLimits": {
+    "seconds": 300,
+    "turns": 12,
+    "totalReportedTokens": 131072,
+    "outputTokensPerReply": 8192
+  },
+  "nativeFinalLimits": {
+    "seconds": 300,
+    "turns": 16,
+    "totalReportedTokens": 262144,
+    "outputTokensPerReply": 8192
+  },
+  "reportedTokensAreBillingCost": false,
+  "trials": [
+    {
+      "file": "measure-1.json",
+      "sha256": "3e868aee92f5782baf0301598c3e5c38fed58afd55d083f829be12f46badf7e5",
+      "task": "measure",
+      "elapsedMs": 9668,
+      "phase": "failed",
+      "applied": false,
+      "providerTurns": 1,
+      "toolCalls": 0,
+      "reportedTokens": 0,
+      "error": {
+        "code": "PROVIDER_FAILED",
+        "message": "Provider failed or retry budget exhausted"
+      },
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    },
+    {
+      "file": "measure-2.json",
+      "sha256": "4ccd4f91abbccc3f24ff6ce856c2dd89de26927b63c801e86fa011ffd5188599",
+      "task": "measure",
+      "elapsedMs": 17488,
+      "phase": "completed",
+      "applied": false,
+      "providerTurns": 3,
+      "toolCalls": 2,
+      "reportedTokens": 10823,
+      "error": {},
+      "geometryVerified": false,
+      "inspectionVerified": true,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    },
+    {
+      "file": "measure-3.json",
+      "sha256": "ee3cfa03f78050abb459e926a39508889d023fb6db2e4281a84adc5fb1fa3f7d",
+      "task": "measure",
+      "elapsedMs": 10977,
+      "phase": "completed",
+      "applied": false,
+      "providerTurns": 2,
+      "toolCalls": 1,
+      "reportedTokens": 6768,
+      "error": {},
+      "geometryVerified": false,
+      "inspectionVerified": true,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    },
+    {
+      "file": "measure-4.json",
+      "sha256": "dd1367e41f3a4c625d9f1a77abf3001233da709866b58d7068703d2d4dc2bab7",
+      "task": "measure",
+      "elapsedMs": 16230,
+      "phase": "completed",
+      "applied": false,
+      "providerTurns": 2,
+      "toolCalls": 1,
+      "reportedTokens": 6774,
+      "error": {},
+      "geometryVerified": false,
+      "inspectionVerified": true,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    },
+    {
+      "file": "resize-1.json",
+      "sha256": "68fd107297072ac4ecf0f746504b10c966f1baa50904bfaaf3af3aea3f75cbb6",
+      "task": "resize",
+      "elapsedMs": 33224,
+      "phase": "failed",
+      "applied": false,
+      "providerTurns": 6,
+      "toolCalls": 5,
+      "reportedTokens": 40203,
+      "error": {
+        "code": "PROVIDER_FAILED",
+        "message": "Provider failed or retry budget exhausted"
+      },
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    },
+    {
+      "file": "resize-2.json",
+      "sha256": "284b897c41b0a331b5a082d1c4e97812b932171b7a3f099d6afc1c47f1c05e41",
+      "task": "resize",
+      "elapsedMs": 101674,
+      "phase": "failed",
+      "applied": false,
+      "providerTurns": 12,
+      "toolCalls": 12,
+      "reportedTokens": 114419,
+      "error": {
+        "code": "BUDGET_EXCEEDED",
+        "message": "Provider turn or token budget exhausted"
+      },
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    },
+    {
+      "file": "resize-3.json",
+      "sha256": "25d25cd7e897ac66455caf90568abd6ca988135fb984e9d2ed1d078fb955fdd4",
+      "task": "resize",
+      "elapsedMs": 78410,
+      "phase": "completed",
+      "applied": true,
+      "providerTurns": 11,
+      "toolCalls": 11,
+      "reportedTokens": 103728,
+      "error": {},
+      "geometryVerified": true,
+      "inspectionVerified": false,
+      "revisionUnchanged": false,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {
+        "frameMembersPreserved": true,
+        "siblingWidth": 1.2,
+        "wallVolume": 9.848000000000011,
+        "width": 1.4
+      }
+    },
+    {
+      "file": "room-1.json",
+      "sha256": "7f8274dcb0d990146a3c3f71ea508af23bb4a8d27a63a1319a93f23c2d76ad9c",
+      "task": "room",
+      "elapsedMs": 56715,
+      "phase": "completed",
+      "applied": true,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "reportedTokens": 74964,
+      "error": {},
+      "geometryVerified": true,
+      "inspectionVerified": false,
+      "revisionUnchanged": false,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {
+        "wallVolume": 9.888000000000012,
+        "windowInstances": 2
+      }
+    },
+    {
+      "file": "room-2.json",
+      "sha256": "abf99e896f2de1687dad03634ef68c485632886c66959982244eb13430047ece",
+      "task": "room",
+      "elapsedMs": 58808,
+      "phase": "completed",
+      "applied": true,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "reportedTokens": 74393,
+      "error": {},
+      "geometryVerified": true,
+      "inspectionVerified": false,
+      "revisionUnchanged": false,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {
+        "wallVolume": 9.888000000000012,
+        "windowInstances": 2
+      }
+    },
+    {
+      "file": "room-3.json",
+      "sha256": "29050828347e0a5cc4c2e51917ff5bc58217ba07ac3f52b800140fc0e2267394",
+      "task": "room",
+      "elapsedMs": 58889,
+      "phase": "completed",
+      "applied": true,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "reportedTokens": 74731,
+      "error": {},
+      "geometryVerified": true,
+      "inspectionVerified": false,
+      "revisionUnchanged": false,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {
+        "wallVolume": 9.888000000000012,
+        "windowInstances": 2
+      }
+    },
+    {
+      "file": "unsupported-1.json",
+      "sha256": "63176f9ebead490d7934f74985c33f907e0531833de3665f593683d2581e866e",
+      "task": "unsupported",
+      "elapsedMs": 6121,
+      "phase": "completed",
+      "applied": false,
+      "providerTurns": 1,
+      "toolCalls": 0,
+      "reportedTokens": 6932,
+      "error": {},
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    },
+    {
+      "file": "unsupported-2.json",
+      "sha256": "b22602bf2391cd619994f9b709ba62ee15aaa0b0dec8cb3e7636dd3e7155f8a2",
+      "task": "unsupported",
+      "elapsedMs": 5605,
+      "phase": "completed",
+      "applied": false,
+      "providerTurns": 1,
+      "toolCalls": 0,
+      "reportedTokens": 6927,
+      "error": {},
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    },
+    {
+      "file": "unsupported-3.json",
+      "sha256": "d33cce2eca885c67fdeda1a3b9cd8cbb70ad5bbfc3b59607a12a92ba43867fdb",
+      "task": "unsupported",
+      "elapsedMs": 6619,
+      "phase": "completed",
+      "applied": false,
+      "providerTurns": 1,
+      "toolCalls": 0,
+      "reportedTokens": 6930,
+      "error": {},
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "revisionUnchanged": true,
+      "manualEditSaveReopenVerified": true,
+      "measurements": {}
+    }
+  ],
+  "nativeTrials": [
+    {
+      "file": "native-direct-1/report.json",
+      "sha256": "3a9c16b2374386cb90833b7798af1e5606125226cc8a1cf51de76570607ea8bd",
+      "mode": "direct",
+      "passed": true,
+      "failure": null,
+      "elapsedMs": 69558,
+      "geometryVerified": true,
+      "measurements": {
+        "membersPreserved": true,
+        "siblingWidth": 1.1999999999999997,
+        "unrelatedPreserved": true,
+        "wallVolume": 9.848000000000011,
+        "width": 1.4000000000000001
+      },
+      "undoRedoVerified": true,
+      "saveReopenVerified": true,
+      "renderVerified": true,
+      "phase": "completed",
+      "applied": true,
+      "providerTurns": 9,
+      "toolCalls": 9,
+      "reportedTokens": 120330,
+      "error": {}
+    },
+    {
+      "file": "native-manual-1/report.json",
+      "sha256": "c9221725c2e8537e02ff84086f36236f027649b984345cb26068347d8d96e9e9",
+      "mode": "manual",
+      "passed": false,
+      "failure": "Live assistant did not apply a proposal",
+      "elapsedMs": 46435,
+      "geometryVerified": null,
+      "measurements": null,
+      "undoRedoVerified": null,
+      "saveReopenVerified": null,
+      "renderVerified": null,
+      "phase": "completed",
+      "applied": false,
+      "providerTurns": 7,
+      "toolCalls": 6,
+      "reportedTokens": 84558,
+      "error": {}
+    },
+    {
+      "file": "native-preview-1/report.json",
+      "sha256": "84549447944af1e8f833767e45710c6df05740bd780eaa6e8b1dbaa9077b22c5",
+      "mode": "preview",
+      "passed": false,
+      "failure": "Live assistant did not apply a proposal",
+      "elapsedMs": 25613,
+      "geometryVerified": null,
+      "measurements": null,
+      "undoRedoVerified": null,
+      "saveReopenVerified": null,
+      "renderVerified": null,
+      "phase": "awaiting-clarification",
+      "applied": false,
+      "providerTurns": 3,
+      "toolCalls": 3,
+      "reportedTokens": 30366,
+      "error": {}
+    },
+    {
+      "file": "native-preview-2/report.json",
+      "sha256": "5779c102f071ae13d354961801ec0096fa38ef1a953ef2753acc005d83d3eb42",
+      "mode": "preview",
+      "passed": false,
+      "failure": "Live assistant did not apply a proposal",
+      "elapsedMs": 76367,
+      "geometryVerified": null,
+      "measurements": null,
+      "undoRedoVerified": null,
+      "saveReopenVerified": null,
+      "renderVerified": null,
+      "phase": "failed",
+      "applied": false,
+      "providerTurns": 10,
+      "toolCalls": 9,
+      "reportedTokens": 117363,
+      "error": {
+        "code": "BUDGET_EXCEEDED",
+        "message": "Provider reply exceeds task budget"
+      }
+    },
+    {
+      "file": "native-preview-3/report.json",
+      "sha256": "5e2695c151f5520edd3baff70469dc024d4797f1492f1babf690923c27791bf7",
+      "mode": "preview",
+      "passed": true,
+      "failure": null,
+      "elapsedMs": 71214,
+      "geometryVerified": true,
+      "measurements": {
+        "membersPreserved": true,
+        "siblingWidth": 1.1999999999999997,
+        "unrelatedPreserved": true,
+        "wallVolume": 9.848000000000011,
+        "width": 1.4000000000000001
+      },
+      "undoRedoVerified": true,
+      "saveReopenVerified": true,
+      "renderVerified": true,
+      "phase": "completed",
+      "applied": true,
+      "providerTurns": 10,
+      "toolCalls": 10,
+      "reportedTokens": 135842,
+      "error": {}
+    }
+  ],
+  "artifacts": [
+    {
+      "file": "corpus-summary-initial.json",
+      "bytes": 5192,
+      "sha256": "c9c0150dbbb247f73c7afc210d1dc2f0a86973b2e2b939e715d4ed8e26267a7e"
+    },
+    {
+      "file": "manual-before.sketchyup",
+      "bytes": 16107,
+      "sha256": "535506cf545a7c464e85e6f8357e1b8140955efbf3383fad9735ffcb6894bd63"
+    },
+    {
+      "file": "manual-before.sketchyup.json",
+      "bytes": 222,
+      "sha256": "71d8c2538bb81e0b1945f4be086a51d88efd50e12034cbf6431de305c9afdacf"
+    },
+    {
+      "file": "manual-final.png",
+      "bytes": 110228,
+      "sha256": "040a01195454a5e59eb7f6a819008d7739f122dea3a4c9a41b46ba6ba81b58be"
+    },
+    {
+      "file": "manual.mp4",
+      "bytes": 477678,
+      "sha256": "f81af78b134ede0f9a8dd790cab3ac317d5f1411a3b5a09b933f017b01646e73"
+    },
+    {
+      "file": "measure-1.json",
+      "bytes": 145585,
+      "sha256": "3e868aee92f5782baf0301598c3e5c38fed58afd55d083f829be12f46badf7e5"
+    },
+    {
+      "file": "measure-1.json.files/input.sketchyup",
+      "bytes": 1526,
+      "sha256": "3012e7919d260cefd0ea3294e5bfe2b18994223cd19e018a3eb4df3916dc2a6f"
+    },
+    {
+      "file": "measure-1.json.files/manual.sketchyup",
+      "bytes": 2090,
+      "sha256": "b5527da56a0e0860e1cb76f549c3b21dd12233d15ba23916703785bf9d694417"
+    },
+    {
+      "file": "measure-2.json",
+      "bytes": 452863,
+      "sha256": "4ccd4f91abbccc3f24ff6ce856c2dd89de26927b63c801e86fa011ffd5188599"
+    },
+    {
+      "file": "measure-2.json.files/input.sketchyup",
+      "bytes": 1526,
+      "sha256": "c49b26e5c640a50397e502c0138da6a0135cc669cb8d27b954bca69b05c9592c"
+    },
+    {
+      "file": "measure-2.json.files/manual.sketchyup",
+      "bytes": 2090,
+      "sha256": "894e4dfc4e7bfef3a8c5e844b83cb4a964a18736636bf50c1d3ac39db77bd38e"
+    },
+    {
+      "file": "measure-3.json",
+      "bytes": 297484,
+      "sha256": "ee3cfa03f78050abb459e926a39508889d023fb6db2e4281a84adc5fb1fa3f7d"
+    },
+    {
+      "file": "measure-3.json.files/input.sketchyup",
+      "bytes": 1526,
+      "sha256": "e2dd060004d3a5caa704ec25bc26697afd5a346106bd0110a9a809f206dc400f"
+    },
+    {
+      "file": "measure-3.json.files/manual.sketchyup",
+      "bytes": 2090,
+      "sha256": "b82351eb675ec9ef0e5b269c0a7df080d84be17eb67e955e736be3d2be9c670e"
+    },
+    {
+      "file": "measure-4.json",
+      "bytes": 297461,
+      "sha256": "dd1367e41f3a4c625d9f1a77abf3001233da709866b58d7068703d2d4dc2bab7"
+    },
+    {
+      "file": "measure-4.json.files/input.sketchyup",
+      "bytes": 1526,
+      "sha256": "278d5b537c49a37b218d5ecddeef6e241ffbe019fae0afd6e4da4d74aaa51158"
+    },
+    {
+      "file": "measure-4.json.files/manual.sketchyup",
+      "bytes": 2090,
+      "sha256": "18e8e761edde01732e6245ad497cc99bd23beddc0c2de9e79b6e7a348e96c1d2"
+    },
+    {
+      "file": "native-direct-1/after-ui.png",
+      "bytes": 138865,
+      "sha256": "fa0de7e2546f945468a25af9030d63fe9e3967fa484e456e76d7161ac0558414"
+    },
+    {
+      "file": "native-direct-1/after-viewport.png",
+      "bytes": 58950,
+      "sha256": "2ac8e9e0bde8435bdb6cec2ee3369d37938662cb8f94a8638ba146f7ac369706"
+    },
+    {
+      "file": "native-direct-1/after.sketchyup",
+      "bytes": 18921,
+      "sha256": "d30d7c0bdf3d4a67dd244b736f8c20307f9b184c0dd34a7d4c3b2d165cc6a9ed"
+    },
+    {
+      "file": "native-direct-1/applied.sketchyup",
+      "bytes": 18921,
+      "sha256": "7a0fdaed23621ed7d57b79976716426485ef2ce8a334d950fc1917f3a024bbaa"
+    },
+    {
+      "file": "native-direct-1/before.sketchyup",
+      "bytes": 15800,
+      "sha256": "ebe362bb269fbe7205be995faa3578bee2e4f244728ba3f79ee4446552e3f203"
+    },
+    {
+      "file": "native-direct-1/manual-after-render.sketchyup",
+      "bytes": 19491,
+      "sha256": "3a4d768602f351a48e5c15fa05151c3a3ed5efea02f1ec17d762929241adc41f"
+    },
+    {
+      "file": "native-direct-1/preview-ui.png",
+      "bytes": 174625,
+      "sha256": "6aca64ed9550be81801027abe0bf2f28f19874faee146d0caa0db71b73bb81d0"
+    },
+    {
+      "file": "native-direct-1/preview-viewport.png",
+      "bytes": 58918,
+      "sha256": "a306aef5696e7168028e64b12aef409728e889156d1c6c7f35753c85b42fd2fe"
+    },
+    {
+      "file": "native-direct-1/render-manifest.json",
+      "bytes": 2685,
+      "sha256": "0a8416ba1f8f252e12a26581a16fa6ac55e0f19c435731291692115f16949d2e"
+    },
+    {
+      "file": "native-direct-1/render-ui.png",
+      "bytes": 261310,
+      "sha256": "4ec5ee3b5a428ce08d60fd0af8cb905429cc5c4bea31a9f38ac7beefe5b95884"
+    },
+    {
+      "file": "native-direct-1/render.png",
+      "bytes": 197684,
+      "sha256": "af52e31778dc7c88d429a50bd0bc464eaeaafccdad887f650b0a3649549eaa5e"
+    },
+    {
+      "file": "native-direct-1/report.json",
+      "bytes": 295104,
+      "sha256": "3a9c16b2374386cb90833b7798af1e5606125226cc8a1cf51de76570607ea8bd"
+    },
+    {
+      "file": "native-direct-1.mp4",
+      "bytes": 1696610,
+      "sha256": "13796f4e7e020d569c9986c59add2254957cdf77053988d23ceee524cf449112"
+    },
+    {
+      "file": "native-manual-1/before.sketchyup",
+      "bytes": 16678,
+      "sha256": "55d9f29f57c9f3e4c679ab208f25b620676649b39bc15abd9b87ade3860a9f55"
+    },
+    {
+      "file": "native-manual-1/preview-ui.png",
+      "bytes": 194816,
+      "sha256": "ee1c7b87b07b686089b1315308026632fac0078a90299f5375ed623157f34689"
+    },
+    {
+      "file": "native-manual-1/preview-viewport.png",
+      "bytes": 59305,
+      "sha256": "9e2c37a6479497b488421276bc2c04b5347878063c1a5478d5d9256055cad5bc"
+    },
+    {
+      "file": "native-manual-1/report.json",
+      "bytes": 45160,
+      "sha256": "c9221725c2e8537e02ff84086f36236f027649b984345cb26068347d8d96e9e9"
+    },
+    {
+      "file": "native-manual-1.mp4",
+      "bytes": 1324245,
+      "sha256": "4dd95a83d0183a86ecfb4b7bf09b1541267f2daa8cb90735b71f5fc3fe233408"
+    },
+    {
+      "file": "native-preview-1/before.sketchyup",
+      "bytes": 15800,
+      "sha256": "ebe362bb269fbe7205be995faa3578bee2e4f244728ba3f79ee4446552e3f203"
+    },
+    {
+      "file": "native-preview-1/preview-ui.png",
+      "bytes": 149835,
+      "sha256": "9dfd13a7acf2b042ce8c418ebb32543025c49de9a93a59019ddc70f1fe76a02d"
+    },
+    {
+      "file": "native-preview-1/preview-viewport.png",
+      "bytes": 58837,
+      "sha256": "c796fca1bcea5b4cacd37a4bca32ab35a9bc6ab344bf5b157ffefd360cf5bccc"
+    },
+    {
+      "file": "native-preview-1/report.json",
+      "bytes": 12718,
+      "sha256": "84549447944af1e8f833767e45710c6df05740bd780eaa6e8b1dbaa9077b22c5"
+    },
+    {
+      "file": "native-preview-2/before.sketchyup",
+      "bytes": 15800,
+      "sha256": "ebe362bb269fbe7205be995faa3578bee2e4f244728ba3f79ee4446552e3f203"
+    },
+    {
+      "file": "native-preview-2/preview-ui.png",
+      "bytes": 154188,
+      "sha256": "0f52356cc842fac0d0a0d528322b5e29fc8acedbe828ef22cdfb575664224949"
+    },
+    {
+      "file": "native-preview-2/preview-viewport.png",
+      "bytes": 58871,
+      "sha256": "8101f7f91ee7be5757b84bc39958d6ae8ca305b127ec90023ec04543f8b4266d"
+    },
+    {
+      "file": "native-preview-2/report.json",
+      "bytes": 93426,
+      "sha256": "5779c102f071ae13d354961801ec0096fa38ef1a953ef2753acc005d83d3eb42"
+    },
+    {
+      "file": "native-preview-2.mp4",
+      "bytes": 1767775,
+      "sha256": "16b7d2d93eead21f8f12514f6671bc7f7daf659063fef03e57c762de5f8fa2b3"
+    },
+    {
+      "file": "native-preview-3/after-ui.png",
+      "bytes": 138598,
+      "sha256": "e749e09381b0ed9bb72437d5965312070423bb3607ad1436fe745609aad28fc8"
+    },
+    {
+      "file": "native-preview-3/after-viewport.png",
+      "bytes": 58950,
+      "sha256": "2ac8e9e0bde8435bdb6cec2ee3369d37938662cb8f94a8638ba146f7ac369706"
+    },
+    {
+      "file": "native-preview-3/after.sketchyup",
+      "bytes": 18921,
+      "sha256": "d30d7c0bdf3d4a67dd244b736f8c20307f9b184c0dd34a7d4c3b2d165cc6a9ed"
+    },
+    {
+      "file": "native-preview-3/applied.sketchyup",
+      "bytes": 18921,
+      "sha256": "7a0fdaed23621ed7d57b79976716426485ef2ce8a334d950fc1917f3a024bbaa"
+    },
+    {
+      "file": "native-preview-3/before.sketchyup",
+      "bytes": 15800,
+      "sha256": "ebe362bb269fbe7205be995faa3578bee2e4f244728ba3f79ee4446552e3f203"
+    },
+    {
+      "file": "native-preview-3/manual-after-render.sketchyup",
+      "bytes": 19491,
+      "sha256": "3a4d768602f351a48e5c15fa05151c3a3ed5efea02f1ec17d762929241adc41f"
+    },
+    {
+      "file": "native-preview-3/preview-ui.png",
+      "bytes": 190269,
+      "sha256": "65a749e22fc6e1da5ddb026aa88522745629d7e2bee976dddfc18708affd27e9"
+    },
+    {
+      "file": "native-preview-3/preview-viewport.png",
+      "bytes": 63023,
+      "sha256": "32af1727a2724bd83092c68042c7437d5cf6a335aaa15b53961d3065618291e8"
+    },
+    {
+      "file": "native-preview-3/render-manifest.json",
+      "bytes": 2685,
+      "sha256": "66b392307bcd41b20872930a8f0bda9b7d6f6123a966c71d9943a3da4b33fe3a"
+    },
+    {
+      "file": "native-preview-3/render-ui.png",
+      "bytes": 261206,
+      "sha256": "0059486e41ecce04267814b1a7003dc4c8f17ec0418f719be66f07d37d52ff2c"
+    },
+    {
+      "file": "native-preview-3/render.png",
+      "bytes": 197684,
+      "sha256": "5dbe3ace435ad1133179a779c3fea2ba67e3afff6f57a4f037640aea01c52ba2"
+    },
+    {
+      "file": "native-preview-3/report.json",
+      "bytes": 251442,
+      "sha256": "5e2695c151f5520edd3baff70469dc024d4797f1492f1babf690923c27791bf7"
+    },
+    {
+      "file": "native-preview-3.mp4",
+      "bytes": 1945130,
+      "sha256": "8b74e418ad2f5a69d2e05a354a9903923c1a94e79818b3de150f5d120f1687c6"
+    },
+    {
+      "file": "native-preview.mp4",
+      "bytes": 1063319,
+      "sha256": "979b00bf16223af56116168430e7d9d0e7bdf0de7786d5d6ade166af513d96b7"
+    },
+    {
+      "file": "resize-1.json",
+      "bytes": 1967675,
+      "sha256": "68fd107297072ac4ecf0f746504b10c966f1baa50904bfaaf3af3aea3f75cbb6"
+    },
+    {
+      "file": "resize-1.json.files/input.sketchyup",
+      "bytes": 15229,
+      "sha256": "1f371bc56b6f2f1a78dfe1f3ceb5fe49c34d7b385b23ff6bb258446e583c3a62"
+    },
+    {
+      "file": "resize-1.json.files/manual.sketchyup",
+      "bytes": 15795,
+      "sha256": "a817d3e8cd1772cf9f8d8600c8601ce7a36f07c9191dd062bc102f7e693dd136"
+    },
+    {
+      "file": "resize-2.json",
+      "bytes": 4464902,
+      "sha256": "284b897c41b0a331b5a082d1c4e97812b932171b7a3f099d6afc1c47f1c05e41"
+    },
+    {
+      "file": "resize-2.json.files/input.sketchyup",
+      "bytes": 15229,
+      "sha256": "af681ac498c3a7c614cb7f3de5dd050273b3f7835e8e6d9a53212d1b0fed872d"
+    },
+    {
+      "file": "resize-2.json.files/manual.sketchyup",
+      "bytes": 15795,
+      "sha256": "557832f717970bcc89252b569db215d771940c86764bd00844c40aa67b0cd5aa"
+    },
+    {
+      "file": "resize-3.json",
+      "bytes": 4197768,
+      "sha256": "25d25cd7e897ac66455caf90568abd6ca988135fb984e9d2ed1d078fb955fdd4"
+    },
+    {
+      "file": "resize-3.json.files/input.sketchyup",
+      "bytes": 15229,
+      "sha256": "5c641a417bdbcbce28734f3e224e5fcecaf1e5a2afaedcb08ec370fabe895d48"
+    },
+    {
+      "file": "resize-3.json.files/manual.sketchyup",
+      "bytes": 15795,
+      "sha256": "34e4c7b3c3c794109a62a0bc3e59c9f20a3237f5f25eaaa1acbc7bc356efc140"
+    },
+    {
+      "file": "resize-3.json.files/output.sketchyup",
+      "bytes": 18350,
+      "sha256": "5fd374db3c128df7c92ee1690430fc96c0849826303c7e0d51d9d3f4c3e9c4b1"
+    },
+    {
+      "file": "room-1.json",
+      "bytes": 3160123,
+      "sha256": "7f8274dcb0d990146a3c3f71ea508af23bb4a8d27a63a1319a93f23c2d76ad9c"
+    },
+    {
+      "file": "room-1.json.files/input.sketchyup",
+      "bytes": 966,
+      "sha256": "630d622ba94f70bd384d469fcfca8414e569af8ab47badcb1c75dde6f2abb8a6"
+    },
+    {
+      "file": "room-1.json.files/manual.sketchyup",
+      "bytes": 1526,
+      "sha256": "37106fd083b8b77b4c0afd01717e8f62954d9145de09820d2fcb91bd8c59b26b"
+    },
+    {
+      "file": "room-1.json.files/output.sketchyup",
+      "bytes": 15229,
+      "sha256": "d92f37117046adaffa6ab60468b10921564c0f896e297778de4c7ccd46c70455"
+    },
+    {
+      "file": "room-2.json",
+      "bytes": 3160153,
+      "sha256": "abf99e896f2de1687dad03634ef68c485632886c66959982244eb13430047ece"
+    },
+    {
+      "file": "room-2.json.files/input.sketchyup",
+      "bytes": 966,
+      "sha256": "6f81ba4b6c9b651baca6f72bc767e1c496dd208cb534e0623a95f28bcb3caf38"
+    },
+    {
+      "file": "room-2.json.files/manual.sketchyup",
+      "bytes": 1526,
+      "sha256": "f8876916291a995df679f116896610741d6e67b41926704a8efa5fc8df963b63"
+    },
+    {
+      "file": "room-2.json.files/output.sketchyup",
+      "bytes": 15229,
+      "sha256": "e6e55f18d967d6881e8da354ce05e28945cbbe9cfe342a1ec36ef64910f81b1c"
+    },
+    {
+      "file": "room-3.json",
+      "bytes": 3160146,
+      "sha256": "29050828347e0a5cc4c2e51917ff5bc58217ba07ac3f52b800140fc0e2267394"
+    },
+    {
+      "file": "room-3.json.files/input.sketchyup",
+      "bytes": 966,
+      "sha256": "bd955b46921f4dbfd36dd53de89c905171b0e3cf45264854a5aed0a5beeaa899"
+    },
+    {
+      "file": "room-3.json.files/manual.sketchyup",
+      "bytes": 1526,
+      "sha256": "66a58e5a2ec20c6daea7fcc4a900f276e6dab09fbed651838c9dc0fcbe353068"
+    },
+    {
+      "file": "room-3.json.files/output.sketchyup",
+      "bytes": 15229,
+      "sha256": "fa18d1157f6fc5dd781537a0b6a21a76f493276549f770f2c001da94143116dc"
+    },
+    {
+      "file": "unsupported-1.json",
+      "bytes": 348842,
+      "sha256": "63176f9ebead490d7934f74985c33f907e0531833de3665f593683d2581e866e"
+    },
+    {
+      "file": "unsupported-1.json.files/input.sketchyup",
+      "bytes": 1526,
+      "sha256": "2851ecf6bcb217a0827353963183a8dd2b89ea4d0f9524460576a00325bf0dda"
+    },
+    {
+      "file": "unsupported-1.json.files/manual.sketchyup",
+      "bytes": 2090,
+      "sha256": "8a4cfc0befffda6b69634018f6d336b17b53d9e22957422dec572225bbc6d1a7"
+    },
+    {
+      "file": "unsupported-2.json",
+      "bytes": 348766,
+      "sha256": "b22602bf2391cd619994f9b709ba62ee15aaa0b0dec8cb3e7636dd3e7155f8a2"
+    },
+    {
+      "file": "unsupported-2.json.files/input.sketchyup",
+      "bytes": 1526,
+      "sha256": "d277bb1eafc96f31dc91d4b46e26a23fae9ba277dd8f41756bf8b0dee7a47be2"
+    },
+    {
+      "file": "unsupported-2.json.files/manual.sketchyup",
+      "bytes": 2090,
+      "sha256": "cfbe595a7eecff655a6600a7f616933ffaeffc2d2a99a7f55ae7d779dd136f33"
+    },
+    {
+      "file": "unsupported-3.json",
+      "bytes": 348740,
+      "sha256": "d33cce2eca885c67fdeda1a3b9cd8cbb70ad5bbfc3b59607a12a92ba43867fdb"
+    },
+    {
+      "file": "unsupported-3.json.files/input.sketchyup",
+      "bytes": 1526,
+      "sha256": "dda71975ffc814cfde3ef5d4a1bc8160caccacfcde6fdc364c4f1b4399f30a65"
+    },
+    {
+      "file": "unsupported-3.json.files/manual.sketchyup",
+      "bytes": 2090,
+      "sha256": "447fd3a7c176d0452e4ad09255de29ff9c1ceb493f606dcbd05f08ac08b2f789"
+    }
+  ]
+}

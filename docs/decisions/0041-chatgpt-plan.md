@@ -1,6 +1,7 @@
 # 0041 — ChatGPT plan authentication
 
-Status: implemented; live account acceptance pending.
+Status: implemented; live sign-in and inference verified with gpt-6-astra.
+Full native M5 acceptance is tracked separately.
 
 The user chose a Codex/ChatGPT subscription for the first remote assistant trial.
 SketchyUp offers OpenAI's documented Sign in with ChatGPT flow for open-source
@@ -54,9 +55,17 @@ Responses use `https://api.openai.com/v1/responses`, store:false, stream:true,
 full bounded input history, developer instructions and a SketchyUp function
 namespace. Unsupported max_output_tokens is omitted. The stream is buffered
 within the existing 1 MiB response cap and decoded only after response.completed;
-partial calls never execute. Failed/incomplete/interrupted streams fail closed.
+partial calls never execute. Completed `response.output_item.done` items are
+assembled by output index when the terminal envelope has an empty output array,
+as observed in the live ChatGPT plan stream. Item identities, contiguous indexes,
+completion and any nonempty terminal output must agree. Failed, incomplete,
+interrupted or conflicting streams fail closed.
 Known plan-usage errors point to Manage ChatGPT usage. Output is still checked
-against the host's 8,192-token per-response and existing total/time/tool budgets;
+against the host's 8,192-token per-response, 262,144-total-reported-token,
+16-turn and five-minute native task budgets. Total tokens include cached input;
+the initial 131,072 limit stopped the measured window workflow before preview.
+Preferences discloses the revised limits. The development corpus retains its
+separate 12-turn / 131,072-total profile for the initial comparison;
 these are acceptance limits, not a server-side generation-token cap. Existing
 consent, tool authorization, immutable preview, sealed Apply and one-entry Undo
 remain authoritative.
@@ -76,3 +85,5 @@ Verified 2026-10-05 against official OpenAI documentation:
 - [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
 - [Identity verification](https://developers.openai.com/siwc/website)
 - [UI guidance](https://developers.openai.com/siwc/ui-ux-guidelines)
+
+- [Completed streaming items](https://developers.openai.com/api/reference/resources/responses/streaming-events)

@@ -138,11 +138,19 @@ class Network : public QNetworkAccessManager {
             check(!body.contains("max_output_tokens") &&
                       request.rawHeader("Accept") == "text/event-stream",
                   "Plan request omits unsupported cap and accepts SSE");
-            response.bytes =
-                "event: response.completed\r\ndata: " +
-                json({{"type", "response.completed"},
-                      {"response", QJsonDocument::fromJson(response.bytes).object()}}) +
-                "\r\n\r\n";
+            auto final = QJsonDocument::fromJson(response.bytes).object();
+            QByteArray stream;
+            int index{};
+            for (const auto &item : final.value("output").toArray())
+                stream += "event: response.output_item.done\r\ndata: " +
+                          json({{"type", "response.output_item.done"},
+                                {"output_index", index++},
+                                {"item", item}}) +
+                          "\r\n\r\n";
+            final["output"] = QJsonArray{};
+            stream += "event: response.completed\r\ndata: " +
+                      json({{"type", "response.completed"}, {"response", final}}) + "\r\n\r\n";
+            response.bytes = stream;
         }
         return new Reply(request, response, aborts, this);
     }
@@ -389,6 +397,62 @@ int main(int argc, char **argv) {
                               json({{"type", "response.completed"},
                                     {"response", completed(QJsonArray{message()})}}) +
                               "\n\n";
+            auto event = [](const QJsonObject &e) { return "data: " + json(e) + "\n\n"; };
+            const auto item = message();
+            const auto done =
+                event({{"type", "response.output_item.done"}, {"output_index", 0}, {"item", item}});
+            const auto emptyEnd =
+                event({{"type", "response.completed"}, {"response", completed({})}});
+            check(QJsonDocument::fromJson(completedOpenAiStream(done + emptyEnd))
+                          .object()
+                          .value("output")
+                          .toArray() == QJsonArray{item},
+                  "Reconstruct terminal envelope from completed output items");
+            rejects([&] { completedOpenAiStream(done); });
+            rejects([&] { completedOpenAiStream(done + done + emptyEnd); });
+            rejects([&] {
+                completedOpenAiStream(event({{"type", "response.output_item.done"},
+                                             {"output_index", 1},
+                                             {"item", item}}) +
+                                      emptyEnd);
+            });
+            rejects([&] {
+                completedOpenAiStream(event({{"type", "response.output_item.added"},
+                                             {"output_index", 0},
+                                             {"item", item}}) +
+                                      emptyEnd);
+            });
+            rejects([&] {
+                completedOpenAiStream(
+                    done + event({{"type", "response.completed"},
+                                  {"response", completed(QJsonArray{message("different")})}}));
+            });
+            const auto start = event(
+                {{"type", "response.output_item.added"}, {"output_index", 0}, {"item", item}});
+            check(!completedOpenAiStream(start + done + emptyEnd).isEmpty(),
+                  "Matching item start and completion accepted");
+            rejects([&] { completedOpenAiStream(start + start + done + emptyEnd); });
+            auto differentItem = item;
+            differentItem["id"] = "other-item";
+            rejects([&] {
+                completedOpenAiStream(start +
+                                      event({{"type", "response.output_item.done"},
+                                             {"output_index", 0},
+                                             {"item", differentItem}}) +
+                                      emptyEnd);
+            });
+            rejects([&] {
+                completedOpenAiStream(done +
+                                      event({{"type", "response.output_item.done"},
+                                             {"output_index", 1},
+                                             {"item", item}}) +
+                                      emptyEnd);
+            });
+            rejects([&] {
+                completedOpenAiStream(event({{"type", "response.created"},
+                                             {"response", QJsonObject{{"id", "other-response"}}}}) +
+                                      done + emptyEnd);
+            });
             check(!completedOpenAiStream(good).isEmpty(), "Completed SSE accepted");
             rejects([&] { completedOpenAiStream(good + good); });
             rejects([&] { completedOpenAiStream(good + "data: {\"type\":\"error\"}\n\n"); });
