@@ -116,6 +116,9 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
+    void setAssistantPreview(std::shared_ptr<const Document::PreparedEdit> edit);
+    bool hasAssistantPreview() const;
+    void setAssistantPreviewFocus(Id body);
     void fit();
     void standardView(int view);
     void setOrthographic(bool enabled);
@@ -211,6 +214,17 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     GpuBatch gridGpu_, transparentGpu_, benchmarkGpu_;
     GpuBatch pickFacesGpu_, pickEdgesGpu_, selectedFacesGpu_, selectedEdgesGpu_, hoverFacesGpu_,
         hoverEdgesGpu_;
+    std::shared_ptr<const Document::PreparedEdit> assistantPreview_;
+    Id assistantFocus_{};
+    QString assistantPreviewLabel_;
+    Vec3 assistantPreviewLabelPoint_;
+    bool assistantPreviewDirty_{true};
+    std::uint64_t assistantPreviewPresentation_{};
+    std::vector<Vertex> assistantTriangles_, assistantLines_;
+    GpuBatch assistantTrianglesGpu_, assistantLinesGpu_;
+    void rebuildAssistantPreview();
+    void drawAssistantPreview();
+    void paintAssistantPreview(QPainter &painter);
     Selection selection_;
     std::optional<SelectedEntity> hover_, lastClickEntity_;
     SelectionSet boxBase_;
