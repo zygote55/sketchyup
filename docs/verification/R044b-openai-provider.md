@@ -36,3 +36,5 @@ unsupported claims before the parent R044 acceptance can close.
 The full development run passed in 35.95 s: 60 suites passed, with the explicit real-Blender test skipped without its opt-in environment. The provider suite passed again in 2.11 s after adding closed-document exception handling. Final targeted ASan/UBSan with leak detection passed in 4.93 s; no checks were disabled.
 
 The source archive includes provider implementation, credential helper, tests and ADR 0034; installation passed. The optional libsecret dependency is declared without making assistant configuration mandatory for modeling.
+
+CI run `37266404866` initially failed before compilation because downloads from the pinned Arch archive timed out. The failed run was rerun on the same head; CI acceptance remains pending.

@@ -452,3 +452,17 @@ The original local Formline/Electron prototype was removed at the owner’s requ
 The native application now lives in the main project checkout; supplied UX design
 references remain preserved.
 SketchyUp is not affiliated with SketchUp or Trimble.
+
+### Optional Blender rendering
+
+In the native editor, choose **Camera → Render…**, select an installed Blender
+5.2 LTS executable (or leave the path blank to discover `blender`), and check its
+devices. Choose the current camera or fit the visible model, resolution and sample
+count, then Render. CPU works without a GPU backend; an explicitly selected GPU
+can retry once on CPU. Blender is optional for editing and saving native models.
+
+Keep modeling while the captured snapshot renders. The status chip opens progress,
+cancellation and diagnostics. A verified image opens beside the Model tab, with
+its original revision and a warning if the model has changed. **Save image as…**
+writes its PNG independently of model Save. Two recent results are kept in memory.
+The initial Studio preset has the [GLB material/geometry limitations](docs/decisions/0032-glb-snapshots.md).

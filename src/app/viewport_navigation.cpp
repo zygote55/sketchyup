@@ -4,6 +4,22 @@
 #include <algorithm>
 #include <numbers>
 namespace sketchy {
+RenderCamera Viewport::renderCamera() const {
+    const double yaw = yaw_ * std::numbers::pi / 180;
+    const double pitch = pitch_ * std::numbers::pi / 180;
+    const Vec3 direction{std::cos(pitch) * std::cos(yaw), std::cos(pitch) * std::sin(yaw),
+                         std::sin(pitch)};
+    RenderCamera camera;
+    camera.target = {target_.x(), target_.y(), target_.z()};
+    camera.position = camera.target + direction * distance_;
+    camera.up = std::abs(pitch_) > 89.999f ? Vec3{0, pitch_ > 0 ? 1. : -1., 0} : Vec3{0, 0, 1};
+    camera.orthographic = ortho_;
+    camera.verticalFov = fov_ * std::numbers::pi / 180;
+    camera.yMag = distance_ * .45;
+    camera.nearClip = ortho_ ? .01 : std::max(.001f, distance_ / 10000);
+    camera.farClip = std::max(1000.f, distance_ * 10);
+    return camera;
+}
 void Viewport::cameraChanged() {
     inference_ = {};
     directions_.clear();

@@ -7,6 +7,7 @@
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
+#include "integrations/render_snapshot.hpp"
 #include <QElapsedTimer>
 #include <QImage>
 #include <QMatrix4x4>
@@ -119,6 +120,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void standardView(int view);
     void setOrthographic(bool enabled);
     bool orthographic() const { return ortho_; }
+    RenderCamera renderCamera() const;
     void setFieldOfView(double degrees);
     double fieldOfView() const { return fov_; }
     void setTrackpadNavigation(bool enabled);
