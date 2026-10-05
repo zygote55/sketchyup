@@ -24,6 +24,13 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   public:
     explicit Viewport(Document &doc, QWidget *parent = nullptr);
     ~Viewport() override;
+    const Document &document() const { return doc_; }
+    bool inspectionBusy() const {
+        return session_.active() || dragging_ || toolPressed_ || selectionPressed_ || selectingBox_;
+    }
+    bool inspectionRenderOverrides() const {
+        return benchmarkTriangles_ > 0 || !opacity_.empty() || clipPlane_.has_value();
+    }
     enum class Tool {
         Select = 0,
         Rectangle = 1,

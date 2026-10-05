@@ -176,6 +176,9 @@ hierarchy, topology and measurement requests. The in-process inspection session
 also supports bounded, expiring snapshots; see the [snapshot contract](docs/decisions/0020-inspection-snapshots.md). Pages are limited to 100 rows and
 256 KiB; stale references fail explicitly. File-only queries do not claim access
 to desktop selection. See the [inspection contract and schemas](docs/decisions/0019-bounded-inspection.md).
+Native in-process inspection reads the actual window selection and captures a
+bounded PNG with camera metadata. `sketchyup --inspection-capabilities` prints
+its registry; see the [desktop inspection contract](docs/decisions/0021-desktop-inspection.md).
 
 
 ```sh

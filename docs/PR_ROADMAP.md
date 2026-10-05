@@ -678,7 +678,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R040 — Publish bounded document inspection and measurement tools
 
-**Status:** In progress. R040.a implements versioned bounded read-only queries, typed references, revision/editor-bound pagination, measurements and generated schemas. Targeted headless checks pass. R040.a is [PR #57](https://github.com/zygote55/sketchyup/pull/57). R040.b adds bounded retained snapshots with captured editor state, monotonic expiry and document-session guards; targeted tests pass. R040.c desktop view capture remains pending; The prerequisite M4 gate is complete. [Snapshot evidence](verification/R040b-inspection-snapshots.md). [Contract](decisions/0019-bounded-inspection.md). [Evidence](verification/R040a-bounded-inspection.md). **Track:** Automation. **Scope:** A01, A02. **UX:** —.
+**Status:** In progress. R040.a bounded queries and generated schemas are [PR #57](https://github.com/zygote55/sketchyup/pull/57); R040.b immutable snapshots are [PR #58](https://github.com/zygote55/sketchyup/pull/58). R040.c native selection, camera metadata and bounded current-view PNG capture pass X11/Weston DPR 1/2 and actual Hyprland DPR 2; local 47-suite regression and installed discovery checks also pass. CI is pending. M4 is complete. [Bounded-query evidence](verification/R040a-bounded-inspection.md), [snapshot evidence](verification/R040b-inspection-snapshots.md), [desktop evidence](verification/R040c-desktop-inspection.md). **Track:** Automation. **Scope:** A01, A02. **UX:** —.
 
 **Requires:** [R035](#r035), [R037](#r037); milestone gate rule above.
 

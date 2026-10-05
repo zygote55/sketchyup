@@ -1,3 +1,4 @@
+#include "app/inspection_service.hpp"
 #include "app/window.hpp"
 #include <QAction>
 #include <QCheckBox>

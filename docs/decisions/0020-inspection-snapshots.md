@@ -5,7 +5,7 @@ R040.b adds `InspectionSession::execute` as an in-process read session. Its
 registry with `snapshot.begin`, `snapshot.release` and an optional `snapshotId`
 on each read query. Discovery lives under `--capabilities` → `inspectionSession`.
 The existing file-only `--inspect` interface remains stateless; persistent CLI
-and MCP adapters belong to R042/R043. Desktop view capture is the next R040 slice.
+and MCP adapters belong to R042/R043. Desktop view capture is described in [R040.c](0021-desktop-inspection.md).
 
 ## Consistent captured reads
 

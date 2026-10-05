@@ -2,7 +2,7 @@
 
 R040.a adds a read-only inspection boundary alongside the experimental local
 command driver. It does not expose the legacy full-model `executeQuery` results
-as provider tools. R040.b adds [retained snapshots](0020-inspection-snapshots.md); R040.c will add desktop view feedback;
+as provider tools. R040.b adds [retained snapshots](0020-inspection-snapshots.md); R040.c adds [desktop view feedback](0021-desktop-inspection.md);
 transactions and transports remain R041–R043.
 
 ## Requests and identity

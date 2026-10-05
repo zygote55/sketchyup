@@ -1,3 +1,4 @@
+#include "app/inspection_service.hpp"
 #include "app/window.hpp"
 #include <QApplication>
 #include <QCommandLineParser>
@@ -20,6 +21,7 @@ int main(int argc, char **argv) {
     QApplication::setOrganizationName("SketchyUp");
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption({"inspection-capabilities", "Print native inspection schemas and exit"});
     parser.addOption({"demo", "Open original courtyard example"});
     parser.addOption({"smoke", "Run native graphics/picking smoke check and exit"});
     parser.addOption({"capture", "Save application screenshot", "path"});
@@ -30,6 +32,18 @@ int main(int argc, char **argv) {
         {"instanced", "Use repeated-triangle instancing instead of independent triangles"});
     parser.addPositionalArgument("model", "Optional .sketchyup file");
     parser.process(app);
+    if (parser.isSet("inspection-capabilities")) {
+        if (parser.optionNames().size() != 1 || !parser.positionalArguments().empty()) {
+            std::cerr
+                << "Inspection discovery cannot be combined with model or rendering options\n";
+            return 2;
+        }
+        std::cout << QJsonDocument(sketchy::desktopInspectionCapabilities())
+                         .toJson(QJsonDocument::Compact)
+                         .toStdString()
+                  << '\n';
+        return 0;
+    }
     sketchy::Window window;
     try {
         if (parser.isSet("demo") || parser.isSet("smoke"))
