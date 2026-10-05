@@ -78,6 +78,12 @@ int main() {
                   "Faceted cylinders tolerate rounded shared-edge contacts: " + result.status);
         }
         auto open = box;
+        Surface coplanarFold;
+        const Vec3 a{0, 0, 0}, b{2, 0, 0}, c{0, 2, 0}, d{.5, .5, 0};
+        for (const auto &face : std::vector<std::vector<Vec3>>{{a, c, b}, {a, b, d}, {b, c, d}, {c, a, d}})
+            coplanarFold.addFace({face});
+        check(inspect(coplanarFold).status == "self_intersection",
+              "Coplanar overlap outside shared-edge tubes remains a self-intersection");
         open.faces.erase(open.faces.begin());
         check(inspect(open).status == "open_boundary" && !inspect(open).volume,
               "Open surface has no volume");

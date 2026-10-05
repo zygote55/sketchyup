@@ -1,6 +1,7 @@
 #include "geometry/solid.hpp"
 #include <algorithm>
 #include <clipper2/clipper.h>
+#include <limits>
 #include <set>
 namespace sketchy {
 namespace {
@@ -90,8 +91,43 @@ bool coplanarConflict(const Triangle &a, const Triangle &b, Vec3 normal, const B
         }
         return result;
     };
-    if (std::abs(Area(Intersect(Paths64{path(a)}, Paths64{path(b)}, FillRule::NonZero))) >= 1)
-        return true;
+    const auto overlap = Intersect(Paths64{path(a)}, Paths64{path(b)}, FillRule::NonZero);
+    for (const auto &polygon : overlap) {
+        if (std::abs(Area(polygon)) < 1)
+            continue;
+        std::vector<Vec3> points;
+        for (auto p : polygon)
+            points.push_back(a.a + u * (double(p.x) * tolerance) + v * (double(p.y) * tolerance));
+        // Independently projected tessellations can overlap in a thin strip at
+        // an authoritative shared edge. Apply the existing contact tolerance
+        // only when the entire convex triangle intersection fits a known
+        // shared-edge tube (including contiguous collinear edge chains), or a
+        // shared-vertex ball. Positive area elsewhere remains a conflict.
+        bool shared = false;
+        for (auto vertex : boundary.vertices)
+            shared |= std::all_of(points.begin(), points.end(),
+                                  [&](auto p) { return length(p - vertex) <= tolerance * 4; });
+        for (auto edge : boundary.edges) {
+            const auto delta = edge[1] - edge[0];
+            const auto edgeLength = length(delta);
+            if (edgeLength == 0)
+                continue;
+            const auto direction = delta * (1 / edgeLength);
+            double low = std::numeric_limits<double>::infinity(), high = -low;
+            bool inTube = true;
+            for (auto point : points) {
+                const auto relative = point - edge[0];
+                inTube &= length(cross(relative, direction)) <= tolerance * 4;
+                const auto along = dot(relative, direction);
+                low = std::min(low, along);
+                high = std::max(high, along);
+            }
+            shared |=
+                inTube && contains(boundary, edge[0] + direction * low, edge[0] + direction * high);
+        }
+        if (!shared)
+            return true;
+    }
     // Zero-area contacts still need shared topology. This also catches coincident
     // vertices/edges with distinct identities and folded coplanar surfaces.
     auto cross2 = [&](Vec3 x, Vec3 y) { return dot(normal, cross(x, y)); };
