@@ -1,6 +1,6 @@
 # R041.b durable outcome storage
 
-Date: 2026-10-05 UTC. Local regression and sanitizer verification passed; CI pending. Requires [PR #60](https://github.com/zygote55/sketchyup/pull/60).
+Date: 2026-10-05 UTC. Local regression, sanitizer and both CI runs passed. [PR #61](https://github.com/zygote55/sketchyup/pull/61) merged at 01:51:39 UTC as `6fe484780b889017eebaa5b0efac403826df82f9`; runs `37249850156` and `37249847175` succeeded. Requires [PR #60](https://github.com/zygote55/sketchyup/pull/60).
 [Storage contract](../decisions/0023-durable-outcomes.md).
 
 The fixture verifies persisted pending identities, exact co-recorded before/after

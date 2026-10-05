@@ -184,7 +184,12 @@ in-process; see the [coordinator contract](docs/decisions/0024-transaction-coord
 Incremental begin/apply/inspect/preview/commit dispatch uses versioned schemas,
 immutable commit identities and cached append receipts; see the
 [transaction contract](docs/decisions/0025-transaction-dispatch.md).
-CLI/MCP transaction transports remain in progress.
+Persistent headless sessions use `--session --input MODEL --outcomes DIRECTORY`,
+with optional `--output MODEL` for an explicitly bound save destination. Create a
+new baseline with `--session --new --output MODEL --outcomes DIRECTORY`.
+`--session-capabilities` prints the shared schemas. Requests and replies use bounded
+JSON lines; see the [session protocol](docs/decisions/0026-headless-session.md).
+Recipe execution and MCP transport remain in progress.
 
 
 ```sh

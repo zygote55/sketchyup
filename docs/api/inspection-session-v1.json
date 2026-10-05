@@ -1311,8 +1311,8 @@
     "retention": "Conservative scene, resource, allocator and editor-state charge; shared immutable records, no history"
   },
   "status": "experimental",
-  "tolerance": 1e-07,
-  "transport": "In-process session API; persistent CLI and MCP adapters remain R042/R043",
+  "tolerance": 1E-7,
+  "transport": "Shared session API exposed by the headless CLI; MCP adapter remains R043",
   "units": "m",
   "up": "Z",
   "viewCapture": false

@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "automation/inspection.hpp"
+#include "automation/session.hpp"
 #include "io/document_io.hpp"
 #include "io/formline.hpp"
 #include "io/recovery.hpp"
@@ -14,6 +15,13 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption({"session", "Run a persistent bounded JSON-lines automation session"});
+    parser.addOption(
+        {"new", "Create a new model at the explicit output before starting a session"});
+    parser.addOption({"outcomes", "Private durable transaction outcome directory", "directory"});
+    parser.addOption(
+        {"recover-latest", "Explicitly recover the latest durable transaction in this session"});
+    parser.addOption({"session-capabilities", "Print the bounded session and transaction schemas"});
     parser.addOption({"capabilities", "Print supported local commands"});
     parser.addOption({"describe-command", "Print a command parameter schema", "name"});
     parser.addOption({"query", "Run a read-only document or geometry query", "name"});
@@ -33,8 +41,46 @@ int main(int argc, char **argv) {
     parser.addOption(
         {"preview", "Validate a script and return prospective geometry without committing"});
     parser.addOption({"script", "Read a command array from a local JSON file", "path"});
-    parser.process(app);
     try {
+        // Parse without QCommandLineParser's unstructured error exit.
+        if (!parser.parse(app.arguments()))
+            throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
+        if (parser.isSet("help"))
+            parser.showHelp();
+        if (parser.isSet("session") || parser.isSet("session-capabilities")) {
+            for (const auto *option :
+                 {"capabilities", "describe-command", "query", "query-file", "inspect",
+                  "inspect-file", "context", "import-formline", "recovery-list", "recover",
+                  "history-position", "preview", "script"})
+                if (parser.isSet(option))
+                    throw sketchy::InspectionError(
+                        "INVALID_REQUEST",
+                        "Session mode cannot be combined with legacy model operations");
+            if (!parser.positionalArguments().isEmpty())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Unexpected positional arguments");
+            if (parser.isSet("session-capabilities")) {
+                for (const auto *option :
+                     {"session", "input", "output", "new", "outcomes", "recover-latest"})
+                    if (parser.isSet(option))
+                        throw sketchy::InspectionError(
+                            "INVALID_REQUEST", "Session discovery is a standalone operation");
+                std::cout << QJsonDocument(sketchy::sessionCapabilities()).toJson().toStdString();
+                return 0;
+            }
+            sketchy::AutomationSession session({parser.value("input"), parser.value("output"),
+                                                parser.value("outcomes"), parser.isSet("new"),
+                                                parser.isSet("recover-latest")});
+            QFile input, output;
+            if (!input.open(stdin, QIODevice::ReadOnly) ||
+                !output.open(stdout, QIODevice::WriteOnly))
+                throw sketchy::InspectionError("INPUT_ERROR", "Cannot open automation streams");
+            return sketchy::runAutomationStream(session, input, output);
+        }
+        for (const auto *option : {"new", "outcomes", "recover-latest"})
+            if (parser.isSet(option))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Session options require --session");
         if (parser.isSet("inspect") || parser.isSet("inspect-file")) {
             if (!parser.isSet("input") || (parser.isSet("inspect") && parser.isSet("inspect-file")))
                 throw sketchy::InspectionError("INVALID_REQUEST",
@@ -217,7 +263,10 @@ int main(int argc, char **argv) {
                   << '\n';
         return 1;
     } catch (const std::exception &e) {
-        std::cerr << QJsonDocument(QJsonObject{{"status", "failed"}, {"error", e.what()}})
+        const auto failure = sketchy::automationFailure(e);
+        std::cerr << QJsonDocument(QJsonObject{{"status", "failed"},
+                                               {"code", failure["code"]},
+                                               {"error", failure["message"]}})
                          .toJson(QJsonDocument::Compact)
                          .toStdString()
                   << '\n';

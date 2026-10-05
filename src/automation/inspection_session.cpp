@@ -78,7 +78,7 @@ QJsonObject inspectionSessionCapabilities() {
     auto result = inspectionCapabilities();
     result["queries"] = catalog();
     result["transport"] =
-        "In-process session API; persistent CLI and MCP adapters remain R042/R043";
+        "Shared session API exposed by the headless CLI; MCP adapter remains R043";
     result["snapshot"] = QJsonObject{
         {"maximumCount", 4},
         {"retainedByteBudget", 32 * 1024 * 1024},
