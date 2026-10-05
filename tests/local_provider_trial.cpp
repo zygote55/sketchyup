@@ -59,8 +59,9 @@ class TrialNetwork : public QNetworkAccessManager {
                     try {
                         (*record)["response"] =
                             QJsonDocument::fromJson(completedOpenAiStream(*bytes)).object();
-                    } catch (const std::exception &) {
+                    } catch (const std::exception &error) {
                         (*record)["streamIncomplete"] = true;
+                        (*record)["streamFailure"] = QString::fromUtf8(error.what());
                     }
                 } else
                     (*record)["response"] = QJsonDocument::fromJson(*bytes).object();

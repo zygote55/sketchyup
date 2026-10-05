@@ -161,6 +161,9 @@ QByteArray completedOpenAiStream(const QByteArray &stream) {
     require(stream.size() <= 1024 * 1024, "OpenAI stream exceeds byte budget");
     QByteArray data, completed;
     bool terminal = false;
+    QMap<int, QJsonObject> items;
+    QMap<int, QString> started;
+    QString responseId;
     auto dispatch = [&] {
         if (data.isEmpty())
             return;
@@ -181,9 +184,56 @@ QByteArray completedOpenAiStream(const QByteArray &stream) {
         require(!type.isEmpty() && type != "error" && type != "response.failed" &&
                     type != "response.incomplete",
                 "OpenAI stream did not complete");
+        if (type == "response.created") {
+            require(responseId.isEmpty(), "Duplicate response start");
+            responseId = event.value("response").toObject().value("id").toString();
+            require(!responseId.isEmpty(), "Missing response identity");
+        }
+        if (type == "response.output_item.added" || type == "response.output_item.done") {
+            const auto index = event.value("output_index");
+            require(index.isDouble() && index.toDouble() >= 0 && index.toDouble() < 64 &&
+                        std::floor(index.toDouble()) == index.toDouble() &&
+                        event.value("item").isObject(),
+                    "Invalid streamed output index");
+            const int position = index.toInt();
+            const auto item = event.value("item").toObject();
+            const auto id = item.value("id").toString();
+            require(!id.isEmpty(), "Missing streamed item identity");
+            if (type == "response.output_item.added") {
+                require(!started.contains(position) && !items.contains(position),
+                        "Duplicate item start");
+                started[position] = id;
+            } else {
+                require(!items.contains(position) &&
+                            (!started.contains(position) || started[position] == id),
+                        "Duplicate or mismatched completed item");
+                for (const auto &existing : items)
+                    require(existing.value("id") != id, "Duplicate output identity");
+                items[position] = item;
+            }
+        }
         if (type == "response.completed") {
             require(event.value("response").isObject(), "Missing terminal response");
-            completed = json(event.value("response").toObject());
+            auto result = event.value("response").toObject();
+            require(responseId.isEmpty() || result.value("id") == responseId,
+                    "Mismatched completed response");
+            for (auto i = started.cbegin(); i != started.cend(); ++i)
+                require(items.contains(i.key()), "An output item did not finish");
+            if (!items.isEmpty()) {
+                QJsonArray output;
+                for (int index = 0; index < items.size(); ++index) {
+                    require(items.contains(index), "Missing streamed output item");
+                    output.append(items.value(index));
+                }
+                require(result.value("output").isArray(), "Missing final output array");
+                const auto finalOutput = result.value("output").toArray();
+                require(finalOutput.isEmpty() || finalOutput == output,
+                        "Conflicting terminal output");
+                // ChatGPT plan streams can omit items from the terminal envelope. Replay
+                // complete output_item.done items only after the whole response completes.
+                result["output"] = output;
+            }
+            completed = json(result);
             terminal = true;
         }
         data.clear();

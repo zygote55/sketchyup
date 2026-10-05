@@ -206,6 +206,21 @@ int main(int argc, char **argv) {
         const auto windows = createTag(doc, "Windows");
         assignTag(doc, first, windows);
         assignTag(doc, second, windows);
+        if (const auto baseline = app.arguments().indexOf("--baseline"); baseline >= 0) {
+            const auto path = app.arguments().value(baseline + 1);
+            check(!path.isEmpty() && !QFile::exists(path), "Fresh manual baseline path");
+            saveDocument(doc, path);
+            write(
+                path + ".json",
+                QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
+                                          {"room", QString::number(room)},
+                                          {"wall", QString::number(wall)},
+                                          {"first", QString::number(first)},
+                                          {"second", QString::number(second)},
+                                          {"origin", "native rectangle and through-wall push/pull; "
+                                                     "ordinary frame/glass components"}})
+                    .toJson());
+        }
         const auto firstFrame = memberNamed(doc, first, "Frame"),
                    secondFrame = memberNamed(doc, second, "Frame");
         const auto nested = memberNamed(doc, first, "Frame parts");

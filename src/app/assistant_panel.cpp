@@ -391,8 +391,10 @@ struct AssistantPanel::Impl {
             QSettings("SketchyUp", "SketchyUp").value("assistant/consentOpenAI", false).toBool();
         result.clarificationAvailable = true;
         result.limits.seconds = 300;
-        if (result.remote && usesPlan())
+        if (result.remote && usesPlan()) {
             result.limits.outputTokens = 8192;
+            result.limits.totalReportedTokens = 262144;
+        }
         if (selection->isChecked()) {
             int count{};
             for (auto entity : view.selectionState().entities()) {
@@ -747,6 +749,8 @@ void AssistantPanel::Impl::showSetup() {
         accounts->setCurrentIndex(std::max(0, accounts->findData(selected)));
     };
     fillAccounts(s.value("assistant/chatgptAccount").toString());
+    planLayout->addWidget(label("Each task is limited to five minutes, 16 provider turns and "
+                                "262,144 reported tokens, including cached input."));
     planLayout->addWidget(accounts);
     auto *signIn = button("Continue with ChatGPT", "assistantChatGPTSignIn");
     auto *signOut = button("Sign out", "assistantChatGPTSignOut");

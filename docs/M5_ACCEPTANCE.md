@@ -1,6 +1,8 @@
 # M5 alpha acceptance procedure
 
-M5 remains open until live OpenAI and native end-to-end acceptance are recorded.
+M5 remains open until the required manual-target edit passes. Live OpenAI
+ChatGPT-plan gpt-6-astra inference and the authored-window native preview/direct
+workflows now pass; [recorded results and failures](verification/R051b-live-acceptance.md).
 Deterministic tool replies are labeled fixtures. A successful render, tool receipt
 or provider explanation alone is not proof that the requested geometry is right.
 
