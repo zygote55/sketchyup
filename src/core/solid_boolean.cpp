@@ -1,11 +1,20 @@
 #include "core/solid_boolean.hpp"
 #include "core/appearance.hpp"
 #include "core/selection.hpp"
+#include "geometry/solid_operations.hpp"
 #include <algorithm>
 #include <limits>
 namespace sketchy {
 SolidBooleanResult booleanBodies(Document &doc, Id target, Id tool, BooleanOperation operation,
                                  Id context, bool keepOperands) {
+    return solidBodies(doc, target, tool,
+                       operation == BooleanOperation::Union      ? SolidAction::Union
+                       : operation == BooleanOperation::Subtract ? SolidAction::Subtract
+                                                                 : SolidAction::Intersect,
+                       context, keepOperands);
+}
+SolidBooleanResult solidBodies(Document &doc, Id target, Id tool, SolidAction action, Id context,
+                               bool keepOriginals) {
     if (target == tool)
         throw BooleanError("BOOLEAN_OPERANDS", "Choose two different solid bodies");
     Selection policy;
@@ -32,9 +41,36 @@ SolidBooleanResult booleanBodies(Document &doc, Id target, Id tool, BooleanOpera
     };
     transformSurface(left, frame);
     transformSurface(right, toolFrame);
-    BooleanResult result;
+    struct GeneratedPart {
+        BooleanPart geometry;
+        std::string portion;
+        bool fromTool{};
+    };
+    std::vector<GeneratedPart> generated;
+    auto appendParts = [&](BooleanResult result, std::string portion = "result",
+                           bool fromTool = false) {
+        for (auto &part : result.parts)
+            generated.push_back({std::move(part), portion, fromTool});
+    };
     try {
-        result = booleanSolids(left, right, operation);
+        switch (action) {
+        case SolidAction::Split: {
+            auto split = splitSolids(left, right);
+            appendParts(std::move(split.targetOnly), "target");
+            appendParts(std::move(split.toolOnly), "tool", true);
+            appendParts(std::move(split.overlap), "overlap");
+            break;
+        }
+        case SolidAction::OuterShell:
+            appendParts(outerShellSolids(left, right));
+            break;
+        default:
+            appendParts(booleanSolids(left, right,
+                                      action == SolidAction::Union ? BooleanOperation::Union
+                                      : action == SolidAction::Intersect
+                                          ? BooleanOperation::Intersect
+                                          : BooleanOperation::Subtract));
+        }
     } catch (const BooleanError &error) {
         std::string message = error.what();
         if (error.operand() >= 0)
@@ -53,24 +89,31 @@ SolidBooleanResult booleanBodies(Document &doc, Id target, Id tool, BooleanOpera
         append("vertices", report.vertices);
         throw BooleanError(error.code(), message, error.operand(), report);
     }
-    const auto inverse = frame.inverse();
-    const auto name = operation == BooleanOperation::Union      ? "Union"
-                      : operation == BooleanOperation::Subtract ? "Subtract"
-                                                                : "Intersection";
+    const auto name = action == SolidAction::Union       ? "Union"
+                      : action == SolidAction::Subtract  ? "Subtract"
+                      : action == SolidAction::Intersect ? "Intersection"
+                      : action == SolidAction::Trim      ? "Trim"
+                      : action == SolidAction::Split     ? "Split"
+                                                         : "Outer shell";
     Edit edit{"Solid " + std::string(name), {}};
     Id next = doc.nextId();
     SolidBooleanResult output;
-    for (auto &part : result.parts) {
+    for (auto &generatedPart : generated) {
+        auto &part = generatedPart.geometry;
+        const auto &owner = generatedPart.fromTool ? b : a;
+        const auto inverse = (generatedPart.fromTool ? toolFrame : frame).inverse();
         if (next == std::numeric_limits<Id>::max())
             throw BooleanError("BOOLEAN_LIMIT", "Solid result would exhaust body identities");
         auto created = std::make_shared<Body>();
         created->id = next++;
         created->name = name;
-        created->parent = a->parent;
-        created->transform = a->transform;
-        created->color = a->color;
-        created->materials = a->materials;
-        created->tag = a->tag;
+        if (action == SolidAction::Split)
+            created->name += " " + generatedPart.portion;
+        created->parent = owner->parent;
+        created->transform = owner->transform;
+        created->color = owner->color;
+        created->materials = owner->materials;
+        created->tag = owner->tag;
         created->surface = std::move(part.surface);
         transformSurface(created->surface, inverse);
         for (const auto &[face, source] : part.sources) {
@@ -84,12 +127,14 @@ SolidBooleanResult booleanBodies(Document &doc, Id target, Id tool, BooleanOpera
             if (materials != created->materials)
                 created->faceMaterials[face] = materials;
         }
-        output.parts.push_back({created->id, std::move(part.sources), part.volume});
+        output.parts.push_back(
+            {created->id, std::move(part.sources), part.volume, generatedPart.portion});
         edit.changes.push_back({created->id, nullptr, created});
     }
-    if (!keepOperands) {
+    if (!keepOriginals) {
         edit.changes.push_back({target, a, nullptr});
-        edit.changes.push_back({tool, b, nullptr});
+        if (action != SolidAction::Trim)
+            edit.changes.push_back({tool, b, nullptr});
     }
     if (!edit.changes.empty())
         output.changes = doc.apply(std::move(edit), doc.revision());

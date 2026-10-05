@@ -458,6 +458,17 @@ material solid; islands inside cavities become separate output bodies. See the
 [enclosed-cavity example](examples/enclosed-cavity.json) produces a 7 m³ hollow
 solid from an 8 m³ cube and a 1 m³ internal cutter.
 
+`geometry.trim` subtracts the tool while always retaining it; `keepTarget` selects
+whether the target also survives. `geometry.split` returns separate target-only,
+tool-only and overlap regions. `geometry.outer_shell` fills enclosed cavities of
+the union while preserving exterior through-holes. Split and Outer Shell require
+`keepOperands`. All three require `body`, `tool` and `context`, publish one Undo
+item and return region/provenance records in `solidOperations`. See the installed
+[Trim](examples/solid-trim.json), [Split](examples/solid-split.json) and
+[Outer Shell](examples/solid-outer-shell.json) examples and the
+[publication contract](docs/decisions/0048-split-outer-shell.md).
+
+
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected
 path edges. Use Select and Ctrl-click to add the face and path, then Shift+F to
 preview; Enter or click applies, and Escape cancels. Alt-drag can orbit during

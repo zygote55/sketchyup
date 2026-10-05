@@ -469,11 +469,14 @@ int main(int argc, char **argv) {
             {"apiVersion", 1},
             {"documentId", QString::fromStdString(componentCopy.identity())},
             {"expectedRevision", QString::number(componentCopy.revision())},
-            {"commands", QJsonArray{QJsonObject{
-                {"command", "geometry.array_selection"}, {"mode", "linear"}, {"count", 2},
-                {"delta", QJsonArray{2, 0, 0}},
-                {"entities", QJsonArray{QJsonObject{{"body", "2"}, {"kind", "context"},
-                                                    {"entity", "0"}}}}}}}};
+            {"commands",
+             QJsonArray{QJsonObject{
+                 {"command", "geometry.array_selection"},
+                 {"mode", "linear"},
+                 {"count", 2},
+                 {"delta", QJsonArray{2, 0, 0}},
+                 {"entities",
+                  QJsonArray{QJsonObject{{"body", "2"}, {"kind", "context"}, {"entity", "0"}}}}}}}};
         const auto componentPreview = previewBatch(componentCopy, componentArray);
         check(componentCopy.instances().size() == 1 &&
                   componentPreview["document"].toObject()["instances"].toArray().size() == 3,
@@ -896,6 +899,21 @@ int main(int argc, char **argv) {
                         {"context", "0"},
                         {"operation", "union"},
                         {"keepOperands", true}},
+            QJsonObject{{"command", "geometry.trim"},
+                        {"body", "1"},
+                        {"tool", "2"},
+                        {"context", "0"},
+                        {"keepTarget", true}},
+            QJsonObject{{"command", "geometry.split"},
+                        {"body", "1"},
+                        {"tool", "2"},
+                        {"context", "0"},
+                        {"keepOperands", true}},
+            QJsonObject{{"command", "geometry.outer_shell"},
+                        {"body", "1"},
+                        {"tool", "2"},
+                        {"context", "0"},
+                        {"keepOperands", true}},
             QJsonObject{{"command", "geometry.intersect"},
                         {"context", "0"},
                         {"mode", "context"},
@@ -1004,7 +1022,9 @@ int main(int argc, char **argv) {
                     createComponent(doc, raw);
                 }
             }
-            if (command["command"] == "geometry.boolean") {
+            if (command["command"] == "geometry.boolean" || command["command"] == "geometry.trim" ||
+                command["command"] == "geometry.split" ||
+                command["command"] == "geometry.outer_shell") {
                 doc.extrude(1, 5, 1);
                 const auto other =
                     doc.addFace({{{.5, 0, 0}, {1.5, 0, 0}, {1.5, 1, 0}, {.5, 1, 0}}});

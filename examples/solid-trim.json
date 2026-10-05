@@ -1,0 +1,77 @@
+[
+  {
+    "command": "geometry.face",
+    "name": "Target",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          2,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "1",
+    "face": "5",
+    "distance": 2
+  },
+  {
+    "command": "geometry.face",
+    "name": "Cutting solid",
+    "loops": [
+      [
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0
+        ],
+        [
+          3,
+          2,
+          0
+        ],
+        [
+          1,
+          2,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "2",
+    "face": "5",
+    "distance": 2
+  },
+  {
+    "command": "geometry.trim",
+    "body": "1",
+    "tool": "2",
+    "context": "0",
+    "keepTarget": false
+  }
+]

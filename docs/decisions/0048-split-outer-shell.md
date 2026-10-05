@@ -35,7 +35,40 @@ squared combined triangle count plus four times that count per candidate. Every
 retained filled boundary independently validates as a native solid.
 
 Trim uses the existing subtraction geometry. Its distinction is publication:
-retain the cutting tool and explicitly retain or replace the target. The next
-command layer must implement that operand policy, Split region receipts,
-Outer-shell publication, material inheritance, scoped component mapping, preview,
-persistence and one Undo item. Native controls follow those shared commands.
+retain the cutting tool and explicitly retain or replace the target.
+
+R056.d adds three shared commands. All require different editable raw `body` and
+`tool` operands in an explicit `context`:
+
+- `geometry.trim` requires `keepTarget`. The cutting tool always survives as its
+  exact original record. An empty result with `keepTarget: false` deletes only
+  the target; an empty retained result is a no-change rejection.
+- `geometry.split` requires `keepOperands`. Target-minus-tool, tool-minus-target
+  and overlap are published as separate bodies, including disconnected parts.
+  Empty regions generate no bodies.
+- `geometry.outer_shell` requires `keepOperands`. Filled union parts become
+  separate bodies, with enclosed islands removed and through-holes preserved.
+
+Publication runs in world coordinates, then converts each part back to its owner
+frame. Split's tool-only parts inherit the tool's parent, transform, tag and
+body appearance; target-only and overlap parts inherit the target's. Trim and
+Outer Shell inherit the target. Every face inherits its original source color
+and physical front/back materials, reversing material sides exactly when its
+physical orientation reverses. Reflected placements preserve that convention.
+Generated bodies do not inherit stale recipe properties.
+
+The additive `solidOperations` receipt array names `sourceBody`, `toolBody`,
+`operation`, `keepTarget`, `keepTool` and `parts`. Each part contains `body`,
+`portion`, `generatedVolume` and face provenance (`face`, `sourceBody`,
+`sourceFace`, `reversed`). Split portions are `target`, `tool`, `overlap`;
+other operations use `result`. Volumes are operation-time world measurements.
+Later commands prune erased parts/faces from receipts. Full, changes-only and
+created-ID responses retain these records; existing `booleans` stays compatible.
+
+Scoped component commands resolve consumed source identities from the pre-edit
+member map and generated identities from the resulting member map. Top-level
+receipts name scene bodies; `componentOperations[].solidOperations` keeps the
+canonical records. Preview uses the same staged publication as commit. All parts
+and explicitly consumed operands publish as one edit, with normal stale-revision
+checks, rollback, Undo/Redo and native-container persistence. Native controls
+follow these shared commands.

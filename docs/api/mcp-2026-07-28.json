@@ -3033,6 +3033,123 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Trim target while always retaining the cutting tool",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "geometry.trim"
+                                        },
+                                        "context": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "keepTarget": {
+                                            "type": "boolean"
+                                        },
+                                        "tool": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "tool",
+                                        "context",
+                                        "keepTarget",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Partition two solids into target, tool and overlap regions",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "geometry.split"
+                                        },
+                                        "context": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "keepOperands": {
+                                            "type": "boolean"
+                                        },
+                                        "tool": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "tool",
+                                        "context",
+                                        "keepOperands",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Union solids and fill enclosed cavities; retain exterior through-holes",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "geometry.outer_shell"
+                                        },
+                                        "context": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "keepOperands": {
+                                            "type": "boolean"
+                                        },
+                                        "tool": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "tool",
+                                        "context",
+                                        "keepOperands",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Insert intersection edges into explicit target faces",
                                     "properties": {
                                         "command": {
