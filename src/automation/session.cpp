@@ -2,6 +2,7 @@
 #include "automation/inspection_validation.hpp"
 #include "geometry/offset.hpp"
 #include "geometry/sweep.hpp"
+#include "geometry/intersection.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -288,6 +289,8 @@ QJsonObject automationFailure(const std::exception &error) {
     else if (auto typed = dynamic_cast<const OffsetError *>(&error))
         code = QString::fromStdString(typed->code());
     else if (auto typed = dynamic_cast<const SweepError *>(&error))
+        code = QString::fromStdString(typed->code());
+    else if (auto typed = dynamic_cast<const IntersectionError *>(&error))
         code = QString::fromStdString(typed->code());
     return {{"code", code}, {"message", QString::fromUtf8(error.what()).left(2048)}};
 }

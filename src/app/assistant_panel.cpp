@@ -427,6 +427,7 @@ struct AssistantPanel::Impl {
                                   "geometry.extrude_isolated",
                                   "geometry.offset",
                                   "geometry.sweep",
+                                  "geometry.intersect",
                                   "geometry.push_pull",
                                   "geometry.translate",
                                   "geometry.transform_selection",

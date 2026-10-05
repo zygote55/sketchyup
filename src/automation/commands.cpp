@@ -1,6 +1,8 @@
 #include "automation/commands.hpp"
 #include "automation/component_scope.hpp"
 #include "core/profile_sweep.hpp"
+#include "core/intersection_edit.hpp"
+#include "geometry/intersection.hpp"
 #include "automation/entity_info.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_session.hpp"
@@ -522,7 +524,10 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
         return capabilities();
     throw std::runtime_error("Unavailable query");
 }
-QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchResponse response) {
+static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &request,
+                                              BatchResponse response,
+                                              const Document *outerScene = nullptr,
+                                              Id excludedInstance = 0) {
     fields(request, {"apiVersion", "documentId", "expectedRevision", "commands", "history"});
     if (!request["apiVersion"].isDouble() || request["apiVersion"].toDouble() != 1)
         throw std::runtime_error("Unsupported API version");
@@ -1033,6 +1038,27 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 throw std::runtime_error("Offset space must be local or world");
             compose(staged.offsetFace(id(command["body"]), id(command["face"]),
                                       number(command["distance"]), command["space"] == "world"));
+        } else if (name == "geometry.intersect") {
+            const auto entities = array(command["entities"]);
+            if (entities.empty() || entities.size() > 128)
+                throw IntersectionError("INTERSECTION_LIMIT", "Select 1–128 target faces");
+            SelectionSet targets;
+            for (auto value : entities) {
+                if (!value.isObject())
+                    throw std::runtime_error("Expected intersection target object");
+                const auto entity = value.toObject();
+                fields(entity, {"body", "face"});
+                targets.insert({id(entity["body"]), SelectionKind::Face, id(entity["face"])});
+            }
+            const auto mode = command["mode"].toString();
+            if (mode != "selected" && mode != "context" && mode != "model")
+                throw IntersectionError("INTERSECTION_MODE", "Choose selected, context or model");
+            compose(intersectSelected(staged, targets,
+                                      mode == "selected" ? IntersectionMode::Selected
+                                      : mode == "context" ? IntersectionMode::Context
+                                                          : IntersectionMode::Model,
+                                      command["context"] == "0" ? 0 : id(command["context"]),
+                                      outerScene, excludedInstance));
         } else if (name == "geometry.sweep") {
             if (command.contains("space") && command["space"] != "local" &&
                 command["space"] != "world")
@@ -1254,6 +1280,11 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                 }
                 for (auto value : commands) {
                     const auto nested = value.toObject().value("command");
+                    if (!scopeInstance && nested == "geometry.intersect" &&
+                        value.toObject().value("mode") == "model")
+                        throw IntersectionError("INTERSECTION_SCOPE",
+                                                "Whole-model intersection inside a component "
+                                                "requires an explicit instance scope");
                     if (nested.toString().startsWith("assembly.") || nested == "component.edit" ||
                         nested == "component.edit_instance" || nested == "component.axes" ||
                         (nested.toString().startsWith("tag.") && nested != "tag.assign"))
@@ -1270,13 +1301,14 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
                                 ? canonicalComponentCommands(staged, draft, scopeInstance, commands)
                                 : commands;
                         innerResult =
-                            executeBatch(draft,
+                            executeBatchWithReferences(draft,
                                          {{"apiVersion", 1},
                                           {"documentId", QString::fromStdString(draft.identity())},
                                           {"expectedRevision", QString::number(draft.revision())},
                                           {"commands", scopedCommands}},
                                          response == BatchResponse::Full ? BatchResponse::Full
-                                                                         : BatchResponse::Changes);
+                                                                         : BatchResponse::Changes,
+                                         scopeInstance ? &staged : nullptr, scopeInstance);
                         if (scopeInstance)
                             scopeDraft = draft;
                         return decodedChanges(innerResult["changes"].toObject());
@@ -1544,6 +1576,9 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
     if (response == BatchResponse::Full)
         result["document"] = describe(doc);
     return result;
+}
+QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchResponse response) {
+    return executeBatchWithReferences(doc, request, response);
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {
