@@ -774,7 +774,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R048 — Export immutable GLB snapshots for rendering
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X02, P08. **UX:** —.
+**Status:** In progress. Immutable GLB/manifest export, explicit camera/settings, hierarchy/shared meshes, managed asset embedding and bounded CLI publication are implemented. All 58 development suites, the exporter sanitizer suite, installed export checks, official Khronos validation and real Blender 5.2.1 imports pass. CI/merge acceptance remains pending. [Evidence](verification/R048-glb-snapshots.md), [subset contract](decisions/0032-glb-snapshots.md). **Track:** Interchange. **Scope:** X02, P08. **UX:** —.
 
 **Requires:** [R036](#r036), [R040](#r040); milestone gate rule above.
 

@@ -108,6 +108,19 @@ runuser -u builder -- env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
   --new --output /work/acceptance/recipe-room.sketchyup --outcomes /work/acceptance/recipe-room-outcomes \
   > /work/acceptance/recipe-room.jsonl
 jq -e 'select(.id == "resize_draw") | .ok and (.result.createdIds.recipeOperations[0].outerWidth == 1.4) and .result.createdIds.recipeOperations[0].madeUnique' /work/acceptance/recipe-room.jsonl
+runuser -u builder -- env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
+  sketchyup-cli --input /work/acceptance/recipe-room.sketchyup \
+  --export-glb /work/acceptance/glb \
+  --render-settings /usr/share/doc/sketchyup/examples/render-settings-v1.json \
+  > /work/acceptance/glb.json
+python - <<'PYGLB'
+import hashlib, json
+from pathlib import Path
+root = Path('/work/acceptance/glb')
+manifest = json.loads((root / 'manifest.json').read_text())
+assert manifest['revision'] == '2' and manifest['units'] == 'm'
+assert hashlib.sha256((root / 'scene.glb').read_bytes()).hexdigest() == manifest['scene']['sha256']
+PYGLB
 mv PKGBUILD.current PKGBUILD
 chown builder:builder PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force --nocheck
@@ -142,3 +155,5 @@ grep -q retain-cache /work/acceptance/cache/SketchyUp/sentinel
 printf 'Install, desktop launch, MIME, upgrade, reopen and removal acceptance passed.\n'
 
 [[ ! -e /usr/share/doc/sketchyup/examples/room-window-resize-recipe-v1.json ]]
+
+[[ ! -e /usr/share/doc/sketchyup/examples/render-settings-v1.json ]]

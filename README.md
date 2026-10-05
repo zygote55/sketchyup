@@ -212,6 +212,11 @@ For actual desktop selection and camera inspection, launch an explicit native
 model with `--mcp-inspection-socket` and connect using
 `sketchyup-cli --mcp-connect SOCKET`; see the
 [native MCP binding](docs/decisions/0029-native-mcp.md).
+Export a fixed render snapshot with
+`sketchyup-cli --input MODEL --export-glb NEW_DIRECTORY`, optionally adding
+`--render-settings examples/render-settings-v1.json`. The directory contains
+`scene.glb` and its revision/settings/hash manifest. Export works without Blender;
+see the [GLB subset and loss policy](docs/decisions/0032-glb-snapshots.md).
 The headless binding reports desktop selection as unavailable. The native binding
 exposes inspection only; staged mutation tools are currently available headlessly.
 
