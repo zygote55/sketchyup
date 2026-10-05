@@ -1,6 +1,7 @@
 # 0045 — Bounded face intersection geometry
 
-Status: immutable numerical kernel and shared command verified locally; native acceptance pending.
+Status: immutable numerical kernel, shared command and native interaction verified locally;
+CI/dependency acceptance remains pending.
 
 R054 begins with two validated planar faces in a common coordinate frame. AABB
 and signed-plane ranges reject disjoint candidates. For crossing planes, solve
@@ -67,5 +68,14 @@ the chosen instance's old geometry. Siblings and outside references are never
 edited by a unique-instance request. Definition-only model mode requires an
 instance scope because a definition alone has no scene placement.
 
-No new dependency or file format is introduced. R054 remains open until native
-interaction acceptance and prerequisite CI/merges complete.
+Native Intersect (I) previews the current face selection through the same command
+and ToolSession. Draw's reference submenu selects Selected faces, Active context,
+or Model; changing it rebuilds the active preview. Enter/click commits one edit,
+Escape cancels, and orbit retains the preview. Selected source faces map to their
+surviving descendants, including scene IDs inside component scopes. Intervening
+manual changes invalidate pending work. Unchanged seams have a native no-new-edges
+message. Viewport-only temporary reference hiding is not a persistent visibility
+filter for this command.
+
+No new dependency or file format is introduced. R054 remains open until
+prerequisite CI/merges complete.
