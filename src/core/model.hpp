@@ -75,6 +75,24 @@ class Document {
         friend class Document;
         StatePtr session, state;
     };
+    class PreparedEdit {
+        friend class Document;
+        PreparedEdit() = default;
+        SaveStamp base_;
+        std::uint64_t revision_{};
+        Edit edit_;
+        std::shared_ptr<const Document> snapshot_;
+
+      public:
+        const Document &snapshot() const { return *snapshot_; }
+        std::uint64_t baseRevision() const { return revision_; }
+        size_t retainedBytes() const;
+    };
+    // The callback runs only on a private history-free copy and must produce one
+    // composed edit. The returned immutable proposal cannot publish itself.
+    PreparedEdit prepareEdit(const std::function<void(Document &)> &operation) const;
+    bool canApply(const PreparedEdit &prepared) const;
+    ChangeReport applyPrepared(const PreparedEdit &prepared);
     class AmendStamp {
         friend class Document;
         StatePtr session, state;

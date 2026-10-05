@@ -515,7 +515,7 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
         return capabilities();
     throw std::runtime_error("Unavailable query");
 }
-QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
+QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchResponse response) {
     fields(request, {"apiVersion", "documentId", "expectedRevision", "commands", "history"});
     if (!request["apiVersion"].isDouble() || request["apiVersion"].toDouble() != 1)
         throw std::runtime_error("Unsupported API version");
@@ -564,7 +564,7 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
              (historyMetadata.taskId.empty() || historyMetadata.request.empty())))
             throw std::runtime_error("History task metadata is incomplete");
     }
-    Document staged = doc;
+    Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
@@ -1376,6 +1376,14 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request) {
         if (!change.before && change.after)
             createdTags.append(QString::number(change.id));
     const auto report = doc.apply(std::move(edit), doc.revision());
+    if (response == BatchResponse::CreatedIds)
+        return {{"status", "committed"},
+                {"revision", QString::number(doc.revision())},
+                {"created", created},
+                {"createdDefinitions", createdDefinitions},
+                {"createdTags", createdTags},
+                {"createdMaterials", createdMaterials},
+                {"createdAssets", createdAssets}};
     for (qsizetype i = 0; i < componentOperations.size(); ++i) {
         auto operation = componentOperations[i].toObject();
         if (!doc.instances().contains(operation["instance"].toString().toULongLong()))

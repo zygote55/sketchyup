@@ -678,7 +678,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R040 — Publish bounded document inspection and measurement tools
 
-**Status:** In progress. R040.a bounded queries and generated schemas are [PR #57](https://github.com/zygote55/sketchyup/pull/57); R040.b immutable snapshots are [PR #58](https://github.com/zygote55/sketchyup/pull/58). R040.c native selection, camera metadata and bounded current-view PNG capture pass X11/Weston DPR 1/2 and actual Hyprland DPR 2; local 47-suite regression and installed discovery checks also pass. CI is pending. M4 is complete. [Bounded-query evidence](verification/R040a-bounded-inspection.md), [snapshot evidence](verification/R040b-inspection-snapshots.md), [desktop evidence](verification/R040c-desktop-inspection.md). **Track:** Automation. **Scope:** A01, A02. **UX:** —.
+**Status:** In progress. R040.a bounded queries and generated schemas are [PR #57](https://github.com/zygote55/sketchyup/pull/57); R040.b immutable snapshots are [PR #58](https://github.com/zygote55/sketchyup/pull/58). R040.c [PR #59](https://github.com/zygote55/sketchyup/pull/59) native selection, camera metadata and bounded current-view PNG capture pass X11/Weston DPR 1/2 and actual Hyprland DPR 2; local 47-suite regression and installed discovery checks also pass. CI is pending. M4 is complete. [Bounded-query evidence](verification/R040a-bounded-inspection.md), [snapshot evidence](verification/R040b-inspection-snapshots.md), [desktop evidence](verification/R040c-desktop-inspection.md). **Track:** Automation. **Scope:** A01, A02. **UX:** —.
 
 **Requires:** [R035](#r035), [R037](#r037); milestone gate rule above.
 
@@ -690,7 +690,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R041 — Implement staged previews and commit reconciliation
 
-**Status:** Planned. **Track:** Automation. **Scope:** A03, D03. **UX:** §8.2–§8.3.
+**Status:** In progress. R041.a private immutable proposals, guarded core application, bounded staged queries/diffs and monotonic expiry pass targeted tests. All 49 development and 35 sanitizer suites plus native M4/inspection regressions pass; CI is pending. Durable outcomes and idempotent commit reconciliation remain the following slices. [Contract](decisions/0022-private-staging.md). [Evidence](verification/R041a-private-staging.md). **Track:** Automation. **Scope:** A03, D03. **UX:** §8.2–§8.3.
 
 **Requires:** [R040](#r040), [R009](#r009), [R039](#r039); milestone gate rule above.
 
