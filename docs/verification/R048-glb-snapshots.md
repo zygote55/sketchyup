@@ -1,6 +1,6 @@
 # R048 immutable GLB snapshots
 
-Date: 2026-10-05 UTC. Local acceptance passed; CI/merge acceptance pending.
+Date: 2026-10-05 UTC. Local and CI acceptance passed. PR [#70](https://github.com/zygote55/sketchyup/pull/70) merged as `b70e777bc4cc5ce5594fe84f563b4e10d06db33b` on 2026-10-05 UTC.
 [Transfer subset, limits and losses](../decisions/0032-glb-snapshots.md).
 
 All 58 development CTest suites passed in 32.54 s. The GLB suite also passed
@@ -47,3 +47,5 @@ These checks establish the documented GLB subset, not full native-material parit
 UV texture application and different front/back rendering remain reported losses.
 R049 owns worker execution/cancellation; R050 owns native camera capture and render
 UI. Blender remains optional for editing, persistence and GLB export.
+
+CI runs 37264091890 and 37264112204 both passed before merge.

@@ -466,3 +466,11 @@ cancellation and diagnostics. A verified image opens beside the Model tab, with
 its original revision and a warning if the model has changed. **Save image as…**
 writes its PNG independently of model Save. Two recent results are kept in memory.
 The initial Studio preset has the [GLB material/geometry limitations](docs/decisions/0032-glb-snapshots.md).
+
+The optional local assistant adapter uses a measured Ollama 0.35.1 profile on a
+numeric loopback endpoint. It sends no credentials or images, checks runtime and
+model capabilities before document transfer, and rejects context overflow rather
+than silently dropping history. See the [local profile and trial evidence](docs/verification/R045-local-provider.md)
+for the exact model digest, CPU limits, known failures and opt-in corpus runner.
+Native assistant setup is still under development; ordinary modeling does not
+require a provider.

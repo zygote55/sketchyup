@@ -1,12 +1,7 @@
 #include "integrations/openai_provider.hpp"
 #include "automation/recipe.hpp"
 #include <QJsonDocument>
-#include <QNetworkReply>
-#include <QPointer>
 #include <QRegularExpression>
-#include <QScopeGuard>
-#include <QThread>
-#include <QTimer>
 #include <cmath>
 namespace sketchy {
 namespace {
@@ -34,11 +29,6 @@ uint64_t tokens(QJsonValue value, bool positive) {
                 std::floor(number) == number,
             "Missing or invalid provider usage");
     return uint64_t(number);
-}
-bool running(AssistantTask::Phase phase) {
-    return phase == AssistantTask::Phase::Ready ||
-           phase == AssistantTask::Phase::AwaitingProvider ||
-           phase == AssistantTask::Phase::Backoff || phase == AssistantTask::Phase::PreviewReady;
 }
 } // namespace
 QJsonObject OpenAiConversation::request(const QJsonObject &source) {
@@ -156,214 +146,25 @@ void OpenAiConversation::accepted() {
     outputs_.push_back(candidate_);
     candidate_ = {};
 }
-struct OpenAiProvider::Impl {
-    OpenAiProvider &owner;
-    std::unique_ptr<AssistantTask> task;
-    QByteArray key, bytes;
-    QNetworkAccessManager *manager;
-    QPointer<QNetworkReply> pending;
-    QTimer poll, deadline;
-    OpenAiConversation conversation;
-    QString attempt, status{"Ready"};
-    bool started{}, processing{};
-    AssistantTask::Phase last;
-    Impl(OpenAiProvider &owner, std::unique_ptr<AssistantTask> task, QByteArray key,
-         QNetworkAccessManager *manager)
-        : owner(owner), task(std::move(task)), key(std::move(key)), manager(manager), poll(&owner),
-          deadline(&owner), last(AssistantTask::Phase::Ready) {
-        require(bool(this->task), "OpenAI provider requires a task");
-        const auto disclosure = this->task->disclosure();
-        require(disclosure.value("remote") == true && disclosure.value("provider") == "OpenAI",
-                "OpenAI requires a task configured for remote context consent");
-        require(this->key.size() >= 8 && this->key.size() <= 4096 && !this->key.contains('\r') &&
-                    !this->key.contains('\n') && !this->key.contains('\0'),
-                "Configure a valid API credential");
-        if (!this->manager)
-            this->manager = new QNetworkAccessManager(&owner);
-        require(this->manager->thread() == owner.thread(),
-                "Provider network manager must share owner thread");
-        poll.setInterval(20);
-        deadline.setSingleShot(true);
-        QObject::connect(&poll, &QTimer::timeout, &owner, [this] { guarded([this] { pump(); }); });
-        QObject::connect(&deadline, &QTimer::timeout, &owner, [this] {
-            guarded([this] {
-                fail(AssistantTask::ProviderFailure::Timeout, "OpenAI request timed out");
-            });
-        });
-    }
-    ~Impl() {
-        abort();
-        key.fill('\0');
-    }
-    void checkOwner() const {
-        require(QThread::currentThread() == owner.thread(),
-                "OpenAI provider requires owner thread");
-    }
-    void abort() {
-        deadline.stop();
-        if (pending) {
-            auto *reply = pending.data();
-            pending = nullptr;
-            QObject::disconnect(reply, nullptr, &owner, nullptr);
-            reply->abort();
-            reply->deleteLater();
-        }
-        bytes.clear();
-    }
-    void notify() {
-        last = task->phase();
-        emit owner.changed();
-    }
-    void fail(AssistantTask::ProviderFailure failure, QString message, int retryAfter = 0) {
-        abort();
-        task->providerFailed(attempt, failure, retryAfter);
-        status = std::move(message);
-        notify();
-    }
-    void guarded(const std::function<void()> &operation) {
-        try {
-            operation();
-        } catch (const std::exception &) {
-            abort();
-            poll.stop();
-            task->cancel();
-            status = "Local document unavailable; OpenAI task stopped";
-            notify();
-        }
-    }
-    void drain() {
-        if (!pending)
-            return;
-        const auto chunk = pending->readAll();
-        if (chunk.size() > 1024 * 1024 - bytes.size()) {
-            fail(AssistantTask::ProviderFailure::Fatal, "OpenAI response exceeded its byte limit");
-            return;
-        }
-        bytes += chunk;
-    }
-    void finished() {
-        if (!pending)
-            return;
-        drain();
-        if (!pending)
-            return;
-        auto *reply = pending.data();
-        const auto code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        bool delayValid{};
-        const auto seconds = reply->rawHeader("Retry-After").toInt(&delayValid);
-        const int retryAfter = delayValid ? std::clamp(seconds, 0, 10) * 1000 : 0;
-        if (code == 429) {
-            fail(AssistantTask::ProviderFailure::RateLimited,
-                 "OpenAI rate limit; retrying within the task budget", retryAfter);
-            return;
-        }
-        if (code == 408 || code == 504) {
-            fail(AssistantTask::ProviderFailure::Timeout, "OpenAI request timed out");
-            return;
-        }
-        if (code >= 500 || (!code && reply->error() != QNetworkReply::NoError)) {
-            fail(AssistantTask::ProviderFailure::Unavailable, "OpenAI connection unavailable");
-            return;
-        }
-        if (code != 200 || reply->error() != QNetworkReply::NoError) {
-            fail(AssistantTask::ProviderFailure::Fatal,
-                 code == 401 || code == 403
-                     ? "OpenAI rejected the credential or account access"
-                     : "OpenAI rejected the request; check model configuration");
-            return;
-        }
-        const auto response = bytes;
-        abort();
-        try {
-            const auto translated = conversation.decode(response);
-            if (task->accept(attempt, translated))
-                conversation.accepted();
-            status = "OpenAI response received";
-            notify();
-        } catch (const std::exception &) {
-            task->providerFailed(attempt, AssistantTask::ProviderFailure::Fatal);
-            status = "OpenAI returned an incomplete or invalid response";
-            notify();
-        }
-    }
-    void pump() {
-        checkOwner();
-        if (processing)
-            return;
-        processing = true;
-        const auto reset = qScopeGuard([this] { processing = false; });
-        auto request =
-            task->nextRequest(); // Also checks revision/deadline while a request is in flight.
-        if (!running(task->phase())) {
-            abort();
-            poll.stop();
-        }
-        if (task->phase() != last)
-            notify();
-        if (!request || task->phase() != AssistantTask::Phase::AwaitingProvider)
-            return;
-        attempt = request->value("attemptId").toString();
-        try {
-            const auto body = json(conversation.request(*request));
-            QNetworkRequest network(QUrl("https://api.openai.com/v1/responses"));
-            network.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-            network.setRawHeader("Authorization", "Bearer " + key);
-            network.setRawHeader("Accept", "application/json");
-            network.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                                 QNetworkRequest::ManualRedirectPolicy);
-            network.setTransferTimeout(30000);
-            pending = manager->post(network, body);
-            bytes.clear();
-            pending->setReadBufferSize(1024 * 1024 + 1);
-            QObject::connect(pending, &QNetworkReply::readyRead, &owner,
-                             [this] { guarded([this] { drain(); }); });
-            QObject::connect(pending, &QNetworkReply::finished, &owner,
-                             [this] { guarded([this] { finished(); }); });
-            deadline.start(30000);
-            status = "Waiting for OpenAI";
-            notify();
-        } catch (const std::exception &) {
-            fail(AssistantTask::ProviderFailure::Fatal,
-                 "OpenAI request could not be prepared within configured limits");
-        }
-    }
-};
+namespace {
+AssistantNetworkProvider::Protocol openAiProtocol(QByteArray key) {
+    auto conversation = std::make_shared<OpenAiConversation>();
+    AssistantNetworkProvider::Protocol protocol;
+    protocol.provider = "OpenAI";
+    protocol.remote = true;
+    protocol.endpoint = QUrl("https://api.openai.com/v1/responses");
+    protocol.key = std::move(key);
+    protocol.request = [conversation](const QJsonObject &request) {
+        return conversation->request(request);
+    };
+    protocol.decode = [conversation](const QByteArray &response) {
+        return conversation->decode(response);
+    };
+    protocol.accepted = [conversation] { conversation->accepted(); };
+    return protocol;
+}
+} // namespace
 OpenAiProvider::OpenAiProvider(std::unique_ptr<AssistantTask> task, QByteArray key,
                                QNetworkAccessManager *manager, QObject *parent)
-    : QObject(parent),
-      impl_(std::make_unique<Impl>(*this, std::move(task), std::move(key), manager)) {}
-OpenAiProvider::~OpenAiProvider() = default;
-void OpenAiProvider::start() {
-    impl_->checkOwner();
-    require(!impl_->started, "Provider task can start only once");
-    impl_->started = true;
-    impl_->poll.start();
-    impl_->guarded([this] { impl_->pump(); });
-}
-void OpenAiProvider::cancel() {
-    impl_->checkOwner();
-    impl_->task->cancel();
-    impl_->abort();
-    impl_->poll.stop();
-    impl_->status = "OpenAI request stopped";
-    impl_->notify();
-}
-void OpenAiProvider::apply() {
-    impl_->checkOwner();
-    impl_->task->apply();
-    impl_->notify();
-}
-void OpenAiProvider::reconcile() {
-    impl_->checkOwner();
-    impl_->task->reconcile();
-    impl_->notify();
-}
-AssistantTask &OpenAiProvider::task() {
-    impl_->checkOwner();
-    return *impl_->task;
-}
-QString OpenAiProvider::status() const {
-    impl_->checkOwner();
-    return impl_->status;
-}
+    : AssistantNetworkProvider(std::move(task), openAiProtocol(std::move(key)), manager, parent) {}
 } // namespace sketchy

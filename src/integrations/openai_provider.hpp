@@ -1,5 +1,5 @@
 #pragma once
-#include "automation/assistant.hpp"
+#include "integrations/provider_transport.hpp"
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <memory>
@@ -17,24 +17,9 @@ class OpenAiConversation {
     QJsonArray candidate_;
     qsizetype retainedBytes_{};
 };
-class OpenAiProvider : public QObject {
-    Q_OBJECT
+class OpenAiProvider : public AssistantNetworkProvider {
   public:
-    // The injected manager is a trusted host dependency and must outlive this object.
     OpenAiProvider(std::unique_ptr<AssistantTask> task, QByteArray apiKey,
                    QNetworkAccessManager *manager = nullptr, QObject *parent = nullptr);
-    ~OpenAiProvider() override;
-    void start();
-    void cancel();
-    void apply();
-    void reconcile();
-    AssistantTask &task();
-    QString status() const;
-  signals:
-    void changed();
-
-  private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
 };
 } // namespace sketchy

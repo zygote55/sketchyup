@@ -1,0 +1,330 @@
+{
+  "date": "2026-10-05",
+  "runtime": "Ollama 0.35.1",
+  "model": "qwen3:4b-instruct",
+  "modelDigest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+  "trials": [
+    {
+      "trial": "measure",
+      "elapsedMs": 300018,
+      "contextTokens": 32768,
+      "outputTokensPerTurn": 768,
+      "taskSeconds": 300,
+      "result": {
+        "applied": false,
+        "baseRevision": "1",
+        "documentId": "ba27fa12fe2708e177bf43a654fa69aa",
+        "error": {
+          "code": "TIME_LIMIT",
+          "message": "Assistant task deadline expired"
+        },
+        "outcome": "not-committed",
+        "phase": "failed",
+        "preview": {},
+        "providerTurns": 3,
+        "receipt": {},
+        "reportedTokens": 6381,
+        "taskId": "289bc221-081d-4c69-b982-6eb1d2236674",
+        "toolCalls": 1,
+        "unverifiedModelText": ""
+      },
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "manualEditSaveReopenVerified": true,
+      "revisionUnchanged": true,
+      "unrelatedPreserved": false,
+      "measurements": {},
+      "rawReportSha256": "52808fe2670dafd5cfe0358b6f55574d5bc07f6eaf9c902d71923b61c40da1ce",
+      "executedReceipts": [
+        {
+          "elapsedMs": 235973,
+          "request": {
+            "apiVersion": 1,
+            "documentId": "ba27fa12fe2708e177bf43a654fa69aa",
+            "expectedRevision": "1",
+            "query": "document.describe"
+          },
+          "result": {
+            "apiVersion": 1,
+            "data": {
+              "counts": {
+                "assets": 0,
+                "bodies": 1,
+                "definitions": 0,
+                "instances": 0,
+                "materials": 0,
+                "tags": 0
+              },
+              "dirty": false,
+              "displayUnits": "m",
+              "editorStateAvailable": false
+            },
+            "documentId": "ba27fa12fe2708e177bf43a654fa69aa",
+            "query": "document.describe",
+            "revision": "1",
+            "tolerance": 1e-07,
+            "units": "m",
+            "up": "Z"
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "path": "/api/version",
+          "status": 200,
+          "elapsedMs": 5
+        },
+        {
+          "path": "/api/show",
+          "status": 200,
+          "elapsedMs": 66
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 120314
+        },
+        {
+          "path": "/api/chat",
+          "status": 200,
+          "elapsedMs": 115323
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 64017
+        }
+      ]
+    },
+    {
+      "trial": "room",
+      "elapsedMs": 300022,
+      "contextTokens": 32768,
+      "outputTokensPerTurn": 768,
+      "taskSeconds": 300,
+      "result": {
+        "applied": false,
+        "baseRevision": "0",
+        "documentId": "567625351df47309336e7c3ee6b7e62d",
+        "error": {
+          "code": "TIME_LIMIT",
+          "message": "Assistant task deadline expired"
+        },
+        "outcome": "not-committed",
+        "phase": "failed",
+        "preview": {},
+        "providerTurns": 3,
+        "receipt": {},
+        "reportedTokens": 0,
+        "taskId": "fd1bda80-b638-407c-a2b5-5da35e3ec0ef",
+        "toolCalls": 0,
+        "unverifiedModelText": ""
+      },
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "manualEditSaveReopenVerified": true,
+      "revisionUnchanged": true,
+      "unrelatedPreserved": false,
+      "measurements": {},
+      "rawReportSha256": "e6e7cc89ec1132d6d6bc710ecd7db894d00c1d4d355d2a8b0cfc98ca0ac54db0",
+      "executedReceipts": [],
+      "exchanges": [
+        {
+          "path": "/api/version",
+          "status": 200,
+          "elapsedMs": 5
+        },
+        {
+          "path": "/api/show",
+          "status": 200,
+          "elapsedMs": 15
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 120289
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 119730
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 59143
+        }
+      ]
+    },
+    {
+      "trial": "resize",
+      "elapsedMs": 300054,
+      "contextTokens": 32768,
+      "outputTokensPerTurn": 768,
+      "taskSeconds": 300,
+      "result": {
+        "applied": false,
+        "baseRevision": "1",
+        "documentId": "b6df4449ba786b0a225d91c826ed702d",
+        "error": {
+          "code": "TIME_LIMIT",
+          "message": "Assistant task deadline expired"
+        },
+        "outcome": "not-committed",
+        "phase": "failed",
+        "preview": {},
+        "providerTurns": 3,
+        "receipt": {},
+        "reportedTokens": 0,
+        "taskId": "b04f31fe-77cc-42a8-8041-a5451cae8482",
+        "toolCalls": 0,
+        "unverifiedModelText": ""
+      },
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "manualEditSaveReopenVerified": true,
+      "revisionUnchanged": true,
+      "unrelatedPreserved": false,
+      "measurements": {},
+      "rawReportSha256": "fe173a49bb6c390d9fd65c74b9bcb70d2900a68a126481f8e0c787a02ef0b25a",
+      "executedReceipts": [],
+      "exchanges": [
+        {
+          "path": "/api/version",
+          "status": 200,
+          "elapsedMs": 5
+        },
+        {
+          "path": "/api/show",
+          "status": 200,
+          "elapsedMs": 15
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 120075
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 119715
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 59369
+        }
+      ]
+    },
+    {
+      "trial": "unsupported",
+      "elapsedMs": 300031,
+      "contextTokens": 32768,
+      "outputTokensPerTurn": 768,
+      "taskSeconds": 300,
+      "result": {
+        "applied": false,
+        "baseRevision": "1",
+        "documentId": "e0295f32007d3470837530c7afc3627c",
+        "error": {
+          "code": "TIME_LIMIT",
+          "message": "Assistant task deadline expired"
+        },
+        "outcome": "not-committed",
+        "phase": "failed",
+        "preview": {},
+        "providerTurns": 3,
+        "receipt": {},
+        "reportedTokens": 0,
+        "taskId": "6f6742a7-ac18-41fc-8fdb-4d95b725101e",
+        "toolCalls": 0,
+        "unverifiedModelText": ""
+      },
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "manualEditSaveReopenVerified": true,
+      "revisionUnchanged": true,
+      "unrelatedPreserved": false,
+      "measurements": {},
+      "rawReportSha256": "e1b2dc36cc37c4b85a702b19f28d7e5c04cb333eb92d4d957d8f171d4d651d87",
+      "executedReceipts": [],
+      "exchanges": [
+        {
+          "path": "/api/version",
+          "status": 200,
+          "elapsedMs": 5
+        },
+        {
+          "path": "/api/show",
+          "status": 200,
+          "elapsedMs": 16
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 119903
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 119700
+        },
+        {
+          "path": "/api/chat",
+          "status": 0,
+          "elapsedMs": 59524
+        }
+      ]
+    },
+    {
+      "trial": "unavailable",
+      "elapsedMs": 800,
+      "contextTokens": 32768,
+      "outputTokensPerTurn": 768,
+      "taskSeconds": 300,
+      "result": {
+        "applied": false,
+        "baseRevision": "1",
+        "documentId": "a97fa0df5bc959e3a8df6124d1eb5389",
+        "error": {
+          "code": "PROVIDER_FAILED",
+          "message": "Provider failed or retry budget exhausted"
+        },
+        "outcome": "not-committed",
+        "phase": "failed",
+        "preview": {},
+        "providerTurns": 3,
+        "receipt": {},
+        "reportedTokens": 0,
+        "taskId": "d4c3a744-e759-4c4e-b7b8-0463a2aff306",
+        "toolCalls": 0,
+        "unverifiedModelText": ""
+      },
+      "geometryVerified": false,
+      "inspectionVerified": false,
+      "manualEditSaveReopenVerified": true,
+      "revisionUnchanged": true,
+      "unrelatedPreserved": false,
+      "measurements": {},
+      "rawReportSha256": "7b9a56c2211862bb14b9f4c6c8d2e0b3fbcd1b1bbbc708cdd1db629f57206227",
+      "executedReceipts": [],
+      "exchanges": [
+        {
+          "path": "/api/version",
+          "status": 0,
+          "elapsedMs": 5
+        },
+        {
+          "path": "/api/version",
+          "status": 0,
+          "elapsedMs": 5
+        },
+        {
+          "path": "/api/version",
+          "status": 0,
+          "elapsedMs": 5
+        }
+      ]
+    }
+  ]
+}
