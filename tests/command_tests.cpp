@@ -890,6 +890,10 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "geometry.cleanup"}, {"body", "1"}},
             QJsonObject{
                 {"command", "geometry.offset"}, {"body", "1"}, {"face", "5"}, {"distance", -.1}},
+            QJsonObject{{"command", "geometry.sweep"},
+                        {"body", "1"},
+                        {"face", "5"},
+                        {"path", QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{0, 0, 2}}}},
             QJsonObject{
                 {"command", "geometry.push_pull"}, {"body", "1"}, {"face", "5"}, {"distance", 2}},
             QJsonObject{{"command", "geometry.extrude_isolated"},
