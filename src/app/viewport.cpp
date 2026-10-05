@@ -61,9 +61,9 @@ void Viewport::cleanupGL() {
     disconnect(contextCleanup_);
     if (context()) {
         makeCurrent();
-        for (auto *batch :
-             {&gridGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_, &pickEdgesGpu_,
-              &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_, &hoverEdgesGpu_}) {
+        for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_,
+                            &pickEdgesGpu_, &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_,
+                            &hoverEdgesGpu_, &assistantTrianglesGpu_, &assistantLinesGpu_}) {
             batch->buffer.destroy();
             batch->count = 0;
         }
@@ -77,6 +77,7 @@ void Viewport::cleanupGL() {
         doneCurrent();
     }
     ready_ = false;
+    assistantPreviewDirty_ = true;
     cacheDirty_ = true;
     transparentDirty_ = true;
     benchmarkDirty_ = true;
@@ -122,7 +123,8 @@ uniform float pixelRatio;
 out vec4 fragment;
 void main() {
   if(clipEnabled!=0 && dot(clipPlane,vec4(worldPosition,1.0))<0.0) discard;
-  if(stipple!=0 && (mod(floor(gl_FragCoord.x/pixelRatio),4.0)>0.0 || mod(floor(gl_FragCoord.y/pixelRatio),4.0)>0.0)) discard;
+  if(stipple==1 && (mod(floor(gl_FragCoord.x/pixelRatio),4.0)>0.0 || mod(floor(gl_FragCoord.y/pixelRatio),4.0)>0.0)) discard;
+  if(stipple==2 && mod(floor((gl_FragCoord.x+gl_FragCoord.y)/pixelRatio),8.0)>2.0) discard;
   vec4 color=gl_FrontFacing ? tint : backTint;
   // Opacity is constant per face; interpolating 1 can round below 1 and discard opaque fragments.
   color.a=gl_FrontFacing ? faceOpacity.x : faceOpacity.y;
@@ -142,7 +144,8 @@ void main() {
         return;
     }
     for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_, &pickEdgesGpu_,
-                        &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_, &hoverEdgesGpu_}) {
+                        &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_, &hoverEdgesGpu_,
+                        &assistantTrianglesGpu_, &assistantLinesGpu_}) {
         if (!batch->buffer.create()) {
             emit message("Could not create a viewport buffer");
             return;
@@ -896,6 +899,7 @@ void Viewport::paintScene() {
         for (auto &[id, cache] : bodyCaches_)
             draw(cache->linesGpu, GL_LINES);
         drawSelectionOverlay();
+        drawAssistantPreview();
     }
     shader_->release();
     glDisable(GL_DEPTH_TEST);
@@ -907,6 +911,7 @@ void Viewport::paintScene() {
     p.setRenderHint(QPainter::Antialiasing);
     paintGuides(p);
     paintSelection(p);
+    paintAssistantPreview(p);
     if (hasFocus()) {
         p.setPen(QPen(colors_.accent, 2));
         p.setBrush(Qt::NoBrush);
