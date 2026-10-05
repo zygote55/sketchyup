@@ -1,4 +1,5 @@
 #include "app/window.hpp"
+#include "app/inspection_service.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "io/document_io.hpp"
@@ -100,6 +101,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
     tools->setFixedWidth(78);
     content->addWidget(tools);
     viewport_ = new Viewport(doc_);
+    inspection_ = std::make_unique<DesktopInspection>(*viewport_);
     content->addWidget(viewport_, 1);
     breadcrumb_ = new QLabel(viewport_);
     breadcrumb_->setObjectName("contextBreadcrumb");

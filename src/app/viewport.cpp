@@ -22,6 +22,7 @@ constexpr float degreesToRadians = std::numbers::pi_v<float> / 180;
 } // namespace
 Viewport::Viewport(Document &doc, QWidget *parent)
     : QOpenGLWidget(parent), doc_(doc), session_(doc) {
+    selection_.sync(doc_);
     session_.setScopeProvider([this] { return componentScope(); });
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);

@@ -9,6 +9,7 @@
 #include <QMenu>
 #include <functional>
 namespace sketchy {
+class DesktopInspection;
 class Window : public QMainWindow {
     Q_OBJECT
   public:
@@ -19,6 +20,7 @@ class Window : public QMainWindow {
     void showRecovery(bool onlyIfPresent = false);
     Document &document() { return doc_; }
     Viewport *viewport() { return viewport_; }
+    QJsonObject inspect(const QJsonObject &request);
     void demo();
     void openPath(const QString &path);
     void importFormlinePath(const QString &path);
@@ -31,6 +33,7 @@ class Window : public QMainWindow {
   private:
     Document doc_;
     Viewport *viewport_{};
+    std::unique_ptr<DesktopInspection> inspection_;
     QTreeWidget *outliner_{};
     OrganizationPanel *organization_{};
     QLabel *info_{};
