@@ -14,8 +14,10 @@ editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
 M1 native foundation, M2 editable geometry, M3 manual drawing and M4 editing/recovery gates. M5 automation is in progress. Shared components now support native editing.
-AI providers,
-Blender integration and general exchange formats are not implemented. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
+OpenAI and experimental loopback Ollama adapters, transactional previews and optional
+Blender rendering are implemented. Live OpenAI acceptance is still pending; the
+measured local CPU profile timed out on the initial modeling corpus. General
+exchange formats remain planned. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Automatic recovery copies are enabled every 30 seconds; File → Recovery settings
 changes the interval (5–3,600 seconds) or disables it. The recovery status shows
 only the last verified copy and identifies newer edits still in memory. A write
@@ -167,6 +169,36 @@ locales use semicolons between dimensions/coordinates. The selected drawing plan
 as one undo item; an intervening edit or undo/redo invalidates re-entry. Escape in
 Measurements returns focus to the viewport. Invalid input remains selected and
 marked with an explanation.
+
+## Assistant and rendering
+
+Press `Ctrl+J` or choose View → Assistant. In Preferences, choose OpenAI, enter an
+explicit model ID and store your API key in the OS credential facility. On Linux
+this requires `secret-tool` (Arch package `libsecret`) and an available, unlocked
+Secret Service. Credentials are never stored in preferences or native files.
+The first request asks you to approve sending model context to OpenAI. “What is
+sent” explains attachments and the bounded document inspection tools available
+to the provider. Keys do not belong in chat, terminal arguments or model files.
+
+Preview first is the default. Review the hatched geometry, changed objects and
+host-measured bounds/area, then Apply (`Ctrl+Return`) or Discard. Apply adds one
+undo entry. Refine / re-plan starts a fresh request on the current model. A manual
+edit makes an older proposal stale. Direct mode uses the same validated commit
+path. Deletion and shared-definition edits require the corresponding per-request
+checkbox. If an outcome is unknown, use Reconcile before editing or saving.
+Escape returns focus to the model. Without a configured provider, ordinary
+modeling, saving and rendering remain available.
+
+The optional local provider uses an explicitly configured numeric loopback
+endpoint and model. The measured Ollama 0.35.1 / `qwen3:4b-instruct` CPU profile is
+experimental: all four live corpus tasks reached the five-minute limit. It has
+no automatic download or cloud fallback. See [provider evidence](docs/verification/R045-local-provider.md).
+
+Choose Camera → Render to set an explicit Blender executable, camera, resolution,
+samples and CPU or supported GPU device. Blender 5.2 LTS is supported; CPU is the
+default. The job renders an immutable snapshot while editing continues. Results
+identify the source revision, show when the model has changed, and can be saved
+as PNG. Blender is optional. See [render evidence](docs/verification/R050-native-render-ui.md).
 
 ## Headless commands
 

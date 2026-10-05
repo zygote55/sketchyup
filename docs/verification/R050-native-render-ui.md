@@ -52,3 +52,7 @@ startup. Launchers now have unique paths, write failures include their actual
 path/error, and the flood case retains the normal five-second startup budget
 while still requiring `OUTPUT_LIMIT`. The separate 200 ms timeout case remains.
 Five consecutive targeted ASan/UBSan runs passed in 13.26 s after these changes.
+
+Final acceptance: both CI runs on `74df43d` passed: `37325192354`
+(50m41s) and `37325198014` (1h5m54s). PR [#73](https://github.com/zygote55/sketchyup/pull/73)
+merged on 2026-10-05 at 15:36:53 UTC as `c10a692f05fb9940cfd6bb623350f07d19ec0bb9`.

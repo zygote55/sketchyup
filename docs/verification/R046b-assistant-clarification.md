@@ -21,3 +21,6 @@ network replies; they make no live model-quality or credential claims.
 
 Source packaging and installation pass. Native cards, viewport picking and the
 rest of the R046 panel remain subsequent integration work.
+
+Both CI runs passed (37329519243, 1h8m24s; 37329527904, 1h8m42s). PR #76
+merged as `035f119659c1580750634d2d6a23a1114b5ffd39` at 16:11:29 UTC.

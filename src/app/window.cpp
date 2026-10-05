@@ -43,10 +43,11 @@ QAction *Window::action(const QString &id, const QString &title, const QKeySeque
     a->setShortcut(shortcut);
     addAction(a);
     publicActions_.push_back(a);
-    connect(a, &QAction::triggered, this, [this, fn] { run(fn); });
+    connect(a, &QAction::triggered, this, [this, fn, id] { run(fn, id.startsWith("view.")); });
     return a;
 }
-Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
+Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
+    : QMainWindow(parent), doc_(preferredUnits()) {
     QSettings preferences("SketchyUp", "SketchyUp");
     recentFiles_ = preferences.value("recentFiles").toStringList().mid(0, 10);
     themeMode_ = std::clamp(preferences.value("theme", 0).toInt(), 0, 2);
@@ -95,6 +96,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
     saveBanner_->hide();
     vertical->addWidget(saveBanner_);
     auto *content = new QHBoxLayout;
+    content_ = content;
     content->setSpacing(0);
     auto *tools = new QToolBar;
     tools->setObjectName("toolRail");
@@ -140,7 +142,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
             [this] { run([this] { viewport_->makeComponentUnique(true); }); });
     tray_ = new QWidget;
     tray_->setObjectName("tray");
-    tray_->setFixedWidth(248);
+    tray_->setMinimumWidth(220);
     auto *trayLayout = new QVBoxLayout(tray_);
     auto *heading = new QLabel("MODEL");
     heading->setObjectName("section");
@@ -157,11 +159,14 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
     hint->setWordWrap(true);
     hint->setObjectName("hint");
     trayLayout->addWidget(hint);
-    content->addWidget(tray_);
-    auto *assistant = new QWidget;
-    assistant->setObjectName("assistantContainer");
-    assistant->hide();
-    content->addWidget(assistant);
+    sideTabs_ = new QTabWidget;
+    sideTabs_->setObjectName("assistantSideTabs");
+    sideTabs_->setTabBarAutoHide(true);
+    sideTabs_->addTab(tray_, "Model");
+    sideTabs_->setFixedWidth(248);
+    content->addWidget(sideTabs_);
+    assistant_ = new AssistantPanel(doc_, *viewport_, std::move(assistantServices), root);
+    assistant_->hide();
     vertical->addLayout(content, 1);
     auto *bottom = new QWidget;
     bottom->setObjectName("footer");
@@ -522,8 +527,10 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
         findChild<QAction *>("view.tray")->setChecked(true);
         organization_->showHistory();
     }));
+    view->addAction(action("view.assistant", "Assistant", QKeySequence("Ctrl+J"),
+                           [this] { toggleAssistant(); }));
     auto *panel = action("view.tray", "Model panel", QKeySequence("Ctrl+Shift+T"), [this] {
-        tray_->setVisible(findChild<QAction *>("view.tray")->isChecked());
+        sideTabs_->setVisible(findChild<QAction *>("view.tray")->isChecked());
     });
     panel->setCheckable(true);
     panel->setChecked(true);
@@ -547,7 +554,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
             applyTheme();
     });
     action("view.commands", "Commands…", QKeySequence("Ctrl+K"), [this] { palette(); });
-    focusRegions_ = {search, tools, viewport_, organization_, measurements_};
+    focusRegions_ = {search, tools, viewport_, organization_, assistant_, measurements_};
     for (const auto &binding :
          std::vector<std::pair<QString, QString>>{{"edit.move", "geometry.transform_selection"},
                                                   {"edit.paint", "material.color"},
@@ -594,6 +601,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
             measurements_->setText(text);
     });
     connect(measurements_, &QLineEdit::returnPressed, this, [this] {
+        if (assistant_ && assistant_->uncertain())
+            return;
         if (viewport_->measurements(measurements_->text())) {
             measurementError(false);
             measurements_->clear();
@@ -604,6 +613,14 @@ Window::Window(QWidget *parent) : QMainWindow(parent), doc_(preferredUnits()) {
         }
     });
     connect(measurements_, &QLineEdit::textEdited, this, [this] { measurementError(false); });
+    connect(assistant_, &AssistantPanel::modelChanged, this, &Window::sync);
+    connect(assistant_, &AssistantPanel::fenceChanged, this, &Window::assistantFence);
+    connect(assistant_, &AssistantPanel::focusViewport, this, [this] {
+        if (assistantSheet_ && assistantSheet_->isVisible())
+            assistantSheet_->reject();
+        activateWindow();
+        viewport_->setFocus();
+    });
     applyTheme();
     sync();
 }
@@ -646,7 +663,11 @@ QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} Q
     linkPalette.setColor(QPalette::Link, colors.accent);
     breadcrumb_->setPalette(linkPalette);
 }
-void Window::run(const std::function<void()> &fn) {
+void Window::run(const std::function<void()> &fn, bool viewOnly) {
+    if (!viewOnly && assistant_ && assistant_->uncertain()) {
+        status_->setText("Reconcile the assistant outcome before editing this model.");
+        return;
+    }
     try {
         fn();
     } catch (const std::exception &e) {
@@ -689,6 +710,8 @@ void Window::tool(Viewport::Tool t, const QString &text) {
                                                                      : "width, depth");
 }
 void Window::sync() {
+    if (assistant_)
+        assistant_->refresh();
     if (render_)
         render_->refreshProvenance();
     measurementUnits_->setText("Measurements · " +
@@ -766,8 +789,17 @@ void Window::sync() {
                                                 2, doc_.displayUnits());
     }
     info_->setText(text);
+    if (assistantFenced_) {
+        for (auto &[action, wasEnabled] : assistantActionStates_)
+            action->setEnabled(false);
+        measurements_->setEnabled(false);
+    }
 }
 bool Window::save(bool saveAs) {
+    if (assistant_ && assistant_->uncertain()) {
+        status_->setText("Reconcile the assistant outcome before saving.");
+        return false;
+    }
     auto target = path_;
     if (saveAs || target.isEmpty()) {
         QFileDialog dialog(this, "Save model", target.isEmpty() ? "Untitled.sketchyup" : target,
@@ -815,22 +847,27 @@ bool Window::save(bool saveAs) {
     }
 }
 bool Window::canReplace() {
-    if (!doc_.dirty()) {
-        clearRecovery();
-        return true;
-    }
-    auto choice = QMessageBox::warning(
-        this, "Unsaved changes", "Save this model before continuing?",
-        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
-    if (choice == QMessageBox::Cancel)
+    if (assistant_ && assistant_->uncertain()) {
+        status_->setText("Reconcile the assistant outcome before replacing or closing this model.");
         return false;
-    if (choice == QMessageBox::Save)
-        return save();
-    if (choice == QMessageBox::Discard) {
-        clearRecovery();
-        return true;
     }
-    return false;
+    if (doc_.dirty()) {
+        const auto choice = QMessageBox::warning(
+            this, "Unsaved changes", "Save this model before continuing?",
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
+        if ((choice != QMessageBox::Save && choice != QMessageBox::Discard) ||
+            (choice == QMessageBox::Save && !save()))
+            return false;
+    }
+    try {
+        if (assistant_)
+            assistant_->closeSession();
+    } catch (const std::exception &e) {
+        status_->setText(e.what());
+        return false;
+    }
+    clearRecovery();
+    return true;
 }
 void Window::openPath(const QString &path) {
     // Validate before asking to discard the current document.
@@ -856,8 +893,8 @@ void Window::closeEvent(QCloseEvent *e) {
 }
 void Window::resizeEvent(QResizeEvent *e) {
     QMainWindow::resizeEvent(e);
-    if (tray_)
-        tray_->setVisible(width() >= 800);
+    if (sideTabs_)
+        layoutAssistant();
     if (auto *panel = findChild<QAction *>("view.tray"))
         panel->setChecked(width() >= 800);
     setProperty("layoutClass", width() < 800    ? "compact"

@@ -16,6 +16,7 @@
 #include <QVBoxLayout>
 namespace sketchy {
 Window::~Window() {
+    delete assistant_;
     delete render_;
     delete recovery_;
 }
