@@ -42,3 +42,13 @@ allocation/deletion is visible in [Qt's implementation](https://github.com/qt/qt
 It is a test-environment workaround, not an application fix or a claim that the
 upstream leak is resolved. Ordinary X11/Wayland DPR 1/2 tests still exercise the
 normal native window configuration; no application or system setting changed.
+
+A later CI run (37270069126) failed in the sanitized Blender worker fixture with
+`Write test artifact`; the same stack's local-provider CI run (37270982409) failed
+its output-limit assertion. Neither failure came from the native decoration
+path. The fixture reused executable launcher paths while starting concurrent
+jobs, and gave its output-flood case only 200 ms including sanitized process
+startup. Launchers now have unique paths, write failures include their actual
+path/error, and the flood case retains the normal five-second startup budget
+while still requiring `OUTPUT_LIMIT`. The separate 200 ms timeout case remains.
+Five consecutive targeted ASan/UBSan runs passed in 13.26 s after these changes.

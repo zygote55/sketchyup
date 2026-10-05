@@ -23,8 +23,9 @@ QByteArray read(const QString &path) {
 }
 void write(const QString &path, const QByteArray &data) {
     QFile file(path);
-    check(file.open(QIODevice::WriteOnly) && file.write(data) == data.size(),
-          "Write test artifact");
+    if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size())
+        throw std::runtime_error(
+            ("Write test artifact " + path + ": " + file.errorString()).toStdString());
 }
 QString hash(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
@@ -136,8 +137,11 @@ int main(int argc, char **argv) {
                          return PreparedRender::prepare(snapshot);
                      }).get();
         const auto sourceBytes = read(input->sourceDirectory() + "/scene.glb");
+        int launcherSequence{};
         auto options = [&](const QString &mode) {
-            const auto path = files.path() + "/" + mode;
+            // A launcher may still be entering exec when the next job starts.
+            // Never truncate a path that another process may be executing.
+            const auto path = files.path() + "/" + mode + "-" + QString::number(++launcherSequence);
             write(path, ("#!/bin/sh\nexec " + quote(app.applicationFilePath()) + " --fake " +
                          quote(mode) + " \"$@\"\n")
                             .toUtf8());
@@ -244,7 +248,8 @@ int main(int argc, char **argv) {
         for (const auto &mode : {"hang", "flood"}) {
             BlenderJob job;
             auto bounded = options(mode);
-            bounded.timeoutMs = 200;
+            // The flood test measures bytes, not sanitizer/process startup speed.
+            bounded.timeoutMs = QString(mode) == "hang" ? 200 : 5000;
             job.start(input, bounded);
             wait(job);
             check(!job.result() &&
