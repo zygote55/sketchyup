@@ -16,6 +16,10 @@ sed -i 's/^pkgrel=2$/pkgrel=1/' PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force
 pacman -U --noconfirm sketchyup-0.1.0-1-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
+test -s /usr/share/doc/sketchyup/decisions/0027-transaction-recipes.md
+sketchyup-cli --recipe-capabilities | jq -S . > /work/package/recipe-installed.json
+jq -S . /usr/share/doc/sketchyup/api/recipe-v1.json > /work/package/recipe-schema.json
+cmp /work/package/recipe-installed.json /work/package/recipe-schema.json
 test -s /usr/share/doc/sketchyup/decisions/0026-headless-session.md
 sketchyup-cli --session-capabilities | jq -S . > /work/package/headless-installed.json
 jq -S . /usr/share/doc/sketchyup/api/headless-session-v1.json > /work/package/headless-schema.json
@@ -86,6 +90,11 @@ jq -e --slurpfile expected /work/acceptance/expected.json \
 LAUNCH
 chmod +x /work/acceptance/launch.sh
 runuser -u builder -- xvfb-run -a /work/acceptance/launch.sh
+runuser -u builder -- env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
+  sketchyup-cli --recipe /usr/share/doc/sketchyup/examples/transaction-face-recipe.json \
+  --new --output /work/acceptance/recipe.sketchyup --outcomes /work/acceptance/recipe-outcomes \
+  > /work/acceptance/recipe.jsonl
+jq -e 'select(.id == "measurement") | .ok and (.result.data.area == 6)' /work/acceptance/recipe.jsonl
 mv PKGBUILD.current PKGBUILD
 chown builder:builder PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force --nocheck
@@ -96,6 +105,9 @@ cmp /work/acceptance/expected.json /work/acceptance/reopened.json
 runuser -u builder -- env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a timeout 40s sketchyup --smoke > /work/acceptance/upgraded-smoke.json
 pacman -R --noconfirm sketchyup
 [[ ! -e /usr/bin/sketchyup && ! -e /usr/bin/sketchyup-cli ]]
+[[ ! -e /usr/share/doc/sketchyup/api/recipe-v1.json ]]
+[[ ! -e /usr/share/doc/sketchyup/decisions/0027-transaction-recipes.md ]]
+[[ ! -e /usr/share/doc/sketchyup/examples/transaction-face-recipe.json ]]
 [[ ! -e /usr/share/doc/sketchyup/api/headless-session-v1.json ]]
 [[ ! -e /usr/share/doc/sketchyup/decisions/0026-headless-session.md ]]
 [[ ! -e /usr/share/doc/sketchyup/api/transactions-v1.json ]]

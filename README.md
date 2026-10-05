@@ -189,7 +189,10 @@ with optional `--output MODEL` for an explicitly bound save destination. Create 
 new baseline with `--session --new --output MODEL --outcomes DIRECTORY`.
 `--session-capabilities` prints the shared schemas. Requests and replies use bounded
 JSON lines; see the [session protocol](docs/decisions/0026-headless-session.md).
-Recipe execution and MCP transport remain in progress.
+Versioned recipes pass typed results between those same requests:
+`--recipe examples/transaction-face-recipe.json --new --output /tmp/face.sketchyup --outcomes /tmp/face-outcomes`.
+See the [recipe contract](docs/decisions/0027-transaction-recipes.md) and
+`--recipe-capabilities`. MCP transport remains in progress.
 
 
 ```sh

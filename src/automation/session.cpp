@@ -106,6 +106,10 @@ void write(QIODevice &output, const QJsonObject &object) {
              "Cannot flush automation response; reconcile accepted commits on reconnect");
 }
 } // namespace
+void checkAutomationDepth(const QByteArray &bytes) { boundedDepth(bytes); }
+void writeAutomationResponse(QIODevice &output, const QJsonObject &response) {
+    write(output, response);
+}
 QJsonObject sessionCapabilities() {
     QJsonArray operations;
     for (const auto *name : {"session.describe", "session.capabilities", "document.save"})
