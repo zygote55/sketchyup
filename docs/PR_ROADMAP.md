@@ -750,7 +750,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R046 — Build the assistant panel and change preview UX
 
-**Status:** In progress. R046.a binds the existing native document and selection to the durable assistant transaction engine, preserving prior history, one-entry Apply, stale-preview rejection, temporary locks and uncertain-outcome reconciliation. All 62 enabled development suites and four focused sanitizer suites pass. Native panel/setup/hatched-preview UX remains pending. [Bridge evidence](verification/R046a-native-assistant-transactions.md), [contract](decisions/0037-native-assistant-transactions.md). **Track:** Desktop. **Scope:** A03, A04, N05. **UX:** §3.3, §8.
+**Status:** In progress. R046.a binds the existing native document and selection to the durable assistant transaction engine, preserving prior history, one-entry Apply, stale-preview rejection, temporary locks and uncertain-outcome reconciliation. All 62 enabled development suites and four focused sanitizer suites pass. R046.b adds opt-in structured clarification with bounded host answers and matching provider replay; full development and focused sanitizer checks pass. Native panel/setup/hatched-preview UX remains pending. [Clarification evidence](verification/R046b-assistant-clarification.md), [bridge evidence](verification/R046a-native-assistant-transactions.md), [contract](decisions/0037-native-assistant-transactions.md). **Track:** Desktop. **Scope:** A03, A04, N05. **UX:** §3.3, §8.
 
 **Requires:** [R044](#r044), [R045](#r045), [R041](#r041), [R010](#r010); milestone gate rule above.
 

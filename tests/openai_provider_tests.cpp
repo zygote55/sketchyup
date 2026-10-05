@@ -206,6 +206,46 @@ int main(int argc, char **argv) {
         {
             auto model = session();
             auto opts = options();
+            opts.clarificationAvailable = true;
+            Network network;
+            network.respond = [&](QJsonObject request, int turn) {
+                if (turn == 0) {
+                    const QJsonObject question{
+                        {"question", "Which instance?"},
+                        {"allowFreeText", false},
+                        {"choices", QJsonArray{QJsonObject{{"id", "one"}, {"label", "Selected"}},
+                                               QJsonObject{{"id", "all"}, {"label", "All"}}}}};
+                    return Response{200, 1,
+                                    json(completed(QJsonArray{
+                                        call(request, "assistant.ask_user", question, 0)}))};
+                }
+                const auto last = request.value("input").toArray().last().toObject();
+                const auto output =
+                    QJsonDocument::fromJson(last.value("output").toString().toUtf8()).object();
+                check(turn == 1 && last.value("type") == "function_call_output" &&
+                          last.value("call_id") == "call_0" &&
+                          output.value("data").toObject().value("choiceId") == "one",
+                      "Host answer resumes the exact OpenAI tool call");
+                return Response{};
+            };
+            OpenAiProvider provider(std::make_unique<AssistantTask>(*model, opts),
+                                    "sk-fixture-only", &network);
+            provider.start();
+            wait([&] { return provider.task().phase() == Phase::AwaitingClarification; });
+            QElapsedTimer pause;
+            pause.start();
+            wait([&] { return pause.elapsed() >= 100; });
+            check(network.calls == 1, "No polling request while waiting for a user answer");
+            provider.answer(
+                provider.task().result().value("clarification").toObject().value("id").toString(),
+                "one");
+            wait([&] { return provider.task().phase() == Phase::Completed; });
+            check(network.calls == 2 && provider.task().result().value("applied") == false,
+                  "Provider resumes once without an edit");
+        }
+        {
+            auto model = session();
+            auto opts = options();
             opts.remoteContextApproved = false;
             Network network;
             OpenAiProvider provider(std::make_unique<AssistantTask>(*model, opts),
