@@ -1,8 +1,5 @@
 #include "automation/commands.hpp"
 #include "automation/component_scope.hpp"
-#include "core/profile_sweep.hpp"
-#include "core/intersection_edit.hpp"
-#include "geometry/intersection.hpp"
 #include "automation/entity_info.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_session.hpp"
@@ -12,13 +9,17 @@
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
 #include "core/groups.hpp"
+#include "core/intersection_edit.hpp"
 #include "core/materials.hpp"
+#include "core/profile_sweep.hpp"
 #include "core/selection.hpp"
+#include "core/solid_boolean.hpp"
 #include "core/tags.hpp"
 #include "core/transform_selection.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
+#include "geometry/intersection.hpp"
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
 #include <QString>
@@ -222,11 +223,12 @@ QJsonObject capabilities() {
         {"limitations",
          QJsonArray{
              "Push/pull supports prismatic cap edits and bounded face "
-             "sweeps; general solid booleans are unavailable",
+             "sweeps; solid booleans require validated single-shell operands and reject enclosed "
+             "cavities",
              "Local JSON-lines sessions are available; remote MCP transport is not yet implemented",
              "Component geometry is materialized per instance; instanced "
              "rendering and component libraries are not yet implemented",
-             "No AI provider or Blender integration"}}};
+             "External provider and render work is outside document command batches"}}};
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies, definitions, instances;
@@ -577,7 +579,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             throw std::runtime_error("History task metadata is incomplete");
     }
     Document staged = doc.readSnapshot();
-    QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps;
+    QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
     };
@@ -1038,6 +1040,40 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 throw std::runtime_error("Offset space must be local or world");
             compose(staged.offsetFace(id(command["body"]), id(command["face"]),
                                       number(command["distance"]), command["space"] == "world"));
+        } else if (name == "geometry.boolean") {
+            const auto operation = command["operation"].toString();
+            if (operation != "union" && operation != "subtract" && operation != "intersection")
+                throw BooleanError("BOOLEAN_OPERATION", "Choose union, subtract or intersection");
+            if (!command["keepOperands"].isBool())
+                throw BooleanError("BOOLEAN_OPERANDS",
+                                   "Explicitly choose whether to keep both operands");
+            const auto target = id(command["body"]), tool = id(command["tool"]);
+            const auto result =
+                booleanBodies(staged, target, tool,
+                              operation == "union"      ? BooleanOperation::Union
+                              : operation == "subtract" ? BooleanOperation::Subtract
+                                                        : BooleanOperation::Intersect,
+                              command["context"] == "0" ? 0 : id(command["context"]),
+                              command["keepOperands"].toBool());
+            compose(result.changes);
+            QJsonArray parts;
+            for (const auto &part : result.parts) {
+                QJsonArray faces;
+                for (const auto &[face, source] : part.sources)
+                    faces.append(
+                        QJsonObject{{"face", QString::number(face)},
+                                    {"sourceBody", QString::number(source.operand ? tool : target)},
+                                    {"sourceFace", QString::number(source.face)},
+                                    {"reversed", source.reversed}});
+                parts.append(QJsonObject{{"body", QString::number(part.body)},
+                                         {"generatedVolume", part.generatedVolume},
+                                         {"faces", faces}});
+            }
+            booleans.append(QJsonObject{{"sourceBody", command["body"]},
+                                        {"toolBody", command["tool"]},
+                                        {"operation", operation},
+                                        {"keepOperands", command["keepOperands"]},
+                                        {"parts", parts}});
         } else if (name == "geometry.intersect") {
             const auto entities = array(command["entities"]);
             if (entities.empty() || entities.size() > 128)
@@ -1328,6 +1364,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 // Definition-only callers receive canonical member IDs here;
                 // instance-scoped callers also get scene-resolved top-level maps.
                 operation["sweeps"] = innerResult["sweeps"].toArray();
+                operation["booleans"] = innerResult["booleans"].toArray();
                 if (scopeInstance) {
                     const auto after = componentScopeMembers(staged, *scopeDraft, scopeInstance);
                     QJsonArray scopedCreated;
@@ -1356,6 +1393,30 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                     resolve("copies", copies);
                     resolve("transfers", transfers);
                     resolve("sweeps", sweeps);
+                    for (auto value : innerResult["booleans"].toArray()) {
+                        auto record = value.toObject();
+                        for (auto key : {"sourceBody", "toolBody"})
+                            record[key] = QString::number(scopeMembers.at(id(record[key])));
+                        QJsonArray parts;
+                        for (auto partValue : record["parts"].toArray()) {
+                            auto part = partValue.toObject();
+                            const auto member = id(part["body"]);
+                            if (!after.contains(member))
+                                continue;
+                            part["body"] = QString::number(after.at(member));
+                            QJsonArray faces;
+                            for (auto faceValue : part["faces"].toArray()) {
+                                auto face = faceValue.toObject();
+                                face["sourceBody"] =
+                                    QString::number(scopeMembers.at(id(face["sourceBody"])));
+                                faces.append(face);
+                            }
+                            part["faces"] = faces;
+                            parts.append(part);
+                        }
+                        record["parts"] = parts;
+                        booleans.append(record);
+                    }
                 }
             } else if (name == "component.create")
                 for (auto [source, target] : result.movedGeometry) {
@@ -1507,6 +1568,26 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         record["segments"] = segments;
         survivingSweeps.append(record);
     }
+    QJsonArray survivingBooleans;
+    for (auto value : booleans) {
+        auto record = value.toObject();
+        QJsonArray parts;
+        for (auto partValue : record["parts"].toArray()) {
+            auto part = partValue.toObject();
+            const auto body = id(part["body"]);
+            if (!staged.bodies().contains(body))
+                continue;
+            QJsonArray faces;
+            for (auto faceValue : part["faces"].toArray())
+                if (staged.bodies().at(body)->surface.faces.contains(
+                        id(faceValue.toObject()["face"])))
+                    faces.append(faceValue);
+            part["faces"] = faces;
+            parts.append(part);
+        }
+        record["parts"] = parts;
+        survivingBooleans.append(record);
+    }
     const auto report = doc.apply(std::move(edit), doc.revision());
     if (response == BatchResponse::CreatedIds)
         return {{"status", "committed"},
@@ -1516,7 +1597,9 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdTags", createdTags},
                 {"createdMaterials", createdMaterials},
                 {"createdAssets", createdAssets},
-                {"recipeOperations", recipeOperations}, {"sweeps", survivingSweeps}};
+                {"recipeOperations", recipeOperations},
+                {"sweeps", survivingSweeps},
+                {"booleans", survivingBooleans}};
     for (qsizetype i = 0; i < componentOperations.size(); ++i) {
         auto operation = componentOperations[i].toObject();
         if (!doc.instances().contains(operation["instance"].toString().toULongLong()))
@@ -1570,6 +1653,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
                        {"sweeps", survivingSweeps},
+                       {"booleans", survivingBooleans},
                        {"copies", surviving(copies)},
                        {"transfers", surviving(transfers)},
                        {"changes", changes}};

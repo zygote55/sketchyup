@@ -26,6 +26,8 @@ QJsonArray canonicalComponentCommands(const Document &doc, const Document &draft
         for (const auto &key : {"body", "context", "parent"})
             if (command.contains(key))
                 command[key] = mapped(command.value(key));
+        if (command["command"] == "geometry.boolean" && command.contains("tool"))
+            command["tool"] = mapped(command.value("tool"));
         if (command.contains("members")) {
             if (!command["members"].isArray())
                 throw std::runtime_error("Expected member array");
