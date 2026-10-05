@@ -54,7 +54,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Rotate = 18,
         Scale = 19,
         Paint = 20,
-        Offset = 21
+        Offset = 21,
+        Sweep = 22
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -331,6 +332,9 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     double extrusionScale_{1}, previewDistance_{};
     Id offsetBody_{}, offsetFace_{};
     Vec3 offsetNormal_{}, offsetAxis_{};
+    std::optional<QJsonObject> sweepCommand_;
+    void beginSweep();
+    void finishSweep();
     void beginOffset(Id body, Id face, Vec3 anchor);
     QJsonObject offsetCommand(double distance) const;
     void updateOffsetPreview(QPointF point);

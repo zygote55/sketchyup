@@ -1,6 +1,6 @@
 # 0044 — Profile sweep frames and validation
 
-Status: immutable kernel and shared command verified locally; native acceptance pending.
+Status: immutable kernel, shared command and native tool implemented; acceptance below.
 
 R053 sweeps one planar face along a bounded polyline without changing the source
 surface or its allocator. The path starts in the profile plane; its start point
@@ -62,3 +62,13 @@ Read-only preview and atomic publication use the same command. Cancel publishes
 nothing, and Undo removes only the generated body. Persistent output uses ordinary
 native geometry; no new file format or dependency is needed. R053 remains open
 until native interaction acceptance and prerequisite CI/merges are complete.
+
+Native Follow Me uses Select to collect exactly one profile face and one connected
+edge path in a single path body. Shift+F validates and previews it; Enter or click
+publishes, Escape cancels, and Alt-drag orbits without losing the preview. Open
+paths start at the endpoint in the profile plane nearest its center; closed
+paths start at the nearest eligible station, with stable identity ordering for
+ties. Branches, disconnected selections and missing plane-aligned starts reject.
+Path geometry is sampled in world coordinates. Source/profile/path selection is
+retained after Apply. The active shared-component scope follows ordinary native
+editing rules; unique-instance edits remain available through the explicit command.

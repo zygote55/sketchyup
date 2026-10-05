@@ -422,6 +422,17 @@ metadata survives edge splits and retires when an edit breaks its outline. The w
 these operations currently have command paths while direct edge tools are in progress.
 The planar-grid recipe forms four editable faces from finite segments. Planar insertion
 handles intersections, overlaps and holes within the documented arrangement limits.
+Follow Me (**Shift+F**) sweeps a selected profile face along selected connected
+path edges. Use Select and Ctrl-click to add the face and path, then Shift+F to
+preview; Enter or click applies, and Escape cancels. Alt-drag can orbit during
+preview. The source profile, path, and selection are retained; the result is a
+separate editable solid with one Undo item. Open and closed paths use bounded
+miter joins and explicit frame transport. Branches, crossings, consumed short
+segments and twisted closures reject with an explanation. Closed paths with
+holed profiles are currently unsupported. `geometry.sweep` exposes the same
+operation with local/world coordinates and generated face mappings; see the
+[sweep contract](docs/decisions/0044-profile-sweep.md).
+
 Offset (**F**) draws parallel boundaries for a selected planar face, including
 concave outlines and holes. Click a face and move across its nearest edge to
 preview, then click or finish a drag; Escape cancels. Measurements accepts an
