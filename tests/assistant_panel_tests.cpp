@@ -289,6 +289,14 @@ int main(int argc, char **argv) {
         panel.showSetup();
         auto *setup = window.findChild<QDialog *>("assistantPreferencesDialog");
         check(setup, "Preferences open");
+        auto *authChoice = setup->findChild<QComboBox *>("assistantOpenAIAuth");
+        check(authChoice, "OpenAI authentication choices");
+        authChoice->setCurrentIndex(0);
+        check(setup->findChild<QPushButton *>("assistantChatGPTSignIn")->isVisible() &&
+                  !setup->findChild<QLineEdit *>("assistantCredential")->isVisible() &&
+                  network.calls == 0,
+              "Subscription setup offers browser sign-in without API key or background network");
+        authChoice->setCurrentIndex(1);
         setup->findChild<QLineEdit *>("assistantOpenAIModel")->setText("fixture-responses-model");
         setup->findChild<QLineEdit *>("assistantCredential")->setText("sk-fixture-only");
         setup->findChild<QPushButton *>("assistantStoreCredential")->click();

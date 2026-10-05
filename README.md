@@ -44,7 +44,7 @@ conversion details; the original file stays unchanged. See the
 ## Build and run
 
 Requires CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ base/Wayland development
-packages and OpenGL 3.3. Verified locally with Qt 6.11.2 on Wayland and X11.
+packages, OpenSSL 3 development headers and OpenGL 3.3. Verified locally with Qt 6.11.2 on Wayland and X11.
 The pinned geometry dependency is included in `third_party/`; CMake does not
 download code. See [measured evidence and limitations](docs/verification/native-spike.md).
 
@@ -55,7 +55,7 @@ ctest --preset dev
 ./build/dev/sketchyup --demo
 ```
 
-On Arch, build dependencies are `cmake ninja gcc qt6-base qt6-wayland`.
+On Arch, build dependencies are `cmake ninja gcc qt6-base qt6-wayland openssl`.
 For the core alone, with no Qt or graphical session:
 
 ```sh
@@ -172,10 +172,17 @@ marked with an explanation.
 
 ## Assistant and rendering
 
-Press `Ctrl+J` or choose View → Assistant. In Preferences, choose OpenAI, enter an
-explicit model ID and store your API key in the OS credential facility. On Linux
-this requires `secret-tool` (Arch package `libsecret`) and an available, unlocked
-Secret Service. Credentials are never stored in preferences or native files.
+Press `Ctrl+J` or choose View → Assistant. In Preferences, choose OpenAI and
+**ChatGPT subscription**, then **Continue with ChatGPT**. Finish browser sign-in,
+choose an account-specific model, and Save. Eligible requests use your ChatGPT
+plan; Manage ChatGPT usage opens its usage/access settings. You can select saved
+accounts or add another account/workspace. Sign out removes the selected session.
+
+Alternatively, select **API key (separate API billing)**, enter an explicit model
+ID and store an API key. Both connections require `secret-tool` (Arch package
+`libsecret`) and an available, unlocked Secret Service on Linux. Credentials are
+never stored in preferences or native files. Subscription sessions are separate
+from API keys; SketchyUp does not read Codex's credential files.
 The first request asks you to approve sending model context to OpenAI. “What is
 sent” explains attachments and the bounded document inspection tools available
 to the provider. Keys do not belong in chat, terminal arguments or model files.

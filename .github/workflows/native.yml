@@ -13,7 +13,7 @@ jobs:
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed cmake ninja qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-jsonschema nodejs npm blender ffmpeg
+          pacman -Syyuu --noconfirm --needed cmake ninja openssl qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-jsonschema nodejs npm blender ffmpeg
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Configure and build
@@ -179,8 +179,8 @@ jobs:
       - name: Sanitized bounded inspection and CLI
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON
-          cmake --build --preset sanitize --target native_assistant_session_tests ollama_provider_tests openai_provider_tests blender_job_tests glb_export_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
-          ctest --test-dir build/sanitize -R '^(native_assistant_session|ollama_provider|openai_provider|blender_job|glb_export|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
+          cmake --build --preset sanitize --target chatgpt_auth_tests native_assistant_session_tests ollama_provider_tests openai_provider_tests blender_job_tests glb_export_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
+          ctest --test-dir build/sanitize -R '^(chatgpt_auth|native_assistant_session|ollama_provider|openai_provider|blender_job|glb_export|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
       - name: Sanitized native MCP inspection
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON

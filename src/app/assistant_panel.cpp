@@ -2,12 +2,14 @@
 #include "app/unit_display.hpp"
 #include "automation/commands.hpp"
 #include "automation/entity_info.hpp"
+#include "integrations/chatgpt_auth.hpp"
 #include "integrations/credential_store.hpp"
 #include "integrations/ollama_provider.hpp"
 #include "integrations/openai_provider.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -16,6 +18,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
@@ -23,6 +26,7 @@
 #include <QScrollArea>
 #include <QSettings>
 #include <QShortcut>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QTimer>
@@ -80,6 +84,8 @@ struct AssistantPanel::Impl {
     Viewport &view;
     HostServices services;
     OpenAiCredentialStore credentials;
+    ChatGptAuth chatgpt;
+    bool pendingPlan{};
     std::unique_ptr<NativeAssistantSession> session;
     std::unique_ptr<AssistantNetworkProvider> provider;
     Document::SaveStamp scope, pendingScope;
@@ -98,14 +104,16 @@ struct AssistantPanel::Impl {
     QListWidget *changes{};
     QPushButton *send{}, *stopButton{}, *applyButton{}, *discard{}, *refine{}, *undo{},
         *reconcileButton{}, *settings{};
-    QPushButton *bannerApply{}, *bannerDiscard{};
+    QPushButton *bannerApply{}, *bannerDiscard{}, *manageUsage{};
     QTimer refreshTimer;
     std::vector<Id> changedBodies;
     Impl(AssistantPanel &owner, Document &document, Viewport &view, HostServices services)
         : owner(owner), document(document), view(view), services(std::move(services)),
-          credentials(&owner), refreshTimer(&owner) {
-        if (!this->services.credentialExecutable.isEmpty())
+          credentials(&owner), chatgpt(this->services.network, &owner), refreshTimer(&owner) {
+        if (!this->services.credentialExecutable.isEmpty()) {
             credentials.setExecutable(this->services.credentialExecutable);
+            chatgpt.setCredentialExecutable(this->services.credentialExecutable);
+        }
         owner.setObjectName("assistantContainer");
         owner.setMinimumWidth(240);
         owner.setFocusPolicy(Qt::StrongFocus);
@@ -113,6 +121,11 @@ struct AssistantPanel::Impl {
         layout->setContentsMargins(8, 8, 8, 8);
         chip = label({}, "assistantProvider");
         layout->addWidget(chip);
+        manageUsage = button("Manage ChatGPT usage", "assistantManageUsage");
+        layout->addWidget(manageUsage);
+        QObject::connect(manageUsage, &QPushButton::clicked, &owner, [] {
+            QDesktopServices::openUrl(QUrl("https://chatgpt.com/settings/usage"));
+        });
         auto *top = new QHBoxLayout;
         auto *disclosure = button("What is sent", "assistantDisclosure");
         settings = button("Preferences…", "assistantPreferences");
@@ -290,6 +303,27 @@ struct AssistantPanel::Impl {
         refreshTimer.start();
         QObject::connect(&credentials, &OpenAiCredentialStore::changed, &owner,
                          [this] { safe([this] { credentialChanged(); }); });
+        QObject::connect(&chatgpt, &ChatGptAuth::authorizationRequested, &owner,
+                         [this](const QUrl &url) {
+                             if (!QDesktopServices::openUrl(url)) {
+                                 chatgpt.cancel();
+                                 error = "Could not open the system browser. Check your default "
+                                         "browser and try again.";
+                                 refresh();
+                             }
+                         });
+        QObject::connect(&chatgpt, &ChatGptAuth::credentialReady, &owner,
+                         [this](const QByteArray &token) { safe([&] { start(token); }); });
+        QObject::connect(&chatgpt, &ChatGptAuth::changed, &owner, [this] {
+            // credentialReady follows changed on success, in the same event turn.
+            QTimer::singleShot(0, &this->owner, [this] {
+                if (pending && pendingPlan && !chatgpt.busy()) {
+                    pending.reset();
+                    error = chatgpt.status();
+                    refresh();
+                }
+            });
+        });
         refresh();
     }
     ~Impl() {
@@ -315,11 +349,17 @@ struct AssistantPanel::Impl {
     QString configuredProvider() const {
         return QSettings("SketchyUp", "SketchyUp").value("assistant/provider", "OpenAI").toString();
     }
+    bool usesPlan() const {
+        return QSettings("SketchyUp", "SketchyUp")
+                   .value("assistant/openaiAuth", "api")
+                   .toString() == "chatgpt";
+    }
     QString configuredModel() const {
         const QSettings s("SketchyUp", "SketchyUp");
         return configuredProvider() == "Ollama"
                    ? s.value("assistant/localModel", "qwen3:4b-instruct").toString()
-                   : s.value("assistant/openaiModel").toString();
+                   : s.value(usesPlan() ? "assistant/chatgptModel" : "assistant/openaiModel")
+                         .toString();
     }
     bool configured() const {
         return configuredProvider() != "None" && !configuredModel().isEmpty();
@@ -351,6 +391,8 @@ struct AssistantPanel::Impl {
             QSettings("SketchyUp", "SketchyUp").value("assistant/consentOpenAI", false).toBool();
         result.clarificationAvailable = true;
         result.limits.seconds = 300;
+        if (result.remote && usesPlan())
+            result.limits.outputTokens = 8192;
         if (selection->isChecked()) {
             int count{};
             for (auto entity : view.selectionState().entities()) {
@@ -427,6 +469,7 @@ struct AssistantPanel::Impl {
         pendingScope = document.saveStamp();
         pendingDirect = mode->currentIndex() == 1;
         pendingProvider = pending->provider;
+        pendingPlan = pending->remote && usesPlan();
         if (pending->remote && !pending->remoteContextApproved) {
             showDisclosure(true);
             refresh();
@@ -442,7 +485,11 @@ struct AssistantPanel::Impl {
             throw std::runtime_error(
                 "The model changed during setup. Send again on the current model.");
         }
-        if (pending->remote)
+        if (pendingPlan)
+            chatgpt.prepare(
+                QSettings("SketchyUp", "SketchyUp").value("assistant/chatgptAccount").toString(),
+                pending->model);
+        else if (pending->remote)
             credentials.lookup();
         else
             start({});
@@ -464,7 +511,8 @@ struct AssistantPanel::Impl {
         taskDirect = pendingDirect;
         taskPrompt = pending->prompt;
         if (pendingProvider == "OpenAI")
-            provider = std::make_unique<OpenAiProvider>(std::move(task), key, services.network);
+            provider = std::make_unique<OpenAiProvider>(std::move(task), key, services.network,
+                                                        nullptr, pendingPlan);
         else {
             QSettings s("SketchyUp", "SketchyUp");
             OllamaConfiguration config;
@@ -604,6 +652,8 @@ struct AssistantPanel::Impl {
     void stop() {
         pending.reset();
         credentials.cancel();
+        if (chatgpt.busy())
+            chatgpt.cancel();
         if (consent)
             consent->reject();
         if (provider)
@@ -671,6 +721,113 @@ void AssistantPanel::Impl::showSetup() {
     tokens->setValue(s.value("assistant/localContext", 32768).toInt());
     threads->setValue(s.value("assistant/localThreads", 8).toInt());
     form->addRow("Provider", providerChoice);
+    auto *authChoice = new QComboBox;
+    authChoice->setObjectName("assistantOpenAIAuth");
+    authChoice->addItem("ChatGPT subscription", "chatgpt");
+    authChoice->addItem("API key (separate API billing)", "api");
+    authChoice->setCurrentIndex(usesPlan() ? 0 : 1);
+    form->addRow("OpenAI connection", authChoice);
+    auto *planCard = new QWidget;
+    auto *planLayout = new QVBoxLayout(planCard);
+    planLayout->setContentsMargins(0, 0, 0, 0);
+    planLayout->addWidget(
+        label("Use your eligible ChatGPT plan for assistant requests. Sign in in your browser; the "
+              "session is stored in the OS credential facility."));
+    auto *accounts = new QComboBox;
+    accounts->setObjectName("assistantChatGPTAccount");
+    auto fillAccounts = [this, accounts](const QString &selected) {
+        QSignalBlocker block(accounts);
+        accounts->clear();
+        for (const auto &entry : chatgpt.accounts()) {
+            const auto item = entry.toObject();
+            const auto client = item.value("client_id").toString();
+            accounts->addItem(item.value("email").toString() + " · " + client, client);
+        }
+        accounts->addItem("Add another account or workspace…", QString{});
+        accounts->setCurrentIndex(std::max(0, accounts->findData(selected)));
+    };
+    fillAccounts(s.value("assistant/chatgptAccount").toString());
+    planLayout->addWidget(accounts);
+    auto *signIn = button("Continue with ChatGPT", "assistantChatGPTSignIn");
+    auto *signOut = button("Sign out", "assistantChatGPTSignOut");
+    auto *models = new QComboBox;
+    models->setObjectName("assistantChatGPTModel");
+    const auto previousModel = s.value("assistant/chatgptModel").toString();
+    if (!previousModel.isEmpty())
+        models->addItem(previousModel + " (refresh to verify)", previousModel);
+    auto *reload = button("Refresh available models", "assistantChatGPTModels");
+    auto *cancelSignIn = button("Cancel sign-in / connection", "assistantChatGPTCancel");
+    auto *planStatus = label(chatgpt.status(), "assistantChatGPTStatus");
+    for (QWidget *w : std::initializer_list<QWidget *>{signIn, signOut, models, reload,
+                                                       cancelSignIn, planStatus})
+        planLayout->addWidget(w);
+    auto *usage = button("Manage ChatGPT usage", "assistantChatGPTUsage");
+    planLayout->addWidget(usage);
+    QObject::connect(usage, &QPushButton::clicked, dialog,
+                     [] { QDesktopServices::openUrl(QUrl("https://chatgpt.com/settings/usage")); });
+    auto updatePlan = [this, accounts, signIn, signOut, models, reload, cancelSignIn, planStatus] {
+        const bool working = chatgpt.busy();
+        accounts->setEnabled(!working);
+        signIn->setEnabled(!working);
+        signOut->setEnabled(!working && !accounts->currentData().toString().isEmpty());
+        reload->setEnabled(!working && !accounts->currentData().toString().isEmpty());
+        models->setEnabled(!working);
+        cancelSignIn->setEnabled(working);
+        planStatus->setText(chatgpt.status());
+        if (!working && !chatgpt.models().isEmpty()) {
+            const auto old = models->currentData().toString();
+            models->clear();
+            for (const auto &entry : chatgpt.models()) {
+                const auto m = entry.toObject();
+                models->addItem(m.value("display_name").toString() + " · " +
+                                    m.value("slug").toString(),
+                                m.value("slug").toString());
+            }
+            auto index = models->findData(old);
+            if (index < 0)
+                index = models->findData("gpt-6.1-sol");
+            models->setCurrentIndex(std::max(0, index));
+        }
+    };
+    QObject::connect(&chatgpt, &ChatGptAuth::changed, dialog, updatePlan);
+    QObject::connect(&chatgpt, &ChatGptAuth::registrationSaved, dialog, fillAccounts);
+    QObject::connect(&chatgpt, &ChatGptAuth::connected, dialog,
+                     [this, dialog, fillAccounts, updatePlan](const QString &client) {
+                         fillAccounts(client);
+                         updatePlan();
+                         QSettings prefs("SketchyUp", "SketchyUp");
+                         if (!prefs.value("assistant/chatgptWelcomed", false).toBool()) {
+                             prefs.setValue("assistant/chatgptWelcomed", true);
+                             auto *welcome = new QMessageBox(
+                                 QMessageBox::Information, "You're using your ChatGPT plan",
+                                 "Eligible assistant requests use your ChatGPT plan. You can "
+                                 "manage SketchyUp's access and usage in ChatGPT Settings.",
+                                 QMessageBox::Ok, dialog);
+                             welcome->setAttribute(Qt::WA_DeleteOnClose);
+                             welcome->button(QMessageBox::Ok)->setText("Got it");
+                             welcome->open();
+                         }
+                     });
+    QObject::connect(signIn, &QPushButton::clicked, dialog,
+                     [this, accounts] { chatgpt.signIn(accounts->currentData().toString()); });
+    QObject::connect(signOut, &QPushButton::clicked, dialog, [this, accounts, models] {
+        models->clear();
+        chatgpt.signOut(accounts->currentData().toString());
+    });
+    QObject::connect(reload, &QPushButton::clicked, dialog,
+                     [this, accounts] { chatgpt.loadModels(accounts->currentData().toString()); });
+    QObject::connect(cancelSignIn, &QPushButton::clicked, dialog, [this] { chatgpt.cancel(); });
+    QObject::connect(accounts, &QComboBox::currentIndexChanged, dialog, [models, updatePlan] {
+        models->clear();
+        updatePlan();
+        models->clear();
+    });
+    QObject::connect(dialog, &QDialog::finished, &owner, [this] {
+        if (chatgpt.busy())
+            chatgpt.cancel();
+    });
+    updatePlan();
+    form->addRow(planCard);
     form->addRow("OpenAI model ID", openaiModel);
     auto *key = new QLineEdit;
     key->setObjectName("assistantCredential");
@@ -703,6 +860,16 @@ void AssistantPanel::Impl::showSetup() {
         label("Experimental local profile: Ollama 0.35.1, qwen3:4b-instruct, 32,768 context "
               "tokens, 8 CPU threads. The measured CPU corpus did not complete within five "
               "minutes. No automatic installation, model download or cloud fallback."));
+    auto updateAuth = [form, authChoice, planCard, openaiModel, key, store, clear] {
+        const bool plan = authChoice->currentData() == "chatgpt";
+        planCard->setVisible(plan);
+        form->setRowVisible(openaiModel, !plan);
+        form->setRowVisible(key, !plan);
+        store->setVisible(!plan);
+        clear->setVisible(!plan);
+    };
+    QObject::connect(authChoice, &QComboBox::currentIndexChanged, dialog, updateAuth);
+    updateAuth();
     scroll->setWidget(body);
     outer->addWidget(scroll);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
@@ -710,11 +877,13 @@ void AssistantPanel::Impl::showSetup() {
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     QObject::connect(
         buttons, &QDialogButtonBox::accepted, dialog,
-        [this, dialog, providerChoice, openaiModel, localModel, endpoint, tokens, threads] {
+        [this, dialog, providerChoice, openaiModel, localModel, endpoint, tokens, threads,
+         authChoice, accounts, models] {
             safe([=, this] {
-                if (busy())
+                if (busy() || chatgpt.busy())
                     throw std::runtime_error("Finish the current task before saving settings.");
                 if (providerChoice->currentText() == "OpenAI" &&
+                    authChoice->currentData() == "api" &&
                     !QRegularExpression("^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
                          .match(openaiModel->text())
                          .hasMatch())
@@ -722,7 +891,16 @@ void AssistantPanel::Impl::showSetup() {
                 if (providerChoice->currentText() == "Ollama")
                     validateOllamaConfiguration({QUrl(endpoint->text()), localModel->text(),
                                                  tokens->value(), threads->value()});
+                if (providerChoice->currentText() == "OpenAI" &&
+                    authChoice->currentData() == "chatgpt" &&
+                    (accounts->currentData().toString().isEmpty() ||
+                     models->currentData().toString().isEmpty()))
+                    throw std::runtime_error(
+                        "Connect a ChatGPT account and select an available model.");
                 QSettings prefs("SketchyUp", "SketchyUp");
+                prefs.setValue("assistant/openaiAuth", authChoice->currentData());
+                prefs.setValue("assistant/chatgptAccount", accounts->currentData());
+                prefs.setValue("assistant/chatgptModel", models->currentData());
                 prefs.setValue("assistant/provider", providerChoice->currentText());
                 prefs.setValue("assistant/openaiModel", openaiModel->text());
                 prefs.setValue("assistant/localModel", localModel->text());
@@ -734,7 +912,7 @@ void AssistantPanel::Impl::showSetup() {
                 refresh();
             });
         });
-    dialog->resize(460, 560);
+    dialog->resize(500, 620);
     dialog->show();
 }
 void AssistantPanel::Impl::showQuestion(const QJsonObject &card) {
@@ -923,6 +1101,7 @@ void AssistantPanel::Impl::refresh() {
     }
     const bool working = busy();
     const bool ready = configured();
+    manageUsage->setVisible(configuredProvider() == "OpenAI" && usesPlan());
     setupCard->setVisible(!ready);
     taskControls->setVisible(ready || provider != nullptr || !error.isEmpty());
     composer->setEnabled(ready && !working);
@@ -945,9 +1124,11 @@ void AssistantPanel::Impl::refresh() {
     const auto disclosure = provider ? provider->task().disclosure() : QJsonObject{};
     const auto name = provider ? disclosure.value("provider").toString() : configuredProvider();
     const auto model = provider ? disclosure.value("model").toString() : configuredModel();
-    chip->setText(!ready && !provider ? "Assistant · no provider configured"
-                                      : (name == "OpenAI" ? "Remote · " : "Local · ") + name +
-                                            " / " + (model.isEmpty() ? "not configured" : model));
+    chip->setText(!ready && !provider
+                      ? "Assistant · no provider configured"
+                      : (name == "OpenAI" ? "Remote · " : "Local · ") + name + " / " +
+                            (model.isEmpty() ? "not configured" : model) +
+                            (name == "OpenAI" && usesPlan() ? " · Using ChatGPT plan" : ""));
     requestLabel->setText(provider ? "You: " + taskPrompt : QString{});
     auto result = provider ? provider->task().result() : QJsonObject{};
     const auto phase = provider ? provider->task().phase() : Phase::Ready;

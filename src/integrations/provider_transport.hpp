@@ -4,6 +4,12 @@
 #include <QObject>
 #include <QUrl>
 namespace sketchy {
+class ProviderUsageLimit : public std::runtime_error {
+  public:
+    ProviderUsageLimit()
+        : std::runtime_error("ChatGPT plan usage is unavailable or its limit was reached. Use "
+                             "Manage ChatGPT usage.") {}
+};
 class AssistantNetworkProvider : public QObject {
     Q_OBJECT
   public:
@@ -15,6 +21,7 @@ class AssistantNetworkProvider : public QObject {
     struct Protocol {
         QString provider;
         bool remote{};
+        bool eventStream{};
         QUrl endpoint;
         QByteArray key;
         int timeoutMs{30000};

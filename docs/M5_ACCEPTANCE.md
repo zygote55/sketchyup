@@ -52,8 +52,10 @@ See the [authored recipe contract](decisions/0031-room-window-recipes.md).
    runner). This separate fixture includes reusable frames, glass, materials and
    explicit host-opening relationships. Arbitrarily drawn windows do not acquire
    recipe bindings automatically; this initial exact resize recipe rejects them.
-3. Press Ctrl+J → Preferences. Choose OpenAI, supply an explicit model ID and
-   store its key in the OS credential facility. Linux needs `secret-tool`
+3. Press Ctrl+J → Preferences. Choose OpenAI → ChatGPT subscription → Continue
+   with ChatGPT, finish browser sign-in, choose an available model and Save.
+   Alternatively, choose the API-key connection and supply an explicit model ID.
+   Linux needs `secret-tool`
    (`libsecret` on Arch) and an available, unlocked Secret Service. Never put a
    key in model files, command arguments, reports or chat. Approve the disclosed
    context transmission on the first request.
@@ -84,15 +86,17 @@ host discovery. If the required manual-target edit fails, M5 remains open.
 ## Repeatable provider corpus
 
 `provider_trial` is an opt-in development executable, not an installed app command.
-Only its synthetic fixture is sent. `--openai` explicitly selects the fixed OpenAI
-endpoint and reads the stored credential once. `configured` reads the model ID
-from native Preferences; an explicit model ID can be supplied instead.
+Only its synthetic fixture is sent. `--chatgpt` selects the native subscription
+account, renews its OS-stored session if needed, and checks model availability.
+`--openai` selects the separate API key. Both use the fixed OpenAI endpoint.
+`configured` reads the corresponding model ID from Preferences; an explicit ID
+can be supplied instead. OAuth traffic is excluded from reports.
 
 ```sh
-build/dev/provider_trial --openai configured measure /absolute/new/measure.json
-build/dev/provider_trial --openai configured room /absolute/new/room.json
-build/dev/provider_trial --openai configured resize /absolute/new/resize.json
-build/dev/provider_trial --openai configured unsupported /absolute/new/unsupported.json
+build/dev/provider_trial --chatgpt configured measure /absolute/new/measure.json
+build/dev/provider_trial --chatgpt configured room /absolute/new/room.json
+build/dev/provider_trial --chatgpt configured resize /absolute/new/resize.json
+build/dev/provider_trial --chatgpt configured unsupported /absolute/new/unsupported.json
 ```
 
 Each report retains prompts, timed requests/replies without authorization headers,
