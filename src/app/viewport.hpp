@@ -53,7 +53,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Move = 17,
         Rotate = 18,
         Scale = 19,
-        Paint = 20
+        Paint = 20,
+        Offset = 21
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -328,6 +329,12 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     bool transformMeasurements(const QString &text);
     Vec3 extrusionAxis_{};
     double extrusionScale_{1}, previewDistance_{};
+    Id offsetBody_{}, offsetFace_{};
+    Vec3 offsetNormal_{}, offsetAxis_{};
+    void beginOffset(Id body, Id face, Vec3 anchor);
+    QJsonObject offsetCommand(double distance) const;
+    void updateOffsetPreview(QPointF point);
+    void finishOffset(double distance);
     QString previewError_;
     std::vector<std::array<Vec3, 2>> previewEdges_;
     std::vector<Guide> previewGuides_;

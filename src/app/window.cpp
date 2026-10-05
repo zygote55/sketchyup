@@ -340,6 +340,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             "Choose center and radius · Type 24s to set segments");
     addTool("Push/pull", "P", Viewport::Tool::Extrude,
             "Select a face · Drag or type distance · Ctrl: new face · Double-click: repeat");
+    addTool("Offset", "F", Viewport::Tool::Offset,
+            "Select a face · Preview or type distance · Positive: outward · Negative: inward");
     addTool("Move", "M", Viewport::Tool::Move,
             "Select geometry · Choose pivot and destination · Type displacement · Ctrl: copy");
     addTool("Rotate", "Q", Viewport::Tool::Rotate,
@@ -703,6 +705,7 @@ void Window::tool(Viewport::Tool t, const QString &text) {
         : t == Viewport::Tool::Tape       ? "distance or [x,y,z]"
         : t == Viewport::Tool::Protractor ? "angle (deg) or [x,y,z]"
         : t == Viewport::Tool::Extrude    ? "distance"
+        : t == Viewport::Tool::Offset     ? "signed offset distance (+ outward, - inward)"
         : t == Viewport::Tool::Circle     ? "radius or 24s"
         : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
         : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"

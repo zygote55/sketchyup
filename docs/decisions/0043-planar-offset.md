@@ -1,6 +1,6 @@
 # 0043 — Planar offset region contract
 
-Status: kernel and fixtures in PR #83; shared command verified locally, native tool pending.
+Status: kernel, shared command and native tool verified locally; CI/merges pending.
 
 R052 starts with an immutable numerical adapter so collapse and splitting can be
 verified before connecting it to document history. `offsetFaceRegion` accepts one
@@ -44,11 +44,11 @@ either zero or at least the modeling tolerance. Canonical loop starts, hole
 sorting and region sorting make results deterministic for equivalent path order.
 
 Errors distinguish invalid distance/face, complexity limits, out-of-range output,
-sub-tolerance boundaries and numerical offset failure. The follow-up command must
-preserve these distinctions and reject complete collapse without changing the
-document. Native preview, selected-context integration, topology lineage, one-
-entry Undo/Redo, and the shared tool/AI command remain required before R052 is
-delivered. This preparatory slice does not accept M6 ahead of M5.
+sub-tolerance boundaries and numerical offset failure. The command preserves
+these distinctions and rejects complete collapse without changing the document.
+The native tool shares that command, including read-only preview, selected-context
+integration, topology lineage and one-entry Undo/Redo. Local verification does
+not accept R052 ahead of its CI/dependencies or M6 ahead of M5.
 
 The document integration draws the computed boundaries through the existing
 planar arrangement. It retains original coverage and explicit holes, while
