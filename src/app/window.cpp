@@ -342,6 +342,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             "Select a face · Drag or type distance · Ctrl: new face · Double-click: repeat");
     addTool("Offset", "F", Viewport::Tool::Offset,
             "Select a face · Preview or type distance · Positive: outward · Negative: inward");
+    addTool("Follow Me", "Shift+F", Viewport::Tool::Sweep,
+            "Select one profile face and a connected edge path · Enter or click applies · Esc cancels");
     addTool("Move", "M", Viewport::Tool::Move,
             "Select geometry · Choose pivot and destination · Type displacement · Ctrl: copy");
     addTool("Rotate", "Q", Viewport::Tool::Rotate,
@@ -694,9 +696,9 @@ bool Window::eventFilter(QObject *object, QEvent *event) {
     return QMainWindow::eventFilter(object, event);
 }
 void Window::tool(Viewport::Tool t, const QString &text) {
+    status_->setText(text);
     viewport_->setTool(t);
     viewport_->setFocus();
-    status_->setText(text);
     measurements_->setPlaceholderText(
         t == Viewport::Tool::Paint        ? "Choose a material and side"
         : t == Viewport::Tool::Move       ? "distance, dx,dy,dz or [x,y,z]"
@@ -706,6 +708,7 @@ void Window::tool(Viewport::Tool t, const QString &text) {
         : t == Viewport::Tool::Protractor ? "angle (deg) or [x,y,z]"
         : t == Viewport::Tool::Extrude    ? "distance"
         : t == Viewport::Tool::Offset     ? "signed offset distance (+ outward, - inward)"
+        : t == Viewport::Tool::Sweep      ? "Enter applies the preview · Esc cancels"
         : t == Viewport::Tool::Circle     ? "radius or 24s"
         : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
         : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"
