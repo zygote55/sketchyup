@@ -1,8 +1,8 @@
 # R040.a bounded document inspection
 
-Date: 2026-10-04. Local implementation verification passed; CI pending.
-Requires [PR #56](https://github.com/zygote55/sketchyup/pull/56) and the M4 gate
-before acceptance. [Contract and schemas](../decisions/0019-bounded-inspection.md).
+Date: 2026-10-05 UTC. Local and CI verification passed; merged.
+The prerequisite [PR #56](https://github.com/zygote55/sketchyup/pull/56) and M4
+gate are complete. [Contract and schemas](../decisions/0019-bounded-inspection.md).
 
 The targeted inspection suite passes. It loads the actual M4 room fixture,
 supplies a session-bound selection, identifies Window A as a component and
@@ -40,7 +40,7 @@ there are no renderer or native input behavior changes.
 The source archive includes the published schema and contract. A staged local
 installation contains both, and the installed CLI's registry exactly matches the
 installed schema. Disposable Arch package acceptance also checks that match and
-schema removal on uninstall. Full install/upgrade/removal CI remains pending.
+schema removal on uninstall. Full install/upgrade/removal CI subsequently passed.
 
 Follow-up test review found a `QJsonValueRef` retained from a temporary JSON
 object in the reflected-normal assertion. It now stores an owning `QJsonValue`.
@@ -54,4 +54,8 @@ installing packages. A fresh container probe reproduced the missing directory,
 then verified that the correction installs the schema, passes `pacman -Qkk`
 with zero altered files, and removes the schema on uninstall. This changes only
 the disposable test container; application packages do not alter pacman settings.
-The complete package acceptance CI is rerunning.
+Both corrected package acceptance CI runs subsequently passed.
+
+Final CI runs 37247492696 and 37247488603 passed, including native and disposable
+package acceptance. Merged on 2026-10-05 UTC as `9145264ed742ec52f61b9dd2fd3356e8223024e7`.
+R040 is complete across the three accepted slices.

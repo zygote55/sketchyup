@@ -18,7 +18,7 @@ QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
 QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request);
 QJsonObject previewBatch(const Document &doc, const QJsonObject &request);
-enum class BatchResponse { Full, CreatedIds };
+enum class BatchResponse { Full, Changes, CreatedIds };
 QJsonObject executeBatch(Document &doc, const QJsonObject &request,
                          BatchResponse response = BatchResponse::Full);
 } // namespace sketchy

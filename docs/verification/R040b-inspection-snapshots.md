@@ -1,7 +1,7 @@
 # R040.b retained inspection snapshots
 
-Date: 2026-10-04. Local verification passed; CI pending.
-Requires [PR #57](https://github.com/zygote55/sketchyup/pull/57). The M4 gate is complete.
+Date: 2026-10-04. Local and CI verification passed; merged.
+Builds on merged [PR #57](https://github.com/zygote55/sketchyup/pull/57). The M4 gate is complete.
 [Snapshot contract](../decisions/0020-inspection-snapshots.md).
 
 The integrated room fixture captures Window A's measurements and editor context,
@@ -43,3 +43,7 @@ The resource fixture rejects a 2 MiB owned payload before capture under a 1 MiB
 session budget. Both installed schema artifacts match the staged CLI registries;
 the source package includes the schemas, contracts and test fixtures. CI checks
 both published registries during disposable Arch installation and removal.
+
+Final CI runs 37247503371 and 37247501209 passed, including native and disposable
+package acceptance. Merged on 2026-10-05 UTC as `82442536c9cdc5893791dfe7031342241f53e7bd`.
+R040 is complete across the three accepted slices.
