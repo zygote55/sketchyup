@@ -124,6 +124,30 @@ const std::vector<Spec> &registry() {
 // Only the schema vocabulary emitted above is accepted; all document, uint64,
 // context and cross-field constraints are subsequently checked authoritatively.
 void validate(const QJsonValue &value, const QJsonObject &schema) {
+    if (schema.contains("oneOf")) {
+        int matched = 0;
+        for (const auto &choice : schema["oneOf"].toArray()) {
+            try {
+                validate(value, choice.toObject());
+                ++matched;
+            } catch (const InspectionError &) {
+            }
+        }
+        if (matched != 1)
+            fail("INVALID_REQUEST", "Parameter must match exactly one supported schema");
+    }
+    if (schema["type"].isArray()) {
+        for (const auto &type : schema["type"].toArray()) {
+            auto choice = schema;
+            choice["type"] = type;
+            try {
+                validate(value, choice);
+                return;
+            } catch (const InspectionError &) {
+            }
+        }
+        fail("INVALID_REQUEST", "Parameter has no supported value type");
+    }
     if (schema.contains("const") && value != schema["const"])
         fail("INVALID_REQUEST", "Unexpected constant parameter");
     if (schema.contains("enum") && !schema["enum"].toArray().contains(value))
@@ -133,20 +157,31 @@ void validate(const QJsonValue &value, const QJsonObject &schema) {
         if (!value.isObject())
             fail("INVALID_REQUEST", "Expected object");
         const auto fields = value.toObject(), properties = schema["properties"].toObject();
+        if ((schema.contains("minProperties") && fields.size() < schema["minProperties"].toInt()) ||
+            (schema.contains("maxProperties") && fields.size() > schema["maxProperties"].toInt()))
+            fail("LIMIT_EXCEEDED", "Object property count exceeds supported bounds");
         for (const auto &required : schema["required"].toArray())
             if (!fields.contains(required.toString()))
                 fail("INVALID_REQUEST", "Missing parameter");
         for (auto it = fields.begin(); it != fields.end(); ++it) {
-            if (!properties.contains(it.key()))
+            if (schema.contains("propertyNames")) {
+                auto names = schema["propertyNames"].toObject();
+                names["type"] = "string";
+                validate(it.key(), names);
+            }
+            if (properties.contains(it.key()))
+                validate(it.value(), properties[it.key()].toObject());
+            else if (schema["additionalProperties"].isObject())
+                validate(it.value(), schema["additionalProperties"].toObject());
+            else if (schema["additionalProperties"] == false)
                 fail("INVALID_REQUEST", "Unknown parameter");
-            validate(it.value(), properties[it.key()].toObject());
         }
     } else if (type == "array") {
         if (!value.isArray())
             fail("INVALID_REQUEST", "Expected array");
         const auto values = value.toArray();
-        if (values.size() < schema["minItems"].toInt() ||
-            values.size() > schema["maxItems"].toInt())
+        if ((schema.contains("minItems") && values.size() < schema["minItems"].toInt()) ||
+            (schema.contains("maxItems") && values.size() > schema["maxItems"].toInt()))
             fail("LIMIT_EXCEEDED", "Array length outside supported bounds");
         for (const auto &item : values)
             validate(item, schema["items"].toObject());
@@ -154,11 +189,12 @@ void validate(const QJsonValue &value, const QJsonObject &schema) {
         if (!value.isString())
             fail("INVALID_REQUEST", "Expected string");
         const auto s = value.toString();
-        if (schema.contains("maxLength") && s.size() > schema["maxLength"].toInt())
-            fail("LIMIT_EXCEEDED", "String exceeds supported bound");
+        if ((schema.contains("minLength") && s.size() < schema["minLength"].toInt()) ||
+            (schema.contains("maxLength") && s.size() > schema["maxLength"].toInt()))
+            fail("LIMIT_EXCEEDED", "String length exceeds supported bounds");
         if (schema.contains("pattern") &&
             !QRegularExpression(schema["pattern"].toString()).match(s).hasMatch())
-            fail("INVALID_REQUEST", "Expected canonical decimal identifier");
+            fail("INVALID_REQUEST", "String does not match the required format");
     } else if (type == "boolean") {
         if (!value.isBool())
             fail("INVALID_REQUEST", "Expected boolean");

@@ -3,6 +3,7 @@
 #include "automation/entity_info.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_session.hpp"
+#include "automation/transactions.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
@@ -161,6 +162,7 @@ QJsonObject capabilities() {
         {"status", "experimental"},
         {"inspection", inspectionCapabilities()},
         {"inspectionSession", inspectionSessionCapabilities()},
+        {"transactions", transactionCapabilities()},
         {"units", "m"},
         {"up", "Z"},
         {"commands",
@@ -195,7 +197,8 @@ QJsonObject capabilities() {
          QJsonObject{{"atomic", true},
                      {"history", "one undo item per batch"},
                      {"precondition", "document identity and expected content revision"},
-                     {"idempotency", "reserved; unavailable until durable outcome ledger"}}},
+                     {"idempotency", "Durable retries require the transaction dispatcher; legacy "
+                                     "batch execution is local only"}}},
         {"limits", QJsonObject{{"fileBytes", 128 * 1024 * 1024},
                                {"nativeContainerBytes", 16 + 97 * 1024 * 1024},
                                {"assetBytes", int(AssetPayload::limit)},
@@ -212,12 +215,13 @@ QJsonObject capabilities() {
                                {"batchCommands", 100},
                                {"tagsAndFolders", 1024},
                                {"tagFolderDepth", 32}}},
-        {"limitations", QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
-                                   "sweeps; general solid booleans are unavailable",
-                                   "No durable transaction outcomes or remote retry protocol",
-                                   "Component geometry is materialized per instance; instanced "
-                                   "rendering and component libraries are not yet implemented",
-                                   "No AI provider or Blender integration"}}};
+        {"limitations",
+         QJsonArray{"Push/pull supports prismatic cap edits and bounded face "
+                    "sweeps; general solid booleans are unavailable",
+                    "Persistent CLI and remote transaction transports are not yet implemented",
+                    "Component geometry is materialized per instance; instanced "
+                    "rendering and component libraries are not yet implemented",
+                    "No AI provider or Blender integration"}}};
 }
 QJsonObject describe(const Document &doc) {
     QJsonArray bodies, definitions, instances;

@@ -16,6 +16,11 @@ sed -i 's/^pkgrel=2$/pkgrel=1/' PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force
 pacman -U --noconfirm sketchyup-0.1.0-1-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
+test -s /usr/share/doc/sketchyup/api/transactions-v1.json
+test -s /usr/share/doc/sketchyup/decisions/0025-transaction-dispatch.md
+sketchyup-cli --capabilities | jq -S '.transactions' > /work/package/transactions-installed.json
+jq -S . /usr/share/doc/sketchyup/api/transactions-v1.json > /work/package/transactions-schema.json
+cmp /work/package/transactions-installed.json /work/package/transactions-schema.json
 test -s /usr/share/doc/sketchyup/api/inspection-v1.json
 test -s /usr/share/doc/sketchyup/api/inspection-session-v1.json
 test -s /usr/share/doc/sketchyup/decisions/0019-bounded-inspection.md
@@ -87,6 +92,8 @@ cmp /work/acceptance/expected.json /work/acceptance/reopened.json
 runuser -u builder -- env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a timeout 40s sketchyup --smoke > /work/acceptance/upgraded-smoke.json
 pacman -R --noconfirm sketchyup
 [[ ! -e /usr/bin/sketchyup && ! -e /usr/bin/sketchyup-cli ]]
+[[ ! -e /usr/share/doc/sketchyup/api/transactions-v1.json ]]
+[[ ! -e /usr/share/doc/sketchyup/decisions/0025-transaction-dispatch.md ]]
 [[ ! -e /usr/share/doc/sketchyup/api/inspection-v1.json ]]
 [[ ! -e /usr/share/doc/sketchyup/api/inspection-desktop-v1.json ]]
 [[ ! -e /usr/share/doc/sketchyup/api/inspection-session-v1.json ]]

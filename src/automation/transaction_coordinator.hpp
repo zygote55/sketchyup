@@ -20,6 +20,7 @@ class TransactionCoordinator {
     TransactionCoordinator(Document document, const QString &root, Options options);
     const Document &document() const;
     bool uncertain() const;
+    size_t retainedStagingBytes() const;
     void edit(const std::function<void(Document &)> &operation);
     QJsonObject prepare(const QJsonObject &batch, int ttlSeconds = 60);
     QJsonObject preview(const QString &requestId, const QString &payloadHash);
