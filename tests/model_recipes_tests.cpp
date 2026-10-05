@@ -4,6 +4,9 @@
 #include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <iostream>
@@ -150,6 +153,52 @@ int main(int argc, char **argv) {
         unchanged(doc, original);
         doc.redo();
         unchanged(doc, widened);
+        if (argc == 2) {
+            const QDir evidence(QString::fromLocal8Bit(argv[1]));
+            check(!evidence.exists() && QDir().mkpath(evidence.path()),
+                  "Use a fresh fixture evidence directory");
+            auto baseline = original;
+            auto result = widened;
+            saveDocument(baseline, evidence.filePath("room-before.sketchyup"));
+            saveDocument(result, evidence.filePath("room-after.sketchyup"));
+            check(encodeDocument(loadDocument(evidence.filePath("room-before.sketchyup"))) ==
+                          encodeDocument(baseline) &&
+                      encodeDocument(loadDocument(evidence.filePath("room-after.sketchyup"))) ==
+                          encodeDocument(result),
+                  "Persisted acceptance fixtures are exact");
+            auto hash = [](const Document &value) {
+                return QString::fromLatin1(
+                    QCryptographicHash::hash(encodeDocument(value), QCryptographicHash::Sha256)
+                        .toHex());
+            };
+            const auto volume = [&](const Document &value) {
+                return measureEntity(value, {fixture.wall, SelectionKind::Body, 0})
+                    .world.volume.value();
+            };
+            near(volume(baseline), 9.888, "Measured baseline wall volume");
+            near(volume(result), 9.848, "Measured widened wall volume");
+            const QJsonObject evidenceReport{
+                {"source", "deterministic core commands; not a live provider"},
+                {"dimensions", "metres, outside room and outer frame"},
+                {"documentId", QString::fromStdString(doc.identity())},
+                {"room", QString::number(fixture.room)},
+                {"wall", QString::number(fixture.wall)},
+                {"selectedWindow", QString::number(fixture.first)},
+                {"siblingWindow", QString::number(fixture.second)},
+                {"beforeDocumentJsonSha256", hash(baseline)},
+                {"afterDocumentJsonSha256", hash(result)},
+                {"wallVolumeBefore", volume(baseline)},
+                {"wallVolumeAfter", volume(result)},
+                {"oneEntryUndoRedoVerified", true},
+                {"siblingFingerprintsVerified", true},
+                {"frameMembersVerified", true},
+                {"openingVerticesMoved", qint64(moved)}};
+            QFile file(evidence.filePath("measurements.json"));
+            const auto bytes = QJsonDocument(evidenceReport).toJson();
+            check(file.open(QIODevice::WriteOnly | QIODevice::NewOnly) &&
+                      file.write(bytes) == bytes.size(),
+                  "Write fixture measurement evidence");
+        }
         const auto again = report(run(doc, {resize(fixture.first, 1.6)}));
         check(again["madeUnique"] == false && doc.definitions().size() == 2,
               "Repeated unique resize does not add unused definitions");

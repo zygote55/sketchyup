@@ -1,0 +1,60 @@
+{
+  "recordedAt": "2026-10-05T16:38:35.713723+00:00",
+  "sourceBaseCommit": "21d795357c7266cee87971512bb9065f9fc2966a",
+  "sourceNote": "Working R051.a sources, with exact code-file hashes retained in the local acceptance.json; Git is unavailable in the isolated container.",
+  "sourceCodeInventorySha256": "30c5c0aa8b6961f70d50aac572c7d7db1b9094765e67ff2bd236b4ce5a359710",
+  "deterministicChecksPassed": true,
+  "liveProviderTested": false,
+  "m5GatePassed": false,
+  "blenderVersion": [
+    5,
+    2,
+    2
+  ],
+  "device": {
+    "backend": "CPU",
+    "id": "CPU",
+    "name": "CPU"
+  },
+  "renderSettings": {
+    "height": 512,
+    "samples": 32,
+    "seed": 0,
+    "width": 512
+  },
+  "renderSourceMatchesWidenedFixture": true,
+  "fixtureMeasurements": {
+    "afterDocumentJsonSha256": "1b1275b321447be6cb44c9a877d38a6c7ac1ecb7bfcd3c0bd72750a2f8020b9f",
+    "beforeDocumentJsonSha256": "a05b0dc6d2a88b3f55aafbb89a676ee642ead2484ff71d9b4f8103065fd1eb17",
+    "dimensions": "metres, outside room and outer frame",
+    "documentId": "55084ef77c72ea11e6a3fa640c0ab85c",
+    "frameMembersVerified": true,
+    "oneEntryUndoRedoVerified": true,
+    "openingVerticesMoved": 8,
+    "room": "3",
+    "selectedWindow": "6",
+    "siblingFingerprintsVerified": true,
+    "siblingWindow": "7",
+    "source": "deterministic core commands; not a live provider",
+    "wall": "1",
+    "wallVolumeAfter": 9.848000000000011,
+    "wallVolumeBefore": 9.888000000000012
+  },
+  "recordingSeconds": {
+    "manual.mp4": 2.066667,
+    "assistant-fixture.mp4": 4.533333,
+    "render.mp4": 6.533333
+  },
+  "artifacts": {
+    "assistant-fixture.mp4": "495ec9ae606d3ff24c66322f9dfe850d1db16f68c31ad9ca56dcb898dba6d5d9",
+    "cli-room.sketchyup": "1eeecd6789b04115aa5753cd72dd964a44acb558d274a240c3371c4676ae7aea",
+    "fixtures/measurements.json": "e1a501164f071addadb3064aee27f56e9f5800d96abf0274f6e2f05e0a73b706",
+    "fixtures/room-after.sketchyup": "a78ef4a92bae1fb3498914ca549afba50c14b1723881d1ca0937380e6b2d86cf",
+    "fixtures/room-before.sketchyup": "f7f846233dfbb30c8be43d6688ac944b2987b0ce922e00e7ae9bab18e6b40583",
+    "manual.mp4": "79224b594df0a8b23d0e60cebdd275c1f971051b2a1f1a43482e2ade77398c15",
+    "manual.png.sketchyup": "327bf64ae1984ed9d45fedf8187e82003df6aab461c645e0e38146338019aca3",
+    "render-image.png": "9cffefc6886de79f0fd236122b5f667d9fce0056154a5936fa6e53418351696b",
+    "render-manifest.json": "a1f18834030a9c7d72a46f338a422c91d2dbdebfee23e2a88800554246b018ff",
+    "render.mp4": "3810a3cc6d6d319db885b7a9a4181b8a8952dea7349a8d1dfbf4b6aae1d8ded0"
+  }
+}

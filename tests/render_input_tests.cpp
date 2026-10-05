@@ -8,6 +8,7 @@
 #include <QDialog>
 #include <QFile>
 #include <QLabel>
+#include <QJsonDocument>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSettings>
@@ -51,10 +52,16 @@ int main(int argc, char **argv) {
         check(QTest::qWaitFor([&] { return view.rendererReady(); }), "Native GL renderer ready");
         auto *tabs = window.findChild<QTabWidget *>("modelTabs");
         check(tabs && tabs->count() == 1, "Model tab initially alone");
-        executeBatch(doc, {{"apiVersion", 1},
-                           {"documentId", QString::fromStdString(doc.identity())},
-                           {"expectedRevision", QString::number(doc.revision())},
-                           {"commands", QJsonArray{QJsonObject{{"command", "assembly.room"}}}}});
+        const auto sourceModel = qEnvironmentVariable("SKETCHYUP_RENDER_MODEL");
+        if (!sourceModel.isEmpty())
+            doc = loadDocument(sourceModel);
+        else {
+            executeBatch(doc,
+                         {{"apiVersion", 1},
+                          {"documentId", QString::fromStdString(doc.identity())},
+                          {"expectedRevision", QString::number(doc.revision())},
+                          {"commands", QJsonArray{QJsonObject{{"command", "assembly.room"}}}}});
+        }
         view.refresh();
         emit view.changed();
         view.fit();
@@ -180,6 +187,11 @@ int main(int argc, char **argv) {
             !evidence.isEmpty()) {
             check(window.grab().save(evidence + ".png"), "Capture native render UI");
             panel.saveLatest(evidence + "-image.png");
+            QFile manifest(evidence + "-manifest.json");
+            const auto bytes = QJsonDocument(panel.latest()->manifest).toJson();
+            check(manifest.open(QIODevice::WriteOnly | QIODevice::NewOnly) &&
+                      manifest.write(bytes) == bytes.size(),
+                  "Retain verified native render manifest");
         }
         worker.executable = executable("success");
         for (int i = 0; i < 2; ++i) {

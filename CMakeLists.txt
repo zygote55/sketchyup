@@ -136,6 +136,8 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI)
   qt_add_resources(sketchyup_render blender_worker PREFIX "/sketchyup" BASE src/integrations FILES src/integrations/blender_worker.py)
 
   if(BUILD_TESTING)
+    add_executable(provider_trial tests/local_provider_trial.cpp)
+    target_link_libraries(provider_trial PRIVATE sketchyup_providers)
     add_executable(local_provider_trial tests/local_provider_trial.cpp)
     target_link_libraries(local_provider_trial PRIVATE sketchyup_providers)
     add_executable(ollama_provider_tests tests/ollama_provider_tests.cpp)
@@ -368,3 +370,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
 endif()
 
 install(FILES examples/render-settings-v1.json examples/room-recipe-v1.json examples/room-window-resize-recipe-v1.json examples/transaction-face-recipe.json DESTINATION share/doc/sketchyup/examples)
+
+install(FILES docs/M5_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
+install(FILES docs/decisions/0033-blender-worker.md docs/decisions/0034-openai-provider.md docs/decisions/0035-native-render-ui.md docs/decisions/0036-local-provider.md docs/decisions/0037-native-assistant-transactions.md docs/decisions/0038-assistant-clarification.md docs/decisions/0039-assistant-viewport-preview.md docs/decisions/0040-native-assistant-panel.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES examples/m5-room-before.sketchyup examples/m5-room-after.sketchyup DESTINATION share/doc/sketchyup/examples)

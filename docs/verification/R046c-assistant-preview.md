@@ -27,3 +27,6 @@ sanitizer run include this correction. Source packaging and installation pass.
 The fixture does not simulate a live provider or claim the assistant panel/banner
 controls are already integrated. Live picking remains live-model picking; preview
 entity inspection is explicitly selected by the host.
+
+Both CI runs passed: 37331617269 (1h4m32s) and 37331899712 (58m54s). PR #77
+merged as `ad318710b625a2029b4b46b1e57b7822f6d14742` at 16:22:40 UTC.
