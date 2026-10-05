@@ -726,7 +726,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R044 — Implement assistant orchestration and a remote provider
 
-**Status:** In progress. R044.a provider-neutral task orchestration is implemented over the real transaction/inspection engine, with scoped command authorization, preview-first Apply, bounded provider retries, cancellation and durable-outcome reconciliation. All 56 development suites and three targeted sanitizer suites pass. The engine merged in PR [#68](https://github.com/zygote55/sketchyup/pull/68) after both CI runs passed. The user explicitly selected **OpenAI** as the first remote provider. R044.b now implements its bounded asynchronous Responses adapter and Linux Secret Service credential helper; protocol/credential fixtures pass against the real staging engine. Native setup UI, configured credentials and the recorded live provider trial remain pending, so R044 is not complete. Credentials can be configured later. [Adapter evidence](verification/R044b-openai-provider.md). [Engine evidence](verification/R044a-assistant-orchestration.md), [contract](decisions/0030-assistant-orchestration.md). **Track:** Automation. **Scope:** A04, A05, A08. **UX:** §8.2, §8.5.
+**Status:** In progress. R044.a provider-neutral task orchestration is implemented over the real transaction/inspection engine, with scoped command authorization, preview-first Apply, bounded provider retries, cancellation and durable-outcome reconciliation. All 56 development suites and three targeted sanitizer suites pass. The engine merged in PR [#68](https://github.com/zygote55/sketchyup/pull/68) after both CI runs passed. The user explicitly selected **OpenAI** as the first remote provider. R044.b implements its bounded asynchronous Responses adapter and Linux Secret Service credential helper; protocol/credential fixtures pass against the real staging engine. Both CI runs passed and PR [#72](https://github.com/zygote55/sketchyup/pull/72) merged as `15ad1d6`. Native setup UI, configured credentials and the recorded live provider trial remain pending, so R044 is not complete. Credentials can be configured later. [Adapter evidence](verification/R044b-openai-provider.md). [Engine evidence](verification/R044a-assistant-orchestration.md), [contract](decisions/0030-assistant-orchestration.md). **Track:** Automation. **Scope:** A04, A05, A08. **UX:** §8.2, §8.5.
 
 **Requires:** [R041](#r041); milestone gate rule above.
 
@@ -738,7 +738,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R045 — Implement and measure a local model configuration
 
-**Status:** In progress. A bounded loopback Ollama adapter now shares the asynchronous lifecycle with OpenAI. Runtime/model capability checks, no-truncation controls and native-schema compatibility hints are implemented. All 61 development suites and both provider sanitizer suites pass. The measured CPU configuration and initial failed live trials are recorded; corrected-catalog corpus trials and CI acceptance remain pending. [Evidence](verification/R045-local-provider.md), [contract](decisions/0036-local-provider.md). **Track:** Automation. **Scope:** A05. **UX:** §8.5.
+**Status:** In progress. A bounded loopback Ollama adapter now shares the asynchronous lifecycle with OpenAI. Runtime/model capability checks, no-truncation controls and native-schema compatibility hints are implemented. All 61 development suites and both provider sanitizer suites pass. The corrected CPU corpus is recorded: all four live tasks hit the five-minute limit, with no measurement/modeling quality pass. The stopped-endpoint case and manual edit/save/reopen pass. This is an experimental profile; CI acceptance remains pending. [Evidence](verification/R045-local-provider.md), [contract](decisions/0036-local-provider.md). **Track:** Automation. **Scope:** A05. **UX:** §8.5.
 
 **Requires:** [R044](#r044); milestone gate rule above.
 
@@ -750,7 +750,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R046 — Build the assistant panel and change preview UX
 
-**Status:** Planned. **Track:** Desktop. **Scope:** A03, A04, N05. **UX:** §3.3, §8.
+**Status:** In progress. R046.a binds the existing native document and selection to the durable assistant transaction engine, preserving prior history, one-entry Apply, stale-preview rejection, temporary locks and uncertain-outcome reconciliation. All 62 enabled development suites and four focused sanitizer suites pass. Native panel/setup/hatched-preview UX remains pending. [Bridge evidence](verification/R046a-native-assistant-transactions.md), [contract](decisions/0037-native-assistant-transactions.md). **Track:** Desktop. **Scope:** A03, A04, N05. **UX:** §3.3, §8.
 
 **Requires:** [R044](#r044), [R045](#r045), [R041](#r041), [R010](#r010); milestone gate rule above.
 

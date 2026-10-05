@@ -142,7 +142,20 @@ TransactionCoordinator::TransactionCoordinator(Document document, const QString 
     : TransactionCoordinator(std::move(document), root, Options{}) {}
 TransactionCoordinator::TransactionCoordinator(Document document, const QString &root,
                                                Options options)
-    : document_(std::move(document)), staging_(options.staging, std::move(options.monotonic)) {
+    : ownedDocument_(std::move(document)), document_(*ownedDocument_),
+      staging_(options.staging, std::move(options.monotonic)) {
+    initialize(root, std::move(options));
+}
+TransactionCoordinator::TransactionCoordinator(BorrowedDocument document, const QString &root)
+    : TransactionCoordinator(document, root, Options{}) {}
+TransactionCoordinator::TransactionCoordinator(BorrowedDocument document, const QString &root,
+                                               Options options)
+    : document_(document.document), staging_(options.staging, std::move(options.monotonic)) {
+    if (options.mode != OpenMode::RequireCurrent)
+        fail("INVALID_REQUEST", "Recover an independent document before binding the native editor");
+    initialize(root, std::move(options));
+}
+void TransactionCoordinator::initialize(const QString &root, Options options) {
     store_ = std::make_unique<OutcomeStore>(root, QString::fromStdString(document_.identity()),
                                             options.outcomes, std::move(options.wallClock),
                                             std::move(options.fault));
@@ -156,11 +169,14 @@ TransactionCoordinator::TransactionCoordinator(Document document, const QString 
             fail("RECONCILIATION_REQUIRED", "Input model predates or diverges from the last "
                                             "durable transaction; explicitly recover it");
     }
+    scope_ = document_.saveStamp();
     abortOrphans();
 }
 void TransactionCoordinator::owner() const {
     if (std::this_thread::get_id() != owner_)
         fail("WRONG_THREAD", "Document actor must run on its owning thread");
+    if (!document_.owns(scope_))
+        fail("SCOPE_CLOSED", "The bound document session has been replaced");
 }
 void TransactionCoordinator::ready() const {
     if (publication_ || store_->uncertain())
@@ -263,6 +279,12 @@ QJsonObject TransactionCoordinator::preview(const QString &id, const QString &ha
     Operation guard(*this);
     const auto &b = binding(id, hash);
     return staging_.describe(document_, b.stageId);
+}
+std::shared_ptr<const Document::PreparedEdit>
+TransactionCoordinator::previewEdit(const QString &id, const QString &hash) {
+    Operation guard(*this);
+    const auto &b = binding(id, hash);
+    return staging_.proposal(document_, b.stageId);
 }
 QJsonObject TransactionCoordinator::inspect(const QString &id, const QString &hash,
                                             const QJsonObject &query) {
