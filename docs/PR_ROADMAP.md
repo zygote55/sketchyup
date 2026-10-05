@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0–M4 gates passed; M5 local live workflow passes, final CI/merges pending. Updated: 2026-10-05.
+Status: M0–M5 gates passed; M6 advanced modeling is in progress. Updated: 2026-10-05.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -810,7 +810,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R051 — Validate and document the complete M5 alpha
 
-**Status:** In progress. R051.a adds retained before/after room fixtures, an opt-in OpenAI/local corpus runner, a reproducible offline acceptance command, isolated native recordings and installed workflow instructions. R051.b verifies live ChatGPT-plan gpt-6-astra measurement, room creation and authored-window preview/direct→undo/redo→save/reopen→render. Initial resize corpus results are mixed; the manually authored component target is safely rejected because the recipe requires metadata. R051.c adds ordinary unique-instance edits and aligns draft lifetime with the remaining task budget. The manually authored target, native room creation and final repeated resize corpus now pass. Local M5 workflow acceptance passes; CI/merges remain required. [Gate record](verification/M5.md), [instance-edit evidence](verification/R051c-instance-edit.md). [Live evidence](verification/R051b-live-acceptance.md). [Procedure](M5_ACCEPTANCE.md), [preparation evidence](verification/R051a-alpha-acceptance.md). **Track:** Quality. **Scope:** A07, A08, P08, D04. **UX:** —.
+**Status:** Complete. R051.a adds retained before/after room fixtures, an opt-in OpenAI/local corpus runner, a reproducible offline acceptance command, isolated native recordings and installed workflow instructions. R051.b verifies live ChatGPT-plan gpt-6-astra measurement, room creation and authored-window preview/direct→undo/redo→save/reopen→render. Initial resize corpus results are mixed; the manually authored component target is safely rejected because the recipe requires metadata. R051.c adds ordinary unique-instance edits and aligns draft lifetime with the remaining task budget. The manually authored target, native room creation and final repeated resize corpus now pass. M5 local live acceptance and both final CI runs pass; the stack is merged through [PR #82](https://github.com/zygote55/sketchyup/pull/82). [Gate record](verification/M5.md), [instance-edit evidence](verification/R051c-instance-edit.md). [Live evidence](verification/R051b-live-acceptance.md). [Procedure](M5_ACCEPTANCE.md), [preparation evidence](verification/R051a-alpha-acceptance.md). **Track:** Quality. **Scope:** A07, A08, P08, D04. **UX:** —.
 
 **Requires:** [R046](#r046), [R047](#r047), [R043](#r043), [R050](#r050), [R038](#r038); milestone gate rule above.
 
@@ -836,7 +836,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R053 — Implement profile follow-me and sweep
 
-**Status:** In progress. R053.a ([PR #86](https://github.com/zygote55/sketchyup/pull/86)) adds the immutable sweep kernel with defined frame transport, miter joins, cap/side/segment mappings and classified twist/intersection rejection. [Contract](decisions/0044-profile-sweep.md), [fixtures](verification/R053a-sweep-kernel.md). It depends on R052.c. R053.b ([PR #87](https://github.com/zygote55/sketchyup/pull/87)) adds the shared local/world command, preserved source selection, generated mappings, scoped instance edits and preview/Undo/persistence ([evidence](verification/R053b-sweep-command.md)); it depends on R053.a. R053.c adds native Follow Me (Shift+F), selected-path preview/Apply/cancel, retained profile/path selection and shared-component interaction ([native evidence](verification/R053c-native-sweep.md)); it depends on R053.b. Local acceptance passes; CI/dependency merges remain pending. Closed holed profiles are explicitly unsupported pending multiple-shell validation. **Track:** Geometry. **Scope:** E05. **UX:** —.
+**Status:** In progress. R053.a ([PR #86](https://github.com/zygote55/sketchyup/pull/86)) adds the immutable sweep kernel with defined frame transport, miter joins, cap/side/segment mappings and classified twist/intersection rejection. [Contract](decisions/0044-profile-sweep.md), [fixtures](verification/R053a-sweep-kernel.md). It depends on R052.c. R053.b ([PR #87](https://github.com/zygote55/sketchyup/pull/87)) adds the shared local/world command, preserved source selection, generated mappings, scoped instance edits and preview/Undo/persistence ([evidence](verification/R053b-sweep-command.md)); it depends on R053.a. R053.c ([PR #88](https://github.com/zygote55/sketchyup/pull/88)) adds native Follow Me (Shift+F), selected-path preview/Apply/cancel, retained profile/path selection and shared-component interaction ([native evidence](verification/R053c-native-sweep.md)); it depends on R053.b. Local acceptance passes; CI/dependency merges remain pending. Closed holed profiles are explicitly unsupported pending multiple-shell validation. **Track:** Geometry. **Scope:** E05. **UX:** —.
 
 **Requires:** [R052](#r052), [R024](#r024); milestone gate rule above.
 
@@ -848,7 +848,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R054 — Implement context-scoped geometry intersections
 
-**Status:** Planned. **Track:** Geometry. **Scope:** E06. **UX:** —.
+**Status:** In progress. R054.a adds immutable crossing/coplanar face intersection geometry, holes, contact edges, bounded normalization and precision rejection ([contract](decisions/0045-face-intersections.md), [fixtures](verification/R054a-face-intersections.md)). The branch follows R053.c in the review stack. Context/mode integration, native controls and Undo/persistence remain outstanding. **Track:** Geometry. **Scope:** E06. **UX:** —.
 
 **Requires:** [R020](#r020), [R033](#r033); milestone gate rule above.
 
