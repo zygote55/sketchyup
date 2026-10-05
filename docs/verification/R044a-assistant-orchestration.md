@@ -24,7 +24,8 @@ entry. This is engine fault-injection evidence, not a simulated provider's asser
 that reconciliation succeeded.
 
 Other fixtures cover unadvertised save/shell tools, foreign documents, another
-transaction's draft, commands outside the trusted allowlist, forged history and
+transaction's draft, commands outside the trusted allowlist (including nested
+component edits), forged history and
 mixed operation/query discriminators. Host-selected context contains a body name
 that requests credential access and shell execution: the text remains data, the
 system instructions remain separate, and an attempted shell tool is rejected.

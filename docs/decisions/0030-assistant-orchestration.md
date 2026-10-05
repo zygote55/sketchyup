@@ -52,6 +52,8 @@ base revision. Each task owns at most one draft; another task's transaction ID i
 rejected. The begin schema omits `history`: the host injects the original user request,
 its own task ID and `assistant=true`, so the model cannot forge history provenance.
 Apply accepts only command schemas explicitly authorized by the trusted host.
+The same allowlist is enforced recursively inside component-edit command arrays;
+authorized wrappers cannot smuggle an unauthorized inner modeling command.
 
 Any intervening revision makes the task stale. The task discards its staging and
 preserves human changes; it does not silently rebase or infer a new authorization.

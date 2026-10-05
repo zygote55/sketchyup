@@ -552,6 +552,29 @@ int main(int argc, char **argv) {
                       state(*model)["revision"] == "0",
                   "Provider ending before preview explicitly discards staging");
         }
+        {
+            auto model = session();
+            const auto s = state(*model);
+            auto settings = options();
+            settings.allowedCommands.append("component.edit");
+            AssistantTask task(*model, settings);
+            Driver driver(task);
+            const auto draft = driver.begin(s);
+            const QJsonObject nested{
+                {"command", "component.edit"},
+                {"definition", "1"},
+                {"commands",
+                 QJsonArray{QJsonObject{{"command", "geometry.delete"}, {"body", "1"}}}}};
+            const auto denied = driver.tool("transaction.apply",
+                                            op(s, "transaction.apply",
+                                               {{"transactionId", draft},
+                                                {"expectedVersion", 0},
+                                                {"operationId", "nested"},
+                                                {"commands", QJsonArray{nested}}}),
+                                            true);
+            check(denied["code"] == "UNSUPPORTED_CAPABILITY" && state(*model)["revision"] == "0",
+                  "Nested component commands cannot bypass the trusted allowlist");
+        }
         std::cout << "Assistant preview gate, scoped tools, cancellation, budgets and durable "
                      "outcomes passed\n";
         return 0;

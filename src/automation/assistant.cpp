@@ -338,6 +338,19 @@ QJsonObject AssistantTask::execute(const AssistantToolCall &call) {
                                       {"request", options_.prompt},
                                       {"assistant", true}};
     }
+    if (call.name == "transaction.apply") {
+        std::function<void(const QJsonArray &)> authorize = [&](const QJsonArray &commands) {
+            for (const auto &value : commands) {
+                const auto command = value.toObject();
+                if (!options_.allowedCommands.contains(command.value("command").toString()))
+                    fail("UNSUPPORTED_CAPABILITY",
+                         "Nested modeling command is outside task authorization");
+                if (command.contains("commands"))
+                    authorize(command.value("commands").toArray());
+            }
+        };
+        authorize(args.value("commands").toArray());
+    }
     const auto result = backend_.call(args);
     if (call.name == "transaction.begin")
         draft_ = result["transactionId"].toString();
