@@ -714,7 +714,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R043 — Expose the shared tools through local MCP
 
-**Status:** In progress. R043.a [PR #66](https://github.com/zygote55/sketchyup/pull/66) headless MCP discovery, tools, resources and subscriptions passed local regression, sanitizer and independent protocol-schema verification. R043.b native selection/camera inspection, private socket transport and stdio bridge pass all 55 development suites, X11/Wayland at DPR 1/2, the actual desktop, native/shared MCP sanitizers and installed executable checks. Native inspection is read-only; the headless binding exposes staged transactions. CI/merge acceptance remains pending. [Native evidence](verification/R043b-native-mcp.md), [protocol evidence](verification/R043a-local-mcp.md), [native contract](decisions/0029-native-mcp.md). **Track:** Automation. **Scope:** A06, A01. **UX:** —.
+**Status:** In progress. R043.a [PR #66](https://github.com/zygote55/sketchyup/pull/66) headless MCP discovery, tools, resources and subscriptions merged after local regression, sanitizer, protocol-schema verification and both CI runs passed. R043.b native selection/camera inspection, private socket transport and stdio bridge pass all 55 development suites, X11/Wayland at DPR 1/2, the actual desktop, native/shared MCP sanitizers and installed executable checks. Native inspection is read-only; the headless binding exposes staged transactions. CI/merge acceptance remains pending. [Native evidence](verification/R043b-native-mcp.md), [protocol evidence](verification/R043a-local-mcp.md), [native contract](decisions/0029-native-mcp.md). **Track:** Automation. **Scope:** A06, A01. **UX:** —.
 
 **Requires:** [R042](#r042); milestone gate rule above.
 
@@ -726,7 +726,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R044 — Implement assistant orchestration and a remote provider
 
-**Status:** Planned. **Track:** Automation. **Scope:** A04, A05, A08. **UX:** §8.2, §8.5.
+**Status:** In progress. R044.a provider-neutral task orchestration is implemented over the real transaction/inspection engine, with scoped command authorization, preview-first Apply, bounded provider retries, cancellation and durable-outcome reconciliation. All 56 development suites and three targeted sanitizer suites pass. CI/merge acceptance, the explicitly chosen remote adapter, credential storage and live provider trial remain pending. [Engine evidence](verification/R044a-assistant-orchestration.md), [contract](decisions/0030-assistant-orchestration.md). **Track:** Automation. **Scope:** A04, A05, A08. **UX:** §8.2, §8.5.
 
 **Requires:** [R041](#r041); milestone gate rule above.
 

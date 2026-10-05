@@ -1,6 +1,6 @@
 # R043.a scoped headless MCP
 
-Date: 2026-10-05 UTC. Local verification passed; CI acceptance pending. Requires
+Date: 2026-10-05 UTC. Local verification and both CI runs passed; merged. Requires
 [PR #65](https://github.com/zygote55/sketchyup/pull/65).
 [Transport contract](../decisions/0028-local-mcp.md).
 
@@ -46,3 +46,7 @@ archive includes the protocol implementation, schema, contract and process fixtu
 Disposable package acceptance verifies installed schema equality and removal.
 No native window mutation or legacy MCP compatibility is claimed. Parent R043
 remains open for the actual native selection binding and CI/merge acceptance.
+
+PR [#66](https://github.com/zygote55/sketchyup/pull/66) merged at
+2026-10-05 03:35:46 UTC as `c3fa0fa4450a4ecf78e15bb7b447b49f25975a21`.
+Both CI runs, `37256366073` and `37256412105`, passed before merge.
