@@ -47,24 +47,53 @@ void Viewport::drawSolarShadowMap(const QMatrix4x4 &viewMatrix) {
     const std::array<Vec3, 3> axes{right, up, sun};
     const double infinity = std::numeric_limits<double>::infinity();
     std::array<double, 3> low{infinity, infinity, infinity}, high{-infinity, -infinity, -infinity};
-    size_t count{};
-    auto include = [&](const Vertex &v) {
-        const Vec3 relative{v.x - renderOrigin_.x, v.y - renderOrigin_.y, v.z - renderOrigin_.z};
-        for (size_t i = 0; i < 3; ++i) {
-            const auto p = dot(axes[i], relative);
-            low[i] = std::min(low[i], p);
-            high[i] = std::max(high[i], p);
+    // Focus shadow resolution around the camera target. Casters outside the camera view
+    // can still contribute when their sun-space projection overlaps this neighborhood.
+    const double extent =
+        std::max(.1, double(distance_) * std::max(2., 2. * width() / std::max(1, height())));
+    std::array<double, 2> focusLow{infinity, infinity}, focusHigh{-infinity, -infinity};
+    for (double dx : {-extent, extent})
+        for (double dy : {-extent, extent})
+            for (double dz : {-extent, extent}) {
+                const auto relative = target_ + Vec3{dx, dy, dz} - renderOrigin_;
+                for (size_t i = 0; i < 2; ++i) {
+                    const auto p = dot(axes[i], relative);
+                    focusLow[i] = std::min(focusLow[i], p);
+                    focusHigh[i] = std::max(focusHigh[i], p);
+                }
+            }
+    bool hasCaster{};
+    auto include = [&](const Vertex &a, const Vertex &b, const Vertex &c) {
+        std::array<double, 3> triangleLow{infinity, infinity, infinity},
+            triangleHigh{-infinity, -infinity, -infinity};
+        for (const auto *v : {&a, &b, &c}) {
+            const Vec3 relative{v->x - renderOrigin_.x, v->y - renderOrigin_.y,
+                                v->z - renderOrigin_.z};
+            for (size_t i = 0; i < 3; ++i) {
+                const auto p = dot(axes[i], relative);
+                triangleLow[i] = std::min(triangleLow[i], p);
+                triangleHigh[i] = std::max(triangleHigh[i], p);
+            }
         }
-        ++count;
+        for (size_t i = 0; i < 2; ++i) {
+            if (triangleHigh[i] < focusLow[i] || triangleLow[i] > focusHigh[i])
+                return;
+            triangleLow[i] = std::max(triangleLow[i], focusLow[i]);
+            triangleHigh[i] = std::min(triangleHigh[i], focusHigh[i]);
+        }
+        for (size_t i = 0; i < 3; ++i) {
+            low[i] = std::min(low[i], triangleLow[i]);
+            high[i] = std::max(high[i], triangleHigh[i]);
+        }
+        hasCaster = true;
     };
     for (const auto &[id, cache] : bodyCaches_) {
-        for (const auto &v : cache->opaque)
-            include(v);
+        for (size_t i = 0; i + 2 < cache->opaque.size(); i += 3)
+            include(cache->opaque[i], cache->opaque[i + 1], cache->opaque[i + 2]);
         for (const auto &triangle : cache->transparent)
-            for (const auto &v : triangle)
-                include(v);
+            include(triangle[0], triangle[1], triangle[2]);
     }
-    if (!count)
+    if (!hasCaster)
         return;
     if (doc_.style().groundVisible) {
         // Include the receiver plane's depth range without expanding the caster XY footprint.

@@ -20,7 +20,12 @@ modeling light. Model appearance, topology and picking identities do not change.
 
 The preview uses one bounded 2048×2048 depth map and a 3×3 comparison filter. It fits
 visible caster geometry in a sun-aligned basis, using double-precision camera-relative
-coordinates before GPU upload. Visible ground extends the receiver depth range.
+coordinates before GPU upload. A camera-target neighborhood (twice camera distance,
+expanded for wide viewports) bounds the projected XY footprint so distant offscreen
+objects cannot consume nearby shadow resolution. Triangle bounds are intersected with
+that footprint; casters anywhere along the sun axis still contribute when their
+projection overlaps it. Shadow detail is a preview around the camera target, not an
+unbounded scene-wide map. Visible ground extends the receiver depth range.
 Opaque surfaces and texture/opacity fragments with alpha at least 0.5 cast shadows;
 this is an opaque-cutout preview, not refractive or colored transmission. Ground is
 a visual receiver and remains non-pickable. Free clipping and named section geometry
