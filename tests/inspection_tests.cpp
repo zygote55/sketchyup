@@ -117,6 +117,11 @@ int main(int argc, char **argv) {
         auto ref = inspectionReference(doc, body);
         const auto local = run(doc, "measure.entity", {{"target", ref}, {"space", "local"}});
         const auto world = run(doc, "measure.entity", {{"target", ref}, {"space", "world"}});
+        const auto diagnosed = run(doc, "geometry.diagnose", {{"target", ref}});
+        check(diagnosed["analysisComplete"] == true && diagnosed["findings"].toArray().empty() &&
+                  std::abs(diagnosed["materialVolume"].toDouble() - 24) < tolerance &&
+                  diagnosed["space"] == "local" && diagnosed["includesDescendants"] == false,
+              "Mirrored placement retains native orientation and explicit local diagnostic scope");
         check(near(local["bounds"].toObject()["dimensions"], {2, 3, 4}) &&
                   near(world["bounds"].toObject()["dimensions"], {9, 4, 2}) &&
                   std::abs(local["volume"].toDouble() - 24) < tolerance &&

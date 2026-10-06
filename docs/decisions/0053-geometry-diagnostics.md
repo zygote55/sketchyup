@@ -1,7 +1,7 @@
 # 0053 — Bounded findings precede explicit geometry repair
 
-Status: R058.a diagnostic kernel locally verified. Shared inspection and native
-report/repair controls follow in later R058 layers.
+Status: R058.a diagnostic kernel locally verified. R058.b shared inspection
+is locally verified; native report/repair controls follow.
 
 Diagnostics are read-only derived data over an authoritative surface and edge
 topology. They identify solid prerequisites and risky geometry; an open sheet or

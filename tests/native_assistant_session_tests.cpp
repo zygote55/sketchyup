@@ -109,6 +109,16 @@ int main(int argc, char **argv) {
             check(session.state().value("selectionAvailable") == true &&
                       driver.last.value("data").toObject().value("items").toArray().size() == 1,
                   "Actual native selection enters initial context");
+            const auto diagnostic =
+                driver
+                    .send("geometry.diagnose",
+                          query(doc, "geometry.diagnose",
+                                {{"target", inspectionReference(doc, fixture.body)}}))["data"]
+                    .toObject();
+            check(diagnostic["solidStatus"] == "topology_blocked" &&
+                      diagnostic["findings"].toArray()[0].toObject()["count"] == 4 &&
+                      doc.isCurrentSnapshot(stamp) && encodeContainer(doc) == bytes,
+                  "Assistant tools expose identical immutable open-boundary diagnostics");
             const auto sealed = driver.stage(fixture.body);
             const auto pinned = session.previewEdit(sealed);
             check(encodeContainer(doc) == bytes && doc.isCurrentSnapshot(stamp),

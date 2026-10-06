@@ -502,6 +502,14 @@ strokes and select them for Reveal or Harden. These actions keep other flags
 intact and support Undo. Locks and group/component editing boundaries still apply. See the [edge appearance example](examples/edge-appearance.json)
 and [contract](docs/decisions/0051-edge-appearance.md).
 
+`geometry.diagnose` inspects one explicit body record and returns bounded findings
+for open boundaries, non-manifold geometry, inconsistent or inverted orientation,
+loose geometry and near-degenerate faces. Counts distinguish complete scans from
+lower bounds; omitted reference samples and incomplete analysis are explicit.
+Diagnosis reads hidden geometry too, uses local coordinates, and excludes child
+records. It never edits the model. The same query works through CLI inspection,
+snapshots, MCP and the assistant. See the [diagnostic contract](docs/decisions/0053-geometry-diagnostics.md).
+
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected
 path edges. Use Select and Ctrl-click to add the face and path, then Shift+F to
 preview; Enter or click applies, and Escape cancels. Alt-drag can orbit during
