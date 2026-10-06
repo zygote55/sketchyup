@@ -180,16 +180,26 @@ void ReferenceImagesPanel::edit(bool calibrate) {
         auto *v1 = field(form, "referenceFirstV", "First vertical", "1");
         auto *u2 = field(form, "referenceSecondU", "Second horizontal", "1");
         auto *v2 = field(form, "referenceSecondV", "Second vertical", "1");
+        const auto measured = sketchy::length(doc_.worldTransform(id).vector({image.width, 0, 0}));
+        const auto parent = original->parent ? doc_.worldTransform(original->parent) : Transform{};
         auto *length = field(form, "referenceLength", "Known length",
-                             displayLength(image.width, doc_.displayUnits()));
+                             displayLength(measured, doc_.displayUnits()));
+        const auto originalLength = length->text();
         command = [=, this] {
-            return QJsonObject{
-                {"command", "reference_image.calibrate"},
-                {"body", QString::number(id)},
-                {"first", QJsonArray{number(u1), number(v1)}},
-                {"second", QJsonArray{number(u2), number(v2)}},
-                {"knownLength",
-                 parseLength(length->text(), inputUnit(doc_.displayUnits()), QLocale())}};
+            const ImagePoint first{number(u1), number(v1)}, second{number(u2), number(v2)};
+            const auto known =
+                length->text() == originalLength
+                    ? measured
+                    : parseLength(length->text(), inputUnit(doc_.displayUnits()), QLocale());
+            const auto calibrated =
+                calibrateReferenceImage(image, original->transform, parent, first, second, known);
+            if (calibrated.image == image && calibrated.local == original->transform)
+                return QJsonObject{};
+            return QJsonObject{{"command", "reference_image.calibrate"},
+                               {"body", QString::number(id)},
+                               {"first", QJsonArray{first[0], first[1]}},
+                               {"second", QJsonArray{second[0], second[1]}},
+                               {"knownLength", known}};
         };
     } else {
         auto *name = field(form, "referenceName", "Name", QString::fromStdString(original->name));

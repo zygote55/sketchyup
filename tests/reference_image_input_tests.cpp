@@ -226,6 +226,25 @@ int main(int argc, char **argv) {
         doc.undo();
         settled(view);
         panel->refresh();
+        Transform scaled;
+        scaled.m[0] = scaled.m[5] = 2;
+        doc.transform(id, scaled);
+        settled(view);
+        panel->refresh();
+        const auto scaledRevision = doc.revision();
+        modal(
+            window, "referenceCalibrationDialog",
+            [&] { window.findChild<QPushButton *>("referenceImageCalibrate")->click(); },
+            [&](QDialog *dialog) {
+                save(dialog);
+                check(!dialog->isVisible(), "Unchanged calibration closes");
+            });
+        check(
+            doc.revision() == scaledRevision && doc.bodies().at(id)->referenceImage->width == 4,
+            "Calibration defaults to the placed world length and unchanged Save does not rescale");
+        doc.undo();
+        settled(view);
+        panel->refresh();
         modal(
             window, "referenceCalibrationDialog",
             [&] { window.findChild<QPushButton *>("referenceImageCalibrate")->click(); },
