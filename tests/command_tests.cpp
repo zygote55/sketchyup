@@ -1005,6 +1005,8 @@ int main(int argc, char **argv) {
         cases.append(QJsonObject{{"command", "assembly.stairs"}});
         cases.append(QJsonObject{{"command", "assembly.table"}});
         cases.append(QJsonObject{{"command", "assembly.cabinet"}});
+        cases.append(QJsonObject{{"command","assembly.site_place"},{"body","1"},{"position",QJsonArray{10,20,30}},
+                                 {"positionUnit","m"},{"frame","world"},{"yawDeltaRadians",.3}});
         cases.append(QJsonObject{{"command", "assembly.room"}});
         cases.append(QJsonObject{{"command", "assembly.room.adopt_hosted"}, {"body", "3"}});
         cases.append(QJsonObject{{"command", "assembly.window.resize"},
@@ -1029,7 +1031,7 @@ int main(int argc, char **argv) {
             };
             Document doc = source;
             if (command["command"].toString().startsWith("assembly.")) {
-                doc = Document{};
+                doc = command["command"] == "assembly.site_place" ? source : Document{};
                 if (command["command"] == "assembly.window.resize" ||
                     command["command"] == "assembly.room.adopt_hosted") {
                     const auto room =

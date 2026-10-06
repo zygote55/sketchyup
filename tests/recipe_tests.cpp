@@ -189,6 +189,24 @@ int main(int argc, char **argv) {
                       "Saved recipe preserves sibling and requested window width");
             }
         }
+        {
+            const auto model=files.path()+"/site.sketchyup";
+            const auto result=cli({"--recipe",QStringLiteral(SOURCE_DIR "/examples/site-recipe-v1.json"),
+                                   "--new","--output",model,"--outcomes",files.path()+"/site-outcomes"});
+            check(result.code==0 && result.rows.size()==11,"Shipped site recipe completes all eleven steps");
+            for(const auto &row:result.rows) check(row.toObject()["ok"]==true,"Site recipe step succeeds");
+            const auto discovered=result.rows[4].toObject()["result"].toObject()["data"].toObject();
+            check(discovered["total"].toInt()==1,"Site recipe discovers its sole new root without guessing IDs");
+            const auto target=discovered["items"].toArray()[0].toObject()["ref"].toObject()["body"].toString().toULongLong();
+            const auto saved=loadDocument(model);
+            check(saved.revision()==1 && saved.bodies().size()==38 && saved.definitions().size()==4,
+                  "Site recipe publishes the complete shared-component study as one task");
+            check(length(saved.worldTransform(target).point({})-Vec3{100000.125,200000.25,12.5})<1e-7,
+                  "Saved site recipe retains exact converted world coordinates");
+            const QJsonValue staged=result.rows[6].toObject()["result"].toObject()["data"];
+            const QJsonValue committed=result.rows[10].toObject()["result"].toObject()["data"];
+            check(staged==committed,"Site measurements agree before and after commit");
+        }
         const auto info = step("info", op("session.describe"));
         rejects("INVALID_REQUEST", [&] { AutomationRecipe::parse("[]"); });
         rejects("UNSUPPORTED_VERSION", [&] {

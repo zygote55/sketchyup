@@ -1,0 +1,264 @@
+{
+  "apiVersion": 1,
+  "steps": [
+    {
+      "id": "info",
+      "request": {
+        "apiVersion": 1,
+        "operation": "session.describe"
+      }
+    },
+    {
+      "id": "begin",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.begin",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "info#/result/revision"
+        },
+        "history": {
+          "label": "Place a complete site study",
+          "taskId": "site-recipe-v1",
+          "assistant": false
+        }
+      }
+    },
+    {
+      "id": "draw",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.apply",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": 0,
+        "operationId": "create-scene",
+        "commands": [
+          {
+            "command": "assembly.room"
+          },
+          {
+            "command": "assembly.roof"
+          },
+          {
+            "command": "assembly.stairs",
+            "origin": [
+              7,
+              0,
+              0
+            ]
+          },
+          {
+            "command": "assembly.cabinet",
+            "origin": [
+              0,
+              -2,
+              0
+            ]
+          },
+          {
+            "command": "assembly.table",
+            "origin": [
+              2,
+              -2,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "assemble",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.apply",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": {
+          "$ref": "draw#/result/stageVersion"
+        },
+        "operationId": "group-site",
+        "commands": [
+          {
+            "command": "group.create",
+            "members": [
+              {
+                "$ref": "draw#/result/createdIds/recipeOperations/0/room"
+              },
+              {
+                "$ref": "draw#/result/createdIds/recipeOperations/1/roof"
+              },
+              {
+                "$ref": "draw#/result/createdIds/recipeOperations/2/stairs"
+              },
+              {
+                "$ref": "draw#/result/createdIds/recipeOperations/3/assembly"
+              },
+              {
+                "$ref": "draw#/result/createdIds/recipeOperations/4/assembly"
+              }
+            ],
+            "name": "Site study"
+          }
+        ]
+      }
+    },
+    {
+      "id": "site_target",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.inspect",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "request": {
+          "apiVersion": 1,
+          "documentId": {
+            "$ref": "info#/result/documentId"
+          },
+          "expectedRevision": {
+            "$ref": "assemble#/result/proposedRevision"
+          },
+          "query": "entities.query",
+          "recursive": false,
+          "kind": "group"
+        }
+      }
+    },
+    {
+      "id": "place",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.apply",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": {
+          "$ref": "assemble#/result/stageVersion"
+        },
+        "operationId": "place-site",
+        "commands": [
+          {
+            "command": "assembly.site_place",
+            "body": {
+              "$ref": "site_target#/result/data/items/0/ref/body"
+            },
+            "position": [
+              100000125,
+              200000250,
+              12500
+            ],
+            "positionUnit": "mm",
+            "frame": "world",
+            "yawDeltaRadians": 0.5235987755982988
+          }
+        ]
+      }
+    },
+    {
+      "id": "preview_measurement",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.inspect",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "request": {
+          "apiVersion": 1,
+          "documentId": {
+            "$ref": "info#/result/documentId"
+          },
+          "expectedRevision": {
+            "$ref": "draw#/result/proposedRevision"
+          },
+          "query": "measure.entity",
+          "target": {
+            "$ref": "site_target#/result/data/items/0/ref"
+          },
+          "space": "world"
+        }
+      }
+    },
+    {
+      "id": "seal",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.preview",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": {
+          "$ref": "place#/result/stageVersion"
+        }
+      }
+    },
+    {
+      "id": "commit",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.commit",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "requestId": {
+          "$ref": "seal#/result/requestId"
+        },
+        "payloadHash": {
+          "$ref": "seal#/result/payloadHash"
+        }
+      }
+    },
+    {
+      "id": "save",
+      "request": {
+        "apiVersion": 1,
+        "operation": "document.save",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "commit#/result/result/revision"
+        }
+      }
+    },
+    {
+      "id": "measurement",
+      "request": {
+        "apiVersion": 1,
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "commit#/result/result/revision"
+        },
+        "query": "measure.entity",
+        "target": {
+          "$ref": "site_target#/result/data/items/0/ref"
+        },
+        "space": "world"
+      }
+    }
+  ]
+}

@@ -2128,6 +2128,63 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Place an existing context with explicit units, frame and yaw delta",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "assembly.site_place"
+                                        },
+                                        "frame": {
+                                            "enum": [
+                                                "world",
+                                                "parent"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "position": {
+                                            "items": {
+                                                "maximum": 1000000000000,
+                                                "minimum": -1000000000000,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 3,
+                                            "minItems": 3,
+                                            "type": "array"
+                                        },
+                                        "positionUnit": {
+                                            "enum": [
+                                                "m",
+                                                "mm",
+                                                "cm",
+                                                "in",
+                                                "ft"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "yawDeltaRadians": {
+                                            "maximum": 6.283185307179586,
+                                            "minimum": -6.283185307179586,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "position",
+                                        "positionUnit",
+                                        "frame",
+                                        "yawDeltaRadians",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Create an editable table with four shared component legs",
                                     "properties": {
                                         "command": {

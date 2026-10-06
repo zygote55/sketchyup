@@ -421,6 +421,7 @@ struct AssistantPanel::Impl {
                                   "assembly.stairs",
                                   "assembly.table",
                                   "assembly.cabinet",
+                                  "assembly.site_place",
                                   "assembly.room",
                                   "assembly.room.adopt_hosted",
                                   "assembly.window.resize",

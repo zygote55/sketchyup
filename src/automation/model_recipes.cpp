@@ -3,6 +3,7 @@
 #include "automation/roof_recipe.hpp"
 #include "automation/stair_recipe.hpp"
 #include "automation/furniture_recipe.hpp"
+#include "automation/site_recipe.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_validation.hpp"
@@ -792,6 +793,8 @@ ModelRecipeResult resizeWindow(Document &doc, const QJsonObject &command) {
 ModelRecipeResult executeModelRecipe(Document &doc, const QJsonObject &command) {
     inspection_detail::validateParameters(
         command, commandDescription(command.value("command").toString())["parameters"].toObject());
+    if (command.value("command") == "assembly.site_place")
+        return executeSiteRecipe(doc, command);
     if (command.value("command") == "assembly.table" || command.value("command") == "assembly.cabinet")
         return executeFurnitureRecipe(doc, command);
     if (command.value("command") == "assembly.stairs")
