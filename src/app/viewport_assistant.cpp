@@ -158,10 +158,10 @@ void Viewport::drawAssistantPreview() {
         return;
     shader_->setUniformValue("pixelRatio", float(devicePixelRatioF()));
     shader_->setUniformValue("stipple", 2);
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(-1, -1);
+    gl_->glEnable(GL_POLYGON_OFFSET_FILL);
+    gl_->glPolygonOffset(-1, -1);
     draw(assistantTrianglesGpu_, GL_TRIANGLES);
-    glDisable(GL_POLYGON_OFFSET_FILL);
+    gl_->glDisable(GL_POLYGON_OFFSET_FILL);
     shader_->setUniformValue("stipple", 0);
     draw(assistantLinesGpu_, GL_LINES);
 }

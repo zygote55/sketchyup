@@ -1,0 +1,8 @@
+{
+  "date": "2026-10-06",
+  "fixture": "Two shared panels, reflected/nonuniform second instance, independent side mappings, near-site-bound translation",
+  "capture": "Raw Viewport.grabFramebuffer; Wayland; scale 2; unedited",
+  "sha256": "7e6b1221ac33e2c2940e85c9f6079eeb76dbd480002181621ece166cebe66fe1",
+  "bytes": 80292,
+  "sanitizedContextRecreationPassed": true
+}

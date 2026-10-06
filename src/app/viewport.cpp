@@ -7,6 +7,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QOpenGLContext>
+#include <QOpenGLVersionFunctionsFactory>
 #include <QPainter>
 #include <QRegularExpression>
 #include <QTimer>
@@ -33,6 +34,11 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     auto *inferenceTimer = new QTimer(this);
     inferenceTimer->setInterval(25);
     connect(inferenceTimer, &QTimer::timeout, this, [this] {
+        const auto textures = textureCache_.snapshot();
+        if (textures != textureSnapshot_) {
+            cacheDirty_ = pickDirty_ = true;
+            update();
+        }
         armReference();
         if (!inferencePending_)
             return;
@@ -60,7 +66,7 @@ Viewport::Viewport(Document &doc, QWidget *parent)
 Viewport::~Viewport() { cleanupGL(); }
 void Viewport::cleanupGL() {
     disconnect(contextCleanup_);
-    if (context()) {
+    if (context() && gl_) {
         makeCurrent();
         for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_,
                             &pickEdgesGpu_, &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_,
@@ -73,10 +79,15 @@ void Viewport::cleanupGL() {
                 batch->buffer.destroy();
                 batch->count = 0;
             }
+        for (const auto &[id, name] : textureGpu_)
+            gl_->glDeleteTextures(1, &name);
+        textureGpu_.clear();
+        textureImages_.clear();
         vao_.destroy();
         shader_.reset();
         doneCurrent();
     }
+    gl_ = nullptr;
     ready_ = false;
     assistantPreviewDirty_ = true;
     cacheDirty_ = true;
@@ -87,18 +98,23 @@ void Viewport::cleanupGL() {
 }
 void Viewport::initializeGL() {
     ready_ = false;
-    if (!initializeOpenGLFunctions()) {
+    gl_ = QOpenGLVersionFunctionsFactory::get<QOpenGLFunctions_3_3_Core>(context());
+    if (!gl_) {
         emit message("OpenGL 3.3 is required");
         return;
     }
     contextCleanup_ = connect(context(), &QOpenGLContext::aboutToBeDestroyed, this,
                               &Viewport::cleanupGL, Qt::DirectConnection);
-    graphics_ = QString("%1 / %2").arg(reinterpret_cast<const char *>(glGetString(GL_RENDERER)),
-                                       reinterpret_cast<const char *>(glGetString(GL_VERSION)));
+    graphics_ = QString("%1 / %2").arg(reinterpret_cast<const char *>(gl_->glGetString(GL_RENDERER)),
+                                       reinterpret_cast<const char *>(gl_->glGetString(GL_VERSION)));
     const char *vertex = R"(#version 330 core
 layout(location=0) in vec3 position;
 layout(location=1) in vec4 color;
 layout(location=2) in vec4 backColor;
+layout(location=3) in vec4 coordinates;
+layout(location=4) in vec2 shading;
+out vec4 uv;
+out vec2 previewShading;
 uniform mat4 mvp;
 uniform int instanced;
 uniform vec2 pixelOffset;
@@ -107,6 +123,7 @@ out vec4 backTint;
 flat out vec2 faceOpacity;
 out vec3 worldPosition;
 void main() {
+  uv=coordinates;previewShading=shading;
   vec3 p=position;
   if(instanced!=0) p+=vec3(float(gl_InstanceID%1000)*1.2,float(gl_InstanceID/1000)*1.2,0);
   gl_Position=mvp*vec4(p,1.0);gl_Position.xy+=pixelOffset*gl_Position.w;tint=color;backTint=backColor;faceOpacity=vec2(color.a,backColor.a);worldPosition=p;
@@ -114,6 +131,12 @@ void main() {
     const char *fragment = R"(#version 330 core
 in vec4 tint;
 in vec4 backTint;
+in vec4 uv;
+in vec2 previewShading;
+uniform sampler2D frontImage;
+uniform sampler2D backImage;
+uniform vec2 textured;
+uniform vec3 canvas;
 flat in vec2 faceOpacity;
 uniform int surfacePass;
 in vec3 worldPosition;
@@ -122,6 +145,24 @@ uniform vec4 clipPlane;
 uniform int stipple;
 uniform float pixelRatio;
 out vec4 fragment;
+vec3 toLinear(vec3 c) {
+  return mix(c/12.92,pow((c+0.055)/1.055,vec3(2.4)),greaterThan(c,vec3(0.04045)));
+}
+vec3 toSrgb(vec3 c) {
+  return mix(c*12.92,1.055*pow(c,vec3(1.0/2.4))-0.055,greaterThan(c,vec3(0.0031308)));
+}
+// Explicit four-texel filtering guarantees sRGB decode before interpolation
+// even on GL 3.3 implementations that filter sRGB textures in encoded space.
+vec4 sampleImage(sampler2D source, vec2 coordinates) {
+  ivec2 size=textureSize(source,0);
+  vec2 p=fract(coordinates)*vec2(size)-0.5;
+  ivec2 lo=ivec2(floor(p));
+  vec2 f=fract(p);
+  ivec2 a=(lo%size+size)%size;
+  ivec2 b=(a+ivec2(1))%size;
+  return mix(mix(texelFetch(source,a,0),texelFetch(source,ivec2(b.x,a.y),0),f.x),
+             mix(texelFetch(source,ivec2(a.x,b.y),0),texelFetch(source,b,0),f.x),f.y);
+}
 void main() {
   if(clipEnabled!=0 && dot(clipPlane,vec4(worldPosition,1.0))<0.0) discard;
   if(stipple==1 && (mod(floor(gl_FragCoord.x/pixelRatio),4.0)>0.0 || mod(floor(gl_FragCoord.y/pixelRatio),4.0)>0.0)) discard;
@@ -129,6 +170,13 @@ void main() {
   vec4 color=gl_FrontFacing ? tint : backTint;
   // Opacity is constant per face; interpolating 1 can round below 1 and discard opaque fragments.
   color.a=gl_FrontFacing ? faceOpacity.x : faceOpacity.y;
+  bool hasImage=gl_FrontFacing ? textured.x>0.0 : textured.y>0.0;
+  if(hasImage && surfacePass!=0) {
+    vec4 imageColor=gl_FrontFacing ? sampleImage(frontImage,uv.xy) : sampleImage(backImage,uv.zw);
+    color.a*=imageColor.a;
+    if(surfacePass!=3) color.rgb=toSrgb(toLinear(color.rgb)*imageColor.rgb);
+  }
+  if(surfacePass!=3) color.rgb=mix(canvas,color.rgb,previewShading.y)*previewShading.x;
   if(surfacePass==1 && color.a<1.0) discard;
   if(surfacePass==2 && (color.a<=0.0 || color.a>=1.0)) discard;
   if(surfacePass==3 && color.a<=0.0) discard;
@@ -406,7 +454,7 @@ void Viewport::beginChain() {
 Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
     auto [o, d] = ray(p);
     FaceHit hit;
-    auto intersect = [&](const Triangle &t, Id body) {
+    auto intersect = [&](const Triangle &t, const Triangle &local, Id body) {
         if (!visible({body, SelectionKind::Face, t.face}))
             return;
         auto e1 = t.b - t.a, e2 = t.c - t.a;
@@ -429,9 +477,18 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
                           std::pair{body, t.face} > std::pair{hit.body, hit.face};
         if (distance > 0 && (nearer || tied) && !clipped(o + d * distance)) {
             const bool back = (a < 0) != (doc_.worldTransform(body).determinant() < 0);
-            if (surfaceAppearance(doc_.materials(), *doc_.bodies().at(body), t.face, back)
-                    .opacity == 0)
+            const auto &record = *doc_.bodies().at(body);
+            if (surfaceAppearance(doc_.materials(), record, t.face, back).opacity == 0)
                 return;
+            const auto projection = textureProjection(record, local, back);
+            if (projection.image) {
+                const auto &uv = projection.uv;
+                const TextureCoordinate coordinates{
+                    uv[0][0] * (1 - u - v) + uv[1][0] * u + uv[2][0] * v,
+                    uv[0][1] * (1 - u - v) + uv[1][1] * u + uv[2][1] * v};
+                if (textureImages_.at(projection.image)->sampleLinear(coordinates)[3] == 0)
+                    return;
+            }
             hit = {body, t.face, distance};
         }
     };
@@ -441,8 +498,14 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
         for (const auto &[id, body] : doc_.bodies()) {
             if (cachedDocument_ == doc_.identity() && opacity_.contains(id) && opacity_.at(id) == 0)
                 continue;
-            for (const auto &triangle : doc_.worldTriangles(id))
-                intersect(triangle, id);
+            const auto world = doc_.worldTransform(id);
+            for (const auto &local : body->surface.triangles()) {
+                auto triangle = local;
+                triangle.a = world.point(local.a);
+                triangle.b = world.point(local.b);
+                triangle.c = world.point(local.c);
+                intersect(triangle, local, id);
+            }
         }
     } else
         for (const auto &[id, cache] : bodyCaches_) {
@@ -468,8 +531,8 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
             }
             if (high < low || low > hit.distance + tolerance)
                 continue;
-            for (const auto &triangle : cache->worldTriangles)
-                intersect(triangle, id);
+            for (size_t i = 0; i < cache->worldTriangles.size(); ++i)
+                intersect(cache->worldTriangles[i], cache->localTriangles[i], id);
         }
     return hit;
 }
@@ -604,6 +667,8 @@ void Viewport::rebuild() {
         cachedDocument_ = doc_.identity();
         transparentDirty_ = true;
     }
+    syncTextures();
+    textureMappingFallbacks_ = 0;
     std::erase_if(opacity_, [&](const auto &item) { return !doc_.bodies().contains(item.first); });
     std::erase_if(bodyCaches_, [&](const auto &item) {
         if (doc_.bodies().contains(item.first))
@@ -654,11 +719,17 @@ void Viewport::rebuild() {
         };
         for (const auto &[face, record] : body->surface.faces)
             remember(faceMaterials(*body, face));
+        std::map<Id, std::shared_ptr<const TextureImage>> images;
+        for (const auto &[material, record] : materials)
+            if (record->asset && textureImages_.contains(record->asset))
+                images.emplace(record->asset, textureImages_.at(record->asset));
         const bool appearanceChanged = worldChanged || topologyChanged || !cache.record ||
                                        cache.record->color != body->color ||
                                        cache.record->faceColors != body->faceColors ||
                                        cache.record->materials != body->materials ||
                                        cache.record->faceMaterials != body->faceMaterials ||
+                                       cache.record->faceTextureMappings != body->faceTextureMappings ||
+                                       cache.images != images ||
                                        cache.record->edgeAppearances != body->edgeAppearances ||
                                        cache.materials != materials || cache.alpha != alpha ||
                                        cache.presentationRevision != presentationRevision_;
@@ -691,6 +762,7 @@ void Viewport::rebuild() {
         }
         if (appearanceChanged) {
             transparentDirty_ = true;
+            cache.mappingFallbacks = 0;
             cache.opaque.clear();
             cache.lines.clear();
             cache.hiddenLines.clear();
@@ -726,14 +798,6 @@ void Viewport::rebuild() {
                         side->opacity *= alpha;
                         if (selection_.hidden(doc_, entity))
                             side->opacity = std::min(side->opacity, .18f);
-                        if (!selection_.inActiveHierarchy(doc_, id) ||
-                            selection_.locked(doc_, id)) {
-                            const std::array<float, 3> background{float(colors_.canvas.redF()),
-                                                                  float(colors_.canvas.greenF()),
-                                                                  float(colors_.canvas.blueF())};
-                            for (size_t i = 0; i < 3; ++i)
-                                side->color[i] = side->color[i] * .35f + background[i] * .65f;
-                        }
                     }
                     std::array<Vertex, 3> vertices;
                     size_t index = 0;
@@ -742,18 +806,30 @@ void Viewport::rebuild() {
                                                                        normalized({.3, -.5, .8})));
                         auto &v = vertices[index++];
                         auto color = front.color;
-                        for (auto &component : color)
-                            component *= light;
                         v = vertex(point, color);
                         v.a = front.opacity;
-                        v.br = back.color[0] * light;
-                        v.bg = back.color[1] * light;
-                        v.bb = back.color[2] * light;
+                        v.br = back.color[0];
+                        v.bg = back.color[1];
+                        v.bb = back.color[2];
                         v.ba = back.opacity;
+                        v.light = light;
+                        v.dim = !selection_.inActiveHierarchy(doc_, id) || selection_.locked(doc_, id)
+                                    ? .35f : 1.f;
+                    }
+                    textureVertices(*body, cache.localTriangles[triangleIndex],
+                                    world.determinant() < 0, vertices);
+                    const auto &first = vertices[0];
+                    bool imageTransparency = false;
+                    for (const auto side : {std::pair{front.material, first.image},
+                                            std::pair{back.material, first.backImage}}) {
+                        if (side.second)
+                            imageTransparency |= textureImages_.at(side.second)->hasTransparency();
+                        else if (side.first && images.contains(doc_.materials().at(side.first)->asset))
+                            ++cache.mappingFallbacks;
                     }
                     // Mixed sides enter both passes; the shader discards the other side.
                     // Only the visible opaque side writes depth.
-                    if ((front.opacity > 0 && front.opacity < 1) ||
+                    if (imageTransparency || (front.opacity > 0 && front.opacity < 1) ||
                         (back.opacity > 0 && back.opacity < 1))
                         cache.transparent.push_back(vertices);
                     if (front.opacity == 1 || back.opacity == 1)
@@ -783,6 +859,8 @@ void Viewport::rebuild() {
         }
         cache.record = body;
         cache.materials = std::move(materials);
+        cache.images = std::move(images);
+        textureMappingFallbacks_ += cache.mappingFallbacks;
         cache.world = world;
         cache.alpha = alpha;
         cache.presentationRevision = presentationRevision_;
@@ -805,10 +883,16 @@ void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool
     }
     std::vector<PackedVertex> packed;
     packed.reserve(vertices.size());
-    for (const auto &v : vertices)
+    batch.runs.clear();
+    for (const auto &v : vertices) {
+        if (batch.runs.empty() || batch.runs.back().front != v.image ||
+            batch.runs.back().back != v.backImage)
+            batch.runs.push_back({int(packed.size()), 0, v.image, v.backImage});
+        ++batch.runs.back().count;
         packed.push_back({float(v.x - renderOrigin_.x), float(v.y - renderOrigin_.y),
                           float(v.z - renderOrigin_.z), v.r, v.g, v.b, v.a,
-                          v.br, v.bg, v.bb, v.ba});
+                          v.br, v.bg, v.bb, v.ba, v.u, v.v, v.bu, v.bv, v.light, v.dim});
+    }
     batch.buffer.bind();
     batch.buffer.allocate(packed.data(), int(packed.size() * sizeof(PackedVertex)));
     batch.origin = renderOrigin_;
@@ -825,18 +909,40 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count) {
         return;
     vao_.bind();
     batch.buffer.bind();
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(PackedVertex), nullptr);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
+    gl_->glEnableVertexAttribArray(0);
+    gl_->glEnableVertexAttribArray(1);
+    gl_->glEnableVertexAttribArray(2);
+    gl_->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(PackedVertex), nullptr);
+    gl_->glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                           reinterpret_cast<void *>(3 * sizeof(float)));
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
+    gl_->glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                           reinterpret_cast<void *>(7 * sizeof(float)));
-    if (count > 1)
-        glDrawArraysInstanced(mode, 0, batch.count, count);
-    else
-        glDrawArrays(mode, 0, batch.count);
+    gl_->glEnableVertexAttribArray(3);
+    gl_->glEnableVertexAttribArray(4);
+    gl_->glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
+                          reinterpret_cast<void *>(11 * sizeof(float)));
+    gl_->glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
+                          reinterpret_cast<void *>(15 * sizeof(float)));
+    shader_->setUniformValue("frontImage", 0);
+    shader_->setUniformValue("backImage", 1);
+    shader_->setUniformValue("canvas", QVector3D(colors_.canvas.redF(), colors_.canvas.greenF(),
+                                               colors_.canvas.blueF()));
+    for (const auto &run : batch.runs) {
+        const auto front = textureGpu_.contains(run.front) ? textureGpu_.at(run.front) : 0;
+        const auto back = textureGpu_.contains(run.back) ? textureGpu_.at(run.back) : 0;
+        gl_->glActiveTexture(GL_TEXTURE0);
+        gl_->glBindTexture(GL_TEXTURE_2D, front);
+        gl_->glActiveTexture(GL_TEXTURE1);
+        gl_->glBindTexture(GL_TEXTURE_2D, back);
+        shader_->setUniformValue("textured", QVector2D(front ? 1 : 0, back ? 1 : 0));
+        if (count > 1)
+            gl_->glDrawArraysInstanced(mode, run.first, run.count, count);
+        else
+            gl_->glDrawArrays(mode, run.first, run.count);
+    }
+    gl_->glBindTexture(GL_TEXTURE_2D, 0);
+    gl_->glActiveTexture(GL_TEXTURE0);
+    gl_->glBindTexture(GL_TEXTURE_2D, 0);
     batch.buffer.release();
     vao_.release();
 }
@@ -886,12 +992,12 @@ void Viewport::paintScene() {
     p.beginNativePainting();
     QElapsedTimer timer;
     timer.start();
-    glClearColor(colors_.canvas.redF(), colors_.canvas.greenF(), colors_.canvas.blueF(), 1);
-    glDepthMask(GL_TRUE);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glDisable(GL_BLEND);
+    gl_->glClearColor(colors_.canvas.redF(), colors_.canvas.greenF(), colors_.canvas.blueF(), 1);
+    gl_->glDepthMask(GL_TRUE);
+    gl_->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    gl_->glEnable(GL_DEPTH_TEST);
+    gl_->glDepthFunc(GL_LEQUAL);
+    gl_->glDisable(GL_BLEND);
     shader_->bind();
     auto transform = matrix();
     shader_->setUniformValue("mvp", transform);
@@ -912,32 +1018,32 @@ void Viewport::paintScene() {
             benchmarkDirty_ = false;
         }
         draw(benchmarkGpu_, GL_TRIANGLES, std::max(1, instances_));
-        glFinish();
+        gl_->glFinish();
     } else {
         if (cacheDirty_ || cachedRevision_ != doc_.revision() || cachedDocument_ != doc_.identity())
             rebuild();
         // Reference grid does not write depth or shine through coplanar opaque faces.
-        glDepthMask(GL_FALSE);
+        gl_->glDepthMask(GL_FALSE);
         draw(gridGpu_, GL_LINES);
-        glDepthMask(GL_TRUE);
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(1, 1);
+        gl_->glDepthMask(GL_TRUE);
+        gl_->glEnable(GL_POLYGON_OFFSET_FILL);
+        gl_->glPolygonOffset(1, 1);
         shader_->setUniformValue("surfacePass", 1);
         for (auto &[id, cache] : bodyCaches_)
             draw(cache->opaqueGpu, GL_TRIANGLES);
         sortTransparent(transform);
         if (transparentGpu_.count) {
-            glEnable(GL_BLEND);
+            gl_->glEnable(GL_BLEND);
             // Preserve opaque framebuffer alpha for Qt's premultiplied composition.
-            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
+            gl_->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
                                 GL_ONE_MINUS_SRC_ALPHA);
-            glDepthMask(GL_FALSE);
+            gl_->glDepthMask(GL_FALSE);
             shader_->setUniformValue("surfacePass", 2);
             draw(transparentGpu_, GL_TRIANGLES);
-            glDepthMask(GL_TRUE);
-            glDisable(GL_BLEND);
+            gl_->glDepthMask(GL_TRUE);
+            gl_->glDisable(GL_BLEND);
         }
-        glDisable(GL_POLYGON_OFFSET_FILL);
+        gl_->glDisable(GL_POLYGON_OFFSET_FILL);
         shader_->setUniformValue("surfacePass", 0);
         for (auto &[id, cache] : bodyCaches_)
             draw(cache->linesGpu, GL_LINES);
@@ -949,8 +1055,8 @@ void Viewport::paintScene() {
         drawAssistantPreview();
     }
     shader_->release();
-    glDisable(GL_DEPTH_TEST);
-    if (auto error = glGetError(); error != GL_NO_ERROR)
+    gl_->glDisable(GL_DEPTH_TEST);
+    if (auto error = gl_->glGetError(); error != GL_NO_ERROR)
         stats_.glError = error;
     ++stats_.frames;
     frameMs_ = timer.nsecsElapsed() / 1e6;
@@ -969,6 +1075,9 @@ void Viewport::paintScene() {
                (ortho_ ? "ORTHOGRAPHIC  /  " : "PERSPECTIVE  /  ") +
                    unitName(doc_.displayUnits()).toUpper());
     p.setPen(colors_.muted);
+    const auto textures = textureSummary();
+    if (!textures.isEmpty())
+        p.drawText(QRect(20, 38, width() - 40, 40), Qt::TextWordWrap, textures);
     p.drawText(20, height() - 22,
                "Z up   ·   Inference 8 px   ·   Grid fallback " +
                    displayLength(.1, doc_.displayUnits()));

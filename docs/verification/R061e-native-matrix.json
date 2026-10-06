@@ -1,0 +1,226 @@
+[
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.694
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "material_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.465
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "viewport_precision_tests",
+    "exitCode": 0,
+    "seconds": 3.677
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "smooth_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.448
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.162
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "material_input_tests",
+    "exitCode": 0,
+    "seconds": 4.088
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 3.487
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 4.019
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 5.193
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "material_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.657
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "viewport_precision_tests",
+    "exitCode": 0,
+    "seconds": 3.974
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "smooth_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.569
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.895
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "material_input_tests",
+    "exitCode": 0,
+    "seconds": 4.462
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 3.64
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 4.548
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.914
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "material_viewport_tests",
+    "exitCode": 0,
+    "seconds": 0.703
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "viewport_precision_tests",
+    "exitCode": 0,
+    "seconds": 0.804
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "smooth_viewport_tests",
+    "exitCode": 0,
+    "seconds": 0.701
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.756
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "material_input_tests",
+    "exitCode": 0,
+    "seconds": 1.543
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 0.651
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 1.273
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.294
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "material_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.008
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "viewport_precision_tests",
+    "exitCode": 0,
+    "seconds": 3.229
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "smooth_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.014
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.235
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "material_input_tests",
+    "exitCode": 0,
+    "seconds": 4.29
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 2.818
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 3.703
+  }
+]

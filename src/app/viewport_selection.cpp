@@ -189,7 +189,8 @@ void Viewport::rebuildPickGeometry() {
     for (const auto &[id, cache] : bodyCaches_) {
         if (!cache->alpha)
             continue;
-        for (const auto &triangle : cache->worldTriangles) {
+        for (size_t triangleIndex = 0; triangleIndex < cache->worldTriangles.size(); ++triangleIndex) {
+            const auto &triangle = cache->worldTriangles[triangleIndex];
             const SelectedEntity entity{id, SelectionKind::Face, triangle.face};
             if (!visible(entity))
                 continue;
@@ -198,12 +199,17 @@ void Viewport::rebuildPickGeometry() {
             auto back = surfaceAppearance(doc_.materials(), *cache->record, triangle.face, true);
             if (cache->world.determinant() < 0)
                 std::swap(front, back);
+            std::array<Vertex, 3> vertices;
+            size_t corner = 0;
             for (auto point : {triangle.a, triangle.b, triangle.c}) {
-                auto v = vertex(point, c);
+                auto &v = vertices[corner++];
+                v = vertex(point, c);
                 v.a = front.opacity;
                 v.ba = back.opacity;
-                faces.push_back(v);
             }
+            textureVertices(*cache->record, cache->localTriangles[triangleIndex],
+                            cache->world.determinant() < 0, vertices);
+            faces.insert(faces.end(), vertices.begin(), vertices.end());
         }
         for (const auto &edge : cache->worldEdges) {
             const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
@@ -235,17 +241,17 @@ Viewport::PickPixels Viewport::selectionPixels(QRectF region) {
     if (result.deviceRect.isEmpty())
         return result;
     makeCurrent();
-    const bool dither = glIsEnabled(GL_DITHER), srgb = glIsEnabled(GL_FRAMEBUFFER_SRGB);
+    const bool dither = gl_->glIsEnabled(GL_DITHER), srgb = gl_->glIsEnabled(GL_FRAMEBUFFER_SRGB);
     struct Restore {
         std::function<void()> call;
         ~Restore() { call(); }
     } restore{[&] {
-        glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-        glViewport(0, 0, pixels.width(), pixels.height());
+        gl_->glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+        gl_->glViewport(0, 0, pixels.width(), pixels.height());
         if (dither)
-            glEnable(GL_DITHER);
+            gl_->glEnable(GL_DITHER);
         if (srgb)
-            glEnable(GL_FRAMEBUFFER_SRGB);
+            gl_->glEnable(GL_FRAMEBUFFER_SRGB);
         if (shader_)
             shader_->release();
         doneCurrent();
@@ -264,15 +270,15 @@ Viewport::PickPixels Viewport::selectionPixels(QRectF region) {
         emit message("Could not allocate selection framebuffer");
         return result;
     }
-    glViewport(0, 0, result.deviceRect.width(), result.deviceRect.height());
-    glDisable(GL_BLEND);
-    glDisable(GL_DITHER);
-    glDisable(GL_FRAMEBUFFER_SRGB);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glDepthMask(GL_TRUE);
-    glClearColor(0, 0, 0, 1);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    gl_->glViewport(0, 0, result.deviceRect.width(), result.deviceRect.height());
+    gl_->glDisable(GL_BLEND);
+    gl_->glDisable(GL_DITHER);
+    gl_->glDisable(GL_FRAMEBUFFER_SRGB);
+    gl_->glEnable(GL_DEPTH_TEST);
+    gl_->glDepthFunc(GL_LEQUAL);
+    gl_->glDepthMask(GL_TRUE);
+    gl_->glClearColor(0, 0, 0, 1);
+    gl_->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     QMatrix4x4 crop;
     crop.scale(float(pixels.width()) / result.deviceRect.width(),
                float(pixels.height()) / result.deviceRect.height(), 1);
@@ -290,13 +296,13 @@ Viewport::PickPixels Viewport::selectionPixels(QRectF region) {
         p[3] += p[0] * renderOrigin_.x + p[1] * renderOrigin_.y + p[2] * renderOrigin_.z;
         shader_->setUniformValue("clipPlane", QVector4D(p[0], p[1], p[2], p[3]));
     }
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(1, 1);
+    gl_->glEnable(GL_POLYGON_OFFSET_FILL);
+    gl_->glPolygonOffset(1, 1);
     shader_->setUniformValue("surfacePass", 3);
     draw(pickFacesGpu_, GL_TRIANGLES);
     shader_->setUniformValue("surfacePass", 0);
-    glDisable(GL_POLYGON_OFFSET_FILL);
-    glLineWidth(1);
+    gl_->glDisable(GL_POLYGON_OFFSET_FILL);
+    gl_->glLineWidth(1);
     draw(pickEdgesGpu_, GL_LINES);
     result.image = buffer.toImage().convertToFormat(QImage::Format_RGB32);
     return result;
@@ -544,12 +550,12 @@ void Viewport::drawSelectionOverlay() {
         rebuildSelectionOverlay();
     shader_->setUniformValue("pixelRatio", float(devicePixelRatioF()));
     shader_->setUniformValue("stipple", 1);
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(-1, -1);
-    glDepthMask(GL_FALSE);
+    gl_->glEnable(GL_POLYGON_OFFSET_FILL);
+    gl_->glPolygonOffset(-1, -1);
+    gl_->glDepthMask(GL_FALSE);
     draw(selectedFacesGpu_, GL_TRIANGLES);
     draw(hoverFacesGpu_, GL_TRIANGLES);
-    glDisable(GL_POLYGON_OFFSET_FILL);
+    gl_->glDisable(GL_POLYGON_OFFSET_FILL);
     shader_->setUniformValue("stipple", 0);
     // Screen-space offsets work even when the driver supports only 1px lines.
     for (auto offset : {QPointF{}, QPointF(1, 0), QPointF(-1, 0), QPointF(0, 1), QPointF(0, -1)}) {
@@ -559,7 +565,7 @@ void Viewport::drawSelectionOverlay() {
     }
     shader_->setUniformValue("pixelOffset", QVector2D{});
     draw(hoverEdgesGpu_, GL_LINES);
-    glDepthMask(GL_TRUE);
+    gl_->glDepthMask(GL_TRUE);
 }
 void Viewport::paintSelection(QPainter &p) {
     p.save();
