@@ -447,6 +447,7 @@ int main(int argc, char **argv) {
                 "Raw current-schema roundtrip");
         auto legacy = QJsonDocument::fromJson(encodeDocument(doc)).object();
         legacy["version"] = 1;
+        legacy.remove("style");
         legacy.remove("hosted");
         legacy.remove("displayUnits");
         legacy.remove("revision");

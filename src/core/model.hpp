@@ -3,6 +3,7 @@
 #include "core/component_records.hpp"
 #include "core/hosted_components.hpp"
 #include "core/material_records.hpp"
+#include "core/model_style.hpp"
 #include "core/units.hpp"
 #include <deque>
 #include <functional>
@@ -70,6 +71,7 @@ struct Edit {
     std::optional<std::pair<DisplayUnit, DisplayUnit>> displayUnits{};
     std::optional<HostedChange> hosted{};
     bool hostedResolved{};
+    std::optional<std::pair<ModelStyle, ModelStyle>> style{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -126,6 +128,8 @@ class Document {
     static constexpr size_t historyLimit = 64 * 1024 * 1024;
     explicit Document(DisplayUnit units = DisplayUnit::Meters);
     DisplayUnit displayUnits() const { return displayUnits_; }
+    const ModelStyle &style() const { return style_; }
+    void setStyle(const ModelStyle &style);
     void setDisplayUnits(DisplayUnit units);
     Id addFace(const std::vector<std::vector<Vec3>> &loops, std::string name = "Face");
     void extrude(Id body, Id face, double distance);
@@ -183,11 +187,13 @@ class Document {
                  Id nextTagId = 1, MaterialRecords materials = {}, Id nextMaterialId = 1,
                  AssetRecords assets = {}, Id nextAssetId = 1,
                  DisplayUnit units = DisplayUnit::Meters,
-                 HostedPtr hosted = std::make_shared<const HostedComponents>());
+                 HostedPtr hosted = std::make_shared<const HostedComponents>(),
+                 ModelStyle style = {});
 
   private:
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};
+    ModelStyle style_;
     std::map<Id, BodyPtr> bodies_;
     Id nextId_{1};
     ComponentDefinitions definitions_;

@@ -416,7 +416,8 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     Document draft;
     draft.restore(draft.identity(), original->nextMemberId, members, 0, doc.definitions(), {},
                   doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
-                  doc.nextMaterialId(), doc.assets(), doc.nextAssetId(), doc.displayUnits());
+                  doc.nextMaterialId(), doc.assets(), doc.nextAssetId(), doc.displayUnits(),
+                  std::make_shared<const HostedComponents>(), doc.style());
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
@@ -449,6 +450,8 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         throw std::runtime_error("Instance root state is outside shared geometry edit scope");
     if (draft.displayUnits() != doc.displayUnits())
         throw std::runtime_error("Edit document units outside a shared geometry scope");
+    if (draft.style() != doc.style())
+        throw std::runtime_error("Edit model style outside a shared geometry scope");
     if (draft.assets() != baselineAssets)
         throw std::runtime_error("Edit document assets outside a shared geometry scope");
     if (draft.materials() != baselineMaterials)

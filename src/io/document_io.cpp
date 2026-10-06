@@ -1,6 +1,7 @@
 #include "io/document_io.hpp"
 #include "io/assets.hpp"
 #include "io/hosted_components_io.hpp"
+#include "io/model_style_io.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -234,7 +235,8 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 16},
+                {"version", 17},
+                {"style", encodeModelStyle(doc.style())},
                 {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
                 {"revision", sid(doc.revision())},
                 {"units", "m"},
@@ -537,7 +539,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 9 && root["version"].toDouble() != 10 &&
          root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
          root["version"].toDouble() != 13 && root["version"].toDouble() != 14 &&
-         root["version"].toDouble() != 15 && root["version"].toDouble() != 16) ||
+         root["version"].toDouble() != 15 && root["version"].toDouble() != 16 &&
+         root["version"].toDouble() != 17) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -557,6 +560,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         rootFields.append("displayUnits");
     if (root["version"].toInt() >= 15)
         rootFields.append("hosted");
+    if (root["version"].toInt() >= 17)
+        rootFields.append("style");
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         bytes.size() > modelLimit)
@@ -731,7 +736,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
                     ? parseDisplayUnit(root["displayUnits"].toString().toStdString())
                     : DisplayUnit::Meters,
                 root["version"].toInt() >= 15 ? decodeHostedComponents(root["hosted"])
-                                              : std::make_shared<const HostedComponents>());
+                                              : std::make_shared<const HostedComponents>(),
+                root["version"].toInt() >= 17 ? decodeModelStyle(root["style"]) : ModelStyle{});
     return doc;
 }
 } // namespace sketchy
