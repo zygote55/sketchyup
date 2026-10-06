@@ -296,6 +296,10 @@ Export a fixed render snapshot with
 `scene.glb` and its revision/settings/hash manifest. Export works without Blender;
 Distinct front/back colors, opacity and PNG/JPEG textures are preserved in GLB and
 Cycles, including independent projections, reversed faces and mirrored instances.
+Managed PNG/JPEG images also appear in the modeling viewport, with independent
+side projections and selection through fully transparent pixels; see the
+[native preview contract](docs/decisions/0065-viewport-textures.md) for filtering,
+background decoding and preview limits.
 Original image bytes remain packaged alongside normalized render images. Missing,
 invalid or unsupported images retain the swatch color and report their status;
 see [textured transfer](docs/decisions/0064-textured-glb-export.md),

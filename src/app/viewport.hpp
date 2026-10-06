@@ -2,6 +2,7 @@
 #include "app/inference_worker.hpp"
 #include "app/theme.hpp"
 #include "app/tool_session.hpp"
+#include "app/texture_cache.hpp"
 #include "core/model.hpp"
 #include "core/selection.hpp"
 #include "geometry/constraints.hpp"
@@ -20,7 +21,7 @@
 #include <functional>
 #include <optional>
 namespace sketchy {
-class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
+class Viewport : public QOpenGLWidget {
     Q_OBJECT
   public:
     explicit Viewport(Document &doc, QWidget *parent = nullptr);
@@ -196,6 +197,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     };
     RenderStats renderStats() const { return stats_; }
     double lastFrameMs() const { return frameMs_; }
+    bool texturesPending() const { return textureCache_.pending(); }
+    QString textureSummary() const;
   signals:
     void materialChanged();
     void selected(qulonglong body, qulonglong face);
@@ -232,20 +235,42 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         double x{}, y{}, z{};
         float r{}, g{}, b{}, a{1};
         float br{r}, bg{g}, bb{b}, ba{a};
+        float u{}, v{}, bu{}, bv{}, light{1}, dim{1};
+        Id image{}, backImage{};
     };
     struct PackedVertex {
-        float x, y, z, r, g, b, a, br, bg, bb, ba;
+        float x, y, z, r, g, b, a, br, bg, bb, ba, u, v, bu, bv, light, dim;
     };
     Document &doc_;
     ToolSession session_;
     ThemeColors colors_{themeColors(false)};
     Tool tool_{Tool::Select};
     struct GpuBatch {
+        struct Run {
+            int first{}, count{};
+            Id front{}, back{};
+        };
         QOpenGLBuffer buffer{QOpenGLBuffer::VertexBuffer};
+        std::vector<Run> runs;
         int count{};
         Vec3 origin{};
     };
+    QOpenGLFunctions_3_3_Core *gl_{}; // Owned by the current context.
     std::unique_ptr<QOpenGLShaderProgram> shader_;
+    TextureCache textureCache_;
+    std::shared_ptr<const TextureCache::Snapshot> textureSnapshot_{textureCache_.snapshot()};
+    AssetRecords textureAssets_;
+    std::map<Id, std::shared_ptr<const TextureImage>> textureImages_;
+    std::map<Id, GLuint> textureGpu_;
+    size_t textureFallbacks_{}, textureMappingFallbacks_{};
+    void syncTextures();
+    struct TextureProjection {
+        Id image{};
+        std::array<std::array<float, 2>, 3> uv{};
+    };
+    TextureProjection textureProjection(const Body &body, const Triangle &local, bool back) const;
+    void textureVertices(const Body &body, const Triangle &local, bool reflected,
+                         std::array<Vertex, 3> &vertices) const;
     GpuBatch gridGpu_, transparentGpu_, benchmarkGpu_;
     GpuBatch pickFacesGpu_, pickEdgesGpu_, selectedFacesGpu_, selectedEdgesGpu_, hoverFacesGpu_,
         hoverEdgesGpu_;
@@ -293,6 +318,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     struct BodyCache {
         BodyPtr record;
         MaterialRecords materials;
+        std::map<Id, std::shared_ptr<const TextureImage>> images;
         Transform world;
         std::vector<Triangle> localTriangles, worldTriangles;
         struct MeshEdge {
@@ -304,6 +330,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         std::vector<Vertex> opaque, lines, hiddenLines;
         std::vector<std::array<Vertex, 3>> transparent;
         GpuBatch opaqueGpu, linesGpu, hiddenLinesGpu;
+        size_t mappingFallbacks{};
         float alpha{1};
         std::uint64_t presentationRevision{};
     };

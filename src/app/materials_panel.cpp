@@ -94,11 +94,11 @@ MaterialsPanel::MaterialsPanel(Document &doc, Viewport &view, QWidget *parent)
     });
     layout->addLayout(buttons);
     findChild<QPushButton *>("materialAttach")
-        ->setToolTip("Store a file in the model; images are not mapped onto faces yet");
+        ->setToolTip("Store a file in the model; PNG/JPEG images appear on painted faces");
     findChild<QPushButton *>("materialPurgeAssets")
         ->setToolTip("Remove files that no material uses; undo restores them");
-    auto *hint = new QLabel("Alt-click with Paint samples the visible side. Attached files are "
-                            "stored with the model; image mapping is not available yet.");
+    auto *hint = new QLabel("Alt-click with Paint samples the visible side. PNG/JPEG images repeat "
+                            "across painted faces and stay packaged with the model.");
     hint->setWordWrap(true);
     layout->addWidget(hint);
     error_ = new QLabel;
