@@ -771,5 +771,5 @@ install(FILES docs/decisions/0096-blender-solar-conversion.md DESTINATION share/
 install(FILES docs/decisions/0097-render-environments.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0098-eevee-preview.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0099-retained-render-jobs.md DESTINATION share/doc/sketchyup/decisions)
-    docs/decisions/0100-render-queue-lifecycle.md
+install(FILES docs/decisions/0100-render-queue-lifecycle.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/reference-grid.json examples/reference-grid.sketchyup DESTINATION share/doc/sketchyup/examples)
