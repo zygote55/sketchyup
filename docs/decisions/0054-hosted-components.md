@@ -3,7 +3,8 @@
 Status: R059.a placement, R059.b opening geometry, R059.c canonical glue records,
 R059.d immutable host regeneration and R059.e persistent attachments are locally
 verified. CI/dependency merges remain pending. R059.f exposes shared commands and
-bounded inspection; native placement, copy policy and recipe adoption follow.
+bounded inspection. R059.g adds native placement, and R059.h adds explicit copy/array
+relationships. Recipe adoption follows.
 
 ## Face placement
 
@@ -206,9 +207,9 @@ Versions 1–14 migrate without invented attachments. Immutable saves and recove
 retain the captured aggregate, and durable transaction recovery reconstructs one
 Undo even for an alignment-only metadata edit.
 
-This layer exposes core attachment APIs. Shared commands, native placement controls,
-copy/array attachment policy and explicit migration of existing recipe relationships
-remain separate R059 work; existing unbound component copies do not acquire a host.
+These core attachment APIs also back the shared commands, native placement and
+copy/array behavior described below. Explicit migration of existing recipe
+relationships remains separate R059 work; unbound copies do not acquire a host.
 
 
 ## Shared attachment commands and inspection
@@ -272,5 +273,39 @@ attachment on that host; clearing glue affects all shared placements. Local edit
 locks cover all affected placements and former/new hosts before publication.
 
 These controls expose the same bounded command and persistence behavior. Nested
-canonical placements and component-owned hosts remain unsupported. Copy/array
-attachment policy and explicit recipe adoption remain separate R059 work.
+canonical placements and component-owned hosts remain unsupported. Explicit recipe
+adoption remains separate R059 work.
+
+
+## Copy and array relationships
+
+Copying a whole attached instance retains its original host, face, inset and shared
+component definition. The copied pose supplies a new host-local frame, and the host
+regenerates an independent opening. No binding is inferred for an unbound instance;
+`component.instance` remains an explicit way to create an unbound placement.
+
+Copying a host together with **all** its attached instances, directly or through an
+enclosing group, creates an independent assembly. Host and attachment IDs are remapped;
+the original uncut surface, opening identity cache and current reveal paint follow the
+copied host. Alignment-only attachments also count when checking complete coverage.
+Copying only the host retains its visible cut geometry without attachment records.
+Copying a host with a nonempty partial subset of its attachments is rejected.
+
+Linear and radial arrays apply the same rules to each copy in a private candidate.
+Out-of-plane placement, overlap, missing clearance, locks, aggregate limits or a late
+invalid copy reject the entire operation without consuming document IDs or history.
+Surviving original and copied openings retain their identities during later edits.
+Native Ctrl-copy, `xN`, `/N` and exact spacing revisions use these shared operations.
+Numeric revisions remain one Undo step, including changes to the number of copies.
+
+Amendment accepts replacement copies with fresh IDs only within the original copy
+scope: the same component definition, host face, inset and existing host, or a fresh
+host with the original copied assembly's uncut surface. Existing unrelated records
+cannot be changed. Ordinary amendment preserves copy counts; the explicit copy-array
+policy permits positive count changes. It does not permit discarding every new
+binding, substituting a different definition, or rehosting onto unrelated geometry.
+
+Persistent document locks remain authoritative. Native preview and commit also check
+editor locks on indirectly affected hosts and attachments: copying an attached
+instance cannot modify an editor-locked host, and moving a host cannot carry an
+editor-locked attachment. Complete assembly copies only change their fresh records.

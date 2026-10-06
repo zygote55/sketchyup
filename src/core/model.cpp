@@ -1072,7 +1072,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("Replacement must commit exactly one atomic operation");
     if (!undo_.back().edit.displayUnits && staged.displayUnits_ != baselineUnits)
         throw std::runtime_error("Replacement cannot change document units outside its scope");
-    validateHostedAmendment(undo_.back().edit, *baselineHosted, *staged.hosted_);
+    validateHostedAmendment(undo_.back().edit, staged.undo_.back().edit, *baselineHosted,
+                            *staged.hosted_, policy == AmendPolicy::CopyArray);
     for (const auto &[id, body] : baseline)
         if (!contexts.contains(id) &&
             (!staged.bodies_.contains(id) || staged.bodies_.at(id) != body))

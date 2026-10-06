@@ -95,6 +95,38 @@ void Viewport::configureComponentGlue(std::optional<ComponentGlue> glue) {
     emit changed();
     emit message("Shared glue behavior updated · Attached openings regenerate · Ctrl+Z undoes");
 }
+void Viewport::validateHostedTransform(const QJsonObject &command) const {
+    const auto name = command["command"].toString();
+    if (name != "geometry.transform_selection" && name != "geometry.array_selection")
+        return;
+    const bool copy = name == "geometry.array_selection" || command["copy"].toBool();
+    std::set<Id> contexts;
+    for (const auto &value : command["entities"].toArray()) {
+        const auto target = value.toObject();
+        if (target["kind"] == "context")
+            contexts.insert(target["body"].toString().toULongLong());
+    }
+    auto covers = [&](Id body) {
+        for (auto id = body; id; id = doc_.bodies().at(id)->parent)
+            if (contexts.contains(id))
+                return true;
+        return false;
+    };
+    const auto scope = componentScope();
+    const auto definition = scope ? doc_.instances().at(scope)->definition : 0;
+    for (const auto &[root, attachment] : doc_.hostedComponents().attachments) {
+        const bool shared = definition && doc_.instances().at(root)->definition == definition;
+        const bool rootAffected = covers(root), hostAffected = covers(attachment->host);
+        // Copying a complete host assembly changes only its new records. A
+        // component-only copy edits the existing host, even for alignment only.
+        const bool existingHost =
+            shared || (copy ? rootAffected && !hostAffected : rootAffected || hostAffected);
+        if (existingHost && (selection_.locked(doc_, attachment->host) ||
+                             ((shared || !copy) && selection_.locked(doc_, root))))
+            throw std::runtime_error("Unlock the affected host and attached components before "
+                                     "moving or copying this selection");
+    }
+}
 void Viewport::setHostedPlacementOptions(HostedPlacementOptions options) {
     if (!std::isfinite(options.angle) || !std::isfinite(options.inset))
         throw std::runtime_error("Enter finite rotation and inset values");

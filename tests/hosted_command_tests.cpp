@@ -252,6 +252,49 @@ void stagedRecordDiff() {
     }
     check(hosts == 0 && attachments == 1, "Frozen unchanged host baseline is absent from diff");
 }
+void copiedBindings() {
+    Fixture f;
+    auto &doc = f.doc;
+    f.run(f.attach());
+    const auto original = encodeContainer(doc);
+    const auto depth = doc.history().total;
+    QJsonObject command{
+        {"command", "geometry.array_selection"},
+        {"entities",
+         QJsonArray{QJsonObject{{"body", sid(f.root)}, {"kind", "context"}, {"entity", "0"}}}},
+        {"mode", "linear"},
+        {"delta", QJsonArray{2.5, 0, 0}},
+        {"count", 1}};
+    const auto preview = previewBatch(doc, batch(doc, {command}));
+    check(encodeContainer(doc) == original, "Hosted array command preview is private");
+    const auto receipt = f.run(command);
+    check(receipt["copies"] == preview["copies"] && receipt["changes"] == preview["changes"],
+          "Hosted array preview and commit expose the same copied identities and host edits");
+    Id copied = 0;
+    for (const auto &value : receipt["copies"].toArray()) {
+        const auto record = value.toObject();
+        if (record["sourceBody"] == sid(f.root))
+            copied = record["body"].toString().toULongLong();
+    }
+    check(copied && doc.hostedComponents().attachments.at(copied)->host == f.host,
+          "Shared array receipt resolves to a persistent copied attachment");
+    volume(doc, f.host, 92);
+    command["count"] = 2;
+    executeAmend(doc, doc.amendmentStamp(), batch(doc, {command}));
+    volume(doc, f.host, 88);
+    check(doc.hostedComponents().attachments.size() == 3 && doc.history().total == depth + 1 &&
+              !doc.bodies().contains(copied),
+          "Shared array amendment retires copies in one history item");
+    const auto persisted = encodeContainer(doc);
+    check(encodeContainer(decodeContainer(persisted)) == persisted,
+          "Array opening correspondence and bindings survive exact container persistence");
+    command["count"] = 3;
+    rejects(doc, [&] { executeAmend(doc, doc.amendmentStamp(), batch(doc, {command})); });
+    doc.undo();
+    volume(doc, f.host, 96);
+    check(doc.hostedComponents().attachments.size() == 1,
+          "One shared Undo removes all copied openings and bindings");
+}
 void nativeAssistant() {
     for (int scenario : {0, 1, 2, 3}) {
         const bool locked = scenario == 1 || scenario == 2;
@@ -343,6 +386,7 @@ int main(int argc, char **argv) {
         lifecycle();
         metadataAndFailures();
         stagedRecordDiff();
+        copiedBindings();
         nativeAssistant();
         std::cout << "Hosted commands, inspection, atomic failures, metadata Undo and native "
                      "assistant policy passed\n";

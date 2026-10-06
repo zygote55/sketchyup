@@ -433,7 +433,11 @@ control placement. `component.bind` preserves its current pose and requires the
 explicit host-local inset. `component.detach` restores its opening;
 `component.bake_host` keeps the cut geometry and releases all attachments on that
 host. Moves and shared-definition edits automatically regenerate attached openings
-with surviving reveal identities and paint preserved. See the
+with surviving reveal identities and paint preserved. Copying or arraying an attached
+whole instance retains its host and creates independent openings. Copy the host with
+all its attachments (or their enclosing group) for an independent assembly; partial
+attachment subsets are rejected. A host-only copy keeps baked cut geometry. Native
+Ctrl-copy, `xN`, `/N` and exact spacing revisions share one Undo step. See the
 [executable example](examples/hosted-component.json) and
 [hosted-component contract](docs/decisions/0054-hosted-components.md).
 

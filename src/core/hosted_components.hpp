@@ -31,9 +31,13 @@ void validateHostedComponents(const HostedComponents &records, const std::map<Id
                               const ComponentInstances &instances);
 // Authoritative edit expansion; resolved composed edits still undergo final validation.
 void expandHostedEdit(const Document &before, Edit &edit);
+// Whole-context copies retain bindings, remap complete host assemblies, and leave
+// host-only copies as baked geometry. Resolves privately before the caller applies.
+void expandHostedCopies(const Document &before, Edit &edit, const std::map<Id, Id> &copies);
 std::set<Id> hostedEditingContexts(const Edit &edit);
-void validateHostedAmendment(const Edit &original, const HostedComponents &baseline,
-                             const HostedComponents &replacement);
+void validateHostedAmendment(const Edit &original, const Edit &replacementEdit,
+                             const HostedComponents &baseline, const HostedComponents &replacement,
+                             bool resizeCopies);
 using HostedChangeReport = std::map<Id, TopologyChanges>;
 HostedChangeReport attachComponent(Document &doc, Id instance, Id host, Id face,
                                    const FacePlacementOptions &placement, double inset = 0);
