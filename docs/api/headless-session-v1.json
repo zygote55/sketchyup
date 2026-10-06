@@ -1467,8 +1467,7 @@
                                     "type": "string"
                                 }
                             },
-                            "required": [
-                            ],
+                            "required": [],
                             "type": "object"
                         },
                         "operation": {
@@ -2927,6 +2926,65 @@
                                             "body",
                                             "face",
                                             "distance",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Set independent edge hide, soften and smooth flags",
+                                        "minProperties": 4,
+                                        "properties": {
+                                            "command": {
+                                                "const": "geometry.edge_appearance"
+                                            },
+                                            "context": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^(0|[1-9][0-9]*)$",
+                                                "type": "string"
+                                            },
+                                            "entities": {
+                                                "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "body": {
+                                                            "description": "Canonical uint64 decimal string",
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        },
+                                                        "edge": {
+                                                            "description": "Canonical uint64 decimal string",
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "body",
+                                                        "edge"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "maxItems": 4096,
+                                                "minItems": 1,
+                                                "type": "array"
+                                            },
+                                            "hidden": {
+                                                "type": "boolean"
+                                            },
+                                            "smooth": {
+                                                "type": "boolean"
+                                            },
+                                            "soft": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "required": [
+                                            "context",
+                                            "entities",
                                             "command"
                                         ],
                                         "type": "object"

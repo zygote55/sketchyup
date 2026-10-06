@@ -1,5 +1,6 @@
 #include "automation/inspection.hpp"
 #include "automation/inspection_validation.hpp"
+#include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
 #include "core/material_records.hpp"
 #include <QCryptographicHash>
@@ -527,6 +528,11 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                                           {"guides", int(b.guides.size())},
                                           {"curves", int(b.curves.size())},
                                           {"properties", int(b.properties.size())}};
+        if (ref.kind == "edge") {
+            const auto flags = edgeAppearance(b, ref.id);
+            data["edgeAppearance"] = QJsonObject{
+                {"hidden", flags.hidden}, {"soft", flags.soft}, {"smooth", flags.smooth}};
+        }
         const auto materials = ref.kind == "face" ? faceMaterials(b, ref.id) : b.materials;
         data["materials"] = QJsonObject{{"front", QString::number(materials.front)},
                                         {"back", QString::number(materials.back)}};
@@ -574,6 +580,9 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                         QJsonArray{inspectionReference(doc, ref.body, "vertex", edge.a),
                                    inspectionReference(doc, ref.body, "vertex", edge.b)};
                     r["wire"] = edge.wire;
+                    const auto flags = edgeAppearance(b, id);
+                    r["appearance"] = QJsonObject{
+                        {"hidden", flags.hidden}, {"soft", flags.soft}, {"smooth", flags.smooth}};
                     return r;
                 });
         if (type == "face")

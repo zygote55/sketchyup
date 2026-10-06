@@ -1,0 +1,42 @@
+[
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          2,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.edge_appearance",
+    "context": "0",
+    "entities": [
+      {
+        "body": "1",
+        "edge": "1"
+      }
+    ],
+    "hidden": false,
+    "soft": true,
+    "smooth": true
+  }
+]

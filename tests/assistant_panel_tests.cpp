@@ -1,4 +1,5 @@
 #include "app/window.hpp"
+#include "core/edge_appearance.hpp"
 #include "integrations/credential_store.hpp"
 #include "integrations/openai_provider.hpp"
 #include "io/document_io.hpp"
@@ -208,8 +209,9 @@ int fakeSecret(QCoreApplication &app, QStringList args) {
 }
 void modeling(Network &network, Document &doc) {
     const auto id = QString::fromStdString(doc.identity()),
-               revision = QString::number(doc.revision());
-    network.respond = [id, revision, draft = QString{}](QJsonObject request, int turn) mutable {
+               revision = QString::number(doc.revision()), nextBody = QString::number(doc.nextId());
+    network.respond = [id, revision, nextBody, draft = QString{}](QJsonObject request,
+                                                                  int turn) mutable {
         QJsonObject args{{"apiVersion", 1}, {"documentId", id}};
         QString operation;
         if (turn == 0) {
@@ -225,11 +227,17 @@ void modeling(Network &network, Document &doc) {
                 operation = "transaction.apply";
                 args["expectedVersion"] = 0;
                 args["operationId"] = "face";
-                args["commands"] = QJsonArray{QJsonObject{
-                    {"command", "geometry.face"},
-                    {"name", "Native assistant face"},
-                    {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{2, 0, 0},
-                                                    QJsonArray{2, 3, 0}, QJsonArray{0, 3, 0}}}}}};
+                args["commands"] = QJsonArray{
+                    QJsonObject{{"command", "geometry.face"},
+                                {"name", "Native assistant face"},
+                                {"loops",
+                                 QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{2, 0, 0},
+                                                       QJsonArray{2, 3, 0}, QJsonArray{0, 3, 0}}}}},
+                    QJsonObject{
+                        {"command", "geometry.edge_appearance"},
+                        {"context", "0"},
+                        {"entities", QJsonArray{QJsonObject{{"body", nextBody}, {"edge", "1"}}}},
+                        {"smooth", true}}};
             } else {
                 operation = "transaction.preview";
                 args["expectedVersion"] = 1;
@@ -335,6 +343,10 @@ int main(int argc, char **argv) {
         check(doc.bodies().size() == 2 && doc.history().total == history + 1 &&
                   !window.viewport()->hasAssistantPreview(),
               "Native Apply adds exactly one undo entry and clears preview");
+        for (const auto &[bodyId, body] : doc.bodies())
+            if (body->name == "Native assistant face")
+                check(edgeAppearance(*body, 1).smooth,
+                      "Assistant command policy publishes proposed edge appearance");
         panel.findChild<QPushButton *>("assistantUndo")->click();
         check(doc.bodies().size() == 1 &&
                   !panel.findChild<QPushButton *>("assistantUndo")->isEnabled(),
