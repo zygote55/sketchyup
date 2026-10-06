@@ -1,5 +1,6 @@
 #include "app/annotations_panel.hpp"
 #include "app/annotation_display.hpp"
+#include "automation/annotation_commands.hpp"
 #include "automation/measurements.hpp"
 #include <QAction>
 #include <QCheckBox>
@@ -32,7 +33,7 @@ QJsonObject selectedAnchor(const Document &doc, SelectedEntity item) {
         if (triangles.empty())
             throw std::runtime_error("Selected face has no valid attachment surface");
         const auto &t = triangles.front();
-        const auto p = (t.a + t.b + t.c) / 3.;
+        const auto p = (t.a + t.b + t.c) * (1. / 3.);
         return {{"kind", "face"},
                 {"body", body},
                 {"face", QString::number(item.entity)},
@@ -350,8 +351,14 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
                 command["anchors"] = anchors;
             }
             const auto chosen = create ? doc_.nextAnnotationId() : id;
-            if (create || candidate != original || command.contains("anchors"))
+            if (create) {
                 view_.editAnnotations({command});
+            } else if (candidate != original || command.contains("anchors")) {
+                auto draft = doc_.readSnapshot();
+                executeAnnotationCommand(draft, command);
+                if (*draft.annotations().at(id) != original)
+                    view_.editAnnotations({command});
+            }
             dialog.accept();
             refresh();
             choose(chosen);

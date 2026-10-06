@@ -651,3 +651,5 @@ install(FILES docs/decisions/0080-annotation-workflows.md DESTINATION share/doc/
 install(FILES examples/annotations.json DESTINATION share/doc/sketchyup/examples)
 
 install(FILES docs/decisions/0081-native-annotations.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES examples/annotated-panel.sketchyup DESTINATION share/doc/sketchyup/examples)

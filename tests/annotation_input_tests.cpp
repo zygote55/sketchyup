@@ -165,6 +165,14 @@ int main(int argc, char **argv) {
         check(doc.annotations().at(label)->anchors[0].kind == AnchorKind::Point &&
                   doc.annotations().at(label)->anchors[0].fallback == Vec3{1, .25, 0},
               "Explicit fixed-point rebinding");
+        const auto rebound = encodeContainer(doc);
+        modal(window, "annotationEditButton", [&](QDialog *dialog) {
+            auto *binding = dialog->findChild<QComboBox *>("annotationBinding");
+            binding->setCurrentIndex(binding->findData("fixed"));
+            accept(dialog);
+            check(!dialog->isVisible(), "Equal explicit rebind closes normally");
+        });
+        check(encodeContainer(doc) == rebound, "Equal explicit rebind preserves history");
         doc.undo();
         sync(window);
         list->setCurrentRow(1);
@@ -217,6 +225,23 @@ int main(int argc, char **argv) {
                 check(dialog->grab().save(capture), "Editor evidence saved");
             });
         doc.markSaved();
+        const auto model = qEnvironmentVariable("SKETCHYUP_ANNOTATION_MODEL");
+        if (!model.isEmpty()) {
+            window.openPath(model);
+            action->trigger();
+            view.standardView(1);
+            view.frameBounds({-1, -1, -1}, {5, 4, 1});
+            sync(window);
+            check(doc.annotations().size() == 3 &&
+                      measureAnnotation(doc, *doc.annotations().at(1)).distance == 4 &&
+                      measureAnnotation(doc, *doc.annotations().at(2)).distance == 3,
+                  "Native example opens with exact associated dimensions");
+            const auto image = view.grabFramebuffer();
+            check(!image.isNull(), "Native example framebuffer exists");
+            const auto evidence = qEnvironmentVariable("SKETCHYUP_ANNOTATION_EXAMPLE_EVIDENCE");
+            if (!evidence.isEmpty())
+                check(window.grab().save(evidence), "Native example evidence saved");
+        }
         window.close();
         std::cout
             << "Native annotation authoring, units, rebind, history and broken references passed\n";
