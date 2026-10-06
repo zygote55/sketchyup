@@ -1,5 +1,6 @@
 #pragma once
 #include "core/asset_records.hpp"
+#include "core/annotation_records.hpp"
 #include "core/component_records.hpp"
 #include "core/hosted_components.hpp"
 #include "core/material_records.hpp"
@@ -47,6 +48,10 @@ struct SectionChange {
     Id id{};
     SectionPtr before, after;
 };
+struct AnnotationChange {
+    Id id{};
+    AnnotationPtr before, after;
+};
 struct HistoryMetadata {
     std::string taskId, request;
     bool assistant{};
@@ -87,6 +92,9 @@ struct Edit {
     std::vector<SectionChange> sections{};
     Id nextSectionFloor{};
     std::optional<std::pair<ActiveSections, ActiveSections>> activeSections{};
+    std::vector<AnnotationChange> annotations{};
+    Id nextAnnotationFloor{};
+    bool annotationsResolved{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -138,6 +146,8 @@ class Document {
     const SectionRecords &sections() const { return sections_; }
     Id nextSectionId() const { return nextSectionId_; }
     const ActiveSections &activeSections() const { return activeSections_; }
+    const AnnotationRecords &annotations() const { return annotations_; }
+    Id nextAnnotationId() const { return nextAnnotationId_; }
     std::uint64_t revision() const { return revision_; }
     Id nextId() const { return nextId_; }
     const std::string &identity() const { return identity_; }
@@ -209,7 +219,8 @@ class Document {
                  DisplayUnit units = DisplayUnit::Meters,
                  HostedPtr hosted = std::make_shared<const HostedComponents>(),
                  ModelStyle style = {}, SceneRecords scenes = {}, Id nextSceneId = 1,
-                 SectionRecords sections = {}, Id nextSectionId = 1, ActiveSections activeSections = {});
+                 SectionRecords sections = {}, Id nextSectionId = 1, ActiveSections activeSections = {},
+                 AnnotationRecords annotations = {}, Id nextAnnotationId = 1);
 
   private:
     std::string identity_;
@@ -232,6 +243,8 @@ class Document {
     SectionRecords sections_;
     Id nextSectionId_{1};
     ActiveSections activeSections_;
+    AnnotationRecords annotations_;
+    Id nextAnnotationId_{1};
     struct DefinitionFloor {
         Id nextMemberId{1};
         std::map<Id, std::pair<Id, Id>> geometry;

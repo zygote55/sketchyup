@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
         check(resolveComponentGlue(*reopened.definitions().at(made.definition)).profile.size() == 4,
               "Reopened glue resolves against authoritative geometry");
         const auto json = QJsonDocument::fromJson(raw).object();
-        check(json["version"] == 20, "Glue schema version is explicit");
+        check(json["version"] == 21, "Glue schema version is explicit");
         auto missing = json;
         auto definitions = missing["definitions"].toArray();
         auto definition = definitions[0].toObject();
@@ -79,6 +79,8 @@ int main(int argc, char **argv) {
         missing.remove("style");
         missing.remove("scenes");
         missing.remove("sections");
+        missing.remove("annotations");
+        missing.remove("nextAnnotationId");
         missing.remove("nextSectionId");
         missing.remove("activeSections");
         missing.remove("nextSceneId");
@@ -116,7 +118,8 @@ int main(int argc, char **argv) {
         }
         const auto oldContainer = rewrite(bytes, [](auto &manifest, auto &document) {
             auto features = manifest["requiredFeatures"].toArray();
-            features.removeAt(features.size() - 1); // section-scenes-v1
+            features.removeAt(features.size() - 1); // annotations-v1
+        features.removeAt(features.size() - 1); // section-scenes-v1
             features.removeAt(features.size() - 1); // section-planes-v1
         features.removeAt(features.size() - 1); // saved-scenes-v1
             features.removeAt(features.size() - 1); // model-style-v1
@@ -136,12 +139,15 @@ int main(int argc, char **argv) {
             document.remove("style");
             document.remove("scenes");
             document.remove("sections");
+            document.remove("annotations");
+            document.remove("nextAnnotationId");
             document.remove("nextSectionId");
             document.remove("activeSections");
             document.remove("nextSceneId");
             auto floors = manifest["allocatorFloors"].toObject();
             floors.remove("nextSceneId");
         floors.remove("nextSectionId");
+        floors.remove("nextAnnotationId");
             manifest["allocatorFloors"] = floors;
             document.remove("hosted");
             auto records = document["definitions"].toArray();

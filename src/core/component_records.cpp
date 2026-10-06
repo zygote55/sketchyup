@@ -32,6 +32,12 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
         return change.before && change.after && *change.before == *change.after;
     });
     edit.nextSceneFloor = after.nextSceneId();
+    difference(before.annotations(), after.annotations(), edit.annotations);
+    std::erase_if(edit.annotations, [](const auto &change) {
+        return change.before && change.after && *change.before == *change.after;
+    });
+    edit.nextAnnotationFloor = after.nextAnnotationId();
+    edit.annotationsResolved = true;
     difference(before.sections(), after.sections(), edit.sections);
     std::erase_if(edit.sections, [](const auto &change) {
         return change.before && change.after && *change.before == *change.after;

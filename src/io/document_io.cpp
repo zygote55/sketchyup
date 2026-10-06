@@ -4,6 +4,7 @@
 #include "io/model_style_io.hpp"
 #include "io/scenes_io.hpp"
 #include "io/sections_io.hpp"
+#include "io/annotations_io.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -237,7 +238,9 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 20},
+                {"version", 21},
+                {"annotations", encodeAnnotations(doc.annotations())},
+                {"nextAnnotationId", sid(doc.nextAnnotationId())},
                 {"sections", encodeSections(doc.sections())},
                 {"nextSectionId", sid(doc.nextSectionId())},
                 {"activeSections", encodeActiveSections(doc.activeSections())},
@@ -547,7 +550,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
          root["version"].toDouble() != 13 && root["version"].toDouble() != 14 &&
          root["version"].toDouble() != 15 && root["version"].toDouble() != 16 &&
-         root["version"].toDouble() != 17 && root["version"].toDouble() != 18 && root["version"].toDouble() != 19 && root["version"].toDouble() != 20) ||
+         root["version"].toDouble() != 17 && root["version"].toDouble() != 18 && root["version"].toDouble() != 19 && root["version"].toDouble() != 20 && root["version"].toDouble() != 21) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -573,6 +576,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         rootFields += {"scenes", "nextSceneId"};
     if (root["version"].toInt() >= 19)
         rootFields += {"sections", "nextSectionId", "activeSections"};
+    if (root["version"].toInt() >= 21)
+        rootFields += {"annotations", "nextAnnotationId"};
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         bytes.size() > modelLimit)
@@ -755,7 +760,9 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
                 root["version"].toInt() >= 19
                     ? decodeSections(root["sections"], readId(root["nextSectionId"])) : SectionRecords{},
                 root["version"].toInt() >= 19 ? readId(root["nextSectionId"]) : 1,
-                root["version"].toInt() >= 19 ? decodeActiveSections(root["activeSections"]) : ActiveSections{});
+                root["version"].toInt() >= 19 ? decodeActiveSections(root["activeSections"]) : ActiveSections{},
+                root["version"].toInt() >= 21 ? decodeAnnotations(root["annotations"], readId(root["nextAnnotationId"])) : AnnotationRecords{},
+                root["version"].toInt() >= 21 ? readId(root["nextAnnotationId"]) : 1);
     return doc;
 }
 } // namespace sketchy

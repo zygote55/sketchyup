@@ -344,7 +344,7 @@ void persistenceAndMalformed() {
     const auto raw = encodeDocument(doc);
     check(encodeDocument(decodeDocument(raw)) == raw, "Inline texture records roundtrip exactly");
     const auto json = QJsonDocument::fromJson(raw).object();
-    check(json["version"] == 20, "Mapping schema version is explicit");
+    check(json["version"] == 21, "Mapping schema version is explicit");
     for (int variant = 0; variant < 11; ++variant) {
         auto bad = json;
         auto bodies = bad["bodies"].toArray();
@@ -386,6 +386,8 @@ void persistenceAndMalformed() {
     legacy.remove("style");
     legacy.remove("scenes");
     legacy.remove("sections");
+    legacy.remove("annotations");
+    legacy.remove("nextAnnotationId");
     legacy.remove("nextSectionId");
     legacy.remove("activeSections");
     legacy.remove("nextSceneId");

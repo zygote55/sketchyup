@@ -79,6 +79,8 @@ int main(int argc, char **argv) {
         legacy.remove("style");
         legacy.remove("scenes");
         legacy.remove("sections");
+        legacy.remove("annotations");
+        legacy.remove("nextAnnotationId");
         legacy.remove("nextSectionId");
         legacy.remove("activeSections");
         legacy.remove("nextSceneId");
