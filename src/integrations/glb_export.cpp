@@ -1,4 +1,5 @@
 #include "integrations/glb_export.hpp"
+#include "core/shading_normals.hpp"
 #include "io/assets.hpp"
 #include <QCryptographicHash>
 #include <QDir>
@@ -173,6 +174,7 @@ struct Writer {
         std::map<int, Primitive> groups;
         QJsonArray faceMap;
         const auto world = doc.worldTransform(owner);
+        const ShadingNormals shading(body);
         for (const auto &[face, record] : body.surface.faces) {
             if (!snapshot.visible(owner, face)) {
                 ++hiddenFaces;
@@ -197,13 +199,12 @@ struct Writer {
                 auto &group = groups[index];
                 const int start = group.count;
                 for (const auto &triangle : tessellated) {
-                    const auto normal =
-                        normalized(cross(triangle.b - triangle.a, triangle.c - triangle.a)) *
-                        (reverse ? -1 : 1);
-                    for (auto p : {triangle.a, reverse ? triangle.c : triangle.b,
-                                   reverse ? triangle.b : triangle.c}) {
+                    const auto normals = shading.triangle(triangle);
+                    const std::array<Vec3, 3> points{triangle.a, triangle.b, triangle.c};
+                    for (const auto corner : {0, reverse ? 2 : 1, reverse ? 1 : 2}) {
+                        const auto p = points[corner];
                         vector(group.positions, p);
-                        vector(group.normals, normal);
+                        vector(group.normals, normals[corner] * (reverse ? -1 : 1));
                         ++group.count;
                         group.bounds.add(
                             {double(float(p.x)), double(float(p.y)), double(float(p.z))});
