@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
         file.close();
         for (const auto invalid : {QSize(0, 10), QSize(-1, 100), QSize(8193, 1), QSize(8192, 8192)})
             rejects([&] { view.exportRaster(path, invalid); });
-        file.open(QIODevice::ReadOnly);
+        check(file.open(QIODevice::ReadOnly), "Read retained export file");
         check(file.readAll() == stable, "Invalid export retains destination");
         file.close();
         rejects([&] { view.exportRaster(isolated.filePath("missing/directory.png"), {200, 100}); });
@@ -178,7 +178,7 @@ int main(int argc, char **argv) {
         setReferenceImage(doc, image, reference);
         settled(view);
         rejects([&] { view.exportRaster(path, {320, 200}); });
-        file.open(QIODevice::ReadOnly);
+        check(file.open(QIODevice::ReadOnly), "Read retained export file");
         check(file.readAll() == stable,
               "Unavailable pixels cannot silently replace an exported file");
         file.close();
