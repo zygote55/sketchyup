@@ -446,6 +446,9 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     addTool("Face orientation", "Shift+O", Viewport::Tool::Orientation,
             "Select faces to reverse, or one reference face to orient its connected surface")
         ->setIconText("Orient");
+    addTool("Attach component to face", "Shift+H", Viewport::Tool::HostedPlacement,
+            "Select one component and one host face · Move to preview · Enter applies", false)
+        ->setProperty("command", "component.attach");
     auto *orientation = draw->addMenu("Face orientation options");
     auto *orientationGroup = new QActionGroup(this);
     for (bool connected : {false, true}) {
@@ -823,22 +826,26 @@ bool Window::eventFilter(QObject *object, QEvent *event) {
 }
 void Window::tool(Viewport::Tool t, const QString &text) {
     status_->setText(text);
-    viewport_->setTool(t);
+    if (t == Viewport::Tool::HostedPlacement)
+        viewport_->startHostedPlacement();
+    else
+        viewport_->setTool(t);
     viewport_->setFocus();
     measurements_->setPlaceholderText(
-        t == Viewport::Tool::Paint         ? "Choose a material and side"
-        : t == Viewport::Tool::Move        ? "distance, dx,dy,dz or [x,y,z]"
-        : t == Viewport::Tool::Rotate      ? "angle (deg) or [pivot / reference]"
-        : t == Viewport::Tool::Scale       ? "factor or x,y,z factors"
-        : t == Viewport::Tool::Tape        ? "distance or [x,y,z]"
-        : t == Viewport::Tool::Protractor  ? "angle (deg) or [x,y,z]"
-        : t == Viewport::Tool::Extrude     ? "distance"
-        : t == Viewport::Tool::Offset      ? "signed offset distance (+ outward, - inward)"
-        : t == Viewport::Tool::Sweep       ? "Enter applies the preview · Esc cancels"
-        : t == Viewport::Tool::Boolean     ? "Enter applies the preview · Esc cancels"
-        : t == Viewport::Tool::Orientation ? "Enter applies the preview · Esc cancels"
-        : t == Viewport::Tool::Intersect   ? "Enter applies the preview · Esc cancels"
-        : t == Viewport::Tool::Circle      ? "radius or 24s"
+        t == Viewport::Tool::Paint             ? "Choose a material and side"
+        : t == Viewport::Tool::Move            ? "distance, dx,dy,dz or [x,y,z]"
+        : t == Viewport::Tool::Rotate          ? "angle (deg) or [pivot / reference]"
+        : t == Viewport::Tool::Scale           ? "factor or x,y,z factors"
+        : t == Viewport::Tool::Tape            ? "distance or [x,y,z]"
+        : t == Viewport::Tool::Protractor      ? "angle (deg) or [x,y,z]"
+        : t == Viewport::Tool::Extrude         ? "distance"
+        : t == Viewport::Tool::Offset          ? "signed offset distance (+ outward, - inward)"
+        : t == Viewport::Tool::Sweep           ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Boolean         ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::HostedPlacement ? "Host x,y,z anchor or inset length"
+        : t == Viewport::Tool::Orientation     ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Intersect       ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Circle          ? "radius or 24s"
         : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
         : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"
         : t == Viewport::Tool::ThreePointArc                         ? "[x,y,z] or 24s"

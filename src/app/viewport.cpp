@@ -966,6 +966,9 @@ void Viewport::paintScene() {
         p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Follow Me: select a profile face and path edges, then Shift+F · Enter or click "
                    "applies · Esc cancels · Alt-drag orbits");
+    if (tool_ == Tool::HostedPlacement)
+        p.drawText(QRect(20, height() - 88, width() - 40, 62), Qt::TextWordWrap,
+                   hostedPlacementSummary());
     if (tool_ == Tool::Orientation)
         p.drawText(QRect(20, height() - 88, width() - 40, 62), Qt::TextWordWrap,
                    orientationSummary() + " · Enter applies · Esc cancels");
@@ -1203,6 +1206,13 @@ void Viewport::setTool(Tool tool) {
         curveSegments_ = std::max(2u, curveSegments_);
     emit toolChanged(int(tool));
     setCursor(tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
+    if (tool == Tool::HostedPlacement) {
+        try {
+            beginHostedPlacement();
+        } catch (const std::exception &error) {
+            emit message(error.what());
+        }
+    }
     if (tool == Tool::Sweep || tool == Tool::Intersect || tool == Tool::Boolean ||
         tool == Tool::Orientation) {
         try {
@@ -1234,6 +1244,7 @@ void Viewport::clearPreview() {
     update();
 }
 void Viewport::cancel() {
+    hostedCommand_.reset();
     orientationCommand_.reset();
     orientationNormals_.clear();
     booleanCommand_.reset();
@@ -1490,6 +1501,10 @@ QJsonObject Viewport::previewCommand(const QJsonObject &command) {
     return result;
 }
 void Viewport::updateToolPreview(QPointF point) {
+    if (tool_ == Tool::HostedPlacement) {
+        updateHostedPlacement(point);
+        return;
+    }
     if (!session_.active() || !anchor_)
         return;
     if (transformTool()) {
@@ -1662,6 +1677,8 @@ bool Viewport::measurements(const QString &text) {
             finishShape(*origin + line.direction * length(*base - *origin));
             return doc_.revision() != revision || measurementCompleted_;
         }
+        if (tool_ == Tool::HostedPlacement)
+            return hostedMeasurements(trimmed);
         if (transformTool())
             return transformMeasurements(trimmed);
         const bool centerInput = tool_ == Tool::CenterArc || tool_ == Tool::Pie;
@@ -1987,6 +2004,16 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         }
         return;
     }
+    if (tool_ == Tool::HostedPlacement) {
+        try {
+            if (!hostedRetainPose_)
+                updateHostedPlacement(e->position());
+            finishHostedPlacement();
+        } catch (const std::exception &error) {
+            emit message(error.what());
+        }
+        return;
+    }
     toolPressed_ = true;
     dragCommit_ = false;
     toolPressPosition_ = e->position();
@@ -2178,6 +2205,16 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     }
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
+    if (tool_ == Tool::HostedPlacement &&
+        (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)) {
+        try {
+            finishHostedPlacement();
+        } catch (const std::exception &error) {
+            emit message(error.what());
+        }
+        e->accept();
+        return;
+    }
     if ((tool_ == Tool::Sweep || tool_ == Tool::Intersect || tool_ == Tool::Boolean ||
          tool_ == Tool::Orientation) &&
         (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)) {

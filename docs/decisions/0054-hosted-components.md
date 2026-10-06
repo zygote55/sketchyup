@@ -245,3 +245,32 @@ edit permission, and baking only with destructive permission. Native editor lock
 cover changed host/attachment records and glue-only definition edits in addition to
 body geometry. Locks are checked both for preview and again before publication,
 including an editor lock acquired after a metadata-only preview was sealed.
+
+## Native placement controls
+
+Edit → Set glue face requires one editable face inside its directly owning component.
+It resolves the canonical member and records member-local anchor/tangent plus an
+explicit cutting checkbox. The dialog states the shared definition's placement count;
+its snapshot, revision, context and selection are rechecked before publication.
+
+Shift+H requires one whole independent component and one ordinary host face in the
+same editing context. The initial anchor is the centroid of the largest uncut face
+triangle. Pointer motion intersects the selected host's local plane, and the existing
+command preview validates containment, cut clearance, locks and staleness. A bad
+preview cannot commit. Click or Enter commits one command; Escape discards it. The
+placement tool does not use drawing inference locks, including on shortcut release.
+Alt-drag camera navigation remains available.
+
+Measurements accepts one signed host-local inset length or three host-local anchor
+coordinates, with normal document units and locale rules. Numeric re-entry uses the
+existing amendment token and preserves one Undo item. Placement options explicitly
+set rotation in degrees, signed XYZ scale and inset; they cancel a pending preview,
+and the user restarts placement afterward. Scale one uses the definition's original
+size. Bind current pose uses only the explicit inset and leaves the instance pose
+unchanged. Detach restores the opening; Bake keeps geometry while releasing every
+attachment on that host; clearing glue affects all shared placements. Local editor
+locks cover all affected placements and former/new hosts before publication.
+
+These controls expose the same bounded command and persistence behavior. Nested
+canonical placements and component-owned hosts remain unsupported. Copy/array
+attachment policy and explicit recipe adoption remain separate R059 work.
