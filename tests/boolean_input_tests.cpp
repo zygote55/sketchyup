@@ -1,6 +1,7 @@
 #include "app/window.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
+#include "core/solid_boolean.hpp"
 #include "geometry/solid.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
@@ -279,8 +280,145 @@ int main(int argc, char **argv) {
         check(doc.bodies().at(result)->parent == group,
               "Selected result belongs to active instance");
         volume(doc, result, 12);
+        view.leaveContext();
+        auto keep = [&](bool desired) {
+            if (window.findChild<QAction *>("boolean.keep")->isChecked() != desired)
+                action(window, "boolean.keep");
+        };
+        const auto solidCapture = qEnvironmentVariable("SKETCHYUP_SOLID_CAPTURE");
+        if (!solidCapture.isEmpty())
+            QDir().mkpath(solidCapture);
+        for (const QString operation : {"trim", "split", "outer_shell"}) {
+            fixture(doc, view);
+            select(view);
+            action(window, ("boolean.operation." + operation).toUtf8().constData());
+            keep(false);
+            const auto stable = encodeDocument(doc);
+            const auto source = doc.bodies().at(1), tool = doc.bodies().at(2);
+            const auto history = doc.history().total;
+            start(view);
+            check(view.previewValid() && encodeDocument(doc) == stable,
+                  "New solid operation previews without mutation");
+            if (operation == "trim") {
+                check(
+                    message.contains("Remove target") && message.contains("Tool retained") &&
+                        !message.contains("Remove both") &&
+                        window.findChild<QAction *>("boolean.keep")->text().contains("Keep target"),
+                    "Trim menu and HUD explain independent tool retention");
+            } else {
+                check(window.findChild<QAction *>("boolean.keep")->text() == "Keep originals",
+                      "Other solid operations restore the operand retention label");
+            }
+            QTest::keyClick(&view, Qt::Key_Escape);
+            check(encodeDocument(doc) == stable && view.selectionState().entities().size() == 2,
+                  "New solid operation cancel preserves selection and history");
+            start(view);
+            if (operation == "split" && !solidCapture.isEmpty()) {
+                QTest::qWait(100);
+                check(window.grab().save(solidCapture + "/split-preview.png"),
+                      "Capture Split preview");
+            }
+            QTest::keyClick(&view, Qt::Key_Return);
+            const auto count = operation == "split" ? 3 : 1;
+            check(doc.history().total == history + 1 && !doc.bodies().contains(1) &&
+                      doc.bodies().contains(2) == (operation == "trim") &&
+                      view.selectionState().entities().size() == size_t(count),
+                  "New solid operation consumes explicit operands and selects every result");
+            for (auto entity : view.selectionState().entities())
+                volume(doc, entity.body, operation == "outer_shell" ? 12 : 4);
+            if (operation == "trim")
+                check(doc.bodies().at(2) == tool, "Native Trim retains exact cutting tool");
+            reopened = decodeContainer(encodeContainer(doc));
+            check(encodeDocument(reopened) == encodeDocument(doc),
+                  "New native solid operation persists");
+            if (operation == "split" && !solidCapture.isEmpty()) {
+                tabs->setCurrentIndex(2);
+                view.standardView(0);
+                QTest::qWait(100);
+                check(window.grab().save(solidCapture + "/split-applied.png"),
+                      "Capture all Split regions selected");
+                tabs->setCurrentIndex(0);
+            }
+            QTest::keyClick(&view, Qt::Key_Z, Qt::ControlModifier);
+            check(doc.bodies().size() == 2 && doc.bodies().at(1) == source &&
+                      doc.bodies().at(2) == tool,
+                  "Native Undo restores exact operands");
+            QTest::keyClick(&view, Qt::Key_Z, Qt::ControlModifier | Qt::ShiftModifier);
+            check(!doc.bodies().contains(1), "Native Redo restores replacement");
+        }
+        fixture(doc, view, {});
+        select(view);
+        action(window, "boolean.operation.trim");
+        keep(true);
+        start(view);
+        check(!view.previewValid() && message.contains("Empty Trim") &&
+                  message.contains("only the target"),
+              "Empty retained Trim explains replacement policy");
+        const auto emptyTool = doc.bodies().at(2);
+        keep(false);
+        check(view.previewValid() && message.contains("target removed, tool retained") &&
+                  !message.contains("both originals"),
+              "Empty Trim preview never claims tool deletion");
+        QTest::keyClick(&view, Qt::Key_Return);
+        check(doc.bodies().size() == 1 && doc.bodies().at(2) == emptyTool &&
+                  view.selectionState().entities().empty() && message.contains("Tool retained"),
+              "Empty native Trim removes target only and clears result selection");
+        QTest::keyClick(&view, Qt::Key_Z, Qt::ControlModifier);
+        check(doc.bodies().size() == 2, "Empty native Trim Undo restores target");
+        fixture(doc, view);
+        doc = Document{};
+        const auto outer = box(doc, {}), cutter = box(doc, {.5, .5, .5}, {1, 1, 1});
+        const auto hollow =
+            booleanBodies(doc, outer, cutter, BooleanOperation::Subtract, 0, false).parts[0].body;
+        const auto island = box(doc, {.75, .75, .75}, {.5, .5, .5});
+        view.refresh();
+        view.selectEntities({{hollow, SelectionKind::Body, 0}, {island, SelectionKind::Body, 0}});
+        action(window, "boolean.operation.outer_shell");
+        start(view);
+        check(view.previewValid() && message.contains("Outer shell") &&
+                  !message.contains("outer_shell"),
+              "Outer Shell presents a readable operation label");
+        QTest::keyClick(&view, Qt::Key_Return);
+        check(doc.bodies().size() == 1 && view.selectionState().entities().size() == 1,
+              "Native Outer Shell fills cavity and removes covered island");
+        volume(doc, view.selectionState().entities().begin()->body, 8);
+        tabs->setCurrentIndex(2);
+        QTest::qWait(100);
+        check(readout->text() == "8 m³", "Native Info reports filled material volume");
+        if (!solidCapture.isEmpty()) {
+            view.standardView(0);
+            QTest::qWait(100);
+            check(window.grab().save(solidCapture + "/outer-shell-info.png"),
+                  "Capture filled Outer Shell Info");
+        }
+        tabs->setCurrentIndex(0);
+        fixture(doc, view);
+        const auto splitGroup = createGroup(doc, {1, 2});
+        const auto splitComponent = createComponent(doc, splitGroup);
+        placeComponent(doc, splitComponent.definition, Transform::translation({10, 0, 0}));
+        view.refresh();
+        view.enterContext(splitGroup);
+        select(view);
+        action(window, "boolean.operation.split");
+        start(view);
+        check(view.previewValid(), "Shared component Split previews");
+        const auto splitHistory = doc.history().total;
+        QTest::keyClick(&view, Qt::Key_Return);
+        check(doc.history().total == splitHistory + 1 &&
+                  view.selectionState().entities().size() == 3 && doc.bodies().size() == 8,
+              "Shared Split updates both instances and selects three active-context regions");
+        for (auto entity : view.selectionState().entities()) {
+            check(doc.bodies().at(entity.body)->parent == splitGroup,
+                  "Shared Split selects scene identities");
+            volume(doc, entity.body, 4);
+        }
+        reopened = decodeContainer(encodeContainer(doc));
+        check(encodeDocument(reopened) == encodeDocument(doc), "Shared native Split persists");
+        QTest::keyClick(&view, Qt::Key_Z, Qt::ControlModifier);
+        check(doc.bodies().size() == 6, "Shared native Split Undo restores both instances");
         std::cout
-            << "Native Boolean operations, target swap, retention, visible preview/cancel, "
+            << "Native Union/Subtract/Intersect/Trim/Split/Outer Shell, target swap, retention, "
+               "preview/cancel, "
                "orbit/apply, stale/invalid/empty, Undo/persistence and shared components passed\n";
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';

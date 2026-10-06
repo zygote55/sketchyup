@@ -72,3 +72,10 @@ canonical records. Preview uses the same staged publication as commit. All parts
 and explicitly consumed operands publish as one edit, with normal stale-revision
 checks, rollback, Undo/Redo and native-container persistence. Native controls
 follow these shared commands.
+
+
+R056.e exposes all six operations through native Solid tools (Shift+B). Trim's
+retention action explicitly says that the tool always survives. Empty Trim
+messages distinguish target removal from cutter retention. Apply selects all
+parts using the same Boolean and solid-operation receipts, including component
+scene identities. Existing preview, cancellation, orbit and history paths apply.
