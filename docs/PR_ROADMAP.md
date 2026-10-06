@@ -982,7 +982,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R065 — Implement associative dimensions and labels
 
-**Status:** Planned. **Track:** Geometry. **Scope:** P05. **UX:** —.
+**Status:** In progress. R065.a ([PR #144](https://github.com/zygote55/sketchyup/pull/144)) adds stable geometric anchors, topology-lineage remapping and explicit missing/ambiguous states ([contract](decisions/0078-annotation-anchors.md)). All 118 suites, the anchor sanitizer suite and installed/package checks pass ([evidence](verification/R065a-annotation-anchors.md)). Persistent records, commands and native dimension/label workflows remain in progress; delivery awaits them and dependency acceptance. **Track:** Geometry. **Scope:** P05. **UX:** —.
 
 **Requires:** [R064](#r064), [R035](#r035); milestone gate rule above.
 
