@@ -244,6 +244,8 @@ void componentsAndMalformed() {
     root.remove("style");
     root.remove("scenes");
     root.remove("sections");
+    root.remove("annotations");
+    root.remove("nextAnnotationId");
     root.remove("nextSectionId");
     root.remove("activeSections");
     root.remove("nextSceneId");

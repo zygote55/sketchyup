@@ -418,7 +418,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
                   doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
                   doc.nextMaterialId(), doc.assets(), doc.nextAssetId(), doc.displayUnits(),
                   std::make_shared<const HostedComponents>(), doc.style(), doc.scenes(),
-                  doc.nextSceneId(), doc.sections(), doc.nextSectionId(), {});
+                  doc.nextSceneId(), doc.sections(), doc.nextSectionId(), {}, {}, doc.nextAnnotationId());
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
@@ -458,6 +458,8 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     if (draft.sections() != baselineSections || draft.nextSectionId() != doc.nextSectionId() ||
         !draft.activeSections().empty())
         throw std::runtime_error("Shared component edits cannot modify document section planes");
+    if (!draft.annotations().empty() || draft.nextAnnotationId() != doc.nextAnnotationId())
+        throw std::runtime_error("Shared component edits cannot modify document annotations");
     if (draft.scenes() != baselineScenes || draft.nextSceneId() != doc.nextSceneId())
         throw std::runtime_error("Shared component edits cannot modify document scenes");
     if (draft.assets() != baselineAssets)

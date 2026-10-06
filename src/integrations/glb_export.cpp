@@ -533,6 +533,7 @@ struct Writer {
             {"wiresOmitted", double(wires)},
             {"guidesOmitted", double(guides)},
             {"sectionCutEdgesOmitted", double(cutEdges)},
+            {"annotationsOmitted", double(doc.annotations().size())},
             {"analyticCurvesTessellatedOrOmitted", double(curves)},
             {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size()) - textures.size()},
             {"missingAssets", double(missingAssets)}};

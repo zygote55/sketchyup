@@ -30,6 +30,8 @@ Document Document::readSnapshot() const {
     result.sections_ = sections_;
     result.nextSectionId_ = nextSectionId_;
     result.activeSections_ = activeSections_;
+    result.annotations_ = annotations_;
+    result.nextAnnotationId_ = nextAnnotationId_;
     result.definitionFloors_ = definitionFloors_;
     result.surfaceFloors_ = surfaceFloors_;
     result.edgeFloors_ = edgeFloors_;
@@ -196,6 +198,8 @@ size_t Document::readSnapshotBytes() const {
     for (const auto &[id, section] : sections_)
         result += sectionBytes(section) + 64;
     result += activeSections_.size() * 64;
+    for (const auto &[id, annotation] : annotations_)
+        result += annotationBytes(annotation) + 64;
     result += (surfaceFloors_.size() + edgeFloors_.size()) * 96;
     for (const auto &[id, floor] : definitionFloors_)
         result += sizeof(DefinitionFloor) + 64 + floor.geometry.size() * 96;
@@ -512,12 +516,18 @@ void Document::update(Edit edit, bool forward) {
     auto instances = instances_;
     auto scenes = scenes_;
     auto sections = sections_;
+    auto annotations = annotations_;
     auto activeSections = activeSections_;
     auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
     if (edit.activeSections)
         activeSections = forward ? edit.activeSections->second : edit.activeSections->first;
+    for (const auto &change : edit.annotations) {
+        const auto target = forward ? change.after : change.before;
+        if (target) annotations[change.id] = target;
+        else annotations.erase(change.id);
+    }
     for (const auto &change : edit.sections) {
         const auto target = forward ? change.after : change.before;
         if (target)
@@ -592,6 +602,7 @@ void Document::update(Edit edit, bool forward) {
     assets_.swap(assets);
     scenes_.swap(scenes);
     sections_.swap(sections);
+    annotations_.swap(annotations);
     activeSections_.swap(activeSections);
     if (edit.hosted)
         hosted_ = forward ? edit.hosted->after : edit.hosted->before;
@@ -615,7 +626,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.hosted && !edit.style && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections)
+        !edit.hosted && !edit.style && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
         throw std::runtime_error("Empty edit");
     if (edit.style) {
         edit.style->first.validate();
@@ -638,6 +649,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         edit.hosted->after = hosted;
     auto scenes = scenes_;
     auto sections = sections_;
+    auto annotations = annotations_;
     auto activeSections = activeSections_;
     auto assets = assets_;
     auto materials = materials_;
@@ -648,6 +660,24 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             throw std::runtime_error("Invalid or stale active section change");
         activeSections = edit.activeSections->second;
     }
+    Id nextAnnotation = std::max(nextAnnotationId_, edit.nextAnnotationFloor);
+    std::set<Id> annotationIds;
+    for (auto &change : edit.annotations) {
+        if (!change.id || change.id == UINT64_MAX || !annotationIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (annotations_.contains(change.id) ? annotations_.at(change.id) : nullptr) != change.before ||
+            (change.before && change.after && *change.before == *change.after))
+            throw std::runtime_error("Invalid or stale annotation change");
+        if (!change.before && change.id < nextAnnotationId_)
+            throw std::runtime_error("Retired annotation ID cannot be reused");
+        if (change.after) {
+            change.after = std::make_shared<AnnotationRecord>(*change.after);
+            annotations[change.id] = change.after;
+            nextAnnotation = std::max(nextAnnotation, change.id + 1);
+        } else
+            annotations.erase(change.id);
+    }
+    validateAnnotationRecords(annotations, nextAnnotation);
     Id nextSection = std::max(nextSectionId_, edit.nextSectionFloor);
     std::set<Id> sectionIds;
     for (auto &change : edit.sections) {
@@ -948,6 +978,23 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                                        change.after ? change.after->guides : noGuides);
         report.emplace(change.id, std::move(changes));
     }
+    auto updated = bodies_;
+    for (const auto &c : edit.changes) {
+        if (c.after)
+            updated[c.id] = c.after;
+        else
+            updated.erase(c.id);
+    }
+    validateDocumentSize(updated);
+    if (!annotations.empty()) {
+        auto candidate = readSnapshot();
+        candidate.bodies_ = updated;
+        resolveAnnotationEdit(*this, candidate, report, edit, annotations);
+        validateAnnotationRecords(annotations, nextAnnotation);
+    }
+    edit.annotationsResolved = true;
+    for (const auto &change : edit.annotations)
+        edit.bytes += sizeof(AnnotationChange) + annotationBytes(change.before) + annotationBytes(change.after);
     for (const auto &change : edit.definitions)
         edit.bytes +=
             sizeof(DefinitionChange) + componentBytes(change.before) + componentBytes(change.after);
@@ -977,14 +1024,6 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                       hostedComponentBytes(edit.hosted->after);
     if (edit.bytes > historyLimit)
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
-    auto updated = bodies_;
-    for (const auto &c : edit.changes) {
-        if (c.after)
-            updated[c.id] = c.after;
-        else
-            updated.erase(c.id);
-    }
-    validateDocumentSize(updated);
     if (!edit.sections.empty() || !activeSections.empty()) {
         auto sectionCandidate = readSnapshot();
         sectionCandidate.bodies_ = updated;
@@ -1115,6 +1154,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     assets_.swap(assets);
     scenes_.swap(scenes);
     sections_.swap(sections);
+    annotations_.swap(annotations);
     activeSections_.swap(activeSections);
     hosted_ = std::move(hosted);
     nextTagId_ = nextTag;
@@ -1122,6 +1162,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     nextAssetId_ = nextAsset;
     nextSceneId_ = nextScene;
     nextSectionId_ = nextSection;
+    nextAnnotationId_ = nextAnnotation;
     nextId_ = next;
     surfaceFloors_.swap(floors);
     edgeFloors_.swap(edgeFloors);
@@ -1162,6 +1203,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     std::set<Id> definitionContexts;
     std::set<Id> tagContexts, materialContexts, assetContexts, sceneContexts, sectionContexts;
     size_t createdSections = 0;
+    size_t createdAnnotations = 0;
+    std::set<Id> annotationContexts;
     size_t createdScenes = 0;
     size_t createdAssets = 0;
     size_t createdMaterials = 0;
@@ -1205,6 +1248,10 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!change.before && change.after)
             ++createdSections;
     }
+    for (const auto &change : undo_.back().edit.annotations) {
+        annotationContexts.insert(change.id);
+        if (!change.before && change.after) ++createdAnnotations;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
@@ -1215,6 +1262,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineAssets = staged.assets_;
     const auto baselineScenes = staged.scenes_;
     const auto baselineSections = staged.sections_;
+    const auto baselineAnnotations = staged.annotations_;
     const auto baselineActiveSections = staged.activeSections_;
     const auto baselineUnits = staged.displayUnits_;
     const auto baselineStyle = staged.style_;
@@ -1253,6 +1301,16 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!sectionContexts.contains(id) &&
             (!staged.sections_.contains(id) || staged.sections_.at(id) != section))
             throw std::runtime_error("Replacement cannot change another section plane");
+    for (const auto &[id, annotation] : baselineAnnotations)
+        if (!annotationContexts.contains(id) &&
+            (!staged.annotations_.contains(id) ||
+             *staged.annotations_.at(id) != *annotation))
+            throw std::runtime_error("Replacement cannot change another annotation");
+    size_t newAnnotations{};
+    for (const auto &[id, annotation] : staged.annotations_)
+        newAnnotations += !baselineAnnotations.contains(id);
+    if (newAnnotations != createdAnnotations)
+        throw std::runtime_error("Replacement must preserve annotation creation count");
     size_t newSections{};
     for (const auto &[id, section] : staged.sections_)
         newSections += !baselineSections.contains(id);
@@ -1420,7 +1478,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        Id nextTagId, MaterialRecords materials, Id nextMaterialId,
                        AssetRecords assets, Id nextAssetId, DisplayUnit units, HostedPtr hosted,
                        ModelStyle style, SceneRecords scenes, Id nextSceneId, SectionRecords sections,
-                       Id nextSectionId, ActiveSections activeSections) {
+                       Id nextSectionId, ActiveSections activeSections,
+                       AnnotationRecords annotations, Id nextAnnotationId) {
     unitCode(units);
     style.validate();
     if (identity.size() != 32 ||
@@ -1449,6 +1508,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     validateAssetRecords(assets, nextAssetId);
     validateSceneRecords(scenes, nextSceneId);
     validateSectionRecords(sections, nextSectionId, activeSections);
+    validateAnnotationRecords(annotations, nextAnnotationId);
     {
         Document candidate;
         candidate.bodies_ = bodies;
@@ -1483,6 +1543,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         scene = std::make_shared<SceneRecord>(*scene);
     for (auto &[id, section] : sections)
         section = std::make_shared<SectionRecord>(*section);
+    for (auto &[id, annotation] : annotations)
+        annotation = std::make_shared<AnnotationRecord>(*annotation);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -1506,6 +1568,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     sections_ = std::move(sections);
     nextSectionId_ = nextSectionId;
     activeSections_ = std::move(activeSections);
+    annotations_ = std::move(annotations);
+    nextAnnotationId_ = nextAnnotationId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     undo_.clear();
