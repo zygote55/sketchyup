@@ -418,6 +418,7 @@ struct AssistantPanel::Impl {
         }
         const QStringList routine{"assert.measurement",
                                   "assembly.roof",
+                                  "assembly.stairs",
                                   "assembly.room",
                                   "assembly.room.adopt_hosted",
                                   "assembly.window.resize",

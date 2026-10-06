@@ -2128,6 +2128,54 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Create an editable solid straight stair flight",
+                                    "properties": {
+                                        "command": {
+                                            "const": "assembly.stairs"
+                                        },
+                                        "going": {
+                                            "default": 0.28,
+                                            "maximum": 1,
+                                            "minimum": 0.1,
+                                            "type": "number"
+                                        },
+                                        "origin": {
+                                            "items": {
+                                                "maximum": 1000000,
+                                                "minimum": -1000000,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 3,
+                                            "minItems": 3,
+                                            "type": "array"
+                                        },
+                                        "stepCount": {
+                                            "default": 12,
+                                            "maximum": 32,
+                                            "minimum": 2,
+                                            "type": "integer"
+                                        },
+                                        "totalRise": {
+                                            "default": 2.4,
+                                            "maximum": 10,
+                                            "minimum": 0.2,
+                                            "type": "number"
+                                        },
+                                        "width": {
+                                            "default": 1,
+                                            "maximum": 5,
+                                            "minimum": 0.4,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Create an editable gable roof with explicit vertical thickness",
                                     "properties": {
                                         "command": {
