@@ -1,0 +1,21 @@
+{
+  "validator": "jsonschema 4.25.1",
+  "draft": "2020-12",
+  "results": [
+    {
+      "catalog": "docs/api/headless-session-v1.json",
+      "validModes": 5,
+      "malformedRequestsRejected": 39
+    },
+    {
+      "catalog": "docs/api/mcp-2026-07-28.json",
+      "validModes": 5,
+      "malformedRequestsRejected": 39
+    },
+    {
+      "catalog": "docs/api/transactions-v1.json",
+      "validModes": 5,
+      "malformedRequestsRejected": 39
+    }
+  ]
+}

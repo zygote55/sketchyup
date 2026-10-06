@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "installedContractMatches": true,
+  "desktopBinaryMatches": true,
+  "exampleCommands": 3,
+  "exampleCommandAndQueryMatch": true,
+  "installedSchemasMatch": true,
+  "cases": [
+    {
+      "fixture": "texture-sides-v16.sketchyup",
+      "mode": "textured",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-sides-v16.sketchyup",
+      "mode": "shaded",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-sides-v16.sketchyup",
+      "mode": "monochrome",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-sides-v16.sketchyup",
+      "mode": "wireframe",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-sides-v16.sketchyup",
+      "mode": "xray",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-mirror-v16.sketchyup",
+      "mode": "textured",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-mirror-v16.sketchyup",
+      "mode": "shaded",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-mirror-v16.sketchyup",
+      "mode": "monochrome",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-mirror-v16.sketchyup",
+      "mode": "wireframe",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-mirror-v16.sketchyup",
+      "mode": "xray",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-jpeg-v16.sketchyup",
+      "mode": "textured",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-jpeg-v16.sketchyup",
+      "mode": "shaded",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-jpeg-v16.sketchyup",
+      "mode": "monochrome",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-jpeg-v16.sketchyup",
+      "mode": "wireframe",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    },
+    {
+      "fixture": "texture-jpeg-v16.sketchyup",
+      "mode": "xray",
+      "styleRetained": true,
+      "glbUnchanged": true,
+      "v16ReaderRejected": true
+    }
+  ]
+}

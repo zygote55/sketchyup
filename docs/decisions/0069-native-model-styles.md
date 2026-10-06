@@ -35,7 +35,7 @@ do not depend on implementation-specific OpenGL line widths. Camera/projection,
 style, document and context changes invalidate the appropriate profile buffer.
 Profile and grid/ground buffers belong to the current GL context. Selection adds
 black/white borders around its colored edge overlay for contrast against arbitrary
-model colors. Benchmark/smoke JSON records the complete model style and visible
+model colors. Benchmark/smoke JSON records the complete model style and submitted
 profile-edge count; synthetic triangle throughput still identifies itself as such.
 
 `document.style` accepts one complete, strictly validated style record using the

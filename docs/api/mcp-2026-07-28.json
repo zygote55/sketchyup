@@ -1713,6 +1713,133 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Change model style",
+                                    "properties": {
+                                        "command": {
+                                            "const": "document.style"
+                                        },
+                                        "style": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "axesVisible": {
+                                                    "type": "boolean"
+                                                },
+                                                "back": {
+                                                    "items": {
+                                                        "maximum": 1,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                },
+                                                "background": {
+                                                    "items": {
+                                                        "maximum": 1,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                },
+                                                "edge": {
+                                                    "items": {
+                                                        "maximum": 1,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                },
+                                                "edgesVisible": {
+                                                    "type": "boolean"
+                                                },
+                                                "front": {
+                                                    "items": {
+                                                        "maximum": 1,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                },
+                                                "gridVisible": {
+                                                    "type": "boolean"
+                                                },
+                                                "ground": {
+                                                    "items": {
+                                                        "maximum": 1,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                },
+                                                "groundHeight": {
+                                                    "maximum": 1000000,
+                                                    "minimum": -1000000,
+                                                    "type": "number"
+                                                },
+                                                "groundVisible": {
+                                                    "type": "boolean"
+                                                },
+                                                "mode": {
+                                                    "enum": [
+                                                        "textured",
+                                                        "shaded",
+                                                        "monochrome",
+                                                        "wireframe",
+                                                        "xray"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "profileWidth": {
+                                                    "maximum": 8,
+                                                    "minimum": 1,
+                                                    "type": "number"
+                                                },
+                                                "profiles": {
+                                                    "type": "boolean"
+                                                },
+                                                "xrayOpacity": {
+                                                    "maximum": 0.95,
+                                                    "minimum": 0.01,
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "axesVisible",
+                                                "back",
+                                                "background",
+                                                "edge",
+                                                "edgesVisible",
+                                                "front",
+                                                "gridVisible",
+                                                "ground",
+                                                "groundHeight",
+                                                "groundVisible",
+                                                "mode",
+                                                "profileWidth",
+                                                "profiles",
+                                                "xrayOpacity"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "style",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Change document units",
                                     "properties": {
                                         "command": {

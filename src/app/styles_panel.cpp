@@ -139,10 +139,14 @@ void StylesPanel::customize() {
         form->addRow(label, button);
         connect(button, &QPushButton::clicked, &dialog, [&, field, update, label] {
             const auto &rgb = candidate.*field;
-            const auto initial = QColor::fromRgbF(rgb[0], rgb[1], rgb[2]);
-            const auto selected =
-                QColorDialog::getColor(initial, &dialog, label, QColorDialog::DontUseNativeDialog);
-            if (selected.isValid() && selected != initial) {
+            QColorDialog picker(QColor::fromRgbF(rgb[0], rgb[1], rgb[2]), &dialog);
+            picker.setWindowTitle(label);
+            picker.setOption(QColorDialog::DontUseNativeDialog);
+            // Qt initializes this chooser at 8-bit channel precision. An unchanged
+            // acceptance must preserve the original document's float channels.
+            const auto baseline = picker.currentColor();
+            if (picker.exec() == QDialog::Accepted && picker.currentColor() != baseline) {
+                const auto selected = picker.currentColor();
                 candidate.*field = {float(selected.redF()), float(selected.greenF()),
                                     float(selected.blueF())};
                 update();
