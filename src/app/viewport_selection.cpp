@@ -477,6 +477,9 @@ SelectionSet Viewport::windowSelection(QRectF bounds, bool crossing) {
                     if (!cache.sectionError.isEmpty())
                         continue;
                     if (cache.sectionCuts.empty()) {
+                        if (member->referenceImage)
+                            for (const auto point : referenceImageCorners(*member->referenceImage, world))
+                                if (!inside(point, id)) return true;
                         for (const auto &[vertex, point] : member->surface.vertices)
                             if (!inside(world.point(point), id))
                                 return true;
