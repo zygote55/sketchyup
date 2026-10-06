@@ -182,7 +182,8 @@ int fake(QCoreApplication &app, const QStringList &args) {
         if (mode == "missing")
             QFile::remove(root + "/image.png");
         if (request.value("operation") == "handoff") {
-            QByteArray scene = mode == "invalid-scene" ? "invalid scene" : "BLENDER-v502fixture";
+            QByteArray scene =
+                mode == "invalid-scene" ? "invalid scene" : "BLENDER17-01v0502fixture";
             write(root + "/scene.blend", scene);
             result.remove("image");
             result["sceneFile"] =

@@ -614,7 +614,7 @@ def render(request, directory):
             'notice': 'Edits in Blender do not update the native SketchyUp model.'}, sort_keys=True))
         path = directory / 'scene.blend'
         bpy.ops.wm.save_as_mainfile(filepath=str(path), check_existing=False, compress=False)
-        if path.is_symlink() or not path.is_file() or not 12 < path.stat().st_size <= 512 * 1024 * 1024:
+        if path.is_symlink() or not path.is_file() or not 17 < path.stat().st_size <= 512 * 1024 * 1024:
             raise WorkerError('handoff_error', 'Blender did not save a bounded scene')
         data = path.read_bytes()
         return {**common, 'sceneFile': {'file': 'scene.blend', 'bytes': len(data),

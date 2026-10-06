@@ -150,9 +150,8 @@ verifyScene(const PreparedRender &input, const QString &directory, const QJsonOb
                 file.value("oneWay") == true,
             "Worker scene transfer descriptor mismatch");
     const auto bytes = read(directory + "/scene.blend", 512 * 1024 * 1024);
-    require(bytes.size() > 12 && bytes.startsWith("BLENDER") &&
-                (bytes[7] == '-' || bytes[7] == '_') && (bytes[8] == 'v' || bytes[8] == 'V') &&
-                bytes.mid(9, 3) == "502" && file.value("bytes").toInteger(-1) == bytes.size() &&
+    require(bytes.size() > 17 && bytes.startsWith("BLENDER17-01v0502") &&
+                file.value("bytes").toInteger(-1) == bytes.size() &&
                 file.value("sha256") == hash(bytes),
             "Worker scene header, size or hash mismatch");
     auto verified = std::make_shared<BlenderSceneResult>();
