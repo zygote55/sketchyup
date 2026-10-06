@@ -162,6 +162,226 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Create editable local-font geometry",
+                                    "properties": {
+                                        "allowSubstitution": {
+                                            "type": "boolean"
+                                        },
+                                        "command": {
+                                            "const": "text.create"
+                                        },
+                                        "depth": {
+                                            "oneOf": [
+                                                {
+                                                    "const": 0
+                                                },
+                                                {
+                                                    "maximum": 1000,
+                                                    "minimum": 1e-06,
+                                                    "type": "number"
+                                                }
+                                            ]
+                                        },
+                                        "family": {
+                                            "maxLength": 256,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "height": {
+                                            "maximum": 1000,
+                                            "minimum": 0.001,
+                                            "type": "number"
+                                        },
+                                        "lineSpacing": {
+                                            "maximum": 10,
+                                            "minimum": 0.5,
+                                            "type": "number"
+                                        },
+                                        "name": {
+                                            "maxLength": 1024,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "parent": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "position": {
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "maxItems": 3,
+                                            "minItems": 3,
+                                            "type": "array"
+                                        },
+                                        "style": {
+                                            "maxLength": 256,
+                                            "type": "string"
+                                        },
+                                        "text": {
+                                            "maxLength": 4096,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "name",
+                                        "text",
+                                        "family",
+                                        "height",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "anyOf": [
+                                        {
+                                            "required": [
+                                                "allowSubstitution"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "depth"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "family"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "height"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "lineSpacing"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "name"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "style"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "text"
+                                            ]
+                                        },
+                                        {
+                                            "properties": {
+                                                "regenerate": {
+                                                    "const": true
+                                                }
+                                            },
+                                            "required": [
+                                                "regenerate"
+                                            ]
+                                        }
+                                    ],
+                                    "description": "Regenerate editable 3D text",
+                                    "properties": {
+                                        "acceptFontChange": {
+                                            "type": "boolean"
+                                        },
+                                        "allowSubstitution": {
+                                            "type": "boolean"
+                                        },
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "text.update"
+                                        },
+                                        "depth": {
+                                            "oneOf": [
+                                                {
+                                                    "const": 0
+                                                },
+                                                {
+                                                    "maximum": 1000,
+                                                    "minimum": 1e-06,
+                                                    "type": "number"
+                                                }
+                                            ]
+                                        },
+                                        "family": {
+                                            "maxLength": 256,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "height": {
+                                            "maximum": 1000,
+                                            "minimum": 0.001,
+                                            "type": "number"
+                                        },
+                                        "lineSpacing": {
+                                            "maximum": 10,
+                                            "minimum": 0.5,
+                                            "type": "number"
+                                        },
+                                        "name": {
+                                            "maxLength": 1024,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "regenerate": {
+                                            "type": "boolean"
+                                        },
+                                        "style": {
+                                            "maxLength": 256,
+                                            "type": "string"
+                                        },
+                                        "text": {
+                                            "maxLength": 4096,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Keep text geometry and remove editable source",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "text.bake"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Create an associative distance dimension or label",
                                     "oneOf": [
                                         {
@@ -5821,6 +6041,77 @@
                                     }
                                 },
                                 "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "cursor": {
+                                        "maxLength": 512,
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "limit": {
+                                        "maximum": 100,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                    },
+                                    "query": {
+                                        "const": "texts.query"
+                                    }
+                                },
+                                "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "body": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "text.describe"
+                                    }
+                                },
+                                "required": [
+                                    "body",
                                     "apiVersion",
                                     "documentId",
                                     "expectedRevision",

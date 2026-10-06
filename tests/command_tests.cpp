@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
@@ -755,6 +756,10 @@ int main(int argc, char **argv) {
         savedCamera.camera = SceneCamera{};
         const auto cameraJson = encodeSceneSnapshot(savedCamera);
         QJsonArray cases{
+            QJsonObject{{"command", "text.create"}, {"name", "Text"}, {"text", "O"},
+                        {"family", "DejaVu Sans"}, {"height", .2}, {"allowSubstitution", true}},
+            QJsonObject{{"command", "text.update"}, {"body", "2"}, {"text", "B"}},
+            QJsonObject{{"command", "text.bake"}, {"body", "2"}},
             QJsonObject{{"command", "annotation.create"}, {"name", "Dimension"}, {"kind", "distance"},
                         {"anchors", QJsonArray{QJsonObject{{"kind", "point"}, {"space", "world"}, {"point", QJsonArray{0,0,0}}},
                                                QJsonObject{{"kind", "point"}, {"space", "world"}, {"point", QJsonArray{1,0,0}}}}}},
@@ -1070,6 +1075,13 @@ int main(int argc, char **argv) {
                                    {"commands", commands}};
             };
             Document doc = source;
+            if (command["command"] == "text.update" || command["command"] == "text.bake") {
+                const auto id = doc.nextId();
+                executeTextCommand(doc, {{"command", "text.create"}, {"name", "Existing text"},
+                                         {"text", "O"}, {"family", "DejaVu Sans"}, {"height", .2},
+                                         {"allowSubstitution", true}});
+                command["body"] = QString::number(id);
+            }
             if (command["command"].toString().startsWith("annotation.") &&
                 command["command"] != "annotation.create") {
                 AnnotationRecord annotation;

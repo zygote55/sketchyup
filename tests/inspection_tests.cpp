@@ -1,4 +1,5 @@
 #include "automation/inspection.hpp"
+#include "automation/text_commands.hpp"
 #include "core/components.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
@@ -358,6 +359,13 @@ int main(int argc, char **argv) {
         rejects("NOT_FOUND", [&] {
             run(sceneDocument, "annotation.describe", {{"annotation", "999999"}});
         });
+        const auto textBody = sceneDocument.nextId();
+        executeTextCommand(sceneDocument, {{"command", "text.create"}, {"name", "Text"}, {"text", "O"},
+                                           {"family", "DejaVu Sans"}, {"height", .2}, {"allowSubstitution", true}});
+        check(all(sceneDocument, "texts.query").size() == 1, "Bounded editable text list");
+        check(run(sceneDocument, "text.describe", {{"body", QString::number(textBody)}})
+                  ["geometryMatchesSource"] == true, "Text source and geometry inspection");
+        rejects("NOT_FOUND", [&] { run(sceneDocument, "text.describe", {{"body", "999999"}}); });
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
                   QJsonDocument::fromJson(published.readAll()).object() == inspectionCapabilities(),
