@@ -1,6 +1,8 @@
 #include "automation/inspection.hpp"
 #include "automation/text_commands.hpp"
 #include "core/components.hpp"
+#include "core/assets.hpp"
+#include "core/reference_images.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
 #include "core/annotations.hpp"
@@ -368,6 +370,12 @@ int main(int argc, char **argv) {
         check(run(sceneDocument, "text.describe", {{"body", QString::number(textBody)}})
                   ["geometryMatchesSource"] == true, "Text source and geometry inspection");
         rejects("NOT_FOUND", [&] { run(sceneDocument, "text.describe", {{"body", "999999"}}); });
+        const auto imageAsset = createAsset(sceneDocument, "Image", "image/png");
+        const auto imageBody = createReferenceImage(sceneDocument, {imageAsset, 2, 1, .5});
+        check(all(sceneDocument, "reference_images.query").size() == 1, "Bounded reference image list");
+        check(run(sceneDocument, "reference_image.describe", {{"body", QString::number(imageBody)}})
+                  ["asset"].toObject()["present"] == false, "Missing image assets remain explicit");
+        rejects("NOT_FOUND", [&] { run(sceneDocument, "reference_image.describe", {{"body", "999999"}}); });
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
                   QJsonDocument::fromJson(published.readAll()).object() == inspectionCapabilities(),

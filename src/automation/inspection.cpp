@@ -1,3 +1,4 @@
+#include "automation/reference_image_commands.hpp"
 #include "automation/texture_commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/text_commands.hpp"
@@ -50,6 +51,8 @@ QJsonObject refSchema() {
 enum class Operation {
     Document,
     Solar,
+    ReferenceImages,
+    ReferenceImage,
     Texts,
     Text,
     Annotations,
@@ -106,6 +109,8 @@ const std::vector<Spec> &registry() {
         return std::vector<Spec>{
             spec("document.describe", Operation::Document, {}, {}),
             spec("solar.describe", Operation::Solar, {}, {}),
+            spec("reference_images.query", Operation::ReferenceImages, {}, {}, true),
+            spec("reference_image.describe", Operation::ReferenceImage, {{"body", idSchema()}}, {"body"}),
             spec("texts.query", Operation::Texts, {}, {}, true),
             spec("text.describe", Operation::Text, {{"body", idSchema()}}, {"body"}),
             spec("annotations.query", Operation::Annotations,
@@ -123,7 +128,7 @@ const std::vector<Spec> &registry() {
                   {"recursive", QJsonObject{{"type", "boolean"}}},
                   {"includeHidden", QJsonObject{{"type", "boolean"}}},
                   {"nameContains", textSchema(256)},
-                  {"kind", choices({"any", "geometry", "group", "component"})}},
+                  {"kind", choices({"any", "geometry", "group", "component", "reference_image"})}},
                  {}, true),
             spec("entity.describe", Operation::Entity, {{"target", ref}}, {"target"}),
             spec("entity.properties", Operation::Properties, {{"target", ref}}, {"target"}, true),
@@ -531,6 +536,18 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
     case Operation::Solar:
         data = solarDescription(doc);
         break;
+    case Operation::ReferenceImages:
+        for (const auto &[id, body] : doc.bodies())
+            if (body->referenceImage) page.append([&] { return referenceImageDescription(doc, id); });
+        data = page.finish();
+        break;
+    case Operation::ReferenceImage: {
+        const auto id = decimal(request["body"]);
+        if (!doc.bodies().contains(id) || !doc.bodies().at(id)->referenceImage)
+            fail("NOT_FOUND", "Reference image body does not exist");
+        data = referenceImageDescription(doc, id, true);
+        break;
+    }
     case Operation::Texts:
         for (const auto &[id, body] : doc.bodies())
             if (body->textSource) page.append([&] { return textDescription(doc, id); });

@@ -206,6 +206,107 @@
                 "openWorldHint": false,
                 "readOnlyHint": true
             },
+            "description": "reference_images.query: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "reference_images.query"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "reference_images.query"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "reference_image.describe: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "body": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "reference_image.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "body",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "reference_image.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
             "description": "texts.query: shared versioned SketchyUp operation",
             "inputSchema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -819,7 +920,8 @@
                             "any",
                             "geometry",
                             "group",
-                            "component"
+                            "component",
+                            "reference_image"
                         ],
                         "type": "string"
                     },
@@ -2281,6 +2383,185 @@
                                         "metric",
                                         "expected",
                                         "tolerance",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Place a managed reference image",
+                                    "properties": {
+                                        "asset": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "reference_image.create"
+                                        },
+                                        "height": {
+                                            "maximum": 1000000,
+                                            "minimum": 1e-06,
+                                            "type": "number"
+                                        },
+                                        "name": {
+                                            "maxLength": 1024,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "opacity": {
+                                            "maximum": 1,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        },
+                                        "parent": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "position": {
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "maxItems": 3,
+                                            "minItems": 3,
+                                            "type": "array"
+                                        },
+                                        "width": {
+                                            "maximum": 1000000,
+                                            "minimum": 1e-06,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "name",
+                                        "asset",
+                                        "width",
+                                        "height",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "anyOf": [
+                                        {
+                                            "required": [
+                                                "asset"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "height"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "name"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "opacity"
+                                            ]
+                                        },
+                                        {
+                                            "required": [
+                                                "width"
+                                            ]
+                                        }
+                                    ],
+                                    "description": "Edit reference image properties",
+                                    "properties": {
+                                        "asset": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "reference_image.update"
+                                        },
+                                        "height": {
+                                            "maximum": 1000000,
+                                            "minimum": 1e-06,
+                                            "type": "number"
+                                        },
+                                        "name": {
+                                            "maxLength": 1024,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "opacity": {
+                                            "maximum": 1,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        },
+                                        "width": {
+                                            "maximum": 1000000,
+                                            "minimum": 1e-06,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Calibrate an image to a known world length",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "reference_image.calibrate"
+                                        },
+                                        "first": {
+                                            "items": {
+                                                "maximum": 1,
+                                                "minimum": 0,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 2,
+                                            "minItems": 2,
+                                            "type": "array"
+                                        },
+                                        "knownLength": {
+                                            "maximum": 1000000,
+                                            "minimum": 1e-06,
+                                            "type": "number"
+                                        },
+                                        "second": {
+                                            "items": {
+                                                "maximum": 1,
+                                                "minimum": 0,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 2,
+                                            "minItems": 2,
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "first",
+                                        "second",
+                                        "knownLength",
                                         "command"
                                     ],
                                     "type": "object"
@@ -8499,6 +8780,77 @@
                                         "type": "integer"
                                     },
                                     "query": {
+                                        "const": "reference_images.query"
+                                    }
+                                },
+                                "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "body": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "reference_image.describe"
+                                    }
+                                },
+                                "required": [
+                                    "body",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "cursor": {
+                                        "maxLength": 512,
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "limit": {
+                                        "maximum": 100,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                    },
+                                    "query": {
                                         "const": "texts.query"
                                     }
                                 },
@@ -8920,7 +9272,8 @@
                                             "any",
                                             "geometry",
                                             "group",
-                                            "component"
+                                            "component",
+                                            "reference_image"
                                         ],
                                         "type": "string"
                                     },
