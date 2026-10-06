@@ -1003,6 +1003,8 @@ int main(int argc, char **argv) {
                                  {"tolerance", 1e-7}});
         cases.append(QJsonObject{{"command", "assembly.roof"}});
         cases.append(QJsonObject{{"command", "assembly.stairs"}});
+        cases.append(QJsonObject{{"command", "assembly.table"}});
+        cases.append(QJsonObject{{"command", "assembly.cabinet"}});
         cases.append(QJsonObject{{"command", "assembly.room"}});
         cases.append(QJsonObject{{"command", "assembly.room.adopt_hosted"}, {"body", "3"}});
         cases.append(QJsonObject{{"command", "assembly.window.resize"},

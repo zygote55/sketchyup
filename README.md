@@ -268,6 +268,12 @@ filled flight with equal risers and explicit tread depth, width and final elevat
 `examples/stair-recipe-v1.json` places the default flight beside the room and roof;
 each tread, the closed volume and preservation of the scene are verified.
 
+The [table and cabinet recipes](docs/decisions/0058-furniture-recipes.md) build
+measured solid members with shared component legs or panels. Their examples are
+`examples/table-recipe-v1.json` and `examples/cabinet-recipe-v1.json`. Member dimensions,
+clearances and volumes are verified; ordinary shared and instance-only edits remain
+available afterward.
+
 See the [recipe contract](docs/decisions/0027-transaction-recipes.md) and
 `--recipe-capabilities`. A local MCP stdio client can use `--mcp` with the same
 explicit document/outcome options. It targets protocol 2026-07-28; see the
