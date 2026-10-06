@@ -2,6 +2,7 @@
 #include "core/components.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
+#include "core/annotations.hpp"
 #include "core/entity_measure.hpp"
 #include "core/groups.hpp"
 #include "io/document_io.hpp"
@@ -343,6 +344,20 @@ int main(int argc, char **argv) {
               "Section detail exposes active state");
         check(all(sceneDocument, "sections.effective", {{"body", "0"}}).size() == 1,
               "Bounded effective model section query");
+        AnnotationRecord dimension;
+        dimension.name = "Inspection distance";
+        dimension.anchors = {pointAnchor({}), pointAnchor({3,4,0})};
+        const auto annotation = createAnnotation(sceneDocument, dimension);
+        check(all(sceneDocument, "annotations.query", {{"kind", "distance"}, {"limit", 1}}).size() == 1,
+              "Bounded annotation list and kind filter");
+        const auto annotationDetail = run(sceneDocument, "annotation.describe",
+                                          {{"annotation", QString::number(annotation)}});
+        check(annotationDetail["distanceMetres"] == 5 && annotationDetail["state"] == "resolved" &&
+                  annotationDetail["resolvedAnchors"].toArray().size() == 2,
+              "Annotation inspection reports world measurement and live anchor states");
+        rejects("NOT_FOUND", [&] {
+            run(sceneDocument, "annotation.describe", {{"annotation", "999999"}});
+        });
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
                   QJsonDocument::fromJson(published.readAll()).object() == inspectionCapabilities(),
