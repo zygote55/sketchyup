@@ -1,0 +1,44 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "iteration": 1,
+    "exitCode": 0,
+    "seconds": 2.855
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "iteration": 1,
+    "exitCode": 0,
+    "seconds": 6.164
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "iteration": 2,
+    "exitCode": 0,
+    "seconds": 6.155
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "iteration": 3,
+    "exitCode": 0,
+    "seconds": 6.076
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "iteration": 1,
+    "exitCode": 0,
+    "seconds": 5.414
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "iteration": 1,
+    "exitCode": 0,
+    "seconds": 5.969
+  }
+]
