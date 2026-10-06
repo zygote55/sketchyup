@@ -1268,14 +1268,16 @@ void Viewport::paintScene(QPaintDevice *device) {
     gl_->glDisable(GL_DEPTH_TEST);
     if (auto error = gl_->glGetError(); error != GL_NO_ERROR) {
         stats_.glError = error;
-        if (!rasterSize_.isEmpty()) throw std::runtime_error("Graphics error while rendering export");
+        if (!rasterSize_.isEmpty())
+            throw std::runtime_error("Graphics error while rendering export");
     }
     ++stats_.frames;
     frameMs_ = timer.nsecsElapsed() / 1e6;
     p.endNativePainting();
     p.setRenderHint(QPainter::Antialiasing);
     paintAnnotations(p);
-    if (!rasterSize_.isEmpty()) return;
+    if (!rasterSize_.isEmpty())
+        return;
     paintGuides(p);
     paintSelection(p);
     paintAssistantPreview(p);

@@ -73,7 +73,8 @@ QImage Viewport::renderRaster(QSize pixels) {
             if (gl_->glGetError() != GL_NO_ERROR)
                 throw std::runtime_error("The graphics device could not render the export image");
             if (!doc_.isCurrentSnapshot(stamp))
-                throw std::runtime_error("The model changed during export. Export the current model again");
+                throw std::runtime_error(
+                    "The model changed during export. Export the current model again");
             result = target.toImage();
             if (result.isNull() || result.size() != pixels)
                 throw std::runtime_error("Could not read the complete export image");

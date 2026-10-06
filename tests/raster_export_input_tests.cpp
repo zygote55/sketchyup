@@ -115,7 +115,8 @@ int main(int argc, char **argv) {
               "Embedded raster image is actually rendered");
         check(b != a.scaled(b.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation),
               "Larger image is rendered anew rather than resized");
-        if (const auto capture = qEnvironmentVariable("SKETCHYUP_RASTER_CAPTURE"); !capture.isEmpty())
+        if (const auto capture = qEnvironmentVariable("SKETCHYUP_RASTER_CAPTURE");
+            !capture.isEmpty())
             check(b.save(capture), "Exact raster evidence saved");
         check(b.pixelColor(5, 5) == Qt::white && b.pixelColor(20, 28) == Qt::white,
               "Focus outline and view HUD omitted");
