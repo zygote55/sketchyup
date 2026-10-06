@@ -63,7 +63,7 @@ QJsonObject boundedReport(const QJsonObject &report) {
     if (bytes.size() <= 256 * 1024)
         return report;
     return {{"diagnosticsTruncated", true},
-            {"phase", report.value("phase")},
+            {"phase", report.value("phase").toString().left(64)},
             {"code", report.value("code").toString().left(256)},
             {"message", report.value("message").toString().left(4096)},
             {"logTail", QString::fromUtf8(bytes.right(64 * 1024))}};
