@@ -1,0 +1,174 @@
+{
+    "exactReopen": true,
+    "halfLapMemberVolume": 0.001776,
+    "invalidSolidRejected": true,
+    "joint": "44",
+    "jointVolume": 0.003552,
+    "left": "45",
+    "materialsAndMappingsPreserved": true,
+    "notchDepth": 0.04,
+    "oneUndoRedo": true,
+    "overlapVolume": 0,
+    "privatePreview": true,
+    "right": "46",
+    "roofVolume": 4.553999923660505,
+    "site": "38",
+    "solidOperations": [
+        {
+            "keepTarget": false,
+            "keepTool": true,
+            "operation": "trim",
+            "parts": [
+                {
+                    "body": "45",
+                    "faces": [
+                        {
+                            "face": "5",
+                            "reversed": false,
+                            "sourceBody": "40",
+                            "sourceFace": "5"
+                        },
+                        {
+                            "face": "14",
+                            "reversed": false,
+                            "sourceBody": "40",
+                            "sourceFace": "10"
+                        },
+                        {
+                            "face": "15",
+                            "reversed": false,
+                            "sourceBody": "40",
+                            "sourceFace": "10"
+                        },
+                        {
+                            "face": "18",
+                            "reversed": false,
+                            "sourceBody": "40",
+                            "sourceFace": "11"
+                        },
+                        {
+                            "face": "19",
+                            "reversed": false,
+                            "sourceBody": "40",
+                            "sourceFace": "12"
+                        },
+                        {
+                            "face": "22",
+                            "reversed": false,
+                            "sourceBody": "40",
+                            "sourceFace": "13"
+                        },
+                        {
+                            "face": "23",
+                            "reversed": false,
+                            "sourceBody": "40",
+                            "sourceFace": "14"
+                        },
+                        {
+                            "face": "24",
+                            "reversed": true,
+                            "sourceBody": "42",
+                            "sourceFace": "5"
+                        },
+                        {
+                            "face": "25",
+                            "reversed": true,
+                            "sourceBody": "42",
+                            "sourceFace": "12"
+                        },
+                        {
+                            "face": "26",
+                            "reversed": true,
+                            "sourceBody": "42",
+                            "sourceFace": "14"
+                        }
+                    ],
+                    "generatedVolume": 0.001775999999999999,
+                    "portion": "result"
+                }
+            ],
+            "sourceBody": "40",
+            "toolBody": "42"
+        },
+        {
+            "keepTarget": false,
+            "keepTool": true,
+            "operation": "trim",
+            "parts": [
+                {
+                    "body": "46",
+                    "faces": [
+                        {
+                            "face": "9",
+                            "reversed": false,
+                            "sourceBody": "41",
+                            "sourceFace": "5"
+                        },
+                        {
+                            "face": "10",
+                            "reversed": false,
+                            "sourceBody": "41",
+                            "sourceFace": "5"
+                        },
+                        {
+                            "face": "15",
+                            "reversed": false,
+                            "sourceBody": "41",
+                            "sourceFace": "10"
+                        },
+                        {
+                            "face": "16",
+                            "reversed": false,
+                            "sourceBody": "41",
+                            "sourceFace": "11"
+                        },
+                        {
+                            "face": "19",
+                            "reversed": false,
+                            "sourceBody": "41",
+                            "sourceFace": "12"
+                        },
+                        {
+                            "face": "20",
+                            "reversed": false,
+                            "sourceBody": "41",
+                            "sourceFace": "13"
+                        },
+                        {
+                            "face": "23",
+                            "reversed": false,
+                            "sourceBody": "41",
+                            "sourceFace": "14"
+                        },
+                        {
+                            "face": "24",
+                            "reversed": true,
+                            "sourceBody": "43",
+                            "sourceFace": "10"
+                        },
+                        {
+                            "face": "25",
+                            "reversed": true,
+                            "sourceBody": "43",
+                            "sourceFace": "11"
+                        },
+                        {
+                            "face": "26",
+                            "reversed": true,
+                            "sourceBody": "43",
+                            "sourceFace": "13"
+                        }
+                    ],
+                    "generatedVolume": 0.001775999999999997,
+                    "portion": "result"
+                }
+            ],
+            "sourceBody": "41",
+            "toolBody": "43"
+        }
+    ],
+    "stairVolume": 4.368,
+    "stockHeight": 0.08,
+    "stockLength": 0.4,
+    "stockWidth": 0.06
+}

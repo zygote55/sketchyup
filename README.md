@@ -212,6 +212,8 @@ as PNG. Blender is optional. See [render evidence](docs/verification/R050-native
 The [M5 acceptance procedure](docs/M5_ACCEPTANCE.md) describes the reproducible
 room/window workflow, retained evidence, live provider corpus and package setup.
 The [M5 gate is complete](docs/verification/M5.md); M6 advanced modeling is in progress.
+The [M6 acceptance procedure](docs/M6_ACCEPTANCE.md) reproduces the integrated
+roof/stair/joinery/furniture study, site placement and live assistant checks.
 
 ## Headless commands
 

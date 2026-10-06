@@ -1,0 +1,180 @@
+{
+  "liveProvider": true,
+  "trials": [
+    {
+      "trial": "advanced",
+      "provider": "OpenAI",
+      "model": "gpt-6-astra",
+      "recordedAt": "2026-10-06T08:58:28Z",
+      "elapsedMs": 98045,
+      "previewReviewedAndApplied": true,
+      "savedGeometryVerified": true,
+      "existingRecordsPreserved": true,
+      "privateMeasurementsVerified": true,
+      "stagedMeasurements": [
+        {
+          "body": "11",
+          "bounds": {
+            "dimensions": [
+              6.6,
+              4.6,
+              2.0552558883257657
+            ],
+            "maximum": [
+              6.3,
+              4.3,
+              4.582050807568878
+            ],
+            "minimum": [
+              -0.3,
+              -0.3,
+              2.5267949192431125
+            ]
+          },
+          "volume": 4.553999923660505,
+          "solidStatus": "solid"
+        },
+        {
+          "body": "13",
+          "bounds": {
+            "dimensions": [
+              3.3599999999999994,
+              1,
+              2.4
+            ],
+            "maximum": [
+              10.36,
+              1,
+              2.4
+            ],
+            "minimum": [
+              7,
+              0,
+              0
+            ]
+          },
+          "volume": 4.368,
+          "solidStatus": "solid"
+        },
+        {
+          "body": "23",
+          "bounds": {
+            "dimensions": [
+              1.2,
+              0.8,
+              0.75
+            ],
+            "maximum": [
+              1.2,
+              -1.2,
+              0.75
+            ],
+            "minimum": [
+              0,
+              -2,
+              0
+            ]
+          },
+          "volume": null,
+          "solidStatus": "multiple_records"
+        },
+        {
+          "body": "37",
+          "bounds": {
+            "dimensions": [
+              0.8999999999999999,
+              0.40000000000000013,
+              1.2
+            ],
+            "maximum": [
+              2.9,
+              -1.5999999999999999,
+              1.2
+            ],
+            "minimum": [
+              2,
+              -2,
+              0
+            ]
+          },
+          "volume": null,
+          "solidStatus": "multiple_records"
+        }
+      ],
+      "measurements": {
+        "assemblies": [
+          {
+            "body": "11",
+            "kind": "gable-roof",
+            "volume": 4.553999923660505
+          },
+          {
+            "body": "13",
+            "kind": "straight-stairs",
+            "volume": 4.368
+          },
+          {
+            "body": "23",
+            "kind": "table",
+            "volume": null
+          },
+          {
+            "body": "37",
+            "kind": "cabinet",
+            "volume": null
+          }
+        ],
+        "existingRecordsPreserved": true
+      },
+      "rawEvidenceSha256": "80b4bc11d9bd5763510c7ca9fcd83295be183f7667619529bc3b4038dbce7857",
+      "inputModelSha256": "e39dd5239173b121a40f8f5153a54a22510950b7da6c09dda216d9cb9e08c146",
+      "outputModelSha256": "0255386908ab70c09ee5fba3bcdd2f766a8932234ea9393bdff73ee7c7d1c3a5"
+    },
+    {
+      "trial": "site",
+      "provider": "OpenAI",
+      "model": "gpt-6-astra",
+      "recordedAt": "2026-10-06T09:00:55Z",
+      "elapsedMs": 60837,
+      "previewReviewedAndApplied": true,
+      "savedGeometryVerified": true,
+      "existingRecordsPreserved": true,
+      "privateMeasurementsVerified": true,
+      "stagedMeasurements": [
+        {
+          "body": "38",
+          "bounds": {
+            "dimensions": [
+              11.381830804341007,
+              8.605960043845698,
+              4.582050807568876
+            ],
+            "maximum": [
+              100009.0970231832,
+              200007.12390923628,
+              17.082050807568876
+            ],
+            "minimum": [
+              99997.71519237886,
+              199998.51794919244,
+              12.5
+            ]
+          },
+          "volume": null,
+          "solidStatus": "multiple_records"
+        }
+      ],
+      "measurements": {
+        "localRecordsPreserved": true,
+        "worldOrigin": [
+          100000.125,
+          200000.25,
+          12.5
+        ]
+      },
+      "rawEvidenceSha256": "0ce224384321588f4bf3a71bef807731d4109fa7a861fa57ab08b078916e3ec3",
+      "inputModelSha256": "5bee5dde6b5325e1e15c6d3122fc30b409c6e2bd2d9754bcfbcf8618df43c2ca",
+      "outputModelSha256": "fde297a539283834959cdd88a26513b4996ed2c27436d73b55026a416c679403"
+    }
+  ]
+}
