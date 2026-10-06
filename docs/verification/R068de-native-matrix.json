@@ -1,0 +1,79 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "desktop_inspection_tests",
+    "exitCode": 0,
+    "seconds": 3.269
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.173
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "render_input_tests",
+    "exitCode": 0,
+    "seconds": 4.722
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "history_input_tests",
+    "exitCode": 0,
+    "seconds": 3.064
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "reference_image_input_tests",
+    "exitCode": 0,
+    "seconds": 7.869
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "raster_export_input_tests",
+    "exitCode": 0,
+    "seconds": 4.791
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "solar_input_tests",
+    "exitCode": 0,
+    "seconds": 9.043
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 5.172
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.678
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "section_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.311
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "annotation_viewport_tests",
+    "exitCode": 0,
+    "seconds": 2.988
+  }
+]

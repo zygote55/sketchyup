@@ -1,0 +1,162 @@
+[
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "reference_image_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.111
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "reference_image_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 6.337
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "reference_image_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.911
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "reference_image_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 7.373
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "raster_export_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.384
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "raster_export_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.3
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "raster_export_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.216
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "raster_export_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.435
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "reference_image_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 5.23
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "reference_image_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 8.407
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "reference_image_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 8.079
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "reference_image_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 10.577
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "raster_export_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 2.355
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "raster_export_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 4.244
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "raster_export_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.099
+  },
+  {
+    "implementation": "1c5e7a04e7268bc6bc34b334ab952a4556ce4beb",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "raster_export_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.506
+  }
+]
