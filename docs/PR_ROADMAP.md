@@ -896,7 +896,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R058 — Build geometry diagnostics and explicit repair UI
 
-**Status:** In progress. R058.a ([PR #108](https://github.com/zygote55/sketchyup/pull/108)) adds bounded read-only geometry findings, exact versus lower-bound counts, typed references and safe whole-shell reversal eligibility ([contract](decisions/0053-geometry-diagnostics.md), [kernel evidence](verification/R058a-geometry-diagnostics.md)). R058.b ([PR #109](https://github.com/zygote55/sketchyup/pull/109)) adds the guarded `geometry.diagnose` query to CLI, snapshots, MCP and assistant inspection, with a separate byte bound for deep reference paths ([inspection evidence](verification/R058b-diagnostic-inspection.md)). R058.c adds the shared native report sheet, selectable/framed references and guarded orientation previews with Undo ([native evidence](verification/R058c-native-diagnostics.md)). CI/dependency merges remain pending. **Track:** Desktop. **Scope:** E09, D06. **UX:** §5, §6.4.
+**Status:** In progress. R058.a ([PR #108](https://github.com/zygote55/sketchyup/pull/108)) adds bounded read-only geometry findings, exact versus lower-bound counts, typed references and safe whole-shell reversal eligibility ([contract](decisions/0053-geometry-diagnostics.md), [kernel evidence](verification/R058a-geometry-diagnostics.md)). R058.b ([PR #109](https://github.com/zygote55/sketchyup/pull/109)) adds the guarded `geometry.diagnose` query to CLI, snapshots, MCP and assistant inspection, with a separate byte bound for deep reference paths ([inspection evidence](verification/R058b-diagnostic-inspection.md)). R058.c ([PR #110](https://github.com/zygote55/sketchyup/pull/110)) adds the shared native report sheet, selectable/framed references and guarded orientation previews with Undo ([native evidence](verification/R058c-native-diagnostics.md)). CI/dependency merges remain pending. **Track:** Desktop. **Scope:** E09, D06. **UX:** §5, §6.4.
 
 **Requires:** [R056](#r056), [R057](#r057); milestone gate rule above.
 
@@ -908,7 +908,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R059 — Implement face-aligned and opening-cutting components
 
-**Status:** Planned. **Track:** Geometry. **Scope:** O03, O02. **UX:** —.
+**Status:** In progress. R059.a adds immutable face-aligned component placement with explicit glue frames, anchor containment and independent signed component scale on mirrored/sheared hosts ([contract](decisions/0054-hosted-components.md), [placement evidence](verification/R059a-component-placement.md)). Persistent host records, opening regeneration and user-facing workflows remain pending. **Track:** Geometry. **Scope:** O03, O02. **UX:** —.
 
 **Requires:** [R056](#r056), [R033](#r033), [R047](#r047); milestone gate rule above.
 
