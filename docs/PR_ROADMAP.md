@@ -1042,7 +1042,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R070 — Implement full render job management
 
-**Status:** Planned. **Track:** Rendering. **Scope:** P08. **UX:** §9.
+**Status:** In progress. R070.a–b adds a bounded durable render store, two-worker queue, immutable retries, explicit cleanup and application/worker termination recovery ([135-suite, sanitizer, native and installed acceptance](verification/R070ab-durable-render-queue.md)). Native Jobs controls follow. **Track:** Rendering. **Scope:** P08. **UX:** §9.
 
 **Requires:** [R069](#r069), [R050](#r050); milestone gate rule above.
 
