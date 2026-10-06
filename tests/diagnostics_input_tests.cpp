@@ -15,6 +15,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTreeWidget>
+#include <QWindow>
 #include <iostream>
 using namespace sketchy;
 namespace {
@@ -56,7 +57,13 @@ QDialog *open(Window &window, Id body) {
     auto *report = window.findChild<QDialog *>("geometryDiagnosticsReport");
     check(report && report->isVisible(), "Native report visible");
     report->activateWindow();
-    check(QTest::qWaitForWindowActive(report, 5000), "Diagnostic report receives native focus");
+    check(QTest::qWaitFor(
+              [&] {
+                  return QApplication::activeWindow() == report &&
+                         QGuiApplication::focusWindow() == report->windowHandle();
+              },
+              5000),
+          "Diagnostic report receives its own native focus");
     return report;
 }
 void choose(QDialog *report, const char *code) {
@@ -84,13 +91,23 @@ void invert(Document &doc, Id body, Id context = 0) {
 }
 void focus(Window &window) {
     window.activateWindow();
-    check(QTest::qWaitForWindowActive(&window, 5000), "Model window receives native focus");
+    check(QTest::qWaitFor(
+              [&] {
+                  return QApplication::activeWindow() == &window &&
+                         QGuiApplication::focusWindow() == window.windowHandle();
+              },
+              5000),
+          "Model window receives native focus");
     window.viewport()->setFocus();
     events();
 }
 void close(QDialog *report) {
+    QPointer<QWindow> native = report->windowHandle();
     report->close();
     events();
+    check(QTest::qWaitFor([&] { return native.isNull(); }, 2000),
+          "Closing diagnostics destroys its native window");
+    QGuiApplication::sync();
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -361,6 +378,22 @@ int main(int argc, char **argv) {
         view.refresh();
         report = open(window, body);
         choose(report, "inverted_shells");
+        // Delay actual deletion independently of visibility. Repair must wait
+        // for the native report lifetime, not assume a 20 ms timer is enough.
+        report->setAttribute(Qt::WA_DeleteOnClose, false);
+        button(report, "diagnosticsRepair")->click();
+        QTest::qWait(150);
+        check(!view.previewValid() && view.findChild<QObject *>("diagnosticRepairHandoff"),
+              "Hidden but retained report cannot hand off an orientation preview");
+        delete report;
+        check(QTest::qWaitFor([&] { return !view.findChild<QObject *>("diagnosticRepairHandoff"); },
+                              6000) &&
+                  view.previewValid(),
+              "Actual report destruction completes guarded handoff");
+        QTest::keyClick(&view, Qt::Key_Escape);
+        events();
+        report = open(window, body);
+        choose(report, "inverted_shells");
         button(report, "diagnosticsRepair")->click();
         doc.move(body, {.25, 0, 0});
         const auto duringHandoff = encodeContainer(doc);
@@ -379,10 +412,13 @@ int main(int argc, char **argv) {
         events();
         std::cout << "Native diagnostic findings, selection/frame, explicit repairs, Undo and "
                      "staleness passed; DPR "
-                  << view.devicePixelRatioF() << '\n';
+                  << view.devicePixelRatioF() << std::endl;
         doc = Document{};
         view.refresh();
+        QGuiApplication::sync();
         window.close();
+        events();
+        QGuiApplication::sync();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         std::cerr << "tool=" << int(window.viewport()->tool())
