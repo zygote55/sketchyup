@@ -1,5 +1,6 @@
 #include "io/scenes_io.hpp"
 #include "io/model_style_io.hpp"
+#include "io/sections_io.hpp"
 #include <QStringList>
 namespace sketchy {
 namespace {
@@ -114,11 +115,14 @@ QJsonObject encodeSceneSnapshot(const SceneSnapshot &snapshot) {
             const auto &p = *snapshot.section->plane;
             plane = QJsonArray{p[0], p[1], p[2], p[3]};
         }
-        result["section"] = QJsonObject{{"plane", plane}};
+        QJsonObject section{{"plane", plane}};
+        if (!snapshot.section->active.empty())
+            section["active"] = encodeActiveSections(snapshot.section->active);
+        result["section"] = section;
     }
     return result;
 }
-SceneSnapshot decodeSceneSnapshot(const QJsonValue &value) {
+SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections) {
     if (!value.isObject())
         throw std::runtime_error("Scene snapshot requires an object");
     const auto fields = value.toObject();
@@ -162,8 +166,12 @@ SceneSnapshot decodeSceneSnapshot(const QJsonValue &value) {
     if (fields.contains("style"))
         result.style = decodeModelStyle(fields["style"]);
     if (fields.contains("section")) {
-        const auto section = object(fields["section"], {"plane"});
+        const bool active = namedSections && fields["section"].toObject().contains("active");
+        const auto section = object(fields["section"], active ? QStringList{"plane", "active"}
+                                                              : QStringList{"plane"});
         SceneSection s;
+        if (active)
+            s.active = decodeActiveSections(section["active"]);
         if (!section["plane"].isNull()) {
             const auto p = array(section["plane"], 4);
             if (p.size() != 4)
@@ -184,7 +192,7 @@ QJsonArray encodeScenes(const SceneRecords &scenes) {
                                   {"snapshot", encodeSceneSnapshot(scene->snapshot)}});
     return result;
 }
-SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId) {
+SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId, bool namedSections) {
     SceneRecords result;
     size_t bytes = 0;
     for (const auto &entry : array(value, sceneCountLimit)) {
@@ -196,7 +204,7 @@ SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId) {
             throw std::runtime_error("Invalid scene order position");
         auto scene = std::make_shared<SceneRecord>(SceneRecord{
             id(record["id"]), record["name"].toString().toStdString(),
-            static_cast<std::uint32_t>(position), decodeSceneSnapshot(record["snapshot"])});
+            static_cast<std::uint32_t>(position), decodeSceneSnapshot(record["snapshot"], namedSections)});
         bytes += sceneBytes(scene);
         if (bytes > sceneBytesLimit)
             throw std::runtime_error("Scenes exceed eight MiB record budget");
@@ -207,13 +215,15 @@ SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId) {
     return result;
 }
 QJsonObject encodeMissingSceneReferences(const MissingSceneReferences &missing) {
-    QJsonArray bodies, tags, entities;
+    QJsonArray bodies, tags, entities, sections;
+    for (auto id : missing.sections)
+        sections.append(QString::number(id));
     for (auto id : missing.bodies)
         bodies.append(QString::number(id));
     for (auto id : missing.tags)
         tags.append(QString::number(id));
     for (const auto &entity : missing.entities)
         entities.append(encodeEntity(entity));
-    return {{"bodies", bodies}, {"tags", tags}, {"entities", entities}};
+    return {{"bodies", bodies}, {"tags", tags}, {"entities", entities}, {"sections", sections}};
 }
 } // namespace sketchy

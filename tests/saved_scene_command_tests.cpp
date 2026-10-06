@@ -4,6 +4,7 @@
 #include "automation/staging.hpp"
 #include "core/components.hpp"
 #include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "core/selection.hpp"
 #include "core/tags.hpp"
 #include "io/document_io.hpp"
@@ -228,6 +229,30 @@ int main(int argc, char **argv) {
                   editor.showingHidden() && encodeContainer(hiddenDocument) == beforeEditor,
               "Temporary recall preserves uncaptured hiding and locks, skips missing refs and "
               "leaves model bytes");
+        Document sectionDocument;
+        const auto plane = createSection(sectionDocument, "Root cut", 0, {});
+        SceneSnapshot withSection;
+        withSection.section = SceneSection{std::nullopt, {{0, plane}}};
+        executeBatch(sectionDocument, batch(sectionDocument, {
+            QJsonObject{{"command", "saved_scene.create"}, {"name", "Section snapshot"},
+                        {"snapshot", encodeSceneSnapshot(withSection)}}}));
+        const auto sceneId = sectionDocument.scenes().begin()->first;
+        const auto description = inspectDocument(sectionDocument,
+            query(sectionDocument, "saved_scene.describe", {{"scene", QString::number(sceneId)}}))
+            ["data"].toObject();
+        check(description["snapshot"].toObject()["section"].toObject()["active"].toArray().size() == 1,
+              "Shared inspection exposes captured named section identities");
+        executeBatch(sectionDocument, batch(sectionDocument, {command("saved_scene.recall", sceneId)}));
+        check(sectionDocument.activeSections() == ActiveSections{{0, plane}},
+              "Shared scene recall restores persisted section activation");
+        sectionDocument.undo();
+        check(sectionDocument.activeSections().empty(), "Shared section recall is undoable");
+        eraseSection(sectionDocument, plane);
+        const auto missingSection = inspectDocument(sectionDocument,
+            query(sectionDocument, "saved_scene.describe", {{"scene", QString::number(sceneId)}}))
+            ["data"].toObject();
+        check(missingSection["missingReferences"].toObject()["sections"] == 1,
+              "Shared scene inspection diagnoses deleted sections");
         std::cout << "Saved scene authoring, bounded queries, staging, recall, Undo, scope and "
                      "atomic rejection passed\n";
     } catch (const std::exception &error) {

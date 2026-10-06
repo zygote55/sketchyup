@@ -43,6 +43,12 @@ void SceneVisibility::validate() const {
     }
 }
 void SceneSection::validate() const {
+    if (active.size() > sectionRecordLimit)
+        throw std::runtime_error("Scene section activation exceeds its reference budget");
+    std::set<Id> ids;
+    for (const auto &[context, id] : active)
+        if (!id || !ids.insert(id).second)
+            throw std::runtime_error("Scene section activation requires unique nonzero plane IDs");
     if (!plane)
         return;
     for (const auto value : *plane)
@@ -70,6 +76,7 @@ size_t sceneBytes(const ScenePtr &scene) {
         return 0;
     const auto &visibility = scene->snapshot.visibility;
     return sizeof(SceneRecord) + scene->name.size() + 64 +
+           (scene->snapshot.section ? scene->snapshot.section->active.size() * 64 : 0) +
            (visibility ? (visibility->bodyVisible.size() + visibility->tagVisible.size()) * 64 +
                              visibility->hiddenEntities.size() * 80
                        : 0);
@@ -98,6 +105,11 @@ void validateSceneRecords(const SceneRecords &scenes, Id next) {
 }
 MissingSceneReferences missingSceneReferences(const Document &doc, const SceneSnapshot &snapshot) {
     MissingSceneReferences missing;
+    if (snapshot.section)
+        for (const auto &[context, id] : snapshot.section->active)
+            if (!doc.sections().contains(id) || doc.sections().at(id)->context != context ||
+                (context && !doc.bodies().contains(context)))
+                missing.sections.insert(id);
     if (!snapshot.visibility)
         return missing;
     const auto &visibility = *snapshot.visibility;
@@ -137,6 +149,8 @@ void validateSceneCapture(const Document &doc, const SceneSnapshot &snapshot) {
     snapshot.validate();
     if (!missingSceneReferences(doc, snapshot).empty())
         throw std::runtime_error(
-            "New scene snapshots require existing body, tag and geometry references");
+            "New scene snapshots require existing body, tag, geometry and section references");
+    if (snapshot.section)
+        validateSectionDepth(doc, &snapshot.section->active);
 }
 } // namespace sketchy

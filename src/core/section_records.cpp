@@ -46,13 +46,14 @@ std::vector<Id> ancestors(const Document &doc, Id body) {
     return path;
 }
 } // namespace
-void validateSectionDepth(const Document &doc) {
-    if (doc.activeSections().size() <= sectionPlaneLimit)
+void validateSectionDepth(const Document &doc, const ActiveSections *overrideActive) {
+    const auto &active = overrideActive ? *overrideActive : doc.activeSections();
+    if (active.size() <= sectionPlaneLimit)
         return;
     for (const auto &[body, record] : doc.bodies()) {
         size_t count{};
         for (Id context : ancestors(doc, body))
-            count += doc.activeSections().contains(context);
+            count += active.contains(context);
         if (count > sectionPlaneLimit)
             throw std::runtime_error("A context path may have at most eight active sections");
     }

@@ -77,6 +77,12 @@ QJsonObject savedSceneSnapshotSchema(const QJsonObject &styleSchema) {
                                     {"tags", list(visible, 0, 1024)},
                                     {"hidden", hidden},
                                     {"showHidden", flag}});
+    auto section = object({{"plane", QJsonObject{{"oneOf", QJsonArray{QJsonObject{{"type", "null"}},
+                                             list(number(-1e9, 1e9), 4, 4)}}}},
+                           {"active", list(object({{"context", QJsonObject{{"type", "string"},
+                               {"pattern", "^(0|[1-9][0-9]*)$"}, {"maxLength", 20}}},
+                               {"section", identity}}), 0, sectionRecordLimit)}});
+    section["required"] = QJsonArray{"plane"};
     auto result = object(
         {{"camera", object({{"target", list(number(-1e9, 1e9), 3, 3)},
                             {"yaw", number(-180, 180)},
@@ -86,9 +92,7 @@ QJsonObject savedSceneSnapshotSchema(const QJsonObject &styleSchema) {
                             {"orthographic", flag}})},
          {"visibility", visibility},
          {"style", styleSchema},
-         {"section",
-          object({{"plane", QJsonObject{{"oneOf", QJsonArray{QJsonObject{{"type", "null"}},
-                                                             list(number(-1e9, 1e9), 4, 4)}}}}})}});
+         {"section", section}});
     result["required"] = QJsonArray{};
     result["minProperties"] = 1;
     return result;
@@ -114,7 +118,8 @@ QJsonObject savedSceneSummary(const Document &doc, Id id) {
             {"properties", properties},
             {"missingReferences", QJsonObject{{"bodies", int(missing.bodies.size())},
                                               {"tags", int(missing.tags.size())},
-                                              {"entities", int(missing.entities.size())}}}};
+                                              {"entities", int(missing.entities.size())},
+                                              {"sections", int(missing.sections.size())}}}};
 }
 QJsonObject savedSceneDescription(const Document &doc, Id id) {
     auto result = savedSceneSummary(doc, id);
@@ -130,10 +135,10 @@ QJsonObject savedSceneDescription(const Document &doc, Id id) {
                                            {"hidden", int(visibility->hiddenEntities.size())},
                                            {"showHidden", visibility->showHidden}};
     result["recall"] = QJsonObject{
-        {"model", "saved_scene.recall applies opted-in style and intrinsic visibility as one "
+        {"model", "saved_scene.recall applies opted-in style, intrinsic visibility and named section activation as one "
                   "undoable batch"},
         {"editor",
-         "Camera, editor-hidden entities, show-hidden and section are navigation state; native "
+         "Camera, editor-hidden entities, show-hidden and free clipping are navigation state; native "
          "recall applies these separately without adding navigation to model history"}};
     return result;
 }

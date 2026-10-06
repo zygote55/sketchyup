@@ -21,7 +21,7 @@ size_t sectionBytes(const SectionPtr &section);
 void validateSectionRecords(const SectionRecords &records, Id next, const ActiveSections &active);
 class Document;
 void validateSectionContext(const Document &doc, const SectionRecord &section);
-void validateSectionDepth(const Document &doc);
+void validateSectionDepth(const Document &doc, const ActiveSections *overrideActive = nullptr);
 std::set<Id> missingSectionContexts(const Document &doc);
 std::vector<SectionCut> effectiveSectionCuts(const Document &doc, Id body,
                                              const ActiveSections *overrideActive = nullptr);

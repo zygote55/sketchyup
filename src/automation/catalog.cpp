@@ -168,7 +168,7 @@ QJsonArray commandCatalog() {
              {{"order", list(stableId(), 0, 256)}}, {"order"}),
         spec("saved_scene.delete", "Delete a saved scene", "Saved scenes",
              {{"scene", stableId()}}, {"scene"}),
-        spec("saved_scene.recall", "Recall saved model style and intrinsic visibility", "Saved scenes",
+        spec("saved_scene.recall", "Recall saved model style, visibility and named sections", "Saved scenes",
              {{"scene", stableId()}}, {"scene"}),
         spec("document.style", "Change model style", "Document",
              {{"style", modelStyleSchema()}}, {"style"}),

@@ -1,5 +1,6 @@
 #pragma once
 #include "core/model_style.hpp"
+#include "core/section_records.hpp"
 #include "core/transform.hpp"
 #include <compare>
 #include <map>
@@ -35,6 +36,7 @@ struct SceneSection {
     // An absent plane captures clipping OFF. An absent SceneSnapshot::section
     // means that the scene does not control section state at all.
     std::optional<std::array<double, 4>> plane;
+    ActiveSections active; // Complete named activation snapshot; empty turns named cuts off.
     bool operator==(const SceneSection &) const = default;
     void validate() const;
 };
@@ -60,10 +62,10 @@ size_t sceneBytes(const ScenePtr &scene);
 void validateSceneRecords(const SceneRecords &scenes, Id next);
 class Document;
 struct MissingSceneReferences {
-    std::set<Id> bodies, tags;
+    std::set<Id> bodies, tags, sections;
     std::set<SceneEntity> entities;
-    bool empty() const { return bodies.empty() && tags.empty() && entities.empty(); }
-    size_t size() const { return bodies.size() + tags.size() + entities.size(); }
+    bool empty() const { return bodies.empty() && tags.empty() && entities.empty() && sections.empty(); }
+    size_t size() const { return bodies.size() + tags.size() + entities.size() + sections.size(); }
 };
 MissingSceneReferences missingSceneReferences(const Document &doc, const SceneSnapshot &snapshot);
 // Creation/update require current references; later model edits may leave diagnosed

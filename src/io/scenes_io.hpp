@@ -4,8 +4,8 @@
 #include <QJsonObject>
 namespace sketchy {
 QJsonObject encodeSceneSnapshot(const SceneSnapshot &snapshot);
-SceneSnapshot decodeSceneSnapshot(const QJsonValue &value);
+SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections = true);
 QJsonArray encodeScenes(const SceneRecords &scenes);
-SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId);
+SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId, bool namedSections = true);
 QJsonObject encodeMissingSceneReferences(const MissingSceneReferences &missing);
 } // namespace sketchy
