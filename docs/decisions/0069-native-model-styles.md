@@ -38,6 +38,14 @@ black/white borders around its colored edge overlay for contrast against arbitra
 model colors. Benchmark/smoke JSON records the complete model style and visible
 profile-edge count; synthetic triangle throughput still identifies itself as such.
 
+`document.style` accepts one complete, strictly validated style record using the
+same field names and units as persistence. Both legacy and bounded
+`document.describe` expose the full record. Style/geometry batches commit as one
+edit; staged previews report a style change without modifying the live document.
+Shared component scopes cannot change document style. The native panel uses this
+shared command path. The [packaged example](../../examples/model-style.json)
+creates a simple solid with a saved style.
+
 View → Model styles opens a Styles tab in the model panel. Mode and visibility
 controls publish individual atomic edits. Colors and details opens a native modal
 draft for mode, five colors, ground height, profile width and X-ray opacity. Colors

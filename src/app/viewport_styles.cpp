@@ -1,7 +1,18 @@
 #include "app/viewport.hpp"
 #include "core/appearance.hpp"
+#include "io/model_style_io.hpp"
 #include <algorithm>
 namespace sketchy {
+void Viewport::applyModelStyle(const ModelStyle &style) {
+    style.validate();
+    if (style == doc_.style())
+        return;
+    cancel();
+    commitCommands({QJsonObject{{"command", "document.style"}, {"style", encodeModelStyle(style)}}},
+                   false);
+    refresh();
+    emit changed();
+}
 void Viewport::syncModelStyle() {
     const auto &style = doc_.style();
     if (displayedStyle_ && *displayedStyle_ == style)

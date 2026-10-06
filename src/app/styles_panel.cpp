@@ -102,14 +102,9 @@ void StylesPanel::change(const std::function<void(ModelStyle &)> &operation) {
     try {
         auto style = doc_.style();
         operation(style);
-        const auto revision = doc_.revision();
-        doc_.setStyle(style);
+        view_.applyModelStyle(style);
         error_->clear();
         refresh();
-        if (doc_.revision() != revision) {
-            view_.refresh();
-            emit view_.changed();
-        }
     } catch (const std::exception &error) {
         error_->setText(error.what());
         refresh();
@@ -191,12 +186,9 @@ void StylesPanel::customize() {
             if (!opacity->isModified())
                 candidate.xrayOpacity = original.xrayOpacity;
             candidate.validate();
-            doc_.setStyle(candidate);
+            view_.applyModelStyle(candidate);
             dialog.accept();
             refresh();
-            view_.refresh();
-            if (doc_.revision() != revision)
-                emit view_.changed();
         } catch (const std::exception &exception) {
             error->setText(exception.what());
         }

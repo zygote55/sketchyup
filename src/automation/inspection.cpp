@@ -1,5 +1,6 @@
 #include "automation/texture_commands.hpp"
 #include "automation/inspection.hpp"
+#include "io/model_style_io.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
@@ -478,6 +479,7 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
     switch (spec->operation) {
     case Operation::Document:
         data = {{"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
+                {"style", encodeModelStyle(doc.style())},
                 {"dirty", doc.dirty()},
                 {"counts", QJsonObject{{"bodies", int(doc.bodies().size())},
                                        {"definitions", int(doc.definitions().size())},

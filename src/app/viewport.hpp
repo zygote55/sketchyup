@@ -176,6 +176,7 @@ class Viewport : public QOpenGLWidget {
     void cancel();
     bool measurements(const QString &value);
     void setTheme(const ThemeColors &colors);
+    void applyModelStyle(const ModelStyle &style);
     QPointF project(Vec3 p) const;
     std::pair<Id, Id> pick(QPointF point) const;
     std::pair<Id, Id> pickEdge(QPointF point, double radius = 6) const;

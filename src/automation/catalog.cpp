@@ -3,6 +3,21 @@
 namespace sketchy {
 namespace {
 QJsonObject number() { return {{"type", "number"}}; }
+QJsonObject modelStyleSchema() {
+    const QJsonObject rgb{{"type", "array"}, {"minItems", 3}, {"maxItems", 3},
+                          {"items", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1}}}};
+    const QJsonObject flag{{"type", "boolean"}};
+    const QJsonObject properties{
+        {"mode", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"textured", "shaded", "monochrome", "wireframe", "xray"}}}},
+        {"background", rgb}, {"ground", rgb}, {"front", rgb}, {"back", rgb}, {"edge", rgb},
+        {"groundVisible", flag}, {"gridVisible", flag}, {"axesVisible", flag}, {"edgesVisible", flag}, {"profiles", flag},
+        {"groundHeight", QJsonObject{{"type", "number"}, {"minimum", -1e6}, {"maximum", 1e6}}},
+        {"profileWidth", QJsonObject{{"type", "number"}, {"minimum", 1}, {"maximum", 8}}},
+        {"xrayOpacity", QJsonObject{{"type", "number"}, {"minimum", .01}, {"maximum", .95}}}};
+    QJsonArray required;
+    for (const auto &name : properties.keys()) required.append(name);
+    return {{"type", "object"}, {"properties", properties}, {"required", required}, {"additionalProperties", false}};
+}
 QJsonObject stableId(bool zero = false) {
     return {{"type", "string"},
             {"pattern", zero ? "^(0|[1-9][0-9]*)$" : "^[1-9][0-9]*$"},
@@ -119,6 +134,8 @@ QJsonArray commandCatalog() {
               {"tolerance", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1},
                   {"description", "Explicit absolute tolerance in m, m2 or m3; bounds compare each axis"}}}},
              {"body", "space", "metric", "expected", "tolerance"}),
+        spec("document.style", "Change model style", "Document",
+             {{"style", modelStyleSchema()}}, {"style"}),
         spec("document.units", "Change document units", "Document",
              {{"units", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"m", "mm", "ft-in"}}}}},
              {"units"}),
