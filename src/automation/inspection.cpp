@@ -2,6 +2,7 @@
 #include "automation/inspection.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
+#include "automation/annotation_commands.hpp"
 #include "io/model_style_io.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
@@ -45,6 +46,8 @@ QJsonObject refSchema() {
 }
 enum class Operation {
     Document,
+    Annotations,
+    Annotation,
     Sections,
     Section,
     EffectiveSections,
@@ -96,6 +99,9 @@ const std::vector<Spec> &registry() {
         };
         return std::vector<Spec>{
             spec("document.describe", Operation::Document, {}, {}),
+            spec("annotations.query", Operation::Annotations,
+                 {{"kind", choices({"distance", "label"})}}, {}, true),
+            spec("annotation.describe", Operation::Annotation, {{"annotation", idSchema()}}, {"annotation"}),
             spec("sections.query", Operation::Sections, {{"context", idSchema(true)}}, {}, true),
             spec("section.describe", Operation::Section, {{"section", idSchema()}}, {"section"}),
             spec("sections.effective", Operation::EffectiveSections, {{"body", idSchema(true)}}, {"body"}, true),
@@ -503,6 +509,7 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                                        {"assets", int(doc.assets().size())},
                                        {"savedScenes", int(doc.scenes().size())},
                                        {"sectionPlanes", int(doc.sections().size())},
+                                       {"annotations", int(doc.annotations().size())},
                                        {"activeSectionContexts", int(doc.activeSections().size())}}},
                 {"editorStateAvailable", editor != nullptr}};
         if (editor)
@@ -510,6 +517,23 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                                         ? QJsonValue(inspectionReference(doc, editor->context()))
                                         : QJsonValue();
         break;
+    case Operation::Annotations: {
+        const auto kind = request["kind"].toString();
+        for (const auto &[id, record] : doc.annotations()) {
+            if (!kind.isEmpty() && (record->kind == AnnotationKind::Distance ? "distance" : "label") != kind)
+                continue;
+            page.append([&] { return annotationDescription(doc, id); });
+        }
+        data = page.finish();
+        break;
+    }
+    case Operation::Annotation: {
+        const auto id = decimal(request["annotation"]);
+        if (!doc.annotations().contains(id))
+            fail("NOT_FOUND", "Annotation does not exist");
+        data = annotationDescription(doc, id);
+        break;
+    }
     case Operation::Sections: {
         const auto context = request.contains("context") ? std::optional<Id>(decimal(request["context"], true)) : std::nullopt;
         for (const auto &[id, record] : doc.sections()) {
