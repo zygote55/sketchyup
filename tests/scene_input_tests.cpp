@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
         sync(window);
         auto *tabs = view->findChild<QTabBar *>("viewportSceneTabs");
         check(tabs && !tabs->isVisible(), "Empty scene tabs stay hidden");
-        const auto initial = view->captureSceneSnapshot(true, true, true, true);
+        const auto initial = view->captureSceneSnapshot(true, true, true, true, true);
         const auto initialRevision = doc.revision();
         modal(window, "sceneNewButton", [&](QDialog *dialog) {
             type(dialog, "Overview");
@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
         modal(window, "sceneNewButton", [&](QDialog *dialog) {
             type(dialog, "Top camera");
             for (const auto *name :
-                 {"savedSceneVisibility", "savedSceneStyle", "savedSceneSection"})
+                 {"savedSceneVisibility", "savedSceneStyle", "savedSceneSection", "savedSceneSolar"})
                 dialog->findChild<QCheckBox *>(name)->setChecked(false);
             accept(dialog);
         });
@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
         const auto beforeRejected = encodeContainer(doc);
         modal(window, "sceneUpdateButton", [&](QDialog *dialog) {
             for (const auto *name : {"savedSceneCamera", "savedSceneVisibility", "savedSceneStyle",
-                                     "savedSceneSection"})
+                                     "savedSceneSection", "savedSceneSolar"})
                 dialog->findChild<QCheckBox *>(name)->setChecked(false);
             accept(dialog);
             check(dialog->isVisible() &&
