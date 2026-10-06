@@ -7,6 +7,7 @@
 #include "core/sections.hpp"
 #include "core/annotations.hpp"
 #include "core/assets.hpp"
+#include "core/reference_images.hpp"
 #include "core/components.hpp"
 #include "core/face_orientation.hpp"
 #include "core/groups.hpp"
@@ -1061,6 +1062,12 @@ int main(int argc, char **argv) {
                                  {"body", "6"},
                                  {"width", 1.4},
                                  {"scope", "instance"}});
+        cases.append(QJsonObject{{"command", "reference_image.create"}, {"name", "Reference"},
+                                  {"asset", "1"}, {"width", 2}, {"height", 1}});
+        cases.append(QJsonObject{{"command", "reference_image.update"}, {"body", "1"}, {"opacity", .5}});
+        cases.append(QJsonObject{{"command", "reference_image.calibrate"}, {"body", "1"},
+                                  {"first", QJsonArray{0,0}}, {"second", QJsonArray{1,0}},
+                                  {"knownLength", 4}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -1078,6 +1085,11 @@ int main(int argc, char **argv) {
                                    {"commands", commands}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("reference_image.")) {
+                const auto asset = createAsset(doc, "Reference", "image/png");
+                if (command["command"] == "reference_image.create") command["asset"] = QString::number(asset);
+                else command["body"] = QString::number(createReferenceImage(doc, {asset, 2, 1, 1}));
+            }
             if (command["command"] == "text.update" || command["command"] == "text.bake") {
                 const auto id = doc.nextId();
                 executeTextCommand(doc, {{"command", "text.create"}, {"name", "Existing text"},
