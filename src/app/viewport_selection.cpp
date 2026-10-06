@@ -772,6 +772,10 @@ void Viewport::selectionRelease(QPointF point) {
     update();
 }
 void Viewport::mouseDoubleClickEvent(QMouseEvent *event) {
+    if (tool_ == Tool::Walk || tool_ == Tool::LookAround) {
+        event->accept();
+        return;
+    }
     if (tool_ == Tool::Extrude && event->button() == Qt::LeftButton) {
         try {
             const auto [body, face] = pick(event->position());
