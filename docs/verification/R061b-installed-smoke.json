@@ -1,0 +1,8 @@
+{
+  "schema": 16,
+  "mappedSides": 2,
+  "nativeExactReopen": true,
+  "managedImageRetainedAfterRelocation": true,
+  "oldReaderExplicitlyRejects": true,
+  "installedContractsMatch": true
+}

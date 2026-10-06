@@ -1,5 +1,6 @@
 #include "core/solid_boolean.hpp"
 #include "core/appearance.hpp"
+#include "core/face_textures.hpp"
 #include "core/selection.hpp"
 #include "geometry/solid_operations.hpp"
 #include <algorithm>
@@ -119,6 +120,11 @@ SolidBooleanResult solidBodies(Document &doc, Id target, Id tool, SolidAction ac
         for (const auto &[face, source] : part.sources) {
             const auto &body = source.operand ? *b : *a;
             const auto color = faceColor(body, source.face);
+            auto mapping = transformTextureMappings(faceTextureMappings(body, source.face),
+                                                    inverse * (source.operand ? toolFrame : frame));
+            if (source.reversed)
+                std::swap(mapping.front, mapping.back);
+            setFaceTextureMappings(*created, face, mapping);
             auto materials = faceMaterials(body, source.face);
             if (source.reversed)
                 std::swap(materials.front, materials.back);

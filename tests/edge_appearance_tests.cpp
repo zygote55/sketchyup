@@ -237,6 +237,7 @@ void componentsAndMalformed() {
     // v12 migration has hard, visible, unsmoothed edges and never invents flags.
     record = original;
     record.remove("edgeAppearances");
+            record.remove("faceTextureMappings");
     bodies[0] = record;
     root["bodies"] = bodies;
     root["version"] = 12;

@@ -465,7 +465,7 @@ int main(int argc, char **argv) {
             auto body = records[i].toObject();
             for (const auto &key : {"parent", "transform", "properties", "nextEdgeId", "edges",
                                     "curves", "guides", "kind", "hidden", "locked", "faceColors",
-                                    "tag", "materials", "faceMaterials", "edgeAppearances"})
+                                    "tag", "materials", "faceMaterials", "edgeAppearances", "faceTextureMappings"})
                 body.remove(key);
             records[i] = body;
         }

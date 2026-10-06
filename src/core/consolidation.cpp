@@ -1,6 +1,7 @@
 #include "core/consolidation.hpp"
 #include "core/appearance.hpp"
 #include "core/edge_appearance.hpp"
+#include "core/face_textures.hpp"
 #include "core/selection.hpp"
 #include "core/tags.hpp"
 #include <algorithm>
@@ -90,6 +91,9 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
                     std::reverse(loop.begin(), loop.end());
             }
             merged->surface.faces[copy.id] = copy;
+            setFaceTextureMappings(
+                *merged, copy.id,
+                transformTextureMappings(faceTextureMappings(source, face), frame));
             const auto materials = faceMaterials(source, face);
             if (materials != merged->materials)
                 merged->faceMaterials[copy.id] = materials;
@@ -193,6 +197,7 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
         empty->edgeAppearances.clear();
         empty->faceColors.clear();
         empty->faceMaterials.clear();
+        empty->faceTextureMappings.clear();
         empty->curves.clear();
         empty->guides.clear();
         if (*empty != *source)

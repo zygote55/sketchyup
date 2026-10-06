@@ -16,6 +16,8 @@ std::shared_ptr<Body> extractGeometry(const Body &source, const GeometrySubset &
                   [&](const auto &entry) { return !part.faces.contains(entry.first); });
     std::erase_if(result->faceMaterials,
                   [&](const auto &entry) { return !part.faces.contains(entry.first); });
+    std::erase_if(result->faceTextureMappings,
+                  [&](const auto &entry) { return !part.faces.contains(entry.first); });
     std::erase_if(surface.vertices,
                   [&](const auto &item) { return !part.vertices.contains(item.first); });
     surface.wires.clear();

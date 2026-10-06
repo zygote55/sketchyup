@@ -7,5 +7,6 @@ std::array<float, 3> faceColor(const Body &body, Id face);
 void inheritFaceAppearance(const Body &before, Body &after,
                            const std::map<Id, std::vector<Id>> &descendants,
                            std::optional<std::array<float, 3>> newFaceColor = {},
-                           std::optional<MaterialSides> newFaceMaterials = {});
+                           std::optional<MaterialSides> newFaceMaterials = {},
+                           std::optional<TextureMappingSides> newFaceMappings = {});
 } // namespace sketchy

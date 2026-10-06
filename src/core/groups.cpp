@@ -193,6 +193,9 @@ GroupSelectionResult groupSelected(Document &doc, Selection &selection, std::str
         std::erase_if(remaining->faceMaterials, [&](const auto &entry) {
             return !remaining->surface.faces.contains(entry.first);
         });
+        std::erase_if(remaining->faceTextureMappings, [&](const auto &entry) {
+            return !remaining->surface.faces.contains(entry.first);
+        });
         for (auto guide : part.guides)
             remaining->guides.erase(guide);
         std::set<std::array<Id, 2>> movedEdges;

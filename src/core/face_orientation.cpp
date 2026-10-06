@@ -1,4 +1,5 @@
 #include "core/face_orientation.hpp"
+#include "core/face_textures.hpp"
 #include "core/materials.hpp"
 #include <algorithm>
 namespace sketchy {
@@ -25,6 +26,9 @@ void append(Edit &edit, const BodyPtr &before, FaceOrientationResult result) {
     auto after = std::make_shared<Body>(*before);
     after->surface = std::move(result.surface);
     for (auto face : result.reversed) {
+        auto mapping = faceTextureMappings(*before, face);
+        std::swap(mapping.front, mapping.back);
+        setFaceTextureMappings(*after, face, mapping);
         auto sides = faceMaterials(*before, face);
         std::swap(sides.front, sides.back);
         if (sides == after->materials)

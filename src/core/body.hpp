@@ -1,4 +1,5 @@
 #pragma once
+#include "core/texture_mapping.hpp"
 #include "core/transform.hpp"
 #include "geometry/cleanup.hpp"
 #include "geometry/curves.hpp"
@@ -7,6 +8,7 @@
 #include "geometry/push_pull.hpp"
 #include "geometry/topology.hpp"
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 namespace sketchy {
@@ -14,6 +16,10 @@ enum class BodyKind { Geometry, Group };
 struct MaterialSides {
     Id front{}, back{};
     bool operator==(const MaterialSides &) const = default;
+};
+struct TextureMappingSides {
+    std::optional<TextureMapping> front, back;
+    bool operator==(const TextureMappingSides &) const = default;
 };
 // Independent display flags; none of them changes incidence or triangulation.
 struct EdgeAppearance {
@@ -30,6 +36,7 @@ struct Body {
     std::map<Id, std::array<float, 3>> faceColors;
     MaterialSides materials;
     std::map<Id, MaterialSides> faceMaterials;
+    std::map<Id, TextureMappingSides> faceTextureMappings;
     std::map<Id, Curve> curves;
     std::map<Id, Guide> guides;
     Transform transform;
