@@ -29,7 +29,7 @@ rotation rotates the environment counterclockwise when viewed from +Z. The HDR w
 replaces the constant ambient world and studio area lights. An enabled native sun
 remains an additional directional light (`solar-hdri-v1`); otherwise `hdri-v1` applies.
 The desktop verifies the complete environment/lighting/loss report before publishing
-pixels. Output retains the existing transparent film and Standard view transform.
+pixels. Output retains the existing opaque film and Standard view transform.
 
 Actual Cycles checks verify a rotated red/blue lighting panorama, reduced/zero
 strength and rendering after source removal. Native capture/export tests exercise
