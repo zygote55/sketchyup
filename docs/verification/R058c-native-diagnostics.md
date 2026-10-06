@@ -123,3 +123,22 @@ keyboard enter/leave events in the final trace retain live surface arguments, an
 the fixture verifies both canceled shutdown after an edit and normal automatic exit.
 Existing M4 save/recovery/canceled-close and Formline import workflows also pass on
 Wayland DPR 2. No sanitizer suppression is used. Fresh CI remains required before merging.
+
+A fresh CI run (`37421763726`) also exposed an older transform fixture's rounded
+pointer coordinates at Wayland DPR 2: its intended 2 m baseline produced a
+7.9924700502900459 m result while the assertion expected exactly 8 m. The fixture
+now delivers fractional logical-pixel press/release events, matching its existing
+motion-event path. This retains the exact geometry assertion and exercises the
+same widget handlers without integer-pixel quantization. All four X11/Wayland,
+DPR 1/2 transform variants pass after the fixture correction. Production transform
+behavior is unchanged.
+
+Two additional old-head CI runs (`37421852679`, `37421855101`) reached the
+assistant fixture's keyboard-Apply focus check before failing. That fixture was
+opening, replacing and accepting its preference/disclosure dialogs before their
+native windows had received focus. It now waits for exposure and actual native
+keyboard focus before those interactions, including returning to the main window
+between Preferences and disclosure. The informational-disclosure replacement case
+and the existing keyboard-Apply assertion remain exercised. All four display
+variants pass, and Wayland DPR 2 passes ASan/UBSan/leak detection; that sanitizer
+protocol trace contains no keyboard-enter events with destroyed (`nil`) surfaces.
