@@ -152,6 +152,7 @@ flat in vec2 faceOpacity;
 uniform int surfacePass;
 uniform int styleTextureColor;
 uniform int wireframe;
+uniform int rasterExport;
 uniform vec4 strokeColor;
 in vec3 worldPosition;
 uniform int clipEnabled;
@@ -208,7 +209,7 @@ void main() {
   float lighting=gl_FrontFacing ? previewShading.x : previewShading.z;
   if(!reference && solarShadowEnabled!=0 && (surfacePass==1 || surfacePass==2 || groundPass!=0))
     lighting=0.3+max(0.0,lighting-0.3)*sunlightVisibility();
-  if(surfacePass!=3) color.rgb=mix(canvas,color.rgb,previewShading.y)*lighting;
+  if(surfacePass!=3) color.rgb=mix(canvas,color.rgb,rasterExport!=0 ? 1.0 : previewShading.y)*lighting;
   if(surfacePass==4 && color.a<0.5) discard;
   if(surfacePass==1 && color.a<1.0) discard;
   if(surfacePass==2 && (color.a<=0.0 || color.a>=1.0)) discard;
@@ -243,7 +244,7 @@ void main() {
 }
 QMatrix4x4 Viewport::matrix() const {
     QMatrix4x4 projection, view;
-    float aspect = float(width()) / std::max(1, height());
+    float aspect = float(renderWidth()) / std::max(1, renderHeight());
     if (ortho_)
         projection.ortho(-distance_ * aspect * .45f, distance_ * aspect * .45f, -distance_ * .45f,
                          distance_ * .45f, .01f, std::max(1000.f, distance_ * 10));
@@ -264,7 +265,7 @@ QPointF Viewport::project(Vec3 p) const {
     if (std::abs(v.w()) < 1e-9)
         return {};
     auto n = v.toVector3DAffine();
-    return {(n.x() + 1) * width() / 2, (1 - n.y()) * height() / 2};
+    return {(n.x() + 1) * renderWidth() / 2, (1 - n.y()) * renderHeight() / 2};
 }
 std::pair<Vec3, Vec3> Viewport::ray(QPointF p) const {
     auto inv = matrix().inverted();
@@ -1084,6 +1085,7 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count) {
                           reinterpret_cast<void *>(11 * sizeof(float)));
     gl_->glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                           reinterpret_cast<void *>(15 * sizeof(float)));
+    shader_->setUniformValue("rasterExport", rasterSize_.isEmpty() ? 0 : 1);
     shader_->setUniformValue("wireframe", doc_.style().mode == ModelStyleMode::Wireframe ? 1 : 0);
     shader_->setUniformValue("frontImage", 0);
     shader_->setUniformValue("backImage", 1);
@@ -1147,12 +1149,12 @@ void Viewport::paintGL() {
         emit message(QString("Viewport unavailable: %1").arg(error.what()));
     }
 }
-void Viewport::paintScene() {
+void Viewport::paintScene(QPaintDevice *device) {
     if (!ready_)
         return;
     syncModelStyle();
     syncSolar();
-    QPainter p(this);
+    QPainter p(device ? device : this);
     p.beginNativePainting();
     QElapsedTimer timer;
     timer.start();
@@ -1167,7 +1169,7 @@ void Viewport::paintScene() {
     shader_->setUniformValue("mvp", transform);
     shader_->setUniformValue("instanced", instances_ > 0 ? 1 : 0);
     shader_->setUniformValue("stipple", 0);
-    shader_->setUniformValue("pixelRatio", float(devicePixelRatioF()));
+    shader_->setUniformValue("pixelRatio", float(renderPixelRatio()));
     shader_->setUniformValue("surfacePass", 0);
     shader_->setUniformValue("solarShadowEnabled", 0);
     shader_->setUniformValue("groundPass", 0);
@@ -1231,18 +1233,23 @@ void Viewport::paintScene() {
             shader_->setUniformValue("stipple", 0);
         }
         drawStyleProfiles(transform);
-        drawSelectionOverlay();
-        drawAssistantPreview();
+        if (rasterSize_.isEmpty()) {
+            drawSelectionOverlay();
+            drawAssistantPreview();
+        }
     }
     shader_->release();
     gl_->glDisable(GL_DEPTH_TEST);
-    if (auto error = gl_->glGetError(); error != GL_NO_ERROR)
+    if (auto error = gl_->glGetError(); error != GL_NO_ERROR) {
         stats_.glError = error;
+        if (!rasterSize_.isEmpty()) throw std::runtime_error("Graphics error while rendering export");
+    }
     ++stats_.frames;
     frameMs_ = timer.nsecsElapsed() / 1e6;
     p.endNativePainting();
     p.setRenderHint(QPainter::Antialiasing);
     paintAnnotations(p);
+    if (!rasterSize_.isEmpty()) return;
     paintGuides(p);
     paintSelection(p);
     paintAssistantPreview(p);

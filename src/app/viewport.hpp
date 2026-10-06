@@ -214,6 +214,8 @@ class Viewport : public QOpenGLWidget {
     double lastFrameMs() const { return frameMs_; }
     bool texturesPending() const { return textureCache_.pending(); }
     QString textureSummary() const;
+    QImage renderRaster(QSize pixels);
+    void exportRaster(const QString &path, QSize pixels);
   signals:
     void materialChanged();
     void selected(qulonglong body, qulonglong face);
@@ -548,7 +550,11 @@ class Viewport : public QOpenGLWidget {
     bool threePointTool() const;
     QString nextPointHint() const;
     void rebuild();
-    void paintScene();
+    QSize rasterSize_;
+    int renderWidth() const { return rasterSize_.isEmpty() ? width() : rasterSize_.width(); }
+    int renderHeight() const { return rasterSize_.isEmpty() ? height() : rasterSize_.height(); }
+    qreal renderPixelRatio() const { return rasterSize_.isEmpty() ? devicePixelRatioF() : 1.; }
+    void paintScene(QPaintDevice *device = nullptr);
     void cleanupGL();
     void upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent = false);
     void draw(GpuBatch &batch, GLenum mode, int instances = 1);

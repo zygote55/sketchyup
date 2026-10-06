@@ -108,13 +108,13 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
             cb = clipPoint(b);
             if (ca.w() <= 0 || cb.w() <= 0)
                 return;
-            const double dx = (cb.x() / cb.w() - ca.x() / ca.w()) * width() / 2;
-            const double dy = (cb.y() / cb.w() - ca.y() / ca.w()) * height() / 2;
+            const double dx = (cb.x() / cb.w() - ca.x() / ca.w()) * renderWidth() / 2;
+            const double dy = (cb.y() / cb.w() - ca.y() / ca.w()) * renderHeight() / 2;
             const double length = std::hypot(dx, dy);
             if (length < 1e-6)
                 return;
-            const float x = float(-dy / length * style.profileWidth / width());
-            const float y = float(dx / length * style.profileWidth / height());
+            const float x = float(-dy / length * style.profileWidth / renderWidth());
+            const float y = float(dx / length * style.profileWidth / renderHeight());
             auto vertex = [&](Vec3 p, float sign) {
                 Vertex v{p.x, p.y, p.z, color[0], color[1], color[2]};
                 v.u = sign * x;
