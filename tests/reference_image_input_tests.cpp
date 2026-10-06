@@ -153,6 +153,9 @@ int main(int argc, char **argv) {
               "Top-left pixel coordinates orient image correctly");
         picks(view, redPoint, id);
         picks(view, hole, 0);
+        if (const auto capture = qEnvironmentVariable("SKETCHYUP_REFERENCE_CAPTURE");
+            !capture.isEmpty())
+            check(view.grabFramebuffer().save(capture + ".png"), "Reference evidence image saved");
         for (auto mode : {ModelStyleMode::Shaded, ModelStyleMode::Monochrome,
                           ModelStyleMode::Wireframe, ModelStyleMode::XRay}) {
             style.mode = mode;
@@ -228,6 +231,23 @@ int main(int argc, char **argv) {
                   "Stale reference editor rejects");
         });
         doc.undo();
+        const auto visibleRecord = doc.bodies().at(id);
+        auto hiddenRecord = std::make_shared<Body>(*visibleRecord);
+        hiddenRecord->hidden = true;
+        doc.apply({"Hide reference", {{id, visibleRecord, hiddenRecord}}}, doc.revision());
+        settled(view);
+        picks(view, redPoint, 0);
+        doc.undo();
+        settled(view);
+        view.setSelection(id);
+        view.setPersistentState(false, true);
+        settled(view);
+        panel->refresh();
+        check(!window.findChild<QPushButton *>("referenceImageEdit")->isEnabled() &&
+                  !view.selectionAt(view.project(redPoint)),
+              "Locked image cannot be edited or GPU selected");
+        doc.undo();
+        settled(view);
         const auto saved = encodeContainer(doc);
         file.remove();
         auto restored = decodeContainer(saved);
@@ -260,6 +280,26 @@ int main(int argc, char **argv) {
                   placeholder.blue() > placeholder.green() + 40,
               "Missing image has visible purple placeholder");
         picks(view, redPoint, id);
+        doc.undo();
+        doc.transform(id, Transform::translation({0, 0, 3}));
+        const auto caster = doc.addFace({{{6, 6, 0}, {7, 6, 0}, {7, 7, 0}, {6, 7, 0}}});
+        doc.extrude(caster, 5, 1);
+        style.groundVisible = true;
+        doc.setStyle(style);
+        view.standardView(1);
+        view.frameBounds({-10, -8, 0}, {10, 10, 4});
+        settled(view);
+        const Vec3 top{1, 3, 3};
+        const auto direction = solarPosition(doc.solar()).direction;
+        const auto probe = top - direction * (top.z / direction.z);
+        const auto withShadows = sample(view, probe);
+        auto noShadows = doc.solar();
+        noShadows.shadows = false;
+        doc.setSolar(noShadows);
+        settled(view);
+        const auto withoutShadows = sample(view, probe);
+        check(std::abs(withShadows.lightness() - withoutShadows.lightness()) < 4,
+              "Reference plane does not cast shadows alongside modeled geometry");
         check(view.renderStats().glError == 0, "Reference drawing leaves no GL errors");
         std::cout << "Reference image native display, picking, import, calibration and persistence "
                      "passed\n";
