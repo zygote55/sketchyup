@@ -1006,7 +1006,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R067 — Implement explicit location, sun and shadow controls
 
-**Status:** Implementation and local acceptance complete; remote CI and ordered dependency merges pending. R067.a ([PR #153](https://github.com/zygote55/sketchyup/pull/153)) provides the deterministic offline solar algorithm and 239 NOAA reference fixtures. R067.b ([PR #154](https://github.com/zygote55/sketchyup/pull/154)) persists studies in schema 23, scenes, history/recovery and render snapshots. R067.c ([PR #155](https://github.com/zygote55/sketchyup/pull/155)) adds shared authoring, bounded inspection and the installed example. R067.d adds native sun controls, scene capture and camera-focused viewport shadows ([contract](decisions/0090-native-sun-and-shadows.md), [acceptance evidence](verification/R067d-native-sun-and-shadows.md)): all 128 suites, 24 native/sanitizer cases, four integration cases and installed/package checks pass. **Track:** Rendering. **Scope:** P06, P02. **UX:** §5, §11.
+**Status:** Implementation and local acceptance complete; remote CI and ordered dependency merges pending. R067.a ([PR #153](https://github.com/zygote55/sketchyup/pull/153)) provides the deterministic offline solar algorithm and 239 NOAA reference fixtures. R067.b ([PR #154](https://github.com/zygote55/sketchyup/pull/154)) persists studies in schema 23, scenes, history/recovery and render snapshots. R067.c ([PR #155](https://github.com/zygote55/sketchyup/pull/155)) adds shared authoring, bounded inspection and the installed example. R067.d ([PR #156](https://github.com/zygote55/sketchyup/pull/156)) adds native sun controls, scene capture and camera-focused viewport shadows ([contract](decisions/0090-native-sun-and-shadows.md), [acceptance evidence](verification/R067d-native-sun-and-shadows.md)): all 128 suites, 24 native/sanitizer cases, four integration cases and installed/package checks pass. **Track:** Rendering. **Scope:** P06, P02. **UX:** §5, §11.
 
 **Requires:** [R062](#r062), [R008](#r008); milestone gate rule above.
 
@@ -1018,7 +1018,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R068 — Import reference images and export raster views
 
-**Status:** Planned. **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** In progress. R068.a–b provides calibrated image dimensions, typed image entities, managed-asset persistence, schema-24 migration, atomic history/recovery and explicit surface-export losses ([contracts](decisions/0092-reference-image-records.md), [130-suite acceptance evidence](verification/R068ab-reference-records.md)). Shared workflows, native display and raster export are the next layers. **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R061](#r061), [R062](#r062); milestone gate rule above.
 
