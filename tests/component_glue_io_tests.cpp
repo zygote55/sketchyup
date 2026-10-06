@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
         check(resolveComponentGlue(*reopened.definitions().at(made.definition)).profile.size() == 4,
               "Reopened glue resolves against authoritative geometry");
         const auto json = QJsonDocument::fromJson(raw).object();
-        check(json["version"] == 17, "Glue schema version is explicit");
+        check(json["version"] == 18, "Glue schema version is explicit");
         auto missing = json;
         auto definitions = missing["definitions"].toArray();
         auto definition = definitions[0].toObject();
@@ -77,6 +77,8 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(missing).toJson()); });
         missing["version"] = 13;
         missing.remove("style");
+        missing.remove("scenes");
+        missing.remove("nextSceneId");
         missing.remove("hosted");
         removeTextureMappingFields(missing);
         auto migrated = decodeDocument(QJsonDocument(missing).toJson());
@@ -111,6 +113,7 @@ int main(int argc, char **argv) {
         }
         const auto oldContainer = rewrite(bytes, [](auto &manifest, auto &document) {
             auto features = manifest["requiredFeatures"].toArray();
+            features.removeAt(features.size() - 1); // saved-scenes-v1
             features.removeAt(features.size() - 1); // model-style-v1
             features.removeAt(features.size() - 1);
             features.removeAt(features.size() - 1);
@@ -126,6 +129,11 @@ int main(int argc, char **argv) {
             removeTextureMappingFields(document);
             document["version"] = 13;
             document.remove("style");
+            document.remove("scenes");
+            document.remove("nextSceneId");
+            auto floors = manifest["allocatorFloors"].toObject();
+            floors.remove("nextSceneId");
+            manifest["allocatorFloors"] = floors;
             document.remove("hosted");
             auto records = document["definitions"].toArray();
             for (qsizetype i = 0; i < records.size(); ++i) {

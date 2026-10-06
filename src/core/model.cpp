@@ -25,6 +25,8 @@ Document Document::readSnapshot() const {
     result.nextMaterialId_ = nextMaterialId_;
     result.assets_ = assets_;
     result.nextAssetId_ = nextAssetId_;
+    result.scenes_ = scenes_;
+    result.nextSceneId_ = nextSceneId_;
     result.definitionFloors_ = definitionFloors_;
     result.surfaceFloors_ = surfaceFloors_;
     result.edgeFloors_ = edgeFloors_;
@@ -186,6 +188,8 @@ size_t Document::readSnapshotBytes() const {
         result += sizeof(MaterialRecord) + material->name.size() + 64;
     for (const auto &[id, asset] : assets_)
         result += assetBytes(asset) + 64;
+    for (const auto &[id, scene] : scenes_)
+        result += sceneBytes(scene) + 64;
     result += (surfaceFloors_.size() + edgeFloors_.size()) * 96;
     for (const auto &[id, floor] : definitionFloors_)
         result += sizeof(DefinitionFloor) + 64 + floor.geometry.size() * 96;
@@ -500,9 +504,17 @@ void Document::update(Edit edit, bool forward) {
     auto next = bodies_;
     auto definitions = definitions_;
     auto instances = instances_;
+    auto scenes = scenes_;
     auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
+    for (const auto &change : edit.scenes) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            scenes[change.id] = target;
+        else
+            scenes.erase(change.id);
+    }
     for (const auto &change : edit.assets) {
         const auto target = forward ? change.after : change.before;
         if (target)
@@ -561,6 +573,7 @@ void Document::update(Edit edit, bool forward) {
     tags_.swap(tags);
     materials_.swap(materials);
     assets_.swap(assets);
+    scenes_.swap(scenes);
     if (edit.hosted)
         hosted_ = forward ? edit.hosted->after : edit.hosted->before;
     if (edit.displayUnits)
@@ -583,7 +596,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.hosted && !edit.style)
+        !edit.hosted && !edit.style && edit.scenes.empty())
         throw std::runtime_error("Empty edit");
     if (edit.style) {
         edit.style->first.validate();
@@ -604,9 +617,28 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     auto hosted = edit.hosted ? freezeHostedComponents(edit.hosted->after) : hosted_;
     if (edit.hosted)
         edit.hosted->after = hosted;
+    auto scenes = scenes_;
     auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
+    Id nextScene = std::max(nextSceneId_, edit.nextSceneFloor);
+    std::set<Id> sceneIds;
+    for (auto &change : edit.scenes) {
+        if (!change.id || change.id == UINT64_MAX || !sceneIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (scenes_.contains(change.id) ? scenes_.at(change.id) : nullptr) != change.before ||
+            (change.before && change.after && *change.before == *change.after))
+            throw std::runtime_error("Invalid or stale scene change");
+        if (!change.before && change.id < nextSceneId_)
+            throw std::runtime_error("Retired scene ID cannot be reused");
+        if (change.after) {
+            change.after = std::make_shared<SceneRecord>(*change.after);
+            scenes[change.id] = change.after;
+            nextScene = std::max(nextScene, change.id + 1);
+        } else
+            scenes.erase(change.id);
+    }
+    validateSceneRecords(scenes, nextScene);
     Id nextAsset = std::max(nextAssetId_, edit.nextAssetFloor);
     std::set<Id> assetIds;
     for (auto &change : edit.assets) {
@@ -888,6 +920,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             (change.after ? sizeof(MaterialRecord) + change.after->name.size() + 64 : 0);
     for (const auto &change : edit.assets)
         edit.bytes += sizeof(AssetChange) + assetBytes(change.before) + assetBytes(change.after);
+    for (const auto &change : edit.scenes)
+        edit.bytes += sizeof(SceneChange) + sceneBytes(change.before) + sceneBytes(change.after);
     if (edit.hosted)
         edit.bytes += sizeof(HostedChange) + hostedComponentBytes(edit.hosted->before) +
                       hostedComponentBytes(edit.hosted->after);
@@ -902,6 +936,17 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     }
     validateDocumentSize(updated);
     validateTagAssignments(tags, updated);
+    if (!edit.scenes.empty()) {
+        // Check newly captured references against the same candidate as the edit.
+        // Renaming/reordering an old scene preserves its diagnosed missing refs.
+        auto capture = readSnapshot();
+        capture.bodies_ = updated;
+        capture.tags_ = tags;
+        for (const auto &change : edit.scenes)
+            if (change.after && (!change.before ||
+                                 change.before->snapshot != change.after->snapshot))
+                validateSceneCapture(capture, change.after->snapshot);
+    }
     validateMaterialAssignments(materials, updated);
     validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
                                  nextMaterial, assets, nextAsset);
@@ -1003,10 +1048,12 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     tags_.swap(tags);
     materials_.swap(materials);
     assets_.swap(assets);
+    scenes_.swap(scenes);
     hosted_ = std::move(hosted);
     nextTagId_ = nextTag;
     nextMaterialId_ = nextMaterial;
     nextAssetId_ = nextAsset;
+    nextSceneId_ = nextScene;
     nextId_ = next;
     surfaceFloors_.swap(floors);
     edgeFloors_.swap(edgeFloors);
@@ -1045,7 +1092,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("The most recent operation can no longer be revised");
     auto contexts = hostedEditingContexts(undo_.back().edit);
     std::set<Id> definitionContexts;
-    std::set<Id> tagContexts, materialContexts, assetContexts;
+    std::set<Id> tagContexts, materialContexts, assetContexts, sceneContexts;
+    size_t createdScenes = 0;
     size_t createdAssets = 0;
     size_t createdMaterials = 0;
     size_t createdContexts = 0;
@@ -1078,6 +1126,11 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!change.before && change.after)
             ++createdAssets;
     }
+    for (const auto &change : undo_.back().edit.scenes) {
+        sceneContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdScenes;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
@@ -1086,6 +1139,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineTags = staged.tags_;
     const auto baselineMaterials = staged.materials_;
     const auto baselineAssets = staged.assets_;
+    const auto baselineScenes = staged.scenes_;
     const auto baselineUnits = staged.displayUnits_;
     const auto baselineStyle = staged.style_;
     const auto baselineHosted = staged.hosted_;
@@ -1133,6 +1187,15 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         newMaterials += !baselineMaterials.contains(id);
     if (newMaterials != createdMaterials)
         throw std::runtime_error("Replacement must preserve material creation count");
+    for (const auto &[id, scene] : baselineScenes)
+        if (!sceneContexts.contains(id) &&
+            (!staged.scenes_.contains(id) || staged.scenes_.at(id) != scene))
+            throw std::runtime_error("Replacement cannot change another scene");
+    size_t newScenes = 0;
+    for (const auto &[id, scene] : staged.scenes_)
+        newScenes += !baselineScenes.contains(id);
+    if (newScenes != createdScenes)
+        throw std::runtime_error("Replacement must preserve scene creation count");
     for (const auto &[id, asset] : baselineAssets)
         if (!assetContexts.contains(id) &&
             (!staged.assets_.contains(id) || staged.assets_.at(id) != asset))
@@ -1252,7 +1315,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        ComponentInstances instances, Id nextDefinitionId, TagRecords tags,
                        Id nextTagId, MaterialRecords materials, Id nextMaterialId,
                        AssetRecords assets, Id nextAssetId, DisplayUnit units, HostedPtr hosted,
-                       ModelStyle style) {
+                       ModelStyle style, SceneRecords scenes, Id nextSceneId) {
     unitCode(units);
     style.validate();
     if (identity.size() != 32 ||
@@ -1279,6 +1342,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     validateTagRecords(tags, nextTagId);
     validateTagAssignments(tags, bodies);
     validateAssetRecords(assets, nextAssetId);
+    validateSceneRecords(scenes, nextSceneId);
     validateMaterialRecords(materials, nextMaterialId);
     validateMaterialAssets(materials, assets);
     validateMaterialAssignments(materials, bodies);
@@ -1303,6 +1367,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         material = std::make_shared<MaterialRecord>(*material);
     for (auto &[id, asset] : assets)
         asset = std::make_shared<AssetRecord>(*asset);
+    for (auto &[id, scene] : scenes)
+        scene = std::make_shared<SceneRecord>(*scene);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -1321,6 +1387,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     nextMaterialId_ = nextMaterialId;
     assets_ = std::move(assets);
     nextAssetId_ = nextAssetId;
+    scenes_ = std::move(scenes);
+    nextSceneId_ = nextSceneId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     undo_.clear();

@@ -73,7 +73,7 @@ void roundtripAndRecovery(bool cutting) {
     validateHostedComponents(reopened.hostedComponents(), reopened.bodies(), reopened.definitions(),
                              reopened.instances());
     const auto json = QJsonDocument::fromJson(raw).object();
-    check(json["version"] == 17, "Hosted document schema version is explicit");
+    check(json["version"] == 18, "Hosted document schema version is explicit");
     for (int variant = 0; variant < 17; ++variant) {
         auto bad = json;
         auto hosted = bad["hosted"].toObject();
@@ -184,6 +184,7 @@ void roundtripAndRecovery(bool cutting) {
     }
     const auto legacy = rewrite(bytes, [](auto &manifest, auto &document) {
         auto features = manifest["requiredFeatures"].toArray();
+        features.removeAt(features.size() - 1); // saved-scenes-v1
         features.removeAt(features.size() - 1); // model-style-v1
         features.removeAt(features.size() - 1);
         manifest["requiredFeatures"] = features;
@@ -198,6 +199,11 @@ void roundtripAndRecovery(bool cutting) {
         removeTextureMappingFields(document);
         document["version"] = 14;
         document.remove("style");
+        document.remove("scenes");
+        document.remove("nextSceneId");
+        auto floors = manifest["allocatorFloors"].toObject();
+        floors.remove("nextSceneId");
+        manifest["allocatorFloors"] = floors;
         document.remove("hosted");
     });
     const auto old = decodeContainer(legacy);

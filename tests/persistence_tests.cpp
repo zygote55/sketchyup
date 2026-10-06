@@ -448,6 +448,8 @@ int main(int argc, char **argv) {
         auto legacy = QJsonDocument::fromJson(encodeDocument(doc)).object();
         legacy["version"] = 1;
         legacy.remove("style");
+        legacy.remove("scenes");
+        legacy.remove("nextSceneId");
         legacy.remove("hosted");
         legacy.remove("displayUnits");
         legacy.remove("revision");

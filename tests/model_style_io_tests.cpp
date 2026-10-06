@@ -70,8 +70,8 @@ int main(int argc, char **argv) {
             doc.setStyle(style);
             const auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
             const auto root = QJsonDocument::fromJson(raw).object();
-            check(root["version"] == 17 && decodeDocument(raw).style() == style,
-                  "Schema 17 preserves all style fields and modes");
+            check(root["version"] == 18 && decodeDocument(raw).style() == style,
+                  "Current schema preserves all style fields and modes");
             auto reopened = decodeContainer(bytes);
             check(reopened.style() == style && encodeContainer(reopened) == bytes &&
                       !reopened.dirty() && !reopened.canUndo() && reopened.worldArea(1, 5) == 6,
@@ -103,6 +103,8 @@ int main(int argc, char **argv) {
             old["version"] = 16;
             rejects([&] { decodeDocument(QJsonDocument(old).toJson()); });
             old.remove("style");
+            old.remove("scenes");
+            old.remove("nextSceneId");
             check(decodeDocument(QJsonDocument(old).toJson()).style() == ModelStyle{},
                   "Legacy schema gets deterministic default style");
             const auto encodedStyle = root["style"].toObject();
@@ -193,11 +195,13 @@ int main(int argc, char **argv) {
             auto original = QJsonDocument::fromJson(
                                 bytes.mid(16 + length, chunk["bytes"].toString().toLongLong()))
                                 .object();
-            original["version"] = 17;
+            original["version"] = 18;
+            original["scenes"] = QJsonArray{};
+            original["nextSceneId"] = "1";
             original["style"] = encodeModelStyle(ModelStyle{});
             check(QJsonDocument::fromJson(encodeDocument(doc, AssetStorage::External)).object() ==
                       original,
-                  "Migration changes only version and style, preserving explicit and implicit "
+                  "Migration adds only version, default style and empty scenes, preserving explicit and implicit "
                   "mappings");
             const auto upgraded = encodeContainer(doc);
             check(encodeContainer(decodeContainer(upgraded)) == upgraded,
