@@ -1,0 +1,21 @@
+{
+  "platform": "wayland",
+  "captures": {
+    "editor": {
+      "path": "images/R062b-native-editor.png",
+      "pixelWidth": 516,
+      "pixelHeight": 854,
+      "devicePixelRatio": 2,
+      "sha256": "d2677d9ab9ab3fd39a9f3cdae8fbe2dd160ff4af8072df1424298604bc39a8cc",
+      "rawUnedited": true
+    },
+    "viewport": {
+      "path": "images/R062b-native-viewport.png",
+      "pixelWidth": 1556,
+      "pixelHeight": 1316,
+      "devicePixelRatio": 2,
+      "sha256": "1ca1f08ae6988ceaf6838237294fd5bf91855f1a3f2701f250fd68b4afd3a1cf",
+      "rawUnedited": true
+    }
+  }
+}

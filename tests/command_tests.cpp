@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "io/model_style_io.hpp"
 #include "core/assets.hpp"
 #include "core/components.hpp"
 #include "core/face_orientation.hpp"
@@ -744,7 +745,10 @@ int main(int argc, char **argv) {
         assetDoc.undo();
         check(assetDoc.assets().empty() && assetDoc.materials().empty(),
               "Combined asset and material creation undoes atomically");
+        auto wireframeStyle = ModelStyle{};
+        wireframeStyle.mode = ModelStyleMode::Wireframe;
         QJsonArray cases{
+            QJsonObject{{"command", "document.style"}, {"style", encodeModelStyle(wireframeStyle)}},
             QJsonObject{{"command", "document.units"}, {"units", "mm"}},
             QJsonObject{{"command", "asset.import"},
                         {"name", "Data"},

@@ -660,6 +660,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         findChild<QAction *>("view.tray")->setChecked(true);
         organization_->showHistory();
     }));
+    view->addAction(action("view.styles", "Model styles", {}, [this] {
+        sideTabs_->show();
+        sideTabs_->setCurrentWidget(tray_);
+        tray_->show();
+        findChild<QAction *>("view.tray")->setChecked(true);
+        organization_->showStyles();
+    }));
     view->addAction(action("view.assistant", "Assistant", QKeySequence("Ctrl+J"),
                            [this] { toggleAssistant(); }));
     auto *panel = action("view.tray", "Model panel", QKeySequence("Ctrl+Shift+T"), [this] {

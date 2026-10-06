@@ -1,6 +1,7 @@
 #include "app/inspection_service.hpp"
 #include "app/native_mcp.hpp"
 #include "app/window.hpp"
+#include "io/model_style_io.hpp"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QJsonDocument>
@@ -144,6 +145,8 @@ int main(int argc, char **argv) {
                                                       : "GPU-complete independent triangles")
                          : "CPU submission only"},
                     {"benchmarkTriangles", parser.value("benchmark").toInt()},
+                    {"modelStyle", sketchy::encodeModelStyle(window.document().style())},
+                    {"profileEdges", double(stats.profileEdges)},
                     {"geometryUploads", double(stats.geometryUploads)},
                     {"uploadedBytes", double(stats.uploadedBytes)},
                     {"frames", double(stats.frames)},

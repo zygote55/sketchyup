@@ -176,6 +176,7 @@ class Viewport : public QOpenGLWidget {
     void cancel();
     bool measurements(const QString &value);
     void setTheme(const ThemeColors &colors);
+    void applyModelStyle(const ModelStyle &style);
     QPointF project(Vec3 p) const;
     std::pair<Id, Id> pick(QPointF point) const;
     std::pair<Id, Id> pickEdge(QPointF point, double radius = 6) const;
@@ -195,7 +196,7 @@ class Viewport : public QOpenGLWidget {
         std::uint64_t bodyMeshBuilds{}, bodyWorldUpdates{}, bodyUploads{};
         size_t cachedBodies{};
         unsigned contextGeneration{}, glError{};
-        size_t meshTriangles{};
+        size_t meshTriangles{}, profileEdges{};
     };
     RenderStats renderStats() const { return stats_; }
     double lastFrameMs() const { return frameMs_; }
@@ -245,7 +246,14 @@ class Viewport : public QOpenGLWidget {
     };
     Document &doc_;
     ToolSession session_;
-    ThemeColors colors_{themeColors(false)};
+    ThemeColors colors_{themeColors(false)}; // Contrast colors derived from document background.
+    std::optional<ModelStyle> displayedStyle_;
+    void syncModelStyle();
+    void drawStyleGround(const QMatrix4x4 &transform);
+    void drawStyleProfiles(const QMatrix4x4 &transform);
+    QMatrix4x4 profileMatrix_;
+    bool profilesDirty_{true};
+    QMatrix4x4 groundMatrix_;
     Tool tool_{Tool::Select};
     struct GpuBatch {
         struct Run {
@@ -273,7 +281,7 @@ class Viewport : public QOpenGLWidget {
     TextureProjection textureProjection(const Body &body, const Triangle &local, bool back) const;
     void textureVertices(const Body &body, const Triangle &local, bool reflected,
                          std::array<Vertex, 3> &vertices) const;
-    GpuBatch gridGpu_, transparentGpu_, benchmarkGpu_;
+    GpuBatch gridGpu_, groundGpu_, profilesGpu_, transparentGpu_, benchmarkGpu_;
     GpuBatch pickFacesGpu_, pickEdgesGpu_, selectedFacesGpu_, selectedEdgesGpu_, hoverFacesGpu_,
         hoverEdgesGpu_;
     std::shared_ptr<const Document::PreparedEdit> assistantPreview_;
@@ -322,6 +330,7 @@ class Viewport : public QOpenGLWidget {
         MaterialRecords materials;
         std::map<Id, std::shared_ptr<const TextureImage>> images;
         Transform world;
+        Adjacency adjacency;
         std::vector<Triangle> localTriangles, worldTriangles;
         struct MeshEdge {
             Vec3 a, b;

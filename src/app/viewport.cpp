@@ -68,7 +68,7 @@ void Viewport::cleanupGL() {
     disconnect(contextCleanup_);
     if (context() && gl_) {
         makeCurrent();
-        for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_,
+        for (auto *batch : {&gridGpu_, &groundGpu_, &profilesGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_,
                             &pickEdgesGpu_, &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_,
                             &hoverEdgesGpu_, &assistantTrianglesGpu_, &assistantLinesGpu_}) {
             batch->buffer.destroy();
@@ -118,6 +118,7 @@ out vec2 previewShading;
 uniform mat4 mvp;
 uniform int instanced;
 uniform vec2 pixelOffset;
+uniform int screenStroke;
 out vec4 tint;
 out vec4 backTint;
 flat out vec2 faceOpacity;
@@ -126,7 +127,9 @@ void main() {
   uv=coordinates;previewShading=shading;
   vec3 p=position;
   if(instanced!=0) p+=vec3(float(gl_InstanceID%1000)*1.2,float(gl_InstanceID/1000)*1.2,0);
-  gl_Position=mvp*vec4(p,1.0);gl_Position.xy+=pixelOffset*gl_Position.w;tint=color;backTint=backColor;faceOpacity=vec2(color.a,backColor.a);worldPosition=p;
+  gl_Position=mvp*vec4(p,1.0);
+  if(screenStroke!=0) gl_Position.xy+=coordinates.xy*gl_Position.w;
+  gl_Position.xy+=pixelOffset*gl_Position.w;tint=color;backTint=backColor;faceOpacity=vec2(color.a,backColor.a);worldPosition=p;
 })";
     const char *fragment = R"(#version 330 core
 in vec4 tint;
@@ -139,6 +142,8 @@ uniform vec2 textured;
 uniform vec3 canvas;
 flat in vec2 faceOpacity;
 uniform int surfacePass;
+uniform int styleTextureColor;
+uniform vec4 strokeColor;
 in vec3 worldPosition;
 uniform int clipEnabled;
 uniform vec4 clipPlane;
@@ -174,8 +179,9 @@ void main() {
   if(hasImage && surfacePass!=0) {
     vec4 imageColor=gl_FrontFacing ? sampleImage(frontImage,uv.xy) : sampleImage(backImage,uv.zw);
     color.a*=imageColor.a;
-    if(surfacePass!=3) color.rgb=toSrgb(toLinear(color.rgb)*imageColor.rgb);
+    if(surfacePass!=3 && styleTextureColor!=0) color.rgb=toSrgb(toLinear(color.rgb)*imageColor.rgb);
   }
+  if(surfacePass==0 && strokeColor.a>0.0) color.rgb=strokeColor.rgb;
   if(surfacePass!=3) color.rgb=mix(canvas,color.rgb,previewShading.y)*previewShading.x;
   if(surfacePass==1 && color.a<1.0) discard;
   if(surfacePass==2 && (color.a<=0.0 || color.a>=1.0)) discard;
@@ -192,7 +198,7 @@ void main() {
         emit message("Could not create the viewport vertex array");
         return;
     }
-    for (auto *batch : {&gridGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_, &pickEdgesGpu_,
+    for (auto *batch : {&gridGpu_, &groundGpu_, &profilesGpu_, &transparentGpu_, &benchmarkGpu_, &pickFacesGpu_, &pickEdgesGpu_,
                         &selectedFacesGpu_, &selectedEdgesGpu_, &hoverFacesGpu_, &hoverEdgesGpu_,
                         &assistantTrianglesGpu_, &assistantLinesGpu_}) {
         if (!batch->buffer.create()) {
@@ -649,7 +655,7 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
 }
 void Viewport::rebuild() {
     syncSelection();
-    pickDirty_ = overlayDirty_ = true;
+    pickDirty_ = overlayDirty_ = profilesDirty_ = true;
     if (selectionDocument_ != doc_.identity()) {
         cancel();
         configuredPlane_.reset();
@@ -682,7 +688,8 @@ void Viewport::rebuild() {
     };
     if (gridDirty_) {
         std::vector<Vertex> grid;
-        for (int i = -50; i <= 50; ++i) {
+        const auto &style = doc_.style();
+        for (int i = -50; style.gridVisible && i <= 50; ++i) {
             const float shade =
                 colors_.dark ? ((i % 5 == 0) ? .27f : .21f) : ((i % 5 == 0) ? .79f : .87f);
             for (auto p : {Vec3{double(i), -50, 0}, Vec3{double(i), 50, 0}, Vec3{-50, double(i), 0},
@@ -693,9 +700,11 @@ void Viewport::rebuild() {
             grid.push_back(vertex(a, color));
             grid.push_back(vertex(b, color));
         };
-        axis({0, 0, .002}, {8, 0, .002}, {.72f, .30f, .26f});
-        axis({0, 0, .002}, {0, 8, .002}, {.29f, .52f, .35f});
-        axis({0, 0, 0}, {0, 0, 5}, {.29f, .46f, .70f});
+        if (style.axesVisible) {
+            axis({0, 0, .002}, {8, 0, .002}, {.72f, .30f, .26f});
+            axis({0, 0, .002}, {0, 8, .002}, {.29f, .52f, .35f});
+            axis({0, 0, 0}, {0, 0, 5}, {.29f, .46f, .70f});
+        }
         upload(gridGpu_, grid);
         gridDirty_ = false;
     }
@@ -738,6 +747,7 @@ void Viewport::rebuild() {
             ++stats_.bodyMeshBuilds;
         }
         if (topologyChanged) {
+            cache.adjacency = body->topology.adjacency(body->surface);
             cache.localEdges.clear();
             for (const auto &[edge, record] : body->topology.edges)
                 cache.localEdges.push_back({body->surface.vertices.at(record.a),
@@ -791,11 +801,17 @@ void Viewport::rebuild() {
                     const auto normals = shading.triangle(cache.localTriangles[triangleIndex]);
                     auto front = surfaceAppearance(doc_.materials(), *body, triangle.face);
                     auto back = surfaceAppearance(doc_.materials(), *body, triangle.face, true);
+                    if (doc_.style().mode == ModelStyleMode::Monochrome) {
+                        front.color = doc_.style().front;
+                        back.color = doc_.style().back;
+                    }
                     // A reflected placement preserves the physical front of a face.
                     if (world.determinant() < 0)
                         std::swap(front, back);
                     for (auto *side : {&front, &back}) {
                         side->opacity *= alpha;
+                        if (doc_.style().mode == ModelStyleMode::XRay)
+                            side->opacity *= float(doc_.style().xrayOpacity);
                         if (selection_.hidden(doc_, entity))
                             side->opacity = std::min(side->opacity, .18f);
                     }
@@ -842,7 +858,7 @@ void Viewport::rebuild() {
                     const std::array<float, 3> color =
                         selection_.hidden(doc_, entity) || !selection_.inActiveHierarchy(doc_, id)
                             ? std::array<float, 3>{.56f, .58f, .60f}
-                            : std::array<float, 3>{.19f, .24f, .23f};
+                            : doc_.style().edge;
                     auto &lines = selection_.hidden(doc_, entity) ? cache.hiddenLines : cache.lines;
                     lines.push_back(vertex(edge.a, color));
                     lines.push_back(vertex(edge.b, color));
@@ -988,6 +1004,7 @@ void Viewport::paintGL() {
 void Viewport::paintScene() {
     if (!ready_)
         return;
+    syncModelStyle();
     QPainter p(this);
     p.beginNativePainting();
     QElapsedTimer timer;
@@ -1005,6 +1022,9 @@ void Viewport::paintScene() {
     shader_->setUniformValue("stipple", 0);
     shader_->setUniformValue("pixelRatio", float(devicePixelRatioF()));
     shader_->setUniformValue("surfacePass", 0);
+    shader_->setUniformValue("styleTextureColor", 1);
+    shader_->setUniformValue("screenStroke", 0);
+    shader_->setUniformValue("strokeColor", QVector4D{});
     shader_->setUniformValue("pixelOffset", QVector2D{});
     shader_->setUniformValue("clipEnabled", clipPlane_ ? 1 : 0);
     if (clipPlane_) {
@@ -1022,35 +1042,44 @@ void Viewport::paintScene() {
     } else {
         if (cacheDirty_ || cachedRevision_ != doc_.revision() || cachedDocument_ != doc_.identity())
             rebuild();
+        drawStyleGround(transform);
         // Reference grid does not write depth or shine through coplanar opaque faces.
         gl_->glDepthMask(GL_FALSE);
         draw(gridGpu_, GL_LINES);
         gl_->glDepthMask(GL_TRUE);
-        gl_->glEnable(GL_POLYGON_OFFSET_FILL);
-        gl_->glPolygonOffset(1, 1);
-        shader_->setUniformValue("surfacePass", 1);
-        for (auto &[id, cache] : bodyCaches_)
-            draw(cache->opaqueGpu, GL_TRIANGLES);
-        sortTransparent(transform);
-        if (transparentGpu_.count) {
-            gl_->glEnable(GL_BLEND);
-            // Preserve opaque framebuffer alpha for Qt's premultiplied composition.
-            gl_->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
-                                GL_ONE_MINUS_SRC_ALPHA);
-            gl_->glDepthMask(GL_FALSE);
-            shader_->setUniformValue("surfacePass", 2);
-            draw(transparentGpu_, GL_TRIANGLES);
-            gl_->glDepthMask(GL_TRUE);
-            gl_->glDisable(GL_BLEND);
+        if (doc_.style().mode != ModelStyleMode::Wireframe) {
+            shader_->setUniformValue("styleTextureColor",
+                                     doc_.style().mode == ModelStyleMode::Textured ? 1 : 0);
+            gl_->glEnable(GL_POLYGON_OFFSET_FILL);
+            gl_->glPolygonOffset(1, 1);
+            shader_->setUniformValue("surfacePass", 1);
+            for (auto &[id, cache] : bodyCaches_)
+                draw(cache->opaqueGpu, GL_TRIANGLES);
+            sortTransparent(transform);
+            if (transparentGpu_.count) {
+                gl_->glEnable(GL_BLEND);
+                // Preserve opaque framebuffer alpha for Qt's premultiplied composition.
+                gl_->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
+                                    GL_ONE_MINUS_SRC_ALPHA);
+                gl_->glDepthMask(GL_FALSE);
+                shader_->setUniformValue("surfacePass", 2);
+                draw(transparentGpu_, GL_TRIANGLES);
+                gl_->glDepthMask(GL_TRUE);
+                gl_->glDisable(GL_BLEND);
+            }
+            gl_->glDisable(GL_POLYGON_OFFSET_FILL);
         }
-        gl_->glDisable(GL_POLYGON_OFFSET_FILL);
+        shader_->setUniformValue("styleTextureColor", 1);
         shader_->setUniformValue("surfacePass", 0);
-        for (auto &[id, cache] : bodyCaches_)
-            draw(cache->linesGpu, GL_LINES);
-        shader_->setUniformValue("stipple", 2);
-        for (auto &[id, cache] : bodyCaches_)
-            draw(cache->hiddenLinesGpu, GL_LINES);
-        shader_->setUniformValue("stipple", 0);
+        if (doc_.style().edgesVisible || doc_.style().mode == ModelStyleMode::Wireframe) {
+            for (auto &[id, cache] : bodyCaches_)
+                draw(cache->linesGpu, GL_LINES);
+            shader_->setUniformValue("stipple", 2);
+            for (auto &[id, cache] : bodyCaches_)
+                draw(cache->hiddenLinesGpu, GL_LINES);
+            shader_->setUniformValue("stipple", 0);
+        }
+        drawStyleProfiles(transform);
         drawSelectionOverlay();
         drawAssistantPreview();
     }
@@ -1783,11 +1812,9 @@ void Viewport::finishShape(Vec3 end, std::optional<QJsonObject> overrideCommand)
         update();
     }
 }
-void Viewport::setTheme(const ThemeColors &colors) {
-    if (colors_.dark != colors.dark)
-        gridDirty_ = true;
-    colors_ = colors;
-    refresh();
+void Viewport::setTheme(const ThemeColors &) {
+    // Application chrome changes independently of the saved model presentation.
+    update();
 }
 bool Viewport::measurements(const QString &text) {
     measurementCompleted_ = false;
@@ -2447,6 +2474,7 @@ void Viewport::benchmark(int count, bool instanced) {
     if (count < 1 || count > 1000000)
         throw std::runtime_error("Benchmark supports 1–1000000 triangles");
     benchmarkTriangles_ = count;
+    stats_.profileEdges = 0;
     instances_ = instanced ? count : 0;
     benchmarkVertices_.clear();
     benchmarkVertices_.reserve(instanced ? 3 : count * 3);

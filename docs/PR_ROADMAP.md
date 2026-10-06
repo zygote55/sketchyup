@@ -946,7 +946,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R062 — Implement viewport styles and display controls
 
-**Status:** In progress. R062.a prepares document-owned model styles, atomic history/snapshot semantics, schema 17 persistence and strict migration from historical textured files ([contract](decisions/0068-model-styles.md)). All 108 regression suites, 11 sanitizer suites, four native checks and 15 installed migration/export cases pass ([evidence](verification/R062a-model-styles.md)). Viewport drawing, native controls, picking and legibility checks remain pending. **Track:** Desktop. **Scope:** P02. **UX:** §5, §7.
+**Status:** In progress. R062.a ([PR #134](https://github.com/zygote55/sketchyup/pull/134)) prepares document-owned model styles, atomic history/snapshot semantics, schema 17 persistence and strict migration from historical textured files ([contract](decisions/0068-model-styles.md)). All 108 regression suites, 11 sanitizer suites, four native checks and 15 installed migration/export cases pass ([evidence](verification/R062a-model-styles.md)). R062.b adds all five native display modes, profiles, background/ground/grid/axes controls, shared style commands and inspection, and an undoable Styles panel ([contract](decisions/0069-native-model-styles.md)). All 109 regression suites, 44 native checks, targeted sanitizer suites and installed/schema checks pass ([evidence](verification/R062b-native-styles.md)). R062 delivery awaits dependency checks and the M6 gate. **Track:** Desktop. **Scope:** P02. **UX:** §5, §7.
 
 **Requires:** [R057](#r057), [R011](#r011); milestone gate rule above.
 

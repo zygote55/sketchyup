@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "io/model_style_io.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/entity_info.hpp"
 #include "automation/hosted_commands.hpp"
@@ -285,6 +286,7 @@ QJsonObject describe(const Document &doc) {
             {"revision", QString::number(doc.revision())},
             {"units", "m"},
             {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
+            {"style", encodeModelStyle(doc.style())},
             {"bodies", bodies},
             {"definitions", definitions},
             {"instances", instances},
@@ -673,6 +675,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             for (const auto &step : recipe.steps)
                 compose(decodedChanges(step.toObject()["changes"].toObject()));
             recipeOperations.append(recipe.report);
+        } else if (name == "document.style") {
+            staged.setStyle(decodeModelStyle(command["style"]));
         } else if (name == "document.units") {
             if (!command["units"].isString())
                 throw std::runtime_error("Document units must be a string");

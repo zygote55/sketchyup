@@ -1,0 +1,310 @@
+[
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "style_input_tests",
+    "exitCode": 0,
+    "seconds": 4.369
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.167
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "texture_input_tests",
+    "exitCode": 0,
+    "seconds": 4.123
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.795
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "material_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.454
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "smooth_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.435
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "viewport_precision_tests",
+    "exitCode": 0,
+    "seconds": 3.65
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 3.958
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.082
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 3.466
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.889
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "style_input_tests",
+    "exitCode": 0,
+    "seconds": 4.132
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.106
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "texture_input_tests",
+    "exitCode": 0,
+    "seconds": 4.558
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 5.276
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "material_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.61
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "smooth_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.519
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "viewport_precision_tests",
+    "exitCode": 0,
+    "seconds": 3.791
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 4.551
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.615
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 3.581
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 5.046
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "style_input_tests",
+    "exitCode": 0,
+    "seconds": 1.217
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.059
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "texture_input_tests",
+    "exitCode": 0,
+    "seconds": 1.584
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.862
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "material_viewport_tests",
+    "exitCode": 0,
+    "seconds": 0.726
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "smooth_viewport_tests",
+    "exitCode": 0,
+    "seconds": 0.615
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "viewport_precision_tests",
+    "exitCode": 0,
+    "seconds": 0.773
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 1.277
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.66
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 0.646
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 2.115
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "style_input_tests",
+    "exitCode": 0,
+    "seconds": 4.162
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.492
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "texture_input_tests",
+    "exitCode": 0,
+    "seconds": 5.043
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.23
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "material_viewport_tests",
+    "exitCode": 0,
+    "seconds": 2.884
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "smooth_viewport_tests",
+    "exitCode": 0,
+    "seconds": 2.904
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "viewport_precision_tests",
+    "exitCode": 0,
+    "seconds": 2.962
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 3.483
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.073
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 2.849
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.107
+  }
+]

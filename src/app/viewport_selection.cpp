@@ -299,6 +299,9 @@ Viewport::PickPixels Viewport::selectionPixels(QRectF region) {
     gl_->glEnable(GL_POLYGON_OFFSET_FILL);
     gl_->glPolygonOffset(1, 1);
     shader_->setUniformValue("surfacePass", 3);
+    shader_->setUniformValue("styleTextureColor", 1);
+    shader_->setUniformValue("screenStroke", 0);
+    shader_->setUniformValue("strokeColor", QVector4D{});
     draw(pickFacesGpu_, GL_TRIANGLES);
     shader_->setUniformValue("surfacePass", 0);
     gl_->glDisable(GL_POLYGON_OFFSET_FILL);
@@ -557,13 +560,21 @@ void Viewport::drawSelectionOverlay() {
     draw(hoverFacesGpu_, GL_TRIANGLES);
     gl_->glDisable(GL_POLYGON_OFFSET_FILL);
     shader_->setUniformValue("stipple", 0);
-    // Screen-space offsets work even when the driver supports only 1px lines.
-    for (auto offset : {QPointF{}, QPointF(1, 0), QPointF(-1, 0), QPointF(0, 1), QPointF(0, -1)}) {
-        shader_->setUniformValue("pixelOffset",
-                                 QVector2D(2 * offset.x() / width(), 2 * offset.y() / height()));
-        draw(selectedEdgesGpu_, GL_LINES);
+    // White and black borders keep selection visible against arbitrary model
+    // colors. Screen offsets work even on drivers limited to 1px GL lines.
+    for (int radius : {2, 1}) {
+        shader_->setUniformValue("strokeColor",
+                                 radius == 2 ? QVector4D(1, 1, 1, 1) : QVector4D(0, 0, 0, 1));
+        for (auto offset : {QPointF{}, QPointF(radius, 0), QPointF(-radius, 0),
+                             QPointF(0, radius), QPointF(0, -radius)}) {
+            shader_->setUniformValue("pixelOffset",
+                                     QVector2D(2 * offset.x() / width(), 2 * offset.y() / height()));
+            draw(selectedEdgesGpu_, GL_LINES);
+        }
     }
+    shader_->setUniformValue("strokeColor", QVector4D{});
     shader_->setUniformValue("pixelOffset", QVector2D{});
+    draw(selectedEdgesGpu_, GL_LINES);
     draw(hoverEdgesGpu_, GL_LINES);
     gl_->glDepthMask(GL_TRUE);
 }

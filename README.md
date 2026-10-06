@@ -361,7 +361,12 @@ assignments, tag folders and assignments, canonical component definitions and
 stable instance-member bindings. Versions 1–16 migrate to a deterministic default
 model style, and versions 1–15 acquire no explicit texture projections. The
 [style contract](docs/decisions/0068-model-styles.md) defines the stored record;
-viewport style controls are still in progress. Versions 1–14 acquire no invented host attachments;
+View → Model styles exposes display modes, profiles and visibility controls,
+with a Colors and details dialog for colors, ground height, profile width and
+X-ray opacity. These are saved with the model and remain independent of the
+application theme. `document.style` applies a complete style record, and
+`document.describe` reports it; see the [example](examples/model-style.json) and
+[native contract](docs/decisions/0069-native-model-styles.md). Versions 1–14 acquire no invented host attachments;
 versions 1–13 acquire no invented glue behavior.
 Versions 1–10 acquire no invented assets; versions 1–9 preserve legacy colors without
 inventing swatches; versions 1–8 migrate with all entities Untagged, and versions

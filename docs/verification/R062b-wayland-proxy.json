@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-06",
+  "waylandVersion": "1.26.0",
+  "clientBuildId": "811f309c6b797aa9eaec17093b01cd525c6f4679",
+  "usesQt": false,
+  "usesSketchyUp": false,
+  "usesDisplayServer": false,
+  "socketPairClientServer": true,
+  "cases": [
+    {
+      "case": "destroy-before-dispatch",
+      "exitCode": 1,
+      "leakedBytes": 96,
+      "allocations": 1
+    },
+    {
+      "case": "dispatch-before-destroy",
+      "exitCode": 0,
+      "leakedBytes": 0,
+      "allocations": 0
+    }
+  ]
+}
