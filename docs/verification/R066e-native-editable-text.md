@@ -10,7 +10,7 @@ to the development build used for the dedicated native matrix.
 [Eight native cases](R066e-native-matrix.json) pass on Wayland and X11 at 1× and 2×:
 four normal cases in **31.010 s** and four ASan/UBSan cases in **134.702 s**.
 Sanitizers use leak detection and halt-on-error. Wayland sanitizer cases use the
-previously documented [private destroyed-proxy reference fix](R062b-wayland-proxy-reference-fix.md),
+previously documented [private destroyed-proxy reference fix](R062b-wayland-proxy.md),
 without suppressions or system-library changes. The worker and shared text-command
 sanitizer suites also pass together in **17.53 s**.
 
