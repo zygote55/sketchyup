@@ -401,8 +401,10 @@ asset, 64 MiB per document and 1,024 records. See the
 [asset contract](docs/decisions/0011-managed-assets.md). Schema 16 retains independent
 front/back affine UV projections through modeling edits, Undo, shared components
 and relocation ([mapping contract](docs/decisions/0062-face-texture-records.md)).
-Native texture-authoring controls and image rendering remain pending. Materials
-offers Attach file, Replace file
+The image backend decodes bounded static PNG/JPEG assets into consistent sRGB
+and straight-alpha pixels ([image contract](docs/decisions/0063-texture-image-decoding.md)).
+Native texture-authoring controls, textured drawing and export remain pending.
+Materials offers Attach file, Replace file
 (including missing-resource resolution), Detach file and undoable Clean files
 for unused resources. New/edit dialogs can also bind an existing stored file.
 
