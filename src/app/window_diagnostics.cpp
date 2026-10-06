@@ -20,7 +20,9 @@ class RepairHandoff final : public QObject {
     Viewport &view_;
     QTimer timer_;
     QElapsedTimer elapsed_, settled_;
-    bool canceled_{}, activationRequested_{};
+    QPointer<QDialog> report_;
+    QElapsedTimer activation_;
+    bool canceled_{}, closeRequested_{}, synchronized_{};
     bool eventFilter(QObject *object, QEvent *event) override {
         if (object == &view_ && event->type() == QEvent::KeyPress &&
             static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape)
@@ -29,9 +31,9 @@ class RepairHandoff final : public QObject {
     }
 
   public:
-    RepairHandoff(Viewport &view, QWidget *host, std::function<void()> validate,
+    RepairHandoff(Viewport &view, QWidget *host, QDialog *report, std::function<void()> validate,
                   std::function<void(QObject *)> stage)
-        : QObject(&view), view_(view) {
+        : QObject(&view), view_(view), report_(report) {
         setObjectName("diagnosticRepairHandoff");
         view_.installEventFilter(this);
         elapsed_.start();
@@ -42,17 +44,46 @@ class RepairHandoff final : public QObject {
                         if (canceled_)
                             throw std::runtime_error("Repair preview canceled.");
                         validate();
-                        if (!activationRequested_) {
-                            activationRequested_ = true;
-                            host->activateWindow();
-                            view_.setFocus();
-                        }
                         if (elapsed_.elapsed() > 5000)
                             throw std::runtime_error("The model window did not receive focus. "
                                                      "Return to it and reopen diagnostics.");
+                        // Request activation while the report is still a live,
+                        // focused surface. Process pending window-system events
+                        // before closing the source of the focus transition.
+                        if (report_ && !closeRequested_) {
+                            closeRequested_ = true;
+                            host->activateWindow();
+                            view_.setFocus();
+                            activation_.restart();
+                            QPointer<RepairHandoff> alive(this);
+                            QGuiApplication::sync();
+                            if (!alive)
+                                return;
+                            if (report_)
+                                report_->accept();
+                            return;
+                        }
+                        // Closing a DeleteOnClose dialog schedules destruction. A
+                        // timer may run first, especially on a busy compositor.
+                        // Wait for the actual QObject/native-window lifetime, then
+                        // flush the destroy request before requesting activation.
+                        if (report_)
+                            return;
+                        if (!synchronized_) {
+                            synchronized_ = true;
+                            QPointer<RepairHandoff> alive(this);
+                            QGuiApplication::sync();
+                            if (!alive)
+                                return;
+                        }
                         if (QApplication::activeWindow() != host ||
                             QGuiApplication::focusWindow() != host->windowHandle()) {
                             settled_.invalidate();
+                            if (!activation_.isValid() || activation_.elapsed() >= 200) {
+                                host->activateWindow();
+                                view_.setFocus();
+                                activation_.restart();
+                            }
                             return;
                         }
                         if (!settled_.isValid()) {
@@ -67,7 +98,11 @@ class RepairHandoff final : public QObject {
                         emit view_.message(QString::fromUtf8(error.what()));
                     }
                     timer_.stop();
-                    deleteLater();
+                    QPointer<RepairHandoff> alive(this);
+                    if (report_)
+                        report_->close();
+                    if (alive)
+                        deleteLater();
                 });
         timer_.start();
     }
@@ -324,10 +359,9 @@ class DiagnosticsReport final : public ReportSheet {
             }
             view.setFocus();
         };
-        new RepairHandoff(view, host, std::move(validate), std::move(stage));
-        // Destroy the report's native surface before asking its parent to regain
-        // focus. An unmapped-but-retained dialog can leave Wayland with no focus.
-        accept();
+        new RepairHandoff(view, host, this, std::move(validate), std::move(stage));
+        // The handoff requests activation before closing this report, then waits
+        // for its actual native lifetime before creating an orientation preview.
     }
 
   public:
