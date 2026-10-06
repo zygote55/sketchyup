@@ -3,6 +3,7 @@
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
+#include "core/annotations.hpp"
 #include "core/assets.hpp"
 #include "core/components.hpp"
 #include "core/face_orientation.hpp"
@@ -754,6 +755,11 @@ int main(int argc, char **argv) {
         savedCamera.camera = SceneCamera{};
         const auto cameraJson = encodeSceneSnapshot(savedCamera);
         QJsonArray cases{
+            QJsonObject{{"command", "annotation.create"}, {"name", "Dimension"}, {"kind", "distance"},
+                        {"anchors", QJsonArray{QJsonObject{{"kind", "point"}, {"space", "world"}, {"point", QJsonArray{0,0,0}}},
+                                               QJsonObject{{"kind", "point"}, {"space", "world"}, {"point", QJsonArray{1,0,0}}}}}},
+            QJsonObject{{"command", "annotation.update"}, {"annotation", "1"}, {"text", "Updated"}},
+            QJsonObject{{"command", "annotation.delete"}, {"annotation", "1"}},
             QJsonObject{{"command", "section.create"}, {"name", "Cut"}, {"context", "0"},
                         {"space", "local"}, {"plane", QJsonObject{{"normal", QJsonArray{0,0,1}}, {"offset", -.5}}}},
             QJsonObject{{"command", "section.update"}, {"section", "1"}, {"name", "Updated"}, {"context", "0"},
@@ -1064,6 +1070,13 @@ int main(int argc, char **argv) {
                                    {"commands", commands}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("annotation.") &&
+                command["command"] != "annotation.create") {
+                AnnotationRecord annotation;
+                annotation.name = "Existing";
+                annotation.anchors = {pointAnchor({}), pointAnchor({1,0,0})};
+                createAnnotation(doc, annotation);
+            }
             if (command["command"].toString().startsWith("section.") &&
                 command["command"] != "section.create")
                 createSection(doc, "Existing", 0, {});
