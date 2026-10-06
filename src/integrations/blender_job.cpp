@@ -54,7 +54,20 @@ bool terminal(BlenderJob::Phase phase) {
            phase == BlenderJob::Phase::TimedOut;
 }
 bool backend(const QString &name) {
-    return QStringList{"CPU", "CUDA", "OPTIX", "HIP", "ONEAPI", "METAL"}.contains(name);
+    return QStringList{"CPU", "CUDA", "OPTIX", "HIP", "ONEAPI", "METAL", "OPENGL"}.contains(name);
+}
+void verifyRasterDevice(const QJsonObject &device) {
+    const auto graphics = device.value("graphics").toObject();
+    require(graphics.size() == 5 && graphics.value("backend_type") == "OPENGL",
+            "Malformed OpenGL renderer identity");
+    for (const auto key : {"backend_type", "device_type", "renderer", "vendor", "version"})
+        require(graphics.value(key).isString() && !graphics.value(key).toString().isEmpty() &&
+                    graphics.value(key).toString().size() <= 512,
+                "Malformed OpenGL renderer description");
+    require(device.value("name") == graphics.value("renderer") &&
+                device.value("id") ==
+                    "opengl:" + hash(QJsonDocument(graphics).toJson(QJsonDocument::Compact)),
+            "OpenGL renderer fingerprint mismatch");
 }
 void version(const QJsonObject &result) {
     require(result.value("apiVersion") == 1 && result.value("adapter") == "sketchyup-blender-v1",
@@ -99,20 +112,32 @@ std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const Q
     const auto device = result.value("device").toObject();
     require(device.value("backend") == requestedBackend && device.value("id") == requestedDevice,
             "Worker did not use the explicitly requested device");
+    if (requestedBackend == "OPENGL")
+        verifyRasterDevice(device);
     const auto preset = result.value("preset").toObject();
     const auto expectedLighting = lightingReport(source);
+    const auto settings = source.value("settings").toObject();
+    const bool eevee = settings.value("engine") == "eevee";
     require(preset.value("name") == expectedLighting.value("mode") &&
-                preset.value("engine") == "CYCLES" && preset.value("threads") == 4,
+                preset.value("engine") == (eevee ? "BLENDER_EEVEE" : "CYCLES") &&
+                preset.value("threads") == 4 &&
+                preset.value("samplingPolicy") ==
+                    (eevee ? "eevee-preview-v1" : "cycles-fixed-v1") &&
+                preset.value("samples") == settings.value("samples"),
             "Worker render preset mismatch");
     auto losses = source.value("losses").toObject();
+    if (eevee) {
+        losses["indirectLightingApproximated"] = 1;
+        if (settings.value("seed").toInt())
+            losses["samplingSeedNotApplied"] = 1;
+    }
     if (source.value("solar").toObject().value("enabled").toBool())
         losses["solarLightingOmitted"] = 0;
     if (source.contains("environment"))
         losses["environmentLightingOmitted"] = 0;
     require(result.value("lighting") == expectedLighting && result.value("losses") == losses,
             "Worker lighting or transfer report does not match the captured source");
-    const auto image = result.value("image").toObject(),
-               settings = source.value("settings").toObject();
+    const auto image = result.value("image").toObject();
     require(image.value("file") == "image.png" && image.value("width") == settings.value("width") &&
                 image.value("height") == settings.value("height"),
             "Worker image dimensions or filename mismatch");
@@ -254,6 +279,10 @@ struct BlenderJob::Impl {
         options = std::move(requested);
         if (!probing)
             require(bool(input), "Render requires a prepared immutable snapshot");
+        if (!probing)
+            require((input->manifest().value("settings").toObject().value("engine") == "eevee") ==
+                        (options.backend == "OPENGL"),
+                    "Render engine and selected device backend do not match");
         executable = options.executable.isEmpty() ? QStandardPaths::findExecutable("blender")
                                                   : options.executable;
         const QFileInfo file(executable);
@@ -409,8 +438,8 @@ struct BlenderJob::Impl {
             workerReport.value("status") == "failed") {
             const bool mayRetry =
                 failure.isEmpty() || failure == "render_error" || failure == "device_unavailable";
-            if (!probing && attempt == 1 && currentBackend != "CPU" && options.allowCpuFallback &&
-                mayRetry) {
+            if (!probing && attempt == 1 && currentBackend != "CPU" && currentBackend != "OPENGL" &&
+                options.allowCpuFallback && mayRetry) {
                 currentBackend = "CPU";
                 currentDevice = "CPU";
                 progressText = "Retrying on CPU";
@@ -435,12 +464,17 @@ struct BlenderJob::Impl {
                         "Malformed Blender capabilities");
                 const auto backends = workerReport.value("backends").toArray(),
                            devices = workerReport.value("devices").toArray();
-                require(backends.size() <= 6 && devices.size() <= 64,
+                require(backends.size() <= 7 && devices.size() <= 64,
                         "Blender capabilities exceed bounds");
+                const auto engines = workerReport.value("engines").toArray();
+                require(engines == QJsonArray{currentBackend == "OPENGL" ? "eevee" : "cycles"},
+                        "Worker capabilities do not match the requested engine");
                 for (auto name : backends)
                     require(name.isString() && backend(name.toString()), "Unknown Blender backend");
                 for (auto value : devices) {
                     const auto device = value.toObject();
+                    if (currentBackend == "OPENGL")
+                        verifyRasterDevice(device);
                     require(device.value("id").isString() && device.value("name").isString() &&
                                 device.value("id").toString().size() <= 512 &&
                                 device.value("name").toString().size() <= 512 &&

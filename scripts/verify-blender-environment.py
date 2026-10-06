@@ -10,6 +10,7 @@ import sys
 import bpy
 from mathutils import Vector
 
+engine = 'BLENDER_EEVEE' if sys.argv[-1] == 'eevee' else 'CYCLES'
 root = Path(sys.argv[sys.argv.index('--') + 1]).resolve()
 root.mkdir(parents=True, exist_ok=True)
 spec = importlib.util.spec_from_file_location('worker', Path(__file__).resolve().parents[1] / 'src/integrations/blender_worker.py')
@@ -51,7 +52,7 @@ for rotation, strength in ((0, 1), (180, 1), (0, .25), (0, 0)):
     camera.data.type = 'ORTHO'
     camera.data.ortho_scale = 3
     scene.camera = camera
-    scene.render.engine = 'CYCLES'
+    scene.render.engine = engine
     scene.cycles.samples = 128
     scene.cycles.seed = 7
     scene.cycles.use_denoising = False
@@ -92,6 +93,6 @@ for key, value in [('sha256', '0' * 64), ('width', 8192), ('strength', float('na
         raise AssertionError('Invalid environment accepted')
     except worker.WorkerError as error:
         assert error.code == 'invalid_snapshot'
-result = {'blender': bpy.app.version_string, 'reports': reports, 'invalidSnapshotsRejected': 5}
-(root / 'environment-blender-validation.json').write_text(json.dumps(result, indent=2) + '\n')
+result = {'blender': bpy.app.version_string, 'engine': engine, 'reports': reports, 'invalidSnapshotsRejected': 5}
+(root / ('environment-blender-eevee-validation.json' if engine == 'BLENDER_EEVEE' else 'environment-blender-validation.json')).write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps(result))

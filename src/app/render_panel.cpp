@@ -89,7 +89,7 @@ struct RenderPanel::Impl {
     QPointer<QDialog> dialog;
     QLineEdit *path{}, *environmentPath{};
     QDoubleSpinBox *environmentStrength{}, *environmentRotation{};
-    QComboBox *camera{}, *backend{}, *device{};
+    QComboBox *camera{}, *engine{}, *backend{}, *device{};
     QSpinBox *width{}, *height{}, *samples{};
     QCheckBox *fallback{};
     QPushButton *probeButton{}, *renderButton{}, *cancelButton{};
@@ -151,9 +151,11 @@ struct RenderPanel::Impl {
                                (details.isEmpty() ? QString{} : "\n" + details));
             const bool busy = active() || (probe && !probe->done());
             for (QWidget *control : std::initializer_list<QWidget *>{
-                     path, camera, width, height, samples, environmentPath, environmentStrength,
-                     environmentRotation, backend, device, fallback, probeButton})
+                     path, camera, engine, width, height, samples, environmentPath,
+                     environmentStrength, environmentRotation, backend, device, fallback,
+                     probeButton})
                 control->setEnabled(!busy);
+            fallback->setEnabled(!busy && engine->currentIndex() == 0);
             renderButton->setEnabled(!busy && verified && device->currentIndex() >= 0);
             cancelButton->setEnabled(busy);
         }
@@ -209,6 +211,10 @@ struct RenderPanel::Impl {
             if (!selected.isEmpty())
                 path->setText(selected);
         });
+        engine = new QComboBox;
+        engine->setObjectName("renderEngine");
+        engine->addItems({"Cycles", "Eevee preview"});
+        form->addRow("Render engine", engine);
         camera = new QComboBox;
         camera->setObjectName("renderCamera");
         camera->addItems({"Current view", "Fit visible model"});
@@ -263,16 +269,26 @@ struct RenderPanel::Impl {
         fallback = new QCheckBox("Retry once on CPU if the selected GPU fails");
         fallback->setChecked(true);
         form->addRow(fallback);
+        QObject::connect(engine, &QComboBox::currentIndexChanged, &owner, [this] {
+            backend->clear();
+            if (engine->currentIndex() == 1)
+                backend->addItem("OPENGL");
+            else
+                backend->addItems({"CPU", "CUDA", "OPTIX", "HIP", "ONEAPI", "METAL"});
+            fallback->setChecked(engine->currentIndex() == 0);
+            invalidate();
+        });
         layout->addLayout(form);
-        auto *framing =
-            new QLabel("Current view preserves vertical framing; image width follows the chosen "
-                       "aspect ratio. Materials use the documented GLB subset.");
+        auto *framing = new QLabel(
+            "Current view preserves vertical framing; image width follows the chosen "
+            "aspect ratio. Eevee preview approximates indirect lighting and uses the "
+            "active OpenGL renderer. Cycles supports explicit compute-device selection.");
         framing->setWordWrap(true);
         layout->addWidget(framing);
         probeButton = new QPushButton("Check Blender and devices");
         probeButton->setObjectName("probeBlender");
         layout->addWidget(probeButton);
-        setupStatus = new QLabel("Blender 5.2 LTS with Cycles is required only for rendering. On "
+        setupStatus = new QLabel("Blender 5.2 LTS is required only for rendering. On "
                                  "Arch, install the blender package, then check again.");
         setupStatus->setObjectName("renderSetupStatus");
         setupStatus->setWordWrap(true);
@@ -311,6 +327,8 @@ struct RenderPanel::Impl {
             try {
                 RenderOptions settings;
                 settings.settings = {width->value(), height->value(), samples->value(), 0};
+                settings.settings.engine =
+                    engine->currentIndex() == 1 ? RenderEngine::Eevee : RenderEngine::Cycles;
                 if (!environmentPath->text().trimmed().isEmpty())
                     settings.environment = readRenderEnvironment(environmentPath->text().trimmed(),
                                                                  environmentStrength->value(),
@@ -367,7 +385,7 @@ struct RenderPanel::Impl {
                 } else
                     setupStatus->setText("Blender check: " + phaseText(probe->phase()) + ". " +
                                          report.value("message").toString() +
-                                         " Choose Blender 5.2 LTS with Cycles and check again.");
+                                         " Choose Blender 5.2 LTS and check again.");
             } else
                 setupStatus->setText("Checking Blender and the selected backend…");
             publish();
@@ -552,6 +570,8 @@ struct RenderPanel::Impl {
                    "editable text sources omitted; geometry retained"},
                   {"solarLightingOmitted", "sun lighting omitted; study settings retained"},
                   {"environmentLightingOmitted", "HDR environment lighting omitted"},
+                  {"indirectLightingApproximated", "indirect lighting approximated by Eevee"},
+                  {"samplingSeedNotApplied", "sampling seed applies only to Cycles"},
                   {"referenceImagesOmitted", "reference images omitted"},
                   {"guidesOmitted", "guides omitted"},
                   {"analyticCurvesTessellatedOrOmitted", "curves approximated or omitted"},

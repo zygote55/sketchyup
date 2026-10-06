@@ -3,8 +3,10 @@
 #include "integrations/render_environment.hpp"
 #include <QJsonObject>
 namespace sketchy {
+enum class RenderEngine { Cycles, Eevee };
 struct RenderSettings {
     int width{1024}, height{768}, samples{32}, seed{};
+    RenderEngine engine{RenderEngine::Cycles};
 };
 struct RenderCamera {
     Vec3 position{8, -8, 6}, target{}, up{0, 0, 1};

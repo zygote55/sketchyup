@@ -275,6 +275,26 @@ int main(int argc, char **argv) {
         check(
             tabs->currentWidget()->findChild<QLabel *>("renderProvenance")->text().contains("HDR"),
             "Native result identifies applied HDR lighting");
+        action->trigger();
+        environmentPath->clear();
+        auto *engine = setup->findChild<QComboBox *>("renderEngine");
+        check(engine && engine->count() == 2, "Native render engine choice exists");
+        engine->setCurrentIndex(1);
+        check(backend->currentText() == "OPENGL" && !start->isEnabled(),
+              "Eevee requires a fresh proof of the active OpenGL renderer");
+        probe->click();
+        check(QTest::qWaitFor([&] { return start->isEnabled(); }),
+              "Explicit Eevee device probe enables preview");
+        start->click();
+        check(QTest::qWaitFor([&] { return !panel.active(); }, 10000),
+              "Native Eevee preview completes");
+        check(panel.latest() &&
+                  panel.latest()->manifest["preset"].toObject()["engine"] == "BLENDER_EEVEE" &&
+                  tabs->currentWidget()
+                      ->findChild<QLabel *>("renderProvenance")
+                      ->text()
+                      .contains("indirect lighting approximated"),
+              "Native preview identifies engine and transfer approximation");
         provenance = tabs->currentWidget()->findChild<QLabel *>("renderProvenance");
         doc = Document();
         panel.refreshProvenance();
