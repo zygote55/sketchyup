@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "exampleCommands": 4,
+  "createdAnnotationIdsExact": true,
+  "boundedPagination": true,
+  "kindFilter": true,
+  "splitMeasurementPreserved": true,
+  "ambiguousLabelDiagnosed": true,
+  "metadataPreservesBrokenState": true,
+  "explicitRebind": true,
+  "displayUnitsAndMetres": true,
+  "delete": true,
+  "invalidBatchPreservesFile": true,
+  "geometryUnchanged": true,
+  "relocatedRoundtripExact": true,
+  "installedSchemas": 7,
+  "installedContractMatches": true,
+  "desktopBinaryMatches": true
+}
