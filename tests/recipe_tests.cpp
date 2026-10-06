@@ -111,9 +111,11 @@ int main(int argc, char **argv) {
                                6) < tolerance,
                   "Saved recipe reopens and measures without a display or provider");
         }
-        for (int variant : {0, 1, 2}) {
-            const bool resize = variant != 0, hosted = variant == 2;
-            const QString name = hosted   ? "hosted-room-recipe-v1.json"
+        for (int variant : {0, 1, 2, 3}) {
+            const bool resize = variant == 1 || variant == 2, hosted = variant == 2,
+                       roofed = variant == 3;
+            const QString name = roofed   ? "roof-recipe-v1.json"
+                                 : hosted ? "hosted-room-recipe-v1.json"
                                  : resize ? "room-window-resize-recipe-v1.json"
                                           : "room-recipe-v1.json";
             const auto model = files.path() + "/" + name + ".sketchyup";
@@ -142,9 +144,23 @@ int main(int argc, char **argv) {
                 measureEntity(saved, {wall, SelectionKind::Body, 0}).local.volume;
             check(wallVolume && std::abs(*wallVolume - (resize ? 9.848 : 9.888)) < tolerance,
                   "Saved legacy and adopted recipes have independently expected wall volumes");
-            check(saved.revision() == (resize ? 2 : 1) && saved.bodies().size() == 9 &&
+            check(saved.revision() == (resize ? 2 : 1) &&
+                      saved.bodies().size() == (roofed ? 11 : 9) &&
                       saved.definitions().size() == (resize ? 2 : 1),
                   "Installed recipe saves exact transaction count and component scope");
+            if (roofed) {
+                const auto roofReport = result.rows[2]
+                                            .toObject()["result"]
+                                            .toObject()["createdIds"]
+                                            .toObject()["recipeOperations"]
+                                            .toArray()[1]
+                                            .toObject();
+                const auto roof = roofReport["roof"].toString().toULongLong();
+                const auto volume =
+                    measureEntity(saved, {roof, SelectionKind::Body, 0}).local.volume;
+                check(volume && std::abs(*volume - 4.554) < 1e-5,
+                      "Saved roof recipe has independently expected material volume");
+            }
             for (int index = 0; index < 2; ++index) {
                 const Id window = windows[index].toObject()["body"].toString().toULongLong();
                 const auto measured = measureEntity(saved, {window, SelectionKind::Body, 0});
