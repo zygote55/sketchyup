@@ -2,6 +2,7 @@
 #include "io/model_style_io.hpp"
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "core/assets.hpp"
 #include "core/components.hpp"
 #include "core/face_orientation.hpp"
@@ -753,6 +754,13 @@ int main(int argc, char **argv) {
         savedCamera.camera = SceneCamera{};
         const auto cameraJson = encodeSceneSnapshot(savedCamera);
         QJsonArray cases{
+            QJsonObject{{"command", "section.create"}, {"name", "Cut"}, {"context", "0"},
+                        {"space", "local"}, {"plane", QJsonObject{{"normal", QJsonArray{0,0,1}}, {"offset", -.5}}}},
+            QJsonObject{{"command", "section.update"}, {"section", "1"}, {"name", "Updated"}, {"context", "0"},
+                        {"space", "local"}, {"plane", QJsonObject{{"normal", QJsonArray{1,0,0}}, {"offset", -1}}},
+                        {"fill", false}, {"edges", true}, {"color", QJsonArray{.2,.3,.4}}},
+            QJsonObject{{"command", "section.delete"}, {"section", "1"}},
+            QJsonObject{{"command", "section.activate"}, {"context", "0"}, {"section", "1"}},
             QJsonObject{{"command", "saved_scene.create"}, {"name", "New"}, {"snapshot", cameraJson}},
             QJsonObject{{"command", "saved_scene.rename"}, {"scene", "1"}, {"name", "Renamed"}},
             QJsonObject{{"command", "saved_scene.update"}, {"scene", "1"}, {"snapshot", cameraJson}},
@@ -1056,6 +1064,9 @@ int main(int argc, char **argv) {
                                    {"commands", commands}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("section.") &&
+                command["command"] != "section.create")
+                createSection(doc, "Existing", 0, {});
             if (command["command"].toString().startsWith("saved_scene.") &&
                 command["command"] != "saved_scene.create") {
                 SceneSnapshot savedStyle;

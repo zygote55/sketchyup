@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "exampleCommands": 6,
+  "createdSectionIdsExact": true,
+  "boundedPagination": true,
+  "contextFilter": true,
+  "localAndWorldDescribe": true,
+  "ancestorCuts": true,
+  "update": true,
+  "deactivate": true,
+  "deleteDeactivates": true,
+  "invalidBatchPreservesFile": true,
+  "geometryUnchanged": true,
+  "relocatedRoundtripExact": true,
+  "installedSchemas": 7,
+  "installedContractMatches": true,
+  "desktopBinaryMatches": true
+}

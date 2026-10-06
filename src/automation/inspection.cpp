@@ -1,6 +1,7 @@
 #include "automation/texture_commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/scene_commands.hpp"
+#include "automation/section_commands.hpp"
 #include "io/model_style_io.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
@@ -44,6 +45,9 @@ QJsonObject refSchema() {
 }
 enum class Operation {
     Document,
+    Sections,
+    Section,
+    EffectiveSections,
     SavedScenes,
     SavedScene,
     SavedSceneVisibility,
@@ -92,6 +96,9 @@ const std::vector<Spec> &registry() {
         };
         return std::vector<Spec>{
             spec("document.describe", Operation::Document, {}, {}),
+            spec("sections.query", Operation::Sections, {{"context", idSchema(true)}}, {}, true),
+            spec("section.describe", Operation::Section, {{"section", idSchema()}}, {"section"}),
+            spec("sections.effective", Operation::EffectiveSections, {{"body", idSchema(true)}}, {"body"}, true),
             spec("saved_scenes.query", Operation::SavedScenes, {}, {}, true),
             spec("saved_scene.describe", Operation::SavedScene, {{"scene", idSchema()}}, {"scene"}),
             spec("saved_scene.visibility", Operation::SavedSceneVisibility, {{"scene", idSchema()}}, {"scene"}, true),
@@ -494,13 +501,42 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                                        {"tags", int(doc.tags().size())},
                                        {"materials", int(doc.materials().size())},
                                        {"assets", int(doc.assets().size())},
-                                       {"savedScenes", int(doc.scenes().size())}}},
+                                       {"savedScenes", int(doc.scenes().size())},
+                                       {"sectionPlanes", int(doc.sections().size())},
+                                       {"activeSectionContexts", int(doc.activeSections().size())}}},
                 {"editorStateAvailable", editor != nullptr}};
         if (editor)
             data["activeContext"] = editor->context()
                                         ? QJsonValue(inspectionReference(doc, editor->context()))
                                         : QJsonValue();
         break;
+    case Operation::Sections: {
+        const auto context = request.contains("context") ? std::optional<Id>(decimal(request["context"], true)) : std::nullopt;
+        for (const auto &[id, record] : doc.sections()) {
+            if (context && record->context != *context)
+                continue;
+            page.append([&] { return sectionDescription(doc, id); });
+        }
+        data = page.finish();
+        break;
+    }
+    case Operation::Section: {
+        const auto id = decimal(request["section"]);
+        if (!doc.sections().contains(id))
+            fail("NOT_FOUND", "Section plane does not exist");
+        data = sectionDescription(doc, id);
+        break;
+    }
+    case Operation::EffectiveSections: {
+        const auto body = decimal(request["body"], true);
+        if (body && !doc.bodies().contains(body))
+            fail("NOT_FOUND", "Section target body does not exist");
+        for (const auto &cut : effectiveSectionCuts(doc, body))
+            page.append([&] { return sectionDescription(doc, cut.id); });
+        data = page.finish();
+        data["state"] = "persisted document activation; saved-scene navigation overrides are separate";
+        break;
+    }
     case Operation::SavedScenes:
         for (const auto id : orderedScenes(doc))
             page.append([&] { return savedSceneSummary(doc, id); });
