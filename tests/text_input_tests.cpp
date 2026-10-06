@@ -1,6 +1,7 @@
 #include "app/text_panel.hpp"
 #include "app/window.hpp"
 #include "automation/text_commands.hpp"
+#include "core/components.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
@@ -193,6 +194,16 @@ int main(int argc, char **argv) {
                   "Missing font failure keeps cached geometry");
         });
         modal(window, "textEditButton", [&](QDialog *dialog) {
+            type(dialog, "textHeight", "250mm");
+            dialog->findChild<QCheckBox *>("textSubstitution")->setChecked(true);
+            save(dialog);
+            finished(dialog);
+            check(!dialog->isVisible(), "Explicit native font substitution regenerates text");
+        });
+        check(doc.bodies().at(id)->textSource->substituted &&
+                  doc.bodies().at(id)->textSource->allowSubstitution,
+              "Substitution provenance and consent are retained");
+        modal(window, "textEditButton", [&](QDialog *dialog) {
             type(dialog, "textName", "Portable sign");
             save(dialog);
             finished(dialog);
@@ -213,6 +224,33 @@ int main(int argc, char **argv) {
             modal(window, "textEditButton", [&](QDialog *dialog) {
                 check(dialog->grab().save(editorEvidence), "Editor evidence captured");
             });
+        const auto component = createComponent(doc, id, "Text component");
+        const auto second =
+            placeComponent(doc, component.definition, Transform::translation({1, 0, 0}));
+        const auto member = component.movedGeometry.at(id);
+        const auto originalText = doc.bodies().at(member)->textSource->text;
+        sync(window);
+        for (int row = 0; row < list->count(); ++row)
+            if (list->item(row)->data(Qt::UserRole).toULongLong() == member)
+                list->setCurrentRow(row);
+        modal(window, "textEditButton", [&](QDialog *dialog) {
+            dialog->findChild<QPlainTextEdit *>("textContent")->setPlainText("B");
+            save(dialog);
+            finished(dialog);
+            check(!dialog->isVisible(), "Native component text edit succeeds");
+        });
+        check(doc.bodies().at(member)->textSource->text == "B" &&
+                  doc.instances().at(id)->definition !=
+                      doc.instances().at(second.instance)->definition,
+              "Native text edit makes only its component instance unique");
+        bool other{};
+        for (const auto &[_, body] : doc.bodies())
+            if (body->parent == second.instance && body->textSource) {
+                check(body->textSource->text == originalText,
+                      "Other component placement retains source");
+                other = true;
+            }
+        check(other, "Other component text still exists");
         doc.markSaved();
         const auto example = qEnvironmentVariable("SKETCHYUP_TEXT_MODEL");
         if (!example.isEmpty()) {
