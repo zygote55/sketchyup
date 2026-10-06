@@ -1,4 +1,5 @@
 #include "core/model.hpp"
+#include "core/reference_images.hpp"
 #include "core/appearance.hpp"
 #include "core/face_textures.hpp"
 #include "core/edge_appearance.hpp"
@@ -121,7 +122,11 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies) {
         edges += b->topology.edges.size();
         curves += b->curves.size();
         guides += b->guides.size();
+        if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
+            throw std::runtime_error("Reference images cannot own child entities");
         const auto world = worldTransformIn(bodies, id);
+        if (b->referenceImage)
+            referenceImageCorners(*b->referenceImage, world);
         for (const auto &[vertex, point] : b->surface.vertices)
             checkPoint(world.point(point));
         for (const auto &[guideId, guide] : b->guides) {
@@ -146,7 +151,18 @@ void validate(const Body &b) {
     for (float c : b.color)
         if (!std::isfinite(c) || c < 0 || c > 1)
             throw std::runtime_error("Invalid material color");
-    if (b.kind != BodyKind::Geometry && b.kind != BodyKind::Group)
+    if (b.referenceImage.has_value() != (b.kind == BodyKind::ReferenceImage))
+        throw std::runtime_error("Reference image kind requires exactly one image record");
+    if (b.referenceImage) {
+        b.referenceImage->validate();
+        if (!b.surface.vertices.empty() || !b.surface.faces.empty() || !b.surface.wires.empty() ||
+            !b.topology.edges.empty() || !b.curves.empty() || !b.guides.empty() || b.textSource ||
+            b.materials != MaterialSides{} || !b.faceColors.empty() || !b.faceMaterials.empty() ||
+            !b.faceTextureMappings.empty() || !b.edgeAppearances.empty())
+            throw std::runtime_error("Reference images cannot own modeled geometry or materials");
+    }
+    if (b.kind != BodyKind::Geometry && b.kind != BodyKind::Group &&
+        b.kind != BodyKind::ReferenceImage)
         throw std::runtime_error("Unknown entity kind");
     for (const auto &[id, color] : b.faceColors) {
         if (!b.surface.faces.contains(id))
@@ -1072,6 +1088,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                 validateSceneCapture(capture, change.after->snapshot);
     }
     validateMaterialAssignments(materials, updated);
+    validateReferenceImageAssets(updated, assets);
     validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
                                  nextMaterial, assets, nextAsset);
     validateComponentInstances(definitions, instances, updated);
@@ -1544,6 +1561,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     validateMaterialRecords(materials, nextMaterialId);
     validateMaterialAssets(materials, assets);
     validateMaterialAssignments(materials, bodies);
+    validateReferenceImageAssets(bodies, assets);
     validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
                                  nextMaterialId, assets, nextAssetId);
     validateComponentInstances(definitions, instances, bodies);

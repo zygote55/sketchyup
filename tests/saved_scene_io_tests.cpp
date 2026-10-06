@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
         std::reverse(order.begin(), order.end());
         reorderScenes(doc, order);
         auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
-        check(QJsonDocument::fromJson(raw).object()["version"] == 23, "Current schema explicit");
+        check(QJsonDocument::fromJson(raw).object()["version"] == 24, "Current schema explicit");
         auto reopened = decodeContainer(bytes);
         check(encodeContainer(reopened) == bytes && encodeDocument(decodeDocument(raw)) == raw &&
                   orderedScenes(reopened) == order && reopened.nextSceneId() > offId &&
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
         const auto oldBytes = source.readAll();
         const auto oldLength = qFromLittleEndian<quint32>(oldBytes.constData() + 12);
         auto old = QJsonDocument::fromJson(oldBytes.mid(16 + oldLength)).object();
-        old["version"] = 23;
+        old["version"] = 24;
         old["solar"] = encodeSolarSettings(SolarSettings{});
         old["annotations"] = QJsonArray{};
         old["nextAnnotationId"] = "1";

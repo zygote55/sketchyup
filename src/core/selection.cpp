@@ -153,6 +153,8 @@ void Selection::enter(const Document &doc, Id context) {
     if (context && (!doc.bodies().contains(context) || locked(doc, context) ||
                     (!showHidden_ && hidden(doc, {context, SelectionKind::Body, 0}))))
         throw std::runtime_error("Cannot enter a missing, hidden or locked context");
+    if (context && doc.bodies().at(context)->referenceImage)
+        throw std::runtime_error("Reference images have no editable geometry context");
     context_ = context;
     entities_.clear();
 }

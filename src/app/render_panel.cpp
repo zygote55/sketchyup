@@ -511,6 +511,7 @@ struct RenderPanel::Impl {
                   {"annotationsOmitted", "dimensions and labels omitted"},
                   {"editableTextSourcesOmitted", "editable text sources omitted; geometry retained"},
                   {"solarLightingOmitted", "sun lighting omitted; study settings retained"},
+                  {"referenceImagesOmitted", "reference images omitted"},
                   {"guidesOmitted", "guides omitted"},
                   {"analyticCurvesTessellatedOrOmitted", "curves approximated or omitted"},
                   {"differentBackAppearancesUseFront", "back faces use front appearance"},
