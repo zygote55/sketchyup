@@ -96,3 +96,30 @@ The final trace's 28 keyboard-leave events all retain their live surface argumen
 The complete final fixture also passes X11 and Wayland, each at DPR 1 and 2.
 Fresh exact-head CI remains required before merging this layer and its dependents.
 Existing visual captures are unchanged.
+
+
+## Main-window shutdown follow-up
+
+Fresh CI subsequently exposed the same proxy lifetime problem on the **main**
+window, after all report interactions passed. The allocation stack points to the
+fixture's initial `window.show()`. A local protocol trace reproduced the leak:
+`wl_surface#17.destroy()` preceded a queued `wl_keyboard.enter(..., nil, ...)`.
+The report's focus-release checks continued to pass; this is a separate shutdown
+path exposed by the report returning focus immediately before application exit.
+
+The main window now unmaps and awaits the default-queue compositor acknowledgement
+inside its original close event. The local event loop keeps native dispatch alive;
+Qt retains that event's original visibility and applies its normal last-window signal
+and automatic quit behavior after the handler returns. A first deferred-reclose
+variant failed the automatic-exit regression because hiding synchronizes both QWidget
+and QWindow visibility. Duplicate close requests cannot skip the barrier. A document
+change during the native drain cancels shutdown and remaps the window for review.
+Callback lifetime is bounded by the local wait, including external event-loop exit.
+The regression fixture exercises both the intervening-edit case and the actual
+application event loop, requiring exactly one last-window signal and normal exit.
+The follow-up passes all four native display variants and four Wayland DPR 2
+ASan/UBSan/leak runs: a protocol trace and three consecutive repetitions. All 58
+keyboard enter/leave events in the final trace retain live surface arguments, and
+the fixture verifies both canceled shutdown after an edit and normal automatic exit.
+Existing M4 save/recovery/canceled-close and Formline import workflows also pass on
+Wayland DPR 2. No sanitizer suppression is used. Fresh CI remains required before merging.

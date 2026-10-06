@@ -39,6 +39,7 @@ class Window : public QMainWindow {
     void resizeEvent(QResizeEvent *) override;
 
   private:
+    bool closePending_{};
     Document doc_;
     Viewport *viewport_{};
     RenderPanel *render_{};
