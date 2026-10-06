@@ -9,6 +9,9 @@ class PreparedRender {
   public:
     // Expensive preparation is safe on a worker with an already captured value.
     static std::shared_ptr<const PreparedRender> prepare(const RenderSnapshot &snapshot);
+    static std::shared_ptr<const PreparedRender> open(const QString &directory,
+                                                      const QString &manifestHash);
+    void copyTo(const QString &directory) const;
     const QJsonObject &manifest() const { return manifest_; }
     const QString &manifestHash() const { return manifestHash_; }
     QString directory() const { return root_->path(); }
@@ -64,4 +67,8 @@ class BlenderJob : public QObject {
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
+std::shared_ptr<const BlenderResult> loadBlenderResult(const PreparedRender &input,
+                                                       const QString &directory,
+                                                       const QJsonObject &manifest,
+                                                       const BlenderJob::Options &requested);
 } // namespace sketchy
