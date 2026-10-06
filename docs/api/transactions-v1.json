@@ -98,6 +98,70 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Require a final batch measurement to match",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "assert.measurement"
+                                        },
+                                        "expected": {
+                                            "oneOf": [
+                                                {
+                                                    "type": "number"
+                                                },
+                                                {
+                                                    "items": {
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                }
+                                            ]
+                                        },
+                                        "metric": {
+                                            "enum": [
+                                                "length",
+                                                "area",
+                                                "volume",
+                                                "dimensions",
+                                                "minimum",
+                                                "maximum"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "space": {
+                                            "enum": [
+                                                "local",
+                                                "world"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "tolerance": {
+                                            "description": "Explicit absolute tolerance in m, m2 or m3; bounds compare each axis",
+                                            "maximum": 1,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "space",
+                                        "metric",
+                                        "expected",
+                                        "tolerance",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Change document units",
                                     "properties": {
                                         "command": {

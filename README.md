@@ -234,6 +234,14 @@ with optional `--output MODEL` for an explicitly bound save destination. Create 
 new baseline with `--session --new --output MODEL --outcomes DIRECTORY`.
 `--session-capabilities` prints the shared schemas. Requests and replies use bounded
 JSON lines; see the [session protocol](docs/decisions/0026-headless-session.md).
+Use `assert.measurement` inside an edit batch or transaction to require a final
+body measurement to match an explicit expected value and absolute tolerance.
+It supports local/world dimensions, bounds, edge length, face area and validated
+solid volume. A failed assertion rolls back the whole edit; later steps in the
+same draft must keep earlier assertions true. See the
+[asserted-solid example](examples/asserted-solid.json) and
+[measurement contract](docs/decisions/0055-geometric-assertions.md).
+
 Versioned recipes pass typed results between those same requests:
 `--recipe examples/transaction-face-recipe.json --new --output /tmp/face.sketchyup --outcomes /tmp/face-outcomes`.
 The [room/window recipe](docs/decisions/0031-room-window-recipes.md) creates a 6 × 4 m

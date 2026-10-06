@@ -359,7 +359,7 @@ int main(int argc, char **argv) {
                                     .toObject()["const"]
                                     .toString());
         }
-        check(commands.contains("component.attach") && commands.contains("component.bind") &&
+        check(commands.contains("assert.measurement") && commands.contains("component.attach") && commands.contains("component.bind") &&
                   commands.contains("component.detach") && !commands.contains("component.glue") &&
                   !commands.contains("component.bake_host"),
               "Native assistant advertises routine attachments while retaining shared and "
