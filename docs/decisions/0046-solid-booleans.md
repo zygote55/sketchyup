@@ -1,6 +1,6 @@
 # 0046 — Bounded solid Boolean adapter
 
-Status: immutable kernel fixtures and sanitizers pass locally; CI/dependency acceptance pending.
+Status: kernel, shared command and native acceptance pass locally; CI/dependency merges pending.
 
 R055 uses [Manifold 3.4.1](https://github.com/elalish/manifold/tree/v3.4.1), pinned
 at `31afd71d17c7a94cfaeada83f657d7b42628ead6`, as a replaceable solid operation
@@ -94,4 +94,22 @@ results after publication to scene IDs. Unique instance edits preserve the sourc
 definition and siblings. The command is published consistently through CLI,
 transaction/session/MCP discovery and the assistant command allowlist.
 
-Native controls and their interaction acceptance belong to R055.c.
+## Native controls
+
+Solid Boolean (Shift+B) accepts two editable raw bodies, or selected faces from
+two raw bodies, in the active context. The initial operation is union and Keep
+originals starts enabled. Draw → Solid Boolean options selects union, target
+minus tool, or intersection, toggles retention, and swaps target/tool. Initial
+order follows stable body IDs; viewport and status text identify both by name
+and ID. Swapping reverses that order and recomputes the preview. Choosing another
+operation or retention policy also recomputes through the shared command.
+
+Enter or click publishes the validated ToolSession preview; Escape leaves source
+records, selection, allocators and history intact. Alt/right/middle navigation
+retains the preview. Manual document changes invalidate it. Invalid solids report
+operand and defect identities, and retained empty results explain the no-change
+outcome. Empty consumption explicitly states that both originals will be removed.
+Generated parts are selected after publication (none for an empty result).
+Shared component editing uses the established scope path and scene mappings;
+Make Unique remains the existing explicit route to independent instance edits.
+Native display acceptance is recorded separately in R055.c.

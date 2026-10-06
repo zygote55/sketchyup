@@ -435,6 +435,16 @@ component edit. Existing seams produce an actionable no-change message. The same
 operation is available as `geometry.intersect`; see the
 [intersection contract](docs/decisions/0045-face-intersections.md).
 
+Solid Boolean (**Shift+B**) previews the two selected solids; selecting a face
+from each is enough. Draw → Solid Boolean options chooses Union, Subtract tool
+from target, or Intersection. The viewport identifies target and tool by name and
+ID; Swap target and tool reverses subtraction order. Keep originals is enabled
+initially. Turning it off consumes both in the same Undo item. Enter or click
+applies, Escape cancels, and Alt-drag orbits while preserving the preview. Results
+are selected after applying. Empty intersections explain whether the originals
+will be retained or removed. Shared component edits update all instances; use
+Make Unique first for an independent edit.
+
 `geometry.boolean` combines two editable raw solids in one context using `union`,
 `subtract` (target minus tool), or `intersection`. The required `keepOperands`
 choice retains the exact sources or consumes them in the same Undo item. Outputs

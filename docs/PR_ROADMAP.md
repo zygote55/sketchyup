@@ -83,7 +83,7 @@ native scheduling/selection is merged in [PR #51](https://github.com/zygote55/sk
 The labeled history API merged in [PR #52](https://github.com/zygote55/sketchyup/pull/52);
 native History controls merged in [PR #53](https://github.com/zygote55/sketchyup/pull/53).
 Document unit data/API/persistence merged in [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences merged in [PR #55](https://github.com/zygote55/sketchyup/pull/55).
-The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4, R040 bounded inspection, R041 transactions and R042 headless automation are complete; M5 MCP and assistant integration are in progress.
+The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4 and M5 are complete; the [M5 gate](verification/M5.md) records provider, assistant, MCP and room/window acceptance. M6 advanced modeling is in progress.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -860,7 +860,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R055 — Implement solid union, subtraction and intersection
 
-**Status:** In progress. R055.a ([PR #92](https://github.com/zygote55/sketchyup/pull/92)) adds the immutable Manifold-backed adapter with native solid preconditions, polygon reconstruction, source-face provenance, bounded precision and disconnected outputs ([contract](decisions/0046-solid-booleans.md), [fixtures](verification/R055a-solid-booleans.md)); it depends on R054.c. R055.b adds the shared command with explicit operand retention, transformed placement, source material sides, generated provenance and scoped instance edits ([command evidence](verification/R055b-boolean-command.md)). Native controls and full acceptance remain outstanding. Enclosed cavity shells reject until native containment support is implemented. **Track:** Geometry. **Scope:** E07. **UX:** —.
+**Status:** In progress. R055.a ([PR #92](https://github.com/zygote55/sketchyup/pull/92)) adds the immutable Manifold-backed adapter with native solid preconditions, polygon reconstruction, source-face provenance, bounded precision and disconnected outputs ([contract](decisions/0046-solid-booleans.md), [fixtures](verification/R055a-solid-booleans.md)); it depends on R054.c. R055.b ([PR #93](https://github.com/zygote55/sketchyup/pull/93)) adds the shared command with explicit operand retention, transformed placement, source material sides, generated provenance and scoped instance edits ([command evidence](verification/R055b-boolean-command.md)). R055.c adds native Solid Boolean (Shift+B), operation/retention controls, target/tool swap, visible preview, generated selection and X11/Wayland acceptance ([native evidence](verification/R055c-native-booleans.md)). Local acceptance passes; CI/dependency merges remain pending. Enclosed cavity shells reject until native containment support is implemented. **Track:** Geometry. **Scope:** E07. **UX:** —.
 
 **Requires:** [R054](#r054); milestone gate rule above.
 

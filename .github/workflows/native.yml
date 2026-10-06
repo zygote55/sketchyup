@@ -90,6 +90,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/curve_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/drawing_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/numeric_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/boolean_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/boolean_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/intersection_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/intersection_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/sweep_input_tests
@@ -104,6 +106,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/shell_tests
       - name: Isolated Wayland interaction and rendering
         run: |
+          scripts/test-wayland.sh build/dev/boolean_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/boolean_input_tests
           scripts/test-wayland.sh build/dev/intersection_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/intersection_input_tests
           scripts/test-wayland.sh build/dev/sweep_input_tests

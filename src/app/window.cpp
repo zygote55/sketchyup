@@ -347,6 +347,30 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     addTool("Intersect", "I", Viewport::Tool::Intersect,
             "Select target faces · Choose reference scope in Draw · Enter or click applies · Esc "
             "cancels");
+    addTool("Solid Boolean", "Shift+B", Viewport::Tool::Boolean,
+            "Select two solids or their faces · Choose operation and originals in Draw")
+        ->setIconText("Boolean");
+    auto *booleans = draw->addMenu("Solid Boolean options");
+    auto *booleanGroup = new QActionGroup(this);
+    for (const auto &[operation, label] :
+         {std::pair{QString("union"), QString("Union")},
+          std::pair{QString("subtract"), QString("Subtract tool from target")},
+          std::pair{QString("intersection"), QString("Intersection")}}) {
+        auto *choice = action("boolean.operation." + operation, label, {},
+                              [this, operation] { viewport_->setBooleanOperation(operation); });
+        choice->setCheckable(true);
+        choice->setChecked(operation == "union");
+        booleanGroup->addAction(choice);
+        booleans->addAction(choice);
+    }
+    auto *keepOriginals = action("boolean.keep", "Keep originals", {}, [this] {
+        viewport_->setBooleanKeepOperands(findChild<QAction *>("boolean.keep")->isChecked());
+    });
+    keepOriginals->setCheckable(true);
+    keepOriginals->setChecked(true);
+    booleans->addAction(keepOriginals);
+    booleans->addAction(action("boolean.swap", "Swap target and tool", {},
+                               [this] { viewport_->swapBooleanOperands(); }));
     auto *references = draw->addMenu("Intersection references");
     auto *referenceGroup = new QActionGroup(this);
     for (const auto &[mode, label] : {std::pair{QString("selected"), QString("Selected faces")},
@@ -724,6 +748,7 @@ void Window::tool(Viewport::Tool t, const QString &text) {
         : t == Viewport::Tool::Extrude    ? "distance"
         : t == Viewport::Tool::Offset     ? "signed offset distance (+ outward, - inward)"
         : t == Viewport::Tool::Sweep      ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Boolean    ? "Enter applies the preview · Esc cancels"
         : t == Viewport::Tool::Intersect  ? "Enter applies the preview · Esc cancels"
         : t == Viewport::Tool::Circle     ? "radius or 24s"
         : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
