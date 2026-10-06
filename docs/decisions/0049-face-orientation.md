@@ -59,3 +59,12 @@ component-scoped ID mapping, preview, stale-revision checking, batch rollback,
 Undo/Redo and native-container persistence. Native controls and exporter-side
 front/back handling are separate acceptance layers; this command slice does not
 remove the existing GLB back-material loss report.
+
+
+R057.c exposes native Face orientation (Shift+O) with Reverse/Orient mode controls.
+Orient requires exactly one selected reference face. Shared command preview
+receipts identify changed scene faces; arrows use inverse-transpose physical
+normals and a point inside a triangle of each changed face. Preview never changes
+the model. Apply retains selection and uses the same component/history path.
+Framebuffer tests verify visible direction feedback and unchanged physical-side
+colors from both sides, including reflected placements.

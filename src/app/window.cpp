@@ -379,6 +379,21 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     booleans->addAction(keepOriginals);
     booleans->addAction(action("boolean.swap", "Swap target and tool", {},
                                [this] { viewport_->swapBooleanOperands(); }));
+    addTool("Face orientation", "Shift+O", Viewport::Tool::Orientation,
+            "Select faces to reverse, or one reference face to orient its connected surface")
+        ->setIconText("Orient");
+    auto *orientation = draw->addMenu("Face orientation options");
+    auto *orientationGroup = new QActionGroup(this);
+    for (bool connected : {false, true}) {
+        auto *choice = action(connected ? "orientation.connected" : "orientation.reverse",
+                              connected ? "Orient connected faces to selected reference"
+                                        : "Reverse selected faces",
+                              {}, [this, connected] { viewport_->setOrientationMode(connected); });
+        choice->setCheckable(true);
+        choice->setChecked(!connected);
+        orientationGroup->addAction(choice);
+        orientation->addAction(choice);
+    }
     auto *references = draw->addMenu("Intersection references");
     auto *referenceGroup = new QActionGroup(this);
     for (const auto &[mode, label] : {std::pair{QString("selected"), QString("Selected faces")},
@@ -747,18 +762,19 @@ void Window::tool(Viewport::Tool t, const QString &text) {
     viewport_->setTool(t);
     viewport_->setFocus();
     measurements_->setPlaceholderText(
-        t == Viewport::Tool::Paint        ? "Choose a material and side"
-        : t == Viewport::Tool::Move       ? "distance, dx,dy,dz or [x,y,z]"
-        : t == Viewport::Tool::Rotate     ? "angle (deg) or [pivot / reference]"
-        : t == Viewport::Tool::Scale      ? "factor or x,y,z factors"
-        : t == Viewport::Tool::Tape       ? "distance or [x,y,z]"
-        : t == Viewport::Tool::Protractor ? "angle (deg) or [x,y,z]"
-        : t == Viewport::Tool::Extrude    ? "distance"
-        : t == Viewport::Tool::Offset     ? "signed offset distance (+ outward, - inward)"
-        : t == Viewport::Tool::Sweep      ? "Enter applies the preview · Esc cancels"
-        : t == Viewport::Tool::Boolean    ? "Enter applies the preview · Esc cancels"
-        : t == Viewport::Tool::Intersect  ? "Enter applies the preview · Esc cancels"
-        : t == Viewport::Tool::Circle     ? "radius or 24s"
+        t == Viewport::Tool::Paint         ? "Choose a material and side"
+        : t == Viewport::Tool::Move        ? "distance, dx,dy,dz or [x,y,z]"
+        : t == Viewport::Tool::Rotate      ? "angle (deg) or [pivot / reference]"
+        : t == Viewport::Tool::Scale       ? "factor or x,y,z factors"
+        : t == Viewport::Tool::Tape        ? "distance or [x,y,z]"
+        : t == Viewport::Tool::Protractor  ? "angle (deg) or [x,y,z]"
+        : t == Viewport::Tool::Extrude     ? "distance"
+        : t == Viewport::Tool::Offset      ? "signed offset distance (+ outward, - inward)"
+        : t == Viewport::Tool::Sweep       ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Boolean     ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Orientation ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Intersect   ? "Enter applies the preview · Esc cancels"
+        : t == Viewport::Tool::Circle      ? "radius or 24s"
         : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
         : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"
         : t == Viewport::Tool::ThreePointArc                         ? "[x,y,z] or 24s"
