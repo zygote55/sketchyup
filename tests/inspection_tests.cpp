@@ -1,6 +1,7 @@
 #include "automation/inspection.hpp"
 #include "core/components.hpp"
 #include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "core/entity_measure.hpp"
 #include "core/groups.hpp"
 #include "io/document_io.hpp"
@@ -335,6 +336,13 @@ int main(int argc, char **argv) {
                   ["snapshot"].toObject().contains("camera"), "Saved scene property inspection");
         check(all(sceneDocument, "saved_scene.visibility", {{"scene", QString::number(savedScene)}}).empty(),
               "Empty scene visibility query is a valid bounded page");
+        const auto section = createSection(sceneDocument, "Section", 0, {});
+        setActiveSection(sceneDocument, 0, section);
+        check(all(sceneDocument, "sections.query").size() == 1, "Bounded section list");
+        check(run(sceneDocument, "section.describe", {{"section", QString::number(section)}})["effective"] == true,
+              "Section detail exposes active state");
+        check(all(sceneDocument, "sections.effective", {{"body", "0"}}).size() == 1,
+              "Bounded effective model section query");
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
                   QJsonDocument::fromJson(published.readAll()).object() == inspectionCapabilities(),
