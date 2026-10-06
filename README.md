@@ -756,3 +756,13 @@ model Save. Two result tabs stay open at most; closing one keeps its image in Jo
 Retained results survive restart and can be reopened there. Interrupted work is
 available for explicit retry, while queued work resumes. **Remove** and **Remove all
 finished jobs** delete their stored captures, images and logs; pending jobs remain.
+
+See the [GLB material/geometry limitations](docs/decisions/0032-glb-snapshots.md)
+and each result's transfer report for unsupported scene details.
+
+The optional local assistant adapter uses a measured Ollama 0.35.1 profile on a
+numeric loopback endpoint. It sends no credentials or images, checks runtime and
+model capabilities before document transfer, and rejects context overflow rather
+than silently dropping history. See the [local profile and trial evidence](docs/verification/R045-local-provider.md)
+for the exact model digest, CPU limits, known failures and opt-in corpus runner.
+Ordinary modeling does not require a provider.
