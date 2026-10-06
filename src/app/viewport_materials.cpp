@@ -113,8 +113,8 @@ void Viewport::setSelectedEdgeAppearance(const QString &flag, bool value) {
 void Viewport::paintAt(QPointF point, bool sample) {
     selection_.sync(doc_);
     const auto hit = nearestFace(point);
-    if (!hit.body)
-        throw std::runtime_error("Point at a visible face");
+    if (!hit.body || !hit.face)
+        throw std::runtime_error("Point at a visible modeled face");
     if (sample) {
         const auto [origin, direction] = ray(point);
         const auto triangles = doc_.worldTriangles(hit.body);

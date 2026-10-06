@@ -166,6 +166,15 @@ int main(int argc, char **argv) {
         if (const auto capture = qEnvironmentVariable("SKETCHYUP_REFERENCE_CAPTURE");
             !capture.isEmpty())
             check(view.grabFramebuffer().save(capture + ".png"), "Reference evidence image saved");
+        const auto beforeFaceTools = encodeContainer(doc);
+        view.setTool(Viewport::Tool::Paint);
+        QTest::mouseClick(&view, Qt::LeftButton, Qt::AltModifier, view.project(redPoint).toPoint());
+        QTest::mouseClick(&view, Qt::LeftButton, Qt::NoModifier, view.project(redPoint).toPoint());
+        view.setTool(Viewport::Tool::Extrude);
+        QTest::mouseClick(&view, Qt::LeftButton, Qt::NoModifier, view.project(redPoint).toPoint());
+        view.setTool(Viewport::Tool::Select);
+        check(encodeContainer(doc) == beforeFaceTools && !view.selectedFace(),
+              "Material sampling, painting and push/pull cannot treat an image as a modeled face");
         for (auto mode : {ModelStyleMode::Shaded, ModelStyleMode::Monochrome,
                           ModelStyleMode::Wireframe, ModelStyleMode::XRay}) {
             style.mode = mode;
