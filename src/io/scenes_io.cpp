@@ -1,5 +1,6 @@
 #include "io/scenes_io.hpp"
 #include "io/model_style_io.hpp"
+#include "io/solar_io.hpp"
 #include "io/sections_io.hpp"
 #include <QStringList>
 namespace sketchy {
@@ -107,6 +108,7 @@ QJsonObject encodeSceneSnapshot(const SceneSnapshot &snapshot) {
                                            {"hidden", hidden},
                                            {"showHidden", v.showHidden}};
     }
+    if (snapshot.solar) result["solar"] = encodeSolarSettings(*snapshot.solar);
     if (snapshot.style)
         result["style"] = encodeModelStyle(*snapshot.style);
     if (snapshot.section) {
@@ -122,11 +124,12 @@ QJsonObject encodeSceneSnapshot(const SceneSnapshot &snapshot) {
     }
     return result;
 }
-SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections) {
+SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections, bool solar) {
     if (!value.isObject())
         throw std::runtime_error("Scene snapshot requires an object");
     const auto fields = value.toObject();
-    const QStringList allowed{"camera", "visibility", "style", "section"};
+    QStringList allowed{"camera", "visibility", "style", "section"};
+    if (solar) allowed.append("solar");
     for (auto it = fields.begin(); it != fields.end(); ++it)
         if (!allowed.contains(it.key()))
             throw std::runtime_error("Unknown scene snapshot field");
@@ -163,6 +166,7 @@ SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections) {
         }
         result.visibility = std::move(visibility);
     }
+    if (fields.contains("solar")) result.solar = decodeSolarSettings(fields["solar"]);
     if (fields.contains("style"))
         result.style = decodeModelStyle(fields["style"]);
     if (fields.contains("section")) {
@@ -192,7 +196,7 @@ QJsonArray encodeScenes(const SceneRecords &scenes) {
                                   {"snapshot", encodeSceneSnapshot(scene->snapshot)}});
     return result;
 }
-SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId, bool namedSections) {
+SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId, bool namedSections, bool solar) {
     SceneRecords result;
     size_t bytes = 0;
     for (const auto &entry : array(value, sceneCountLimit)) {
@@ -204,7 +208,7 @@ SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId, bool namedSec
             throw std::runtime_error("Invalid scene order position");
         auto scene = std::make_shared<SceneRecord>(SceneRecord{
             id(record["id"]), record["name"].toString().toStdString(),
-            static_cast<std::uint32_t>(position), decodeSceneSnapshot(record["snapshot"], namedSections)});
+            static_cast<std::uint32_t>(position), decodeSceneSnapshot(record["snapshot"], namedSections, solar)});
         bytes += sceneBytes(scene);
         if (bytes > sceneBytesLimit)
             throw std::runtime_error("Scenes exceed eight MiB record budget");

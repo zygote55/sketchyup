@@ -73,7 +73,7 @@ void roundtripAndRecovery(bool cutting) {
     validateHostedComponents(reopened.hostedComponents(), reopened.bodies(), reopened.definitions(),
                              reopened.instances());
     const auto json = QJsonDocument::fromJson(raw).object();
-    check(json["version"] == 22, "Hosted document schema version is explicit");
+    check(json["version"] == 23, "Hosted document schema version is explicit");
     for (int variant = 0; variant < 17; ++variant) {
         auto bad = json;
         auto hosted = bad["hosted"].toObject();
@@ -184,6 +184,7 @@ void roundtripAndRecovery(bool cutting) {
     }
     const auto legacy = rewrite(bytes, [](auto &manifest, auto &document) {
         auto features = manifest["requiredFeatures"].toArray();
+        features.removeAt(features.size() - 1); // solar-study-v1
         features.removeAt(features.size() - 1); // editable-text-v1
         features.removeAt(features.size() - 1); // annotations-v1
         features.removeAt(features.size() - 1); // section-scenes-v1
@@ -205,6 +206,7 @@ void roundtripAndRecovery(bool cutting) {
         document.remove("style");
         document.remove("scenes");
         document.remove("sections");
+        document.remove("solar");
         document.remove("annotations");
         document.remove("nextAnnotationId");
         document.remove("nextSectionId");

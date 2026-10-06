@@ -73,7 +73,7 @@ void checkPreserved(const Document &before, const Document &after, Id target) {
         before.hostedComponents() != after.hostedComponents() ||
         before.materials() != after.materials() || before.tags() != after.tags() ||
         before.assets() != after.assets() || before.displayUnits() != after.displayUnits() ||
-        before.style() != after.style() || before.scenes() != after.scenes() ||
+        before.style() != after.style() || before.solar() != after.solar() || before.scenes() != after.scenes() ||
         before.sections() != after.sections() || before.activeSections() != after.activeSections() ||
         before.annotations() != after.annotations())
         fail("Site placement changed model resources or component relationships");

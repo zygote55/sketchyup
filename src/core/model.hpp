@@ -95,6 +95,7 @@ struct Edit {
     std::vector<AnnotationChange> annotations{};
     Id nextAnnotationFloor{};
     bool annotationsResolved{};
+    std::optional<std::pair<SolarSettings, SolarSettings>> solar{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -160,6 +161,8 @@ class Document {
     DisplayUnit displayUnits() const { return displayUnits_; }
     const ModelStyle &style() const { return style_; }
     void setStyle(const ModelStyle &style);
+    const SolarSettings &solar() const { return solar_; }
+    void setSolar(const SolarSettings &solar);
     void setDisplayUnits(DisplayUnit units);
     Id addFace(const std::vector<std::vector<Vec3>> &loops, std::string name = "Face");
     void extrude(Id body, Id face, double distance);
@@ -220,12 +223,13 @@ class Document {
                  HostedPtr hosted = std::make_shared<const HostedComponents>(),
                  ModelStyle style = {}, SceneRecords scenes = {}, Id nextSceneId = 1,
                  SectionRecords sections = {}, Id nextSectionId = 1, ActiveSections activeSections = {},
-                 AnnotationRecords annotations = {}, Id nextAnnotationId = 1);
+                 AnnotationRecords annotations = {}, Id nextAnnotationId = 1, SolarSettings solar = {});
 
   private:
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};
     ModelStyle style_;
+    SolarSettings solar_;
     std::map<Id, BodyPtr> bodies_;
     Id nextId_{1};
     ComponentDefinitions definitions_;

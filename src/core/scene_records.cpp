@@ -60,7 +60,7 @@ void SceneSection::validate() const {
         throw std::runtime_error("Scene section plane requires a unit normal");
 }
 void SceneSnapshot::validate() const {
-    if (!camera && !visibility && !style && !section)
+    if (!camera && !visibility && !style && !section && !solar)
         throw std::runtime_error("A scene must control at least one view property");
     if (camera)
         camera->validate();
@@ -68,6 +68,8 @@ void SceneSnapshot::validate() const {
         visibility->validate();
     if (style)
         style->validate();
+    if (solar)
+        solar->validate();
     if (section)
         section->validate();
 }

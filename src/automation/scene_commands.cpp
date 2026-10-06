@@ -109,6 +109,8 @@ QJsonObject savedSceneSummary(const Document &doc, Id id) {
         properties.append("visibility");
     if (snapshot.style)
         properties.append("style");
+    if (snapshot.solar)
+        properties.append("solar");
     if (snapshot.section)
         properties.append("section");
     const auto missing = missingSceneReferences(doc, snapshot);
@@ -126,7 +128,7 @@ QJsonObject savedSceneDescription(const Document &doc, Id id) {
     auto snapshot = doc.scenes().at(id)->snapshot;
     const auto visibility = snapshot.visibility;
     snapshot.visibility.reset();
-    result["snapshot"] = snapshot.camera || snapshot.style || snapshot.section
+    result["snapshot"] = snapshot.camera || snapshot.style || snapshot.section || snapshot.solar
                              ? encodeSceneSnapshot(snapshot)
                              : QJsonObject{};
     if (visibility)
