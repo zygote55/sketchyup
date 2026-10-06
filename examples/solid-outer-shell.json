@@ -1,0 +1,119 @@
+[
+  {
+    "command": "geometry.face",
+    "name": "Target",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          2,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "1",
+    "face": "5",
+    "distance": 2
+  },
+  {
+    "command": "geometry.face",
+    "name": "Enclosed cutting solid",
+    "loops": [
+      [
+        [
+          0.5,
+          0.5,
+          0.5
+        ],
+        [
+          1.5,
+          0.5,
+          0.5
+        ],
+        [
+          1.5,
+          1.5,
+          0.5
+        ],
+        [
+          0.5,
+          1.5,
+          0.5
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "2",
+    "face": "5",
+    "distance": 1
+  },
+  {
+    "command": "geometry.boolean",
+    "body": "1",
+    "tool": "2",
+    "context": "0",
+    "operation": "subtract",
+    "keepOperands": false
+  },
+  {
+    "command": "geometry.face",
+    "name": "Enclosed island",
+    "loops": [
+      [
+        [
+          0.75,
+          0.75,
+          0.75
+        ],
+        [
+          1.25,
+          0.75,
+          0.75
+        ],
+        [
+          1.25,
+          1.25,
+          0.75
+        ],
+        [
+          0.75,
+          1.25,
+          0.75
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "4",
+    "face": "5",
+    "distance": 0.5
+  },
+  {
+    "command": "geometry.outer_shell",
+    "body": "3",
+    "tool": "4",
+    "context": "0",
+    "keepOperands": false
+  }
+]
