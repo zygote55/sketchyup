@@ -1,0 +1,66 @@
+{
+    "adapter": "sketchyup-blender-v1",
+    "apiVersion": 1,
+    "attempts": [
+        {
+            "backend": "CPU",
+            "deviceId": "CPU",
+            "exitCode": 0,
+            "logTail": "Blender 5.2.2 LTS (hash d13f752e3b9c built 2026-09-22 17:10:25)\n[ALSOFT] (EE) Failed to connect PipeWire event context (errno: 112)\nSKETCHYUP_PROGRESS {\"phase\": \"loading\"}\n17:24:29 | INFO: Data are loaded, start creating Blender stuff\n17:24:29 | INFO: Blender create Mesh node 1\n17:24:29 | INFO: Blender create Mesh node 0\n17:24:29 | INFO: glTF import finished in 0.01s\n/tmp/sketchyup-worker-dKxATe/attempt-1/worker.py:410: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0\n  world.use_nodes = True\nSKETCHYUP_PROGRESS {\"phase\": \"rendering\"}\n00:02.079  render           | Saved: '/tmp/sketchyup-worker-dKxATe/attempt-1/image.png'\nSKETCHYUP_PROGRESS {\"phase\": \"verifying-output\"}\nSKETCHYUP_PROGRESS {\"phase\": \"completed\"}\n\nBlender quit\n",
+            "normalExit": true,
+            "workerStatus": "succeeded"
+        }
+    ],
+    "blenderBuildHash": "d13f752e3b9c",
+    "blenderVersion": [
+        5,
+        2,
+        2
+    ],
+    "blenderVersionString": "5.2.2 LTS",
+    "cpuFallbackUsed": false,
+    "device": {
+        "backend": "CPU",
+        "id": "CPU",
+        "name": "CPU"
+    },
+    "documentId": "74211d6c5fbcb3e70ee4dfacb8c69b28",
+    "image": {
+        "bytes": 171883,
+        "file": "image.png",
+        "height": 512,
+        "sha256": "88c5fa1388105916aa0f596b201669ca6396be17f770df7caaf2f5ce3d6ea254",
+        "width": 512
+    },
+    "losses": {
+        "analyticCurvesTessellatedOrOmitted": 0,
+        "guidesOmitted": 0,
+        "missingAssets": 0,
+        "sectionCutEdgesOmitted": 18,
+        "textureAssetsPreservedWithoutUVMapping": 0,
+        "wiresOmitted": 1
+    },
+    "manifestSha256": "6c69f49988ab1ac0a8a6b4f3a20ab57b14e9b7d7a2ee4567ddb36f4464244cd7",
+    "preset": {
+        "adaptiveSampling": false,
+        "denoising": false,
+        "engine": "CYCLES",
+        "exposure": 0,
+        "gamma": 1,
+        "look": "None",
+        "maxBounces": 8,
+        "name": "studio-v1",
+        "threads": 4,
+        "viewTransform": "Standard",
+        "worldStrength": 0.25
+    },
+    "revision": "26",
+    "sceneSha256": "478bf3f115161144552cac58a394b0885a0a3049a339c70736c336f92c85b31e",
+    "settings": {
+        "height": 512,
+        "samples": 32,
+        "seed": 0,
+        "width": 512
+    },
+    "status": "succeeded"
+}
