@@ -117,8 +117,11 @@ TextPanel::~TextPanel() {
         if (worker)
             worker->requestInterruption();
     for (const auto &worker : workers_)
-        if (worker)
+        if (worker) {
             worker->wait();
+            // Shutdown may not return to the event loop to deliver deleteLater.
+            delete worker.data();
+        }
 }
 Id TextPanel::selected() const {
     return list_->currentItem() ? list_->currentItem()->data(Qt::UserRole).toULongLong() : 0;
