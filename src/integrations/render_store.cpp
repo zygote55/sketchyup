@@ -66,6 +66,7 @@ QJsonObject encode(const StoredRenderJob &job) {
             {"manifestSha256", job.manifestHash},
             {"state", renderJobStateName(job.state)},
             {"createdMs", job.createdMs},
+            {"queueSequence", job.queueSequence},
             {"updatedMs", job.updatedMs},
             {"attempts", job.attempts},
             {"message", job.message},
@@ -99,6 +100,10 @@ StoredRenderJob decode(const QJsonObject &value, const QString &id) {
         }
     }
     require(stateFound, "Unknown render job state");
+    result.queueSequence = value.value("queueSequence").toInteger(0);
+    require(result.queueSequence >= 1 && result.queueSequence <= 1000000000000LL &&
+                value.value("queueSequence").toDouble() == double(result.queueSequence),
+            "Invalid persistent render queue order");
     result.createdMs = value.value("createdMs").toInteger(-1);
     result.updatedMs = value.value("updatedMs").toInteger(-1);
     result.attempts = value.value("attempts").toInt(-1);
@@ -252,6 +257,9 @@ QString RenderJobStore::enqueue(const PreparedRender &input, BlenderJob::Options
     require(bytes >= 0 && bytes <= 312 * mib, "Invalid render package size");
     requireCapacity(bytes + 512 * 1024, 1);
     StoredRenderJob job;
+    for (const auto &[id, existing] : jobs_)
+        job.queueSequence = std::max(job.queueSequence, existing.queueSequence + 1);
+    require(job.queueSequence <= 1000000000000LL, "Render queue sequence limit reached");
     job.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     job.documentId = manifest.value("documentId").toString();
     job.revision = manifest.value("revision").toString();
@@ -340,6 +348,9 @@ void RenderJobStore::retry(const QString &id) {
     input(id);
     requireCapacity(0, 1);
     require(job.attempts < 1000, "Render job retry limit reached");
+    for (const auto &[otherId, existing] : jobs_)
+        job.queueSequence = std::max(job.queueSequence, existing.queueSequence + 1);
+    require(job.queueSequence <= 1000000000000LL, "Render queue sequence limit reached");
     job.state = RenderJobState::Queued;
     job.message.clear();
     job.updatedMs = std::max(job.createdMs, QDateTime::currentMSecsSinceEpoch());

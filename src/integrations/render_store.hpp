@@ -7,7 +7,7 @@ enum class RenderJobState { Queued, Running, Canceling, Completed, Failed, Cance
 QString renderJobStateName(RenderJobState state);
 struct StoredRenderJob {
     QString id, documentId, revision, manifestHash, message;
-    qint64 createdMs{}, updatedMs{};
+    qint64 createdMs{}, updatedMs{}, queueSequence{1};
     RenderJobState state{RenderJobState::Queued};
     BlenderJob::Options options;
     int attempts{};

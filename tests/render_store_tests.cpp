@@ -71,6 +71,9 @@ int main(int argc, char **argv) {
             rejects([&] { RenderJobStore duplicate(path); });
             completed = store.enqueue(*captured, options);
             interrupted = store.enqueue(*captured, options);
+            check(store.jobs().at(completed).queueSequence <
+                      store.jobs().at(interrupted).queueSequence,
+                  "Persistent queue order does not depend on wall-clock resolution");
             rejects([&] { store.enqueue(*captured, options); });
             rejects([&] { store.remove(completed); });
             document.addFace({{{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}});
@@ -97,7 +100,10 @@ int main(int argc, char **argv) {
                       store.jobs().at(completed).state == RenderJobState::Completed &&
                       store.result(completed)->png == expectedImage,
                   "Restart reconciles unfinished work and verifies retained pixels");
+            const auto originalOrder = store.jobs().at(interrupted).queueSequence;
             store.retry(interrupted);
+            check(store.jobs().at(interrupted).queueSequence > originalOrder,
+                  "Retried work appends to the persistent queue order");
             check(store.jobs().at(interrupted).state == RenderJobState::Queued &&
                       store.input(interrupted)->manifest() == source,
                   "Retry reuses immutable original input");
