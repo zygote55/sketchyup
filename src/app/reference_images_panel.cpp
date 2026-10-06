@@ -1,4 +1,5 @@
 #include "app/reference_images_panel.hpp"
+#include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "io/texture_image.hpp"
 #include <QDialog>

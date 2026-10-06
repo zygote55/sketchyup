@@ -130,6 +130,7 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
             if (cache->alpha == 0 || !cache->record || !cache->sectionError.isEmpty())
                 continue;
             const auto &body = *cache->record;
+            if (body.referenceImage) continue;
             std::map<Id, bool> facing;
             for (const auto &triangle : cache->worldTriangles) {
                 if (facing.contains(triangle.face) ||
