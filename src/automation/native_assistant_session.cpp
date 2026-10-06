@@ -120,6 +120,20 @@ void NativeAssistantSession::validatePolicy(const Document::PreparedEdit &edit) 
     if (!selection_)
         return;
     const auto &after = edit.snapshot();
+    Edit metadata;
+    appendSceneMetadataChanges(metadata, document_, after);
+    auto affected = hostedEditingContexts(metadata);
+    for (const auto &change : metadata.definitions)
+        if (change.before && change.after && change.before->glue != change.after->glue)
+            for (const auto &[root, instance] : document_.instances())
+                if (instance->definition == change.id)
+                    affected.insert(root);
+    for (auto id : affected)
+        if ((document_.bodies().contains(id) && selection_->locked(document_, id)) ||
+            (after.bodies().contains(id) && selection_->locked(after, id)))
+            fail("LOCKED_ENTITY",
+                 "The proposed attachment or glue change affects a locked native entity");
+
     for (const auto &[id, before] : document_.bodies()) {
         const bool exists = after.bodies().contains(id);
         const bool changed = !exists || *before != *after.bodies().at(id) ||

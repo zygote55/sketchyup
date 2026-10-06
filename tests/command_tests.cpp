@@ -784,6 +784,20 @@ int main(int argc, char **argv) {
                         {"context", "0"},
                         {"entities", QJsonArray{QJsonObject{
                                          {"body", "1"}, {"kind", "face"}, {"entity", "5"}}}}},
+            QJsonObject{
+                {"command", "component.glue"}, {"definition", "1"}, {"glue", QJsonValue::Null}},
+            QJsonObject{{"command", "component.attach"},
+                        {"body", "1"},
+                        {"host", "1"},
+                        {"face", "5"},
+                        {"anchor", QJsonArray{0, 0, 0}}},
+            QJsonObject{{"command", "component.bind"},
+                        {"body", "1"},
+                        {"host", "1"},
+                        {"face", "5"},
+                        {"inset", 0}},
+            QJsonObject{{"command", "component.detach"}, {"body", "1"}},
+            QJsonObject{{"command", "component.bake_host"}, {"body", "1"}},
             QJsonObject{{"command", "component.create"}, {"body", "1"}, {"name", "Panel"}},
             QJsonObject{{"command", "component.instance"}, {"definition", "1"}, {"matrix", matrix}},
             QJsonObject{{"command", "component.make_unique"}, {"body", "1"}},
@@ -1034,6 +1048,32 @@ int main(int argc, char **argv) {
                     createComponent(doc, raw);
                 }
             }
+            if (command["command"] == "component.glue" ||
+                command["command"] == "component.attach" ||
+                command["command"] == "component.bind" ||
+                command["command"] == "component.detach" ||
+                command["command"] == "component.bake_host") {
+                const auto &definition = *doc.definitions().at(1);
+                Id member = 0, face = 0;
+                for (const auto &[id, body] : definition.members)
+                    if (!body->surface.faces.empty()) {
+                        member = id;
+                        face = body->surface.faces.begin()->first;
+                        break;
+                    }
+                setComponentGlue(doc, 1, ComponentGlue{member, face, {}, {1, 0, 0}, false});
+                const auto host = doc.addFace({{{-5, -5, 0}, {5, -5, 0}, {5, 5, 0}, {-5, 5, 0}}});
+                const auto hostFace = doc.bodies().at(host)->surface.faces.begin()->first;
+                if (command.contains("host")) {
+                    command["host"] = QString::number(host);
+                    command["face"] = QString::number(hostFace);
+                }
+                if (command["command"] == "component.detach" ||
+                    command["command"] == "component.bake_host")
+                    bindComponentAtCurrentPose(doc, 1, host, hostFace, 0);
+                if (command["command"] == "component.bake_host")
+                    command["body"] = QString::number(host);
+            }
             if (command["command"] == "geometry.orient_faces") {
                 doc.extrude(1, 5, 1);
                 reverseSelectedFaces(
@@ -1101,6 +1141,8 @@ int main(int argc, char **argv) {
                           *doc.bodies().at(1) == expectedBody,
                       "Registered command undo restores source geometry and metadata");
             }
+            check(doc.hostedComponents() == baseline.hostedComponents(),
+                  "Registered command undo restores attachment records");
             check(doc.tags() == baseline.tags(), "Registered command undo restores tag records");
             check(doc.materials() == baseline.materials(),
                   "Registered command undo restores material records");

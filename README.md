@@ -425,6 +425,24 @@ welding and per-face colors preserved. Nested groups, locked records and hidden
 geometry stay isolated. This operation does not boolean intersecting faces. See
 [consolidation semantics and evidence](docs/verification/R032c-context-consolidation.md).
 
+Hosted components use an explicit canonical glue face and an ordinary geometry
+host. `component.glue` sets or clears the definition's member/face, local anchor,
+tangent and cutting flag. `component.attach` places an instance on a host-local
+anchor; optional tangent, signed scale, rotation in radians and normal inset
+control placement. `component.bind` preserves its current pose and requires the
+explicit host-local inset. `component.detach` restores its opening;
+`component.bake_host` keeps the cut geometry and releases all attachments on that
+host. Moves and shared-definition edits automatically regenerate attached openings
+with surviving reveal identities and paint preserved. See the
+[executable example](examples/hosted-component.json) and
+[hosted-component contract](docs/decisions/0054-hosted-components.md).
+
+Use `entity.describe` to discover a materialized face's canonical member binding,
+and `component.instances` to inspect the definition's glue and paged attachments.
+The assistant advertises attach/bind/detach as routine operations, glue edits with
+shared-definition permission, and baking with destructive-edit permission. Native
+placement controls and automatic attachment policy for copies remain in progress.
+
 The topology query exposes stable context-scoped edges, oriented loops and radial
 adjacency, plus analytic curve parameters and ordered derived-edge references.
 Curve command angles use radians; segment counts are bounded to 256. Curve

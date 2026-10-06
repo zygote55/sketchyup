@@ -447,6 +447,9 @@ struct AssistantPanel::Impl {
                                   "component.instance",
                                   "component.make_unique",
                                   "component.edit_instance",
+                                  "component.attach",
+                                  "component.bind",
+                                  "component.detach",
                                   "material.assign",
                                   "material.color",
                                   "material.create",
@@ -455,9 +458,10 @@ struct AssistantPanel::Impl {
         if (destructive->isChecked())
             result.allowedCommands.append({"geometry.delete", "geometry.erase_selection",
                                            "geometry.erase_face", "geometry.erase_edge",
-                                           "component.replace", "group.explode"});
+                                           "component.replace", "component.bake_host",
+                                           "group.explode"});
         if (shared->isChecked())
-            result.allowedCommands.append("component.edit");
+            result.allowedCommands.append({"component.edit", "component.glue"});
         return result;
     }
     void ensureSession() {

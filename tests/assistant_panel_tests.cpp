@@ -330,6 +330,28 @@ int main(int argc, char **argv) {
         consent->findChild<QPushButton *>("assistantConsentAllow")->click();
         wait([&] { return panel.result().value("phase") == "preview-ready"; });
         wait([&] { return window.viewport()->hasAssistantPreview(); });
+        QSet<QString> commands;
+        for (const auto &value : network.requests.front()["tools"].toArray()) {
+            const auto tool = value.toObject();
+            if (!tool["description"].toString().startsWith("transaction.apply:"))
+                continue;
+            for (const auto &schema : tool["parameters"]
+                                          .toObject()["properties"]
+                                          .toObject()["commands"]
+                                          .toObject()["items"]
+                                          .toObject()["oneOf"]
+                                          .toArray())
+                commands.insert(schema.toObject()["properties"]
+                                    .toObject()["command"]
+                                    .toObject()["const"]
+                                    .toString());
+        }
+        check(commands.contains("component.attach") && commands.contains("component.bind") &&
+                  commands.contains("component.detach") && !commands.contains("component.glue") &&
+                  !commands.contains("component.bake_host"),
+              "Native assistant advertises routine attachments while retaining shared and "
+              "destructive permission gates");
+
         check(doc.bodies().size() == 1 && window.viewport()->isEnabled(),
               "Private preview keeps manual model editable");
         const auto history = doc.history().total;

@@ -124,7 +124,14 @@ const char *instructions =
     "When advertised, component.edit_instance makes only the chosen instance unique and applies "
     "member edits "
     "using inspected scene body/vertex IDs, without shared-definition permission. Batch the "
-    "member edits in one such command. Its separate host geometry must be edited explicitly. "
+    "member edits in one such command. Persisted attachments automatically update their host "
+    "openings; unbound geometry has no inferred relationship. When advertised, component.glue "
+    "requires an inspected canonical member/face and explicit cutting behavior. Discover member "
+    "bindings through entity.describe and glue through component.instances. component.attach "
+    "uses host-local anchor/tangent/inset and radians; component.bind retains the current pose "
+    "and requires an explicit host-local inset. Never infer a cutting silhouette or host binding "
+    "from a name. Detach restores the opening; bake_host keeps cut geometry and releases all "
+    "attachments on that host. "
     "Measure and validate the private result; never substitute thickness-changing scale for "
     "a request to preserve frame members. No screenshots are sent.";
 } // namespace
