@@ -237,7 +237,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 19},
+                {"version", 20},
                 {"sections", encodeSections(doc.sections())},
                 {"nextSectionId", sid(doc.nextSectionId())},
                 {"activeSections", encodeActiveSections(doc.activeSections())},
@@ -547,7 +547,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
          root["version"].toDouble() != 13 && root["version"].toDouble() != 14 &&
          root["version"].toDouble() != 15 && root["version"].toDouble() != 16 &&
-         root["version"].toDouble() != 17 && root["version"].toDouble() != 18 && root["version"].toDouble() != 19) ||
+         root["version"].toDouble() != 17 && root["version"].toDouble() != 18 && root["version"].toDouble() != 19 && root["version"].toDouble() != 20) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -750,7 +750,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
                                               : std::make_shared<const HostedComponents>(),
                 root["version"].toInt() >= 17 ? decodeModelStyle(root["style"]) : ModelStyle{},
                 root["version"].toInt() >= 18
-                    ? decodeScenes(root["scenes"], readId(root["nextSceneId"])) : SceneRecords{},
+                    ? decodeScenes(root["scenes"], readId(root["nextSceneId"]), root["version"].toInt() >= 20) : SceneRecords{},
                 root["version"].toInt() >= 18 ? readId(root["nextSceneId"]) : 1,
                 root["version"].toInt() >= 19
                     ? decodeSections(root["sections"], readId(root["nextSectionId"])) : SectionRecords{},

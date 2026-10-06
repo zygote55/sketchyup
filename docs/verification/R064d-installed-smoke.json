@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "actualV19MigrationExact": true,
+  "capturedActivationExact": true,
+  "recallNamedCuts": true,
+  "recallOff": true,
+  "relocatedSectionDiagnosedAndSkipped": true,
+  "deletedSectionDiagnosed": true,
+  "missingCaptureRejected": true,
+  "missingSnapshotRetained": true,
+  "geometryUnchanged": true,
+  "relocatedRoundtripExact": true,
+  "v19ReaderRejected": true,
+  "installedSchemas": 7,
+  "installedContractMatches": true,
+  "desktopBinaryMatches": true
+}

@@ -1,5 +1,6 @@
 #include "core/components.hpp"
 #include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "core/tags.hpp"
 #include <iostream>
 #include <limits>
@@ -192,6 +193,56 @@ int main() {
         appendSceneMetadataChanges(composed, floor, composedDraft);
         floor.apply(composed, floor.revision());
         check(floor.scenes().at(next)->name == "Compound", "Compound publication includes scenes");
+        Document sectionDoc;
+        const auto scopedBody = sectionDoc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}}});
+        const auto rootPlane = createSection(sectionDoc, "Root", 0, {});
+        const auto bodyPlane = createSection(sectionDoc, "Body", scopedBody, {{1, 0, 0}, -.5});
+        setActiveSection(sectionDoc, 0, rootPlane);
+        setActiveSection(sectionDoc, scopedBody, bodyPlane);
+        SceneSnapshot sectionSnapshot;
+        sectionSnapshot.section = SceneSection{std::nullopt, sectionDoc.activeSections()};
+        sectionSnapshot.style = sectionDoc.style();
+        sectionSnapshot.style->mode = ModelStyleMode::Monochrome;
+        const auto sectionScene = createScene(sectionDoc, "Cut view", sectionSnapshot);
+        const auto sectionGeometry = sectionDoc.bodies();
+        setActiveSection(sectionDoc, 0, std::nullopt);
+        setActiveSection(sectionDoc, scopedBody, std::nullopt);
+        const auto beforeRecall = sectionDoc.saveStamp();
+        recallSceneModel(sectionDoc, sectionScene);
+        check(sectionDoc.activeSections() == sectionSnapshot.section->active &&
+                  sectionDoc.style() == *sectionSnapshot.style && sectionDoc.bodies() == sectionGeometry,
+              "Scene recall restores named activation and style without changing geometry");
+        sectionDoc.undo();
+        check(sectionDoc.activeSections().empty() && sectionDoc.isCurrentSnapshot(beforeRecall),
+              "One Undo restores all recalled persistent properties");
+        sectionDoc.redo();
+        check(!sceneRecallChangesModel(sceneRecallEdit(sectionDoc, sectionScene)),
+              "Equal named section recall is a no-op");
+        SceneSnapshot off;
+        off.section = SceneSection{};
+        const auto offScene = createScene(sectionDoc, "Cuts off", off);
+        recallSceneModel(sectionDoc, offScene);
+        check(sectionDoc.activeSections().empty(), "Empty captured activation turns named cuts off");
+        sectionDoc.undo();
+        eraseSection(sectionDoc, rootPlane);
+        auto missingSections = missingSceneReferences(sectionDoc, sectionSnapshot);
+        check(missingSections.sections == std::set<Id>{rootPlane} && missingSections.size() == 1,
+              "Deleted section references are retained and diagnosed");
+        rejects([&] { createScene(sectionDoc, "Invalid capture", sectionSnapshot); });
+        recallSceneModel(sectionDoc, sectionScene);
+        check(sectionDoc.activeSections() == ActiveSections{{scopedBody, bodyPlane}},
+              "Recall skips a deleted section without inventing a replacement");
+        auto moved = *sectionDoc.sections().at(bodyPlane);
+        moved.context = 0;
+        updateSection(sectionDoc, bodyPlane, moved);
+        check(missingSceneReferences(sectionDoc, sectionSnapshot).sections ==
+                  std::set<Id>{rootPlane, bodyPlane},
+              "Relocated sections cannot silently change saved scene context");
+        SceneSection malformed;
+        malformed.active = {{0, 1}, {scopedBody, 1}};
+        rejects([&] { malformed.validate(); });
+        malformed.active = {{0, 0}};
+        rejects([&] { malformed.validate(); });
         std::cout << "Scene validation, history, ordering, references, proposals, scope and bounds "
                      "passed\n";
     } catch (const std::exception &error) {

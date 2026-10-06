@@ -17,7 +17,8 @@ unit section normals and aggregate storage budgets. Shared component edit scopes
 reject saved-scene operations explicitly.
 
 `saved_scene.recall` restores only the scene's opted-in **persistent** model style
-and intrinsic body/tag visibility. Missing IDs are skipped; newly added, uncaptured
+and intrinsic body/tag visibility. Decision 0075 adds named section activation to
+this persistent recall. Missing IDs are skipped; newly added, uncaptured
 entities/tags remain unchanged. Locks, geometry, materials, components and saved
 scene records are preserved. All resulting model changes share one Undo step.
 A camera-only or already-matching recall has no model changes and follows the
@@ -55,7 +56,7 @@ and editing context are pruned using their normal visibility rules. Section OFF 
 applied explicitly; an omitted section leaves clipping untouched.
 
 Ordinary navigation does not enter document history. Undoing a scene recall restores
-its model changes; it does not rewind camera motion, temporary hiding or clipping.
+its model changes; it does not rewind camera motion, temporary hiding or free clipping; named section activation is undoable.
 Scene creation/update/delete/order/name edits themselves are fully undoable. The
 panel states this distinction. Saving preserves authored scene snapshots, not an
 implicit last-active view. Missing references remain visible as counts in the panel

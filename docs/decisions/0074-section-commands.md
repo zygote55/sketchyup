@@ -37,5 +37,5 @@ Bounded read-only inspection adds:
 
 Each record distinguishes retained active references from effective live contexts.
 A missing context has null world coefficients. These are document queries;
-saved-scene navigation overrides are a separate view concern. Standard revision
+saved-scene recall restores named activation through document history (decision 0075). Standard revision
 binding, cursor validation, immutable sessions and response budgets apply.

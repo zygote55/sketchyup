@@ -534,7 +534,7 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         for (const auto &cut : effectiveSectionCuts(doc, body))
             page.append([&] { return sectionDescription(doc, cut.id); });
         data = page.finish();
-        data["state"] = "persisted document activation; saved-scene navigation overrides are separate";
+        data["state"] = "persisted document activation; saved-scene recall restores this state through document history";
         break;
     }
     case Operation::SavedScenes:

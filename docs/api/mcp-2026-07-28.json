@@ -2322,6 +2322,31 @@
                                                 "section": {
                                                     "additionalProperties": false,
                                                     "properties": {
+                                                        "active": {
+                                                            "items": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "context": {
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "section": {
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^[1-9][0-9]*$",
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "context",
+                                                                    "section"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "maxItems": 256,
+                                                            "minItems": 0,
+                                                            "type": "array"
+                                                        },
                                                         "plane": {
                                                             "oneOf": [
                                                                 {
@@ -2687,6 +2712,31 @@
                                                 "section": {
                                                     "additionalProperties": false,
                                                     "properties": {
+                                                        "active": {
+                                                            "items": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "context": {
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "section": {
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^[1-9][0-9]*$",
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "context",
+                                                                    "section"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "maxItems": 256,
+                                                            "minItems": 0,
+                                                            "type": "array"
+                                                        },
                                                         "plane": {
                                                             "oneOf": [
                                                                 {
@@ -3007,7 +3057,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
-                                    "description": "Recall saved model style and intrinsic visibility",
+                                    "description": "Recall saved model style, visibility and named sections",
                                     "properties": {
                                         "command": {
                                             "const": "saved_scene.recall"
