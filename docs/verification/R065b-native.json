@@ -1,0 +1,30 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "history_input_tests",
+    "exitCode": 0,
+    "seconds": 3.062
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "recovery_input_tests",
+    "exitCode": 0,
+    "seconds": 4.273
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "render_input_tests",
+    "exitCode": 0,
+    "seconds": 4.603
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 4.268
+  }
+]
