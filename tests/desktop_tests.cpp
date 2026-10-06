@@ -78,6 +78,9 @@ int main(int argc, char **argv) {
         legacy["version"] = 1;
         legacy.remove("style");
         legacy.remove("scenes");
+        legacy.remove("sections");
+        legacy.remove("nextSectionId");
+        legacy.remove("activeSections");
         legacy.remove("nextSceneId");
         legacy.remove("hosted");
         legacy.remove("displayUnits");
