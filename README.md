@@ -57,7 +57,7 @@ ctest --preset dev
 ./build/dev/sketchyup --demo
 ```
 
-On Arch, build dependencies are `cmake ninja gcc qt6-base qt6-wayland openssl`.
+On Arch, build dependencies are `cmake ninja gcc pkgconf qt6-base qt6-wayland wayland openssl`.
 For the core alone, with no Qt or graphical session:
 
 ```sh

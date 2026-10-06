@@ -59,23 +59,40 @@ and includes the native report/repair contract. Owned temporary files are remove
 
 ## CI focus/lifetime follow-up
 
-CI exposed a report-to-model focus handoff failure and intermittent Wayland native
-surface leaks in the interaction fixture. The handoff now requests activation while
-the report is still alive, processes pending window-system events, closes the report,
-and waits for actual destruction before checking stable native model focus and
-creating the preview. Activation retries remain bounded by the existing five-second
-handoff limit. Staleness, active-preview and Escape guards remain authoritative;
-a weak lifetime guard protects the controller across event synchronization.
+CI exposed two report-to-model lifetime problems. The original handoff could stage
+an orientation preview while a hidden report still existed. Activation now starts
+while the report is alive, and repair waits for actual destruction and stable native
+model focus. Activation retries remain bounded by the five-second handoff limit;
+staleness, active-preview and Escape guards remain authoritative.
 
-The fixture now requires the report's own `QGuiApplication::focusWindow()` and exact
-active widget, rather than accepting a transient window as active before its native
-focus delivery. Close checks verify destruction and drain pending window-system
-events; teardown synchronizes before destroying the final model surface.
+A later CI run reproduced a 96-byte Wayland surface proxy leak despite passing
+local repetition. A protocol trace correlated the leaked proxy with a report surface
+that was destroyed before its queued keyboard-leave event was dispatched. Merely
+hiding and calling `QGuiApplication::sync()` also failed the new regression: Qt's
+Wayland backend does not implement the synchronization capability used by that API.
 
-A deterministic delayed-deletion case fails against the original implementation:
-it creates an orientation preview while the hidden report remains alive. The revised
-implementation waits for actual deletion and then completes the same preview.
-The complete revised fixture passes X11 and Wayland at DPR 1 and 2. Three consecutive
-Wayland DPR 2 runs pass AddressSanitizer, UndefinedBehaviorSanitizer and leak detection,
-with no sanitizer suppression or disabled check. Fresh exact-head CI remains required
-before merging this layer and its dependents. Existing visual captures are unchanged.
+The report now hides while retaining its native surface, then awaits an asynchronous
+`wl_display_sync` callback on Qt's default event queue. The callback defers final
+`QDialog::done` until native dispatch returns. External close events are held pending
+so `QWindow::close` cannot destroy the platform surface early. Duplicate close
+requests retain the original result; callback cleanup is tied to dialog lifetime.
+Canceled and stale repairs keep the handoff fence until report destruction too.
+The public Qt Wayland application interface is available at the minimum Qt 6.8;
+the desktop explicitly links `wayland-client`, with Arch and CI dependencies listed.
+Core-only configuration passes without acquiring this dependency. The relevant
+upstream behavior is documented in the [Qt Wayland window implementation](https://raw.githubusercontent.com/qt/qtbase/6.11/src/plugins/platforms/wayland/qwaylandwindow.cpp)
+and [Qt GUI synchronization implementation](https://raw.githubusercontent.com/qt/qtbase/6.11/src/gui/kernel/qguiapplication.cpp).
+
+The native fixture requires each report's actual `QGuiApplication::focusWindow()`,
+checks focus has left before `finished` permits deletion, and covers the close
+button, Escape, repeated closes, stale/canceled repairs and retained hidden reports.
+The retained-report regression fails against the original handoff; the focus-release
+regression fails against the hide-plus-Qt-sync variant and passes with the compositor
+acknowledgement. No sanitizer suppression or disabled check is used.
+
+Seven final Wayland DPR 2 runs pass AddressSanitizer, UndefinedBehaviorSanitizer and
+leak detection: an initial run, five consecutive repetitions, and one protocol trace.
+The final trace's 28 keyboard-leave events all retain their live surface argument.
+The complete final fixture also passes X11 and Wayland, each at DPR 1 and 2.
+Fresh exact-head CI remains required before merging this layer and its dependents.
+Existing visual captures are unchanged.
