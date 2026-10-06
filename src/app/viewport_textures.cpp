@@ -7,6 +7,8 @@ void Viewport::syncTextures() {
     for (const auto &[id, body] : doc_.bodies()) {
         if (opacity_.contains(id) && opacity_.at(id) == 0)
             continue;
+        if (body->referenceImage && visible({id, SelectionKind::Body, 0}))
+            assets.emplace(body->referenceImage->asset, doc_.assets().at(body->referenceImage->asset));
         for (const auto &[face, record] : body->surface.faces) {
             if (!visible({id, SelectionKind::Face, face}))
                 continue;
@@ -64,6 +66,16 @@ void Viewport::syncTextures() {
 }
 Viewport::TextureProjection Viewport::textureProjection(const Body &body, const Triangle &local,
                                                         bool back) const {
+    if (body.referenceImage) {
+        const auto &reference = *body.referenceImage;
+        if (!textureImages_.contains(reference.asset) || !textureAssets_.contains(reference.asset) ||
+            !TextureCache::sameImage(textureAssets_.at(reference.asset), doc_.assets().at(reference.asset))) return {};
+        TextureProjection result;
+        result.image = reference.asset;
+        size_t i = 0;
+        for (auto p : {local.a, local.b, local.c}) result.uv[i++] = {float(p.x / reference.width), float(1 - p.y / reference.height)};
+        return result;
+    }
     const auto sides = faceMaterials(body, local.face);
     const auto material = back ? sides.back : sides.front;
     if (!material)
@@ -102,10 +114,10 @@ void Viewport::textureVertices(const Body &body, const Triangle &local, bool ref
 }
 QString Viewport::textureSummary() const {
     if (textureCache_.pending())
-        return "Loading material images…";
+        return "Loading images…";
     if (textureFallbacks_ || textureMappingFallbacks_)
         return textureMappingFallbacks_ ? "Some textures use a color preview: mapping too large"
-                                        : "Some material images are unavailable in this preview";
+                                        : "Some images are unavailable; reference planes show a purple placeholder";
     return {};
 }
 } // namespace sketchy

@@ -8,6 +8,7 @@
 #include "app/annotations_panel.hpp"
 #include "app/text_panel.hpp"
 #include "app/solar_panel.hpp"
+#include "app/reference_images_panel.hpp"
 #include "core/groups.hpp"
 #include <QAction>
 #include <QComboBox>
@@ -268,9 +269,12 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tabs_->addTab(text_, "3D Text");
     solar_ = new SolarPanel(doc_, view_);
     tabs_->addTab(solar_, "Sun");
+    references_ = new ReferenceImagesPanel(doc_, view_);
+    tabs_->addTab(references_, "Images");
     setFocusProxy(outliner_);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
-        setFocusProxy(index == 10 ? static_cast<QWidget *>(solar_)
+        setFocusProxy(index == 11 ? static_cast<QWidget *>(references_)
+                      : index == 10 ? static_cast<QWidget *>(solar_)
                       : index == 9 ? static_cast<QWidget *>(text_)
                       : index == 8 ? static_cast<QWidget *>(annotations_)
                       : index == 7 ? static_cast<QWidget *>(sections_)
@@ -504,6 +508,7 @@ void OrganizationPanel::filter() {
 void OrganizationPanel::showMaterials() { tabs_->setCurrentWidget(materials_); }
 void OrganizationPanel::showStyles() { tabs_->setCurrentWidget(styles_); }
 void OrganizationPanel::showScenes() { tabs_->setCurrentWidget(scenes_); }
+void OrganizationPanel::showReferenceImages() { tabs_->setCurrentWidget(references_); references_->refresh(); references_->setFocus(); }
 void OrganizationPanel::showSolar() { tabs_->setCurrentWidget(solar_); }
 void OrganizationPanel::showText() { tabs_->setCurrentWidget(text_); }
 void OrganizationPanel::showAnnotations() { tabs_->setCurrentWidget(annotations_); }
@@ -569,7 +574,8 @@ void OrganizationPanel::refresh() {
                     state += "L";
                 if (selection.context() == id)
                     state += " •";
-                const auto kind = doc_.instances().contains(id)   ? "Component"
+                const auto kind = body->referenceImage ? "Reference image"
+                                  : doc_.instances().contains(id)   ? "Component"
                                   : body->kind == BodyKind::Group ? "Group"
                                                                   : "Geometry";
                 auto *item = add(id, body->parent,
@@ -620,6 +626,7 @@ void OrganizationPanel::refresh() {
     annotations_->refresh();
     text_->refresh();
     solar_->refresh();
+    references_->refresh();
     // Save acknowledgements can move the saved marker without advancing content revision.
     history_->refresh(true);
 }

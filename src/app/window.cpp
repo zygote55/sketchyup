@@ -695,6 +695,11 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         findChild<QAction *>("view.tray")->setChecked(true);
         organization_->showSolar();
     }));
+    view->addAction(action("view.reference_images", "Reference images", {}, [this] {
+        sideTabs_->show(); sideTabs_->setCurrentWidget(tray_); tray_->show();
+        findChild<QAction *>("view.tray")->setChecked(true);
+        organization_->showReferenceImages();
+    }));
     auto *reducedMotion = action("view.reduced_motion", "Reduced camera motion", {}, [this] {
         const auto enabled = findChild<QAction *>("view.reduced_motion")->isChecked();
         QSettings().setValue("reducedMotion", enabled);

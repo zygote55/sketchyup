@@ -154,6 +154,8 @@ class Viewport : public QOpenGLWidget {
     QJsonObject editSavedScenes(const QJsonArray &commands);
     QJsonObject editSections(const QJsonArray &commands);
     QJsonObject editAnnotations(const QJsonArray &commands);
+    void importReferenceImage(const QByteArray &data, const QString &mediaType, const QString &name, double width, double height);
+    void editReferenceImages(const QJsonArray &commands);
     void applyTextEdit(const Document::PreparedEdit &edit);
     void recallSavedScene(Id scene);
     void setReducedMotion(bool enabled);
@@ -252,10 +254,10 @@ class Viewport : public QOpenGLWidget {
         float br{r}, bg{g}, bb{b}, ba{a};
         float u{}, v{}, bu{}, bv{}, light{1}, dim{1};
         Id image{}, backImage{};
-        float backLight{1};
+        float backLight{1}, reference{};
     };
     struct PackedVertex {
-        float x, y, z, r, g, b, a, br, bg, bb, ba, u, v, bu, bv, light, dim, backLight;
+        float x, y, z, r, g, b, a, br, bg, bb, ba, u, v, bu, bv, light, dim, backLight, reference;
     };
     Document &doc_;
     ToolSession session_;
@@ -293,6 +295,8 @@ class Viewport : public QOpenGLWidget {
     std::map<Id, std::shared_ptr<const TextureImage>> textureImages_;
     std::map<Id, GLuint> textureGpu_;
     size_t textureFallbacks_{}, textureMappingFallbacks_{};
+    static std::vector<Triangle> displayTriangles(const Body &body);
+    void referenceVertices(const Body &body, const Triangle &local, std::array<Vertex, 3> &vertices) const;
     void syncTextures();
     struct TextureProjection {
         Id image{};
