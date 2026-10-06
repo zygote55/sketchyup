@@ -98,8 +98,8 @@ int main(int argc, char **argv) {
         view.setFocus();
         settled(view);
         doc.markSaved();
-        const auto before = encodeContainer(doc),
-                   camera = describeRenderCamera(view.renderCamera());
+        const auto before = encodeContainer(doc);
+        const auto camera = describeRenderCamera(view.renderCamera());
         const auto selection = view.selectionState().entities();
         const auto projected = view.project({1, 3, 0});
         const auto extent = view.size();

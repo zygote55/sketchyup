@@ -1,4 +1,5 @@
 #include "app/viewport.hpp"
+#include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLPaintDevice>
 #include <QSaveFile>
@@ -15,6 +16,7 @@ QImage Viewport::renderRaster(QSize pixels) {
         (sceneAnimation_ && sceneAnimation_->state() == QAbstractAnimation::Running))
         throw std::runtime_error(
             "Finish the active interaction or camera transition before exporting");
+    const auto stamp = doc_.saveStamp();
     auto *previousContext = QOpenGLContext::currentContext();
     auto *previousSurface = previousContext ? previousContext->surface() : nullptr;
     makeCurrent();
@@ -70,6 +72,8 @@ QImage Viewport::renderRaster(QSize pixels) {
             paintScene(&device);
             if (gl_->glGetError() != GL_NO_ERROR)
                 throw std::runtime_error("The graphics device could not render the export image");
+            if (!doc_.isCurrentSnapshot(stamp))
+                throw std::runtime_error("The model changed during export. Export the current model again");
             result = target.toImage();
             if (result.isNull() || result.size() != pixels)
                 throw std::runtime_error("Could not read the complete export image");
