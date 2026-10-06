@@ -36,6 +36,8 @@ QString unavailable(const std::string &status) {
         return "Unavailable: multiple geometry records";
     if (status == "multiple_shells")
         return "Unavailable: multiple shells";
+    if (status == "ambiguous_containment")
+        return "Unavailable: ambiguous shell containment";
     if (status == "analysis_limit")
         return "Unavailable: analysis limit";
     if (status == "not_a_context")
