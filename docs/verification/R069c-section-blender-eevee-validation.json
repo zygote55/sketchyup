@@ -1,0 +1,38 @@
+{
+  "blender": "5.2.1 LTS",
+  "engine": "BLENDER_EEVEE",
+  "reports": [
+    {
+      "fixture": "nested",
+      "capArea": 5.000000715255741,
+      "worldCapsOutward": true,
+      "pixels": {
+        "nested": [
+          0.1568627506494522,
+          0.658823549747467,
+          0.20784315466880798,
+          1.0
+        ],
+        "removed": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "sibling": [
+          0.16078431904315948,
+          0.658823549747467,
+          0.21176472306251526,
+          1.0
+        ]
+      },
+      "passed": true
+    },
+    {
+      "fixture": "texture",
+      "boundedWorldVertices": 9,
+      "uvImported": true,
+      "passed": true
+    }
+  ]
+}
