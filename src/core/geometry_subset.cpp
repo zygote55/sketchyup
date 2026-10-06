@@ -8,6 +8,8 @@ void includeGeometryFace(const Body &body, GeometrySubset &part, Id face) {
         part.vertices.insert(loop.begin(), loop.end());
 }
 std::shared_ptr<Body> extractGeometry(const Body &source, const GeometrySubset &part) {
+    if (source.referenceImage)
+        throw std::runtime_error("Reference images have no modeled subgeometry to extract");
     auto result = std::make_shared<Body>(source);
     result->textSource.reset(); // Partial geometry copies are ordinary geometry.
     auto &surface = result->surface;

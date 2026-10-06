@@ -45,6 +45,12 @@ EntityMeasures measureEntity(const Document &doc, SelectedEntity entity) {
             for (const auto &[face, record] : body.surface.faces)
                 faces.insert(face);
             result.guides += body.guides.size();
+            if (body.referenceImage)
+                for (const auto point : referenceImageCorners(*body.referenceImage, {})) {
+                    include(result.world, world.point(point));
+                    include(result.local, local.point(point));
+                    include(result.parent, parent.point(point));
+                }
             if (!vertices.empty() || !faces.empty() || !edges.empty())
                 geometry.push_back(id);
         } else if (entity.kind == SelectionKind::Face) {

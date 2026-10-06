@@ -312,7 +312,8 @@ QString kind(SelectedEntity e) {
                                            : "guide";
 }
 QString ownerKind(const Document &doc, Id id) {
-    return doc.instances().contains(id)                   ? "component"
+    return doc.bodies().at(id)->referenceImage             ? "reference_image"
+           : doc.instances().contains(id)                   ? "component"
            : doc.bodies().at(id)->kind == BodyKind::Group ? "group"
                                                           : "geometry";
 }

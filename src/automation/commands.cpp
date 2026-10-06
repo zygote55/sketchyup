@@ -276,7 +276,7 @@ QJsonObject describe(const Document &doc) {
         bodies.append(
             QJsonObject{{"id", QString::number(id)},
                         {"parent", QString::number(b->parent)},
-                        {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
+                        {"kind", b->referenceImage ? "reference_image" : b->kind == BodyKind::Group ? "group" : "geometry"},
                         {"hidden", b->hidden},
                         {"effectiveHidden", presentation.hidden(doc, {id, SelectionKind::Body, 0})},
                         {"locked", b->locked},

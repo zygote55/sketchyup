@@ -1,4 +1,5 @@
 #include "io/document_io.hpp"
+#include "io/reference_image_io.hpp"
 #include "io/text_source_io.hpp"
 #include "io/assets.hpp"
 #include "io/hosted_components_io.hpp"
@@ -159,7 +160,7 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
                         {"faceTextureMappings", faceTextureMappings},
                         {"edgeAppearances", edgeAppearances},
                         {"parent", sid(b->parent)},
-                        {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
+                        {"kind", b->referenceImage ? "reference_image" : b->kind == BodyKind::Group ? "group" : "geometry"},
                         {"faceColors", faceColors},
                         {"hidden", b->hidden},
                         {"locked", b->locked},
@@ -180,7 +181,9 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
     for (qsizetype i = 0; i < bodies.size(); ++i) {
         auto record = bodies[i].toObject();
         const auto &body = records.at(readId(record["id"]));
-        if (body->textSource) { record["textSource"] = encodeTextSource(*body->textSource); bodies[i] = record; }
+        if (body->textSource) record["textSource"] = encodeTextSource(*body->textSource);
+        if (body->referenceImage) record["referenceImage"] = encodeReferenceImage(*body->referenceImage);
+        bodies[i] = record;
     }
     return bodies;
 }
@@ -245,7 +248,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 23},
+                {"version", 24},
                 {"solar", encodeSolarSettings(doc.solar())},
                 {"annotations", encodeAnnotations(doc.annotations())},
                 {"nextAnnotationId", sid(doc.nextAnnotationId())},
@@ -308,9 +311,12 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
         if (version >= 16)
             allowed.append("faceTextureMappings");
         if (version >= 22) allowed.append("textSource");
+        if (version >= 24) allowed.append("referenceImage");
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
+        if (o.contains("referenceImage"))
+            b->referenceImage = decodeReferenceImage(object(o["referenceImage"]));
         if (o.contains("textSource")) b->textSource = decodeTextSource(object(o["textSource"]));
         if (version >= 16) {
             const auto mappings = object(o["faceTextureMappings"]);
@@ -355,10 +361,12 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
         if (version >= 9)
             b->tag = readId(o["tag"], true);
         if (version >= 6) {
-            if ((o["kind"] != "geometry" && o["kind"] != "group") || !o["hidden"].isBool() ||
+            if ((o["kind"] != "geometry" && o["kind"] != "group" &&
+                 !(version >= 24 && o["kind"] == "reference_image")) || !o["hidden"].isBool() ||
                 !o["locked"].isBool())
                 throw std::runtime_error("Invalid entity kind, visibility or lock");
-            b->kind = o["kind"] == "group" ? BodyKind::Group : BodyKind::Geometry;
+            b->kind = o["kind"] == "reference_image" ? BodyKind::ReferenceImage
+                      : o["kind"] == "group" ? BodyKind::Group : BodyKind::Geometry;
             b->hidden = o["hidden"].toBool();
             b->locked = o["locked"].toBool();
         }
@@ -560,7 +568,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
          root["version"].toDouble() != 13 && root["version"].toDouble() != 14 &&
          root["version"].toDouble() != 15 && root["version"].toDouble() != 16 &&
-         root["version"].toDouble() != 17 && root["version"].toDouble() != 18 && root["version"].toDouble() != 19 && root["version"].toDouble() != 20 && root["version"].toDouble() != 21 && root["version"].toDouble() != 22 && root["version"].toDouble() != 23) ||
+         root["version"].toDouble() != 17 && root["version"].toDouble() != 18 && root["version"].toDouble() != 19 && root["version"].toDouble() != 20 && root["version"].toDouble() != 21 && root["version"].toDouble() != 22 && root["version"].toDouble() != 23 && root["version"].toDouble() != 24) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");

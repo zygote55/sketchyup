@@ -10,6 +10,7 @@ Id allocate(Id &next) {
 }
 void emptyGeometry(Body &body) {
     body.textSource.reset();
+    body.referenceImage.reset();
     body.surface.vertices.clear();
     body.surface.faces.clear();
     body.surface.wires.clear();
@@ -64,13 +65,13 @@ Id normalizeRoot(Document &draft, Id root) {
     frame->kind = BodyKind::Group;
     Edit edit{"Normalize component frame", {}};
     Id geometry = 0;
-    if (!old->surface.vertices.empty() || !old->guides.empty()) {
+    if (!old->surface.vertices.empty() || !old->guides.empty() || old->referenceImage) {
         geometry = draft.nextId();
         auto member = std::make_shared<Body>(*old);
         member->id = geometry;
         member->parent = root;
         member->transform = {};
-        member->kind = BodyKind::Geometry;
+        member->kind = old->referenceImage ? BodyKind::ReferenceImage : BodyKind::Geometry;
         member->hidden = member->locked = false;
         member->tag = 0;
         member->name = "Geometry";
