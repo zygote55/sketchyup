@@ -4119,6 +4119,83 @@
                                         "type": "string"
                                     },
                                     "query": {
+                                        "const": "geometry.diagnose"
+                                    },
+                                    "target": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "body": {
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "contextPath": {
+                                                "items": {
+                                                    "maxLength": 20,
+                                                    "pattern": "^[1-9][0-9]*$",
+                                                    "type": "string"
+                                                },
+                                                "maxItems": 128,
+                                                "minItems": 0,
+                                                "type": "array"
+                                            },
+                                            "documentId": {
+                                                "maxLength": 128,
+                                                "type": "string"
+                                            },
+                                            "id": {
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "kind": {
+                                                "enum": [
+                                                    "body",
+                                                    "face",
+                                                    "edge",
+                                                    "vertex",
+                                                    "guide",
+                                                    "curve"
+                                                ],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "documentId",
+                                            "contextPath",
+                                            "body",
+                                            "kind",
+                                            "id"
+                                        ],
+                                        "type": "object"
+                                    }
+                                },
+                                "required": [
+                                    "target",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
                                         "const": "measure.entity"
                                     },
                                     "space": {

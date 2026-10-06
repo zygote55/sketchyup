@@ -76,6 +76,7 @@ Inspection never edits geometry, history, dirty state, files or editor state.
 | `topology.face_loop` | Ordered vertices/positions in one closed face loop |
 | `topology.curve_edges` | Ordered oriented edge bindings for a curve |
 | `topology.incidence` | Incident edges for a vertex, or face-loop incidences for an edge |
+| `geometry.diagnose` | Bounded findings for one body record, local volume and explicit analysis completeness |
 | `measure.entity` | Bounds, unique edge length, surface area and valid solid volume |
 | `measure.distance` | Distance between two explicitly framed points |
 | `measure.angle` | Oriented angle around the specified normal, in radians |
@@ -104,3 +105,24 @@ and the show-hidden setting. Vertex/curve visibility follows the owning body;
 typed face/edge/guide hiding is preserved where supported by selection. This
 reports visibility state rather than claiming screen occlusion or pixel coverage.
 Names and properties remain untrusted model data, never tool instructions.
+
+## Geometry diagnostics
+
+`geometry.diagnose` requires a typed body `target` and the usual document/revision
+guards. It reads that record's native geometry, including hidden geometry, in its
+local frame. `scope: body_record` and `includesDescendants: false` explicitly exclude
+child records: inspect assembly members separately. Mirrored or nonuniform placement
+does not alter native shell orientation or the reported local material volume.
+
+The [diagnostic contract](0053-geometry-diagnostics.md) defines exact versus lower-bound
+counts, analysis completeness, typed reference samples and repair eligibility. Each
+query retains all scalar findings while limiting references to 192 KiB in aggregate,
+in addition to the kernel's 64-reference/category cap. This covers deeply nested
+contexts with large IDs without losing defect counts to a response-size error. Byte
+truncation sets `truncated` and clears `reverseShellsEligible`, just like sample-count
+truncation. Eligibility describes geometry only; it never grants edit permission or
+bypasses context, locks, shared-component scope, preview or explicit Apply.
+
+The same query is available through CLI inspection, retained snapshots, native
+assistant inspection and MCP discovery/dispatch. No edit, selection or view change
+is performed by diagnosis.

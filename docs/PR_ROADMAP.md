@@ -896,7 +896,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R058 — Build geometry diagnostics and explicit repair UI
 
-**Status:** In progress. R058.a adds bounded read-only geometry findings, exact versus lower-bound counts, typed references and safe whole-shell reversal eligibility ([contract](decisions/0053-geometry-diagnostics.md), [kernel evidence](verification/R058a-geometry-diagnostics.md)). Shared inspection and native report/repair controls remain pending. **Track:** Desktop. **Scope:** E09, D06. **UX:** §5, §6.4.
+**Status:** In progress. R058.a ([PR #108](https://github.com/zygote55/sketchyup/pull/108)) adds bounded read-only geometry findings, exact versus lower-bound counts, typed references and safe whole-shell reversal eligibility ([contract](decisions/0053-geometry-diagnostics.md), [kernel evidence](verification/R058a-geometry-diagnostics.md)). R058.b adds the guarded `geometry.diagnose` query to CLI, snapshots, MCP and assistant inspection, with a separate byte bound for deep reference paths ([inspection evidence](verification/R058b-diagnostic-inspection.md)). Native report/repair controls remain pending. **Track:** Desktop. **Scope:** E09, D06. **UX:** §5, §6.4.
 
 **Requires:** [R056](#r056), [R057](#r057); milestone gate rule above.
 

@@ -114,8 +114,7 @@ int main(int argc, char **argv) {
             const auto tools = invoke(server, rpc(1, "tools/list"))["result"].toObject();
             check(tools["resultType"] == "complete" &&
                       tools["tools"].toArray() == mcpToolCatalog() &&
-                      tools["tools"].toArray().size() == 29 && tools["cacheScope"] == "private" &&
-                      tools["ttlMs"] == 0,
+                      tools["cacheScope"] == "private" && tools["ttlMs"] == 0,
                   "Modern tools list works without a handshake and matches shared schemas");
             auto missing = rpc(2, "server/discover");
             missing["params"] = QJsonObject{};

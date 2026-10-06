@@ -3,6 +3,7 @@
 #include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
 #include "core/material_records.hpp"
+#include "geometry/diagnostics.hpp"
 #include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QRegularExpression>
@@ -48,6 +49,7 @@ enum class Operation {
     CurveEdges,
     Incidence,
     Instances,
+    Diagnose,
     Measure,
     Distance,
     Angle
@@ -106,6 +108,7 @@ const std::vector<Spec> &registry() {
             spec("topology.incidence", Operation::Incidence, {{"target", ref}}, {"target"}, true),
             spec("component.instances", Operation::Instances, {{"definition", idSchema()}},
                  {"definition"}, true),
+            spec("geometry.diagnose", Operation::Diagnose, {{"target", ref}}, {"target"}),
             spec("measure.entity", Operation::Measure, {{"target", ref}, {"space", space}},
                  {"target", "space"}),
             spec("measure.distance", Operation::Distance,
@@ -718,6 +721,67 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         data = page.finish();
         data["definition"] = request["definition"];
         data["name"] = QString::fromStdString(doc.definitions().at(definition)->name);
+        break;
+    }
+    case Operation::Diagnose: {
+        const auto ref = bodyReference(doc, request["target"]);
+        const auto &body = *doc.bodies().at(ref.body);
+        const auto report = diagnoseGeometry(body.surface, body.topology);
+        auto type = [](DiagnosticKind kind) -> QString {
+            switch (kind) {
+            case DiagnosticKind::Face:
+                return "face";
+            case DiagnosticKind::Edge:
+                return "edge";
+            case DiagnosticKind::Vertex:
+                return "vertex";
+            case DiagnosticKind::None:
+                return "none";
+            }
+            throw std::logic_error("Unknown diagnostic reference kind");
+        };
+        QJsonArray findings;
+        // Deep context paths make even a bounded reference count large. Reserve
+        // space for all scalar findings and truncate references independently.
+        qsizetype referenceBytes = 0;
+        for (const auto &finding : report.findings) {
+            QJsonArray references;
+            bool truncated = finding.truncated;
+            for (const auto &entity : finding.references) {
+                const auto reference =
+                    inspectionReference(doc, ref.body, type(entity.kind), entity.id);
+                const auto bytes = compact(reference).size() + 1;
+                if (referenceBytes + bytes > 192 * 1024) {
+                    truncated = true;
+                    continue;
+                }
+                references.append(reference);
+                referenceBytes += bytes;
+            }
+            findings.append(QJsonObject{
+                {"code", QString::fromStdString(finding.code)},
+                {"message", QString::fromStdString(finding.message)},
+                {"severity", finding.severity == DiagnosticSeverity::Error     ? "error"
+                             : finding.severity == DiagnosticSeverity::Warning ? "warning"
+                                                                               : "information"},
+                {"countedKind", type(finding.countedKind)},
+                {"count", double(finding.count)},
+                {"countExact", finding.countExact},
+                {"references", references},
+                {"truncated", truncated},
+                {"reverseShellsEligible", finding.reverseShells && !truncated}});
+        }
+        data = {{"target", request["target"]},
+                {"space", "local"},
+                {"scope", "body_record"},
+                {"includesHidden", true},
+                {"includesDescendants", false},
+                {"solidStatus", QString::fromStdString(report.solidStatus)},
+                {"analysisComplete", report.analysisComplete},
+                {"materialVolume",
+                 report.materialVolume ? QJsonValue(*report.materialVolume) : QJsonValue()},
+                {"volumeUnits", "m3"},
+                {"findings", findings}};
         break;
     }
     case Operation::Measure: {
