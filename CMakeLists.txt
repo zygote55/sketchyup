@@ -17,12 +17,15 @@ add_library(clipper2 STATIC
   third_party/clipper2/src/clipper.rectclip.cpp
   third_party/clipper2/src/clipper.triangulation.cpp)
 target_include_directories(clipper2 PUBLIC third_party/clipper2/include)
-add_library(sketchyup_core src/core/section_records.cpp src/core/sections.cpp src/geometry/section.cpp src/core/scene_records.cpp src/core/scenes.cpp src/core/face_textures.cpp src/core/texture_mapping.cpp src/core/hosted_components.cpp src/core/host_regeneration.cpp src/core/component_glue.cpp src/geometry/hosted_opening.cpp src/core/component_placement.cpp src/geometry/diagnostics.cpp src/core/shading_normals.cpp src/core/edge_appearance.cpp src/core/face_orientation.cpp src/geometry/orientation.cpp src/geometry/solid_operations.cpp src/core/solid_boolean.cpp src/geometry/boolean.cpp src/core/intersection_edit.cpp src/core/profile_sweep.cpp src/core/prepared_edit.cpp src/core/history.cpp src/core/entity_measure.cpp src/geometry/solid.cpp src/geometry/intersection.cpp src/core/tags.cpp src/core/asset_records.cpp src/core/assets.cpp src/core/material_records.cpp src/core/materials.cpp src/core/tag_records.cpp src/core/components.cpp src/core/component_records.cpp src/core/consolidation.cpp src/core/appearance.cpp src/core/geometry_subset.cpp src/core/groups.cpp src/core/transform_selection.cpp src/core/copy_array.cpp src/core/selection.cpp src/core/model.cpp src/core/transform.cpp src/geometry/surface.cpp src/geometry/arrangement.cpp src/geometry/topology.cpp src/geometry/planar.cpp src/geometry/offset.cpp src/geometry/sweep.cpp src/geometry/cleanup.cpp src/geometry/push_pull.cpp src/geometry/drawing.cpp src/geometry/curves.cpp src/geometry/inference.cpp src/geometry/constraints.cpp src/geometry/guides.cpp)
+add_library(sketchyup_core src/core/annotation_anchors.cpp src/core/section_records.cpp src/core/sections.cpp src/geometry/section.cpp src/core/scene_records.cpp src/core/scenes.cpp src/core/face_textures.cpp src/core/texture_mapping.cpp src/core/hosted_components.cpp src/core/host_regeneration.cpp src/core/component_glue.cpp src/geometry/hosted_opening.cpp src/core/component_placement.cpp src/geometry/diagnostics.cpp src/core/shading_normals.cpp src/core/edge_appearance.cpp src/core/face_orientation.cpp src/geometry/orientation.cpp src/geometry/solid_operations.cpp src/core/solid_boolean.cpp src/geometry/boolean.cpp src/core/intersection_edit.cpp src/core/profile_sweep.cpp src/core/prepared_edit.cpp src/core/history.cpp src/core/entity_measure.cpp src/geometry/solid.cpp src/geometry/intersection.cpp src/core/tags.cpp src/core/asset_records.cpp src/core/assets.cpp src/core/material_records.cpp src/core/materials.cpp src/core/tag_records.cpp src/core/components.cpp src/core/component_records.cpp src/core/consolidation.cpp src/core/appearance.cpp src/core/geometry_subset.cpp src/core/groups.cpp src/core/transform_selection.cpp src/core/copy_array.cpp src/core/selection.cpp src/core/model.cpp src/core/transform.cpp src/geometry/surface.cpp src/geometry/arrangement.cpp src/geometry/topology.cpp src/geometry/planar.cpp src/geometry/offset.cpp src/geometry/sweep.cpp src/geometry/cleanup.cpp src/geometry/push_pull.cpp src/geometry/drawing.cpp src/geometry/curves.cpp src/geometry/inference.cpp src/geometry/constraints.cpp src/geometry/guides.cpp)
 target_include_directories(sketchyup_core PUBLIC src)
 target_link_libraries(sketchyup_core PRIVATE clipper2 sketchyup_manifold)
 target_compile_options(sketchyup_core PRIVATE -Wall -Wextra -Wpedantic)
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(annotation_anchor_tests tests/annotation_anchor_tests.cpp)
+  target_link_libraries(annotation_anchor_tests PRIVATE sketchyup_core)
+  add_test(NAME annotation_anchors COMMAND annotation_anchor_tests)
   add_executable(section_record_tests tests/section_record_tests.cpp)
   target_link_libraries(section_record_tests PRIVATE sketchyup_core)
   add_test(NAME section_records COMMAND section_record_tests)
@@ -625,3 +628,5 @@ install(FILES docs/decisions/0076-native-sections.md DESTINATION share/doc/sketc
 install(FILES examples/section-nested.sketchyup DESTINATION share/doc/sketchyup/examples)
 
 install(FILES docs/decisions/0077-section-export.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0078-annotation-anchors.md DESTINATION share/doc/sketchyup/decisions)
