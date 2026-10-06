@@ -172,6 +172,25 @@ void Selection::reveal(const Document &doc) {
     sync(doc);
     hidden_.clear();
 }
+void Selection::restoreSceneVisibility(const Document &doc, const SceneVisibility &visibility) {
+    visibility.validate();
+    sync(doc);
+    auto hidden = hidden_;
+    std::erase_if(hidden, [&](const auto &entity) {
+        return visibility.bodyVisible.contains(entity.body);
+    });
+    for (const auto &entity : visibility.hiddenEntities) {
+        const auto kind = entity.kind == SceneEntityKind::Body ? SelectionKind::Body
+            : entity.kind == SceneEntityKind::Face ? SelectionKind::Face
+            : entity.kind == SceneEntityKind::Edge ? SelectionKind::Edge : SelectionKind::Guide;
+        const SelectedEntity selected{entity.body, kind, entity.entity};
+        if (exists(doc, selected))
+            hidden.insert(selected);
+    }
+    hidden_.swap(hidden);
+    showHidden_ = visibility.showHidden;
+    prune(doc);
+}
 void Selection::lock(const Document &doc, Id body, bool locked) {
     sync(doc);
     if (!doc.bodies().contains(body))

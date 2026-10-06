@@ -1,5 +1,6 @@
 #include "automation/inspection.hpp"
 #include "core/components.hpp"
+#include "core/scenes.hpp"
 #include "core/entity_measure.hpp"
 #include "core/groups.hpp"
 #include "io/document_io.hpp"
@@ -323,6 +324,17 @@ int main(int argc, char **argv) {
                 {{"target", guides[0].toObject()["ref"]}, {"space", "world"}});
         check(guideMeasures["infiniteLength"] == true && guideMeasures["length"].isNull(),
               "Infinite guides must not return fabricated finite lengths");
+        Document sceneDocument;
+        SceneSnapshot savedView;
+        savedView.camera = SceneCamera{};
+        savedView.visibility = SceneVisibility{};
+        const auto savedScene = createScene(sceneDocument, "View", savedView);
+        check(all(sceneDocument, "saved_scenes.query").size() == 1,
+              "Saved scene list is bounded and ordered");
+        check(run(sceneDocument, "saved_scene.describe", {{"scene", QString::number(savedScene)}})
+                  ["snapshot"].toObject().contains("camera"), "Saved scene property inspection");
+        check(all(sceneDocument, "saved_scene.visibility", {{"scene", QString::number(savedScene)}}).empty(),
+              "Empty scene visibility query is a valid bounded page");
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
                   QJsonDocument::fromJson(published.readAll()).object() == inspectionCapabilities(),

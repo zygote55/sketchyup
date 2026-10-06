@@ -11,6 +11,7 @@
 #include <QPainter>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QTabBar>
 #include <QVector2D>
 #include <QWheelEvent>
 #include <algorithm>
@@ -24,6 +25,7 @@ constexpr float degreesToRadians = std::numbers::pi_v<float> / 180;
 } // namespace
 Viewport::Viewport(Document &doc, QWidget *parent)
     : QOpenGLWidget(parent), doc_(doc), session_(doc) {
+    initializeSceneViews();
     selection_.sync(doc_);
     session_.setScopeProvider([this] { return componentScope(); });
     setFocusPolicy(Qt::StrongFocus);
@@ -1107,46 +1109,47 @@ void Viewport::paintScene() {
     const auto textures = textureSummary();
     if (!textures.isEmpty())
         p.drawText(QRect(20, 38, width() - 40, 40), Qt::TextWordWrap, textures);
-    p.drawText(20, height() - 22,
+    const int hudBottom = height() - (sceneTabs_->isVisible() ? sceneTabs_->height() + 12 : 0);
+    p.drawText(20, hudBottom - 22,
                "Z up   ·   Inference 8 px   ·   Grid fallback " +
                    displayLength(.1, doc_.displayUnits()));
     if (transformTool())
-        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    QString("%1 axes · Ctrl: copy %2 · Choose pivot, then destination · Esc: cancel")
                        .arg(transformLocal_ ? "Local" : "World")
                        .arg(transformCopy_ ? "on" : "off"));
     if (tool_ == Tool::Extrude)
-        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    QString("Ctrl: create new face %1 · Double-click: repeat distance · Alt-drag: "
                            "orbit · Esc: cancel")
                        .arg(pushNewFace_ ? "on" : "off"));
     if (tool_ == Tool::Offset)
-        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Offset: choose a face · Move across its nearest edge · Positive: outward · "
                    "Negative: inward · Esc: cancel");
     if (tool_ == Tool::Sweep)
-        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Follow Me: select a profile face and path edges, then Shift+F · Enter or click "
                    "applies · Esc cancels · Alt-drag orbits");
     if (tool_ == Tool::HostedPlacement)
-        p.drawText(QRect(20, height() - 88, width() - 40, 62), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 88, width() - 40, 62), Qt::TextWordWrap,
                    hostedPlacementSummary());
     if (tool_ == Tool::Orientation)
-        p.drawText(QRect(20, height() - 88, width() - 40, 62), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 88, width() - 40, 62), Qt::TextWordWrap,
                    orientationSummary() + " · Enter applies · Esc cancels");
     if (tool_ == Tool::Boolean)
-        p.drawText(QRect(20, height() - 88, width() - 40, 62), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 88, width() - 40, 62), Qt::TextWordWrap,
                    booleanSummary() + " · Enter applies · Esc cancels");
     if (tool_ == Tool::Intersect)
-        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Intersect · References: " + intersectionMode_ +
                        " · Enter or click applies · Esc cancels · Choose reference scope in Draw");
     if (tool_ == Tool::Orbit || tool_ == Tool::Pan || tool_ == Tool::Zoom)
-        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    trackpad_ ? "Two fingers: pan · Alt-scroll: orbit · Ctrl-scroll / pinch: zoom"
                              : "Drag: active camera tool · Shift/right drag: pan · Wheel: zoom");
     if (drawingTool() && tool_ != Tool::Freehand)
-        p.drawText(QRect(20, height() - 66, width() - 40, 38), Qt::TextWordWrap,
+        p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Shift: hold inference · Arrows: axis / edge lock · Tab: alternatives · Hover: "
                    "arm reference");
     if (guideTool()) {
@@ -1320,7 +1323,12 @@ void Viewport::paintScene() {
         p.drawText(box, Qt::AlignCenter, label);
     }
 }
+void Viewport::resizeEvent(QResizeEvent *event) {
+    QOpenGLWidget::resizeEvent(event);
+    layoutSceneTabs();
+}
 void Viewport::refresh() {
+    syncSceneTabs();
     syncSelection();
     inferenceWorker_.request(doc_);
     inference_ = {};
@@ -1406,6 +1414,7 @@ void Viewport::clearPreview() {
     update();
 }
 void Viewport::cancel() {
+    stopSceneTransition();
     hostedCommand_.reset();
     orientationCommand_.reset();
     orientationNormals_.clear();

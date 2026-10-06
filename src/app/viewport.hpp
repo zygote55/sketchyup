@@ -20,6 +20,8 @@
 #include <QPointF>
 #include <functional>
 #include <optional>
+class QTabBar;
+class QVariantAnimation;
 namespace sketchy {
 class Viewport : public QOpenGLWidget {
     Q_OBJECT
@@ -148,6 +150,10 @@ class Viewport : public QOpenGLWidget {
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
+    SceneSnapshot captureSceneSnapshot(bool camera, bool visibility, bool style, bool section) const;
+    QJsonObject editSavedScenes(const QJsonArray &commands);
+    void recallSavedScene(Id scene);
+    void setReducedMotion(bool enabled);
     void setAssistantPreview(std::shared_ptr<const Document::PreparedEdit> edit);
     bool hasAssistantPreview() const;
     void setAssistantPreviewFocus(Id body);
@@ -213,12 +219,14 @@ class Viewport : public QOpenGLWidget {
     void measurementsRequested(const QString &text);
     void measurementPreview(const QString &text);
     void changed();
+    void sceneRecalled(qulonglong scene);
     void message(const QString &text);
 
   protected:
     bool event(QEvent *) override;
     void initializeGL() override;
     void paintGL() override;
+    void resizeEvent(QResizeEvent *) override;
     void mousePressEvent(QMouseEvent *) override;
     void mouseMoveEvent(QMouseEvent *) override;
     void mouseDoubleClickEvent(QMouseEvent *) override;
@@ -436,6 +444,16 @@ class Viewport : public QOpenGLWidget {
     QString previewError_;
     std::vector<std::array<Vec3, 2>> previewEdges_;
     std::vector<Guide> previewGuides_;
+    QTabBar *sceneTabs_{};
+    QVariantAnimation *sceneAnimation_{};
+    bool reducedMotion_{}, sceneCameraStep_{};
+    SceneCamera sceneCameraFrom_, sceneCameraTo_;
+    Document::SaveStamp sceneAnimationStamp_;
+    void initializeSceneViews();
+    void layoutSceneTabs();
+    void syncSceneTabs();
+    void stopSceneTransition();
+    void applySceneCamera(const SceneCamera &camera);
     Vec3 target_{};
     Vec3 renderOrigin_{}; // Nearby, snapped origin for GPU floats; model stays in world doubles.
     float yaw_{-45}, pitch_{35}, distance_{14};

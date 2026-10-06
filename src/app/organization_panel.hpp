@@ -9,6 +9,7 @@ class EntityInfoPanel;
 class MaterialsPanel;
 class HistoryPanel;
 class StylesPanel;
+class ScenesPanel;
 class OrganizationPanel : public QWidget {
   public:
     OrganizationPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
@@ -17,6 +18,7 @@ class OrganizationPanel : public QWidget {
     void showMaterials();
     void showHistory();
     void showStyles();
+    void showScenes();
 
   private:
     Document &doc_;
@@ -29,6 +31,7 @@ class OrganizationPanel : public QWidget {
     MaterialsPanel *materials_{};
     HistoryPanel *history_{};
     StylesPanel *styles_{};
+    ScenesPanel *scenes_{};
     bool syncing_{};
     std::set<Id> knownBodies_, knownTags_;
     Document::SaveStamp session_;

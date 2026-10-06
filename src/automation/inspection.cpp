@@ -1,5 +1,6 @@
 #include "automation/texture_commands.hpp"
 #include "automation/inspection.hpp"
+#include "automation/scene_commands.hpp"
 #include "io/model_style_io.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
@@ -43,6 +44,9 @@ QJsonObject refSchema() {
 }
 enum class Operation {
     Document,
+    SavedScenes,
+    SavedScene,
+    SavedSceneVisibility,
     Selection,
     Entities,
     Entity,
@@ -88,6 +92,9 @@ const std::vector<Spec> &registry() {
         };
         return std::vector<Spec>{
             spec("document.describe", Operation::Document, {}, {}),
+            spec("saved_scenes.query", Operation::SavedScenes, {}, {}, true),
+            spec("saved_scene.describe", Operation::SavedScene, {{"scene", idSchema()}}, {"scene"}),
+            spec("saved_scene.visibility", Operation::SavedSceneVisibility, {{"scene", idSchema()}}, {"scene"}, true),
             spec("selection.get", Operation::Selection, {}, {}, true),
             spec("entities.query", Operation::Entities,
                  {{"parent", ref},
@@ -486,13 +493,55 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                                        {"instances", int(doc.instances().size())},
                                        {"tags", int(doc.tags().size())},
                                        {"materials", int(doc.materials().size())},
-                                       {"assets", int(doc.assets().size())}}},
+                                       {"assets", int(doc.assets().size())},
+                                       {"savedScenes", int(doc.scenes().size())}}},
                 {"editorStateAvailable", editor != nullptr}};
         if (editor)
             data["activeContext"] = editor->context()
                                         ? QJsonValue(inspectionReference(doc, editor->context()))
                                         : QJsonValue();
         break;
+    case Operation::SavedScenes:
+        for (const auto id : orderedScenes(doc))
+            page.append([&] { return savedSceneSummary(doc, id); });
+        data = page.finish();
+        break;
+    case Operation::SavedScene: {
+        const auto id = decimal(request["scene"]);
+        if (!doc.scenes().contains(id))
+            fail("NOT_FOUND", "Saved scene does not exist");
+        data = savedSceneDescription(doc, id);
+        break;
+    }
+    case Operation::SavedSceneVisibility: {
+        const auto id = decimal(request["scene"]);
+        if (!doc.scenes().contains(id))
+            fail("NOT_FOUND", "Saved scene does not exist");
+        const auto &snapshot = doc.scenes().at(id)->snapshot;
+        if (!snapshot.visibility)
+            fail("UNAVAILABLE_CONTEXT", "This scene does not control visibility");
+        const auto &visibility = *snapshot.visibility;
+        const auto missing = missingSceneReferences(doc, snapshot);
+        for (const auto &[body, visible] : visibility.bodyVisible)
+            page.append([&] { return QJsonObject{{"kind", "body"}, {"id", QString::number(body)},
+                {"visible", visible}, {"missing", missing.bodies.contains(body)}}; });
+        for (const auto &[tag, visible] : visibility.tagVisible)
+            page.append([&] { return QJsonObject{{"kind", "tag"}, {"id", QString::number(tag)},
+                {"visible", visible}, {"missing", missing.tags.contains(tag)}}; });
+        for (const auto &entity : visibility.hiddenEntities) {
+            const auto kind = entity.kind == SceneEntityKind::Body ? "body"
+                : entity.kind == SceneEntityKind::Face ? "face"
+                : entity.kind == SceneEntityKind::Edge ? "edge" : "guide";
+            page.append([&] { return QJsonObject{{"kind", "hidden"},
+                {"body", QString::number(entity.body)}, {"entityKind", kind},
+                {"entity", entity.kind == SceneEntityKind::Body ? QJsonValue(QJsonValue::Null)
+                    : QJsonValue(QString::number(entity.entity))},
+                {"missing", missing.entities.contains(entity)}}; });
+        }
+        data = page.finish();
+        data["showHidden"] = visibility.showHidden;
+        break;
+    }
     case Operation::Selection:
         if (!editor)
             fail("UNAVAILABLE_CONTEXT", "No editor selection was supplied");
