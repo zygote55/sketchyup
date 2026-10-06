@@ -265,6 +265,11 @@ int main(int argc, char **argv) {
                            {"scale", view->devicePixelRatioF()},
                            {"modelStyle", encodeModelStyle(doc.style())},
                            {"profileEdges", double(view->renderStats().profileEdges)}};
+        view->benchmark(100);
+        frame(*view);
+        check(view->renderStats().profileEdges == 0,
+              "Synthetic benchmark does not report stale model profile counts");
+        result["syntheticProfileEdges"] = double(view->renderStats().profileEdges);
         std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';

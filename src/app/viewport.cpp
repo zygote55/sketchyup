@@ -2474,6 +2474,7 @@ void Viewport::benchmark(int count, bool instanced) {
     if (count < 1 || count > 1000000)
         throw std::runtime_error("Benchmark supports 1–1000000 triangles");
     benchmarkTriangles_ = count;
+    stats_.profileEdges = 0;
     instances_ = instanced ? count : 0;
     benchmarkVertices_.clear();
     benchmarkVertices_.reserve(instanced ? 3 : count * 3);
