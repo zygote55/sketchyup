@@ -14,6 +14,7 @@ class SectionsPanel;
 class AnnotationsPanel;
 class TextPanel;
 class SolarPanel;
+class ReferenceImagesPanel;
 class OrganizationPanel : public QWidget {
   public:
     OrganizationPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
@@ -27,6 +28,7 @@ class OrganizationPanel : public QWidget {
     void showAnnotations();
     void showText();
     void showSolar();
+    void showReferenceImages();
 
   private:
     Document &doc_;
@@ -44,6 +46,7 @@ class OrganizationPanel : public QWidget {
     AnnotationsPanel *annotations_{};
     TextPanel *text_{};
     SolarPanel *solar_{};
+    ReferenceImagesPanel *references_{};
     bool syncing_{};
     std::set<Id> knownBodies_, knownTags_;
     Document::SaveStamp session_;
