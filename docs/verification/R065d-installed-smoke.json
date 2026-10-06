@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "nativeExampleByteExact": true,
+  "annotations": 3,
+  "vertexDimensionsExact": true,
+  "faceLabelResolved": true,
+  "millimetreDisplay": true,
+  "movementPreservesMeasurement": true,
+  "movementUpdatesWorldTextPoints": true,
+  "metadataEdit": true,
+  "relocatedRoundtripExact": true,
+  "installedSchemas": 7,
+  "installedContractMatches": true,
+  "desktopBinaryMatches": true
+}

@@ -1,0 +1,146 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "annotation_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.211
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "annotation_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.338
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "annotation_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.124
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "annotation_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.456
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "annotation_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 0.73
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "annotation_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 2.996
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "annotation_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.546
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "annotation_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.848
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "annotation_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 3.22
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "annotation_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 5.459
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "annotation_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.714
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "annotation_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 6.568
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "annotation_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 1.418
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "annotation_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 3.775
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "annotation_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.34
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "annotation_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.563
+  }
+]
