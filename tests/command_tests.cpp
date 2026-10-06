@@ -894,6 +894,10 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "geometry.cleanup"}, {"body", "1"}},
             QJsonObject{
                 {"command", "geometry.offset"}, {"body", "1"}, {"face", "5"}, {"distance", -.1}},
+            QJsonObject{{"command", "geometry.edge_appearance"},
+                        {"context", "0"},
+                        {"entities", QJsonArray{QJsonObject{{"body", "1"}, {"edge", "1"}}}},
+                        {"smooth", true}},
             QJsonObject{{"command", "geometry.reverse_faces"},
                         {"context", "0"},
                         {"entities", QJsonArray{QJsonObject{{"body", "1"}, {"face", "5"}}}}},

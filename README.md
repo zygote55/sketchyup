@@ -490,6 +490,14 @@ Undo use the shared command path. See the [orientation example](examples/face-or
 and [contract](docs/decisions/0049-face-orientation.md).
 
 
+`geometry.edge_appearance` sets independent `hidden`, `soft` and `smooth` flags
+on explicit `entities` (`body`/`edge` pairs) in an explicit `context`. Supply at
+least one boolean flag; omitted flags retain their current value. Flags persist
+and participate in shared component edits, preview and Undo. Edge detail and
+paged topology inspection expose them. Native edge controls and rendering of
+these flags are still in development. See the [edge appearance example](examples/edge-appearance.json)
+and [contract](docs/decisions/0051-edge-appearance.md).
+
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected
 path edges. Use Select and Ctrl-click to add the face and path, then Shift+F to
 preview; Enter or click applies, and Escape cancels. Alt-drag can orbit during

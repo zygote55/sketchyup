@@ -1,8 +1,8 @@
 # 0051 — Edge appearance is persistent metadata
 
-Status: R057.e data and lineage implementation under verification. Shared commands,
-native controls, explicit hidden-edge display and smoothing/export consumption
-are subsequent R057 layers; this slice does not claim those user-facing behaviors.
+Status: R057.e data/lineage and R057.f shared command acceptance pass locally.
+Native controls, explicit hidden-edge display and smoothing/export consumption
+are subsequent R057 layers.
 
 Each native edge may have independent `hidden`, `soft` and `smooth` boolean flags.
 All false is the implicit default and is omitted from the sparse body map. Hidden
@@ -52,3 +52,20 @@ these semantics. Versions 1–12 migrate with empty maps and keep their old disp
 behavior. Existing allocator, history, snapshot, model and container bounds apply;
 record count cannot exceed the authoritative edge limit. Metadata memory is
 included in document snapshot/history accounting.
+
+## Commands and inspection
+
+`geometry.edge_appearance` requires an explicit `context` and an `entities` array
+of typed `{body, edge}` IDs, plus at least one of `hidden`, `soft` or `smooth`.
+Every supplied flag is strictly boolean. Missing flags retain their value; explicit
+false clears that property. Duplicate references, unknown fields and missing IDs
+reject the entire batch. The existing component-scope wrapper projects canonical
+edits to all instances; Make Unique isolates future changes.
+
+The command participates in the same sealed preview, revision checks, atomic
+batch publication and Undo contract as geometry commands. Split-then-clear and
+unify-then-merge-then-clear batches retain their final explicit flags. The published
+transaction, headless-session and MCP schemas include the same command, and the
+native assistant allowlist permits proposing it. `entity.describe` returns an
+edge's `edgeAppearance`; paged `topology.query` edge rows include `appearance`.
+Neither inspection path infers flags from geometry or coordinates.

@@ -41,6 +41,26 @@ QJsonObject spec(QString name, QString label, QString category, QJsonObject prop
             {"validation", "Schema plus authoritative geometry, document and resource validation"},
             {"undo", "one batch history item"}};
 }
+QJsonObject edgeAppearanceSpec() {
+    auto entry = spec(
+        "geometry.edge_appearance", "Set independent edge hide, soften and smooth flags",
+        "Geometry",
+        {{"context", stableId(true)},
+         {"entities",
+          list(QJsonObject{{"type", "object"},
+                           {"properties", QJsonObject{{"body", stableId()}, {"edge", stableId()}}},
+                           {"required", QJsonArray{"body", "edge"}},
+                           {"additionalProperties", false}},
+               1, 4096)},
+         {"hidden", QJsonObject{{"type", "boolean"}}},
+         {"soft", QJsonObject{{"type", "boolean"}}},
+         {"smooth", QJsonObject{{"type", "boolean"}}}},
+        {"context", "entities"});
+    auto parameters = entry["parameters"].toObject();
+    parameters["minProperties"] = 4; // command, context, entities, at least one flag.
+    entry["parameters"] = parameters;
+    return entry;
+}
 } // namespace
 QJsonArray commandCatalog() {
     auto coordinate = QJsonObject{
@@ -224,6 +244,7 @@ QJsonArray commandCatalog() {
              "Geometry",
              {{"body", stableId()}, {"face", stableId()}, {"distance", number()}, {"space", space}},
              {"body", "face", "distance"}),
+        edgeAppearanceSpec(),
         spec("geometry.reverse_faces", "Reverse selected faces; preserve physical-side materials",
              "Geometry",
              {{"context", stableId(true)},

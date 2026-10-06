@@ -8,6 +8,7 @@
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
+#include "core/edge_appearance.hpp"
 #include "core/face_orientation.hpp"
 #include "core/groups.hpp"
 #include "core/intersection_edit.hpp"
@@ -1042,6 +1043,30 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 throw std::runtime_error("Offset space must be local or world");
             compose(staged.offsetFace(id(command["body"]), id(command["face"]),
                                       number(command["distance"]), command["space"] == "world"));
+        } else if (name == "geometry.edge_appearance") {
+            const auto entities = array(command["entities"]);
+            if (entities.empty() || entities.size() > 4096)
+                throw std::runtime_error("Choose 1–4096 editable edges");
+            SelectionSet selected;
+            for (auto value : entities) {
+                if (!value.isObject())
+                    throw std::runtime_error("Expected selected edge object");
+                const auto entity = value.toObject();
+                fields(entity, {"body", "edge"});
+                if (!selected.insert({id(entity["body"]), SelectionKind::Edge, id(entity["edge"])})
+                         .second)
+                    throw std::runtime_error("Duplicate selected edge");
+            }
+            auto flag = [&](const char *key) -> std::optional<bool> {
+                if (!command.contains(key))
+                    return {};
+                if (!command[key].isBool())
+                    throw std::runtime_error("Edge appearance flags must be booleans");
+                return command[key].toBool();
+            };
+            compose(setEdgeAppearance(staged, selected,
+                                      command["context"] == "0" ? 0 : id(command["context"]),
+                                      flag("hidden"), flag("soft"), flag("smooth")));
         } else if (name == "geometry.reverse_faces") {
             const auto entities = array(command["entities"]);
             if (entities.empty() || entities.size() > 4096)
