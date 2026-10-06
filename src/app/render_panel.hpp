@@ -12,6 +12,7 @@ class RenderPanel : public QObject {
                 QWidget &window);
     ~RenderPanel() override;
     void showSetup();
+    void showJobs();
     void refreshProvenance();
     void start(RenderOptions settings, BlenderJob::Options worker, bool currentView);
     void cancel();

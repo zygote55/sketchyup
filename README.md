@@ -15,10 +15,11 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation, M2 editable geometry, M3 manual drawing and M4 editing/recovery gates. M5 automation is in progress. Shared components now support native editing.
+M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. M7 presentation and rendering is in progress. Shared components support native editing.
 OpenAI and experimental loopback Ollama adapters, transactional previews and optional
-Blender rendering are implemented. Live OpenAI acceptance is still pending; the
-measured local CPU profile timed out on the initial modeling corpus. General
+Blender rendering are implemented. Live OpenAI acceptance passed the M5 and M6
+workflow gates; the measured local CPU Ollama profile timed out on the initial
+modeling corpus. General
 exchange formats remain planned. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Automatic recovery copies are enabled every 30 seconds; File → Recovery settings
 changes the interval (5–3,600 seconds) or disables it. The recovery status shows
@@ -211,7 +212,7 @@ as PNG. Blender is optional. See [render evidence](docs/verification/R050-native
 
 The [M5 acceptance procedure](docs/M5_ACCEPTANCE.md) describes the reproducible
 room/window workflow, retained evidence, live provider corpus and package setup.
-The [M5 gate is complete](docs/verification/M5.md); M6 advanced modeling is in progress.
+The [M5 gate](docs/verification/M5.md) and [M6 gate](docs/verification/M6.md) are complete; M7 presentation and rendering is in progress.
 The [M6 acceptance procedure](docs/M6_ACCEPTANCE.md) reproduces the integrated
 roof/stair/joinery/furniture study, site placement and live assistant checks.
 
@@ -732,20 +733,36 @@ SketchyUp is not affiliated with SketchUp or Trimble.
 
 In the native editor, choose **Camera → Render…**, select an installed Blender
 5.2 LTS executable (or leave the path blank to discover `blender`), and check its
-devices. Choose the current camera or fit the visible model, resolution and sample
-count, then Render. CPU works without a GPU backend; an explicitly selected GPU
-can retry once on CPU. Blender is optional for editing and saving native models.
+devices. Choose Cycles or Eevee preview, the current camera or fit the visible
+model, resolution and samples. Cycles supports an explicitly selected compute
+device with optional CPU fallback. Eevee uses the reported active OpenGL renderer;
+changing the engine requires a new device check. Eevee's approximate indirect
+lighting appears in the transfer report. Blender remains optional for editing and
+saving native models.
 
-Keep modeling while the captured snapshot renders. The status chip opens progress,
-cancellation and diagnostics. A verified image opens beside the Model tab, with
-its original revision and a warning if the model has changed. **Save image as…**
-writes its PNG independently of model Save. Two recent results are kept in memory.
-The initial Studio preset has the [GLB material/geometry limitations](docs/decisions/0032-glb-snapshots.md).
+Enabled sun studies carry into the captured render. An optional 2:1 Radiance HDR
+panorama supplies the environment, with strength and rotation controls; its bytes
+are captured so moving or deleting the original file cannot change queued work.
+
+Keep modeling while captured snapshots render. The status chip opens **Jobs**, with
+progress, elapsed time, logs, cancellation and retries. Up to two workers run at
+once. The store permits at most eight pending captures and sixteen retained jobs,
+subject to a conservative 2 GiB storage budget; remove finished jobs when it is full. **Retry capture**
+uses the original model/settings. Use Render again for a fresh capture.
+
+Verified images open beside the Model tab, with the original revision and a label
+when the model has changed. **Save image as…** writes the PNG independently of
+model Save. Two result tabs stay open at most; closing one keeps its image in Jobs.
+Retained results survive restart and can be reopened there. Interrupted work is
+available for explicit retry, while queued work resumes. **Remove** and **Remove all
+finished jobs** delete their stored captures, images and logs; pending jobs remain.
+
+See the [GLB material/geometry limitations](docs/decisions/0032-glb-snapshots.md)
+and each result's transfer report for unsupported scene details.
 
 The optional local assistant adapter uses a measured Ollama 0.35.1 profile on a
 numeric loopback endpoint. It sends no credentials or images, checks runtime and
 model capabilities before document transfer, and rejects context overflow rather
 than silently dropping history. See the [local profile and trial evidence](docs/verification/R045-local-provider.md)
 for the exact model digest, CPU limits, known failures and opt-in corpus runner.
-Native assistant setup is still under development; ordinary modeling does not
-require a provider.
+Ordinary modeling does not require a provider.
