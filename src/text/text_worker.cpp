@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
+#include <QThread>
 namespace sketchy {
 namespace {
 void require(bool value, const char *message) {
@@ -205,6 +206,7 @@ TextGeometry runTextWorker(const TextGeometrySettings &settings, const TextWorke
         require(process.write(request) == request.size(), "Text worker input write failed");
         process.closeWriteChannel();
         while (true) {
+            require(!QThread::currentThread()->isInterruptionRequested(), "Text generation canceled");
             process.waitForReadyRead(20);
             output += process.readAllStandardOutput();
             process.readAllStandardError();

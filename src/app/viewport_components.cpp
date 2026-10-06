@@ -18,6 +18,13 @@ QJsonObject Viewport::commitCommands(const QJsonArray &commands, bool shared) {
                 scope ? QJsonArray{componentScopeCommand(doc_, scope, commands)} : commands}});
     return componentScopeResult(result, scope);
 }
+void Viewport::applyTextEdit(const Document::PreparedEdit &edit) {
+    if (!doc_.canApply(edit)) throw std::runtime_error("The model changed while text was being generated. Reopen the editor to continue.");
+    cancel();
+    doc_.applyPrepared(edit);
+    refresh();
+    emit changed();
+}
 void Viewport::organize(const QJsonArray &commands) {
     const auto scope = componentScope();
     bool globalTags = false, entities = false, root = false, members = false;
