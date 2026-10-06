@@ -1,4 +1,6 @@
 #include "app/materials_panel.hpp"
+#include "app/texture_editor.hpp"
+#include "core/face_textures.hpp"
 #include "io/assets.hpp"
 #include <QColorDialog>
 #include <QDialog>
@@ -91,6 +93,12 @@ MaterialsPanel::MaterialsPanel(Document &doc, Viewport &view, QWidget *parent)
                 commands.append(QJsonObject{{"command", "asset.delete"}, {"asset", sid(id)}});
         if (!commands.empty())
             view_.editMaterials(commands);
+    });
+    add(9, "materialTexture", "Texture mapping…", [this] {
+        editTextureMapping(doc_, view_, this, side_->currentIndex());
+    });
+    add(10, "materialResetTexture", "Reset mapping", [this] {
+        view_.mapSelectedTextures(QJsonValue::Null, "local", side_->currentIndex());
     });
     layout->addLayout(buttons);
     findChild<QPushButton *>("materialAttach")
@@ -189,8 +197,11 @@ void MaterialsPanel::refresh() {
         if (doc_.bodies().contains(entity.body) &&
             doc_.bodies().at(entity.body)->surface.faces.contains(entity.entity)) {
             const auto sides = faceMaterials(*doc_.bodies().at(entity.body), entity.entity);
+            const auto mapping = faceTextureMappings(*doc_.bodies().at(entity.body), entity.entity);
             selection_->setText("Front: " + describe(doc_, sides.front) +
-                                "\nBack: " + describe(doc_, sides.back));
+                                (mapping.front ? " · Custom mapping" : " · Default mapping") +
+                                "\nBack: " + describe(doc_, sides.back) +
+                                (mapping.back ? " · Custom mapping" : " · Default mapping"));
         }
     }
     stamp_ = doc_.saveStamp();

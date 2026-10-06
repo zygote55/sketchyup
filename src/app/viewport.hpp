@@ -132,6 +132,8 @@ class Viewport : public QOpenGLWidget {
     void setPaintMaterial(Id material, int side);
     void editMaterials(const QJsonArray &commands);
     void applyMaterialToSelection();
+    SelectionSet selectedTextureFaces();
+    void mapSelectedTextures(const QJsonValue &projection, const QString &space, int side);
     void setSelectedEdgeAppearance(const QString &flag, bool value);
     void setPersistentState(bool hide, bool lock);
     void revealPersistentEntities();

@@ -1,5 +1,37 @@
 #include "app/viewport.hpp"
+#include "core/face_textures.hpp"
 namespace sketchy {
+SelectionSet Viewport::selectedTextureFaces() {
+    selection_.sync(doc_);
+    const auto faces = selection_.entities();
+    if (faces.empty())
+        throw std::runtime_error("Select faces to edit their texture mapping");
+    for (const auto face : faces)
+        if (face.kind != SelectionKind::Face || !selectable(face))
+            throw std::runtime_error("Select editable faces; open groups/components first");
+    return faces;
+}
+void Viewport::mapSelectedTextures(const QJsonValue &projection, const QString &space, int side) {
+    if (side < 0 || side > 2 || (space != "local" && space != "world"))
+        throw std::runtime_error("Choose a texture mapping side and coordinate frame");
+    QJsonArray commands;
+    for (const auto face : selectedTextureFaces()) {
+        const auto stored = faceTextureMappings(*doc_.bodies().at(face.body), face.entity);
+        if (projection.isNull() && !(side != 1 && stored.front) && !(side != 0 && stored.back))
+            continue;
+        commands.append(QJsonObject{{"command", "material.map_texture"},
+                                    {"body", QString::number(face.body)},
+                                    {"face", QString::number(face.entity)},
+                                    {"side", side == 0 ? "front" : side == 1 ? "back" : "both"},
+                                    {"space", space}, {"projection", projection}});
+    }
+    if (commands.empty())
+        return;
+    cancel();
+    commitCommands(commands);
+    refresh();
+    emit changed();
+}
 Id Viewport::paintMaterial() const {
     return doc_.owns(paintSession_) && doc_.materials().contains(paintMaterial_) ? paintMaterial_
                                                                                  : 0;
