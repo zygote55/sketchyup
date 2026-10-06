@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 1.5;
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
-        root["version"] = 13;
+        root["version"] = QJsonDocument::fromJson(bytes).object()["version"];
         root["nextId"] = "1";
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["nextId"] = "2";

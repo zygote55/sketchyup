@@ -84,11 +84,13 @@ Id normalizeRoot(Document &draft, Id root) {
 }
 std::pair<DefinitionPtr, InstancePtr> capture(const Document &draft, Id root, Id definitionId,
                                               std::string name, bool includeDraftRoots = false,
-                                              Transform rootDelta = {}, Transform fromWorld = {}) {
+                                              Transform rootDelta = {}, Transform fromWorld = {},
+                                              std::optional<ComponentGlue> glue = {}) {
     auto definition = std::make_shared<ComponentDefinition>();
     definition->id = definitionId;
     definition->root = root;
     definition->name = std::move(name);
+    definition->glue = std::move(glue);
     definition->nextMemberId = draft.nextId();
     auto instance = std::make_shared<ComponentInstance>();
     instance->definition = definitionId;
@@ -466,7 +468,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     const auto inverse = editingFrame.inverse();
     const auto delta = root->transform == editingFrame ? Transform{} : inverse * root->transform;
     const auto [definition, unused] =
-        capture(draft, original->root, id, original->name, true, delta, inverse);
+        capture(draft, original->root, id, original->name, true, delta, inverse, original->glue);
     auto definitions = doc.definitions();
     for (const auto &[created, record] : draft.definitions())
         if (!definitions.contains(created))
@@ -550,5 +552,15 @@ ComponentResult setComponentAxes(Document &doc, Id id, Transform axes) {
             publish(doc, definitions, doc.instances(), scene, doc.nextId(), doc.nextDefinitionId(),
                     "Change component local axes"),
             {}};
+}
+ComponentResult setComponentGlue(Document &doc, Id id, std::optional<ComponentGlue> glue) {
+    const auto original = doc.definitions().at(id);
+    if (original->glue == glue)
+        return {id, 0, {}, {}};
+    auto edited = std::make_shared<ComponentDefinition>(*original);
+    edited->glue = std::move(glue);
+    Edit edit{edited->glue ? "Set component glue face" : "Clear component glue face", {}};
+    edit.definitions.push_back({id, original, edited});
+    return {id, 0, doc.apply(std::move(edit), doc.revision()), {}};
 }
 } // namespace sketchy

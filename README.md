@@ -311,10 +311,12 @@ space. `geometry.measure_distance` and `geometry.measure_angle` are read-only
 queries for world-coordinate points. `geometry.infer` accepts `includeGuides`
 (default true) and an optional direction reference with `body` plus `guide`
 in place of `edge`; results identify both sources of mixed intersections.
-The current file schema is version 13. It stores persistent edge appearance flags,
+The current file schema is version 14. It stores explicit component glue-face
+references and cutting behavior, persistent edge appearance flags,
 display units, managed assets, material swatches and front/back
 assignments, tag folders and assignments, canonical component definitions and
-stable instance-member bindings. Versions 1–10 acquire no invented assets; versions 1–9 preserve legacy colors without
+stable instance-member bindings. Versions 1–13 acquire no invented glue behavior.
+Versions 1–10 acquire no invented assets; versions 1–9 preserve legacy colors without
 inventing swatches; versions 1–8 migrate with all entities Untagged, and versions
 1–7 acquire no invented components. Earlier group and guide migrations remain supported.
 

@@ -1,4 +1,5 @@
 #include "core/component_records.hpp"
+#include "core/component_glue.hpp"
 #include "core/model.hpp"
 #include <algorithm>
 #include <set>
@@ -106,6 +107,8 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
         canonical.restore("00000000000000000000000000000000", definition->nextMemberId,
                           definition->members, 0, {}, {}, 1, tags, nextTagId, materials,
                           nextMaterialId, assets, nextAssetId);
+        if (definition->glue)
+            (void)resolveComponentGlue(*definition);
         for (const auto &[member, body] : definition->members) {
             if (canonical.bodies().at(member)->topology != body->topology)
                 throw std::runtime_error("Component prototype requires explicit valid topology");

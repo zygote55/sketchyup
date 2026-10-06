@@ -1,8 +1,8 @@
 # 0054 — Explicit face frames and hosted component openings
 
 Status: R059.a immutable placement frame and R059.b immutable opening geometry
-locally verified. Persistent bindings, opening maintenance and native/automation
-workflows follow in separate layers.
+and R059.c canonical glue records are locally verified. CI/dependency merges remain
+pending. Host bindings, opening maintenance and native/automation workflows follow.
 
 ## Face placement
 
@@ -74,3 +74,36 @@ containment/sweep clipping has a four-million work budget. Existing bounded soli
 analysis applies independently. Every failure leaves source geometry and identity
 allocators untouched. Multiple nonoverlapping cuts are supported, but storing the
 uncut host and regenerating cuts after component edits remains subsequent work.
+
+## Canonical component glue behavior
+
+A definition optionally stores `ComponentGlue`: a direct canonical member ID, face
+ID, member-local anchor/tangent and `cutsOpening` boolean. It never guesses a window
+silhouette from arbitrary members or nested component references. The referenced
+face supplies the physical normal; its outer loop supplies the cutting outline.
+An anchor can lie within a ring's hole or elsewhere on the face plane. Alignment-only
+behavior uses the frame without producing a cut outline.
+
+`resolveComponentGlue` validates the bounded face and canonical hierarchy, projects
+the anchor within modeling tolerance, and expresses the orthonormal frame and cut
+outline in definition coordinates. Member transforms retain physical normals under
+reflection/nonuniform scale/shear. At most 128 hierarchy levels and 4,096 face corners
+are accepted; a cutting outer loop is limited to 256 corners.
+
+`setComponentGlue` publishes one definition edit without changing placed scene
+geometry. The behavior participates in immutable previews, Undo/Redo, snapshots,
+freezing and existing component memory accounting. An identical setting is a no-op.
+A locked placement protects its shared glue behavior. Make Unique copies the
+reference; subsequent edits to that copy do not affect its peers. Changing component
+axes preserves world anchor/profile coordinates. Shared geometry capture retains
+the explicit reference and resolves its new outline; deleting the referenced face
+or moving it away from the anchor plane rejects atomically until the behavior is
+explicitly cleared or changed.
+
+JSON schema 14 requires a nullable `glue` field on canonical definitions. Populated
+records require exact stable ID strings, finite three-coordinate anchor/tangent
+arrays and a boolean cutting flag; unknown fields reject. Versions 1–13 migrate
+without invented glue behavior. Containers require `component-glue-v1` with
+`json-v14`, preventing older readers from silently dropping it. Immutable saves,
+recovery checkpoints and durable transaction reconstruction retain glue-only edits
+and their Undo baseline. There is still no persistent host attachment in this layer.
