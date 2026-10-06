@@ -111,10 +111,12 @@ int main(int argc, char **argv) {
                                6) < tolerance,
                   "Saved recipe reopens and measures without a display or provider");
         }
-        for (int variant : {0, 1, 2, 3, 4}) {
+        for (int variant : {0, 1, 2, 3, 4, 5, 6}) {
             const bool resize = variant == 1 || variant == 2, hosted = variant == 2,
-                       staircase = variant == 4, roofed = variant == 3 || staircase;
-            const QString name = staircase ? "stair-recipe-v1.json"
+                       furnished = variant >= 5, cabinet = variant == 6,
+                       staircase = variant >= 4, roofed = variant == 3 || staircase;
+            const QString name = furnished ? (cabinet ? "cabinet-recipe-v1.json" : "table-recipe-v1.json")
+                                 : staircase ? "stair-recipe-v1.json"
                                  : roofed   ? "roof-recipe-v1.json"
                                  : hosted ? "hosted-room-recipe-v1.json"
                                  : resize ? "room-window-resize-recipe-v1.json"
@@ -146,8 +148,8 @@ int main(int argc, char **argv) {
             check(wallVolume && std::abs(*wallVolume - (resize ? 9.848 : 9.888)) < tolerance,
                   "Saved legacy and adopted recipes have independently expected wall volumes");
             check(saved.revision() == (resize ? 2 : 1) &&
-                      saved.bodies().size() == (staircase ? 13 : roofed ? 11 : 9) &&
-                      saved.definitions().size() == (resize ? 2 : 1),
+                      saved.bodies().size() == (furnished ? (cabinet ? 27 : 23) : staircase ? 13 : roofed ? 11 : 9) &&
+                      saved.definitions().size() == (furnished ? (cabinet ? 3 : 2) : resize ? 2 : 1),
                   "Installed recipe saves exact transaction count and component scope");
             if (roofed) {
                 const auto roofReport = result.rows[2]
@@ -168,6 +170,15 @@ int main(int argc, char **argv) {
                 const auto volume = measureEntity(saved, {stairs, SelectionKind::Body, 0}).world.volume;
                 check(volume && std::abs(*volume - 4.368) < 1e-5,
                       "Saved stair recipe has independently expected material volume");
+            }
+            if (furnished) {
+                const auto furniture = result.rows[2].toObject()["result"].toObject()["createdIds"].toObject()["recipeOperations"].toArray()[3].toObject();
+                const auto assembly = furniture["assembly"].toString().toULongLong();
+                const auto measured = measureEntity(saved,{assembly,SelectionKind::Body,0});
+                check(measured.local.bounds && length(measured.local.bounds->dimensions()-(cabinet?Vec3{.9,.4,1.2}:Vec3{1.2,.8,.75}))<1e-6,
+                      "Saved furniture retains its exact envelope");
+                check(std::abs(furniture["memberVolumeSum"].toDouble()-(cabinet?.059705856:.0455))<1e-6,
+                      "Saved furniture has independently expected member material volume sum");
             }
             for (int index = 0; index < 2; ++index) {
                 const Id window = windows[index].toObject()["body"].toString().toULongLong();
