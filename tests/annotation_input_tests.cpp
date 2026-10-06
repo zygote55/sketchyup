@@ -237,10 +237,12 @@ int main(int argc, char **argv) {
                       measureAnnotation(doc, *doc.annotations().at(2)).distance == 3,
                   "Native example opens with exact associated dimensions");
             const auto image = view.grabFramebuffer();
-            check(!image.isNull(), "Native example framebuffer exists");
+            check(!image.isNull() && view.rendererReady() && view.renderStats().glError == 0, "Native example framebuffer exists");
             const auto evidence = qEnvironmentVariable("SKETCHYUP_ANNOTATION_EXAMPLE_EVIDENCE");
-            if (!evidence.isEmpty())
+            if (!evidence.isEmpty()) {
+                check(image.save(evidence + ".viewport.png"), "Native example viewport saved");
                 check(window.grab().save(evidence), "Native example evidence saved");
+            }
         }
         window.close();
         std::cout
