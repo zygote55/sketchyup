@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
         }
         captured = PreparedRender::prepare(RenderSnapshot::capture(document, render));
         {
-            RenderJobStore small(files.filePath("small"), {1, 1, 65LL * 1024 * 1024});
+            RenderJobStore small(files.filePath("small"), {1, 1, 195LL * 1024 * 1024});
             rejects([&] { small.enqueue(*captured, options); });
             check(small.jobs().empty(), "Output reservation prevents over-quota enqueue");
         }

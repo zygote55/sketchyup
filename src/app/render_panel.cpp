@@ -1,10 +1,12 @@
 #include "app/render_panel.hpp"
+#include "app/render_jobs.hpp"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -18,11 +20,13 @@
 #include <QScrollArea>
 #include <QSettings>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <algorithm>
 #include <future>
 namespace sketchy {
 namespace {
@@ -95,18 +99,23 @@ struct RenderPanel::Impl {
     QPushButton *probeButton{}, *renderButton{}, *cancelButton{};
     QLabel *setupStatus{}, *jobStatus{};
     QPlainTextEdit *logs{};
-    QPointer<BlenderJob> probe, job;
+    QPointer<BlenderJob> probe;
+    std::unique_ptr<RenderQueue> queue;
+    QPointer<RenderJobsDialog> jobsDialog;
+    std::map<QString, Document::SaveStamp> sessions;
+    QString recentJob;
     QTimer poll;
     QElapsedTimer elapsed;
     std::future<std::shared_ptr<const PreparedRender>> preparing;
     BlenderJob::Options workerOptions;
-    bool preparingCanceled{}, verified{}, handled{};
+    bool preparingCanceled{}, verified{};
     QString status{"Ready"}, details;
     Document::SaveStamp sourceSession;
     struct Result {
         QPointer<QWidget> page;
         QPointer<QLabel> provenance;
         Document::SaveStamp session;
+        QString jobId;
         std::shared_ptr<const BlenderResult> result;
     };
     std::vector<Result> results;
@@ -116,7 +125,7 @@ struct RenderPanel::Impl {
           poll(&owner) {
         chip.hide();
         chip.setObjectName("renderStatusChip");
-        QObject::connect(&chip, &QPushButton::clicked, &owner, [this] { show(); });
+        QObject::connect(&chip, &QPushButton::clicked, &owner, [this] { showJobs(); });
         QObject::connect(&tabs, &QTabWidget::tabCloseRequested, &owner, [this](int index) {
             if (index <= 0)
                 return;
@@ -127,12 +136,27 @@ struct RenderPanel::Impl {
         });
         poll.setInterval(25);
         QObject::connect(&poll, &QTimer::timeout, &owner, [this] { tick(); });
+        QTimer::singleShot(0, &owner, [this] {
+            if (!QFileInfo::exists(
+                    QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
+                    "/render-jobs"))
+                return;
+            try {
+                ensureQueue();
+            } catch (const std::exception &error) {
+                status = "Render jobs unavailable";
+                details = QString::fromUtf8(error.what());
+                elapsed.start();
+                publish();
+            }
+        });
     }
     ~Impl() {
         if (probe)
             delete probe;
-        if (job)
-            delete job;
+        if (jobsDialog)
+            delete jobsDialog;
+        queue.reset();
         if (dialog)
             delete dialog;
     }
@@ -140,7 +164,83 @@ struct RenderPanel::Impl {
         if (QThread::currentThread() != owner.thread())
             throw std::runtime_error("Render panel requires owner thread");
     }
-    bool active() const { return preparing.valid() || (job && !job->done()); }
+    bool active() const {
+        if (preparing.valid())
+            return true;
+        if (queue)
+            for (const auto &record : queue->jobs())
+                if (record.state == RenderJobState::Queued ||
+                    record.state == RenderJobState::Running ||
+                    record.state == RenderJobState::Canceling)
+                    return true;
+        return false;
+    }
+    void ensureQueue() {
+        if (queue)
+            return;
+        queue = std::make_unique<RenderQueue>(
+            QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
+            "/render-jobs");
+        QObject::connect(queue.get(), &RenderQueue::changed, &owner, [this] { updateQueue(); });
+        QObject::connect(queue.get(), &RenderQueue::resultReady, &owner, [this](const QString &id) {
+            try {
+                openResult(id);
+            } catch (const std::exception &error) {
+                status = "Render could not open";
+                details = QString::fromUtf8(error.what());
+                publish();
+            }
+        });
+        QObject::connect(queue.get(), &RenderQueue::error, &owner, [this](const QString &message) {
+            details = message;
+            publish();
+        });
+        if (!queue->jobs().empty()) {
+            recentJob = queue->jobs().back().id;
+            elapsed.start();
+            updateQueue();
+        }
+    }
+    QString provenance(const StoredRenderJob &record) const {
+        QString text = "Revision " + record.revision;
+        const auto session = sessions.find(record.id);
+        if (session == sessions.end())
+            text += " · restored capture";
+        else if (!document.owns(session->second) ||
+                 record.documentId != QString::fromStdString(document.identity()))
+            text += " · another model session";
+        else if (record.revision != QString::number(document.revision()))
+            text += " · model has changed since";
+        return text;
+    }
+    void showJobs() {
+        checkOwner();
+        try {
+            ensureQueue();
+            if (!jobsDialog)
+                jobsDialog = new RenderJobsDialog(
+                    *queue, [this](const StoredRenderJob &job) { return provenance(job); },
+                    [this](const QString &id) { openResult(id); }, &window);
+            jobsDialog->refresh();
+            jobsDialog->show();
+            jobsDialog->raise();
+            jobsDialog->activateWindow();
+        } catch (const std::exception &error) {
+            status = "Render jobs unavailable";
+            details = QString::fromUtf8(error.what());
+            elapsed.start();
+            publish();
+            show();
+        }
+    }
+    void openResult(const QString &id) {
+        for (const auto &result : results)
+            if (result.jobId == id && result.page) {
+                tabs.setCurrentWidget(result.page);
+                return;
+            }
+        addResult(queue->result(id), id);
+    }
     void publish() {
         chip.setText(status);
         chip.setVisible(elapsed.isValid());
@@ -149,7 +249,7 @@ struct RenderPanel::Impl {
             const auto seconds = elapsed.isValid() ? elapsed.elapsed() / 1000 : 0;
             jobStatus->setText(status + (active() ? " · " + QString::number(seconds) + " s" : "") +
                                (details.isEmpty() ? QString{} : "\n" + details));
-            const bool busy = active() || (probe && !probe->done());
+            const bool busy = preparing.valid() || (probe && !probe->done());
             for (QWidget *control : std::initializer_list<QWidget *>{
                      path, camera, engine, width, height, samples, environmentPath,
                      environmentStrength, environmentRotation, backend, device, fallback,
@@ -157,7 +257,8 @@ struct RenderPanel::Impl {
                 control->setEnabled(!busy);
             fallback->setEnabled(!busy && engine->currentIndex() == 0);
             renderButton->setEnabled(!busy && verified && device->currentIndex() >= 0);
-            cancelButton->setEnabled(busy);
+            probeButton->setEnabled(!busy && !active());
+            cancelButton->setEnabled(busy || active());
         }
         emit owner.changed();
     }
@@ -205,7 +306,7 @@ struct RenderPanel::Impl {
         browse->setObjectName("chooseBlender");
         form->addRow({}, browse);
         QObject::connect(browse, &QPushButton::clicked, &owner, [this] {
-            if (active() || (probe && !probe->done()))
+            if (preparing.valid() || (probe && !probe->done()))
                 return;
             const auto selected = QFileDialog::getOpenFileName(dialog, "Choose Blender 5.2 LTS");
             if (!selected.isEmpty())
@@ -240,7 +341,7 @@ struct RenderPanel::Impl {
         chooseEnvironment->setObjectName("chooseRenderEnvironment");
         form->addRow({}, chooseEnvironment);
         QObject::connect(chooseEnvironment, &QPushButton::clicked, &owner, [this] {
-            if (active())
+            if (preparing.valid())
                 return;
             const auto selected = QFileDialog::getOpenFileName(dialog, "Choose HDR environment", {},
                                                                "Radiance panoramas (*.hdr)");
@@ -314,6 +415,10 @@ struct RenderPanel::Impl {
         cancelButton = new QPushButton("Cancel job");
         cancelButton->setObjectName("cancelRender");
         buttons->addWidget(cancelButton);
+        auto *jobs = new QPushButton("Jobs…");
+        jobs->setObjectName("showRenderJobs");
+        buttons->addWidget(jobs);
+        QObject::connect(jobs, &QPushButton::clicked, &owner, [this] { showJobs(); });
         auto *close = new QPushButton("Close");
         buttons->addWidget(close);
         outer->addLayout(buttons);
@@ -403,8 +508,9 @@ struct RenderPanel::Impl {
     }
     void start(RenderOptions settings, BlenderJob::Options worker, bool currentView) {
         checkOwner();
-        if (active() || (probe && !probe->done()))
-            throw std::runtime_error("A render or Blender check is already running");
+        if (preparing.valid() || (probe && !probe->done()))
+            throw std::runtime_error("A render capture or Blender check is already running");
+        ensureQueue();
         if (view.inspectionBusy())
             throw std::runtime_error(
                 "Finish or cancel the active modeling gesture before capturing a render");
@@ -417,10 +523,7 @@ struct RenderPanel::Impl {
             RenderSnapshot::capture(document, settings, view.selectionState().hiddenEntities());
         sourceSession = document.saveStamp();
         workerOptions = std::move(worker);
-        if (job)
-            delete job;
         preparingCanceled = false;
-        handled = false;
         details.clear();
         status = "Preparing render";
         elapsed.restart();
@@ -441,9 +544,9 @@ struct RenderPanel::Impl {
                     publish();
                     return;
                 }
-                job = new BlenderJob(&owner);
-                QObject::connect(job, &BlenderJob::changed, &owner, [this] { updateJob(); });
-                job->start(std::move(input), workerOptions);
+                recentJob = queue->enqueue(std::move(input), workerOptions);
+                sessions[recentJob] = sourceSession;
+                updateQueue();
             } catch (const std::exception &error) {
                 status = "Render failed";
                 details = QString::fromUtf8(error.what());
@@ -452,29 +555,59 @@ struct RenderPanel::Impl {
         }
         publish();
     }
-    void updateJob() {
-        if (!job)
+    void updateQueue() {
+        if (!queue)
             return;
-        status = phaseText(job->phase());
-        const auto report = job->report();
-        details = job->done() ? report.value("message").toString() : job->progress();
-        if (logs) {
-            QString text;
-            for (auto value : report.value("attempts").toArray()) {
-                const auto attempt = value.toObject();
-                text += attempt.value("backend").toString() + " attempt\n" +
-                        attempt.value("logTail").toString() + "\n";
+        const auto records = queue->jobs();
+        if (records.empty() && !preparing.valid()) {
+            status = "Ready";
+            details.clear();
+        }
+        for (auto &result : results) {
+            if (!result.page)
+                continue;
+            if (std::none_of(records.begin(), records.end(),
+                             [&](const auto &record) { return record.id == result.jobId; })) {
+                tabs.removeTab(tabs.indexOf(result.page));
+                delete result.page;
             }
-            logs->setPlainText(text.right(128 * 1024));
         }
-        if (job->done() && !handled) {
-            handled = true;
+        refresh();
+        if (!preparing.valid())
+            for (const auto &record : records) {
+                if (record.id != recentJob)
+                    continue;
+                switch (record.state) {
+                case RenderJobState::Queued:
+                    status = "Render queued";
+                    break;
+                case RenderJobState::Running:
+                    status = "Rendering";
+                    break;
+                case RenderJobState::Canceling:
+                    status = "Canceling";
+                    break;
+                case RenderJobState::Completed:
+                    status = "Render ready";
+                    break;
+                case RenderJobState::Failed:
+                    status = "Render failed";
+                    break;
+                case RenderJobState::Canceled:
+                    status = "Render canceled";
+                    break;
+                case RenderJobState::Interrupted:
+                    status = "Render interrupted";
+                    break;
+                }
+                details = record.message;
+                if (logs)
+                    logs->setPlainText(
+                        QString::fromUtf8(QJsonDocument(queue->diagnostics(record.id)).toJson())
+                            .right(128 * 1024));
+            }
+        if (!active())
             poll.stop();
-            if (job->result())
-                addResult(job->result());
-            job->deleteLater();
-            job = nullptr;
-        }
         publish();
     }
     void cancel() {
@@ -486,10 +619,14 @@ struct RenderPanel::Impl {
             status = "Canceling preparation";
             publish();
         }
-        if (job && !job->done())
-            job->cancel();
+        if (queue && !preparing.valid())
+            for (const auto &record : queue->jobs())
+                if (record.id == recentJob && (record.state == RenderJobState::Queued ||
+                                               record.state == RenderJobState::Running ||
+                                               record.state == RenderJobState::Canceling))
+                    queue->cancel(record.id);
     }
-    void addResult(std::shared_ptr<const BlenderResult> result) {
+    void addResult(std::shared_ptr<const BlenderResult> result, const QString &id) {
         refresh();
         if (results.size() >= 2) {
             auto page = results.front().page;
@@ -510,7 +647,7 @@ struct RenderPanel::Impl {
         auto *save = new QPushButton("Save image as…");
         save->setObjectName("saveRender");
         buttons->addWidget(save);
-        save->setToolTip("Save this image; only the two latest renders are kept in memory.");
+        save->setToolTip("Save this image. Reopen retained images from Jobs after closing a tab.");
         auto *again = new QPushButton("Render again…");
         again->setObjectName("renderAgain");
         buttons->addWidget(again);
@@ -532,20 +669,26 @@ struct RenderPanel::Impl {
             publish();
         });
         QObject::connect(again, &QPushButton::clicked, &owner, [this] { show(); });
-        results.push_back({page, provenance, sourceSession, std::move(result)});
+        results.push_back({page, provenance,
+                           sessions.contains(id) ? sessions.at(id) : Document::SaveStamp{}, id,
+                           std::move(result)});
         const auto revision = results.back().result->manifest.value("revision").toString();
         tabs.setCurrentIndex(tabs.addTab(page, "Render · r" + revision));
         refresh();
     }
     void refresh() {
         std::erase_if(results, [](const Result &entry) { return entry.page.isNull(); });
+        if (jobsDialog)
+            jobsDialog->refresh();
         for (const auto &entry : results) {
             const auto &manifest = entry.result->manifest;
             const bool same =
                 document.owns(entry.session) && manifest.value("documentId").toString() ==
                                                     QString::fromStdString(document.identity());
             QString text = "From revision " + manifest.value("revision").toString();
-            if (!same)
+            if (!sessions.contains(entry.jobId))
+                text += " · restored capture; current session not verified";
+            else if (!same)
                 text += " · from another model session";
             else if (manifest.value("revision").toString() != QString::number(document.revision()))
                 text += " · model has changed since";
@@ -592,6 +735,7 @@ RenderPanel::RenderPanel(Document &document, Viewport &view, QTabWidget &tabs, Q
     : QObject(&window), impl_(std::make_unique<Impl>(*this, document, view, tabs, chip, window)) {}
 RenderPanel::~RenderPanel() = default;
 void RenderPanel::showSetup() { impl_->show(); }
+void RenderPanel::showJobs() { impl_->showJobs(); }
 void RenderPanel::refreshProvenance() {
     impl_->checkOwner();
     impl_->refresh();

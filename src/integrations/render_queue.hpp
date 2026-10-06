@@ -20,6 +20,7 @@ class RenderQueue : public QObject {
     void clearFinished();
     std::shared_ptr<const BlenderResult> result(const QString &id);
     std::shared_ptr<const PreparedRender> input(const QString &id) const;
+    QJsonObject diagnostics(const QString &id) const;
     QString progress(const QString &id) const;
     qint64 workerProcessId(const QString &id) const;
     int running() const { return int(active_.size()); }

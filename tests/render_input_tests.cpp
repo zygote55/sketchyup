@@ -12,6 +12,7 @@
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -19,6 +20,7 @@
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTreeWidget>
 #include <iostream>
 #include <numbers>
 using namespace sketchy;
@@ -40,6 +42,7 @@ int main(int argc, char **argv) {
     QSurfaceFormat::setDefaultFormat(format);
     QTemporaryDir files;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
+    qputenv("XDG_DATA_HOME", files.path().toUtf8());
     QApplication app(argc, argv);
     QSettings preferences("SketchyUp", "SketchyUp");
     preferences.setValue("recoverySeconds", 0);
@@ -306,6 +309,57 @@ int main(int argc, char **argv) {
         check(tabs->count() == 1 && !panel.latest(), "Result close releases result");
         tabs->tabCloseRequested(0);
         check(tabs->count() == 1, "Model tab cannot close");
+        panel.showJobs();
+        auto *jobs = window.findChild<QDialog *>("renderJobs");
+        auto *jobList = jobs->findChild<QTreeWidget *>("renderJobList");
+        auto *openJob = jobs->findChild<QPushButton *>("openStoredRender");
+        auto *removeJob = jobs->findChild<QPushButton *>("removeStoredRender");
+        check(jobs->isVisible() && jobList->topLevelItemCount() >= 8,
+              "Jobs retains failed and completed work after result tabs close");
+        for (int i = 0; i < jobList->topLevelItemCount(); ++i) {
+            if (jobList->topLevelItem(i)->text(0) == "completed") {
+                jobList->setCurrentItem(jobList->topLevelItem(i));
+                break;
+            }
+        }
+        check(openJob->isEnabled(), "Completed image can be reopened from Jobs");
+        openJob->click();
+        check(panel.latest() && tabs->count() == 2,
+              "Closed result reopens from verified disk pixels");
+        const auto count = jobList->topLevelItemCount();
+        removeJob->click();
+        check(jobList->topLevelItemCount() == count - 1 && tabs->count() == 1,
+              "Explicit removal cleans retained job and its open result tab");
+        jobs->findChild<QPushButton *>("clearStoredRenders")->click();
+        check(jobList->topLevelItemCount() == 0, "Native cleanup removes all finished jobs");
+        doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+        worker = BlenderJob::Options{};
+        worker.executable = executable("hang");
+        panel.start(settings, worker, false);
+        check(QTest::qWaitFor([&] { return panel.status() == "Rendering"; }),
+              "First native queued worker starts");
+        panel.start(settings, worker, false);
+        check(QTest::qWaitFor([&] {
+                  return jobList->topLevelItemCount() == 2 &&
+                         jobList->topLevelItem(1)->text(0).startsWith("running");
+              }),
+              "Second native worker runs concurrently");
+        worker.executable = executable("success");
+        panel.start(settings, worker, false);
+        check(QTest::qWaitFor([&] { return jobList->topLevelItemCount() == 3; }),
+              "Third native render queues behind active workers");
+        check(jobList->topLevelItem(2)->text(0) == "queued", "Jobs shows queued state");
+        jobList->setCurrentItem(jobList->topLevelItem(0));
+        jobs->findChild<QPushButton *>("cancelStoredRender")->click();
+        check(QTest::qWaitFor([&] { return jobList->topLevelItem(2)->text(0) == "completed"; }),
+              "Cancel advances native queue");
+        jobList->setCurrentItem(jobList->topLevelItem(1));
+        jobs->findChild<QPushButton *>("cancelStoredRender")->click();
+        check(QTest::qWaitFor([&] { return !panel.active(); }),
+              "Native per-job cancellation drains queue");
+        check(jobs->findChild<QPlainTextEdit *>("renderJobDetails")->toPlainText().contains("runs"),
+              "Jobs exposes retained worker attempt logs");
+        jobs->findChild<QPushButton *>("clearStoredRenders")->click();
         window.close();
         std::cout << "Native render setup, cancellation, revision capture, result and image save "
                      "passed\n";
