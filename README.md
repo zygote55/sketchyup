@@ -435,6 +435,15 @@ component edit. Existing seams produce an actionable no-change message. The same
 operation is available as `geometry.intersect`; see the
 [intersection contract](docs/decisions/0045-face-intersections.md).
 
+`geometry.boolean` combines two editable raw solids in one context using `union`,
+`subtract` (target minus tool), or `intersection`. The required `keepOperands`
+choice retains the exact sources or consumes them in the same Undo item. Outputs
+inherit source face colors and correctly oriented front/back materials; receipts
+identify the generated bodies and each source face. Enter group containers before
+choosing their raw solids. Enclosed cavity results currently reject. See the
+[Boolean contract](docs/decisions/0046-solid-booleans.md) and
+[executable example](examples/solid-boolean.json).
+
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected
 path edges. Use Select and Ctrl-click to add the face and path, then Shift+F to
 preview; Enter or click applies, and Escape cancels. Alt-drag can orbit during

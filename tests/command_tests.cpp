@@ -890,8 +890,15 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "geometry.cleanup"}, {"body", "1"}},
             QJsonObject{
                 {"command", "geometry.offset"}, {"body", "1"}, {"face", "5"}, {"distance", -.1}},
+            QJsonObject{{"command", "geometry.boolean"},
+                        {"body", "1"},
+                        {"tool", "2"},
+                        {"context", "0"},
+                        {"operation", "union"},
+                        {"keepOperands", true}},
             QJsonObject{{"command", "geometry.intersect"},
-                        {"context", "0"}, {"mode", "context"},
+                        {"context", "0"},
+                        {"mode", "context"},
                         {"entities", QJsonArray{QJsonObject{{"body", "1"}, {"face", "5"}}}}},
             QJsonObject{{"command", "geometry.sweep"},
                         {"body", "1"},
@@ -996,6 +1003,12 @@ int main(int argc, char **argv) {
                     const auto raw = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});
                     createComponent(doc, raw);
                 }
+            }
+            if (command["command"] == "geometry.boolean") {
+                doc.extrude(1, 5, 1);
+                const auto other =
+                    doc.addFace({{{.5, 0, 0}, {1.5, 0, 0}, {1.5, 1, 0}, {.5, 1, 0}}});
+                doc.extrude(other, 5, 1);
             }
             if (command["command"] == "geometry.intersect")
                 doc.addFace({{{.5, 0, -1}, {.5, 1, -1}, {.5, 1, 1}, {.5, 0, 1}}});

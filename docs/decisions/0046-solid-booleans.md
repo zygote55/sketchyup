@@ -65,5 +65,33 @@ four-million budget. Output is limited to
 adds its own limits. These are bounded floating-point operations, not exact
 predicates or unrestricted solid guarantees.
 
-Shared command behavior, operand consumption, native UI, Undo/persistence and
-material acceptance belong to the following R055 layers.
+## Shared command
+
+`geometry.boolean` requires `body` (target), `tool`, `context`, `operation`
+(`union`, `subtract`, `intersection`) and boolean `keepOperands`. Both operands
+must be different editable, visible raw geometry bodies in the explicit context;
+enter group containers first. Surfaces are evaluated in world space, including
+mirrored/nonuniform placements. Each disconnected output becomes a sibling body
+in the target's local frame, inheriting its tag and default appearance. Each face
+inherits its source color and material sides, swapping front/back when reversed.
+Recipe properties are not copied onto newly generated solids.
+
+Keeping operands retains their exact records. Consuming them deletes both in the
+same atomic history item as the generated bodies. Empty results with retention
+produce no change and the ordinary batch reports that fact; empty results with
+consumption explicitly remove both sources. Failures, stale revisions and later
+batch errors leave the model and allocators unchanged. Preview shares the same
+geometry, appearance and provenance with commit. Undo/Redo and native persistence
+retain the complete operation.
+
+The `booleans` receipt contains source/tool bodies, operation, retention choice and
+parts. Each part has its body ID, operation-time world `generatedVolume` and face
+mappings (`face`, `sourceBody`, `sourceFace`, `reversed`). Later batch edits prune
+deleted parts/faces; volume is a generation measurement, not a later-state claim.
+Scoped component commands map both operands. Definition receipts use canonical
+IDs; explicit instance receipts resolve original sources before consumption and
+results after publication to scene IDs. Unique instance edits preserve the source
+definition and siblings. The command is published consistently through CLI,
+transaction/session/MCP discovery and the assistant command allowlist.
+
+Native controls and their interaction acceptance belong to R055.c.
