@@ -128,7 +128,7 @@ for mutation in ('version', 'duplicate', 'absent', 'color', 'normal', 'position'
     binary = binary_chunk
     pairs = value['extras']['sketchyupSidedMaterials']
     if mutation == 'version':
-        pairs['version'] = 2
+        pairs['version'] = 99
     elif mutation == 'duplicate':
         pairs['pairs'].append(pairs['pairs'][0])
     elif mutation == 'absent':

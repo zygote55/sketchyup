@@ -1,5 +1,6 @@
 #include "core/texture_mapping.hpp"
 #include "geometry/drawing.hpp"
+#include <limits>
 #include <numbers>
 
 namespace sketchy {
@@ -92,6 +93,34 @@ TextureMapping transformTextureMapping(const TextureMapping &source, const Trans
     TextureMapping result{oldToNew.point(source.origin), covector(source.uGradient),
                           covector(source.vGradient), source.offset};
     result.validate();
+    return result;
+}
+std::array<std::array<float, 2>, 3>
+floatTextureCoordinates(const std::array<TextureCoordinate, 3> &coordinates,
+                        TextureCoordinate maximumError) {
+    if (!std::isfinite(maximumError.u) || !std::isfinite(maximumError.v) || maximumError.u <= 0 ||
+        maximumError.v <= 0)
+        throw std::runtime_error("Texture packing requires positive finite error bounds");
+    for (const auto uv : coordinates)
+        if (!std::isfinite(uv.u) || !std::isfinite(uv.v))
+            throw std::runtime_error("Texture packing requires finite coordinates");
+    const double u = std::floor(coordinates[0].u), v = std::floor(coordinates[0].v);
+    std::array<std::array<float, 2>, 3> result;
+    for (size_t corner = 0; corner < 3; ++corner) {
+        const std::array<double, 2> value{coordinates[corner].u - u, coordinates[corner].v - v};
+        const std::array<double, 2> error{maximumError.u, maximumError.v};
+        for (size_t axis = 0; axis < 2; ++axis) {
+            result[corner][axis] = float(value[axis]);
+            const auto magnitude = std::abs(result[corner][axis]);
+            const double spacing =
+                std::nextafter(magnitude, std::numeric_limits<float>::infinity()) - magnitude;
+            if (!std::isfinite(result[corner][axis]) ||
+                std::abs(double(result[corner][axis]) - value[axis]) > error[axis] ||
+                spacing * .5 > error[axis])
+                throw std::runtime_error(
+                    "Texture span exceeds supported float-coordinate precision");
+        }
+    }
     return result;
 }
 } // namespace sketchy

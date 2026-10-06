@@ -1,6 +1,8 @@
 #include "integrations/glb_export.hpp"
+#include "core/face_textures.hpp"
 #include "core/shading_normals.hpp"
 #include "io/assets.hpp"
+#include "io/texture_image.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFileInfo>
@@ -75,16 +77,23 @@ struct Bounds {
     }
 };
 struct Primitive {
-    QByteArray positions, normals;
+    QByteArray positions, normals, coordinates;
     Bounds bounds;
     int count{};
+};
+struct ImageExport {
+    TextureImageStatus status{TextureImageStatus::Missing};
+    int texture{-1}, width{}, height{};
+    bool transparent{};
 };
 struct Writer {
     const RenderSnapshot &snapshot;
     const Document &doc;
     QByteArray binary;
     QJsonArray nodes, meshes, materials, views, accessors, bodyMap, assetMap, materialMap,
-        sidePairs;
+        sidePairs, images, textures, imageMap;
+    std::map<Id, ImageExport> imageCache;
+    size_t decodedImageBytes{};
     std::map<QByteArray, int> meshCache, materialCache;
     std::map<Id, int> nodeMap;
     std::set<Id> usedAssets, usedMaterials;
@@ -105,11 +114,11 @@ struct Writer {
         binary.append(data);
         return index;
     }
-    int attribute(const QByteArray &data, const Bounds *bounds = nullptr) {
+    int attribute(const QByteArray &data, const Bounds *bounds = nullptr, int dimensions = 3) {
         QJsonObject accessor{{"bufferView", buffer(data, true)},
                              {"componentType", 5126},
-                             {"count", int(data.size() / 12)},
-                             {"type", "VEC3"}};
+                             {"count", int(data.size() / (4 * dimensions))},
+                             {"type", dimensions == 2 ? "VEC2" : "VEC3"}};
         if (bounds) {
             accessor["min"] = point(bounds->low);
             accessor["max"] = point(bounds->high);
@@ -117,6 +126,45 @@ struct Writer {
         const int index = accessors.size();
         accessors.append(accessor);
         return index;
+    }
+    ImageExport imageFor(const SurfaceAppearance &appearance) {
+        if (!appearance.material)
+            return {};
+        const auto asset = doc.materials().at(appearance.material)->asset;
+        if (!asset)
+            return {};
+        if (imageCache.contains(asset))
+            return imageCache.at(asset);
+        const auto &record = *doc.assets().at(asset);
+        const auto decoded = decodeTextureImage(record);
+        ImageExport result{decoded.status};
+        QJsonObject entry{{"asset", id(asset)},
+                          {"status", QString::fromUtf8(textureImageStatusName(decoded.status))}};
+        if (decoded.image) {
+            const auto &image = *decoded.image;
+            require(image.rgba().size() <= size_t(binaryLimit) - decodedImageBytes,
+                    "GLB decoded texture images exceed 256 MiB");
+            decodedImageBytes += image.rgba().size();
+            const auto png = encodeTexturePng(image);
+            result.texture = textures.size();
+            result.width = image.width();
+            result.height = image.height();
+            result.transparent = image.hasTransparency();
+            const int source = images.size();
+            images.append(QJsonObject{{"name", QString::fromStdString(record.name)},
+                                      {"mimeType", "image/png"},
+                                      {"bufferView", buffer(png, false)},
+                                      {"extras", QJsonObject{{"sketchyupAsset", id(asset)}}}});
+            textures.append(QJsonObject{{"sampler", 0}, {"source", source}});
+            entry["texture"] = result.texture;
+            entry["width"] = result.width;
+            entry["height"] = result.height;
+            entry["hasTransparency"] = result.transparent;
+            entry["normalizedSha256"] = digest(png);
+        }
+        imageMap.append(entry);
+        imageCache[asset] = result;
+        return result;
     }
     void useMaterial(Id material) {
         if (!material || !usedMaterials.insert(material).second)
@@ -141,23 +189,25 @@ struct Writer {
         QJsonArray rgba{linear(appearance.color[0]), linear(appearance.color[1]),
                         linear(appearance.color[2]), appearance.opacity};
         require(materials.size() < 4096, "GLB has too many distinct face appearances");
+        const auto image = imageFor(appearance);
+        QJsonObject pbr{{"baseColorFactor", rgba}, {"metallicFactor", 0}, {"roughnessFactor", .8}};
+        if (image.texture >= 0)
+            pbr["baseColorTexture"] = QJsonObject{{"index", image.texture}, {"texCoord", 0}};
         const int index = materials.size();
         materials.append(QJsonObject{
             {"name", appearance.material
                          ? QString::fromStdString(doc.materials().at(appearance.material)->name)
                          : "Face color"},
-            {"pbrMetallicRoughness", QJsonObject{{"baseColorFactor", rgba},
-                                                 {"metallicFactor", 0},
-                                                 {"roughnessFactor", .8}}},
+            {"pbrMetallicRoughness", pbr},
             {"doubleSided", doubleSided},
-            {"alphaMode", appearance.opacity < 1 ? "BLEND" : "OPAQUE"},
+            {"alphaMode", appearance.opacity < 1 || image.transparent ? "BLEND" : "OPAQUE"},
             {"extras", QJsonObject{{"sketchyupMaterial", id(appearance.material)},
                                    {"sketchyupAppearance", index}}}});
         return index;
     }
-    int material(const SurfaceAppearance &front, const SurfaceAppearance &back) {
-        const bool paired = front != back;
-        const auto key = QJsonDocument(QJsonObject{{"front", appearanceKey(front)},
+    int material(const SurfaceAppearance &front, const SurfaceAppearance &back, bool paired) {
+        const auto key = QJsonDocument(QJsonObject{{"paired", paired},
+                                                   {"front", appearanceKey(front)},
                                                    {"back", appearanceKey(back)}})
                              .toJson(QJsonDocument::Compact);
         if (materialCache.contains(key))
@@ -188,23 +238,41 @@ struct Writer {
             const auto front = surfaceAppearance(doc.materials(), body, face),
                        back = surfaceAppearance(doc.materials(), body, face, true);
             useMaterial(back.material);
-            if (front != back)
+            const auto frontImage = imageFor(front), backImage = imageFor(back);
+            const bool textured = frontImage.texture >= 0 || backImage.texture >= 0;
+            const auto frontMapping =
+                           textured ? effectiveFaceTextureMapping(body, face) : TextureMapping{},
+                       backMapping = textured ? effectiveFaceTextureMapping(body, face, true)
+                                              : TextureMapping{};
+            const bool paired = front != back || (textured && frontMapping != backMapping);
+            if (paired)
                 ++backDifferences;
-            const int appearance = material(front, back);
+            const int appearance = material(front, back, paired);
             const auto tessellated = body.surface.triangulate(face);
-            const bool paired = front != back;
             triangles += tessellated.size() * (paired ? 2 : 1);
             require(triangles <= 1000000, "GLB has too many visible triangles");
             auto appendSide = [&](int index, bool reverse) {
                 auto &group = groups[index];
                 const int start = group.count;
+                const auto &image = reverse ? backImage : frontImage;
+                const auto &mapping = reverse ? backMapping : frontMapping;
                 for (const auto &triangle : tessellated) {
                     const auto normals = shading.triangle(triangle);
                     const std::array<Vec3, 3> points{triangle.a, triangle.b, triangle.c};
+                    std::array<std::array<float, 2>, 3> uv{};
+                    if (image.texture >= 0)
+                        uv = floatTextureCoordinates(
+                            {mapping.coordinates(points[0]), mapping.coordinates(points[1]),
+                             mapping.coordinates(points[2])},
+                            {1. / (64 * image.width), 1. / (64 * image.height)});
                     for (const auto corner : {0, reverse ? 2 : 1, reverse ? 1 : 2}) {
                         const auto p = points[corner];
                         vector(group.positions, p);
                         vector(group.normals, normals[corner] * (reverse ? -1 : 1));
+                        if (image.texture >= 0) {
+                            scalar(group.coordinates, uv[corner][0]);
+                            scalar(group.coordinates, uv[corner][1]);
+                        }
                         ++group.count;
                         group.bounds.add(
                             {double(float(p.x)), double(float(p.y)), double(float(p.z))});
@@ -236,6 +304,7 @@ struct Writer {
             hash.addData(header);
             hash.addData(group.positions);
             hash.addData(group.normals);
+            hash.addData(group.coordinates);
         }
         const auto key = hash.result();
         std::map<int, int> primitiveIndices;
@@ -254,11 +323,15 @@ struct Writer {
         QJsonArray primitives;
         for (const auto &[appearance, group] : groups) {
             require(group.count > 0, "Visible face produced no GLB triangles");
-            primitives.append(QJsonObject{
-                {"attributes", QJsonObject{{"POSITION", attribute(group.positions, &group.bounds)},
-                                           {"NORMAL", attribute(group.normals)}}},
-                {"material", appearance},
-                {"mode", 4}});
+            QJsonObject attributes{{"POSITION", attribute(group.positions, &group.bounds)},
+                                   {"NORMAL", attribute(group.normals)}};
+            if (!group.coordinates.isEmpty()) {
+                require(group.coordinates.size() == group.count * 8,
+                        "GLB texture coordinate count mismatch");
+                attributes["TEXCOORD_0"] = attribute(group.coordinates, nullptr, 2);
+            }
+            primitives.append(
+                QJsonObject{{"attributes", attributes}, {"material", appearance}, {"mode", 4}});
         }
         const int index = meshes.size();
         meshes.append(QJsonObject{{"primitives", primitives}});
@@ -349,11 +422,12 @@ struct Writer {
                 ++missingAssets;
             assetMap.append(entry);
         }
-        QJsonObject losses{{"wiresOmitted", double(wires)},
-                           {"guidesOmitted", double(guides)},
-                           {"analyticCurvesTessellatedOrOmitted", double(curves)},
-                           {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size())},
-                           {"missingAssets", double(missingAssets)}};
+        QJsonObject losses{
+            {"wiresOmitted", double(wires)},
+            {"guidesOmitted", double(guides)},
+            {"analyticCurvesTessellatedOrOmitted", double(curves)},
+            {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size()) - textures.size()},
+            {"missingAssets", double(missingAssets)}};
         QJsonObject gltf{
             {"asset", QJsonObject{{"version", "2.0"}, {"generator", "SketchyUp GLB snapshot v1"}}},
             {"scene", 0},
@@ -371,8 +445,15 @@ struct Writer {
                                    {"sketchyupRevision", id(doc.revision())},
                                    {"managedAssets", assetMap},
                                    {"sketchyupSidedMaterials",
-                                    QJsonObject{{"version", 1}, {"pairs", sidePairs}}},
+                                    QJsonObject{{"version", textures.isEmpty() ? 1 : 2},
+                                                {"pairs", sidePairs}}},
                                    {"losses", losses}}}};
+        if (!textures.isEmpty()) {
+            gltf["images"] = images;
+            gltf["textures"] = textures;
+            gltf["samplers"] = QJsonArray{QJsonObject{
+                {"magFilter", 9729}, {"minFilter", 9729}, {"wrapS", 10497}, {"wrapT", 10497}}};
+        }
         auto json = QJsonDocument(gltf).toJson(QJsonDocument::Compact);
         require(json.size() <= jsonLimit, "GLB JSON exceeds 16 MiB");
         aligned(json, ' ');
@@ -407,13 +488,15 @@ struct Writer {
             {"bodies", bodyMap},
             {"materials", materialMap},
             {"assets", assetMap},
+            {"textureImages", imageMap},
+            {"decodedTextureBytes", double(decodedImageBytes)},
             {"losses", losses},
             {"hiddenBodiesOmitted", double(hiddenBodies)},
             {"hiddenFacesOmitted", double(hiddenFaces)},
             {"visibleTriangles", double(triangles)},
             {"facesWithDistinctSides", double(backDifferences)},
             {"uniqueMeshes", meshes.size()},
-            {"colorPolicy", "sRGB face colors converted to linear PBR baseColorFactor"}};
+            {"colorPolicy", "Linear PBR swatch factor times normalized sRGB straight-alpha image"}};
         require(QJsonDocument(manifest).toJson(QJsonDocument::Compact).size() <= jsonLimit,
                 "GLB manifest exceeds 16 MiB");
         return {std::move(glb), std::move(manifest)};

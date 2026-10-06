@@ -1,0 +1,65 @@
+{
+    "adapter": "sketchyup-blender-v1",
+    "apiVersion": 1,
+    "attempts": [
+        {
+            "backend": "CPU",
+            "deviceId": "CPU",
+            "exitCode": 0,
+            "logTail": "Blender 5.2.2 LTS (hash d13f752e3b9c built 2026-09-22 17:10:25)\n[ALSOFT] (EE) Failed to connect PipeWire event context (errno: 112)\nSKETCHYUP_PROGRESS {\"phase\": \"loading\"}\n10:58:45 | INFO: Data are loaded, start creating Blender stuff\n10:58:45 | INFO: Blender create Mesh node 0\n10:58:45 | INFO: glTF import finished in 0.00s\n/tmp/sketchyup-worker-OKhlCI/attempt-1/worker.py:410: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0\n  world.use_nodes = True\nSKETCHYUP_PROGRESS {\"phase\": \"rendering\"}\n00:01.524  render           | Saved: '/tmp/sketchyup-worker-OKhlCI/attempt-1/image.png'\nSKETCHYUP_PROGRESS {\"phase\": \"verifying-output\"}\nSKETCHYUP_PROGRESS {\"phase\": \"completed\"}\n\nBlender quit\n",
+            "normalExit": true,
+            "workerStatus": "succeeded"
+        }
+    ],
+    "blenderBuildHash": "d13f752e3b9c",
+    "blenderVersion": [
+        5,
+        2,
+        2
+    ],
+    "blenderVersionString": "5.2.2 LTS",
+    "cpuFallbackUsed": false,
+    "device": {
+        "backend": "CPU",
+        "id": "CPU",
+        "name": "CPU"
+    },
+    "documentId": "fe1d7f75d47a50eff7837786968c96bf",
+    "image": {
+        "bytes": 156532,
+        "file": "image.png",
+        "height": 512,
+        "sha256": "543f2a20a951e35d151c1bf90f45623c6b7751b9131e3015859b7e5f7be7b2a5",
+        "width": 512
+    },
+    "losses": {
+        "analyticCurvesTessellatedOrOmitted": 0,
+        "guidesOmitted": 0,
+        "missingAssets": 0,
+        "textureAssetsPreservedWithoutUVMapping": 0,
+        "wiresOmitted": 0
+    },
+    "manifestSha256": "736dc2a147249d2e67c3fd3af89ae4df5e42e0fef2fcae0b49ce01437eb89664",
+    "preset": {
+        "adaptiveSampling": false,
+        "denoising": false,
+        "engine": "CYCLES",
+        "exposure": 0,
+        "gamma": 1,
+        "look": "None",
+        "maxBounces": 8,
+        "name": "studio-v1",
+        "threads": 4,
+        "viewTransform": "Standard",
+        "worldStrength": 0.25
+    },
+    "revision": "12",
+    "sceneSha256": "1e0ae3bdf11e0a547a4e9933e10923d2c3696fa57ce655208f4e2955ffcf78ff",
+    "settings": {
+        "height": 512,
+        "samples": 32,
+        "seed": 0,
+        "width": 512
+    },
+    "status": "succeeded"
+}

@@ -1,5 +1,9 @@
+#include "core/assets.hpp"
+#include "core/face_textures.hpp"
 #include "core/materials.hpp"
 #include "integrations/blender_job.hpp"
+#include "io/assets.hpp"
+#include "io/texture_image.hpp"
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -131,8 +135,21 @@ int main(int argc, char **argv) {
         Document document;
         const auto body = document.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});
         document.extrude(body, document.bodies().at(body)->surface.faces.begin()->first, 4);
-        const auto front = createMaterial(document, "Render front", {.8f, .2f, .1f}, .7f);
-        const auto back = createMaterial(document, "Render back", {.1f, .2f, .8f});
+        Id texture{};
+        if (args.contains("--real")) {
+            texture = createAsset(
+                document, "Packaged render checker", "image/png",
+                assetPayload(encodeTexturePng(TextureImage(
+                    2, 2, {255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 0, 255, 255, 255, 255}))));
+            const auto faces = document.bodies().at(body)->surface.faces;
+            for (const auto &[face, record] : faces) {
+                auto back = effectiveFaceTextureMapping(*document.bodies().at(body), face, true);
+                back.offset = {.25, .5};
+                assignTextureMapping(document, body, face, back, false, true);
+            }
+        }
+        const auto front = createMaterial(document, "Render front", {.8f, .2f, .1f}, .7f, texture);
+        const auto back = createMaterial(document, "Render back", {.1f, .2f, .8f}, 1, texture);
         assignMaterial(document, body, {}, front, true, false);
         assignMaterial(document, body, {}, back, false, true);
         RenderOptions render;
@@ -162,6 +179,10 @@ int main(int argc, char **argv) {
             const auto executable = qEnvironmentVariable("SKETCHYUP_BLENDER_TEST");
             if (executable.isEmpty())
                 return 77;
+            check(input->manifest()["textureImages"].toArray().size() == 1 &&
+                      input->manifest()["losses"]
+                              .toObject()["textureAssetsPreservedWithoutUVMapping"] == 0,
+                  "Real worker receives a packaged image with independent side UVs");
             BlenderJob::Options real;
             real.executable = executable;
             real.timeoutMs = 60000;

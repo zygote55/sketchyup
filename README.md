@@ -294,9 +294,13 @@ Export a fixed render snapshot with
 `sketchyup-cli --input MODEL --export-glb NEW_DIRECTORY`, optionally adding
 `--render-settings examples/render-settings-v1.json`. The directory contains
 `scene.glb` and its revision/settings/hash manifest. Export works without Blender;
-Distinct front/back colors and opacity are preserved in GLB and Cycles, including
-reversed and mirrored faces; see the [two-sided transfer](docs/decisions/0050-two-sided-export.md)
-and [GLB subset and loss policy](docs/decisions/0032-glb-snapshots.md).
+Distinct front/back colors, opacity and PNG/JPEG textures are preserved in GLB and
+Cycles, including independent projections, reversed faces and mirrored instances.
+Original image bytes remain packaged alongside normalized render images. Missing,
+invalid or unsupported images retain the swatch color and report their status;
+see [textured transfer](docs/decisions/0064-textured-glb-export.md),
+[two-sided transfer](docs/decisions/0050-two-sided-export.md) and the
+[GLB subset and loss policy](docs/decisions/0032-glb-snapshots.md).
 The headless binding reports desktop selection as unavailable. The native binding
 exposes inspection only; staged mutation tools are currently available headlessly.
 
@@ -403,7 +407,8 @@ front/back affine UV projections through modeling edits, Undo, shared components
 and relocation ([mapping contract](docs/decisions/0062-face-texture-records.md)).
 The image backend decodes bounded static PNG/JPEG assets into consistent sRGB
 and straight-alpha pixels ([image contract](docs/decisions/0063-texture-image-decoding.md)).
-Native texture-authoring controls, textured drawing and export remain pending.
+GLB/Blender export includes those images and independent UVs. Native texture-authoring
+controls and textured viewport drawing remain pending.
 Materials offers Attach file, Replace file
 (including missing-resource resolution), Detach file and undoable Clean files
 for unused resources. New/edit dialogs can also bind an existing stored file.

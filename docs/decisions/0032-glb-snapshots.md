@@ -2,6 +2,11 @@
 
 Status: accepted for the M5 interchange subset.
 
+R061.d extends this subset with [textured GLB/Cycles transfer](0064-textured-glb-export.md):
+validated embedded images, independent side UVs, image alpha and bounded decoding.
+The original M5 limitations below describe the baseline; that later contract
+supersedes its opaque-image and absent-UV behavior.
+
 Capture copies a history-free document snapshot, camera, render settings and
 optional transient hidden entities on the document owner thread. Published model
 records and asset payloads are immutable. A worker exports only the captured
