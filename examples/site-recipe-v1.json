@@ -13,6 +13,7 @@
       "request": {
         "apiVersion": 1,
         "operation": "transaction.begin",
+        "ttlSeconds": 300,
         "documentId": {
           "$ref": "info#/result/documentId"
         },
