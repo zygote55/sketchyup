@@ -1006,7 +1006,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R067 — Implement explicit location, sun and shadow controls
 
-**Status:** In progress. R067.a ([PR #153](https://github.com/zygote55/sketchyup/pull/153)) adds deterministic offline solar direction from explicit civil time, UTC offset, location and model north ([contract](decisions/0087-offline-solar-position.md)). All 126 suites, 239 independent NOAA reference rows, sanitizer and installed/package checks pass ([evidence](verification/R067a-offline-solar-position.md)). Persistence, shared authoring and native sunlight/shadows remain in progress. **Track:** Rendering. **Scope:** P06, P02. **UX:** §5, §11.
+**Status:** In progress. R067.a ([PR #153](https://github.com/zygote55/sketchyup/pull/153)) adds deterministic offline solar direction from explicit civil time, UTC offset, location and model north ([contract](decisions/0087-offline-solar-position.md)). All 126 suites, 239 independent NOAA reference rows, sanitizer and installed/package checks pass ([evidence](verification/R067a-offline-solar-position.md)). R067.b adds schema-23 sun settings, solar-only saved scenes, atomic history/recovery and frozen render handoff metadata ([contract](decisions/0088-solar-study-records.md), [127-suite acceptance evidence](verification/R067b-solar-records.md)). Shared authoring and native sunlight/shadows remain in progress. **Track:** Rendering. **Scope:** P06, P02. **UX:** §5, §11.
 
 **Requires:** [R062](#r062), [R008](#r008); milestone gate rule above.
 

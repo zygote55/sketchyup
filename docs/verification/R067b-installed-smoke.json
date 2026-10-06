@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "actualV22MigrationExact": true,
+  "editableTextAndGeometryPreserved": true,
+  "solarAndSceneRoundtripExact": true,
+  "relocatedRoundtripExact": true,
+  "unitsPreserveSolar": true,
+  "v22ReaderRejected": true,
+  "renderManifestInputsExact": true,
+  "utcInstantCorrect": true,
+  "unappliedBlenderLightingReported": true,
+  "installedSchemas": 7,
+  "contractMatches": true,
+  "desktopMatches": true
+}
