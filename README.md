@@ -746,8 +746,8 @@ are captured so moving or deleting the original file cannot change queued work.
 
 Keep modeling while captured snapshots render. The status chip opens **Jobs**, with
 progress, elapsed time, logs, cancellation and retries. Up to two workers run at
-once. Eight pending captures and sixteen retained jobs fit within a conservative
-2 GiB storage budget; remove finished jobs when the store is full. **Retry capture**
+once. The store permits at most eight pending captures and sixteen retained jobs,
+subject to a conservative 2 GiB storage budget; remove finished jobs when it is full. **Retry capture**
 uses the original model/settings. Use Render again for a fresh capture.
 
 Verified images open beside the Model tab, with the original revision and a label
