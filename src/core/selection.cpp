@@ -19,12 +19,12 @@ bool Selection::exists(const Document &doc, SelectedEntity e) const {
     }
     return false;
 }
-bool Selection::hidden(const Document &doc, SelectedEntity e) const {
+bool Selection::hidden(const Document &doc, SelectedEntity e, bool includeSoft) const {
     if (hidden_.contains(e))
         return true;
     if (e.kind == SelectionKind::Edge && doc.bodies().contains(e.body)) {
         const auto appearance = edgeAppearance(*doc.bodies().at(e.body), e.entity);
-        if (appearance.hidden || appearance.soft)
+        if (appearance.hidden || (includeSoft && appearance.soft))
             return true;
     }
     for (auto body = e.body; body && doc.bodies().contains(body);

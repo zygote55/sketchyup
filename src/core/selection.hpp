@@ -24,7 +24,7 @@ class Selection {
     Id context() const { return context_; }
     bool showingHidden() const { return showHidden_; }
     bool exists(const Document &doc, SelectedEntity entity) const;
-    bool hidden(const Document &doc, SelectedEntity entity) const;
+    bool hidden(const Document &doc, SelectedEntity entity, bool includeSoft = true) const;
     bool locked(const Document &doc, Id body) const;
     bool inContext(const Document &doc, Id body) const;
     bool selectable(const Document &doc, SelectedEntity entity) const;
