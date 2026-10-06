@@ -498,7 +498,10 @@ struct RenderPanel::Impl {
                 text += " · model has changed since";
             const auto device = manifest.value("device").toObject();
             text += "\nBlender " + manifest.value("blenderVersionString").toString() +
-                    " · Studio · " + device.value("backend").toString();
+                    (manifest.value("lighting").toObject().value("mode") == "solar-v1"
+                         ? " · Sun study · "
+                         : " · Studio · ") +
+                    device.value("backend").toString();
             if (device.value("name") != device.value("backend"))
                 text += " · " + device.value("name").toString();
             if (manifest.value("cpuFallbackUsed") == true)

@@ -746,4 +746,5 @@ install(FILES docs/decisions/0092-reference-image-records.md DESTINATION share/d
 install(FILES docs/decisions/0093-reference-image-workflows.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0094-native-reference-images.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0095-exact-raster-export.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/decisions/0096-blender-solar-conversion.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/reference-grid.json examples/reference-grid.sketchyup DESTINATION share/doc/sketchyup/examples)

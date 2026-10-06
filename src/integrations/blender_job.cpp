@@ -64,6 +64,19 @@ void version(const QJsonObject &result) {
                 v[2].toDouble() == v[2].toInt(-1) && v[2].toInt(-1) >= 0,
             "Unsupported Blender version in result");
 }
+QJsonObject lightingReport(const QJsonObject &source) {
+    const auto solar = source.value("solar").toObject();
+    if (!solar.value("enabled").toBool())
+        return {{"mode", "studio-v1"}, {"worldStrength", .25}};
+    const auto position = source.value("solarPosition").toObject();
+    return {{"mode", "solar-v1"},
+            {"worldStrength", .25},
+            {"energy", position.value("directLightActive").toBool() ? 3. : 0.},
+            {"angle", .00935},
+            {"shadows", position.value("shadowsActive")},
+            {"settings", solar},
+            {"position", position}};
+}
 std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const QString &directory,
                                             const QJsonObject &result,
                                             const QString &requestedBackend,
@@ -81,9 +94,15 @@ std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const Q
     require(device.value("backend") == requestedBackend && device.value("id") == requestedDevice,
             "Worker did not use the explicitly requested device");
     const auto preset = result.value("preset").toObject();
-    require(preset.value("name") == "studio-v1" && preset.value("engine") == "CYCLES" &&
-                preset.value("threads") == 4,
+    const auto expectedLighting = lightingReport(source);
+    require(preset.value("name") == expectedLighting.value("mode") &&
+                preset.value("engine") == "CYCLES" && preset.value("threads") == 4,
             "Worker render preset mismatch");
+    auto losses = source.value("losses").toObject();
+    if (expectedLighting.value("mode") == "solar-v1")
+        losses["solarLightingOmitted"] = 0;
+    require(result.value("lighting") == expectedLighting && result.value("losses") == losses,
+            "Worker lighting or transfer report does not match the captured source");
     const auto image = result.value("image").toObject(),
                settings = source.value("settings").toObject();
     require(image.value("file") == "image.png" && image.value("width") == settings.value("width") &&

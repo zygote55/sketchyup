@@ -87,6 +87,28 @@ int fake(QCoreApplication &app, const QStringList &args) {
         result["device"] =
             QJsonObject{{"backend", request.value("backend")}, {"id", request.value("deviceId")}};
         result["preset"] = QJsonObject{{"name", "studio-v1"}, {"engine", "CYCLES"}, {"threads", 4}};
+        result["lighting"] = QJsonObject{{"mode", "studio-v1"}, {"worldStrength", .25}};
+        if (source["solar"].toObject()["enabled"].toBool()) {
+            const auto position = source["solarPosition"].toObject();
+            result["lighting"] =
+                QJsonObject{{"mode", "solar-v1"},
+                            {"worldStrength", .25},
+                            {"energy", position["directLightActive"].toBool() ? 3. : 0.},
+                            {"angle", .00935},
+                            {"shadows", position["shadowsActive"]},
+                            {"settings", source["solar"]},
+                            {"position", position}};
+            auto preset = result["preset"].toObject();
+            preset["name"] = "solar-v1";
+            result["preset"] = preset;
+            auto losses = result["losses"].toObject();
+            losses["solarLightingOmitted"] = 0;
+            result["losses"] = losses;
+        }
+        if (mode == "lighting")
+            result["lighting"] = QJsonObject{};
+        if (mode == "losses")
+            result["losses"] = QJsonObject{};
         result["image"] = QJsonObject{{"file", "image.png"},
                                       {"width", image.width()},
                                       {"height", image.height()},
@@ -212,6 +234,29 @@ int main(int argc, char **argv) {
                 write(output + ".png", result->png);
                 write(output + ".json", QJsonDocument(result->manifest).toJson());
             }
+            auto sun = document.solar();
+            sun.enabled = true;
+            sun.latitude = 40;
+            sun.longitude = -105;
+            sun.time = {2010, 6, 21, 8, 0, 0, -420};
+            document.setSolar(sun);
+            const auto solarInput =
+                PreparedRender::prepare(RenderSnapshot::capture(document, render));
+            const auto solarSource = read(solarInput->sourceDirectory() + "/scene.glb");
+            BlenderJob solarJob;
+            solarJob.start(solarInput, real);
+            sun.time.hour = 20;
+            document.setSolar(sun);
+            wait(solarJob, 65000);
+            if (!solarJob.result())
+                std::cerr << QJsonDocument(solarJob.report()).toJson().constData();
+            check(solarJob.result() &&
+                      solarJob.result()->manifest["lighting"].toObject()["settings"] ==
+                          solarInput->manifest()["solar"] &&
+                      solarJob.result()->manifest["losses"].toObject()["solarLightingOmitted"] ==
+                          0 &&
+                      read(solarInput->sourceDirectory() + "/scene.glb") == solarSource,
+                  "Real sun render uses immutable captured settings and preserves GLB source");
             real.backend = "METAL";
             real.deviceId = "deliberately-unavailable-test-device";
             BlenderJob fallback;
@@ -249,7 +294,7 @@ int main(int argc, char **argv) {
               "Probe publishes capabilities only");
         for (const auto &mode :
              {"success", "unsupported", "crash", "invalid-png", "hash", "dimensions", "source",
-              "device", "preset", "missing", "fractional-version"}) {
+              "device", "preset", "lighting", "losses", "missing", "fractional-version"}) {
             BlenderJob job;
             job.start(input, options(mode));
             wait(job);
@@ -260,6 +305,25 @@ int main(int argc, char **argv) {
                 check(!job.result() &&
                           (job.phase() == Phase::Failed || job.phase() == Phase::Unavailable),
                       "Bad worker result never publishes an image");
+        }
+        auto sun = document.solar();
+        sun.enabled = true;
+        sun.latitude = 40;
+        sun.longitude = -105;
+        sun.time = {2010, 6, 21, 8, 0, 0, -420};
+        document.setSolar(sun);
+        const auto sunInput = PreparedRender::prepare(RenderSnapshot::capture(document, render));
+        for (const auto &mode : {"success", "lighting", "losses"}) {
+            BlenderJob job;
+            job.start(sunInput, options(mode));
+            wait(job);
+            check(bool(job.result()) == (QString(mode) == "success"),
+                  "Sun renders require exact frozen lighting and converted loss reports");
+            if (job.result())
+                check(job.result()->manifest["losses"].toObject()["solarLightingOmitted"] == 0 &&
+                          job.result()->manifest["lighting"].toObject()["settings"] ==
+                              sunInput->manifest()["solar"],
+                      "Verified result retains explicit sun settings and applied-lighting report");
         }
         for (const auto &mode : {"fallback", "fail", "crash"}) {
             BlenderJob job;
