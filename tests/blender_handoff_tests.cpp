@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
@@ -150,6 +151,32 @@ print('SKETCHYUP_HANDOFF_REOPEN '+json.dumps(dict(packedImages=len(images),camer
                 check(bool(job.sceneResult()) == (QString(mode) == "success"),
                       "Only valid scene output publishes");
                 check(!job.result(), "Scene handoff never publishes a rendered image");
+                if (job.sceneResult()) {
+                    const auto saved = files.filePath("atomic.blend");
+                    saveBlenderScene(*job.sceneResult(), saved);
+                    QFile actual(saved);
+                    check(actual.open(QIODevice::ReadOnly) &&
+                              actual.readAll() == job.sceneResult()->blend,
+                          "Atomic scene save preserves verified bytes");
+                    actual.close();
+                    auto corrupt = *job.sceneResult();
+                    corrupt.blend.append('x');
+                    bool rejected{};
+                    try {
+                        saveBlenderScene(corrupt, saved);
+                    } catch (const std::exception &) {
+                        rejected = true;
+                    }
+                    check(rejected, "Changed scene integrity rejects before overwrite");
+                    rejected = false;
+                    try {
+                        saveBlenderScene(*job.sceneResult(), files.filePath("model.sketchyup"));
+                    } catch (const std::exception &) {
+                        rejected = true;
+                    }
+                    check(rejected && !QFileInfo::exists(files.filePath("model.sketchyup")),
+                          "Handoff cannot overwrite a native model destination");
+                }
             }
             BlenderJob canceled;
             canceled.handoff(input, options("hang"));

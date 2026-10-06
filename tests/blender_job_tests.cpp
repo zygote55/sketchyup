@@ -49,6 +49,12 @@ QJsonObject fakeRasterDevice() {
 int fake(QCoreApplication &app, const QStringList &args) {
     const auto mode = args[2];
     const auto requestPath = args.last();
+    if (requestPath.endsWith(".blend") && args.contains("--disable-autoexec")) {
+        const auto proof = qEnvironmentVariable("SKETCHYUP_HANDOFF_LAUNCH_PROOF");
+        if (!proof.isEmpty())
+            write(proof, requestPath.toUtf8());
+        return 0;
+    }
     const auto root = QFileInfo(requestPath).absolutePath();
     const auto request = QJsonDocument::fromJson(read(requestPath)).object();
     if (mode == "hang") {

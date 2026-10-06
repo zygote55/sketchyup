@@ -20,6 +20,7 @@ class RenderPanel : public QObject {
     QString status() const;
     std::shared_ptr<const BlenderResult> latest() const;
     void saveLatest(const QString &path);
+    void handoffLatest(const QString &path, bool launchBlender);
   signals:
     void changed();
 

@@ -32,6 +32,7 @@ struct BlenderSceneResult {
     QJsonObject manifest;
     QByteArray blend;
 };
+void saveBlenderScene(const BlenderSceneResult &scene, const QString &path);
 class BlenderJob : public QObject {
     Q_OBJECT
   public:

@@ -312,6 +312,32 @@ int main(int argc, char **argv) {
                           ->text()
                           .contains("indirect lighting approximated"),
                   "Native preview identifies engine and transfer approximation");
+            const auto beforeHandoff = encodeDocument(doc);
+            const auto handoffHistory = doc.history().total;
+            const auto blendPath = files.filePath("native-scene.blend");
+            const auto launchProof = files.filePath("scene-launch.txt");
+            qputenv("SKETCHYUP_HANDOFF_LAUNCH_PROOF", launchProof.toUtf8());
+            check(tabs->currentWidget()
+                      ->findChild<QLabel *>("blenderHandoffNotice")
+                      ->text()
+                      .contains("one way"),
+                  "Handoff explains external edits before launch");
+            panel.handoffLatest(blendPath, true);
+            check(QTest::qWaitFor([&] { return !panel.active(); }, 10000),
+                  "Native scene creation finishes asynchronously");
+            check(read(blendPath).startsWith("BLENDER17-01v0502"),
+                  "Native handoff saves verified scene bytes");
+            check(QTest::qWaitFor([&] { return QFileInfo::exists(launchProof); }),
+                  "External Blender launch starts after file publication");
+            check(read(launchProof) == blendPath.toUtf8(),
+                  "External Blender receives explicit saved scene path");
+            qunsetenv("SKETCHYUP_HANDOFF_LAUNCH_PROOF");
+            QFile external(blendPath);
+            check(external.open(QIODevice::WriteOnly) && external.write("external edit") == 13,
+                  "Simulate an external scene edit");
+            external.close();
+            check(encodeDocument(doc) == beforeHandoff && doc.history().total == handoffHistory,
+                  "Scene handoff and external edits never change native model/history");
             provenance = tabs->currentWidget()->findChild<QLabel *>("renderProvenance");
             doc = Document();
             panel.refreshProvenance();

@@ -628,6 +628,22 @@ struct BlenderJob::Impl {
         }
     }
 };
+void saveBlenderScene(const BlenderSceneResult &scene, const QString &path) {
+    const QFileInfo destination(path);
+    require(!path.isEmpty() && destination.suffix().compare("blend", Qt::CaseInsensitive) == 0 &&
+                !destination.isSymLink(),
+            "Choose a regular .blend destination for the one-way scene");
+    const auto file = scene.manifest.value("sceneFile").toObject();
+    require(scene.blend.size() > 17 && scene.blend.size() <= 512 * 1024 * 1024 &&
+                scene.blend.startsWith("BLENDER17-01v0502") &&
+                file.value("sha256") == hash(scene.blend) &&
+                file.value("bytes").toInteger(-1) == scene.blend.size(),
+            "Scene integrity changed before saving");
+    QSaveFile output(path);
+    require(output.open(QIODevice::WriteOnly) && output.write(scene.blend) == scene.blend.size() &&
+                output.commit(),
+            "Could not save the Blender scene");
+}
 BlenderJob::BlenderJob(QObject *parent) : QObject(parent), impl_(std::make_unique<Impl>(*this)) {}
 BlenderJob::~BlenderJob() = default;
 void BlenderJob::probe(Options options) { impl_->begin(true, {}, std::move(options)); }

@@ -15,6 +15,8 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPointer>
+#include <QProcess>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QSaveFile>
 #include <QScrollArea>
@@ -99,9 +101,10 @@ struct RenderPanel::Impl {
     QPushButton *probeButton{}, *renderButton{}, *cancelButton{};
     QLabel *setupStatus{}, *jobStatus{};
     QPlainTextEdit *logs{};
-    QPointer<BlenderJob> probe;
+    QPointer<BlenderJob> probe, handoff;
     std::unique_ptr<RenderQueue> queue;
     QPointer<RenderJobsDialog> jobsDialog;
+    QPointer<QProgressDialog> handoffProgress;
     std::map<QString, Document::SaveStamp> sessions;
     QString recentJob;
     QTimer poll;
@@ -125,7 +128,13 @@ struct RenderPanel::Impl {
           poll(&owner) {
         chip.hide();
         chip.setObjectName("renderStatusChip");
-        QObject::connect(&chip, &QPushButton::clicked, &owner, [this] { showJobs(); });
+        QObject::connect(&chip, &QPushButton::clicked, &owner, [this] {
+            if (handoffProgress) {
+                handoffProgress->show();
+                handoffProgress->raise();
+            } else
+                showJobs();
+        });
         QObject::connect(&tabs, &QTabWidget::tabCloseRequested, &owner, [this](int index) {
             if (index <= 0)
                 return;
@@ -154,6 +163,10 @@ struct RenderPanel::Impl {
     ~Impl() {
         if (probe)
             delete probe;
+        if (handoff)
+            delete handoff;
+        if (handoffProgress)
+            delete handoffProgress;
         if (jobsDialog)
             delete jobsDialog;
         queue.reset();
@@ -165,7 +178,7 @@ struct RenderPanel::Impl {
             throw std::runtime_error("Render panel requires owner thread");
     }
     bool active() const {
-        if (preparing.valid())
+        if (preparing.valid() || (handoff && !handoff->done()))
             return true;
         if (queue)
             for (const auto &record : queue->jobs())
@@ -261,7 +274,8 @@ struct RenderPanel::Impl {
             const auto seconds = elapsed.isValid() ? elapsed.elapsed() / 1000 : 0;
             jobStatus->setText(status + (active() ? " · " + QString::number(seconds) + " s" : "") +
                                (details.isEmpty() ? QString{} : "\n" + details));
-            const bool busy = preparing.valid() || (probe && !probe->done());
+            const bool busy =
+                preparing.valid() || (probe && !probe->done()) || (handoff && !handoff->done());
             for (QWidget *control : std::initializer_list<QWidget *>{
                      path, camera, engine, width, height, samples, environmentPath,
                      environmentStrength, environmentRotation, backend, device, fallback,
@@ -318,7 +332,7 @@ struct RenderPanel::Impl {
         browse->setObjectName("chooseBlender");
         form->addRow({}, browse);
         QObject::connect(browse, &QPushButton::clicked, &owner, [this] {
-            if (preparing.valid() || (probe && !probe->done()))
+            if (preparing.valid() || (probe && !probe->done()) || (handoff && !handoff->done()))
                 return;
             const auto selected = QFileDialog::getOpenFileName(dialog, "Choose Blender 5.2 LTS");
             if (!selected.isEmpty())
@@ -528,7 +542,7 @@ struct RenderPanel::Impl {
     }
     void start(RenderOptions settings, BlenderJob::Options worker, bool currentView) {
         checkOwner();
-        if (preparing.valid() || (probe && !probe->done()))
+        if (preparing.valid() || (probe && !probe->done()) || (handoff && !handoff->done()))
             throw std::runtime_error("A render capture or Blender check is already running");
         ensureQueue();
         if (view.inspectionBusy())
@@ -634,6 +648,8 @@ struct RenderPanel::Impl {
         checkOwner();
         if (probe && !probe->done())
             probe->cancel();
+        if (handoff && !handoff->done())
+            handoff->cancel();
         if (preparing.valid()) {
             preparingCanceled = true;
             status = "Canceling preparation";
@@ -645,6 +661,117 @@ struct RenderPanel::Impl {
                                                record.state == RenderJobState::Running ||
                                                record.state == RenderJobState::Canceling))
                     queue->cancel(record.id);
+    }
+    void startHandoff(const QString &id, const QString &destination, bool launchBlender) {
+        checkOwner();
+        if (active() || (probe && !probe->done()))
+            throw std::runtime_error(
+                "Wait for pending renders or checks before handing off a scene");
+        const QFileInfo file(destination);
+        if (file.suffix().compare("blend", Qt::CaseInsensitive) != 0 || file.isSymLink())
+            throw std::runtime_error("Choose a regular .blend destination");
+        BlenderJob::Options options;
+        bool found{};
+        for (const auto &record : queue->jobs())
+            if (record.id == id) {
+                options = record.options;
+                found = true;
+                break;
+            }
+        if (!found)
+            throw std::runtime_error("The captured job was removed");
+        auto input = queue->input(id);
+        if (handoff)
+            delete handoff;
+        auto *job = new BlenderJob(&owner);
+        handoff = job;
+        status = "Preparing Blender scene";
+        details.clear();
+        elapsed.restart();
+        handoffProgress =
+            new QProgressDialog("Preparing captured Blender scene…", "Cancel", 0, 0, &window);
+        handoffProgress->setObjectName("blenderHandoffProgress");
+        handoffProgress->setWindowTitle("One-way Blender handoff");
+        handoffProgress->setWindowModality(Qt::NonModal);
+        handoffProgress->setMinimumDuration(0);
+        QObject::connect(handoffProgress, &QProgressDialog::canceled, &owner, [this] {
+            if (handoff && !handoff->done())
+                handoff->cancel();
+        });
+        handoffProgress->show();
+        QObject::connect(
+            job, &BlenderJob::changed, &owner, [this, job, destination, launchBlender] {
+                status = "Preparing Blender scene";
+                details = job->progress();
+                if (handoffProgress)
+                    handoffProgress->setLabelText(status + "\n" + details);
+                if (job->done()) {
+                    if (job->sceneResult()) {
+                        try {
+                            saveBlenderScene(*job->sceneResult(), destination);
+                            status = "Blender scene saved";
+                            details = "One-way handoff: Blender edits do not update this model.";
+                            if (launchBlender) {
+                                const auto executable =
+                                    job->report().value("executable").toString();
+                                if (!QProcess::startDetached(
+                                        executable, {"--disable-autoexec",
+                                                     QFileInfo(destination).absoluteFilePath()}))
+                                    throw std::runtime_error(
+                                        "Scene saved, but Blender could not start. Open the .blend "
+                                        "file manually.");
+                                status = "Blender scene opened";
+                            }
+                        } catch (const std::exception &error) {
+                            status = "Scene handoff failed";
+                            details = QString::fromUtf8(error.what());
+                        }
+                    } else {
+                        status = job->phase() == BlenderJob::Phase::Canceled
+                                     ? "Scene handoff canceled"
+                                     : "Scene handoff failed";
+                        details = job->report().value("message").toString();
+                    }
+                    if (logs)
+                        logs->setPlainText(
+                            QString::fromUtf8(QJsonDocument(job->report()).toJson()));
+                    if (handoffProgress) {
+                        handoffProgress->deleteLater();
+                        handoffProgress = nullptr;
+                    }
+                    job->deleteLater();
+                    handoff = nullptr;
+                }
+                publish();
+            });
+        try {
+            job->handoff(std::move(input), std::move(options));
+        } catch (...) {
+            delete job;
+            handoff = nullptr;
+            if (handoffProgress) {
+                delete handoffProgress;
+                handoffProgress = nullptr;
+            }
+            throw;
+        }
+        publish();
+    }
+    void chooseHandoff(const QString &id) {
+        QFileDialog chooser(&window, "Save and open Blender scene — one-way handoff", "scene.blend",
+                            "Blender scene (*.blend)");
+        chooser.setAcceptMode(QFileDialog::AcceptSave);
+        chooser.setDefaultSuffix("blend");
+        chooser.setLabelText(QFileDialog::Accept, "Save and open");
+        if (chooser.exec() != QDialog::Accepted || chooser.selectedFiles().isEmpty())
+            return;
+        try {
+            startHandoff(id, chooser.selectedFiles().front(), true);
+        } catch (const std::exception &error) {
+            status = "Scene handoff failed";
+            details = QString::fromUtf8(error.what());
+            publish();
+        }
     }
     void addResult(std::shared_ptr<const BlenderResult> result, const QString &id) {
         refresh();
@@ -671,8 +798,19 @@ struct RenderPanel::Impl {
         auto *again = new QPushButton("Render again…");
         again->setObjectName("renderAgain");
         buttons->addWidget(again);
+        auto *openScene = new QPushButton("Open scene in Blender…");
+        openScene->setObjectName("openBlenderScene");
+        buttons->addWidget(openScene);
+        QObject::connect(openScene, &QPushButton::clicked, &owner,
+                         [this, id] { chooseHandoff(id); });
         buttons->addStretch();
         layout->addLayout(buttons);
+        auto *notice =
+            new QLabel("Blender handoff is one way: external edits do not update this model. Any "
+                       "later import is a separate, potentially lossy conversion.");
+        notice->setObjectName("blenderHandoffNotice");
+        notice->setWordWrap(true);
+        layout->addWidget(notice);
         QObject::connect(save, &QPushButton::clicked, &owner, [this, result] {
             const auto path = QFileDialog::getSaveFileName(&window, "Save render image",
                                                            "render.png", "PNG images (*.png)");
@@ -775,6 +913,12 @@ QString RenderPanel::status() const {
 std::shared_ptr<const BlenderResult> RenderPanel::latest() const {
     impl_->checkOwner();
     return impl_->results.empty() ? nullptr : impl_->results.back().result;
+}
+void RenderPanel::handoffLatest(const QString &path, bool launchBlender) {
+    impl_->checkOwner();
+    if (impl_->results.empty())
+        throw std::runtime_error("No retained render to hand off");
+    impl_->startHandoff(impl_->results.back().jobId, path, launchBlender);
 }
 void RenderPanel::saveLatest(const QString &path) {
     const auto result = latest();
