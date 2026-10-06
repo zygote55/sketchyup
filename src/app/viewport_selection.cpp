@@ -189,11 +189,13 @@ void Viewport::rebuildPickGeometry() {
     for (const auto &[id, cache] : bodyCaches_) {
         if (!cache->alpha)
             continue;
-        for (size_t triangleIndex = 0; triangleIndex < cache->worldTriangles.size(); ++triangleIndex) {
+        if (!cache->sectionError.isEmpty())
+            continue;
+        auto appendTriangle = [&](size_t triangleIndex, const SectionTriangle *cut) {
             const auto &triangle = cache->worldTriangles[triangleIndex];
             const SelectedEntity entity{id, SelectionKind::Face, triangle.face};
             if (!visible(entity))
-                continue;
+                return;
             const auto c = color(entity);
             auto front = surfaceAppearance(doc_.materials(), *cache->record, triangle.face);
             auto back = surfaceAppearance(doc_.materials(), *cache->record, triangle.face, true);
@@ -209,15 +211,35 @@ void Viewport::rebuildPickGeometry() {
             }
             textureVertices(*cache->record, cache->localTriangles[triangleIndex],
                             cache->world.determinant() < 0, vertices);
+            if (cut)
+                vertices = clippedVertices(vertices, *cut);
             faces.insert(faces.end(), vertices.begin(), vertices.end());
+        };
+        if (cache->sectionCuts.empty()) {
+            for (size_t i = 0; i < cache->worldTriangles.size(); ++i)
+                appendTriangle(i, nullptr);
+        } else {
+            for (const auto &triangle : cache->sectionMesh.triangles) {
+                if (triangle.source != noSectionSource) {
+                    appendTriangle(triangle.source, &triangle);
+                } else if (cache->sections.at(triangle.section)->fill &&
+                           doc_.style().mode != ModelStyleMode::Wireframe) {
+                    // Generated caps select their owning context, never an invented face.
+                    const auto c = color({id, SelectionKind::Body, 0});
+                    for (const auto &corner : triangle.vertices)
+                        faces.push_back(vertex(corner.point, c));
+                }
+            }
         }
         for (const auto &edge : cache->worldEdges) {
             const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
             if (!visible(entity))
                 continue;
             const auto c = color(entity);
-            edges.push_back(vertex(edge.a, c));
-            edges.push_back(vertex(edge.b, c));
+            if (const auto segment = sectionSegment(edge.a, edge.b, cache->sectionCuts)) {
+                edges.push_back(vertex((*segment)[0], c));
+                edges.push_back(vertex((*segment)[1], c));
+            }
         }
     }
     upload(pickFacesGpu_, faces);
@@ -367,12 +389,12 @@ std::optional<SelectedEntity> Viewport::selectionAt(QPointF point) {
                 const auto origin = world.point(record.origin);
                 std::optional<ScreenPoint> screen;
                 if (record.kind == GuideKind::Point) {
-                    if (!clipped(origin))
+                    if (!clipped(origin, id))
                         screen = camera.project(origin);
                 } else if (const auto projected = projectDirection(
                                {DirectionKind::Parallel, origin, world.vector(record.direction)},
                                camera, point.x(), point.y());
-                           projected && !clipped(projected->point))
+                           projected && !clipped(projected->point, id))
                     screen = camera.project(projected->point);
                 if (!screen)
                     continue;
@@ -395,9 +417,9 @@ SelectionSet Viewport::windowSelection(QRectF bounds, bool crossing) {
             if (const auto entity = pickEntity(row[x]))
                 candidates.insert(*entity);
     }
-    auto inside = [&](Vec3 point) {
+    auto inside = [&](Vec3 point, Id body = 0) {
         const auto screen = inferenceCamera().project(point);
-        return screen && !clipped(point) && bounds.contains(QPointF(screen->x, screen->y));
+        return screen && !clipped(point, body) && bounds.contains(QPointF(screen->x, screen->y));
     };
     if (guidesVisible_)
         for (const auto &[id, body] : doc_.bodies()) {
@@ -410,11 +432,11 @@ SelectionSet Viewport::windowSelection(QRectF bounds, bool crossing) {
                     continue;
                 const auto origin = world.point(record.origin);
                 if (record.kind == GuideKind::Point) {
-                    if (inside(origin))
+                    if (inside(origin, id))
                         candidates.insert(*target);
                 } else if (crossing) {
                     if (const auto line =
-                            guideSegment(guideLine(origin, world.vector(record.direction)))) {
+                            guideSegment(guideLine(origin, world.vector(record.direction)), id)) {
                         const QLineF segment((*line)[0], (*line)[1]);
                         QPointF intersection;
                         bool intersects =
@@ -441,17 +463,58 @@ SelectionSet Viewport::windowSelection(QRectF bounds, bool crossing) {
                     if (!ancestor || !visible({id, SelectionKind::Body, 0}))
                         continue;
                     const auto world = doc_.worldTransform(id);
-                    for (const auto &[vertex, point] : member->surface.vertices)
-                        if (!inside(world.point(point)))
-                            return true;
+                    const auto &cache = *bodyCaches_.at(id);
+                    if (!cache.sectionError.isEmpty())
+                        continue;
+                    if (cache.sectionCuts.empty()) {
+                        for (const auto &[vertex, point] : member->surface.vertices)
+                            if (!inside(world.point(point), id))
+                                return true;
+                    } else {
+                        for (const auto &triangle : cache.sectionMesh.triangles)
+                            for (const auto &corner : triangle.vertices)
+                                if (!inside(corner.point, id))
+                                    return true;
+                        for (const auto &[edgeId, edge] : member->topology.edges) {
+                            const auto segment = sectionSegment(
+                                world.point(member->surface.vertices.at(edge.a)),
+                                world.point(member->surface.vertices.at(edge.b)), cache.sectionCuts);
+                            if (segment && (!inside((*segment)[0], id) ||
+                                            !inside((*segment)[1], id)))
+                                return true;
+                        }
+                    }
                     for (const auto &[guide, record] : member->guides)
-                        if (record.kind == GuideKind::Line || !inside(world.point(record.origin)))
+                        if (record.kind == GuideKind::Line ||
+                            (!clipped(world.point(record.origin), id) &&
+                             !inside(world.point(record.origin), id)))
                             return true;
                 }
                 return false;
             }
             const auto &body = *doc_.bodies().at(e.body);
             const auto world = doc_.worldTransform(e.body);
+            if (e.kind == SelectionKind::Guide) {
+                const auto &guide = body.guides.at(e.entity);
+                return guide.kind == GuideKind::Line || !inside(world.point(guide.origin), e.body);
+            }
+            const auto &cache = *bodyCaches_.at(e.body);
+            if (!cache.sectionCuts.empty()) {
+                if (!cache.sectionError.isEmpty())
+                    return true;
+                if (e.kind == SelectionKind::Edge) {
+                    const auto &edge = body.topology.edges.at(e.entity);
+                    const auto segment = sectionSegment(world.point(body.surface.vertices.at(edge.a)),
+                        world.point(body.surface.vertices.at(edge.b)), cache.sectionCuts);
+                    return !segment || !inside((*segment)[0], e.body) || !inside((*segment)[1], e.body);
+                }
+                for (const auto &triangle : cache.sectionMesh.triangles)
+                    if (triangle.source != noSectionSource && triangle.face == e.entity)
+                        for (const auto &corner : triangle.vertices)
+                            if (!inside(corner.point, e.body))
+                                return true;
+                return false;
+            }
             if (e.kind == SelectionKind::Edge) {
                 const auto &edge = body.topology.edges.at(e.entity);
                 return !inside(world.point(body.surface.vertices.at(edge.a))) ||
@@ -472,19 +535,36 @@ void Viewport::rebuildSelectionOverlay() {
         auto vertex = [&](Vec3 p) {
             return Vertex{p.x, p.y, p.z, color[0], color[1], color[2], 1};
         };
-        auto line = [&](Vec3 a, Vec3 b) {
-            edges.push_back(vertex(a));
-            edges.push_back(vertex(b));
+        auto line = [&](Vec3 a, Vec3 b, Id body) {
+            const auto &cache = *bodyCaches_.at(body);
+            if (!cache.sectionError.isEmpty())
+                return;
+            if (const auto segment = sectionSegment(a, b, cache.sectionCuts)) {
+                edges.push_back(vertex((*segment)[0]));
+                edges.push_back(vertex((*segment)[1]));
+            }
         };
         std::set<Id> faceBodies;
         for (auto e : entities)
             if (e.kind == SelectionKind::Face && selectable(e))
                 faceBodies.insert(e.body);
-        for (auto id : faceBodies)
-            for (const auto &t : bodyCaches_.at(id)->worldTriangles)
-                if (entities.contains({id, SelectionKind::Face, t.face}))
-                    for (auto p : {t.a, t.b, t.c})
-                        faces.push_back(vertex(p));
+        for (auto id : faceBodies) {
+            const auto &cache = *bodyCaches_.at(id);
+            if (!cache.sectionError.isEmpty())
+                continue;
+            if (cache.sectionCuts.empty()) {
+                for (const auto &t : cache.worldTriangles)
+                    if (entities.contains({id, SelectionKind::Face, t.face}))
+                        for (auto p : {t.a, t.b, t.c})
+                            faces.push_back(vertex(p));
+            } else {
+                for (const auto &t : cache.sectionMesh.triangles)
+                    if (t.source != noSectionSource &&
+                        entities.contains({id, SelectionKind::Face, t.face}))
+                        for (const auto &corner : t.vertices)
+                            faces.push_back(vertex(corner.point));
+            }
+        }
         std::map<Id, Bounds> contextBounds;
         for (auto entity : entities)
             if (entity.kind == SelectionKind::Body && selectable(entity))
@@ -520,11 +600,11 @@ void Viewport::rebuildSelectionOverlay() {
                 for (const auto &loop : body.surface.faces.at(e.entity).loops)
                     for (size_t i = 0; i < loop.size(); ++i)
                         line(world.point(body.surface.vertices.at(loop[i])),
-                             world.point(body.surface.vertices.at(loop[(i + 1) % loop.size()])));
+                             world.point(body.surface.vertices.at(loop[(i + 1) % loop.size()])), e.body);
             } else if (e.kind == SelectionKind::Edge) {
                 const auto &edge = body.topology.edges.at(e.entity);
                 line(world.point(body.surface.vertices.at(edge.a)),
-                     world.point(body.surface.vertices.at(edge.b)));
+                     world.point(body.surface.vertices.at(edge.b)), e.body);
             } else if (e.kind == SelectionKind::Body) {
                 const auto bounds = contextBounds.at(e.body);
                 if (!bounds.valid)
@@ -537,7 +617,7 @@ void Viewport::rebuildSelectionOverlay() {
                 for (int i = 0; i < 8; ++i)
                     for (int bit : {1, 2, 4})
                         if (!(i & bit))
-                            line(corners[i], corners[i | bit]);
+                            line(corners[i], corners[i | bit], e.body);
             }
         }
         upload(faceBatch, faces);
@@ -610,7 +690,7 @@ void Viewport::paintSelection(QPainter &p) {
             paintGuide(p,
                        guide.kind == GuideKind::Point
                            ? guidePoint(world.point(guide.origin))
-                           : guideLine(world.point(guide.origin), world.vector(guide.direction)));
+                           : guideLine(world.point(guide.origin), world.vector(guide.direction)), entity.body);
         }
     };
     guides(selection_.entities(),

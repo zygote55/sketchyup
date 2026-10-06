@@ -45,6 +45,16 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
     const auto index = inferenceWorker_.ready(doc_);
     inferencePending_ = !index;
     const auto camera = inferenceCamera();
+    if (!doc_.activeSections().empty() &&
+        (cacheDirty_ || cachedDocument_ != doc_.identity() || cachedRevision_ != doc_.revision())) {
+        // A queued repaint prepares the current derived caps. Avoid inferring
+        // through old clipping while that frame is being prepared.
+        inference_ = {};
+        directions_.clear();
+        inferencePending_ = true;
+        update();
+        return;
+    }
     const auto lock = directionLocks_.current();
     auto queryPoint = point;
     auto queryPlane = constrainPlane ? std::optional<DrawingPlane>{plane_} : configuredPlane_;
@@ -74,9 +84,14 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
     query.eligible = [&](Id body, InferenceEntity, Id) {
         return selection_.inContext(doc_, body) && !selection_.locked(doc_, body);
     };
+    query.pointVisible = [&](Id body, Vec3 point) { return !clipped(point, body); };
+    query.extraOcclusion = [&](Vec3 origin, Vec3 direction, double target) {
+        return sectionOccludes(origin, direction, target);
+    };
     inference_ = index ? index->query(query) : InferenceResult{};
     std::erase_if(inference_.candidates, [&](const auto &candidate) {
-        return clipped(candidate.point) ||
+        return clipped(candidate.point, candidate.body) ||
+               (candidate.otherBody && clipped(candidate.point, candidate.otherBody)) ||
                (lock && length(cross(candidate.point - lock->origin, lock->direction)) > tolerance);
     });
     directions_.clear();
@@ -88,7 +103,7 @@ void Viewport::acquireInference(QPointF point, bool constrainPlane) {
         directions_ = directionCandidates(
             inferenceCamera(), point.x(), point.y(), *anchor_, plane_, referenceDirections_,
             reference_ ? std::optional<Vec3>{reference_->point} : std::nullopt);
-        std::erase_if(directions_, [&](const auto &candidate) { return clipped(candidate.point); });
+        std::erase_if(directions_, [&](const auto &candidate) { return clipped(candidate.point, selection_.context()); });
     }
     inferenceChoice_ = 0;
     if (!directions_.empty() && (inference_.candidates.empty() ||

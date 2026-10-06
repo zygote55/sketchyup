@@ -67,7 +67,8 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
             p = p - renderOrigin_;
             return transform * QVector4D(float(p.x), float(p.y), float(p.z), 1);
         };
-        auto append = [&](Vec3 a, Vec3 b, std::array<float, 3> color) {
+        auto append = [&](Vec3 a, Vec3 b, std::array<float, 3> color,
+                          const std::vector<SectionCut> &cuts) {
             auto ca = clipPoint(a), cb = clipPoint(b);
             double first = 0, last = 1;
             auto clip = [&](double fa, double fb) {
@@ -82,6 +83,9 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
             for (int axis = 0; axis < 3; ++axis)
                 if (!clip(ca.w() + ca[axis], cb.w() + cb[axis]) ||
                     !clip(ca.w() - ca[axis], cb.w() - cb[axis]))
+                    return;
+            for (const auto &cut : cuts)
+                if (!clip(cut.plane.distance(a), cut.plane.distance(b)))
                     return;
             if (clipPlane_) {
                 const auto &p = *clipPlane_;
@@ -115,7 +119,7 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
             ++stats_.profileEdges;
         };
         for (const auto &[id, cache] : bodyCaches_) {
-            if (cache->alpha == 0 || !cache->record)
+            if (cache->alpha == 0 || !cache->record || !cache->sectionError.isEmpty())
                 continue;
             const auto &body = *cache->record;
             std::map<Id, bool> facing;
@@ -156,7 +160,7 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
                     append(edge.a, edge.b,
                            selection_.inActiveHierarchy(doc_, id)
                                ? style.edge
-                               : std::array<float, 3>{.56f, .58f, .60f});
+                               : std::array<float, 3>{.56f, .58f, .60f}, cache->sectionCuts);
             }
         }
         upload(profilesGpu_, vertices);

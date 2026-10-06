@@ -68,7 +68,10 @@ std::set<Id> missingSectionContexts(const Document &doc) {
 std::vector<SectionCut> effectiveSectionCuts(const Document &doc, Id body,
                                              const ActiveSections *overrideActive) {
     const auto &active = overrideActive ? *overrideActive : doc.activeSections();
-    validateSectionRecords(doc.sections(), doc.nextSectionId(), active);
+    // Published document records/activation are already validated and immutable.
+    // Only a caller-supplied view override needs validation on this read path.
+    if (overrideActive)
+        validateSectionRecords(doc.sections(), doc.nextSectionId(), active);
     std::vector<SectionCut> result;
     for (Id context : ancestors(doc, body)) {
         const auto found = active.find(context);

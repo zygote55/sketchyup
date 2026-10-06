@@ -138,20 +138,20 @@ void Viewport::finishGuide(Vec3 end) {
     emit changed();
     emit message("Guide created · " + label + " · Type a new measurement to revise");
 }
-void Viewport::paintGuide(QPainter &p, const Guide &guide) const {
+void Viewport::paintGuide(QPainter &p, const Guide &guide, Id body) const {
     const auto camera = inferenceCamera();
     if (guide.kind == GuideKind::Point) {
-        if (const auto screen = camera.project(guide.origin); screen && !clipped(guide.origin)) {
+        if (const auto screen = camera.project(guide.origin); screen && !clipped(guide.origin, body)) {
             const QPointF at(screen->x, screen->y);
             p.drawLine(at - QPointF(4, 0), at + QPointF(4, 0));
             p.drawLine(at - QPointF(0, 4), at + QPointF(0, 4));
         }
         return;
     }
-    if (const auto segment = guideSegment(guide))
+    if (const auto segment = guideSegment(guide, body))
         p.drawLine((*segment)[0], (*segment)[1]);
 }
-std::optional<std::array<QPointF, 2>> Viewport::guideSegment(const Guide &guide) const {
+std::optional<std::array<QPointF, 2>> Viewport::guideSegment(const Guide &guide, Id body) const {
     const auto camera = inferenceCamera();
     const auto ends = boundedGuideLine(guide);
     const auto &m = camera.clipFromWorld;
@@ -176,6 +176,9 @@ std::optional<std::array<QPointF, 2>> Viewport::guideSegment(const Guide &guide)
         for (int sign : {-1, 1})
             if (!trim(a[3] + sign * a[axis], b[3] + sign * b[axis]))
                 return {};
+    for (const auto &cut : effectiveSectionCuts(doc_, body))
+        if (!trim(cut.plane.distance(ends[0]), cut.plane.distance(ends[1])))
+            return {};
     if (clipPlane_) {
         auto distance = [&](Vec3 point) {
             const auto &c = *clipPlane_;
@@ -210,13 +213,13 @@ void Viewport::paintGuides(QPainter &p) const {
                 paintGuide(
                     p, guide.kind == GuideKind::Point
                            ? guidePoint(world.point(guide.origin))
-                           : guideLine(world.point(guide.origin), world.vector(guide.direction)));
+                           : guideLine(world.point(guide.origin), world.vector(guide.direction)), id);
             }
         }
     }
     if (previewGuide_) {
         p.setPen(QPen(colors_.accent, 2, Qt::DashLine));
-        paintGuide(p, *previewGuide_);
+        paintGuide(p, *previewGuide_, drawingContext_);
     }
     p.restore();
 }
