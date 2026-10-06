@@ -164,6 +164,15 @@ int main(int argc, char **argv) {
         check(view.pick(view.project(probe)).first == 0 && !view.selectionAt(view.project(probe)),
               "Shadow plane does not become pickable geometry");
         view.applyModelSolar(settings);
+        const auto remote = doc.addFace(
+            {{{250000, 250000, 0}, {250002, 250000, 0}, {250002, 250003, 0}, {250000, 250003, 0}}});
+        doc.extrude(remote, doc.bodies().at(remote)->surface.faces.begin()->first, 3);
+        sync(window);
+        check(sample(view, probe).lightness() < lit.lightness() - 25,
+              "Distant offscreen geometry preserves nearby shadow detail");
+        doc.undo();
+        doc.undo();
+        sync(window);
         view.setBodyOpacity(body, .25f);
         check(sample(view, probe).lightness() > shadow.lightness() + 25,
               "Translucent fragments below the shadow cutoff do not cast opaque shadows");
