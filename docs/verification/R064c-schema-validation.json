@@ -1,0 +1,41 @@
+{
+  "validator": "jsonschema 4.25.1",
+  "draft": "2020-12",
+  "commands": [
+    {
+      "catalog": "headless-session-v1.json",
+      "commandSchemas": 4,
+      "validRequests": 7,
+      "invalidRequestsRejected": 35
+    },
+    {
+      "catalog": "mcp-2026-07-28.json",
+      "commandSchemas": 4,
+      "validRequests": 7,
+      "invalidRequestsRejected": 35
+    },
+    {
+      "catalog": "transactions-v1.json",
+      "commandSchemas": 4,
+      "validRequests": 7,
+      "invalidRequestsRejected": 35
+    }
+  ],
+  "queries": [
+    {
+      "catalog": "inspection-v1.json",
+      "validQueries": 3,
+      "invalidQueriesRejected": 3
+    },
+    {
+      "catalog": "inspection-session-v1.json",
+      "validQueries": 3,
+      "invalidQueriesRejected": 3
+    },
+    {
+      "catalog": "inspection-desktop-v1.json",
+      "validQueries": 3,
+      "invalidQueriesRejected": 3
+    }
+  ]
+}
