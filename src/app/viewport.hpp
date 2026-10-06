@@ -150,7 +150,7 @@ class Viewport : public QOpenGLWidget {
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
-    SceneSnapshot captureSceneSnapshot(bool camera, bool visibility, bool style, bool section) const;
+    SceneSnapshot captureSceneSnapshot(bool camera, bool visibility, bool style, bool section, bool solar = false) const;
     QJsonObject editSavedScenes(const QJsonArray &commands);
     QJsonObject editSections(const QJsonArray &commands);
     QJsonObject editAnnotations(const QJsonArray &commands);
@@ -186,6 +186,7 @@ class Viewport : public QOpenGLWidget {
     bool measurements(const QString &value);
     void setTheme(const ThemeColors &colors);
     void applyModelStyle(const ModelStyle &style);
+    void applyModelSolar(const SolarSettings &solar);
     QPointF project(Vec3 p) const;
     std::pair<Id, Id> pick(QPointF point) const;
     std::pair<Id, Id> pickEdge(QPointF point, double radius = 6) const;
@@ -251,14 +252,22 @@ class Viewport : public QOpenGLWidget {
         float br{r}, bg{g}, bb{b}, ba{a};
         float u{}, v{}, bu{}, bv{}, light{1}, dim{1};
         Id image{}, backImage{};
+        float backLight{1};
     };
     struct PackedVertex {
-        float x, y, z, r, g, b, a, br, bg, bb, ba, u, v, bu, bv, light, dim;
+        float x, y, z, r, g, b, a, br, bg, bb, ba, u, v, bu, bv, light, dim, backLight;
     };
     Document &doc_;
     ToolSession session_;
     ThemeColors colors_{themeColors(false)}; // Contrast colors derived from document background.
     std::optional<ModelStyle> displayedStyle_;
+    std::optional<SolarSettings> displayedSolar_;
+    SolarPosition displayedSun_;
+    void syncSolar();
+    float solarLight(Vec3 normal) const;
+    GLuint solarShadowTexture_{}, solarShadowFramebuffer_{};
+    void drawSolarShadowMap(const QMatrix4x4 &viewMatrix);
+    void cleanupSolarShadowMap();
     void syncModelStyle();
     void drawStyleGround(const QMatrix4x4 &transform);
     void drawStyleProfiles(const QMatrix4x4 &transform);

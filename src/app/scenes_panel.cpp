@@ -207,6 +207,7 @@ void ScenesPanel::edit(bool create, bool renameOnly) {
                             !record || record->snapshot.visibility.has_value());
     auto *style =
         flag("Model style", "savedSceneStyle", !record || record->snapshot.style.has_value());
+    auto *solar = flag("Sun study", "savedSceneSolar", !record || record->snapshot.solar.has_value());
     auto *section = flag("Section clipping", "savedSceneSection",
                          !record || record->snapshot.section.has_value());
     auto *hint = new QLabel("Checked properties are captured from the current view. Unchecked "
@@ -214,7 +215,7 @@ void ScenesPanel::edit(bool create, bool renameOnly) {
     hint->setWordWrap(true);
     form->addRow(hint);
     if (renameOnly) {
-        for (auto *box : {camera, visibility, style, section})
+        for (auto *box : {camera, visibility, style, section, solar})
             box->hide();
         hint->setText("Change the name of this saved view.");
     }
@@ -233,7 +234,7 @@ void ScenesPanel::edit(bool create, bool renameOnly) {
                 renameOnly
                     ? record->snapshot
                     : view_.captureSceneSnapshot(camera->isChecked(), visibility->isChecked(),
-                                                 style->isChecked(), section->isChecked());
+                                                 style->isChecked(), section->isChecked(), solar->isChecked());
             QJsonArray commands;
             if (create)
                 commands.append(QJsonObject{{"command", "saved_scene.create"},

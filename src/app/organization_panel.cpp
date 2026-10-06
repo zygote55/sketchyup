@@ -7,6 +7,7 @@
 #include "app/sections_panel.hpp"
 #include "app/annotations_panel.hpp"
 #include "app/text_panel.hpp"
+#include "app/solar_panel.hpp"
 #include "core/groups.hpp"
 #include <QAction>
 #include <QComboBox>
@@ -265,9 +266,12 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tabs_->addTab(annotations_, "Annotations");
     text_ = new TextPanel(doc_, view_);
     tabs_->addTab(text_, "3D Text");
+    solar_ = new SolarPanel(doc_, view_);
+    tabs_->addTab(solar_, "Sun");
     setFocusProxy(outliner_);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
-        setFocusProxy(index == 9 ? static_cast<QWidget *>(text_)
+        setFocusProxy(index == 10 ? static_cast<QWidget *>(solar_)
+                      : index == 9 ? static_cast<QWidget *>(text_)
                       : index == 8 ? static_cast<QWidget *>(annotations_)
                       : index == 7 ? static_cast<QWidget *>(sections_)
                       : index == 6 ? static_cast<QWidget *>(scenes_)
@@ -500,6 +504,7 @@ void OrganizationPanel::filter() {
 void OrganizationPanel::showMaterials() { tabs_->setCurrentWidget(materials_); }
 void OrganizationPanel::showStyles() { tabs_->setCurrentWidget(styles_); }
 void OrganizationPanel::showScenes() { tabs_->setCurrentWidget(scenes_); }
+void OrganizationPanel::showSolar() { tabs_->setCurrentWidget(solar_); }
 void OrganizationPanel::showText() { tabs_->setCurrentWidget(text_); }
 void OrganizationPanel::showAnnotations() { tabs_->setCurrentWidget(annotations_); }
 void OrganizationPanel::showSections() { tabs_->setCurrentWidget(sections_); }
@@ -614,6 +619,7 @@ void OrganizationPanel::refresh() {
     sections_->refresh();
     annotations_->refresh();
     text_->refresh();
+    solar_->refresh();
     // Save acknowledgements can move the saved marker without advancing content revision.
     history_->refresh(true);
 }
