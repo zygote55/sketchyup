@@ -10,6 +10,11 @@ case "$test_scale" in
   1|2) ;;
   *) echo 'SKETCHYUP_TEST_SCALE must be 1 or 2' >&2; exit 2 ;;
 esac
+if [[ -n ${SKETCHYUP_WAYLAND_CLIENT_LIBRARY:-} &&
+      ! -f "$SKETCHYUP_WAYLAND_CLIENT_LIBRARY/libwayland-client.so.0" ]]; then
+  echo 'Private Wayland client library is missing.' >&2
+  exit 2
+fi
 test_runtime=$(mktemp -d)
 trap 'rm -rf "$test_runtime"' EXIT
 export XDG_RUNTIME_DIR="$test_runtime"
@@ -26,6 +31,9 @@ timeout 60s weston --backend=headless --renderer=gl --fake-seat \
   --width="$((1600 * test_scale))" --height="$((1000 * test_scale))" \
   --scale="$test_scale" --idle-time=0 --socket="$WAYLAND_DISPLAY" \
   --no-config --log="$test_runtime/weston.log" -- bash -c '
+    if [[ -n ${SKETCHYUP_WAYLAND_CLIENT_LIBRARY:-} ]]; then
+      export LD_LIBRARY_PATH="$SKETCHYUP_WAYLAND_CLIENT_LIBRARY${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    fi
     "$@"
     test_status=$?
     printf "%s\n" "$test_status" > "$SKETCHYUP_TEST_EXIT_FILE"

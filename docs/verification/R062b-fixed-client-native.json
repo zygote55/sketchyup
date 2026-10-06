@@ -1,0 +1,45 @@
+[
+  {
+    "target": "style-input",
+    "platform": "wayland",
+    "scale": 1,
+    "exitCode": 0,
+    "seconds": 2.76
+  },
+  {
+    "target": "style-input",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 6.179
+  },
+  {
+    "target": "style-input",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 5.959
+  },
+  {
+    "target": "style-input",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 6.063
+  },
+  {
+    "target": "assistant-preview",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 3.667
+  },
+  {
+    "target": "native-mcp",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "rebuiltCurrentCatalogs": true,
+    "runFromBuildDirectory": true
+  }
+]
