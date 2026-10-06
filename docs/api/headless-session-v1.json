@@ -2073,6 +2073,66 @@
                                     {
                                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                                         "additionalProperties": false,
+                                        "description": "Create an editable gable roof with explicit vertical thickness",
+                                        "properties": {
+                                            "command": {
+                                                "const": "assembly.roof"
+                                            },
+                                            "depth": {
+                                                "default": 4,
+                                                "maximum": 100,
+                                                "minimum": 2,
+                                                "type": "number"
+                                            },
+                                            "origin": {
+                                                "items": {
+                                                    "maximum": 1000000,
+                                                    "minimum": -1000000,
+                                                    "type": "number"
+                                                },
+                                                "maxItems": 3,
+                                                "minItems": 3,
+                                                "type": "array"
+                                            },
+                                            "overhang": {
+                                                "default": 0.3,
+                                                "maximum": 2,
+                                                "minimum": 0,
+                                                "type": "number"
+                                            },
+                                            "pitchDegrees": {
+                                                "default": 30,
+                                                "maximum": 75,
+                                                "minimum": 5,
+                                                "type": "number"
+                                            },
+                                            "plateHeight": {
+                                                "default": 2.7,
+                                                "maximum": 20,
+                                                "minimum": 0.5,
+                                                "type": "number"
+                                            },
+                                            "verticalThickness": {
+                                                "default": 0.15,
+                                                "maximum": 1,
+                                                "minimum": 0.02,
+                                                "type": "number"
+                                            },
+                                            "width": {
+                                                "default": 6,
+                                                "maximum": 100,
+                                                "minimum": 2,
+                                                "type": "number"
+                                            }
+                                        },
+                                        "required": [
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
                                         "description": "Create a room with hosted reusable window assemblies",
                                         "properties": {
                                             "command": {

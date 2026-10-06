@@ -1,4 +1,6 @@
 #include "automation/model_recipes.hpp"
+#include "automation/recipe_builder.hpp"
+#include "automation/roof_recipe.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_validation.hpp"
@@ -21,61 +23,7 @@ QJsonArray matrix(Transform transform) {
 QJsonArray rectangle(double x0, double x1, double y, double z0, double z1) {
     return {point({x0, y, z0}), point({x1, y, z0}), point({x1, y, z1}), point({x0, y, z1})};
 }
-struct Builder {
-    Document &doc;
-    ModelRecipeResult result;
-    QJsonArray commands;
-    explicit Builder(Document &doc) : doc(doc) {}
-    QJsonObject run(QJsonObject command) {
-        if (command.value("command").toString().startsWith("assembly."))
-            fail("Recipes cannot expand recursively");
-        commands.append(command);
-        if (commands.size() > 100 ||
-            QJsonDocument(commands).toJson(QJsonDocument::Compact).size() > 64 * 1024)
-            fail("Recipe expansion exceeds bounded command budget");
-        auto receipt = executeBatch(doc,
-                                    {{"apiVersion", 1},
-                                     {"documentId", QString::fromStdString(doc.identity())},
-                                     {"expectedRevision", id(doc.revision())},
-                                     {"commands", QJsonArray{command}}},
-                                    BatchResponse::Changes);
-        result.steps.append(receipt);
-        doc = doc.readSnapshot(); // No accumulated scratch undo history between expansion steps.
-        return receipt;
-    }
-    Id created(QJsonObject command) {
-        const auto reply = run(command);
-        const auto ids = reply["created"].toArray();
-        if (ids.size() != 1)
-            fail("Expected one created recipe body");
-        return ids[0].toString().toULongLong();
-    }
-    void properties(Id body, QJsonObject values) {
-        run({{"command", "entity.properties"}, {"body", id(body)}, {"values", values}});
-    }
-    Id material(QString name, QJsonArray color, double opacity = 1) {
-        return run({{"command", "material.create"},
-                    {"name", name},
-                    {"color", color},
-                    {"opacity", opacity}})["createdMaterials"]
-            .toArray()[0]
-            .toString()
-            .toULongLong();
-    }
-    void paint(Id body, Id material) {
-        run({{"command", "material.assign"},
-             {"body", id(body)},
-             {"material", id(material)},
-             {"side", "both"}});
-    }
-    ModelRecipeResult finish(QJsonObject report) {
-        report["expandedCommands"] = commands;
-        result.report = report;
-        if (QJsonDocument(result.report).toJson(QJsonDocument::Compact).size() > 128 * 1024)
-            fail("Recipe report exceeds bound");
-        return std::move(result);
-    }
-};
+using Builder = RecipeBuilder;
 double number(const QJsonObject &request, const char *key, double fallback) {
     return request.value(key).toDouble(fallback);
 }
@@ -842,6 +790,8 @@ ModelRecipeResult resizeWindow(Document &doc, const QJsonObject &command) {
 ModelRecipeResult executeModelRecipe(Document &doc, const QJsonObject &command) {
     inspection_detail::validateParameters(
         command, commandDescription(command.value("command").toString())["parameters"].toObject());
+    if (command.value("command") == "assembly.roof")
+        return executeRoofRecipe(doc, command);
     if (command.value("command") == "assembly.room")
         return room(doc, command);
     if (command.value("command") == "assembly.room.adopt_hosted")

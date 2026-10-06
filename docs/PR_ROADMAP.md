@@ -920,7 +920,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R060 — Complete solid metrics and advanced assembly recipes
 
-**Status:** In progress. R060.a implements bounded final-state `assert.measurement` postconditions using validated volume and existing frame-aware measurements ([contract](decisions/0055-geometric-assertions.md), [evidence](verification/R060a-geometric-assertions.md)); all 95 development suites, targeted sanitizers, native assistant and installed CLI checks pass. Assembly recipes and the M6 acceptance gate remain pending. **Track:** Automation. **Scope:** O06, A07, A08. **UX:** —.
+**Status:** In progress. R060.a ([PR #120](https://github.com/zygote55/sketchyup/pull/120)) implements bounded final-state `assert.measurement` postconditions using validated volume and existing frame-aware measurements ([contract](decisions/0055-geometric-assertions.md), [evidence](verification/R060a-geometric-assertions.md)); all 95 development suites, targeted sanitizers, native assistant and installed CLI checks pass. R060.b adds the editable gable roof with explicit pitch, overhang and vertical thickness, analytic completion assertions, native before/after fixtures and preserved adopted-room content ([contract](decisions/0056-gable-roof-recipe.md), [evidence](verification/R060b-roof-recipe.md)); all 96 development suites, targeted sanitizers, four native display variants and installed examples pass. Stairs, table/cabinet, site placement and the M6 acceptance gate remain pending. **Track:** Automation. **Scope:** O06, A07, A08. **UX:** —.
 
 **Requires:** [R058](#r058), [R059](#r059), [R053](#r053); milestone gate rule above.
 

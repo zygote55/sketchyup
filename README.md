@@ -211,7 +211,7 @@ as PNG. Blender is optional. See [render evidence](docs/verification/R050-native
 
 The [M5 acceptance procedure](docs/M5_ACCEPTANCE.md) describes the reproducible
 room/window workflow, retained evidence, live provider corpus and package setup.
-The live gate remains open.
+The [M5 gate is complete](docs/verification/M5.md); M6 advanced modeling is in progress.
 
 ## Headless commands
 
@@ -256,6 +256,12 @@ sketchyup-cli --recipe examples/room-window-resize-recipe-v1.json --new \
 Window dimensions are outer-frame dimensions. The room-only variant is
 `examples/room-recipe-v1.json`; installed recipes live under
 `/usr/share/doc/sketchyup/examples/`.
+
+The [gable roof recipe](docs/decisions/0056-gable-roof-recipe.md) adds an editable
+closed slab with explicit pitch in degrees, overhang and vertical thickness.
+`assembly.roof` preserves existing room/window content and verifies its volume,
+area and bounds before publication. Run `examples/roof-recipe-v1.json` to create
+and save the default room with its roof; native before/after files are also shipped.
 
 See the [recipe contract](docs/decisions/0027-transaction-recipes.md) and
 `--recipe-capabilities`. A local MCP stdio client can use `--mcp` with the same
