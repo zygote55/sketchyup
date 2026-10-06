@@ -1,7 +1,8 @@
 # 0054 — Explicit face frames and hosted component openings
 
-Status: R059.a immutable placement frame locally verified. Persistent bindings,
-opening maintenance and native/automation workflows follow in separate layers.
+Status: R059.a immutable placement frame and R059.b immutable opening geometry
+locally verified. Persistent bindings, opening maintenance and native/automation
+workflows follow in separate layers.
 
 ## Face placement
 
@@ -39,3 +40,37 @@ off-plane anchors, anchors outside material and invalid placement transforms. No
 failure mutates source geometry or consumes identities. This kernel makes no
 promise yet about save/reopen bindings, moving/deleting a hosted component,
 definition replacement, opening regeneration or user-facing placement controls.
+
+## Bounded through openings
+
+`cutHostedOpening` cuts one simple, host-local outline through a closed solid's
+selected face. It chooses the nearest parallel opposing face that fully contains
+the outline, then checks the entire swept prism for intervening geometry. This
+supports a wall between an outer shell and an enclosed room cavity without cutting
+the opposite room wall. Sloped exits, incomplete coverage, crossed interior walls
+and intervening cavities reject explicitly; host bounding-box depth is never used.
+
+The outline needs four modeling tolerances of clearance from the selected and exit
+face boundaries, including all existing holes. Full polygon containment, rather
+than corner-only checks, rejects outlines bridging concave voids or enclosing an
+existing hole. Input winding is independent of component mirroring. Coordinates
+within plane tolerance snap only along the selected face normal. The tunnel follows
+that local normal; a body's later placement transform applies to the entire result.
+
+Both host faces retain their IDs and gain a hole loop; original vertices and all
+unrelated face records remain unchanged. Explicit new jamb IDs and entry-face
+lineage support later appearance transfer. The helper assigns no materials. Rebuilding
+topology against the previous topology preserves original edge identities.
+
+The input and result must pass closed-shell analysis with outward material and
+inward cavity boundaries. A checked material-volume difference agrees with the
+profile-area/depth prism within triangulation precision. A globally inverted host
+must be explicitly oriented before this directional operation. Open sheets and
+edge-touching notches are outside this through-wall kernel.
+
+Preflight reserves output space within 1,000 faces, 10,000 vertices, 32,000 total
+corners, 4,096 corners per loop and 64 loops per face. Outlines have 3–256 corners;
+containment/sweep clipping has a four-million work budget. Existing bounded solid
+analysis applies independently. Every failure leaves source geometry and identity
+allocators untouched. Multiple nonoverlapping cuts are supported, but storing the
+uncut host and regenerating cuts after component edits remains subsequent work.
