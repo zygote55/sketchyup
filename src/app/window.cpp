@@ -696,7 +696,9 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         organization_->showSolar();
     }));
     view->addAction(action("view.reference_images", "Reference images", {}, [this] {
-        sideTabs_->show(); sideTabs_->setCurrentWidget(tray_); tray_->show();
+        sideTabs_->show();
+        sideTabs_->setCurrentWidget(tray_);
+        tray_->show();
         findChild<QAction *>("view.tray")->setChecked(true);
         organization_->showReferenceImages();
     }));

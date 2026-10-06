@@ -42,14 +42,18 @@ void Viewport::prepareSections(Id body, BodyCache &cache) {
         std::vector<size_t> indices;
         for (size_t i = 0; i < cache.worldTriangles.size(); ++i) {
             const auto &triangle = cache.worldTriangles[i];
-            if (visible({body, doc_.bodies().at(body)->referenceImage ? SelectionKind::Body : SelectionKind::Face, triangle.face})) {
+            if (visible({body,
+                         doc_.bodies().at(body)->referenceImage ? SelectionKind::Body
+                                                                : SelectionKind::Face,
+                         triangle.face})) {
                 source.push_back(triangle);
                 indices.push_back(i);
             }
         }
         cache.sectionMesh = sectionMesh(source, cache.sectionCuts);
         if (doc_.bodies().at(body)->referenceImage) {
-            std::erase_if(cache.sectionMesh.triangles, [](const auto &t) { return t.source == noSectionSource; });
+            std::erase_if(cache.sectionMesh.triangles,
+                          [](const auto &t) { return t.source == noSectionSource; });
             cache.sectionMesh.edges.clear();
             cache.sectionMesh.unfilledSections.clear();
         }

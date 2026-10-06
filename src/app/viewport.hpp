@@ -154,7 +154,8 @@ class Viewport : public QOpenGLWidget {
     QJsonObject editSavedScenes(const QJsonArray &commands);
     QJsonObject editSections(const QJsonArray &commands);
     QJsonObject editAnnotations(const QJsonArray &commands);
-    void importReferenceImage(const QByteArray &data, const QString &mediaType, const QString &name, double width, double height);
+    void importReferenceImage(const QByteArray &data, const QString &mediaType, const QString &name,
+                              double width, double height);
     void editReferenceImages(const QJsonArray &commands);
     void applyTextEdit(const Document::PreparedEdit &edit);
     void recallSavedScene(Id scene);
@@ -296,7 +297,8 @@ class Viewport : public QOpenGLWidget {
     std::map<Id, GLuint> textureGpu_;
     size_t textureFallbacks_{}, textureMappingFallbacks_{};
     static std::vector<Triangle> displayTriangles(const Body &body);
-    void referenceVertices(const Body &body, const Triangle &local, std::array<Vertex, 3> &vertices) const;
+    void referenceVertices(const Body &body, const Triangle &local,
+                           std::array<Vertex, 3> &vertices) const;
     void syncTextures();
     struct TextureProjection {
         Id image{};
