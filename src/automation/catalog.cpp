@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/solar_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "automation/scene_commands.hpp"
@@ -226,8 +227,10 @@ QJsonArray commandCatalog() {
              {{"order", list(stableId(), 0, 256)}}, {"order"}),
         spec("saved_scene.delete", "Delete a saved scene", "Saved scenes",
              {{"scene", stableId()}}, {"scene"}),
-        spec("saved_scene.recall", "Recall saved model style, visibility and named sections", "Saved scenes",
+        spec("saved_scene.recall", "Recall saved model style, sun study, visibility and named sections", "Saved scenes",
              {{"scene", stableId()}}, {"scene"}),
+        spec("document.solar", "Change offline sun study", "Document",
+             {{"solar", solarSettingsSchema()}}, {"solar"}),
         spec("document.style", "Change model style", "Document",
              {{"style", modelStyleSchema()}}, {"style"}),
         spec("document.units", "Change document units", "Document",

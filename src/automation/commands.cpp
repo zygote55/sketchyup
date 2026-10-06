@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
+#include "io/solar_io.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
@@ -291,6 +292,7 @@ QJsonObject describe(const Document &doc) {
             {"units", "m"},
             {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
             {"style", encodeModelStyle(doc.style())},
+            {"solar", encodeSolarSettings(doc.solar())},
             {"bodies", bodies},
             {"definitions", definitions},
             {"instances", instances},
@@ -687,6 +689,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             executeSectionCommand(staged, command);
         } else if (isSavedSceneCommand(name)) {
             executeSavedSceneCommand(staged, command);
+        } else if (name == "document.solar") {
+            staged.setSolar(decodeSolarSettings(command["solar"]));
         } else if (name == "document.style") {
             staged.setStyle(decodeModelStyle(command["style"]));
         } else if (name == "document.units") {
