@@ -100,6 +100,9 @@ int main(int argc, char **argv) {
         root["version"] = 11;
         root.remove("style");
         root.remove("scenes");
+        root.remove("sections");
+        root.remove("nextSectionId");
+        root.remove("activeSections");
         root.remove("nextSceneId");
         root.remove("hosted");
         auto legacyBodies = root["bodies"].toArray();

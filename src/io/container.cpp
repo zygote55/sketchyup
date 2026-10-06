@@ -31,7 +31,7 @@ void fields(const QJsonObject &object, const QStringList &expected) {
 }
 QJsonObject floors(const Document &doc, bool topology = true, bool components = false,
                    bool tags = false, bool materials = false, bool assets = false,
-                   bool scenes = false) {
+                   bool scenes = false, bool sections = false) {
     QJsonObject surfaces, edges;
     for (const auto &[id, body] : doc.bodies()) {
         surfaces[QString::number(id)] = QString::number(body->surface.nextId);
@@ -40,6 +40,8 @@ QJsonObject floors(const Document &doc, bool topology = true, bool components = 
     QJsonObject result{{"body", QString::number(doc.nextId())}, {"surfaces", surfaces}};
     if (topology)
         result["edges"] = edges;
+    if (sections)
+        result["nextSectionId"] = QString::number(doc.nextSectionId());
     if (scenes)
         result["nextSceneId"] = QString::number(doc.nextSceneId());
     if (assets)
@@ -68,7 +70,7 @@ QByteArray encodeContainer(const Document &doc) {
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
-                                  {"encoding", "json-v18"},
+                                  {"encoding", "json-v19"},
                                   {"offset", "0"},
                                   {"bytes", QString::number(document.size())},
                                   {"sha256", hash(document)}}};
@@ -100,8 +102,8 @@ QByteArray encodeContainer(const Document &doc) {
                                               "groups-v1", "face-colors-v1", "components-v1",
                                               "tags-v1", "materials-v1", "assets-v1",
                                               "display-units-v1", "edge-appearance-v1",
-                                              "component-glue-v1", "hosted-components-v1", "texture-mapping-v1", "model-style-v1", "saved-scenes-v1"}},
-                                  {"allocatorFloors", floors(doc, true, true, true, true, true, true)},
+                                              "component-glue-v1", "hosted-components-v1", "texture-mapping-v1", "model-style-v1", "saved-scenes-v1", "section-planes-v1"}},
+                                  {"allocatorFloors", floors(doc, true, true, true, true, true, true, true)},
                                   {"assets", assets},
                                   {"chunks", chunks}})
             .toJson(QJsonDocument::Compact);
@@ -138,7 +140,12 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    const bool savedScenes = features == std::set<QString>{
+    const bool sections = features == std::set<QString>{
+        "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
+        "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
+        "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
+        "model-style-v1", "saved-scenes-v1", "section-planes-v1"};
+    const bool savedScenes = sections || features == std::set<QString>{
         "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
         "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
         "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
@@ -230,7 +237,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (savedScenes ? "json-v18"
+        chunk["encoding"] != (sections ? "json-v19"
+                              : savedScenes ? "json-v18"
                               : modelStyle ? "json-v17"
                               : textureMapping ? "json-v16"
                               : hostedComponents ? "json-v15"
@@ -275,7 +283,8 @@ Document decodeContainer(const QByteArray &bytes) {
     if (cursor != total)
         throw std::runtime_error("Trailing or unreferenced container data");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != (savedScenes ? 18
+    if (payloadTree["version"] != (sections ? 19
+                                   : savedScenes ? 18
                                    : modelStyle ? 17
                                    : textureMapping ? 16
                                    : hostedComponents ? 15
@@ -300,7 +309,7 @@ Document decodeContainer(const QByteArray &bytes) {
         throw std::runtime_error("Asset manifest disagrees with document");
     if (manifest["documentId"] != QString::fromStdString(doc.identity()) ||
         integer(manifest["revision"]) != doc.revision() ||
-        manifest["allocatorFloors"] != floors(doc, topology, components, tags, materials, assets, savedScenes))
+        manifest["allocatorFloors"] != floors(doc, topology, components, tags, materials, assets, savedScenes, sections))
         throw std::runtime_error("Container metadata disagrees with document");
     return doc;
 }
