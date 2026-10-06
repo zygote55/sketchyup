@@ -1,0 +1,50 @@
+{
+  "blender": "5.2.1 LTS",
+  "reports": [
+    {
+      "rotationDegrees": 0,
+      "strength": 1,
+      "mean": [
+        0.9063113396987319,
+        0.24773285817354918,
+        0.24803923070430756,
+        1.0
+      ],
+      "originalRemovedBeforeRender": true
+    },
+    {
+      "rotationDegrees": 180,
+      "strength": 1,
+      "mean": [
+        0.24803923070430756,
+        0.24773285817354918,
+        0.9063113396987319,
+        1.0
+      ],
+      "originalRemovedBeforeRender": true
+    },
+    {
+      "rotationDegrees": 0,
+      "strength": 0.25,
+      "mean": [
+        0.48419120721518993,
+        0.11488971393555403,
+        0.11507353745400906,
+        1.0
+      ],
+      "originalRemovedBeforeRender": true
+    },
+    {
+      "rotationDegrees": 0,
+      "strength": 0,
+      "mean": [
+        0.00042892159399343655,
+        0.00042892159399343655,
+        0.00042892159399343655,
+        1.0
+      ],
+      "originalRemovedBeforeRender": true
+    }
+  ],
+  "invalidSnapshotsRejected": 8
+}
