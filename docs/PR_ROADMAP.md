@@ -946,7 +946,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R062 — Implement viewport styles and display controls
 
-**Status:** In progress. R062.a ([PR #134](https://github.com/zygote55/sketchyup/pull/134)) prepares document-owned model styles, atomic history/snapshot semantics, schema 17 persistence and strict migration from historical textured files ([contract](decisions/0068-model-styles.md)). All 108 regression suites, 11 sanitizer suites, four native checks and 15 installed migration/export cases pass ([evidence](verification/R062a-model-styles.md)). R062.b adds all five native display modes, profiles, background/ground/grid/axes controls, shared style commands and inspection, and an undoable Styles panel ([contract](decisions/0069-native-model-styles.md)). All 109 regression suites, 44 native checks, targeted sanitizer suites and installed/schema checks pass ([evidence](verification/R062b-native-styles.md)). R062 delivery awaits dependency checks and the M6 gate. **Track:** Desktop. **Scope:** P02. **UX:** §5, §7.
+**Status:** In progress. R062.a ([PR #134](https://github.com/zygote55/sketchyup/pull/134)) prepares document-owned model styles, atomic history/snapshot semantics, schema 17 persistence and strict migration from historical textured files ([contract](decisions/0068-model-styles.md)). All 108 regression suites, 11 sanitizer suites, four native checks and 15 installed migration/export cases pass ([evidence](verification/R062a-model-styles.md)). R062.b ([PR #135](https://github.com/zygote55/sketchyup/pull/135)) adds all five native display modes, profiles, background/ground/grid/axes controls, shared style commands and inspection, and an undoable Styles panel ([contract](decisions/0069-native-model-styles.md)). All 109 regression suites, 44 native checks, targeted sanitizer suites and installed/schema checks pass ([evidence](verification/R062b-native-styles.md)). R062 delivery awaits dependency checks and the M6 gate. **Track:** Desktop. **Scope:** P02. **UX:** §5, §7.
 
 **Requires:** [R057](#r057), [R011](#r011); milestone gate rule above.
 
@@ -958,7 +958,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R063 — Implement named scenes and saved view state
 
-**Status:** Planned. **Track:** Core. **Scope:** P03. **UX:** §3.1, §5.
+**Status:** In progress. R063.a prepares immutable selective scene records, stable ordering, atomic Undo/Redo, missing-reference diagnostics and schema-18 persistence ([contract](decisions/0070-saved-scene-records.md)). All 111 regression suites and seven sanitizer suites pass; installed migration checks cover all 15 property combinations, retained missing references and exact uint64 IDs ([evidence](verification/R063a-saved-scenes.md)). Shared authoring/inspection, selective recall and native scene controls remain in progress; delivery awaits these workflows, dependency checks and the M6 gate. **Track:** Core. **Scope:** P03. **UX:** §3.1, §5.
 
 **Requires:** [R062](#r062), [R034](#r034); milestone gate rule above.
 
