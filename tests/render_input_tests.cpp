@@ -380,6 +380,7 @@ int main(int argc, char **argv) {
             panel.start(settings, worker, false);
             check(QTest::qWaitFor([&] { return !panel.active(); }),
                   "Leave verified image for window restart");
+            check(doc.markSaved(doc.saveStamp()), "Mark disposable fixture saved before closing");
             window.close();
         }
         {
