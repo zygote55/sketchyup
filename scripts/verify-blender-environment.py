@@ -92,6 +92,18 @@ for key, value in [('sha256', '0' * 64), ('width', 8192), ('strength', float('na
         raise AssertionError('Invalid environment accepted')
     except worker.WorkerError as error:
         assert error.code == 'invalid_snapshot'
-result = {'blender': bpy.app.version_string, 'reports': reports, 'invalidSnapshotsRejected': 5}
+for malformed in (data.replace(b'-Y 32 +X 64', b'-Y 100000 +X 200000'),
+                  data.replace(b'FORMAT=32-bit_rle_rgbe', b'FORMAT=32-bit_rle_xyze'),
+                  data.replace(b'-Y 32 +X 64', b'+Y 32 +X 64')):
+    (root / 'environment.hdr').write_bytes(malformed)
+    bad = copy.deepcopy(metadata)
+    bad['bytes'], bad['sha256'] = len(malformed), hashlib.sha256(malformed).hexdigest()
+    try:
+        worker.configure_lighting({'environment': bad}, root)
+        raise AssertionError('Forged HDR dimensions or format reached decoder')
+    except worker.WorkerError as error:
+        assert error.code == 'invalid_snapshot'
+(root / 'environment.hdr').write_bytes(data)
+result = {'blender': bpy.app.version_string, 'reports': reports, 'invalidSnapshotsRejected': 8}
 (root / 'environment-blender-validation.json').write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps(result))
