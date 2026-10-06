@@ -364,8 +364,9 @@ have UV mapping or texture rendering. Materials offers Attach file, Replace file
 for unused resources. New/edit dialogs can also bind an existing stored file.
 
 `entity.inspect` reports world, parent and intrinsic bounds, lengths and areas.
-Volume is present only after bounded single-shell solid validation; open, invalid,
-multiple-record/shell or unclassified geometry returns null volume with a reason.
+Volume is present only after bounded material-solid validation, including enclosed
+cavities. Open, invalid, multiple-record or disconnected material geometry returns
+null volume with a reason.
 `entity.position` and `entity.dimensions` edit real placement/geometry in world or
 parent coordinates. Intrinsic measurements remain separate from placement scale.
 `entity.properties` stores typed semantic values for recipes. See the
@@ -450,9 +451,12 @@ Make Unique first for an independent edit.
 choice retains the exact sources or consumes them in the same Undo item. Outputs
 inherit source face colors and correctly oriented front/back materials; receipts
 identify the generated bodies and each source face. Enter group containers before
-choosing their raw solids. Enclosed cavity results currently reject. See the
+choosing their raw solids. Enclosed cavity boundaries stay with their surrounding
+material solid; islands inside cavities become separate output bodies. See the
 [Boolean contract](docs/decisions/0046-solid-booleans.md) and
-[executable example](examples/solid-boolean.json).
+[executable example](examples/solid-boolean.json). The
+[enclosed-cavity example](examples/enclosed-cavity.json) produces a 7 m³ hollow
+solid from an 8 m³ cube and a 1 m³ internal cutter.
 
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected
 path edges. Use Select and Ctrl-click to add the face and path, then Shift+F to

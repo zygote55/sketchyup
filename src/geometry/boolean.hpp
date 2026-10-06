@@ -32,6 +32,6 @@ struct BooleanResult {
     double volume{};
 };
 // Immutable bounded solid adapter. Inputs share one coordinate frame. Disconnected
-// positive shells become separate parts; enclosed cavity shells reject explicitly.
+// material components become separate parts with their enclosed cavity boundaries.
 BooleanResult booleanSolids(const Surface &a, const Surface &b, BooleanOperation operation);
 } // namespace sketchy

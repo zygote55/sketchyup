@@ -400,9 +400,111 @@ BooleanPart restore(const manifold::Manifold &solid, const Surface &a, const Sur
     double area{};
     for (const auto &[id, face] : part.surface.faces)
         area += part.surface.area(id);
-    if (std::abs(part.volume - solid.Volume()) > std::max(area * tolerance * 4, part.volume * 1e-9))
+    if (std::abs(part.volume - std::abs(solid.Volume())) >
+        std::max(area * tolerance * 4, part.volume * 1e-9))
         fail("BOOLEAN_OUTPUT", "Reconstructed Boolean volume differs from the adapter result");
     return part;
+}
+// Append a whole boundary without welding identities across independent shells.
+// Face provenance follows its newly allocated native identity.
+void appendShell(BooleanPart &target, const BooleanPart &source) {
+    if (target.surface.vertices.size() + source.surface.vertices.size() > outputVertices)
+        fail("BOOLEAN_LIMIT", "Cavity result exceeds the native vertex limit");
+    std::map<Id, Id> vertices;
+    for (const auto &[id, point] : source.surface.vertices) {
+        const auto next = target.surface.nextId++;
+        target.surface.vertices.emplace(next, point);
+        vertices[id] = next;
+    }
+    for (const auto &[id, face] : source.surface.faces) {
+        auto loops = face.loops;
+        for (auto &loop : loops)
+            for (auto &vertex : loop)
+                vertex = vertices.at(vertex);
+        const auto next = target.surface.addFaceIds(std::move(loops));
+        target.sources[next] = source.sources.at(id);
+    }
+}
+std::pair<Vec3, Vec3> bounds(const Surface &surface) {
+    auto low = surface.vertices.begin()->second, high = low;
+    for (const auto &[id, p] : surface.vertices) {
+        low = {std::min(low.x, p.x), std::min(low.y, p.y), std::min(low.z, p.z)};
+        high = {std::max(high.x, p.x), std::max(high.y, p.y), std::max(high.z, p.z)};
+    }
+    return {low, high};
+}
+auto order(const BooleanPart &part) {
+    const auto low = bounds(part.surface).first;
+    return std::tuple{low.x, low.y, low.z, part.volume};
+}
+bool boundsContain(const Surface &outer, const Surface &inner) {
+    const auto [a, b] = bounds(outer);
+    const auto [c, d] = bounds(inner);
+    return a.x <= c.x + tolerance && a.y <= c.y + tolerance && a.z <= c.z + tolerance &&
+           b.x >= d.x - tolerance && b.y >= d.y - tolerance && b.z >= d.z - tolerance;
+}
+void attachCavities(std::vector<BooleanPart> &parts, std::vector<BooleanPart> &cavities) {
+    std::sort(cavities.begin(), cavities.end(),
+              [](const auto &a, const auto &b) { return order(a) < order(b); });
+    // Analyze original positive boundaries, before adding any cavities. This
+    // keeps independent positive point/edge contacts out of a combined topology.
+    std::vector<std::vector<size_t>> children(parts.size());
+    std::vector<size_t> triangles;
+    for (const auto &part : parts)
+        triangles.push_back(part.surface.triangles().size());
+    size_t pairBudget = 4000000;
+    for (size_t cavity = 0; cavity < cavities.size(); ++cavity) {
+        const auto &negative = cavities[cavity];
+        const auto negativeTriangles = negative.surface.triangles().size();
+        std::optional<size_t> parent;
+        for (size_t candidate = 0; candidate < parts.size(); ++candidate) {
+            const auto &positive = parts[candidate];
+            if (!boundsContain(positive.surface, negative.surface))
+                continue;
+            const auto count = triangles[candidate] + negativeTriangles;
+            const auto cost = count * count + 4 * count;
+            if (cost > pairBudget)
+                fail("BOOLEAN_LIMIT", "Cavity containment exceeds the native pair work budget");
+            pairBudget -= cost;
+            auto combined = positive;
+            appendShell(combined, negative);
+            const auto analysis =
+                analyzeSolidShells(combined.surface, Topology::rebuild(combined.surface, {}));
+            if (analysis.report.status != "validated_shells")
+                throw BooleanError("BOOLEAN_OUTPUT",
+                                   "Cavity containment: " + analysis.report.status, -1,
+                                   analysis.report);
+            if (analysis.shells.size() != 2)
+                fail("BOOLEAN_OUTPUT", "Adapter component is not one connected boundary");
+            if (analysis.shells[1].parent == 0 &&
+                (!parent || positive.volume < parts[*parent].volume))
+                parent = candidate;
+        }
+        if (!parent)
+            fail("BOOLEAN_OUTPUT", "Cavity has no enclosing positive material boundary");
+        children[*parent].push_back(cavity);
+    }
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (children[i].empty())
+            continue;
+        auto &part = parts[i];
+        double expected = part.volume;
+        for (auto index : children[i]) {
+            appendShell(part, cavities[index]);
+            expected -= cavities[index].volume;
+        }
+        part.surface.validate();
+        const auto report = inspectSolid(part.surface, Topology::rebuild(part.surface, {}));
+        if (report.status != "solid")
+            throw BooleanError("BOOLEAN_OUTPUT", "Reconstructed cavity solid: " + report.status, -1,
+                               report);
+        double area{};
+        for (const auto &[face, record] : part.surface.faces)
+            area += part.surface.area(face);
+        part.volume = *report.volume;
+        if (std::abs(part.volume - expected) > std::max(area * tolerance * 4, part.volume * 1e-9))
+            fail("BOOLEAN_OUTPUT", "Cavity reconstruction changed material volume");
+    }
 }
 } // namespace
 BooleanResult booleanSolids(const Surface &a, const Surface &b, BooleanOperation operation) {
@@ -445,29 +547,31 @@ BooleanResult booleanSolids(const Surface &a, const Surface &b, BooleanOperation
     const auto shells = result.Decompose();
     if (shells.size() > 64)
         fail("BOOLEAN_LIMIT", "Boolean result exceeds 64 disconnected shells");
-    for (const auto &shell : shells)
-        if (shell.Volume() < 0)
-            fail("BOOLEAN_CAVITY", "Enclosed cavity shells require native containment support");
     try {
+        std::vector<BooleanPart> cavities;
         for (const auto &shell : shells)
-            if (shell.Volume() != 0)
-                out.parts.push_back(restore(shell, a, b, frame, first, reversed));
+            if (shell.Volume() != 0) {
+                auto part = restore(shell, a, b, frame, first, reversed);
+                (shell.Volume() < 0 ? cavities : out.parts).push_back(std::move(part));
+            }
+        if (!cavities.empty())
+            attachCavities(out.parts, cavities);
     } catch (const BooleanError &) {
         throw;
     } catch (const std::exception &e) {
         fail("BOOLEAN_OUTPUT", e.what());
     }
     // Stable part ordering uses world bounds, independent of adapter global IDs.
-    auto key = [](const BooleanPart &part) {
-        auto low = part.surface.vertices.begin()->second;
-        for (const auto &[id, p] : part.surface.vertices)
-            low = {std::min(low.x, p.x), std::min(low.y, p.y), std::min(low.z, p.z)};
-        return std::tuple{low.x, low.y, low.z, part.volume};
-    };
     std::sort(out.parts.begin(), out.parts.end(),
-              [&](const auto &x, const auto &y) { return key(x) < key(y); });
+              [](const auto &x, const auto &y) { return order(x) < order(y); });
     for (const auto &part : out.parts)
         out.volume += part.volume;
+    double area{};
+    for (const auto &part : out.parts)
+        for (const auto &[face, record] : part.surface.faces)
+            area += part.surface.area(face);
+    if (std::abs(out.volume - result.Volume()) > std::max(area * tolerance * 4, out.volume * 1e-9))
+        fail("BOOLEAN_OUTPUT", "Reconstructed material volume differs from the adapter result");
     return out;
 }
 } // namespace sketchy

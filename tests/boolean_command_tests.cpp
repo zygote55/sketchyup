@@ -2,6 +2,7 @@
 #include "automation/session.hpp"
 #include "core/appearance.hpp"
 #include "core/components.hpp"
+#include "core/entity_measure.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
 #include "core/solid_boolean.hpp"
@@ -234,6 +235,88 @@ int main(int argc, char **argv) {
               "Scoped Undo restores operands");
         component.redo();
         near(volume(component, scopedBody), 4, "Scoped Redo restores result");
+        // Inverse-transpose normals are an independent physical-side oracle:
+        // rendering preserves the physical front under reflected placements.
+        auto physicalNormal = [](const Document &scene, Id body, Id face) {
+            const auto n = scene.bodies().at(body)->surface.normal(face);
+            const auto inverse = scene.worldTransform(body).inverse();
+            return normalized(Vec3{inverse.m[0] * n.x + inverse.m[1] * n.y + inverse.m[2] * n.z,
+                                   inverse.m[4] * n.x + inverse.m[5] * n.y + inverse.m[6] * n.z,
+                                   inverse.m[8] * n.x + inverse.m[9] * n.y + inverse.m[10] * n.z});
+        };
+        for (unsigned mirrors = 1; mirrors <= 3; ++mirrors) {
+            Document mirrored;
+            const auto outer = box(mirrored), inner = box(mirrored, {.5, .5, .5}, {1, 1, 1});
+            const auto reflection =
+                Transform::translation({2, 0, 0}) * Transform::scaling({-1, 1, 1});
+            if (mirrors & 1)
+                mirrored.transform(outer, reflection);
+            if (mirrors & 2)
+                mirrored.transform(inner, reflection);
+            const auto front = createMaterial(mirrored, "Physical front", {.8f, .1f, .1f});
+            const auto back = createMaterial(mirrored, "Physical back", {.1f, .1f, .8f});
+            for (auto body : {outer, inner}) {
+                assignMaterial(mirrored, body, {}, front, true, false);
+                assignMaterial(mirrored, body, {}, back, false, true);
+            }
+            const auto receipt = executeBatch(mirrored, batch(mirrored, {command(outer, inner)}));
+            const auto body = output(receipt);
+            near(volume(mirrored, body), 7, "Independently mirrored operand cavity volume");
+            for (auto value : part(receipt)["faces"].toArray()) {
+                const auto mapping = value.toObject();
+                const auto face = mapping["face"].toString().toULongLong();
+                const auto sourceBody = mapping["sourceBody"].toString().toULongLong();
+                const auto sourceFace = mapping["sourceFace"].toString().toULongLong();
+                const bool reversed = dot(physicalNormal(mirrored, body, face),
+                                          physicalNormal(mirrored, sourceBody, sourceFace)) < 0;
+                const auto appearance = faceMaterials(*mirrored.bodies().at(body), face);
+                check(mapping["reversed"].toBool() == reversed &&
+                          appearance.front == (reversed ? back : front) &&
+                          appearance.back == (reversed ? front : back),
+                      "Reflected operand provenance/materials preserve physical front and back");
+            }
+        }
+        Document cavityDoc;
+        const auto outerBody = box(cavityDoc), innerBody = box(cavityDoc, {.5, .5, .5}, {1, 1, 1});
+        const auto innerFront = createMaterial(cavityDoc, "Cavity front", {.9f, .1f, .2f});
+        const auto innerBack = createMaterial(cavityDoc, "Cavity back", {.1f, .8f, .2f});
+        assignMaterial(cavityDoc, innerBody, {}, innerFront, true, false);
+        assignMaterial(cavityDoc, innerBody, {}, innerBack, false, true);
+        const auto innerRecord = cavityDoc.bodies().at(innerBody);
+        const auto cavityRequest =
+            batch(cavityDoc, {command(outerBody, innerBody, "subtract", false)});
+        const auto cavityPreview = previewBatch(cavityDoc, cavityRequest);
+        const auto cavityResult = executeBatch(cavityDoc, cavityRequest);
+        const auto cavityBody = output(cavityResult);
+        check(cavityPreview["booleans"] == cavityResult["booleans"] &&
+                  cavityDoc.bodies().size() == 1,
+              "Cavity preview and consumed publication have identical mappings");
+        volume(cavityDoc, cavityBody);
+        const auto measured = measureEntity(cavityDoc, {cavityBody, SelectionKind::Body, 0});
+        check(measured.solid.status == "solid" && measured.world.volume &&
+                  std::abs(*measured.world.volume - 7) < 1e-6,
+              "Entity measurement reports cavity material volume, not filled outer volume");
+        size_t cavityFaces{};
+        for (auto value : part(cavityResult)["faces"].toArray()) {
+            const auto face = value.toObject();
+            if (face["sourceBody"] != QString::number(innerBody))
+                continue;
+            ++cavityFaces;
+            const auto materials = faceMaterials(*cavityDoc.bodies().at(cavityBody),
+                                                 face["face"].toString().toULongLong());
+            check(face["reversed"].toBool() && materials.front == innerBack &&
+                      materials.back == innerFront,
+                  "Enclosed cutter front/back materials reverse with cavity face winding");
+        }
+        check(cavityFaces == 6, "Every enclosed cutter face survives as a cavity boundary");
+        reopened = decodeContainer(encodeContainer(cavityDoc));
+        check(encodeDocument(reopened) == encodeDocument(cavityDoc),
+              "Cavity topology/materials persist exactly");
+        cavityDoc.undo();
+        check(cavityDoc.bodies().at(innerBody) == innerRecord,
+              "Cavity Undo restores consumed tool and materials");
+        cavityDoc.redo();
+        near(volume(cavityDoc, cavityBody), 7, "Cavity Redo retains material volume");
         Document invalid;
         const auto solid = box(invalid),
                    open = invalid.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});

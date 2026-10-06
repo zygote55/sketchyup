@@ -6,7 +6,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QDir>
+#include <QLabel>
 #include <QSurfaceFormat>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <iostream>
@@ -216,6 +218,47 @@ int main(int argc, char **argv) {
         const auto invalid = encodeDocument(doc);
         QTest::keyClick(&view, Qt::Key_Return);
         check(encodeDocument(doc) == invalid, "Invalid solid cannot publish");
+        fixture(doc, view);
+        doc = Document{};
+        box(doc, {});
+        box(doc, {.5, .5, .5}, {1, 1, 1});
+        view.refresh();
+        select(view);
+        action(window, "boolean.operation.subtract");
+        action(window, "boolean.keep");
+        const auto cavityBefore = encodeDocument(doc);
+        const auto cavityHistory = doc.history().total;
+        start(view);
+        check(view.previewValid() && encodeDocument(doc) == cavityBefore,
+              "Enclosed cavity previews without publishing");
+        QTest::keyClick(&view, Qt::Key_Return);
+        volume(doc, 3, 7);
+        check(doc.bodies().size() == 1 && doc.history().total == cavityHistory + 1,
+              "Native cavity subtraction consumes sources in one Undo item");
+        auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
+        check(tabs, "Organization tabs exist");
+        tabs->setCurrentIndex(2);
+        QTest::qWait(50);
+        auto *readout = window.findChild<QLabel *>("entityInfoVolume");
+        check(readout && readout->text() == "7 m³",
+              "Native Info reports material volume excluding the cavity");
+        reopened = decodeContainer(encodeContainer(doc));
+        check(encodeDocument(reopened) == encodeDocument(doc), "Native cavity persists exactly");
+        const auto cavityCapture = qEnvironmentVariable("SKETCHYUP_CAVITY_CAPTURE");
+        if (!cavityCapture.isEmpty()) {
+            QDir().mkpath(cavityCapture);
+            view.standardView(0);
+            QTest::qWait(100);
+            check(window.grab().save(cavityCapture + "/cavity-info.png"),
+                  "Capture cavity Info acceptance");
+        }
+        QTest::keyClick(&view, Qt::Key_Z, Qt::ControlModifier);
+        check(doc.bodies().contains(1) && doc.bodies().contains(2),
+              "Native cavity Undo restores sources");
+        QTest::keyClick(&view, Qt::Key_Z, Qt::ControlModifier | Qt::ShiftModifier);
+        volume(doc, 3, 7);
+        action(window, "boolean.keep");
+        tabs->setCurrentIndex(0);
         fixture(doc, view);
         const auto group = createGroup(doc, {1, 2});
         const auto component = createComponent(doc, group);
