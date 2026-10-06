@@ -3,6 +3,7 @@
 #include "automation/inspection.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QCloseEvent>
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QHeaderView>
@@ -12,8 +13,10 @@
 #include <QTimer>
 #include <QTreeWidget>
 #include <QWindow>
+#include <QtGui/qguiapplication_platform.h>
 #include <algorithm>
 #include <limits>
+#include <wayland-client.h>
 namespace sketchy {
 namespace {
 class RepairHandoff final : public QObject {
@@ -98,16 +101,65 @@ class RepairHandoff final : public QObject {
                         emit view_.message(QString::fromUtf8(error.what()));
                     }
                     timer_.stop();
-                    QPointer<RepairHandoff> alive(this);
-                    if (report_)
+                    if (report_) {
+                        // Rejected/stale repairs also finish closing the report
+                        // before releasing the handoff fence. Native teardown
+                        // may await a compositor acknowledgement.
+                        connect(report_, &QObject::destroyed, this, &QObject::deleteLater);
                         report_->close();
-                    if (alive)
+                    } else {
                         deleteLater();
+                    }
                 });
         timer_.start();
     }
 };
 class DiagnosticsReport final : public ReportSheet {
+    bool closing_{};
+    int closeResult_{};
+    wl_callback *unmapped_{};
+    void closeEvent(QCloseEvent *event) override {
+        // An accepted QWidget close also destroys its platform window. Keep
+        // that close pending until the compositor has released this surface.
+        event->ignore();
+        done(QDialog::Rejected);
+    }
+    void done(int result) override {
+        if (closing_)
+            return;
+        closing_ = true;
+        closeResult_ = result;
+        // Hiding unmaps a Wayland window without destroying its wl_surface.
+        // A sync callback on Qt's default queue drains preceding focus/leave
+        // events while their surface argument is still alive. Qt's generic
+        // QGuiApplication::sync does not roundtrip on the Wayland backend.
+        QPointer<DiagnosticsReport> alive(this);
+        hide();
+        if (!alive)
+            return;
+#if QT_CONFIG(wayland)
+        if (auto *native = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>()) {
+            unmapped_ = wl_display_sync(native->display());
+            if (unmapped_) {
+                static const wl_callback_listener listener{[](void *data, wl_callback *callback,
+                                                              std::uint32_t) {
+                    auto *report = static_cast<DiagnosticsReport *>(data);
+                    wl_callback_destroy(callback);
+                    report->unmapped_ = nullptr;
+                    // Return from native event dispatch before closing.
+                    QTimer::singleShot(0, report,
+                                       [report] { report->QDialog::done(report->closeResult_); });
+                }};
+                wl_callback_add_listener(unmapped_, &listener, this);
+                wl_display_flush(native->display());
+                return;
+            }
+        }
+#endif
+        QGuiApplication::sync();
+        if (alive)
+            QTimer::singleShot(0, this, [this] { QDialog::done(closeResult_); });
+    }
     Document &document_;
     Viewport &view_;
     Id body_;
@@ -365,6 +417,10 @@ class DiagnosticsReport final : public ReportSheet {
     }
 
   public:
+    ~DiagnosticsReport() override {
+        if (unmapped_)
+            wl_callback_destroy(unmapped_);
+    }
     DiagnosticsReport(Document &document, Viewport &view, Id bodyId, std::function<bool()> fenced,
                       QWidget *parent)
         : ReportSheet("geometryDiagnosticsReport", "Geometry diagnostics", parent),
