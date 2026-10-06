@@ -11,6 +11,7 @@
 #include <QColorDialog>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -29,8 +30,52 @@
 #include <QTabWidget>
 #include <QToolBar>
 #include <QVBoxLayout>
+#include <QWindow>
+#include <QtGui/qguiapplication_platform.h>
 #include <tuple>
+#include <wayland-client.h>
 namespace sketchy {
+namespace {
+class WindowUnmapBarrier final : public QObject {
+    wl_callback *callback_{};
+    std::function<void()> finish_;
+
+  public:
+    WindowUnmapBarrier(QWidget &window, wl_display *display, std::function<void()> finish)
+        : QObject(&window), finish_(std::move(finish)) {
+        // Retain the surface while compositor focus events are drained.
+        window.windowHandle()->hide();
+        callback_ = wl_display_sync(display);
+        if (!callback_) {
+            // A disconnected display cannot acknowledge the unmap. Finish
+            // shutdown outside the close handler without throwing through Qt.
+            QTimer::singleShot(0, this, [this] {
+                auto finish = std::move(finish_);
+                deleteLater();
+                finish();
+            });
+            return;
+        }
+        static const wl_callback_listener listener{
+            [](void *data, wl_callback *callback, std::uint32_t) {
+                auto *barrier = static_cast<WindowUnmapBarrier *>(data);
+                wl_callback_destroy(callback);
+                barrier->callback_ = nullptr;
+                QTimer::singleShot(0, barrier, [barrier] {
+                    auto finish = std::move(barrier->finish_);
+                    barrier->deleteLater();
+                    finish();
+                });
+            }};
+        wl_callback_add_listener(callback_, &listener, this);
+        wl_display_flush(display);
+    }
+    ~WindowUnmapBarrier() override {
+        if (callback_)
+            wl_callback_destroy(callback_);
+    }
+};
+} // namespace
 QAction *Window::action(const QString &id, const QString &title, const QKeySequence &shortcut,
                         const std::function<void()> &fn) {
     for (auto *existing : publicActions_) {
@@ -985,10 +1030,45 @@ void Window::openPath(const QString &path) {
     sync();
 }
 void Window::closeEvent(QCloseEvent *e) {
-    if (canReplace())
-        e->accept();
-    else
+    if (closePending_ || !canReplace()) {
         e->ignore();
+        return;
+    }
+#if QT_CONFIG(wayland)
+    if (auto *native = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>()) {
+        closePending_ = true;
+        // Drain queued keyboard enter/leave events before destroying the main
+        // wl_surface. Keep the original close event pending: Qt captured its
+        // visible state before entering this handler and must use that event
+        // for normal lastWindowClosed/quitOnLastWindowClosed behavior.
+        const auto snapshot = doc_.saveStamp();
+        QPointer<Window> alive(this);
+        QEventLoop unmap;
+        bool acknowledged = false;
+        connect(this, &QObject::destroyed, &unmap, &QEventLoop::quit);
+        QPointer<WindowUnmapBarrier> barrier =
+            new WindowUnmapBarrier(*this, native->display(), [&] {
+                acknowledged = true;
+                unmap.quit();
+            });
+        unmap.exec();
+        // Application termination may also exit the nested loop. Never leave
+        // a callback holding its stack references after the close handler.
+        delete barrier.data();
+        if (!alive) {
+            e->ignore();
+            return;
+        }
+        closePending_ = false;
+        if (!acknowledged || !doc_.isCurrentSnapshot(snapshot)) {
+            show();
+            status_->setText("Model changed while closing. Review it before closing again.");
+            e->ignore();
+            return;
+        }
+    }
+#endif
+    e->accept();
 }
 void Window::resizeEvent(QResizeEvent *e) {
     QMainWindow::resizeEvent(e);
