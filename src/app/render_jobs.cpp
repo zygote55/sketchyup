@@ -7,6 +7,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 namespace sketchy {
@@ -32,7 +33,7 @@ RenderJobsDialog::RenderJobsDialog(RenderQueue &queue,
     list_ = new QTreeWidget;
     list_->setObjectName("renderJobList");
     list_->setAccessibleName("Retained render jobs");
-    list_->setHeaderLabels({"State / progress", "Captured model", "Attempts"});
+    list_->setHeaderLabels({"State / progress", "Captured model", "Attempts", "Elapsed"});
     list_->setRootIsDecorated(false);
     list_->setSelectionMode(QAbstractItemView::SingleSelection);
     list_->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -82,6 +83,12 @@ RenderJobsDialog::RenderJobsDialog(RenderQueue &queue,
             [this] { perform([&] { queue_.remove(selected()); }); });
     connect(clear_, &QPushButton::clicked, this,
             [this] { perform([&] { queue_.clearFinished(); }); });
+    auto *timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, [this] {
+        if (isVisible())
+            refresh();
+    });
+    timer->start(1000);
     refresh();
 }
 QString RenderJobsDialog::selected() const {
@@ -117,6 +124,8 @@ void RenderJobsDialog::refresh() {
         row->setText(1, provenance_(job));
         row->setToolTip(1, job.documentId + "\n" + job.id);
         row->setText(2, QString::number(job.attempts));
+        const auto end = pending(job.state) ? QDateTime::currentMSecsSinceEpoch() : job.updatedMs;
+        row->setText(3, QString::number(std::max(qint64(0), end - job.createdMs) / 1000) + " s");
         if (job.id == selectedId)
             list_->setCurrentItem(row);
         finished |= !pending(job.state);
@@ -145,9 +154,12 @@ void RenderJobsDialog::selection() {
         remove_->setEnabled(!pending(job.state));
         const auto captured =
             QDateTime::fromMSecsSinceEpoch(job.createdMs).toLocalTime().toString(Qt::ISODate);
-        const auto text = provenance_(job) + "\nCaptured " + captured + "\n" + job.message +
-                          "\n\nSource manifest SHA-256: " + job.manifestHash + "\n\n" +
-                          QString::fromUtf8(QJsonDocument(queue_.diagnostics(id)).toJson());
+        const auto text =
+            provenance_(job) + "\nCaptured " + captured + "\n" + job.message +
+            "\nDevice: " + job.options.backend + " / " + job.options.deviceId +
+            (job.options.allowCpuFallback ? " (CPU fallback allowed)" : " (no CPU fallback)") +
+            "\n\nSource manifest SHA-256: " + job.manifestHash + "\n\n" +
+            QString::fromUtf8(QJsonDocument(queue_.diagnostics(id)).toJson());
         if (details_->toPlainText() != text)
             details_->setPlainText(text);
         return;

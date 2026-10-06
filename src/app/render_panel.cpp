@@ -427,7 +427,15 @@ struct RenderPanel::Impl {
         QObject::connect(backend, &QComboBox::currentIndexChanged, &owner,
                          [this] { invalidate(); });
         QObject::connect(probeButton, &QPushButton::clicked, &owner, [this] { checkBlender(); });
-        QObject::connect(cancelButton, &QPushButton::clicked, &owner, [this] { cancel(); });
+        QObject::connect(cancelButton, &QPushButton::clicked, &owner, [this] {
+            try {
+                cancel();
+            } catch (const std::exception &error) {
+                status = "Cancellation failed";
+                details = QString::fromUtf8(error.what());
+                publish();
+            }
+        });
         QObject::connect(renderButton, &QPushButton::clicked, &owner, [this] {
             try {
                 RenderOptions settings;
