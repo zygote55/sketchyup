@@ -80,7 +80,10 @@ int main(int argc, char **argv) {
             captured.reset();
             check(store.input(completed)->manifest() == source,
                   "Stored input survives original destruction and live edits");
-            store.transition(completed, RenderJobState::Running);
+            store.transition(completed, RenderJobState::Running, {},
+                             {{"log", QString(1024 * 1024, 'x')}});
+            check(store.jobs().at(completed).report.value("diagnosticsTruncated") == true,
+                  "Oversized diagnostics are bounded without losing the state transition");
             BlenderJob job;
             job.start(store.input(completed), options);
             wait(job);

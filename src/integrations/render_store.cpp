@@ -58,6 +58,16 @@ void validateOptions(const BlenderJob::Options &options) {
                 options.timeoutMs <= 3600000,
             "Invalid retained render options");
 }
+QJsonObject boundedReport(const QJsonObject &report) {
+    const auto bytes = QJsonDocument(report).toJson(QJsonDocument::Compact);
+    if (bytes.size() <= 256 * 1024)
+        return report;
+    return {{"diagnosticsTruncated", true},
+            {"phase", report.value("phase")},
+            {"code", report.value("code").toString().left(256)},
+            {"message", report.value("message").toString().left(4096)},
+            {"logTail", QString::fromUtf8(bytes.right(64 * 1024))}};
+}
 QJsonObject encode(const StoredRenderJob &job) {
     return {{"version", 1},
             {"id", job.id},
@@ -316,8 +326,8 @@ void RenderJobStore::transition(const QString &id, RenderJobState state, QString
         ++job.attempts;
     }
     job.state = state;
-    job.message = std::move(message);
-    job.report = std::move(report);
+    job.message = message.left(4096);
+    job.report = boundedReport(report);
     job.updatedMs = std::max(job.createdMs, QDateTime::currentMSecsSinceEpoch());
     save(job);
     jobs_[id] = std::move(job);
@@ -326,16 +336,18 @@ void RenderJobStore::complete(const QString &id, const BlenderResult &result, QJ
     auto job = jobs_.at(id);
     require(job.state == RenderJobState::Running, "Only a running render can publish a result");
     require(result.png.size() <= 64 * mib, "Retained PNG exceeds limits");
-    const auto manifest = QJsonDocument(result.manifest).toJson();
+    auto retainedManifest = result.manifest;
+    retainedManifest.remove("attempts"); // Attempt diagnostics are retained separately in job.json.
+    const auto manifest = QJsonDocument(retainedManifest).toJson();
     require(manifest.size() <= 64 * 1024, "Retained result manifest exceeds limits");
     requireCapacity(0);
     const auto path = jobDirectory(id);
     write(path + "/image.png", result.png);
     write(path + "/result.json", manifest);
-    loadBlenderResult(*input(id), path, result.manifest, job.options);
+    loadBlenderResult(*input(id), path, retainedManifest, job.options);
     job.state = RenderJobState::Completed;
     job.message.clear();
-    job.report = std::move(report);
+    job.report = boundedReport(report);
     job.updatedMs = std::max(job.createdMs, QDateTime::currentMSecsSinceEpoch());
     save(job);
     jobs_[id] = std::move(job);
