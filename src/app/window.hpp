@@ -39,6 +39,7 @@ class Window : public QMainWindow {
     void resizeEvent(QResizeEvent *) override;
 
   private:
+    bool closePending_{};
     Document doc_;
     Viewport *viewport_{};
     RenderPanel *render_{};
@@ -46,6 +47,8 @@ class Window : public QMainWindow {
     QHBoxLayout *content_{};
     QTabWidget *sideTabs_{};
     QPointer<QDialog> assistantSheet_;
+    QPointer<QDialog> diagnosticsSheet_;
+    void showGeometryDiagnostics();
     bool assistantShown_{}, assistantFenced_{};
     int assistantRecoveryInterval_{};
     std::map<QAction *, bool> assistantActionStates_;

@@ -57,7 +57,7 @@ ctest --preset dev
 ./build/dev/sketchyup --demo
 ```
 
-On Arch, build dependencies are `cmake ninja gcc qt6-base qt6-wayland openssl`.
+On Arch, build dependencies are `cmake ninja gcc pkgconf qt6-base qt6-wayland wayland openssl`.
 For the core alone, with no Qt or graphical session:
 
 ```sh
@@ -501,6 +501,13 @@ Use **View → Show hidden geometry** to display hidden/softened edges as dashed
 strokes and select them for Reveal or Harden. These actions keep other flags
 intact and support Undo. Locks and group/component editing boundaries still apply. See the [edge appearance example](examples/edge-appearance.json)
 and [contract](docs/decisions/0051-edge-appearance.md).
+
+**Edit → Geometry diagnostics** opens findings for selected geometry or the active
+editing context. Select or frame listed entities, refresh after edits, and preview
+eligible orientation repairs. Connected orientation requires an explicit reference
+face. Enter applies the preview; Escape cancels; Undo restores the edit. Shared
+components follow their usual editing scope. Truncated samples cannot reverse a
+whole shell, and diagnostics never delete unrelated geometry automatically.
 
 `geometry.diagnose` inspects one explicit body record and returns bounded findings
 for open boundaries, non-manifold geometry, inconsistent or inverted orientation,

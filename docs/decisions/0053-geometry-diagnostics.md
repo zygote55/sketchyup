@@ -1,7 +1,7 @@
 # 0053 — Bounded findings precede explicit geometry repair
 
-Status: R058.a diagnostic kernel locally verified. R058.b shared inspection
-is locally verified; native report/repair controls follow.
+Status: R058.a kernel and R058.b shared inspection locally verified. R058.c native
+report and explicit repair controls are locally verified; CI/dependency merges remain pending.
 
 Diagnostics are read-only derived data over an authoritative surface and edge
 topology. They identify solid prerequisites and risky geometry; an open sheet or
@@ -53,3 +53,35 @@ an edit or authorizes reversing a partial sample. Later native controls must sta
 an explicit shared command, retain source revision/session guards, preview the
 change and publish one Undo item. Open/non-manifold/ambiguous findings do not infer
 which unrelated geometry a user wants removed.
+
+## Native report and explicit repairs
+
+Edit → Geometry diagnostics opens a shared report sheet for the selected body or
+active editing context. The same plain-text report presentation also serves Formline
+import notices. The report makes its local body-record scope and closed-solid checks
+explicit: open sheets and wires may be intentional geometry, and child records are
+not included. It displays exact or lower-bound counts and bounded typed references.
+
+Select listed uses only editable face/edge references in the current context; it
+does not enter groups or reveal/unlock geometry. Frame listed uses world bounds of
+the listed faces, edges or vertices, including isolated vertices that have no native
+selection kind. Framing changes only the camera. Locks, visibility, document session,
+revision and editing context are checked again whenever a report action runs. Changed
+models/contexts require Refresh; document replacement cannot reuse old numeric IDs.
+
+A complete inverted-shell finding offers Preview reversal. Inconsistent adjacent
+winding offers Preview orientation only after the user chooses a reference face
+whose direction stays unchanged. These actions route through the existing Orientation
+tool and its shared component-scoped commands, immutable arrows preview, explicit
+Enter/click Apply, Escape cancellation, physical material preservation and one Undo
+item. Open boundaries, non-manifold geometry, ambiguous shells, invalid cavity
+directions and truncated inverted-shell samples never infer a destructive repair.
+
+Repair closes the report's native surface before requesting viewport focus. A short
+owner-thread handoff waits for native focus, then rechecks the captured model state,
+revision, context, editability and competing assistant/tool previews before creating
+the ToolSession. Escape cancels a pending handoff; failure publishes only a status
+message. The controller is owned by the viewport and does not use the assistant's
+preview slot. Destroying the native report surface avoids a Wayland focus loss seen
+when merely hiding an unmapped retained dialog. Shared repairs affect all instances;
+Make Unique remains the explicit way to isolate a placement.

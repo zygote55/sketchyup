@@ -25,6 +25,7 @@
 #include <QTest>
 #include <QThread>
 #include <QTimer>
+#include <QWindow>
 #include <deque>
 #include <iostream>
 #include <source_location>
@@ -33,6 +34,14 @@ using Phase = AssistantTask::Phase;
 void check(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
+}
+void nativeFocus(QWidget &widget) {
+    check(QTest::qWaitForWindowExposed(&widget), "Assistant interaction window is exposed");
+    widget.activateWindow();
+    check(QTest::qWaitFor([&] {
+              return QGuiApplication::focusWindow() == widget.windowHandle();
+          }, 5000),
+          "Assistant interaction window receives native keyboard focus");
 }
 QByteArray json(QJsonObject value) { return QJsonDocument(value).toJson(QJsonDocument::Compact); }
 void write(QString path, QByteArray bytes) {
@@ -297,6 +306,7 @@ int main(int argc, char **argv) {
         panel.showSetup();
         auto *setup = window.findChild<QDialog *>("assistantPreferencesDialog");
         check(setup, "Preferences open");
+        nativeFocus(*setup);
         auto *authChoice = setup->findChild<QComboBox *>("assistantOpenAIAuth");
         check(authChoice, "OpenAI authentication choices");
         authChoice->setCurrentIndex(0);
@@ -321,12 +331,15 @@ int main(int argc, char **argv) {
             check(!prefs.value(key).toString().contains("sk-fixture-only"),
                   "No credential persisted in preferences");
         modeling(network, doc);
+        nativeFocus(window);
         panel.findChild<QPushButton *>("assistantDisclosure")->click();
+        nativeFocus(*window.findChild<QDialog *>("assistantConsent"));
         panel.submit("Create a 2 by 3 metre face.");
         auto *consent = window.findChild<QDialog *>("assistantConsent");
         check(consent && consent->isVisible() && network.calls == 0 &&
                   consent->findChild<QPushButton *>("assistantConsentAllow"),
               "No remote request before actual consent");
+        nativeFocus(*consent);
         consent->findChild<QPushButton *>("assistantConsentAllow")->click();
         wait([&] { return panel.result().value("phase") == "preview-ready"; });
         wait([&] { return window.viewport()->hasAssistantPreview(); });

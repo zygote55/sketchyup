@@ -13,7 +13,7 @@ jobs:
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed cmake ninja openssl qt6-base qt6-wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-jsonschema nodejs npm blender ffmpeg
+          pacman -Syyuu --noconfirm --needed cmake ninja pkgconf openssl qt6-base qt6-wayland wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-jsonschema nodejs npm blender ffmpeg
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Configure and build
@@ -98,7 +98,9 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/curve_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/drawing_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/numeric_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/diagnostics_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/orientation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/diagnostics_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/orientation_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/boolean_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/boolean_input_tests
@@ -116,7 +118,9 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/shell_tests
       - name: Isolated Wayland interaction and rendering
         run: |
+          scripts/test-wayland.sh build/dev/diagnostics_input_tests
           scripts/test-wayland.sh build/dev/orientation_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/diagnostics_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/orientation_input_tests
           scripts/test-wayland.sh build/dev/boolean_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/boolean_input_tests
@@ -234,7 +238,8 @@ jobs:
       - name: Sanitized native MCP inspection
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON
-          cmake --build --preset sanitize --target edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
+          cmake --build --preset sanitize --target diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/diagnostics_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/edge_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/smooth_viewport_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/assistant_panel_tests
