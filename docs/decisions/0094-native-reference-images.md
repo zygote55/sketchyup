@@ -30,7 +30,8 @@ step. Ordinary Move, Rotate and Scale tools position the whole image.
 The edit dialog changes name, dimensions and opacity, preserving untouched numeric
 values exactly. Calibration takes two normalized top-left image coordinates and a
 known length in document units. The first world point remains fixed and the image
-aspect ratio is retained. All operations use shared commands and their lock, bounds,
+aspect ratio is retained. Its default distance uses the placed world length; unchanged
+calibration preserves exact values and publishes no edit. All operations use shared commands and their lock, bounds,
 component-scope and atomic-history rules. Stale dialogs reject instead of overwriting
 newer work. Unchanged property dialogs do not publish edits.
 
