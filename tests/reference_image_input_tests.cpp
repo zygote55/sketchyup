@@ -1,6 +1,7 @@
 #include "app/reference_images_panel.hpp"
 #include "app/window.hpp"
 #include "core/assets.hpp"
+#include "core/components.hpp"
 #include "core/reference_images.hpp"
 #include "core/sections.hpp"
 #include "io/document_io.hpp"
@@ -319,6 +320,23 @@ int main(int argc, char **argv) {
         const auto withoutShadows = sample(view, probe);
         check(std::abs(withShadows.lightness() - withoutShadows.lightness()) < 4,
               "Reference plane does not cast shadows alongside modeled geometry");
+        const auto component = createComponent(doc, caster, "Reference import scope");
+        placeComponent(doc, component.definition, Transform::translation({20, 0, 0}));
+        settled(view);
+        view.enterContext(component.instance);
+        const auto assetCount = doc.assets().size(), bodyCount = doc.bodies().size();
+        const auto beforeImport = doc.history().total;
+        view.importReferenceImage(png, "image/png", "Shared plan", 2, 2);
+        check(doc.assets().size() == assetCount + 1 && doc.bodies().size() == bodyCount + 2 &&
+                  doc.history().total == beforeImport + 1 && view.selectedBody() &&
+                  doc.bodies().at(view.selectedBody())->referenceImage,
+              "Native component import shares one asset and atomically adds an image to both "
+              "placements");
+        doc.undo();
+        settled(view);
+        check(doc.assets().size() == assetCount && doc.bodies().size() == bodyCount,
+              "Component image import Undo restores all placements and asset storage");
+        view.leaveContext();
         check(view.renderStats().glError == 0, "Reference drawing leaves no GL errors");
         std::cout << "Reference image native display, picking, import, calibration and persistence "
                      "passed\n";
