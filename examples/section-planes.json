@@ -1,0 +1,8 @@
+[
+  {"command":"geometry.face","loops":[[[0,0,0],[2,0,0],[2,2,0],[0,2,0]]]},
+  {"command":"geometry.extrude_isolated","body":"1","face":"5","distance":2},
+  {"command":"section.create","name":"Model half","context":"0","space":"world","plane":{"normal":[1,0,0],"offset":-1}},
+  {"command":"section.activate","context":"0","section":"1"},
+  {"command":"section.create","name":"Body half","context":"1","space":"local","plane":{"normal":[0,1,0],"offset":-1},"fill":true,"edges":true,"color":[0.9,0.75,0.4]},
+  {"command":"section.activate","context":"1","section":"2"}
+]

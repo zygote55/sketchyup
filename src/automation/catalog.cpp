@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "automation/scene_commands.hpp"
+#include "automation/section_commands.hpp"
 #include "core/copy_array.hpp"
 namespace sketchy {
 namespace {
@@ -135,6 +136,24 @@ QJsonArray commandCatalog() {
               {"tolerance", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1},
                   {"description", "Explicit absolute tolerance in m, m2 or m3; bounds compare each axis"}}}},
              {"body", "space", "metric", "expected", "tolerance"}),
+        spec("section.create", "Create an oriented context section plane", "Sections",
+             {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
+              {"context", stableId(true)}, {"space", space}, {"plane", sectionPlaneSchema()},
+              {"fill", QJsonObject{{"type", "boolean"}}}, {"edges", QJsonObject{{"type", "boolean"}}},
+              {"color", list(QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1}}, 3, 3)}},
+             {"name", "context", "space", "plane"}),
+        spec("section.update", "Replace section plane properties", "Sections",
+             {{"section", stableId()},
+              {"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
+              {"context", stableId(true)}, {"space", space}, {"plane", sectionPlaneSchema()},
+              {"fill", QJsonObject{{"type", "boolean"}}}, {"edges", QJsonObject{{"type", "boolean"}}},
+              {"color", list(QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1}}, 3, 3)}},
+             {"section", "name", "context", "space", "plane", "fill", "edges", "color"}),
+        spec("section.delete", "Delete a section plane and deactivate it", "Sections",
+             {{"section", stableId()}}, {"section"}),
+        spec("section.activate", "Activate one section plane in a context, or turn it off", "Sections",
+             {{"context", stableId(true)}, {"section", QJsonObject{{"oneOf", QJsonArray{
+                 stableId(), QJsonObject{{"type", "null"}}}}}}}, {"context", "section"}),
         spec("saved_scene.create", "Create a selective saved scene", "Saved scenes",
              {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
               {"snapshot", savedSceneSnapshotSchema(modelStyleSchema())}}, {"name", "snapshot"}),
