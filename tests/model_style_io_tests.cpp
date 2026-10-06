@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
             doc.setStyle(style);
             const auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
             const auto root = QJsonDocument::fromJson(raw).object();
-            check(root["version"] == 18 && decodeDocument(raw).style() == style,
+            check(root["version"] == 19 && decodeDocument(raw).style() == style,
                   "Current schema preserves all style fields and modes");
             auto reopened = decodeContainer(bytes);
             check(reopened.style() == style && encodeContainer(reopened) == bytes &&
@@ -104,6 +104,9 @@ int main(int argc, char **argv) {
             rejects([&] { decodeDocument(QJsonDocument(old).toJson()); });
             old.remove("style");
             old.remove("scenes");
+            old.remove("sections");
+            old.remove("nextSectionId");
+            old.remove("activeSections");
             old.remove("nextSceneId");
             check(decodeDocument(QJsonDocument(old).toJson()).style() == ModelStyle{},
                   "Legacy schema gets deterministic default style");
@@ -195,7 +198,10 @@ int main(int argc, char **argv) {
             auto original = QJsonDocument::fromJson(
                                 bytes.mid(16 + length, chunk["bytes"].toString().toLongLong()))
                                 .object();
-            original["version"] = 18;
+            original["version"] = 19;
+            original["sections"] = QJsonArray{};
+            original["nextSectionId"] = "1";
+            original["activeSections"] = QJsonArray{};
             original["scenes"] = QJsonArray{};
             original["nextSceneId"] = "1";
             original["style"] = encodeModelStyle(ModelStyle{});

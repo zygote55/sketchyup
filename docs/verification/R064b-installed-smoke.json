@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "installedContractMatches": true,
+  "desktopBinaryMatches": true,
+  "cases": [
+    {
+      "fixture": "texture-sides-v16.sketchyup",
+      "scopedPlanesExact": true,
+      "activationExact": true,
+      "missingContextPreserved": true,
+      "uint64IdsExact": true,
+      "retiredFloorExact": true,
+      "savedScenesUnchanged": true,
+      "relocatedRoundtripExact": true,
+      "v18ReaderRejected": true
+    },
+    {
+      "fixture": "texture-mirror-v16.sketchyup",
+      "scopedPlanesExact": true,
+      "activationExact": true,
+      "missingContextPreserved": true,
+      "uint64IdsExact": true,
+      "retiredFloorExact": true,
+      "savedScenesUnchanged": true,
+      "relocatedRoundtripExact": true,
+      "v18ReaderRejected": true
+    },
+    {
+      "fixture": "texture-jpeg-v16.sketchyup",
+      "scopedPlanesExact": true,
+      "activationExact": true,
+      "missingContextPreserved": true,
+      "uint64IdsExact": true,
+      "retiredFloorExact": true,
+      "savedScenesUnchanged": true,
+      "relocatedRoundtripExact": true,
+      "v18ReaderRejected": true
+    },
+    {
+      "fixture": "model-style-v17.sketchyup",
+      "scopedPlanesExact": true,
+      "activationExact": true,
+      "missingContextPreserved": true,
+      "uint64IdsExact": true,
+      "retiredFloorExact": true,
+      "savedScenesUnchanged": true,
+      "relocatedRoundtripExact": true,
+      "v18ReaderRejected": true
+    },
+    {
+      "fixture": "saved-scenes-v18.sketchyup",
+      "scopedPlanesExact": true,
+      "activationExact": true,
+      "missingContextPreserved": true,
+      "uint64IdsExact": true,
+      "retiredFloorExact": true,
+      "savedScenesUnchanged": true,
+      "relocatedRoundtripExact": true,
+      "v18ReaderRejected": true
+    }
+  ]
+}

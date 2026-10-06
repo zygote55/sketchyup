@@ -243,6 +243,9 @@ void componentsAndMalformed() {
     root["version"] = 12;
     root.remove("style");
     root.remove("scenes");
+    root.remove("sections");
+    root.remove("nextSectionId");
+    root.remove("activeSections");
     root.remove("nextSceneId");
     root.remove("hosted");
     check(decodeDocument(QJsonDocument(root).toJson()).bodies().at(id)->edgeAppearances.empty(),

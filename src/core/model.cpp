@@ -27,6 +27,9 @@ Document Document::readSnapshot() const {
     result.nextAssetId_ = nextAssetId_;
     result.scenes_ = scenes_;
     result.nextSceneId_ = nextSceneId_;
+    result.sections_ = sections_;
+    result.nextSectionId_ = nextSectionId_;
+    result.activeSections_ = activeSections_;
     result.definitionFloors_ = definitionFloors_;
     result.surfaceFloors_ = surfaceFloors_;
     result.edgeFloors_ = edgeFloors_;
@@ -190,6 +193,9 @@ size_t Document::readSnapshotBytes() const {
         result += assetBytes(asset) + 64;
     for (const auto &[id, scene] : scenes_)
         result += sceneBytes(scene) + 64;
+    for (const auto &[id, section] : sections_)
+        result += sectionBytes(section) + 64;
+    result += activeSections_.size() * 64;
     result += (surfaceFloors_.size() + edgeFloors_.size()) * 96;
     for (const auto &[id, floor] : definitionFloors_)
         result += sizeof(DefinitionFloor) + 64 + floor.geometry.size() * 96;
@@ -505,9 +511,20 @@ void Document::update(Edit edit, bool forward) {
     auto definitions = definitions_;
     auto instances = instances_;
     auto scenes = scenes_;
+    auto sections = sections_;
+    auto activeSections = activeSections_;
     auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
+    if (edit.activeSections)
+        activeSections = forward ? edit.activeSections->second : edit.activeSections->first;
+    for (const auto &change : edit.sections) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            sections[change.id] = target;
+        else
+            sections.erase(change.id);
+    }
     for (const auto &change : edit.scenes) {
         const auto target = forward ? change.after : change.before;
         if (target)
@@ -574,6 +591,8 @@ void Document::update(Edit edit, bool forward) {
     materials_.swap(materials);
     assets_.swap(assets);
     scenes_.swap(scenes);
+    sections_.swap(sections);
+    activeSections_.swap(activeSections);
     if (edit.hosted)
         hosted_ = forward ? edit.hosted->after : edit.hosted->before;
     if (edit.displayUnits)
@@ -596,7 +615,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.hosted && !edit.style && edit.scenes.empty())
+        !edit.hosted && !edit.style && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections)
         throw std::runtime_error("Empty edit");
     if (edit.style) {
         edit.style->first.validate();
@@ -618,9 +637,35 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (edit.hosted)
         edit.hosted->after = hosted;
     auto scenes = scenes_;
+    auto sections = sections_;
+    auto activeSections = activeSections_;
     auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
+    if (edit.activeSections) {
+        if (edit.activeSections->first != activeSections_ ||
+            edit.activeSections->first == edit.activeSections->second)
+            throw std::runtime_error("Invalid or stale active section change");
+        activeSections = edit.activeSections->second;
+    }
+    Id nextSection = std::max(nextSectionId_, edit.nextSectionFloor);
+    std::set<Id> sectionIds;
+    for (auto &change : edit.sections) {
+        if (!change.id || change.id == UINT64_MAX || !sectionIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (sections_.contains(change.id) ? sections_.at(change.id) : nullptr) != change.before ||
+            (change.before && change.after && *change.before == *change.after))
+            throw std::runtime_error("Invalid or stale section change");
+        if (!change.before && change.id < nextSectionId_)
+            throw std::runtime_error("Retired section ID cannot be reused");
+        if (change.after) {
+            change.after = std::make_shared<SectionRecord>(*change.after);
+            sections[change.id] = change.after;
+            nextSection = std::max(nextSection, change.id + 1);
+        } else
+            sections.erase(change.id);
+    }
+    validateSectionRecords(sections, nextSection, activeSections);
     Id nextScene = std::max(nextSceneId_, edit.nextSceneFloor);
     std::set<Id> sceneIds;
     for (auto &change : edit.scenes) {
@@ -922,6 +967,11 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         edit.bytes += sizeof(AssetChange) + assetBytes(change.before) + assetBytes(change.after);
     for (const auto &change : edit.scenes)
         edit.bytes += sizeof(SceneChange) + sceneBytes(change.before) + sceneBytes(change.after);
+    for (const auto &change : edit.sections)
+        edit.bytes += sizeof(SectionChange) + sectionBytes(change.before) + sectionBytes(change.after);
+    if (edit.activeSections)
+        edit.bytes += sizeof(ActiveSections) * 2 +
+                      (edit.activeSections->first.size() + edit.activeSections->second.size()) * 64;
     if (edit.hosted)
         edit.bytes += sizeof(HostedChange) + hostedComponentBytes(edit.hosted->before) +
                       hostedComponentBytes(edit.hosted->after);
@@ -935,6 +985,21 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             updated.erase(c.id);
     }
     validateDocumentSize(updated);
+    if (!edit.sections.empty() || !activeSections.empty()) {
+        auto sectionCandidate = readSnapshot();
+        sectionCandidate.bodies_ = updated;
+        sectionCandidate.sections_ = sections;
+        sectionCandidate.nextSectionId_ = nextSection;
+        sectionCandidate.activeSections_ = activeSections;
+        for (const auto &change : edit.sections)
+            if (change.after && (!change.before || change.before->context != change.after->context))
+                validateSectionContext(sectionCandidate, *change.after);
+        // Newly activated scopes need live contexts; existing missing contexts remain inert.
+        for (const auto &[context, id] : activeSections)
+            if (!activeSections_.contains(context) || activeSections_.at(context) != id)
+                validateSectionContext(sectionCandidate, *sections.at(id));
+        validateSectionDepth(sectionCandidate);
+    }
     validateTagAssignments(tags, updated);
     if (!edit.scenes.empty()) {
         // Check newly captured references against the same candidate as the edit.
@@ -1049,11 +1114,14 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     materials_.swap(materials);
     assets_.swap(assets);
     scenes_.swap(scenes);
+    sections_.swap(sections);
+    activeSections_.swap(activeSections);
     hosted_ = std::move(hosted);
     nextTagId_ = nextTag;
     nextMaterialId_ = nextMaterial;
     nextAssetId_ = nextAsset;
     nextSceneId_ = nextScene;
+    nextSectionId_ = nextSection;
     nextId_ = next;
     surfaceFloors_.swap(floors);
     edgeFloors_.swap(edgeFloors);
@@ -1092,7 +1160,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("The most recent operation can no longer be revised");
     auto contexts = hostedEditingContexts(undo_.back().edit);
     std::set<Id> definitionContexts;
-    std::set<Id> tagContexts, materialContexts, assetContexts, sceneContexts;
+    std::set<Id> tagContexts, materialContexts, assetContexts, sceneContexts, sectionContexts;
+    size_t createdSections = 0;
     size_t createdScenes = 0;
     size_t createdAssets = 0;
     size_t createdMaterials = 0;
@@ -1131,6 +1200,11 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!change.before && change.after)
             ++createdScenes;
     }
+    for (const auto &change : undo_.back().edit.sections) {
+        sectionContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdSections;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
@@ -1140,6 +1214,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineMaterials = staged.materials_;
     const auto baselineAssets = staged.assets_;
     const auto baselineScenes = staged.scenes_;
+    const auto baselineSections = staged.sections_;
+    const auto baselineActiveSections = staged.activeSections_;
     const auto baselineUnits = staged.displayUnits_;
     const auto baselineStyle = staged.style_;
     const auto baselineHosted = staged.hosted_;
@@ -1154,6 +1230,34 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("Replacement cannot change document units outside its scope");
     if (!undo_.back().edit.style && staged.style_ != baselineStyle)
         throw std::runtime_error("Replacement cannot change model style outside its scope");
+    if (!undo_.back().edit.activeSections && staged.activeSections_ != baselineActiveSections)
+        throw std::runtime_error("Replacement cannot activate sections outside its scope");
+    if (undo_.back().edit.activeSections) {
+        std::set<Id> allowed;
+        const auto &original = *undo_.back().edit.activeSections;
+        for (const auto &[context, id] : original.first)
+            if (!original.second.contains(context) || original.second.at(context) != id)
+                allowed.insert(context);
+        for (const auto &[context, id] : original.second)
+            if (!original.first.contains(context) || original.first.at(context) != id)
+                allowed.insert(context);
+        for (const auto &[context, id] : baselineActiveSections)
+            if (!allowed.contains(context) &&
+                (!staged.activeSections_.contains(context) || staged.activeSections_.at(context) != id))
+                throw std::runtime_error("Replacement cannot change another active section context");
+        for (const auto &[context, id] : staged.activeSections_)
+            if (!allowed.contains(context) && !baselineActiveSections.contains(context))
+                throw std::runtime_error("Replacement cannot add another active section context");
+    }
+    for (const auto &[id, section] : baselineSections)
+        if (!sectionContexts.contains(id) &&
+            (!staged.sections_.contains(id) || staged.sections_.at(id) != section))
+            throw std::runtime_error("Replacement cannot change another section plane");
+    size_t newSections{};
+    for (const auto &[id, section] : staged.sections_)
+        newSections += !baselineSections.contains(id);
+    if (newSections != createdSections)
+        throw std::runtime_error("Replacement must preserve section creation count");
     validateHostedAmendment(undo_.back().edit, staged.undo_.back().edit, *baselineHosted,
                             *staged.hosted_, policy == AmendPolicy::CopyArray);
     for (const auto &[id, body] : baseline)
@@ -1315,7 +1419,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        ComponentInstances instances, Id nextDefinitionId, TagRecords tags,
                        Id nextTagId, MaterialRecords materials, Id nextMaterialId,
                        AssetRecords assets, Id nextAssetId, DisplayUnit units, HostedPtr hosted,
-                       ModelStyle style, SceneRecords scenes, Id nextSceneId) {
+                       ModelStyle style, SceneRecords scenes, Id nextSceneId, SectionRecords sections,
+                       Id nextSectionId, ActiveSections activeSections) {
     unitCode(units);
     style.validate();
     if (identity.size() != 32 ||
@@ -1343,6 +1448,13 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     validateTagAssignments(tags, bodies);
     validateAssetRecords(assets, nextAssetId);
     validateSceneRecords(scenes, nextSceneId);
+    validateSectionRecords(sections, nextSectionId, activeSections);
+    {
+        Document candidate;
+        candidate.bodies_ = bodies;
+        candidate.activeSections_ = activeSections;
+        validateSectionDepth(candidate);
+    }
     validateMaterialRecords(materials, nextMaterialId);
     validateMaterialAssets(materials, assets);
     validateMaterialAssignments(materials, bodies);
@@ -1369,6 +1481,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         asset = std::make_shared<AssetRecord>(*asset);
     for (auto &[id, scene] : scenes)
         scene = std::make_shared<SceneRecord>(*scene);
+    for (auto &[id, section] : sections)
+        section = std::make_shared<SectionRecord>(*section);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -1389,6 +1503,9 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     nextAssetId_ = nextAssetId;
     scenes_ = std::move(scenes);
     nextSceneId_ = nextSceneId;
+    sections_ = std::move(sections);
+    nextSectionId_ = nextSectionId;
+    activeSections_ = std::move(activeSections);
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     undo_.clear();

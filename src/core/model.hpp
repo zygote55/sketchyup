@@ -5,6 +5,7 @@
 #include "core/material_records.hpp"
 #include "core/model_style.hpp"
 #include "core/scene_records.hpp"
+#include "core/section_records.hpp"
 #include "core/units.hpp"
 #include <deque>
 #include <functional>
@@ -41,6 +42,10 @@ struct AssetChange {
 struct SceneChange {
     Id id{};
     ScenePtr before, after;
+};
+struct SectionChange {
+    Id id{};
+    SectionPtr before, after;
 };
 struct HistoryMetadata {
     std::string taskId, request;
@@ -79,6 +84,9 @@ struct Edit {
     std::optional<std::pair<ModelStyle, ModelStyle>> style{};
     std::vector<SceneChange> scenes{};
     Id nextSceneFloor{};
+    std::vector<SectionChange> sections{};
+    Id nextSectionFloor{};
+    std::optional<std::pair<ActiveSections, ActiveSections>> activeSections{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -127,6 +135,9 @@ class Document {
     Id nextAssetId() const { return nextAssetId_; }
     const SceneRecords &scenes() const { return scenes_; }
     Id nextSceneId() const { return nextSceneId_; }
+    const SectionRecords &sections() const { return sections_; }
+    Id nextSectionId() const { return nextSectionId_; }
+    const ActiveSections &activeSections() const { return activeSections_; }
     std::uint64_t revision() const { return revision_; }
     Id nextId() const { return nextId_; }
     const std::string &identity() const { return identity_; }
@@ -197,7 +208,8 @@ class Document {
                  AssetRecords assets = {}, Id nextAssetId = 1,
                  DisplayUnit units = DisplayUnit::Meters,
                  HostedPtr hosted = std::make_shared<const HostedComponents>(),
-                 ModelStyle style = {}, SceneRecords scenes = {}, Id nextSceneId = 1);
+                 ModelStyle style = {}, SceneRecords scenes = {}, Id nextSceneId = 1,
+                 SectionRecords sections = {}, Id nextSectionId = 1, ActiveSections activeSections = {});
 
   private:
     std::string identity_;
@@ -217,6 +229,9 @@ class Document {
     Id nextAssetId_{1};
     SceneRecords scenes_;
     Id nextSceneId_{1};
+    SectionRecords sections_;
+    Id nextSectionId_{1};
+    ActiveSections activeSections_;
     struct DefinitionFloor {
         Id nextMemberId{1};
         std::map<Id, std::pair<Id, Id>> geometry;

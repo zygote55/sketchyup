@@ -418,7 +418,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
                   doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
                   doc.nextMaterialId(), doc.assets(), doc.nextAssetId(), doc.displayUnits(),
                   std::make_shared<const HostedComponents>(), doc.style(), doc.scenes(),
-                  doc.nextSceneId());
+                  doc.nextSceneId(), doc.sections(), doc.nextSectionId(), {});
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
@@ -438,6 +438,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     const auto baselineMaterials = draft.materials();
     const auto baselineAssets = draft.assets();
     const auto baselineScenes = draft.scenes();
+    const auto baselineSections = draft.sections();
     const auto baseline = draft.saveStamp();
     const auto report = edit(draft);
     if (draft.isCurrentSnapshot(baseline))
@@ -454,6 +455,9 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         throw std::runtime_error("Edit document units outside a shared geometry scope");
     if (draft.style() != doc.style())
         throw std::runtime_error("Edit model style outside a shared geometry scope");
+    if (draft.sections() != baselineSections || draft.nextSectionId() != doc.nextSectionId() ||
+        !draft.activeSections().empty())
+        throw std::runtime_error("Shared component edits cannot modify document section planes");
     if (draft.scenes() != baselineScenes || draft.nextSceneId() != doc.nextSceneId())
         throw std::runtime_error("Shared component edits cannot modify document scenes");
     if (draft.assets() != baselineAssets)
