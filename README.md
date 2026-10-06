@@ -263,6 +263,11 @@ closed slab with explicit pitch in degrees, overhang and vertical thickness.
 area and bounds before publication. Run `examples/roof-recipe-v1.json` to create
 and save the default room with its roof; native before/after files are also shipped.
 
+The [straight stair recipe](docs/decisions/0057-straight-stair-recipe.md) creates a
+filled flight with equal risers and explicit tread depth, width and final elevation.
+`examples/stair-recipe-v1.json` places the default flight beside the room and roof;
+each tread, the closed volume and preservation of the scene are verified.
+
 See the [recipe contract](docs/decisions/0027-transaction-recipes.md) and
 `--recipe-capabilities`. A local MCP stdio client can use `--mcp` with the same
 explicit document/outcome options. It targets protocol 2026-07-28; see the
