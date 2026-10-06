@@ -81,6 +81,7 @@ int fake(QCoreApplication &app, const QStringList &args) {
         result["documentId"] = source.value("documentId");
         result["revision"] = source.value("revision");
         result["settings"] = settings;
+        result["losses"] = source.value("losses");
         result["manifestSha256"] = request.value("manifestSha256");
         result["sceneSha256"] = source.value("scene").toObject().value("sha256");
         result["device"] =

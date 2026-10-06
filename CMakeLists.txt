@@ -245,6 +245,9 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI)
     target_link_libraries(texture_command_tests PRIVATE sketchyup_io)
     target_compile_definitions(texture_command_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME texture_commands COMMAND texture_command_tests)
+    add_executable(section_export_tests tests/section_export_tests.cpp)
+    target_link_libraries(section_export_tests PRIVATE sketchyup_io Qt6::Gui)
+    add_test(NAME section_export COMMAND section_export_tests)
     add_executable(texture_export_tests tests/texture_export_tests.cpp)
     target_link_libraries(texture_export_tests PRIVATE sketchyup_io Qt6::Gui)
     add_test(NAME texture_export COMMAND texture_export_tests)
@@ -620,3 +623,5 @@ install(FILES docs/decisions/0075-section-scenes.md DESTINATION share/doc/sketch
 
 install(FILES docs/decisions/0076-native-sections.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/section-nested.sketchyup DESTINATION share/doc/sketchyup/examples)
+
+install(FILES docs/decisions/0077-section-export.md DESTINATION share/doc/sketchyup/decisions)
