@@ -89,6 +89,7 @@ std::array<Viewport::Vertex, 3> Viewport::clippedVertices(const std::array<Verte
         vertex.bu = interpolate(&Vertex::bu);
         vertex.bv = interpolate(&Vertex::bv);
         vertex.light = interpolate(&Vertex::light);
+        vertex.backLight = interpolate(&Vertex::backLight);
     }
     return result;
 }
@@ -103,7 +104,11 @@ Viewport::sectionCapVertices(Id body, const SectionTriangle &triangle, float alp
         const auto point = triangle.vertices[i].point;
         auto &vertex = result[i];
         vertex = {point.x, point.y, point.z, color[0], color[1], color[2], alpha};
-        vertex.light = .9f;
+        const auto crossNormal = cross(triangle.vertices[1].point - triangle.vertices[0].point,
+                                       triangle.vertices[2].point - triangle.vertices[0].point);
+        const auto normal = length(crossNormal) > 0 ? crossNormal * (1 / length(crossNormal)) : Vec3{0,0,1};
+        vertex.light = doc_.solar().enabled ? solarLight(normal) : .9f;
+        vertex.backLight = doc_.solar().enabled ? solarLight(normal * -1) : .9f;
         vertex.dim =
             !selection_.inActiveHierarchy(doc_, body) || selection_.locked(doc_, body) ? .35f : 1.f;
     }
