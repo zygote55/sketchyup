@@ -17,7 +17,7 @@ spec = importlib.util.spec_from_file_location('worker', repo / 'src/integrations
 worker = importlib.util.module_from_spec(spec)
 sys.dont_write_bytecode = True
 spec.loader.exec_module(worker)
-output = root / 'texture-renders'
+output = root / ('texture-renders-eevee' if engine == 'BLENDER_EEVEE' else 'texture-renders')
 output.mkdir(exist_ok=True)
 reports = []
 
@@ -173,6 +173,6 @@ for mutation in mutations:
             offset = value['bufferViews'][accessor['bufferView']]['byteOffset']
             struct.pack_into('<f',binary,8+offset,float('nan'))
     rejects(encode(value,binary))
-report = {'blender':bpy.app.version_string,'reports':reports,'malformedTexturesRejected':len(mutations)}
+report = {'blender':bpy.app.version_string,'engine':engine,'reports':reports,'malformedTexturesRejected':len(mutations)}
 (root/('texture-blender-eevee-validation.json' if engine == 'BLENDER_EEVEE' else 'texture-blender-validation.json')).write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report))
