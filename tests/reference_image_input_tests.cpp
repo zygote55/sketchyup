@@ -153,6 +153,16 @@ int main(int argc, char **argv) {
               "Top-left pixel coordinates orient image correctly");
         picks(view, redPoint, id);
         picks(view, hole, 0);
+        const QRectF smallBox(view.project({.5, 3.5, 0}), view.project({1.5, 2.5, 0}));
+        check(
+            view.windowSelection(smallBox, false).empty() &&
+                view.windowSelection(smallBox, true).contains({id, SelectionKind::Body, 0}),
+            "Inside window selection requires the whole plane; crossing accepts partial coverage");
+        const auto wholeBox = QRectF(view.project({0, 4, 0}), view.project({4, 0, 0}))
+                                  .normalized()
+                                  .adjusted(-3, -3, 3, 3);
+        check(view.windowSelection(wholeBox, false).contains({id, SelectionKind::Body, 0}),
+              "A fully enclosed image is window-selected as a whole entity");
         if (const auto capture = qEnvironmentVariable("SKETCHYUP_REFERENCE_CAPTURE");
             !capture.isEmpty())
             check(view.grabFramebuffer().save(capture + ".png"), "Reference evidence image saved");
