@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
         check(resolveComponentGlue(*reopened.definitions().at(made.definition)).profile.size() == 4,
               "Reopened glue resolves against authoritative geometry");
         const auto json = QJsonDocument::fromJson(raw).object();
-        check(json["version"] == 14, "Glue schema version is explicit");
+        check(json["version"] == 15, "Glue schema version is explicit");
         auto missing = json;
         auto definitions = missing["definitions"].toArray();
         auto definition = definitions[0].toObject();
@@ -75,6 +75,7 @@ int main(int argc, char **argv) {
         missing["definitions"] = definitions;
         rejects([&] { decodeDocument(QJsonDocument(missing).toJson()); });
         missing["version"] = 13;
+        missing.remove("hosted");
         auto migrated = decodeDocument(QJsonDocument(missing).toJson());
         check(!migrated.definitions().at(made.definition)->glue &&
                   migrated.instances().size() == doc.instances().size(),
@@ -108,6 +109,7 @@ int main(int argc, char **argv) {
         const auto oldContainer = rewrite(bytes, [](auto &manifest, auto &document) {
             auto features = manifest["requiredFeatures"].toArray();
             features.removeAt(features.size() - 1);
+            features.removeAt(features.size() - 1);
             manifest["requiredFeatures"] = features;
             auto chunks = manifest["chunks"].toArray();
             auto chunk = chunks[0].toObject();
@@ -115,6 +117,7 @@ int main(int argc, char **argv) {
             chunks[0] = chunk;
             manifest["chunks"] = chunks;
             document["version"] = 13;
+            document.remove("hosted");
             auto records = document["definitions"].toArray();
             for (qsizetype i = 0; i < records.size(); ++i) {
                 auto record = records[i].toObject();

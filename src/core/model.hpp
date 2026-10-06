@@ -1,6 +1,7 @@
 #pragma once
 #include "core/asset_records.hpp"
 #include "core/component_records.hpp"
+#include "core/hosted_components.hpp"
 #include "core/material_records.hpp"
 #include "core/units.hpp"
 #include <deque>
@@ -67,6 +68,8 @@ struct Edit {
     Id nextAssetFloor{};
     HistoryMetadata metadata{};
     std::optional<std::pair<DisplayUnit, DisplayUnit>> displayUnits{};
+    std::optional<HostedChange> hosted{};
+    bool hostedResolved{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -104,6 +107,8 @@ class Document {
     const std::map<Id, BodyPtr> &bodies() const { return bodies_; }
     const ComponentDefinitions &definitions() const { return definitions_; }
     const ComponentInstances &instances() const { return instances_; }
+    const HostedComponents &hostedComponents() const { return *hosted_; }
+    const HostedPtr &hostedRecords() const { return hosted_; }
     Id nextDefinitionId() const { return nextDefinitionId_; }
     const TagRecords &tags() const { return tags_; }
     Id nextTagId() const { return nextTagId_; }
@@ -177,7 +182,8 @@ class Document {
                  ComponentInstances instances = {}, Id nextDefinitionId = 1, TagRecords tags = {},
                  Id nextTagId = 1, MaterialRecords materials = {}, Id nextMaterialId = 1,
                  AssetRecords assets = {}, Id nextAssetId = 1,
-                 DisplayUnit units = DisplayUnit::Meters);
+                 DisplayUnit units = DisplayUnit::Meters,
+                 HostedPtr hosted = std::make_shared<const HostedComponents>());
 
   private:
     std::string identity_;
@@ -186,6 +192,7 @@ class Document {
     Id nextId_{1};
     ComponentDefinitions definitions_;
     ComponentInstances instances_;
+    HostedPtr hosted_{std::make_shared<const HostedComponents>()};
     Id nextDefinitionId_{1};
     TagRecords tags_;
     Id nextTagId_{1};

@@ -1,5 +1,6 @@
 #include "io/document_io.hpp"
 #include "io/assets.hpp"
+#include "io/hosted_components_io.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -200,7 +201,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 14},
+                {"version", 15},
                 {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
                 {"revision", sid(doc.revision())},
                 {"units", "m"},
@@ -208,6 +209,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
                 {"documentId", QString::fromStdString(doc.identity())},
                 {"nextId", sid(doc.nextId())},
                 {"bodies", bodies},
+                {"hosted", encodeHostedComponents(doc.hostedComponents())},
                 {"definitions", definitions},
                 {"instances", instances},
                 {"nextDefinitionId", sid(doc.nextDefinitionId())},
@@ -487,7 +489,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 7 && root["version"].toDouble() != 8 &&
          root["version"].toDouble() != 9 && root["version"].toDouble() != 10 &&
          root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
-         root["version"].toDouble() != 13 && root["version"].toDouble() != 14) ||
+         root["version"].toDouble() != 13 && root["version"].toDouble() != 14 &&
+         root["version"].toDouble() != 15) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -505,6 +508,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         throw std::runtime_error("Legacy document exceeds model limit or has unexpected assets");
     if (root["version"].toInt() >= 12)
         rootFields.append("displayUnits");
+    if (root["version"].toInt() >= 15)
+        rootFields.append("hosted");
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         bytes.size() > modelLimit)
@@ -677,7 +682,9 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
                 nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
                 root["version"].toInt() >= 12
                     ? parseDisplayUnit(root["displayUnits"].toString().toStdString())
-                    : DisplayUnit::Meters);
+                    : DisplayUnit::Meters,
+                root["version"].toInt() >= 15 ? decodeHostedComponents(root["hosted"])
+                                              : std::make_shared<const HostedComponents>());
     return doc;
 }
 } // namespace sketchy

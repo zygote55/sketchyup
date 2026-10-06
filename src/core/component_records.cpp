@@ -27,6 +27,9 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
     edit.nextMaterialFloor = after.nextMaterialId();
     difference(before.assets(), after.assets(), edit.assets);
     edit.nextAssetFloor = after.nextAssetId();
+    if (before.hostedComponents() != after.hostedComponents())
+        edit.hosted = HostedChange{before.hostedRecords(), after.hostedRecords()};
+    edit.hostedResolved = true;
     if (before.displayUnits() != after.displayUnits())
         edit.displayUnits = std::pair{before.displayUnits(), after.displayUnits()};
 }

@@ -2,7 +2,7 @@
 
 Status: R059.a placement, R059.b opening geometry, R059.c canonical glue records
 and R059.d immutable host regeneration are locally verified. CI/dependency merges
-remain pending. Persistent host bindings and native/automation workflows follow.
+remain pending. R059.e adds persistent host bindings; native/automation workflows follow.
 
 ## Face placement
 
@@ -90,8 +90,8 @@ outline in definition coordinates. Member transforms retain physical normals und
 reflection/nonuniform scale/shear. At most 128 hierarchy levels and 4,096 face corners
 are accepted; a cutting outer loop is limited to 256 corners.
 
-`setComponentGlue` publishes one definition edit without changing placed scene
-geometry. The behavior participates in immutable previews, Undo/Redo, snapshots,
+`setComponentGlue` publishes one definition edit. With hosted attachments, the same
+edit also regenerates their opening geometry. The behavior participates in immutable previews, Undo/Redo, snapshots,
 freezing and existing component memory accounting. An identical setting is a no-op.
 A locked placement protects its shared glue behavior. Make Unique copies the
 reference; subsequent edits to that copy do not affect its peers. Changing component
@@ -143,3 +143,68 @@ PreparedEdit and one Undo item. Callers must mark its edge appearance as resolve
 when publishing, so later edit composition cannot re-inherit retired styles.
 This helper does not yet store host attachments in Document or automatically observe
 instance movement/deletion; that authoritative integration follows separately.
+
+
+## Authoritative attachment lifecycle
+
+A document stores one immutable `HostedSurface` per host and one
+`ComponentAttachment` per attached placement. The surface retains only original
+geometry and the current opening correspondence maps. The attachment records its
+host/face, an affine glue-coordinate-to-host frame, and an explicit signed inset
+in host-local units. Its X/Y axes must stay parallel to the original face; its
+anchor projected by the inset must lie on that face. The inset permits a window's
+canonical front face to sit within or beyond wall thickness without changing the
+opening's entry plane.
+
+The initial scope accepts ordinary raw geometry hosts and independent component
+placements, including placements beneath ordinary groups. Component-owned hosts
+and nested canonical placements reject. Alignment-only attachments retain the same
+host baseline but create no opening. An explicit canonical cutting face is required;
+no outline or relationship is inferred from names, proximity or recipe properties.
+
+Every unresolved Document edit privately expands attachment effects before normal
+scene validation and publication. Explicit placement moves infer a new relative
+frame; a host-only movement carries its attachments. A shared definition edit keeps
+the attachment frame fixed and adjusts each instance root to retain its glue anchor.
+Common-ancestor transformations preserve an equivalent stored frame to avoid drift.
+Opening profiles derive from that frame and the authoritative definition, never
+from rounded materialized instance coordinates.
+
+Moving or resizing a cutter regenerates all cuts from the original surface and
+preserves surviving native correspondence identities. Rehosting restores the old
+region and cuts the new host in one edit. Deleting a component, removing its instance
+binding, or replacing/removing its glue behavior restores its opening and releases
+the attachment. Deleting a host releases surviving placements without moving them.
+Detach restores the opening; Bake releases every attachment on a host while retaining
+its current geometry. Independent host geometry edits reject until attachments are
+released. Appearance, guides, state and other nongeometry edits remain authoritative.
+
+Prepared previews, composed transactions, numeric amendment, Undo/Redo and read
+snapshots include the attachment aggregate. Nested records are frozen at publication.
+Before/after baselines and caches count toward history and snapshot budgets. Locks
+protect both former/new hosts and affected component roots, including metadata-only
+binding, detachment and baking. Resolved composition skips inference but still
+validates complete pose/profile/baseline coherence. Amendment cannot alter unrelated
+attachment records or change attachment/host creation counts.
+
+Bounds are 16 hosts and 64 attachments per document, with 16 cutters per host.
+Stored baselines collectively allow 20,000 vertices, 2,000 faces, 20,000 wires and
+64,000 loop corners; cached profiles collectively allow 4,096 corners. Each host
+also obeys the existing opening geometry limits. Invalid/stale records, missing
+references, allocator collisions, off-plane movement, boundary contact and overlapping
+cuts reject atomically with the original document and history intact.
+
+Schema 15 requires a `hosted` object containing strict `hosts` and `attachments`
+arrays. Stable IDs remain decimal strings; transforms contain exactly 16 finite
+numbers, and insets are finite numbers. Baselines contain only `nextId`, vertices,
+faces and wires. Opening records persist source corner IDs, entry/exit vertex pairs
+and unordered source-edge-to-reveal mappings. Duplicate keys, unknown fields,
+extra material state or a cache that fails exact geometry reconstruction reject.
+Containers require `hosted-components-v1` and `json-v15` alongside earlier features.
+Versions 1–14 migrate without invented attachments. Immutable saves and recovery
+retain the captured aggregate, and durable transaction recovery reconstructs one
+Undo even for an alignment-only metadata edit.
+
+This layer exposes core attachment APIs. Shared commands, native placement controls,
+copy/array attachment policy and explicit migration of existing recipe relationships
+remain separate R059 work; existing unbound component copies do not acquire a host.

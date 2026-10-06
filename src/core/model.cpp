@@ -15,6 +15,7 @@ Document Document::readSnapshot() const {
     result.nextId_ = nextId_;
     result.definitions_ = definitions_;
     result.instances_ = instances_;
+    result.hosted_ = hosted_;
     result.nextDefinitionId_ = nextDefinitionId_;
     result.tags_ = tags_;
     result.nextTagId_ = nextTagId_;
@@ -168,7 +169,7 @@ void validate(const Body &b) {
 }
 } // namespace
 size_t Document::readSnapshotBytes() const {
-    size_t result = sizeof(Document) + identity_.size() + 256;
+    size_t result = sizeof(Document) + identity_.size() + 256 + hostedComponentBytes(hosted_);
     for (const auto &[id, body] : bodies_)
         result += bytes(body) + 64;
     for (const auto &[id, definition] : definitions_)
@@ -546,6 +547,8 @@ void Document::update(Edit edit, bool forward) {
     tags_.swap(tags);
     materials_.swap(materials);
     assets_.swap(assets);
+    if (edit.hosted)
+        hosted_ = forward ? edit.hosted->after : edit.hosted->before;
     if (edit.displayUnits)
         displayUnits_ = forward ? edit.displayUnits->second : edit.displayUnits->first;
 }
@@ -563,7 +566,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     if (expected != revision_)
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
-        edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits)
+        edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
+        !edit.hosted)
         throw std::runtime_error("Empty edit");
     if (edit.displayUnits) {
         unitCode(edit.displayUnits->first);
@@ -572,6 +576,12 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             edit.displayUnits->first == edit.displayUnits->second)
             throw std::runtime_error("Invalid or stale document unit change");
     }
+    if (edit.hosted && (edit.hosted->before != hosted_ || !edit.hosted->after))
+        throw std::runtime_error("Invalid or stale hosted component change");
+    expandHostedEdit(*this, edit);
+    auto hosted = edit.hosted ? freezeHostedComponents(edit.hosted->after) : hosted_;
+    if (edit.hosted)
+        edit.hosted->after = hosted;
     auto assets = assets_;
     auto materials = materials_;
     auto tags = tags_;
@@ -855,6 +865,9 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             (change.after ? sizeof(MaterialRecord) + change.after->name.size() + 64 : 0);
     for (const auto &change : edit.assets)
         edit.bytes += sizeof(AssetChange) + assetBytes(change.before) + assetBytes(change.after);
+    if (edit.hosted)
+        edit.bytes += sizeof(HostedChange) + hostedComponentBytes(edit.hosted->before) +
+                      hostedComponentBytes(edit.hosted->after);
     if (edit.bytes > historyLimit)
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     auto updated = bodies_;
@@ -870,6 +883,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
                                  nextMaterial, assets, nextAsset);
     validateComponentInstances(definitions, instances, updated);
+    validateHostedComponents(*hosted, updated, definitions, instances);
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
     auto lockedIn = [](const auto &records, Id id) {
@@ -890,6 +904,9 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                            (change.after && lockedIn(bodies_, change.after->parent))))
             throw std::runtime_error("Cannot edit a locked entity or its contents");
     }
+    for (auto id : hostedEditingContexts(edit))
+        if (lockedIn(bodies_, id))
+            throw std::runtime_error("Cannot change attachments of a locked component or host");
     for (const auto &change : edit.instances)
         if (lockedIn(bodies_, change.root))
             throw std::runtime_error("Cannot change a locked component instance binding");
@@ -963,6 +980,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     tags_.swap(tags);
     materials_.swap(materials);
     assets_.swap(assets);
+    hosted_ = std::move(hosted);
     nextTagId_ = nextTag;
     nextMaterialId_ = nextMaterial;
     nextAssetId_ = nextAsset;
@@ -1000,7 +1018,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("Unknown amendment policy");
     if (!canAmend(stamp))
         throw std::runtime_error("The most recent operation can no longer be revised");
-    std::set<Id> contexts;
+    auto contexts = hostedEditingContexts(undo_.back().edit);
     std::set<Id> definitionContexts;
     std::set<Id> tagContexts, materialContexts, assetContexts;
     size_t createdAssets = 0;
@@ -1044,6 +1062,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineMaterials = staged.materials_;
     const auto baselineAssets = staged.assets_;
     const auto baselineUnits = staged.displayUnits_;
+    const auto baselineHosted = staged.hosted_;
     // Rewind only the private candidate. A replacement publishes one revision,
     // and retains the pre-operation history entry and monotonic allocator floors.
     staged.revision_ = revision_;
@@ -1053,6 +1072,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("Replacement must commit exactly one atomic operation");
     if (!undo_.back().edit.displayUnits && staged.displayUnits_ != baselineUnits)
         throw std::runtime_error("Replacement cannot change document units outside its scope");
+    validateHostedAmendment(undo_.back().edit, *baselineHosted, *staged.hosted_);
     for (const auto &[id, body] : baseline)
         if (!contexts.contains(id) &&
             (!staged.bodies_.contains(id) || staged.bodies_.at(id) != body))
@@ -1202,7 +1222,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        std::uint64_t revision, ComponentDefinitions definitions,
                        ComponentInstances instances, Id nextDefinitionId, TagRecords tags,
                        Id nextTagId, MaterialRecords materials, Id nextMaterialId,
-                       AssetRecords assets, Id nextAssetId, DisplayUnit units) {
+                       AssetRecords assets, Id nextAssetId, DisplayUnit units, HostedPtr hosted) {
     unitCode(units);
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
@@ -1234,6 +1254,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
                                  nextMaterialId, assets, nextAssetId);
     validateComponentInstances(definitions, instances, bodies);
+    hosted = freezeHostedComponents(hosted);
+    validateHostedComponents(*hosted, bodies, definitions, instances);
     std::map<Id, DefinitionFloor> definitionFloors;
     for (auto &[id, definition] : definitions) {
         auto &floor = definitionFloors[id];
@@ -1258,6 +1280,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     bodies_ = std::move(bodies);
     definitions_ = std::move(definitions);
     instances_ = std::move(instances);
+    hosted_ = std::move(hosted);
     definitionFloors_ = std::move(definitionFloors);
     nextDefinitionId_ = nextDefinitionId;
     tags_ = std::move(tags);
