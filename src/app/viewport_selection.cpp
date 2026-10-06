@@ -184,7 +184,7 @@ void Viewport::rebuildPickGeometry() {
     };
     auto vertex = [](Vec3 point, std::array<float, 3> color) {
         return Vertex{
-            float(point.x), float(point.y), float(point.z), color[0], color[1], color[2], 1};
+            point.x, point.y, point.z, color[0], color[1], color[2], 1};
     };
     for (const auto &[id, cache] : bodyCaches_) {
         if (!cache->alpha)
@@ -286,7 +286,8 @@ Viewport::PickPixels Viewport::selectionPixels(QRectF region) {
     shader_->setUniformValue("pixelOffset", QVector2D{});
     shader_->setUniformValue("clipEnabled", clipPlane_ ? 1 : 0);
     if (clipPlane_) {
-        const auto &p = *clipPlane_;
+        auto p = *clipPlane_;
+        p[3] += p[0] * renderOrigin_.x + p[1] * renderOrigin_.y + p[2] * renderOrigin_.z;
         shader_->setUniformValue("clipPlane", QVector4D(p[0], p[1], p[2], p[3]));
     }
     glEnable(GL_POLYGON_OFFSET_FILL);
@@ -460,7 +461,7 @@ void Viewport::rebuildSelectionOverlay() {
                      GpuBatch &edgeBatch) {
         std::vector<Vertex> faces, edges;
         auto vertex = [&](Vec3 p) {
-            return Vertex{float(p.x), float(p.y), float(p.z), color[0], color[1], color[2], 1};
+            return Vertex{p.x, p.y, p.z, color[0], color[1], color[2], 1};
         };
         auto line = [&](Vec3 a, Vec3 b) {
             edges.push_back(vertex(a));

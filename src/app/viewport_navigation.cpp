@@ -10,7 +10,7 @@ RenderCamera Viewport::renderCamera() const {
     const Vec3 direction{std::cos(pitch) * std::cos(yaw), std::cos(pitch) * std::sin(yaw),
                          std::sin(pitch)};
     RenderCamera camera;
-    camera.target = {target_.x(), target_.y(), target_.z()};
+    camera.target = target_;
     camera.position = camera.target + direction * distance_;
     camera.up = std::abs(pitch_) > 89.999f ? Vec3{0, pitch_ > 0 ? 1. : -1., 0} : Vec3{0, 0, 1};
     camera.orthographic = ortho_;
@@ -21,6 +21,16 @@ RenderCamera Viewport::renderCamera() const {
     return camera;
 }
 void Viewport::cameraChanged() {
+    // Keep floats near the view without re-uploading geometry for every small pan.
+    constexpr double cell = 16;
+    const Vec3 origin{std::round(target_.x / cell) * cell,
+                      std::round(target_.y / cell) * cell,
+                      std::round(target_.z / cell) * cell};
+    if (origin != renderOrigin_) {
+        renderOrigin_ = origin;
+        cacheDirty_ = gridDirty_ = transparentDirty_ = true;
+        pickDirty_ = overlayDirty_ = assistantPreviewDirty_ = benchmarkDirty_ = true;
+    }
     inference_ = {};
     directions_.clear();
     hoverReference_.reset();
@@ -67,12 +77,12 @@ void Viewport::panCamera(QPointF position, QPointF delta) {
     const auto [origin, direction] = ray(position);
     const auto [previous, previousDirection] = ray(position - delta);
     const auto [center, normal] = ray(QPointF(width() * .5, height() * .5));
-    const Vec3 target{target_.x(), target_.y(), target_.z()};
+    const Vec3 target = target_;
     auto onPlane = [&](Vec3 point, Vec3 vector) {
         return point + vector * (dot(target - point, normal) / dot(vector, normal));
     };
     const auto shift = onPlane(previous, previousDirection) - onPlane(origin, direction);
-    target_ += QVector3D(float(shift.x), float(shift.y), float(shift.z));
+    target_ = target_ + shift;
     cameraChanged();
 }
 void Viewport::orbitCamera(QPointF delta) {
@@ -84,7 +94,7 @@ void Viewport::zoomCamera(QPointF position, double factor) {
     if (!std::isfinite(factor) || factor <= 0)
         return;
     const auto [center, normal] = ray(QPointF(width() * .5, height() * .5));
-    const Vec3 target{target_.x(), target_.y(), target_.z()};
+    const Vec3 target = target_;
     auto onPlane = [&] {
         const auto [origin, direction] = ray(position);
         return origin + direction * (dot(target - origin, normal) / dot(direction, normal));
@@ -92,7 +102,7 @@ void Viewport::zoomCamera(QPointF position, double factor) {
     const auto before = onPlane();
     distance_ = std::clamp(double(distance_) * factor, .05, 1e7);
     const auto shift = before - onPlane();
-    target_ += QVector3D(float(shift.x), float(shift.y), float(shift.z));
+    target_ = target_ + shift;
     cameraChanged();
 }
 void Viewport::wheelEvent(QWheelEvent *event) {
