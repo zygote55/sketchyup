@@ -1,3 +1,4 @@
+#include "io/solar_io.hpp"
 #include "integrations/glb_export.hpp"
 #include "core/face_textures.hpp"
 #include "core/shading_normals.hpp"
@@ -536,6 +537,7 @@ struct Writer {
             {"sectionCutEdgesOmitted", double(cutEdges)},
             {"annotationsOmitted", double(doc.annotations().size())},
             {"editableTextSourcesOmitted", double(textSources)},
+            {"solarLightingOmitted", doc.solar().enabled ? 1 : 0},
             {"analyticCurvesTessellatedOrOmitted", double(curves)},
             {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size()) - textures.size()},
             {"missingAssets", double(missingAssets)}};
@@ -593,6 +595,8 @@ struct Writer {
             {"units", "m"},
             {"nativeToGltf", matrix(basis)},
             {"settings", describeRenderSettings(settings)},
+            {"solar", encodeSolarSettings(doc.solar())},
+            {"solarPosition", describeSolarPosition(doc.solar())},
             {"camera", describeRenderCamera(camera)},
             {"cameraNode", cameraNode},
             {"nativeBounds", bounds.json()},

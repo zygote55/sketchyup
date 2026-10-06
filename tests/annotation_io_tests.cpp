@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
         check(encodeContainer(decodeContainer(container)) == container,
               "Annotation container reopens byte-exact");
         const auto tree = QJsonDocument::fromJson(raw).object();
-        check(tree["version"] == 22, "Schema 22 explicit");
+        check(tree["version"] == 23, "Schema 23 explicit");
         check(decodeDocument(raw).annotations().at(id)->text == label.text,
               "Unicode multiline label persists");
         auto broken = *doc.annotations().at(id);
@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
             change(root);
             rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         };
-        mutate([](auto &o) { o.remove("annotations"); });
+        mutate([](auto &o) { o.remove("solar"); o.remove("annotations"); });
         mutate([](auto &o) { o["nextAnnotationId"] = 2; });
         mutate([](auto &o) { o["nextAnnotationId"] = "01"; });
         mutate([](auto &o) { o["nextAnnotationId"] = "1"; });
@@ -127,6 +127,7 @@ int main(int argc, char **argv) {
         auto legacy = tree;
         legacy["version"] = 20;
         rejects([&] { decodeDocument(QJsonDocument(legacy).toJson()); });
+        legacy.remove("solar");
         legacy.remove("annotations");
         legacy.remove("nextAnnotationId");
         check(decodeDocument(QJsonDocument(legacy).toJson()).annotations().empty(),

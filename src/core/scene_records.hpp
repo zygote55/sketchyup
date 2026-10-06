@@ -1,5 +1,6 @@
 #pragma once
 #include "core/model_style.hpp"
+#include "solar/solar.hpp"
 #include "core/section_records.hpp"
 #include "core/transform.hpp"
 #include <compare>
@@ -45,6 +46,7 @@ struct SceneSnapshot {
     std::optional<SceneVisibility> visibility;
     std::optional<ModelStyle> style;
     std::optional<SceneSection> section;
+    std::optional<SolarSettings> solar;
     bool operator==(const SceneSnapshot &) const = default;
     void validate() const;
 };

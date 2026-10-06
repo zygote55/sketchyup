@@ -78,6 +78,8 @@ Edit sceneRecallEdit(const Document &doc, Id id) {
     const auto scene = requireScene(doc, id);
     Edit edit{"Recall scene", {}};
     const auto &snapshot = scene->snapshot;
+    if (snapshot.solar && *snapshot.solar != doc.solar())
+        edit.solar = std::pair{doc.solar(), *snapshot.solar};
     if (snapshot.style && *snapshot.style != doc.style())
         edit.style = std::pair{doc.style(), *snapshot.style};
     if (snapshot.section) {
@@ -111,7 +113,7 @@ Edit sceneRecallEdit(const Document &doc, Id id) {
     return edit;
 }
 bool sceneRecallChangesModel(const Edit &edit) {
-    return !edit.changes.empty() || !edit.tags.empty() || edit.style.has_value() ||
+    return !edit.changes.empty() || !edit.tags.empty() || edit.style.has_value() || edit.solar.has_value() ||
            edit.activeSections.has_value();
 }
 void recallSceneModel(Document &doc, Id id) {
