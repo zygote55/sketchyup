@@ -36,6 +36,7 @@ jobs:
           build/dev/glb_export_tests build/glb-fixtures
           node scripts/verify-glb.mjs build/gltf-validator build/glb-fixtures > build/glb-validation.json
           blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-glb.py -- build/glb-fixtures
+          blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-sides.py -- build/glb-fixtures
       - name: Actual Blender worker lifecycle
         run: |
           SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^blender_real$' --output-on-failure

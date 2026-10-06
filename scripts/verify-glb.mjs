@@ -16,5 +16,5 @@ for (const name of fs.readdirSync(fixtureRoot).sort()) {
   reports.push({fixture:name, ...report});
   if (report.issues.numErrors || report.issues.numWarnings) process.exitCode = 1;
 }
-if (reports.length !== 4) throw new Error('Expected four GLB interoperability fixtures');
+if (reports.length !== 11) throw new Error('Expected eleven GLB interoperability fixtures');
 console.log(JSON.stringify({validator:validator.version(), reports}, null, 2));

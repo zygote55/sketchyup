@@ -82,7 +82,8 @@ struct Writer {
     const RenderSnapshot &snapshot;
     const Document &doc;
     QByteArray binary;
-    QJsonArray nodes, meshes, materials, views, accessors, bodyMap, assetMap, materialMap;
+    QJsonArray nodes, meshes, materials, views, accessors, bodyMap, assetMap, materialMap,
+        sidePairs;
     std::map<QByteArray, int> meshCache, materialCache;
     std::map<Id, int> nodeMap;
     std::set<Id> usedAssets, usedMaterials;
@@ -129,15 +130,15 @@ struct Writer {
             {"opacity", record.opacity},
             {"asset", id(record.asset)}});
     }
-    int material(const SurfaceAppearance &appearance) {
+    QJsonObject appearanceKey(const SurfaceAppearance &appearance) {
+        return {{"color", QJsonArray{linear(appearance.color[0]), linear(appearance.color[1]),
+                                     linear(appearance.color[2]), appearance.opacity}},
+                {"id", id(appearance.material)}};
+    }
+    int appendMaterial(const SurfaceAppearance &appearance, bool doubleSided) {
         useMaterial(appearance.material);
         QJsonArray rgba{linear(appearance.color[0]), linear(appearance.color[1]),
                         linear(appearance.color[2]), appearance.opacity};
-        const auto key =
-            QJsonDocument(QJsonObject{{"color", rgba}, {"id", id(appearance.material)}})
-                .toJson(QJsonDocument::Compact);
-        if (materialCache.contains(key))
-            return materialCache.at(key);
         require(materials.size() < 4096, "GLB has too many distinct face appearances");
         const int index = materials.size();
         materials.append(QJsonObject{
@@ -147,9 +148,24 @@ struct Writer {
             {"pbrMetallicRoughness", QJsonObject{{"baseColorFactor", rgba},
                                                  {"metallicFactor", 0},
                                                  {"roughnessFactor", .8}}},
-            {"doubleSided", true},
+            {"doubleSided", doubleSided},
             {"alphaMode", appearance.opacity < 1 ? "BLEND" : "OPAQUE"},
-            {"extras", QJsonObject{{"sketchyupMaterial", id(appearance.material)}}}});
+            {"extras", QJsonObject{{"sketchyupMaterial", id(appearance.material)},
+                                   {"sketchyupAppearance", index}}}});
+        return index;
+    }
+    int material(const SurfaceAppearance &front, const SurfaceAppearance &back) {
+        const bool paired = front != back;
+        const auto key = QJsonDocument(QJsonObject{{"front", appearanceKey(front)},
+                                                   {"back", appearanceKey(back)}})
+                             .toJson(QJsonDocument::Compact);
+        if (materialCache.contains(key))
+            return materialCache.at(key);
+        const int index = appendMaterial(front, !paired);
+        if (paired) {
+            const int reverse = appendMaterial(back, false);
+            sidePairs.append(QJsonObject{{"front", index}, {"back", reverse}});
+        }
         materialCache[key] = index;
         return index;
     }
@@ -172,29 +188,42 @@ struct Writer {
             useMaterial(back.material);
             if (front != back)
                 ++backDifferences;
-            const int appearance = material(front);
-            auto &group = groups[appearance];
-            const int start = group.count;
+            const int appearance = material(front, back);
             const auto tessellated = body.surface.triangulate(face);
-            triangles += tessellated.size();
+            const bool paired = front != back;
+            triangles += tessellated.size() * (paired ? 2 : 1);
             require(triangles <= 1000000, "GLB has too many visible triangles");
-            for (const auto &triangle : tessellated) {
-                const auto normal =
-                    normalized(cross(triangle.b - triangle.a, triangle.c - triangle.a));
-                for (auto p : {triangle.a, triangle.b, triangle.c}) {
-                    vector(group.positions, p);
-                    vector(group.normals, normal);
-                    ++group.count;
-                    group.bounds.add({double(float(p.x)), double(float(p.y)), double(float(p.z))});
-                    bounds.add(world.point(p));
+            auto appendSide = [&](int index, bool reverse) {
+                auto &group = groups[index];
+                const int start = group.count;
+                for (const auto &triangle : tessellated) {
+                    const auto normal =
+                        normalized(cross(triangle.b - triangle.a, triangle.c - triangle.a)) *
+                        (reverse ? -1 : 1);
+                    for (auto p : {triangle.a, reverse ? triangle.c : triangle.b,
+                                   reverse ? triangle.b : triangle.c}) {
+                        vector(group.positions, p);
+                        vector(group.normals, normal);
+                        ++group.count;
+                        group.bounds.add(
+                            {double(float(p.x)), double(float(p.y)), double(float(p.z))});
+                        bounds.add(world.point(p));
+                    }
                 }
+                return start;
+            };
+            QJsonObject entry{{"id", id(face)},
+                              {"material", appearance},
+                              {"firstVertex", appendSide(appearance, false)},
+                              {"vertexCount", int(tessellated.size() * 3)},
+                              {"frontMaterial", id(front.material)},
+                              {"backMaterial", id(back.material)}};
+            if (paired) {
+                entry["backAppearance"] = appearance + 1;
+                entry["backFirstVertex"] = appendSide(appearance + 1, true);
+                entry["backVertexCount"] = int(tessellated.size() * 3);
             }
-            faceMap.append(QJsonObject{{"id", id(face)},
-                                       {"material", appearance},
-                                       {"firstVertex", start},
-                                       {"vertexCount", group.count - start},
-                                       {"frontMaterial", id(front.material)},
-                                       {"backMaterial", id(back.material)}});
+            faceMap.append(entry);
         }
         if (groups.empty())
             return {-1, faceMap};
@@ -215,6 +244,8 @@ struct Writer {
         for (qsizetype i = 0; i < faceMap.size(); ++i) {
             auto record = faceMap[i].toObject();
             record["primitive"] = primitiveIndices.at(record["material"].toInt());
+            if (record.contains("backAppearance"))
+                record["backPrimitive"] = primitiveIndices.at(record["backAppearance"].toInt());
             faceMap[i] = record;
         }
         if (meshCache.contains(key))
@@ -320,7 +351,6 @@ struct Writer {
         QJsonObject losses{{"wiresOmitted", double(wires)},
                            {"guidesOmitted", double(guides)},
                            {"analyticCurvesTessellatedOrOmitted", double(curves)},
-                           {"differentBackAppearancesUseFront", double(backDifferences)},
                            {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size())},
                            {"missingAssets", double(missingAssets)}};
         QJsonObject gltf{
@@ -339,6 +369,8 @@ struct Writer {
             {"extras", QJsonObject{{"sketchyupDocument", QString::fromStdString(doc.identity())},
                                    {"sketchyupRevision", id(doc.revision())},
                                    {"managedAssets", assetMap},
+                                   {"sketchyupSidedMaterials",
+                                    QJsonObject{{"version", 1}, {"pairs", sidePairs}}},
                                    {"losses", losses}}}};
         auto json = QJsonDocument(gltf).toJson(QJsonDocument::Compact);
         require(json.size() <= jsonLimit, "GLB JSON exceeds 16 MiB");
@@ -378,6 +410,7 @@ struct Writer {
             {"hiddenBodiesOmitted", double(hiddenBodies)},
             {"hiddenFacesOmitted", double(hiddenFaces)},
             {"visibleTriangles", double(triangles)},
+            {"facesWithDistinctSides", double(backDifferences)},
             {"uniqueMeshes", meshes.size()},
             {"colorPolicy", "sRGB face colors converted to linear PBR baseColorFactor"}};
         require(QJsonDocument(manifest).toJson(QJsonDocument::Compact).size() <= jsonLimit,

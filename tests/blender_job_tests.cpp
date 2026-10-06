@@ -1,3 +1,4 @@
+#include "core/materials.hpp"
 #include "integrations/blender_job.hpp"
 #include <QBuffer>
 #include <QCoreApplication>
@@ -130,6 +131,10 @@ int main(int argc, char **argv) {
         Document document;
         const auto body = document.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});
         document.extrude(body, document.bodies().at(body)->surface.faces.begin()->first, 4);
+        const auto front = createMaterial(document, "Render front", {.8f, .2f, .1f}, .7f);
+        const auto back = createMaterial(document, "Render back", {.1f, .2f, .8f});
+        assignMaterial(document, body, {}, front, true, false);
+        assignMaterial(document, body, {}, back, false, true);
         RenderOptions render;
         render.settings = {128, 128, 4, 0};
         auto snapshot = RenderSnapshot::capture(document, render);

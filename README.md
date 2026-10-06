@@ -261,7 +261,9 @@ Export a fixed render snapshot with
 `sketchyup-cli --input MODEL --export-glb NEW_DIRECTORY`, optionally adding
 `--render-settings examples/render-settings-v1.json`. The directory contains
 `scene.glb` and its revision/settings/hash manifest. Export works without Blender;
-see the [GLB subset and loss policy](docs/decisions/0032-glb-snapshots.md).
+Distinct front/back colors and opacity are preserved in GLB and Cycles, including
+reversed and mirrored faces; see the [two-sided transfer](docs/decisions/0050-two-sided-export.md)
+and [GLB subset and loss policy](docs/decisions/0032-glb-snapshots.md).
 The headless binding reports desktop selection as unavailable. The native binding
 exposes inspection only; staged mutation tools are currently available headlessly.
 

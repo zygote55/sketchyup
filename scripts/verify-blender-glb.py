@@ -34,7 +34,8 @@ for name in ('box', 'mirrored', 'materials', 'orthographic'):
         for polygon in obj.data.polygons:
             normal = normal_matrix @ polygon.normal
             outward = obj.matrix_world @ polygon.center - obj.matrix_world @ center
-            assert normal.dot(outward) > 0, 'Imported box normals point outward, including mirrors'
+            side = -1 if name == 'materials' and obj.data.materials[polygon.material_index].get('sketchyupAppearance') == 1 else 1
+            assert side * normal.dot(outward) > 0, 'Imported normals match their material side, including mirrors'
     camera = cameras[0]
     settings = manifest['settings']
     bpy.context.scene.render.resolution_x = settings['width']
@@ -53,8 +54,10 @@ for name in ('box', 'mirrored', 'materials', 'orthographic'):
         assert camera.data.type == 'PERSP'
         assert abs(2 * math.atan(abs(frame[0].y / frame[0].z)) - expected_camera['verticalFov']) < 1e-5
     if name == 'materials':
-        assert len(bpy.data.materials) == 1
-        bsdf = next(node for node in bpy.data.materials[0].node_tree.nodes if node.type == 'BSDF_PRINCIPLED')
+        assert len(bpy.data.materials) == 2
+        assert all(m.use_backface_culling for m in bpy.data.materials)
+        front = next(m for m in bpy.data.materials if m.get('sketchyupAppearance') == 0)
+        bsdf = next(node for node in front.node_tree.nodes if node.type == 'BSDF_PRINCIPLED')
         assert abs(bsdf.inputs['Alpha'].default_value - .35) < 1e-5
         assert abs(bsdf.inputs['Base Color'].default_value[0] - .21404114) < 1e-5
     reports.append({'fixture': name, 'bounds': [low, high], 'meshObjects': len(meshes), 'camera': camera.data.type, 'passed': True})

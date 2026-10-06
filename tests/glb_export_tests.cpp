@@ -1,5 +1,6 @@
 #include "core/assets.hpp"
 #include "core/components.hpp"
+#include "core/face_orientation.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
 #include "core/tags.hpp"
@@ -188,12 +189,15 @@ int main(int argc, char **argv) {
         const auto colored = exportGlb(materialSnapshot);
         Parsed materialParsed(colored);
         const auto losses = colored.manifest["losses"].toObject();
-        check(losses["differentBackAppearancesUseFront"] == 6 &&
+        check(!losses.contains("differentBackAppearancesUseFront") &&
+                  colored.manifest["facesWithDistinctSides"] == 6 &&
+                  colored.manifest["visibleTriangles"] == 24 &&
                   losses["textureAssetsPreservedWithoutUVMapping"] == 2 &&
                   losses["missingAssets"] == 1,
               "Appearance losses explicit");
         const auto mat = materialParsed.root["materials"].toArray()[0].toObject();
-        check(mat["doubleSided"] == true && mat["alphaMode"] == "BLEND",
+        check(mat["doubleSided"] == false && mat["alphaMode"] == "BLEND" &&
+                  materialParsed.root["materials"].toArray().size() == 2,
               "Opacity and double-sided policy");
         near(mat["pbrMetallicRoughness"].toObject()["baseColorFactor"].toArray()[0].toDouble(),
              .21404114, "sRGB swatch converts to linear PBR");
@@ -214,6 +218,26 @@ int main(int argc, char **argv) {
         check(exportGlb(materialSnapshot).glb == colored.glb,
               "Later asset replacement cannot change captured payload");
         writeGlbExport(colored, fixtures + "/materials");
+        // The same material may be front in one pair and back in another.
+        // Repeated reflected components must still share their paired mesh.
+        auto mixed = box();
+        const auto red = createMaterial(mixed, "Red", {1, 0, 0});
+        const auto blue = createMaterial(mixed, "Blue", {0, 0, 1});
+        assignMaterial(mixed, 1, {}, red, true, false);
+        assignMaterial(mixed, 1, {}, blue, false, true);
+        const auto reversedFace = mixed.bodies().at(1)->surface.faces.begin()->first;
+        reverseSelectedFaces(mixed, {{1, SelectionKind::Face, reversedFace}}, 0);
+        const auto mixedGroup = createGroup(mixed, {1}, "Sided assembly");
+        const auto mixedComponent = createComponent(mixed, mixedGroup, "Sided component");
+        placeComponent(mixed, mixedComponent.definition,
+                       Transform::translation({6, 0, 0}) * Transform::scaling({-1, 1, 1}));
+        const auto mixedScene = exportGlb(RenderSnapshot::capture(mixed));
+        Parsed mixedParsed(mixedScene);
+        check(mixedScene.manifest["uniqueMeshes"] == 1 &&
+                  mixedScene.manifest["visibleTriangles"] == 48 &&
+                  mixedParsed.root["materials"].toArray().size() == 4,
+              "Opposite appearance roles are distinct and repeated sided meshes share storage");
+        writeGlbExport(mixedScene, fixtures + "/mixed-sides");
         RenderOptions orthographic;
         RenderCamera camera;
         camera.orthographic = true;
@@ -235,6 +259,82 @@ int main(int argc, char **argv) {
                     normalized(camera.target - camera.position)),
              0, "Camera points along negative local Z");
         writeGlbExport(ortho, fixtures + "/orthographic");
+        // Decode both sides independently. Native reversal must retain the red
+        // physical +Z side even through a reflected, rotated, nonuniform placement.
+        for (int variant = 0; variant < 6; ++variant) {
+            Document plane;
+            std::vector<std::vector<Vec3>> loops{{{-2, -2, 0}, {2, -2, 0}, {2, 2, 0}, {-2, 2, 0}}};
+            if (variant == 5)
+                loops.push_back({{-.5, -.5, 0}, {-.5, .5, 0}, {.5, .5, 0}, {.5, -.5, 0}});
+            const auto owner = plane.addFace(loops);
+            const auto face = plane.bodies().at(owner)->surface.faces.begin()->first;
+            const auto red =
+                           createMaterial(plane, "Physical front", {1, 0, 0}, variant == 4 ? 0 : 1),
+                       blue = createMaterial(plane, "Physical back", {0, 0, 1});
+            assignMaterial(plane, owner, face, red, true, false);
+            assignMaterial(plane, owner, face, blue, false, true);
+            const auto placement = Transform::translation({3, -2, 1}) *
+                                   Transform::rotation({1, 2, 3}, .4) *
+                                   Transform::scaling({variant & 2 ? -1.5 : 1.5, .8, 1.2});
+            plane.transform(owner, placement);
+            if (variant & 1)
+                reverseSelectedFaces(plane, {{owner, SelectionKind::Face, face}}, 0);
+            const auto original = encodeDocument(plane);
+            const auto result = exportGlb(RenderSnapshot::capture(plane));
+            Parsed sides(result);
+            const auto materials = sides.root["materials"].toArray();
+            check(materials.size() == 2 && result.manifest["facesWithDistinctSides"] == 1 &&
+                      encodeDocument(plane) == original,
+                  "Two independent appearances, immutable export");
+            const auto map =
+                result.manifest["bodies"].toArray()[0].toObject()["faces"].toArray()[0].toObject();
+            const auto primitives =
+                sides.root["meshes"].toArray()[0].toObject()["primitives"].toArray();
+            auto values = [&](int primitive, const char *name) {
+                const auto attributes = primitives[primitive].toObject()["attributes"].toObject();
+                const auto accessor =
+                    sides.root["accessors"].toArray()[attributes[name].toInt()].toObject();
+                const auto view =
+                    sides.root["bufferViews"].toArray()[accessor["bufferView"].toInt()].toObject();
+                std::vector<Vec3> values;
+                for (int i = 0; i < accessor["count"].toInt(); ++i) {
+                    auto value = [&](int axis) {
+                        return double(std::bit_cast<float>(
+                            word(sides.binary, view["byteOffset"].toInt() + i * 12 + axis * 4)));
+                    };
+                    values.push_back({value(0), value(1), value(2)});
+                }
+                return values;
+            };
+            const auto fp = values(map["primitive"].toInt(), "POSITION"),
+                       bp = values(map["backPrimitive"].toInt(), "POSITION"),
+                       fn = values(map["primitive"].toInt(), "NORMAL"),
+                       bn = values(map["backPrimitive"].toInt(), "NORMAL");
+            check(fp.size() == bp.size() && fp.size() == size_t(map["vertexCount"].toInt()) &&
+                      map["vertexCount"] == map["backVertexCount"] && map["firstVertex"] == 0 &&
+                      map["backFirstVertex"] == 0,
+                  "Both native-face ranges cover their triangles");
+            for (size_t i = 0; i < fp.size(); i += 3) {
+                check(fp[i] == bp[i] && fp[i + 1] == bp[i + 2] && fp[i + 2] == bp[i + 1],
+                      "Back triangles have exactly opposite winding");
+                near(dot(normalized(cross(fp[i + 1] - fp[i], fp[i + 2] - fp[i])), fn[i]), 1,
+                     "Exported normal agrees with winding");
+                near(dot(fn[i], bn[i]), -1, "Back normal is opposite");
+            }
+            const auto inverse = placement.inverse();
+            auto worldNormal = [&](Vec3 n) {
+                return normalized(Vec3{dot(inverse.vector({1, 0, 0}), n),
+                                       dot(inverse.vector({0, 1, 0}), n),
+                                       dot(inverse.vector({0, 0, 1}), n)});
+            };
+            const bool frontIsRed = dot(worldNormal(fn[0]), worldNormal({0, 0, 1})) > 0;
+            const auto actual =
+                materials[frontIsRed ? map["material"].toInt() : map["backAppearance"].toInt()]
+                    .toObject();
+            check(actual["extras"].toObject()["sketchyupMaterial"] == QString::number(red),
+                  "Red remains on original physical front after reversal/reflection");
+            writeGlbExport(result, fixtures + "/sides-" + QString::number(variant));
+        }
         auto distant = box();
         distant.move(1, {999997, 0, 0});
         check(exportGlb(RenderSnapshot::capture(distant)).manifest["visibleTriangles"] == 12,
