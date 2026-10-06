@@ -192,7 +192,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/section_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/section_viewport_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/style_input_tests
-          SKETCHYUP_TEST_SCALE=2 SKETCHYUP_RENDER_MODEL="$PWD/examples/section-nested.sketchyup" scripts/test-wayland.sh build/dev/render_input_tests
+          SKETCHYUP_TEST_SCALE=2 SKETCHYUP_RENDER_SECTION_FIXTURE=1 SKETCHYUP_RENDER_MODEL="$PWD/examples/section-nested.sketchyup" scripts/test-wayland.sh build/dev/render_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/scene_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/section_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/section_viewport_tests

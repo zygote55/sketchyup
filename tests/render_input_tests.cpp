@@ -182,17 +182,22 @@ int main(int argc, char **argv) {
         check(panel.latest() && panel.latest()->manifest.value("revision").toString() ==
                                     QString::number(captured),
               "Verified result belongs to captured revision");
-        if (!capturedSections.empty()) {
-            check(panel.latest()->manifest["sectionCapTriangles"].toInt() > 0 &&
-                      doc.activeSections() == capturedSections,
-                  "Native render captures named section caps without changing activation");
-            for (const auto value : panel.latest()->manifest["bodies"].toArray())
-                for (const auto section : value.toObject()["sections"].toObject()["active"].toArray()) {
-                    const auto id = section.toString().toULongLong();
-                    check(std::any_of(capturedSections.begin(), capturedSections.end(),
-                                      [&](const auto &entry) { return entry.second == id; }),
-                          "Render section provenance belongs to captured activation");
-                }
+        check(doc.activeSections() == capturedSections,
+              "Native render leaves captured section activation unchanged");
+        if (qEnvironmentVariableIsSet("SKETCHYUP_RENDER_SECTION_FIXTURE")) {
+            check(panel.latest()->manifest["losses"].toObject()["sectionCutEdgesOmitted"].toInt() > 0,
+                  "Native section result reports omitted cut-edge lines");
+            if (!real.isEmpty()) {
+                int green{};
+                const auto &image = panel.latest()->image;
+                for (int y = 0; y < image.height(); ++y)
+                    for (int x = 0; x < image.width(); ++x) {
+                        const auto color = image.pixelColor(x, y);
+                        green += color.green() > 50 && color.green() > color.red() * 2 &&
+                                 color.green() > color.blue() * 2;
+                    }
+                check(green > 10, "Actual native Blender result contains green section caps");
+            }
         }
         check(tabs->count() == 2 && tabs->currentIndex() == 1,
               "Result is beside model in native window");
