@@ -660,6 +660,22 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         findChild<QAction *>("view.tray")->setChecked(true);
         organization_->showHistory();
     }));
+    view->addAction(action("view.scenes", "Saved scenes", {}, [this] {
+        sideTabs_->show();
+        sideTabs_->setCurrentWidget(tray_);
+        tray_->show();
+        findChild<QAction *>("view.tray")->setChecked(true);
+        organization_->showScenes();
+    }));
+    auto *reducedMotion = action("view.reduced_motion", "Reduced camera motion", {}, [this] {
+        const auto enabled = findChild<QAction *>("view.reduced_motion")->isChecked();
+        QSettings().setValue("reducedMotion", enabled);
+        viewport_->setReducedMotion(enabled);
+    });
+    reducedMotion->setCheckable(true);
+    reducedMotion->setChecked(navigationSettings.value("reducedMotion", false).toBool());
+    viewport_->setReducedMotion(reducedMotion->isChecked());
+    view->addAction(reducedMotion);
     view->addAction(action("view.styles", "Model styles", {}, [this] {
         sideTabs_->show();
         sideTabs_->setCurrentWidget(tray_);

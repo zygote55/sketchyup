@@ -163,6 +163,165 @@
                 "openWorldHint": false,
                 "readOnlyHint": true
             },
+            "description": "saved_scenes.query: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "saved_scenes.query"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "saved_scenes.query"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "saved_scene.describe: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "saved_scene.describe"
+                    },
+                    "scene": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "scene",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "saved_scene.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "saved_scene.visibility: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "saved_scene.visibility"
+                    },
+                    "scene": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "scene",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "saved_scene.visibility"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
             "description": "selection.get: shared versioned SketchyUp operation",
             "inputSchema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1706,6 +1865,776 @@
                                         "metric",
                                         "expected",
                                         "tolerance",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Create a selective saved scene",
+                                    "properties": {
+                                        "command": {
+                                            "const": "saved_scene.create"
+                                        },
+                                        "name": {
+                                            "maxLength": 1024,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "snapshot": {
+                                            "additionalProperties": false,
+                                            "minProperties": 1,
+                                            "properties": {
+                                                "camera": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "distance": {
+                                                            "maximum": 10000000,
+                                                            "minimum": 0.05,
+                                                            "type": "number"
+                                                        },
+                                                        "fieldOfView": {
+                                                            "maximum": 120,
+                                                            "minimum": 5,
+                                                            "type": "number"
+                                                        },
+                                                        "orthographic": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "pitch": {
+                                                            "maximum": 90,
+                                                            "minimum": -90,
+                                                            "type": "number"
+                                                        },
+                                                        "target": {
+                                                            "items": {
+                                                                "maximum": 1000000000,
+                                                                "minimum": -1000000000,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "yaw": {
+                                                            "maximum": 180,
+                                                            "minimum": -180,
+                                                            "type": "number"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "distance",
+                                                        "fieldOfView",
+                                                        "orthographic",
+                                                        "pitch",
+                                                        "target",
+                                                        "yaw"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "section": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "plane": {
+                                                            "oneOf": [
+                                                                {
+                                                                    "type": "null"
+                                                                },
+                                                                {
+                                                                    "items": {
+                                                                        "maximum": 1000000000,
+                                                                        "minimum": -1000000000,
+                                                                        "type": "number"
+                                                                    },
+                                                                    "maxItems": 4,
+                                                                    "minItems": 4,
+                                                                    "type": "array"
+                                                                }
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "plane"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "style": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "axesVisible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "back": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "background": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "edge": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "edgesVisible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "front": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "gridVisible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "ground": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "groundHeight": {
+                                                            "maximum": 1000000,
+                                                            "minimum": -1000000,
+                                                            "type": "number"
+                                                        },
+                                                        "groundVisible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "mode": {
+                                                            "enum": [
+                                                                "textured",
+                                                                "shaded",
+                                                                "monochrome",
+                                                                "wireframe",
+                                                                "xray"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "profileWidth": {
+                                                            "maximum": 8,
+                                                            "minimum": 1,
+                                                            "type": "number"
+                                                        },
+                                                        "profiles": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "xrayOpacity": {
+                                                            "maximum": 0.95,
+                                                            "minimum": 0.01,
+                                                            "type": "number"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "axesVisible",
+                                                        "back",
+                                                        "background",
+                                                        "edge",
+                                                        "edgesVisible",
+                                                        "front",
+                                                        "gridVisible",
+                                                        "ground",
+                                                        "groundHeight",
+                                                        "groundVisible",
+                                                        "mode",
+                                                        "profileWidth",
+                                                        "profiles",
+                                                        "xrayOpacity"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "visibility": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "bodies": {
+                                                            "items": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^[1-9][0-9]*$",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "visible": {
+                                                                        "type": "boolean"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "visible"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "maxItems": 10000,
+                                                            "minItems": 0,
+                                                            "type": "array"
+                                                        },
+                                                        "hidden": {
+                                                            "items": {
+                                                                "oneOf": [
+                                                                    {
+                                                                        "additionalProperties": false,
+                                                                        "properties": {
+                                                                            "body": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "entity": {
+                                                                                "type": "null"
+                                                                            },
+                                                                            "kind": {
+                                                                                "const": "body"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "body",
+                                                                            "entity",
+                                                                            "kind"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    {
+                                                                        "additionalProperties": false,
+                                                                        "properties": {
+                                                                            "body": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "entity": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "kind": {
+                                                                                "enum": [
+                                                                                    "face",
+                                                                                    "edge",
+                                                                                    "guide"
+                                                                                ],
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "body",
+                                                                            "entity",
+                                                                            "kind"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    }
+                                                                ]
+                                                            },
+                                                            "maxItems": 50000,
+                                                            "minItems": 0,
+                                                            "type": "array",
+                                                            "uniqueItems": true
+                                                        },
+                                                        "showHidden": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "tags": {
+                                                            "items": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^[1-9][0-9]*$",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "visible": {
+                                                                        "type": "boolean"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "visible"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "maxItems": 1024,
+                                                            "minItems": 0,
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "bodies",
+                                                        "hidden",
+                                                        "showHidden",
+                                                        "tags"
+                                                    ],
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "required": [
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "name",
+                                        "snapshot",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Rename a saved scene",
+                                    "properties": {
+                                        "command": {
+                                            "const": "saved_scene.rename"
+                                        },
+                                        "name": {
+                                            "maxLength": 1024,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "scene": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "scene",
+                                        "name",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Replace a saved scene's opted-in properties",
+                                    "properties": {
+                                        "command": {
+                                            "const": "saved_scene.update"
+                                        },
+                                        "scene": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "snapshot": {
+                                            "additionalProperties": false,
+                                            "minProperties": 1,
+                                            "properties": {
+                                                "camera": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "distance": {
+                                                            "maximum": 10000000,
+                                                            "minimum": 0.05,
+                                                            "type": "number"
+                                                        },
+                                                        "fieldOfView": {
+                                                            "maximum": 120,
+                                                            "minimum": 5,
+                                                            "type": "number"
+                                                        },
+                                                        "orthographic": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "pitch": {
+                                                            "maximum": 90,
+                                                            "minimum": -90,
+                                                            "type": "number"
+                                                        },
+                                                        "target": {
+                                                            "items": {
+                                                                "maximum": 1000000000,
+                                                                "minimum": -1000000000,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "yaw": {
+                                                            "maximum": 180,
+                                                            "minimum": -180,
+                                                            "type": "number"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "distance",
+                                                        "fieldOfView",
+                                                        "orthographic",
+                                                        "pitch",
+                                                        "target",
+                                                        "yaw"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "section": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "plane": {
+                                                            "oneOf": [
+                                                                {
+                                                                    "type": "null"
+                                                                },
+                                                                {
+                                                                    "items": {
+                                                                        "maximum": 1000000000,
+                                                                        "minimum": -1000000000,
+                                                                        "type": "number"
+                                                                    },
+                                                                    "maxItems": 4,
+                                                                    "minItems": 4,
+                                                                    "type": "array"
+                                                                }
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "plane"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "style": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "axesVisible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "back": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "background": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "edge": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "edgesVisible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "front": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "gridVisible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "ground": {
+                                                            "items": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "groundHeight": {
+                                                            "maximum": 1000000,
+                                                            "minimum": -1000000,
+                                                            "type": "number"
+                                                        },
+                                                        "groundVisible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "mode": {
+                                                            "enum": [
+                                                                "textured",
+                                                                "shaded",
+                                                                "monochrome",
+                                                                "wireframe",
+                                                                "xray"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "profileWidth": {
+                                                            "maximum": 8,
+                                                            "minimum": 1,
+                                                            "type": "number"
+                                                        },
+                                                        "profiles": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "xrayOpacity": {
+                                                            "maximum": 0.95,
+                                                            "minimum": 0.01,
+                                                            "type": "number"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "axesVisible",
+                                                        "back",
+                                                        "background",
+                                                        "edge",
+                                                        "edgesVisible",
+                                                        "front",
+                                                        "gridVisible",
+                                                        "ground",
+                                                        "groundHeight",
+                                                        "groundVisible",
+                                                        "mode",
+                                                        "profileWidth",
+                                                        "profiles",
+                                                        "xrayOpacity"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "visibility": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "bodies": {
+                                                            "items": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^[1-9][0-9]*$",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "visible": {
+                                                                        "type": "boolean"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "visible"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "maxItems": 10000,
+                                                            "minItems": 0,
+                                                            "type": "array"
+                                                        },
+                                                        "hidden": {
+                                                            "items": {
+                                                                "oneOf": [
+                                                                    {
+                                                                        "additionalProperties": false,
+                                                                        "properties": {
+                                                                            "body": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "entity": {
+                                                                                "type": "null"
+                                                                            },
+                                                                            "kind": {
+                                                                                "const": "body"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "body",
+                                                                            "entity",
+                                                                            "kind"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    {
+                                                                        "additionalProperties": false,
+                                                                        "properties": {
+                                                                            "body": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "entity": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "kind": {
+                                                                                "enum": [
+                                                                                    "face",
+                                                                                    "edge",
+                                                                                    "guide"
+                                                                                ],
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "body",
+                                                                            "entity",
+                                                                            "kind"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    }
+                                                                ]
+                                                            },
+                                                            "maxItems": 50000,
+                                                            "minItems": 0,
+                                                            "type": "array",
+                                                            "uniqueItems": true
+                                                        },
+                                                        "showHidden": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "tags": {
+                                                            "items": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^[1-9][0-9]*$",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "visible": {
+                                                                        "type": "boolean"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "visible"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "maxItems": 1024,
+                                                            "minItems": 0,
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "bodies",
+                                                        "hidden",
+                                                        "showHidden",
+                                                        "tags"
+                                                    ],
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "required": [
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "scene",
+                                        "snapshot",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Order all saved scenes",
+                                    "properties": {
+                                        "command": {
+                                            "const": "saved_scene.reorder"
+                                        },
+                                        "order": {
+                                            "items": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "maxItems": 256,
+                                            "minItems": 0,
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": [
+                                        "order",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Delete a saved scene",
+                                    "properties": {
+                                        "command": {
+                                            "const": "saved_scene.delete"
+                                        },
+                                        "scene": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "scene",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Recall saved model style and intrinsic visibility",
+                                    "properties": {
+                                        "command": {
+                                            "const": "saved_scene.recall"
+                                        },
+                                        "scene": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "scene",
                                         "command"
                                     ],
                                     "type": "object"
@@ -5890,6 +6819,120 @@
                                     }
                                 },
                                 "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "cursor": {
+                                        "maxLength": 512,
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "limit": {
+                                        "maximum": 100,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                    },
+                                    "query": {
+                                        "const": "saved_scenes.query"
+                                    }
+                                },
+                                "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "saved_scene.describe"
+                                    },
+                                    "scene": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "scene",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "cursor": {
+                                        "maxLength": 512,
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "limit": {
+                                        "maximum": 100,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                    },
+                                    "query": {
+                                        "const": "saved_scene.visibility"
+                                    },
+                                    "scene": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "scene",
                                     "apiVersion",
                                     "documentId",
                                     "expectedRevision",

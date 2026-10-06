@@ -1,5 +1,7 @@
 #include "automation/commands.hpp"
 #include "io/model_style_io.hpp"
+#include "io/scenes_io.hpp"
+#include "core/scenes.hpp"
 #include "core/assets.hpp"
 #include "core/components.hpp"
 #include "core/face_orientation.hpp"
@@ -747,7 +749,16 @@ int main(int argc, char **argv) {
               "Combined asset and material creation undoes atomically");
         auto wireframeStyle = ModelStyle{};
         wireframeStyle.mode = ModelStyleMode::Wireframe;
+        SceneSnapshot savedCamera;
+        savedCamera.camera = SceneCamera{};
+        const auto cameraJson = encodeSceneSnapshot(savedCamera);
         QJsonArray cases{
+            QJsonObject{{"command", "saved_scene.create"}, {"name", "New"}, {"snapshot", cameraJson}},
+            QJsonObject{{"command", "saved_scene.rename"}, {"scene", "1"}, {"name", "Renamed"}},
+            QJsonObject{{"command", "saved_scene.update"}, {"scene", "1"}, {"snapshot", cameraJson}},
+            QJsonObject{{"command", "saved_scene.reorder"}, {"order", QJsonArray{"2", "1"}}},
+            QJsonObject{{"command", "saved_scene.delete"}, {"scene", "1"}},
+            QJsonObject{{"command", "saved_scene.recall"}, {"scene", "1"}},
             QJsonObject{{"command", "document.style"}, {"style", encodeModelStyle(wireframeStyle)}},
             QJsonObject{{"command", "document.units"}, {"units", "mm"}},
             QJsonObject{{"command", "asset.import"},
@@ -1045,6 +1056,13 @@ int main(int argc, char **argv) {
                                    {"commands", commands}};
             };
             Document doc = source;
+            if (command["command"].toString().startsWith("saved_scene.") &&
+                command["command"] != "saved_scene.create") {
+                SceneSnapshot savedStyle;
+                savedStyle.style = wireframeStyle;
+                createScene(doc, "First", savedStyle);
+                createScene(doc, "Second", savedStyle);
+            }
             if (command["command"].toString().startsWith("assembly.")) {
                 doc = command["command"] == "assembly.site_place" ? source : Document{};
                 if (command["command"] == "assembly.window.resize" ||

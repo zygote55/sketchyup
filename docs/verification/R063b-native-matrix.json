@@ -1,0 +1,226 @@
+[
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 4.374
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 4.022
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 3.784
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "style_input_tests",
+    "exitCode": 0,
+    "seconds": 3.816
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.842
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.115
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 3.53
+  },
+  {
+    "platform": "x11",
+    "scale": 1,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.919
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 4.834
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 4.658
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 3.882
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "style_input_tests",
+    "exitCode": 0,
+    "seconds": 4.256
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.197
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.707
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 3.615
+  },
+  {
+    "platform": "x11",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 5.083
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 1.82
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 1.297
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 1.027
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "style_input_tests",
+    "exitCode": 0,
+    "seconds": 1.421
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.086
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.648
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 0.617
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 2.122
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 5.181
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "selection_input_tests",
+    "exitCode": 0,
+    "seconds": 3.611
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 3.145
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "style_input_tests",
+    "exitCode": 0,
+    "seconds": 5.523
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "exitCode": 0,
+    "seconds": 3.565
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.242
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "assistant_preview_tests",
+    "exitCode": 0,
+    "seconds": 2.78
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.119
+  }
+]

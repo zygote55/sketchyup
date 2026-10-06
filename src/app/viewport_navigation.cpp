@@ -21,6 +21,7 @@ RenderCamera Viewport::renderCamera() const {
     return camera;
 }
 void Viewport::cameraChanged() {
+    stopSceneTransition();
     // Keep floats near the view without re-uploading geometry for every small pan.
     constexpr double cell = 16;
     const Vec3 origin{std::round(target_.x / cell) * cell,

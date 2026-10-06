@@ -36,6 +36,8 @@ class Selection {
     void showHidden(const Document &doc, bool show);
     void hide(const Document &doc, const SelectionSet &entities);
     void reveal(const Document &doc);
+    // Replace temporary hiding only within the saved scene's captured body scope.
+    void restoreSceneVisibility(const Document &doc, const SceneVisibility &visibility);
     void lock(const Document &doc, Id body, bool locked);
     void unlockAll(const Document &doc);
     SelectionSet boundary(const Document &doc, SelectedEntity entity) const;
