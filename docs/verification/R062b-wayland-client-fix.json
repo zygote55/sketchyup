@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-06",
+  "failedHead": "97154583a9652ab55148a4d9593941c51b23df20",
+  "failedRun": "37484748047",
+  "failure": "96-byte Wayland proxy allocation at Styles dialog cancellation despite focus synchronization",
+  "version": "1.26.0",
+  "sourceUrl": "https://gitlab.freedesktop.org/wayland/wayland/-/releases/1.26.0/downloads/wayland-1.26.0.tar.xz",
+  "sourceSha256": "64176eaa46e4969903e286f8e5ef8331affc17fdf03ac9b58381d2b23162b7a3",
+  "upstreamTestsPassed": 26,
+  "standaloneDestroyedProxyLeakBytesBefore": 96,
+  "standaloneDestroyedProxyLeakBytesAfter": 0,
+  "standaloneDispatchFirstLeakBytesAfter": 0,
+  "instrumentedClientAddressUndefinedPassed": true,
+  "systemLibrariesChanged": false,
+  "leakSuppression": false,
+  "sourcePatch": "scripts/wayland-1.26-destroyed-proxy.patch"
+}
