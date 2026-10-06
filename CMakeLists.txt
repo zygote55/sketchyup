@@ -742,4 +742,5 @@ install(FILES docs/decisions/0091-reference-image-calibration.md DESTINATION sha
 install(FILES docs/decisions/0092-reference-image-records.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0093-reference-image-workflows.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/decisions/0094-native-reference-images.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/reference-grid.json examples/reference-grid.sketchyup DESTINATION share/doc/sketchyup/examples)
