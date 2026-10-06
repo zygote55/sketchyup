@@ -85,6 +85,10 @@ ReferenceImagesPanel::ReferenceImagesPanel(Document &doc, Viewport &view, QWidge
     connect(calibrate_, &QPushButton::clicked, this, [this] { edit(true); });
     connect(&view_, &Viewport::changed, this, [this] { refresh(); });
     connect(&view_, &Viewport::selected, this, [this] { refresh(); });
+    connect(&view_, &QOpenGLWidget::frameSwapped, this, [this] {
+        if (isVisible())
+            refresh(); // Image availability changes without a document edit.
+    });
     refresh();
 }
 Id ReferenceImagesPanel::selectedImage() const {
