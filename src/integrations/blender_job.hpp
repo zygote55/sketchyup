@@ -47,6 +47,7 @@ class BlenderJob : public QObject {
     struct Options {
         QString executable; // Empty discovers blender on PATH; otherwise an absolute file.
         QString backend{"CPU"}, deviceId{"CPU"};
+        QString scratchParent; // Optional existing private parent for disposable worker files.
         bool allowCpuFallback{true};
         int timeoutMs{180000};
     };
@@ -58,6 +59,7 @@ class BlenderJob : public QObject {
     Phase phase() const;
     bool done() const;
     QString progress() const;
+    qint64 processId() const;
     QJsonObject report() const;
     std::shared_ptr<const BlenderResult> result() const;
   signals:

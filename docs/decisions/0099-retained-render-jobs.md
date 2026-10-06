@@ -7,7 +7,9 @@ captured worker options, timestamps, queue sequence, launch count, state and bou
 diagnostics. No document or history mutation is part of a store operation.
 
 Default limits are eight pending jobs, sixteen total retained records and a 2 GiB
-store budget. Pending jobs reserve 65 MiB each for image and result publication.
+store budget. The initial storage layer reserves 65 MiB per pending result;
+[the queue contract](0100-render-queue-lifecycle.md) expands this for worker scratch
+and atomic result publication.
 Enqueue checks capacity before copying and commits metadata last; any ordinary
 failure removes the new job directory. Existing jobs are never silently evicted to
 make space. Explicit removal/clear operates only on terminal jobs. Source files and

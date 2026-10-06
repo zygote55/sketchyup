@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
         const auto source = captured->manifest();
         const auto path = files.filePath("jobs");
         QString completed, interrupted;
-        const RenderJobStore::Limits limits{2, 4, 256LL * 1024 * 1024};
+        const RenderJobStore::Limits limits{2, 4, 512LL * 1024 * 1024};
         QByteArray expectedImage;
         {
             RenderJobStore store(path, limits);

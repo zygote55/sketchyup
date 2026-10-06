@@ -51,8 +51,10 @@ int fake(QCoreApplication &app, const QStringList &args) {
     const auto requestPath = args.last();
     const auto root = QFileInfo(requestPath).absolutePath();
     const auto request = QJsonDocument::fromJson(read(requestPath)).object();
-    if (mode == "hang")
+    if (mode == "hang") {
+        std::cout << "Retained worker log before interruption\n" << std::flush;
         return app.exec();
+    }
     if (mode == "flood") {
         std::cout << std::string(3 * 1024 * 1024, 'x') << std::flush;
         return app.exec();

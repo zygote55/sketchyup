@@ -14,6 +14,11 @@
 #include <QTimer>
 #include <atomic>
 #include <future>
+#ifdef Q_OS_LINUX
+#include <csignal>
+#include <sys/prctl.h>
+#include <unistd.h>
+#endif
 static void initializeBlenderResource() { Q_INIT_RESOURCE(blender_worker); }
 namespace sketchy {
 namespace {
@@ -350,7 +355,14 @@ struct BlenderJob::Impl {
             return;
         }
         slot = true;
-        jobRoot = std::make_shared<QTemporaryDir>(QDir::tempPath() + "/sketchyup-worker-XXXXXX");
+        const auto scratchParent =
+            options.scratchParent.isEmpty() ? QDir::tempPath() : options.scratchParent;
+        require(QFileInfo(scratchParent).isAbsolute() && QFileInfo(scratchParent).isDir() &&
+                    !QFileInfo(scratchParent).isSymLink(),
+                "Invalid private worker scratch directory");
+        jobRoot = std::make_shared<QTemporaryDir>(scratchParent + (options.scratchParent.isEmpty()
+                                                                       ? "/sketchyup-worker-XXXXXX"
+                                                                       : "/scratch-XXXXXX"));
         if (!jobRoot->isValid()) {
             finish(Phase::Failed, "PREPARE_FAILED", "Cannot create private worker directory");
             return;
@@ -413,6 +425,13 @@ struct BlenderJob::Impl {
                 finish(stopPhase, errorCode, errorMessage);
                 return;
             }
+#ifdef Q_OS_LINUX
+            const auto ownerPid = getpid();
+            process.setChildProcessModifier([ownerPid] {
+                if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != ownerPid)
+                    _exit(127);
+            });
+#endif
             process.start();
             process.closeWriteChannel();
         } catch (const std::exception &error) {
@@ -439,6 +458,12 @@ struct BlenderJob::Impl {
         log.append(bytes);
         if (log.size() > 64 * 1024)
             log = log.right(64 * 1024);
+        try {
+            write(attemptDirectory + "/worker.log", log);
+        } catch (const std::exception &error) {
+            stop(Phase::Failed, "LOG_WRITE_FAILED", QString::fromUtf8(error.what()));
+            return;
+        }
         if (bytes.size() > 2 * 1024 * 1024 - outputBytes) {
             stop(Phase::Failed, "OUTPUT_LIMIT", "Blender output exceeded 2 MiB");
             return;
@@ -564,16 +589,25 @@ BlenderJob::Phase BlenderJob::phase() const {
     return impl_->phase;
 }
 bool BlenderJob::done() const { return terminal(phase()); }
+qint64 BlenderJob::processId() const {
+    impl_->checkOwner();
+    return impl_->process.processId();
+}
 QString BlenderJob::progress() const {
     impl_->checkOwner();
     return impl_->progressText;
 }
 QJsonObject BlenderJob::report() const {
     impl_->checkOwner();
-    return {{"phase", int(impl_->phase)},      {"code", impl_->errorCode},
-            {"message", impl_->errorMessage},  {"progress", impl_->progressText},
-            {"executable", impl_->executable}, {"attempts", impl_->attempts},
-            {"worker", impl_->workerReport},   {"cpuFallbackUsed", impl_->attempt > 1}};
+    return {{"phase", int(impl_->phase)},
+            {"code", impl_->errorCode},
+            {"message", impl_->errorMessage},
+            {"progress", impl_->progressText},
+            {"executable", impl_->executable},
+            {"attempts", impl_->attempts},
+            {"logTail", QString::fromUtf8(impl_->log)},
+            {"worker", impl_->workerReport},
+            {"cpuFallbackUsed", impl_->attempt > 1}};
 }
 std::shared_ptr<const BlenderResult> BlenderJob::result() const {
     impl_->checkOwner();

@@ -12,7 +12,7 @@
 #include <stdexcept>
 namespace sketchy {
 namespace {
-constexpr qint64 mib = 1024 * 1024, outputReserve = 65 * mib;
+constexpr qint64 mib = 1024 * 1024, outputReserve = 195 * mib;
 void require(bool value, const char *message) {
     if (!value)
         throw std::runtime_error(message);
@@ -201,12 +201,17 @@ qint64 RenderJobStore::usedBytes() const {
 }
 void RenderJobStore::requireCapacity(qint64 additional, int pendingAddition) const {
     int pending = pendingAddition;
-    for (const auto &[id, job] : jobs_)
-        pending += !terminal(job.state);
+    qint64 reservation = qint64(pendingAddition) * outputReserve;
+    for (const auto &[id, job] : jobs_) {
+        if (terminal(job.state))
+            continue;
+        ++pending;
+        reservation += outputReserve + QFileInfo(jobDirectory(id) + "/scene/scene.glb").size();
+    }
     require(pending <= limits_.pending, "Render queue is full");
     const auto used = usedBytes();
     require(additional >= 0 && additional <= limits_.bytes - used &&
-                qint64(pending) * outputReserve <= limits_.bytes - used - additional,
+                reservation <= limits_.bytes - used - additional,
             "Render storage is full; remove finished jobs before queuing more");
 }
 void RenderJobStore::save(const StoredRenderJob &job) const {
@@ -233,6 +238,33 @@ void RenderJobStore::reconcile() {
             job = decode(object(read(entry.filePath() + "/job.json", 512 * 1024)), id);
             jobs_.emplace(id, job);
             if (job.state == RenderJobState::Running || job.state == RenderJobState::Canceling) {
+                QJsonObject logs;
+                const auto scratch =
+                    QDir(entry.filePath())
+                        .entryInfoList({"scratch-*"},
+                                       QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks);
+                require(scratch.size() <= 16, "Too many interrupted worker directories");
+                for (const auto &directory : scratch) {
+                    require(QRegularExpression("^scratch-[A-Za-z0-9]{6}$")
+                                .match(directory.fileName())
+                                .hasMatch(),
+                            "Invalid worker scratch identity");
+                    for (int attempt = 1; attempt <= 2; ++attempt) {
+                        require(!QFileInfo(directory.filePath() + "/attempt-" +
+                                           QString::number(attempt))
+                                     .isSymLink(),
+                                "Interrupted attempt directory is a link");
+                        const auto path = directory.filePath() + "/attempt-" +
+                                          QString::number(attempt) + "/worker.log";
+                        if (QFileInfo::exists(path))
+                            logs[directory.fileName() + "/" + QString::number(attempt)] =
+                                QString::fromUtf8(read(path, 64 * 1024).right(16 * 1024));
+                    }
+                }
+                if (!logs.isEmpty()) {
+                    job.report["interruptedWorkerLogs"] = logs;
+                    job.report = boundedReport(job.report);
+                }
                 job.state = RenderJobState::Interrupted;
                 job.message = "Application stopped before this render finished. Retry the captured "
                               "input when ready.";
@@ -243,6 +275,16 @@ void RenderJobStore::reconcile() {
                 result(id);
             } else if (job.state == RenderJobState::Queued) {
                 input(id);
+            }
+            for (const auto &directory :
+                 QDir(entry.filePath())
+                     .entryInfoList({"scratch-*"},
+                                    QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks)) {
+                require(QRegularExpression("^scratch-[A-Za-z0-9]{6}$")
+                                .match(directory.fileName())
+                                .hasMatch() &&
+                            QDir(directory.filePath()).removeRecursively(),
+                        "Cannot clean interrupted worker files");
             }
         } catch (const std::exception &error) {
             job.state = RenderJobState::Failed;
@@ -265,7 +307,8 @@ QString RenderJobStore::enqueue(const PreparedRender &input, BlenderJob::Options
     if (manifest.contains("environment"))
         bytes += manifest.value("environment").toObject().value("bytes").toInteger();
     require(bytes >= 0 && bytes <= 312 * mib, "Invalid render package size");
-    requireCapacity(bytes + 512 * 1024, 1);
+    requireCapacity(
+        bytes + manifest.value("scene").toObject().value("bytes").toInteger() + 512 * 1024, 1);
     StoredRenderJob job;
     for (const auto &[id, existing] : jobs_)
         job.queueSequence = std::max(job.queueSequence, existing.queueSequence + 1);
@@ -275,6 +318,7 @@ QString RenderJobStore::enqueue(const PreparedRender &input, BlenderJob::Options
     job.revision = manifest.value("revision").toString();
     job.manifestHash = input.manifestHash();
     job.createdMs = job.updatedMs = QDateTime::currentMSecsSinceEpoch();
+    options.scratchParent.clear();
     job.options = std::move(options);
     const auto path = jobDirectory(job.id);
     require(QDir().mkdir(path), "Cannot create render job directory");
@@ -358,7 +402,7 @@ void RenderJobStore::retry(const QString &id) {
                 job.state == RenderJobState::Interrupted,
             "Only an unfinished terminal render can be retried");
     input(id);
-    requireCapacity(0, 1);
+    requireCapacity(QFileInfo(jobDirectory(id) + "/scene/scene.glb").size(), 1);
     require(job.attempts < 1000, "Render job retry limit reached");
     for (const auto &[otherId, existing] : jobs_)
         job.queueSequence = std::max(job.queueSequence, existing.queueSequence + 1);
