@@ -1,0 +1,121 @@
+[
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          3,
+          0
+        ],
+        [
+          0,
+          3,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "1",
+    "face": "5",
+    "distance": 1
+  },
+  {
+    "command": "saved_scene.create",
+    "name": "Perspective",
+    "snapshot": {
+      "camera": {
+        "target": [
+          1,
+          1,
+          1
+        ],
+        "yaw": -45,
+        "pitch": 35,
+        "distance": 12,
+        "fieldOfView": 45,
+        "orthographic": false
+      },
+      "section": {
+        "plane": null
+      }
+    }
+  },
+  {
+    "command": "saved_scene.create",
+    "name": "Top presentation",
+    "snapshot": {
+      "camera": {
+        "target": [
+          1,
+          1,
+          1
+        ],
+        "yaw": -90,
+        "pitch": 90,
+        "distance": 12,
+        "fieldOfView": 45,
+        "orthographic": true
+      },
+      "style": {
+        "mode": "monochrome",
+        "background": [
+          0.04,
+          0.06,
+          0.09
+        ],
+        "ground": [
+          0.2,
+          0.25,
+          0.3
+        ],
+        "front": [
+          0.8,
+          0.9,
+          1
+        ],
+        "back": [
+          0.7,
+          0.45,
+          0.5
+        ],
+        "edge": [
+          0.9,
+          0.95,
+          1
+        ],
+        "groundVisible": false,
+        "groundHeight": 0,
+        "gridVisible": false,
+        "axesVisible": false,
+        "edgesVisible": true,
+        "profiles": true,
+        "profileWidth": 3.5,
+        "xrayOpacity": 0.25
+      },
+      "visibility": {
+        "bodies": [
+          {
+            "id": "1",
+            "visible": true
+          }
+        ],
+        "tags": [],
+        "hidden": [],
+        "showHidden": false
+      }
+    }
+  }
+]
