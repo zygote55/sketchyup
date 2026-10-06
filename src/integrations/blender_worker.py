@@ -400,6 +400,30 @@ def environment_world(world, metadata, source):
     data = path.read_bytes()
     if sha(data) != metadata.get('sha256'):
         raise WorkerError('invalid_snapshot', 'Captured HDR environment changed')
+    # Bound the decoder using actual file dimensions, not just manifest claims.
+    cursor = 0
+    def header_line():
+        nonlocal cursor
+        end = data.find(b'\n', cursor, 8192)
+        if end < 0:
+            raise WorkerError('invalid_snapshot', 'Invalid or oversized HDR image header')
+        line = data[cursor:end].removesuffix(b'\r')
+        cursor = end + 1
+        return line
+    if header_line() not in (b'#?RADIANCE', b'#?RGBE'):
+        raise WorkerError('invalid_snapshot', 'Environment is not Radiance RGBE')
+    format_seen = False
+    while True:
+        line = header_line()
+        if not line:
+            break
+        if line.startswith(b'FORMAT='):
+            if format_seen or line != b'FORMAT=32-bit_rle_rgbe':
+                raise WorkerError('invalid_snapshot', 'Unsupported HDR image encoding')
+            format_seen = True
+    expected = f"-Y {metadata['height']} +X {metadata['width']}".encode()
+    if not format_seen or header_line() != expected:
+        raise WorkerError('invalid_snapshot', 'HDR file dimensions or orientation differ from metadata')
     # Decode exactly the verified bytes from a private temporary path, then pack.
     with tempfile.NamedTemporaryFile(suffix='.hdr') as temporary:
         temporary.write(data)
