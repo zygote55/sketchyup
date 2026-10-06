@@ -99,6 +99,8 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 11;
         root.remove("style");
+        root.remove("scenes");
+        root.remove("nextSceneId");
         root.remove("hosted");
         auto legacyBodies = root["bodies"].toArray();
         for (qsizetype i = 0; i < legacyBodies.size(); ++i) {

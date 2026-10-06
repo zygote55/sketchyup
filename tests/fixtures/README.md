@@ -28,3 +28,9 @@ curves, guides, properties, front/back materials, present/missing assets and ret
 ID allocation floors. The test compares every serialized record after relocation
 and edits a canonical component member after reopening. It is original synthetic
 project data under the application license.
+
+`model-style-v17.sketchyup` is unmodified schema-17 writer output from the installed
+R062.b build (PR #135, commit `3662b9e`), using `examples/model-style.json`.
+It contains a monochrome cube with nondefault model style. R063 migration adds
+only an empty saved-scene table, allocator 1 and the new schema version; geometry,
+style, resource records and document identity/revision must remain exact.

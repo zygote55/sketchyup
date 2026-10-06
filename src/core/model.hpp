@@ -4,6 +4,7 @@
 #include "core/hosted_components.hpp"
 #include "core/material_records.hpp"
 #include "core/model_style.hpp"
+#include "core/scene_records.hpp"
 #include "core/units.hpp"
 #include <deque>
 #include <functional>
@@ -36,6 +37,10 @@ struct MaterialChange {
 struct AssetChange {
     Id id{};
     AssetPtr before, after;
+};
+struct SceneChange {
+    Id id{};
+    ScenePtr before, after;
 };
 struct HistoryMetadata {
     std::string taskId, request;
@@ -72,6 +77,8 @@ struct Edit {
     std::optional<HostedChange> hosted{};
     bool hostedResolved{};
     std::optional<std::pair<ModelStyle, ModelStyle>> style{};
+    std::vector<SceneChange> scenes{};
+    Id nextSceneFloor{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 class Document {
@@ -118,6 +125,8 @@ class Document {
     Id nextMaterialId() const { return nextMaterialId_; }
     const AssetRecords &assets() const { return assets_; }
     Id nextAssetId() const { return nextAssetId_; }
+    const SceneRecords &scenes() const { return scenes_; }
+    Id nextSceneId() const { return nextSceneId_; }
     std::uint64_t revision() const { return revision_; }
     Id nextId() const { return nextId_; }
     const std::string &identity() const { return identity_; }
@@ -188,7 +197,7 @@ class Document {
                  AssetRecords assets = {}, Id nextAssetId = 1,
                  DisplayUnit units = DisplayUnit::Meters,
                  HostedPtr hosted = std::make_shared<const HostedComponents>(),
-                 ModelStyle style = {});
+                 ModelStyle style = {}, SceneRecords scenes = {}, Id nextSceneId = 1);
 
   private:
     std::string identity_;
@@ -206,6 +215,8 @@ class Document {
     Id nextMaterialId_{1};
     AssetRecords assets_;
     Id nextAssetId_{1};
+    SceneRecords scenes_;
+    Id nextSceneId_{1};
     struct DefinitionFloor {
         Id nextMemberId{1};
         std::map<Id, std::pair<Id, Id>> geometry;

@@ -100,6 +100,7 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
     diff("tag", live.tags(), snapshot.tags(), std::equal_to<>{});
     diff("material", live.materials(), snapshot.materials(), std::equal_to<>{});
     diff("asset", live.assets(), snapshot.assets(), std::equal_to<>{});
+    diff("scene", live.scenes(), snapshot.scenes(), std::equal_to<>{});
     // Hosted aggregates freeze their inner records together; fresh pointers do
     // not imply that an unrelated host or attachment changed.
     const auto sameRecord = [](const auto &a, const auto &b) { return a == b || *a == *b; };

@@ -2,6 +2,7 @@
 #include "io/assets.hpp"
 #include "io/hosted_components_io.hpp"
 #include "io/model_style_io.hpp"
+#include "io/scenes_io.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -235,7 +236,9 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 17},
+                {"version", 18},
+                {"scenes", encodeScenes(doc.scenes())},
+                {"nextSceneId", sid(doc.nextSceneId())},
                 {"style", encodeModelStyle(doc.style())},
                 {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
                 {"revision", sid(doc.revision())},
@@ -540,7 +543,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
          root["version"].toDouble() != 13 && root["version"].toDouble() != 14 &&
          root["version"].toDouble() != 15 && root["version"].toDouble() != 16 &&
-         root["version"].toDouble() != 17) ||
+         root["version"].toDouble() != 17 && root["version"].toDouble() != 18) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -562,6 +565,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         rootFields.append("hosted");
     if (root["version"].toInt() >= 17)
         rootFields.append("style");
+    if (root["version"].toInt() >= 18)
+        rootFields += {"scenes", "nextSceneId"};
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         bytes.size() > modelLimit)
@@ -737,7 +742,10 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
                     : DisplayUnit::Meters,
                 root["version"].toInt() >= 15 ? decodeHostedComponents(root["hosted"])
                                               : std::make_shared<const HostedComponents>(),
-                root["version"].toInt() >= 17 ? decodeModelStyle(root["style"]) : ModelStyle{});
+                root["version"].toInt() >= 17 ? decodeModelStyle(root["style"]) : ModelStyle{},
+                root["version"].toInt() >= 18
+                    ? decodeScenes(root["scenes"], readId(root["nextSceneId"])) : SceneRecords{},
+                root["version"].toInt() >= 18 ? readId(root["nextSceneId"]) : 1);
     return doc;
 }
 } // namespace sketchy
