@@ -9,6 +9,9 @@ class PreparedRender {
   public:
     // Expensive preparation is safe on a worker with an already captured value.
     static std::shared_ptr<const PreparedRender> prepare(const RenderSnapshot &snapshot);
+    static std::shared_ptr<const PreparedRender> open(const QString &directory,
+                                                      const QString &manifestHash);
+    void copyTo(const QString &directory) const;
     const QJsonObject &manifest() const { return manifest_; }
     const QString &manifestHash() const { return manifestHash_; }
     QString directory() const { return root_->path(); }
@@ -44,6 +47,7 @@ class BlenderJob : public QObject {
     struct Options {
         QString executable; // Empty discovers blender on PATH; otherwise an absolute file.
         QString backend{"CPU"}, deviceId{"CPU"};
+        QString scratchParent; // Optional existing private parent for disposable worker files.
         bool allowCpuFallback{true};
         int timeoutMs{180000};
     };
@@ -55,6 +59,7 @@ class BlenderJob : public QObject {
     Phase phase() const;
     bool done() const;
     QString progress() const;
+    qint64 processId() const;
     QJsonObject report() const;
     std::shared_ptr<const BlenderResult> result() const;
   signals:
@@ -64,4 +69,8 @@ class BlenderJob : public QObject {
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
+std::shared_ptr<const BlenderResult> loadBlenderResult(const PreparedRender &input,
+                                                       const QString &directory,
+                                                       const QJsonObject &manifest,
+                                                       const BlenderJob::Options &requested);
 } // namespace sketchy

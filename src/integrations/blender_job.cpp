@@ -14,6 +14,11 @@
 #include <QTimer>
 #include <atomic>
 #include <future>
+#ifdef Q_OS_LINUX
+#include <csignal>
+#include <sys/prctl.h>
+#include <unistd.h>
+#endif
 static void initializeBlenderResource() { Q_INIT_RESOURCE(blender_worker); }
 namespace sketchy {
 namespace {
@@ -173,6 +178,57 @@ std::shared_ptr<const PreparedRender> PreparedRender::prepare(const RenderSnapsh
         hash(read(result->sourceDirectory() + "/manifest.json", 16 * 1024 * 1024));
     return result;
 }
+void PreparedRender::copyTo(const QString &directory) const {
+    const auto bytes = read(sourceDirectory() + "/manifest.json", 16 * 1024 * 1024);
+    require(hash(bytes) == manifestHash_, "Captured render manifest changed");
+    GlbExport package{read(sourceDirectory() + "/scene.glb", 256 * 1024 * 1024), object(bytes), {}};
+    if (package.manifest.contains("environment"))
+        package.environment = read(sourceDirectory() + "/environment.hdr", 40 * 1024 * 1024);
+    writeGlbExport(package, directory);
+}
+std::shared_ptr<const PreparedRender> PreparedRender::open(const QString &directory,
+                                                           const QString &manifestHash) {
+    require(!QFileInfo(directory).isSymLink() && QFileInfo(directory).isDir(),
+            "Invalid retained render directory");
+    const auto bytes = read(directory + "/manifest.json", 16 * 1024 * 1024);
+    require(hash(bytes) == manifestHash, "Retained render manifest changed");
+    auto result = std::shared_ptr<PreparedRender>(new PreparedRender);
+    result->root_ = std::make_shared<QTemporaryDir>(QDir::tempPath() + "/sketchyup-render-XXXXXX");
+    require(result->root_->isValid(), "Cannot reopen retained render snapshot");
+    result->manifest_ = object(bytes);
+    require(result->manifest_.value("apiVersion") == 1 &&
+                result->manifest_.value("adapter") == "sketchyup-glb-v1",
+            "Unsupported retained render snapshot");
+    auto settings = result->manifest_.value("settings").toObject();
+    settings["apiVersion"] = 1;
+    parseRenderOptions(settings);
+    GlbExport package{read(directory + "/scene.glb", 256 * 1024 * 1024), result->manifest_, {}};
+    if (package.manifest.contains("environment"))
+        package.environment = read(directory + "/environment.hdr", 40 * 1024 * 1024);
+    writeGlbExport(package, result->sourceDirectory());
+    result->manifestHash_ =
+        hash(read(result->sourceDirectory() + "/manifest.json", 16 * 1024 * 1024));
+    require(result->manifestHash_ == manifestHash, "Retained manifest is not canonical");
+    return result;
+}
+std::shared_ptr<const BlenderResult> loadBlenderResult(const PreparedRender &input,
+                                                       const QString &directory,
+                                                       const QJsonObject &manifest,
+                                                       const BlenderJob::Options &requested) {
+    const auto device = manifest.value("device").toObject();
+    const auto actualBackend = device.value("backend").toString();
+    const auto actualDevice = device.value("id").toString();
+    const bool fallback =
+        requested.backend != "CPU" && requested.backend != "OPENGL" && actualBackend == "CPU";
+    require((actualBackend == requested.backend &&
+             actualDevice == (requested.backend == "CPU" ? "CPU" : requested.deviceId)) ||
+                (fallback && requested.allowCpuFallback && actualDevice == "CPU"),
+            "Retained render did not use the requested device or permitted CPU fallback");
+    require(manifest.value("cpuFallbackUsed").isBool() &&
+                manifest.value("cpuFallbackUsed").toBool() == fallback,
+            "Retained CPU fallback provenance mismatch");
+    return verify(input, directory, manifest, actualBackend, actualDevice);
+}
 struct BlenderJob::Impl {
     BlenderJob &owner;
     QProcess process;
@@ -299,7 +355,14 @@ struct BlenderJob::Impl {
             return;
         }
         slot = true;
-        jobRoot = std::make_shared<QTemporaryDir>(QDir::tempPath() + "/sketchyup-worker-XXXXXX");
+        const auto scratchParent =
+            options.scratchParent.isEmpty() ? QDir::tempPath() : options.scratchParent;
+        require(QFileInfo(scratchParent).isAbsolute() && QFileInfo(scratchParent).isDir() &&
+                    !QFileInfo(scratchParent).isSymLink(),
+                "Invalid private worker scratch directory");
+        jobRoot = std::make_shared<QTemporaryDir>(scratchParent + (options.scratchParent.isEmpty()
+                                                                       ? "/sketchyup-worker-XXXXXX"
+                                                                       : "/scratch-XXXXXX"));
         if (!jobRoot->isValid()) {
             finish(Phase::Failed, "PREPARE_FAILED", "Cannot create private worker directory");
             return;
@@ -362,6 +425,13 @@ struct BlenderJob::Impl {
                 finish(stopPhase, errorCode, errorMessage);
                 return;
             }
+#ifdef Q_OS_LINUX
+            const auto ownerPid = getpid();
+            process.setChildProcessModifier([ownerPid] {
+                if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != ownerPid)
+                    _exit(127);
+            });
+#endif
             process.start();
             process.closeWriteChannel();
         } catch (const std::exception &error) {
@@ -388,6 +458,12 @@ struct BlenderJob::Impl {
         log.append(bytes);
         if (log.size() > 64 * 1024)
             log = log.right(64 * 1024);
+        try {
+            write(attemptDirectory + "/worker.log", log);
+        } catch (const std::exception &error) {
+            stop(Phase::Failed, "LOG_WRITE_FAILED", QString::fromUtf8(error.what()));
+            return;
+        }
         if (bytes.size() > 2 * 1024 * 1024 - outputBytes) {
             stop(Phase::Failed, "OUTPUT_LIMIT", "Blender output exceeded 2 MiB");
             return;
@@ -513,16 +589,25 @@ BlenderJob::Phase BlenderJob::phase() const {
     return impl_->phase;
 }
 bool BlenderJob::done() const { return terminal(phase()); }
+qint64 BlenderJob::processId() const {
+    impl_->checkOwner();
+    return impl_->process.processId();
+}
 QString BlenderJob::progress() const {
     impl_->checkOwner();
     return impl_->progressText;
 }
 QJsonObject BlenderJob::report() const {
     impl_->checkOwner();
-    return {{"phase", int(impl_->phase)},      {"code", impl_->errorCode},
-            {"message", impl_->errorMessage},  {"progress", impl_->progressText},
-            {"executable", impl_->executable}, {"attempts", impl_->attempts},
-            {"worker", impl_->workerReport},   {"cpuFallbackUsed", impl_->attempt > 1}};
+    return {{"phase", int(impl_->phase)},
+            {"code", impl_->errorCode},
+            {"message", impl_->errorMessage},
+            {"progress", impl_->progressText},
+            {"executable", impl_->executable},
+            {"attempts", impl_->attempts},
+            {"logTail", QString::fromUtf8(impl_->log)},
+            {"worker", impl_->workerReport},
+            {"cpuFallbackUsed", impl_->attempt > 1}};
 }
 std::shared_ptr<const BlenderResult> BlenderJob::result() const {
     impl_->checkOwner();
