@@ -908,7 +908,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R059 — Implement face-aligned and opening-cutting components
 
-**Status:** In progress. R059.a adds immutable face-aligned component placement with explicit glue frames, anchor containment and independent signed component scale on mirrored/sheared hosts ([contract](decisions/0054-hosted-components.md), [placement evidence](verification/R059a-component-placement.md)). Persistent host records, opening regeneration and user-facing workflows remain pending. **Track:** Geometry. **Scope:** O03, O02. **UX:** —.
+**Status:** In progress. R059.a ([PR #111](https://github.com/zygote55/sketchyup/pull/111)) adds immutable face-aligned component placement with explicit glue frames, anchor containment and independent signed component scale on mirrored/sheared hosts ([contract](decisions/0054-hosted-components.md), [placement evidence](verification/R059a-component-placement.md)). R059.b adds bounded native through-wall cuts, first-exit selection, preserved host identities and explicit obstruction rejection ([opening evidence](verification/R059b-hosted-openings.md)). Persistent host records, opening regeneration and user-facing workflows remain pending. **Track:** Geometry. **Scope:** O03, O02. **UX:** —.
 
 **Requires:** [R056](#r056), [R033](#r033), [R047](#r047); milestone gate rule above.
 
