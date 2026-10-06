@@ -1,8 +1,9 @@
 # 0051 — Edge appearance is persistent metadata
 
 Status: R057.e data/lineage and R057.f shared command acceptance pass locally.
-Native controls, explicit hidden-edge display and smoothing/export consumption
-are subsequent R057 layers.
+Shared smooth-normal consumption is implemented in R057.g
+([shading contract](0052-smooth-shading.md)). Native controls and explicit hidden-edge
+display are subsequent R057 work.
 
 Each native edge may have independent `hidden`, `soft` and `smooth` boolean flags.
 All false is the implicit default and is omitted from the sparse body map. Hidden

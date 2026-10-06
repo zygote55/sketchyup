@@ -494,8 +494,9 @@ and [contract](docs/decisions/0049-face-orientation.md).
 on explicit `entities` (`body`/`edge` pairs) in an explicit `context`. Supply at
 least one boolean flag; omitted flags retain their current value. Flags persist
 and participate in shared component edits, preview and Undo. Edge detail and
-paged topology inspection expose them. Native edge controls and rendering of
-these flags are still in development. See the [edge appearance example](examples/edge-appearance.json)
+paged topology inspection expose them. Smooth flags now drive shared corner
+normals in the viewport, GLB export and Blender renders, including mirrored
+components. Native hide/soften/reveal controls are still in development. See the [edge appearance example](examples/edge-appearance.json)
 and [contract](docs/decisions/0051-edge-appearance.md).
 
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected

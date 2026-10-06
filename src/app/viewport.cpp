@@ -2,6 +2,7 @@
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/appearance.hpp"
+#include "core/shading_normals.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -639,12 +640,14 @@ void Viewport::rebuild() {
         };
         for (const auto &[face, record] : body->surface.faces)
             remember(faceMaterials(*body, face));
-        const bool appearanceChanged =
-            worldChanged || topologyChanged || !cache.record ||
-            cache.record->color != body->color || cache.record->faceColors != body->faceColors ||
-            cache.record->materials != body->materials ||
-            cache.record->faceMaterials != body->faceMaterials || cache.materials != materials ||
-            cache.alpha != alpha || cache.presentationRevision != presentationRevision_;
+        const bool appearanceChanged = worldChanged || topologyChanged || !cache.record ||
+                                       cache.record->color != body->color ||
+                                       cache.record->faceColors != body->faceColors ||
+                                       cache.record->materials != body->materials ||
+                                       cache.record->faceMaterials != body->faceMaterials ||
+                                       cache.record->edgeAppearances != body->edgeAppearances ||
+                                       cache.materials != materials || cache.alpha != alpha ||
+                                       cache.presentationRevision != presentationRevision_;
         if (meshChanged) {
             cache.localTriangles = body->surface.triangles();
             ++stats_.bodyMeshBuilds;
@@ -678,7 +681,18 @@ void Viewport::rebuild() {
             cache.lines.clear();
             cache.transparent.clear();
             if (alpha > 0) {
-                for (const auto &triangle : cache.worldTriangles) {
+                const ShadingNormals shading(*body);
+                const auto inverse = world.inverse();
+                auto worldNormal = [&](Vec3 n) {
+                    const Vec3 transformed{
+                        inverse.m[0] * n.x + inverse.m[1] * n.y + inverse.m[2] * n.z,
+                        inverse.m[4] * n.x + inverse.m[5] * n.y + inverse.m[6] * n.z,
+                        inverse.m[8] * n.x + inverse.m[9] * n.y + inverse.m[10] * n.z};
+                    return transformed * (1 / length(transformed));
+                };
+                for (size_t triangleIndex = 0; triangleIndex < cache.worldTriangles.size();
+                     ++triangleIndex) {
+                    const auto &triangle = cache.worldTriangles[triangleIndex];
                     const SelectedEntity entity{id, SelectionKind::Face, triangle.face};
                     if (!visible(entity))
                         continue;
@@ -687,9 +701,7 @@ void Viewport::rebuild() {
                     const auto magnitude = length(crossProduct);
                     if (magnitude == 0)
                         continue;
-                    const auto normal = crossProduct * (1 / magnitude);
-                    const float light =
-                        .64f + .36f * std::abs(dot(normal, normalized({.3, -.5, .8})));
+                    const auto normals = shading.triangle(cache.localTriangles[triangleIndex]);
                     auto front = surfaceAppearance(doc_.materials(), *body, triangle.face);
                     auto back = surfaceAppearance(doc_.materials(), *body, triangle.face, true);
                     // A reflected placement preserves the physical front of a face.
@@ -707,18 +719,21 @@ void Viewport::rebuild() {
                             for (size_t i = 0; i < 3; ++i)
                                 side->color[i] = side->color[i] * .35f + background[i] * .65f;
                         }
-                        for (auto &component : side->color)
-                            component *= light;
                     }
                     std::array<Vertex, 3> vertices;
                     size_t index = 0;
                     for (auto point : {triangle.a, triangle.b, triangle.c}) {
+                        const float light = .64f + .36f * std::abs(dot(worldNormal(normals[index]),
+                                                                       normalized({.3, -.5, .8})));
                         auto &v = vertices[index++];
-                        v = vertex(point, front.color);
+                        auto color = front.color;
+                        for (auto &component : color)
+                            component *= light;
+                        v = vertex(point, color);
                         v.a = front.opacity;
-                        v.br = back.color[0];
-                        v.bg = back.color[1];
-                        v.bb = back.color[2];
+                        v.br = back.color[0] * light;
+                        v.bg = back.color[1] * light;
+                        v.bb = back.color[2] * light;
                         v.ba = back.opacity;
                     }
                     // Mixed sides enter both passes; the shader discards the other side.

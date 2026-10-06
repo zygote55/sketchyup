@@ -35,6 +35,9 @@ jobs:
           npm ci --prefix build/gltf-validator --ignore-scripts --no-audit --no-fund
           build/dev/glb_export_tests build/glb-fixtures
           node scripts/verify-glb.mjs build/gltf-validator build/glb-fixtures > build/glb-validation.json
+          build/dev/smooth_export_tests build/smooth-fixtures
+          node scripts/verify-glb.mjs build/gltf-validator build/smooth-fixtures 4 > build/smooth-glb-validation.json
+          blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-smooth.py -- build/smooth-fixtures
           blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-glb.py -- build/glb-fixtures
           blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-sides.py -- build/glb-fixtures
       - name: Actual Blender worker lifecycle
@@ -64,6 +67,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/formline_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/smooth_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/smooth_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/entity_info_input_tests
@@ -141,6 +146,8 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/formline_input_tests
           scripts/test-wayland.sh build/dev/material_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_input_tests
+          scripts/test-wayland.sh build/dev/smooth_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/smooth_viewport_tests
           scripts/test-wayland.sh build/dev/material_viewport_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_viewport_tests
           scripts/test-wayland.sh build/dev/entity_info_input_tests
@@ -218,12 +225,13 @@ jobs:
       - name: Sanitized bounded inspection and CLI
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON
-          cmake --build --preset sanitize --target edge_command_tests edge_appearance_tests orientation_command_tests solid_command_tests boolean_command_tests intersection_command_tests sweep_command_tests offset_command_tests chatgpt_auth_tests native_assistant_session_tests ollama_provider_tests openai_provider_tests blender_job_tests glb_export_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
-          ctest --test-dir build/sanitize -R '^(edge_commands|edge_appearance|orientation_commands|solid_commands|boolean_commands|intersection_commands|sweep_commands|offset_commands|chatgpt_auth|native_assistant_session|ollama_provider|openai_provider|blender_job|glb_export|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
+          cmake --build --preset sanitize --target shading_normals_tests smooth_export_tests edge_command_tests edge_appearance_tests orientation_command_tests solid_command_tests boolean_command_tests intersection_command_tests sweep_command_tests offset_command_tests chatgpt_auth_tests native_assistant_session_tests ollama_provider_tests openai_provider_tests blender_job_tests glb_export_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
+          ctest --test-dir build/sanitize -R '^(shading_normals|smooth_export|edge_commands|edge_appearance|orientation_commands|solid_commands|boolean_commands|intersection_commands|sweep_commands|offset_commands|chatgpt_auth|native_assistant_session|ollama_provider|openai_provider|blender_job|glb_export|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
       - name: Sanitized native MCP inspection
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON
-          cmake --build --preset sanitize --target assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
+          cmake --build --preset sanitize --target smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/smooth_viewport_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/assistant_panel_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/assistant_preview_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/render_input_tests

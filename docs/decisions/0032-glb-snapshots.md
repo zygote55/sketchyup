@@ -18,8 +18,9 @@ glTF node matrices must decompose to translation, rotation and scale. Independen
 imports test both dimensions and orientation against the
 [Khronos glTF specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html).
 
-Visible native faces are triangulated into nonindexed float32 positions and flat
-normals, grouped by appearance. Identical mesh buffers/material bindings share a
+Visible native faces are triangulated into nonindexed float32 positions and corner
+normals, grouped by appearance. Normals are flat by default; R057.g derives smooth
+fans only across explicitly smooth native edges ([shading contract](0052-smooth-shading.md)). Identical mesh buffers/material bindings share a
 mesh, including repeated component instances. Nodes carry stable body IDs in
 extras; the sidecar maps body, parent, face/primitive/vertex ranges and component
 member/definition identities. This is a rendering transfer, not a native topology
