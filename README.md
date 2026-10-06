@@ -274,6 +274,12 @@ measured solid members with shared component legs or panels. Their examples are
 clearances and volumes are verified; ordinary shared and instance-only edits remain
 available afterward.
 
+The [site placement recipe](docs/decisions/0059-site-placement-recipe.md) moves an
+existing assembly with explicit position units, a world or parent frame and a yaw
+delta. Local geometry, materials, shared components and complete hosted assemblies
+are preserved. `examples/site-recipe-v1.json` builds and places the full study in
+one transaction; adopted native before/after fixtures are also included.
+
 See the [recipe contract](docs/decisions/0027-transaction-recipes.md) and
 `--recipe-capabilities`. A local MCP stdio client can use `--mcp` with the same
 explicit document/outcome options. It targets protocol 2026-07-28; see the

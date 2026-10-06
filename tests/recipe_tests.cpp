@@ -49,7 +49,7 @@ struct Run {
     QJsonArray rows;
     QJsonObject error;
 };
-Run cli(QStringList args) {
+Run cli(QStringList args, int timeoutMs = 30000) {
     QProcess process;
     auto env = QProcessEnvironment::systemEnvironment();
     for (const auto *name : {"DISPLAY", "WAYLAND_DISPLAY", "QT_QPA_PLATFORM"})
@@ -58,8 +58,21 @@ Run cli(QStringList args) {
     process.start(QStringLiteral(CLI_PATH), args);
     check(process.waitForStarted(10000), "Start recipe CLI");
     process.closeWriteChannel();
-    check(process.waitForFinished(30000) && process.exitStatus() == QProcess::NormalExit,
-          "Recipe CLI finishes normally");
+    const bool finished = process.waitForFinished(timeoutMs);
+    if (!finished || process.exitStatus() != QProcess::NormalExit) {
+        const auto reason = finished ? QString("crashed (exit %1)").arg(process.exitCode())
+                                     : QString("timed out after %1 ms").arg(timeoutMs);
+        if (!finished) {
+            process.kill();
+            process.waitForFinished(5000);
+        }
+        throw std::runtime_error(
+            (QString("Recipe CLI %1: %2\nstderr:\n%3\nlast output:\n%4")
+                 .arg(reason, args.join(' '),
+                      QString::fromUtf8(process.readAllStandardError().right(16384)),
+                      QString::fromUtf8(process.readAllStandardOutput().right(4096))))
+                .toStdString());
+    }
     return {process.exitCode(), lines(process.readAllStandardOutput()),
             QJsonDocument::fromJson(process.readAllStandardError()).object()};
 }
@@ -188,6 +201,28 @@ int main(int argc, char **argv) {
                                    (resize && index == 0 ? 1.4 : 1.2)) < tolerance,
                       "Saved recipe preserves sibling and requested window width");
             }
+        }
+        {
+            const auto model=files.path()+"/site.sketchyup";
+            // This complete study replays and measures several assemblies through
+            // staging/seal/commit. Sanitizer instrumentation exceeds the small
+            // recipe harness's 30-second deadline; all result checks still run.
+            const auto result=cli({"--recipe",QStringLiteral(SOURCE_DIR "/examples/site-recipe-v1.json"),
+                                   "--new","--output",model,"--outcomes",files.path()+"/site-outcomes"},
+                                  360000);
+            check(result.code==0 && result.rows.size()==11,"Shipped site recipe completes all eleven steps");
+            for(const auto &row:result.rows) check(row.toObject()["ok"]==true,"Site recipe step succeeds");
+            const auto discovered=result.rows[4].toObject()["result"].toObject()["data"].toObject();
+            check(discovered["total"].toInt()==1,"Site recipe discovers its sole new root without guessing IDs");
+            const auto target=discovered["items"].toArray()[0].toObject()["ref"].toObject()["body"].toString().toULongLong();
+            const auto saved=loadDocument(model);
+            check(saved.revision()==1 && saved.bodies().size()==38 && saved.definitions().size()==4,
+                  "Site recipe publishes the complete shared-component study as one task");
+            check(length(saved.worldTransform(target).point({})-Vec3{100000.125,200000.25,12.5})<1e-7,
+                  "Saved site recipe retains exact converted world coordinates");
+            const QJsonValue staged=result.rows[6].toObject()["result"].toObject()["data"];
+            const QJsonValue committed=result.rows[10].toObject()["result"].toObject()["data"];
+            check(staged==committed,"Site measurements agree before and after commit");
         }
         const auto info = step("info", op("session.describe"));
         rejects("INVALID_REQUEST", [&] { AutomationRecipe::parse("[]"); });
