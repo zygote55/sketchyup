@@ -72,7 +72,7 @@ ScenesPanel::ScenesPanel(Document &doc, Viewport &view, QWidget *parent)
     error_->setWordWrap(true);
     layout->addWidget(error_);
     auto *history = new QLabel("Undo restores saved scene edits, model style and model visibility. "
-                               "Camera, temporary hiding and clipping are view navigation.");
+                               "Named section activation is undoable. Camera, temporary hiding and free clipping are view navigation.");
     history->setWordWrap(true);
     layout->addWidget(history);
     connect(list_, &QListWidget::currentRowChanged, this, [this] { describe(); });
@@ -134,11 +134,12 @@ void ScenesPanel::describe() {
     const auto missing = missingSceneReferences(doc_, snapshot);
     auto text = "Controls: " + properties.join(", ") + ".";
     if (!missing.empty())
-        text += QString("\nMissing references: %1 bodies, %2 tags, %3 entities. Recall skips them; "
+        text += QString("\nMissing references: %1 bodies, %2 tags, %3 entities, %4 sections. Recall skips them; "
                         "Update captures current references.")
                     .arg(missing.bodies.size())
                     .arg(missing.tags.size())
-                    .arg(missing.entities.size());
+                    .arg(missing.entities.size())
+                    .arg(missing.sections.size());
     details_->setText(text);
 }
 void ScenesPanel::attempt(const std::function<void()> &operation) {

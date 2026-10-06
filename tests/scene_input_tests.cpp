@@ -1,6 +1,7 @@
 #include "app/scenes_panel.hpp"
 #include "app/window.hpp"
 #include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "core/tags.hpp"
 #include "io/document_io.hpp"
 #include "io/scenes_io.hpp"
@@ -104,6 +105,8 @@ int main(int argc, char **argv) {
         const auto body = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});
         doc.extrude(body, doc.bodies().at(body)->surface.faces.begin()->first, 2);
         const auto tag = createTag(doc, "Scene tag");
+        const auto namedSection = createSection(doc, "Scene cut", 0, {{1, 0, 0}, -1});
+        setActiveSection(doc, 0, namedSection);
         doc.markSaved();
         window.show();
         check(QTest::qWaitForWindowExposed(&window), "Scene window exposed");
@@ -136,6 +139,7 @@ int main(int argc, char **argv) {
         doc.setStyle(style);
         editTag(doc, tag, {}, {}, false);
         sync(window);
+        setActiveSection(doc, 0, std::nullopt);
         const auto beforeRename = doc.scenes().at(first)->snapshot;
         choose(window, first);
         modal(window, "sceneRenameButton", [&](QDialog *dialog) {
@@ -163,7 +167,7 @@ int main(int argc, char **argv) {
               "Recall restores opted-in camera, visibility, style and section");
         doc.undo();
         sync(window);
-        check(doc.style() == style && !doc.tags().at(tag)->visible,
+        check(doc.style() == style && !doc.tags().at(tag)->visible && doc.activeSections().empty(),
               "Recall model state has one Undo");
         view->setClipPlane(std::array<double, 4>{0, 0, 1, -.5});
         const auto beforeCamera = view->captureSceneSnapshot(false, true, true, true);

@@ -115,7 +115,7 @@ SceneSnapshot Viewport::captureSceneSnapshot(bool camera, bool visibility, bool 
     if (style)
         snapshot.style = doc_.style();
     if (section)
-        snapshot.section = SceneSection{clipPlane_};
+        snapshot.section = SceneSection{clipPlane_, doc_.activeSections()};
     if (visibility) {
         SceneVisibility view;
         for (const auto &[id, body] : doc_.bodies())

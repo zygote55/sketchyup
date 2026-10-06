@@ -611,3 +611,5 @@ install(FILES docs/decisions/0073-section-records.md DESTINATION share/doc/sketc
 
 install(FILES docs/decisions/0074-section-commands.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/section-planes.json DESTINATION share/doc/sketchyup/examples)
+
+install(FILES docs/decisions/0075-section-scenes.md DESTINATION share/doc/sketchyup/decisions)

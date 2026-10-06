@@ -80,6 +80,16 @@ Edit sceneRecallEdit(const Document &doc, Id id) {
     const auto &snapshot = scene->snapshot;
     if (snapshot.style && *snapshot.style != doc.style())
         edit.style = std::pair{doc.style(), *snapshot.style};
+    if (snapshot.section) {
+        ActiveSections active;
+        const auto missing = missingSceneReferences(doc, snapshot);
+        for (const auto &[context, section] : snapshot.section->active)
+            if (!missing.sections.contains(section))
+                active.emplace(context, section);
+        validateSectionDepth(doc, &active);
+        if (active != doc.activeSections())
+            edit.activeSections = std::pair{doc.activeSections(), std::move(active)};
+    }
     if (snapshot.visibility) {
         for (const auto &[body, visible] : snapshot.visibility->bodyVisible) {
             if (!doc.bodies().contains(body) || doc.bodies().at(body)->hidden == !visible)
@@ -101,7 +111,8 @@ Edit sceneRecallEdit(const Document &doc, Id id) {
     return edit;
 }
 bool sceneRecallChangesModel(const Edit &edit) {
-    return !edit.changes.empty() || !edit.tags.empty() || edit.style.has_value();
+    return !edit.changes.empty() || !edit.tags.empty() || edit.style.has_value() ||
+           edit.activeSections.has_value();
 }
 void recallSceneModel(Document &doc, Id id) {
     auto edit = sceneRecallEdit(doc, id);

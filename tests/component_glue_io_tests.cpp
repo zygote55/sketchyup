@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
         check(resolveComponentGlue(*reopened.definitions().at(made.definition)).profile.size() == 4,
               "Reopened glue resolves against authoritative geometry");
         const auto json = QJsonDocument::fromJson(raw).object();
-        check(json["version"] == 19, "Glue schema version is explicit");
+        check(json["version"] == 20, "Glue schema version is explicit");
         auto missing = json;
         auto definitions = missing["definitions"].toArray();
         auto definition = definitions[0].toObject();
@@ -116,6 +116,7 @@ int main(int argc, char **argv) {
         }
         const auto oldContainer = rewrite(bytes, [](auto &manifest, auto &document) {
             auto features = manifest["requiredFeatures"].toArray();
+            features.removeAt(features.size() - 1); // section-scenes-v1
             features.removeAt(features.size() - 1); // section-planes-v1
         features.removeAt(features.size() - 1); // saved-scenes-v1
             features.removeAt(features.size() - 1); // model-style-v1
