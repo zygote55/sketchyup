@@ -240,6 +240,7 @@ void componentsAndMalformed() {
     bodies[0] = record;
     root["bodies"] = bodies;
     root["version"] = 12;
+    root.remove("hosted");
     check(decodeDocument(QJsonDocument(root).toJson()).bodies().at(id)->edgeAppearances.empty(),
           "Historical document defaults preserve old display semantics");
 }
