@@ -15,12 +15,18 @@ struct MaterialSides {
     Id front{}, back{};
     bool operator==(const MaterialSides &) const = default;
 };
+// Independent display flags; none of them changes incidence or triangulation.
+struct EdgeAppearance {
+    bool hidden{}, soft{}, smooth{};
+    bool operator==(const EdgeAppearance &) const = default;
+};
 struct Body {
     Id id{};
     std::string name{"Face"};
     std::array<float, 3> color{0.73f, 0.79f, 0.73f};
     Surface surface;
     Topology topology;
+    std::map<Id, EdgeAppearance> edgeAppearances;
     std::map<Id, std::array<float, 3>> faceColors;
     MaterialSides materials;
     std::map<Id, MaterialSides> faceMaterials;

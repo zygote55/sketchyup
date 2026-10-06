@@ -1,5 +1,6 @@
 #include "core/model.hpp"
 #include "core/appearance.hpp"
+#include "core/edge_appearance.hpp"
 #include "geometry/offset.hpp"
 #include <algorithm>
 #include <iomanip>
@@ -66,6 +67,7 @@ size_t bytes(const BodyPtr &b) {
     size_t n = sizeof(Body) + b->name.size() + b->surface.vertices.size() * (sizeof(Vec3) + 64) +
                b->surface.wires.size() * sizeof(std::array<Id, 2>) +
                b->topology.edges.size() * (sizeof(EdgeRecord) + 64);
+    n += b->edgeAppearances.size() * (sizeof(Id) + sizeof(EdgeAppearance) + 64);
     n += b->faceColors.size() * (sizeof(Id) + sizeof(std::array<float, 3>) + 64);
     n += b->faceMaterials.size() * (sizeof(Id) + sizeof(MaterialSides) + 64);
     n += b->guides.size() * (sizeof(Guide) + 64);
@@ -137,6 +139,8 @@ void validate(const Body &b) {
             if (!std::isfinite(component) || component < 0 || component > 1)
                 throw std::runtime_error("Invalid face color");
     }
+    if (b.edgeAppearances.size() > Topology::edgeLimit)
+        throw std::runtime_error("Too many edge appearance records");
     b.transform.validate();
     if (b.properties.size() > 128)
         throw std::runtime_error("Too many entity properties");
@@ -776,8 +780,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     ChangeReport report;
     const Surface emptySurface;
     const Topology emptyTopology;
-    for (const auto &change : edit.changes) {
-        edit.bytes += sizeof(Change) + bytes(change.before) + bytes(change.after);
+    for (auto &change : edit.changes) {
         for (const auto *mapping :
              {&change.faceDescendants, &change.vertexDescendants, &change.edgeDescendants})
             for (const auto &[id, targets] : *mapping)
@@ -810,6 +813,23 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                     change.before ? change.before->topology.edges : emptyTopology.edges,
                     change.after ? change.after->topology.edges : emptyTopology.edges,
                     changes.edges);
+        const Body emptyBody;
+        if (change.after) {
+            const auto &before = change.before ? *change.before : emptyBody;
+            const auto styles =
+                change.edgeAppearancesResolved
+                    ? change.after->edgeAppearances
+                    : inheritedEdgeAppearances(before, *change.after, changes.edges.descendants);
+            if (styles != change.after->edgeAppearances) {
+                auto styled = std::make_shared<Body>(*change.after);
+                styled->edgeAppearances = styles;
+                change.after = std::move(styled);
+            }
+            validateEdgeAppearances(*change.after);
+            reportEdgeAppearanceChanges(before, *change.after, changes.edges);
+            change.edgeAppearancesResolved = true;
+        }
+        edit.bytes += sizeof(Change) + bytes(change.before) + bytes(change.after);
         const std::map<Id, Curve> noCurves;
         changes.curves = compareCurves(change.before ? change.before->curves : noCurves,
                                        change.after ? change.after->curves : noCurves);
@@ -1098,6 +1118,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
                                                before ? before->topology : empty.topology,
                                                after ? after->surface : empty.surface,
                                                after ? after->topology : empty.topology));
+            reportEdgeAppearanceChanges(before ? *before : empty, after ? *after : empty,
+                                        report.at(id).edges);
             report.at(id).curves = compareCurves(before ? before->curves : empty.curves,
                                                  after ? after->curves : empty.curves);
             report.at(id).guides = compareGuides(before ? before->guides : empty.guides,
@@ -1191,6 +1213,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         if (restored->topology.edges.empty() && restored->topology.nextId == 1)
             restored->topology = Topology::rebuild(restored->surface, {});
         restored->topology.validate(restored->surface);
+        validateEdgeAppearances(*restored);
         validateCurves(restored->curves, restored->surface, restored->topology);
         edgeFloors.emplace(id, restored->topology.nextId);
         b = std::move(restored);

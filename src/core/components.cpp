@@ -13,6 +13,7 @@ void emptyGeometry(Body &body) {
     body.surface.faces.clear();
     body.surface.wires.clear();
     body.topology.edges.clear();
+    body.edgeAppearances.clear();
     body.faceColors.clear();
     body.faceMaterials.clear();
     body.curves.clear();
@@ -38,7 +39,7 @@ void bodyDifference(Edit &edit, const Document &doc, const std::map<Id, BodyPtr>
         const auto before = doc.bodies().contains(id) ? doc.bodies().at(id) : nullptr;
         const auto after = scene.contains(id) ? scene.at(id) : nullptr;
         if ((!before != !after) || (before && after && *before != *after))
-            edit.changes.push_back({id, before, after});
+            edit.changes.push_back({id, before, after, {}, {}, {}, true});
     }
 }
 template <class Records, class Changes>

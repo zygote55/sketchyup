@@ -62,7 +62,7 @@ Document recovered(const OutcomeStore &store) {
         const auto a = before.bodies().contains(id) ? before.bodies().at(id) : nullptr;
         const auto b = after.bodies().contains(id) ? after.bodies().at(id) : nullptr;
         if (!a || !b || *a != *b)
-            edit.changes.push_back({id, a, b});
+            edit.changes.push_back({id, a, b, {}, {}, {}, true});
     }
     edit.nextIdFloor = after.nextId();
     // A recovered checkpoint is not an explicit save, including its undo baseline.

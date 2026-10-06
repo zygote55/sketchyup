@@ -103,6 +103,10 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
                         properties[QString::fromStdString(key)] = v;
                 },
                 value);
+        QJsonObject edgeAppearances;
+        for (const auto &[edge, style] : b->edgeAppearances)
+            edgeAppearances[sid(edge)] = QJsonObject{
+                {"hidden", style.hidden}, {"soft", style.soft}, {"smooth", style.smooth}};
         QJsonObject faceColors;
         for (const auto &[face, color] : b->faceColors)
             faceColors[sid(face)] = QJsonArray{color[0], color[1], color[2]};
@@ -113,6 +117,7 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
             QJsonObject{{"id", sid(id)},
                         {"materials", QJsonArray{sid(b->materials.front), sid(b->materials.back)}},
                         {"faceMaterials", faceMaterials},
+                        {"edgeAppearances", edgeAppearances},
                         {"parent", sid(b->parent)},
                         {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
                         {"faceColors", faceColors},
@@ -184,7 +189,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 12},
+                {"version", 13},
                 {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
                 {"revision", sid(doc.revision())},
                 {"units", "m"},
@@ -232,9 +237,25 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
             allowed.append("tag");
         if (version >= 10)
             allowed += {"materials", "faceMaterials"};
+        if (version >= 13)
+            allowed.append("edgeAppearances");
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
+        if (version >= 13) {
+            const auto styles = object(o["edgeAppearances"]);
+            if (styles.size() > qsizetype(Topology::edgeLimit))
+                throw std::runtime_error("Too many edge appearance records");
+            for (auto it = styles.begin(); it != styles.end(); ++it) {
+                const auto flags = object(it.value());
+                supportedFields(flags, {"hidden", "soft", "smooth"});
+                if (!flags["hidden"].isBool() || !flags["soft"].isBool() ||
+                    !flags["smooth"].isBool())
+                    throw std::runtime_error("Expected boolean edge appearance flags");
+                b->edgeAppearances[readId(it.key())] = {
+                    flags["hidden"].toBool(), flags["soft"].toBool(), flags["smooth"].toBool()};
+            }
+        }
         if (version >= 10) {
             auto sides = [](const QJsonValue &value) {
                 const auto values = array(value);
@@ -454,7 +475,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
          root["version"].toDouble() != 7 && root["version"].toDouble() != 8 &&
          root["version"].toDouble() != 9 && root["version"].toDouble() != 10 &&
-         root["version"].toDouble() != 11 && root["version"].toDouble() != 12) ||
+         root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
+         root["version"].toDouble() != 13) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");

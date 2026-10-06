@@ -1554,7 +1554,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             prune(mapping.vertices, body.surface.vertices);
             prune(mapping.edges, body.topology.edges);
             edit.changes.push_back({id, before, after, std::move(mapping.faces),
-                                    std::move(mapping.vertices), std::move(mapping.edges)});
+                                    std::move(mapping.vertices), std::move(mapping.edges), true});
         }
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
