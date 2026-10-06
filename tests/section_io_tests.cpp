@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
         const auto retired = createSection(doc, "Retired", 0, {});
         doc.undo();
         const auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
-        check(QJsonDocument::fromJson(raw).object()["version"] == 21, "Schema 21 explicit");
+        check(QJsonDocument::fromJson(raw).object()["version"] == 22, "Schema 22 explicit");
         check(encodeDocument(decodeDocument(raw)) == raw &&
                   encodeContainer(decodeContainer(bytes)) == bytes,
               "Exact raw/container section round trips");
@@ -178,7 +178,7 @@ int main(int argc, char **argv) {
               "Version 18 retains saved scenes with no invented sections");
         const auto length = qFromLittleEndian<quint32>(oldBytes.constData() + 12);
         auto expected = QJsonDocument::fromJson(oldBytes.mid(16 + length)).object();
-        expected["version"] = 21;
+        expected["version"] = 22;
         expected["annotations"] = QJsonArray{};
         expected["nextAnnotationId"] = "1";
         expected["sections"] = QJsonArray{};
@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
         const auto priorDoc = decodeContainer(priorBytes);
         const auto priorLength = qFromLittleEndian<quint32>(priorBytes.constData() + 12);
         auto priorExpected = QJsonDocument::fromJson(priorBytes.mid(16 + priorLength)).object();
-        priorExpected["version"] = 21;
+        priorExpected["version"] = 22;
         priorExpected["annotations"] = QJsonArray{};
         priorExpected["nextAnnotationId"] = "1";
         check(QJsonDocument::fromJson(encodeDocument(priorDoc, AssetStorage::External)).object() ==

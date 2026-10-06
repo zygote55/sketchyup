@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
         check(encodeContainer(decodeContainer(container)) == container,
               "Annotation container reopens byte-exact");
         const auto tree = QJsonDocument::fromJson(raw).object();
-        check(tree["version"] == 21, "Schema 21 explicit");
+        check(tree["version"] == 22, "Schema 22 explicit");
         check(decodeDocument(raw).annotations().at(id)->text == label.text,
               "Unicode multiline label persists");
         auto broken = *doc.annotations().at(id);

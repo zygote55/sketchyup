@@ -72,7 +72,7 @@ QByteArray encodeContainer(const Document &doc) {
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
-                                  {"encoding", "json-v21"},
+                                  {"encoding", "json-v22"},
                                   {"offset", "0"},
                                   {"bytes", QString::number(document.size())},
                                   {"sha256", hash(document)}}};
@@ -104,7 +104,7 @@ QByteArray encodeContainer(const Document &doc) {
                                               "groups-v1", "face-colors-v1", "components-v1",
                                               "tags-v1", "materials-v1", "assets-v1",
                                               "display-units-v1", "edge-appearance-v1",
-                                              "component-glue-v1", "hosted-components-v1", "texture-mapping-v1", "model-style-v1", "saved-scenes-v1", "section-planes-v1", "section-scenes-v1", "annotations-v1"}},
+                                              "component-glue-v1", "hosted-components-v1", "texture-mapping-v1", "model-style-v1", "saved-scenes-v1", "section-planes-v1", "section-scenes-v1", "annotations-v1", "editable-text-v1"}},
                                   {"allocatorFloors", floors(doc, true, true, true, true, true, true, true, true)},
                                   {"assets", assets},
                                   {"chunks", chunks}})
@@ -142,7 +142,12 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    const bool annotations = features == std::set<QString>{
+    const bool editableText = features == std::set<QString>{
+        "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
+        "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
+        "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
+        "model-style-v1", "saved-scenes-v1", "section-planes-v1", "section-scenes-v1", "annotations-v1", "editable-text-v1"};
+    const bool annotations = editableText || features == std::set<QString>{
         "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
         "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
         "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
@@ -249,7 +254,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (annotations ? "json-v21"
+        chunk["encoding"] != (editableText ? "json-v22"
+                                   : annotations ? "json-v21"
                               : sectionScenes ? "json-v20"
                               : sections ? "json-v19"
                               : savedScenes ? "json-v18"
@@ -297,7 +303,8 @@ Document decodeContainer(const QByteArray &bytes) {
     if (cursor != total)
         throw std::runtime_error("Trailing or unreferenced container data");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != (annotations ? 21
+    if (payloadTree["version"] != (editableText ? 22
+                                   : annotations ? 21
                                    : sectionScenes ? 20
                                    : sections ? 19
                                    : savedScenes ? 18
