@@ -958,7 +958,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R063 — Implement named scenes and saved view state
 
-**Status:** In progress. R063.a ([PR #136](https://github.com/zygote55/sketchyup/pull/136)) prepares immutable selective scene records, stable ordering, atomic Undo/Redo, missing-reference diagnostics and schema-18 persistence ([contract](decisions/0070-saved-scene-records.md)). All 111 regression suites and seven sanitizer suites pass; installed migration checks cover all 15 property combinations, retained missing references and exact uint64 IDs ([evidence](verification/R063a-saved-scenes.md)). R063.b adds six shared commands, three bounded queries, scene tabs and the Scenes panel, selective recall, native camera transitions and reduced motion ([contract](decisions/0071-scene-workflows.md)). All 112 regression suites, targeted sanitizers and installed/schema checks pass ([evidence](verification/R063b-scene-workflows.md)); delivery awaits dependency checks and the M6 gate. **Track:** Core. **Scope:** P03. **UX:** §3.1, §5.
+**Status:** In progress. R063.a ([PR #136](https://github.com/zygote55/sketchyup/pull/136)) prepares immutable selective scene records, stable ordering, atomic Undo/Redo, missing-reference diagnostics and schema-18 persistence ([contract](decisions/0070-saved-scene-records.md)). All 111 regression suites and seven sanitizer suites pass; installed migration checks cover all 15 property combinations, retained missing references and exact uint64 IDs ([evidence](verification/R063a-saved-scenes.md)). R063.b ([PR #137](https://github.com/zygote55/sketchyup/pull/137)) adds six shared commands, three bounded queries, scene tabs and the Scenes panel, selective recall, native camera transitions and reduced motion ([contract](decisions/0071-scene-workflows.md)). All 112 regression suites, targeted sanitizers and installed/schema checks pass ([evidence](verification/R063b-scene-workflows.md)); delivery awaits dependency checks and the M6 gate. **Track:** Core. **Scope:** P03. **UX:** §3.1, §5.
 
 **Requires:** [R062](#r062), [R034](#r034); milestone gate rule above.
 
@@ -970,7 +970,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R064 — Implement section planes and section visualization
 
-**Status:** Planned. **Track:** Geometry. **Scope:** P04. **UX:** §5, §11.
+**Status:** In progress. R064.a adds oriented half-space clipping, closed-contour fill with holes/islands, cut edges, exact multi-plane seams and source-triangle provenance ([contract](decisions/0072-section-geometry.md)). All 113 regression suites and the geometry sanitizer suite pass ([evidence](verification/R064a-section-geometry.md)). Persisted context planes, native controls, picking/rendering and export integration remain in progress; delivery awaits these workflows, dependencies and the M6 gate. **Track:** Geometry. **Scope:** P04. **UX:** §5, §11.
 
 **Requires:** [R063](#r063), [R054](#r054); milestone gate rule above.
 
