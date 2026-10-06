@@ -440,8 +440,19 @@ with surviving reveal identities and paint preserved. See the
 Use `entity.describe` to discover a materialized face's canonical member binding,
 and `component.instances` to inspect the definition's glue and paged attachments.
 The assistant advertises attach/bind/detach as routine operations, glue edits with
-shared-definition permission, and baking with destructive-edit permission. Native
-placement controls and automatic attachment policy for copies remain in progress.
+shared-definition permission, and baking with destructive-edit permission.
+
+For native placement, enter a component, select its alignment face and choose
+**Edit → Set glue face**. Set its local anchor/direction and explicitly enable
+opening cutting when wanted. Leave component editing, select the whole component
+and Ctrl-click one host face, then press **Shift+H**. Move on that face to preview;
+click or Enter applies, and Escape cancels. Measurements accepts three host-local
+anchor coordinates or one signed inset length; repeated numeric input revises the
+same Undo item. **Attachment placement options** sets rotation in degrees, signed
+scale and inset; restart placement after closing it. **Bind component at current
+pose** uses the explicit inset while retaining position. Edit also offers detach,
+clear shared glue, and bake host openings. Automatic attachment policy for copies
+and adoption of legacy recipe relationships remain in progress.
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
 adjacency, plus analytic curve parameters and ordered derived-edge references.

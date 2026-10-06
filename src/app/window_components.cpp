@@ -27,6 +27,7 @@ void Window::addComponentActions(QMenu *menu) {
                           [this] { viewport_->makeComponentUnique(); });
     unique->setProperty("command", "component.make_unique");
     menu->addAction(unique);
+    addHostedActions(menu);
 }
 void Window::componentDialog(const QString &operation) {
     const auto stamp = doc_.saveStamp();
@@ -124,6 +125,7 @@ void Window::componentDialog(const QString &operation) {
     dialog.exec();
 }
 void Window::syncComponentActions() {
+    syncHostedActions();
     const auto &selection = viewport_->selectionState().entities();
     const auto scope = viewport_->componentScope();
     const bool one = selection.size() == 1 && selection.begin()->kind == SelectionKind::Body;

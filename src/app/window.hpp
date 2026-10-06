@@ -83,6 +83,10 @@ class Window : public QMainWindow {
     QAction *redo_{};
     std::vector<QAction *> publicActions_;
     void sync();
+    void addHostedActions(QMenu *menu);
+    void hostedGlueDialog();
+    void hostedOptionsDialog();
+    void syncHostedActions();
     void addComponentActions(QMenu *menu);
     void componentDialog(const QString &operation);
     void syncComponentActions();

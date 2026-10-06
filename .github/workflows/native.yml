@@ -79,6 +79,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/organization_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/component_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/component_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/hosted_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/group_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/group_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/array_input_tests
@@ -164,6 +166,8 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/organization_input_tests
           scripts/test-wayland.sh build/dev/component_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_input_tests
+          scripts/test-wayland.sh build/dev/hosted_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_input_tests
           scripts/test-wayland.sh build/dev/group_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/group_input_tests
           scripts/test-wayland.sh build/dev/selection_input_tests
@@ -238,7 +242,8 @@ jobs:
       - name: Sanitized native MCP inspection
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON
-          cmake --build --preset sanitize --target diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
+          cmake --build --preset sanitize --target hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/diagnostics_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/edge_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/smooth_viewport_tests

@@ -268,7 +268,9 @@ void Viewport::keyReleaseEvent(QKeyEvent *event) {
     }
     if (event->key() == Qt::Key_Shift && !event->isAutoRepeat()) {
         releaseInferenceHold();
-        if (session_.active())
+        // Hosted placement follows a host-plane ray, not the drawing inference
+        // cursor. Releasing its Shift+H shortcut must preserve the preview.
+        if (session_.active() && tool_ != Tool::HostedPlacement)
             updateToolPreview(inferencePointer_);
         update();
         event->accept();

@@ -58,7 +58,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         Sweep = 22,
         Intersect = 23,
         Boolean = 24,
-        Orientation = 25
+        Orientation = 25,
+        HostedPlacement = 26
     };
     void setTool(Tool tool);
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
@@ -109,6 +110,19 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void replaceComponent(Id definition);
     void placeComponent(Id definition, Vec3 position);
     void changeComponentAxes(Transform axes);
+    struct HostedPlacementOptions {
+        double angle{}, inset{};
+        Vec3 scale{1, 1, 1};
+    };
+    HostedPlacementOptions hostedPlacementOptions() const { return hostedOptions_; }
+    void setHostedPlacementOptions(HostedPlacementOptions options);
+    void startHostedPlacement(bool retainPose = false);
+    QString hostedPlacementSummary() const;
+    Id selectedComponentDefinition() const;
+    ComponentGlue selectedGlueFace() const;
+    void configureComponentGlue(std::optional<ComponentGlue> glue);
+    void detachSelectedComponent();
+    void bakeSelectedHost();
     void paintSelection(std::array<float, 3> color);
     void organize(const QJsonArray &commands);
     Id paintMaterial() const;
@@ -345,6 +359,14 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     double extrusionScale_{1}, previewDistance_{};
     Id offsetBody_{}, offsetFace_{};
     Vec3 offsetNormal_{}, offsetAxis_{};
+    HostedPlacementOptions hostedOptions_;
+    bool hostedRetainPose_{};
+    std::optional<QJsonObject> hostedCommand_;
+    void beginHostedPlacement();
+    void updateHostedPlacement(QPointF point);
+    void finishHostedPlacement();
+    bool hostedMeasurements(const QString &text);
+    void validateHostedLocks(const QJsonObject &command) const;
     std::optional<QJsonObject> orientationCommand_;
     bool orientConnected_{};
     std::vector<std::array<Vec3, 2>> orientationNormals_;
