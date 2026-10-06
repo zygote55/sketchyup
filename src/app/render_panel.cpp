@@ -2,6 +2,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QFormLayout>
@@ -86,7 +87,8 @@ struct RenderPanel::Impl {
     QPushButton &chip;
     QWidget &window;
     QPointer<QDialog> dialog;
-    QLineEdit *path{};
+    QLineEdit *path{}, *environmentPath{};
+    QDoubleSpinBox *environmentStrength{}, *environmentRotation{};
     QComboBox *camera{}, *backend{}, *device{};
     QSpinBox *width{}, *height{}, *samples{};
     QCheckBox *fallback{};
@@ -149,7 +151,8 @@ struct RenderPanel::Impl {
                                (details.isEmpty() ? QString{} : "\n" + details));
             const bool busy = active() || (probe && !probe->done());
             for (QWidget *control : std::initializer_list<QWidget *>{
-                     path, camera, width, height, samples, backend, device, fallback, probeButton})
+                     path, camera, width, height, samples, environmentPath, environmentStrength,
+                     environmentRotation, backend, device, fallback, probeButton})
                 control->setEnabled(!busy);
             renderButton->setEnabled(!busy && verified && device->currentIndex() >= 0);
             cancelButton->setEnabled(busy);
@@ -183,8 +186,9 @@ struct RenderPanel::Impl {
         auto *layout = new QVBoxLayout(contents);
         scroll->setWidget(contents);
         outer->addWidget(scroll, 1);
-        auto *intro = new QLabel("Blender is optional and runs outside the editor. The studio "
-                                 "preset renders a captured model while you keep working.");
+        auto *intro = new QLabel("Blender renders a captured model while you keep working. "
+                                 "Enabled sun studies carry into renders. An optional HDR panorama "
+                                 "replaces the ambient world and studio lights.");
         intro->setWordWrap(true);
         layout->addWidget(intro);
         auto *form = new QFormLayout;
@@ -222,6 +226,33 @@ struct RenderPanel::Impl {
         form->addRow("Height (pixels)", height);
         samples = spin("renderSamples", 1, 1024, preferences.value("render/samples", 32).toInt());
         form->addRow("Samples", samples);
+        environmentPath = new QLineEdit;
+        environmentPath->setObjectName("renderEnvironmentPath");
+        environmentPath->setPlaceholderText("Optional 2:1 Radiance HDR panorama");
+        form->addRow("HDR environment", environmentPath);
+        auto *chooseEnvironment = new QPushButton("Choose HDR panorama…");
+        chooseEnvironment->setObjectName("chooseRenderEnvironment");
+        form->addRow({}, chooseEnvironment);
+        QObject::connect(chooseEnvironment, &QPushButton::clicked, &owner, [this] {
+            if (active())
+                return;
+            const auto selected = QFileDialog::getOpenFileName(dialog, "Choose HDR environment", {},
+                                                               "Radiance panoramas (*.hdr)");
+            if (!selected.isEmpty())
+                environmentPath->setText(selected);
+        });
+        environmentStrength = new QDoubleSpinBox;
+        environmentStrength->setObjectName("renderEnvironmentStrength");
+        environmentStrength->setRange(0, 100);
+        environmentStrength->setDecimals(3);
+        environmentStrength->setValue(1);
+        form->addRow("Environment strength", environmentStrength);
+        environmentRotation = new QDoubleSpinBox;
+        environmentRotation->setObjectName("renderEnvironmentRotation");
+        environmentRotation->setRange(-360, 360);
+        environmentRotation->setDecimals(2);
+        environmentRotation->setSuffix("°");
+        form->addRow("Environment rotation", environmentRotation);
         backend = new QComboBox;
         backend->setObjectName("renderBackend");
         backend->addItems({"CPU", "CUDA", "OPTIX", "HIP", "ONEAPI", "METAL"});
@@ -280,6 +311,10 @@ struct RenderPanel::Impl {
             try {
                 RenderOptions settings;
                 settings.settings = {width->value(), height->value(), samples->value(), 0};
+                if (!environmentPath->text().trimmed().isEmpty())
+                    settings.environment = readRenderEnvironment(environmentPath->text().trimmed(),
+                                                                 environmentStrength->value(),
+                                                                 environmentRotation->value());
                 BlenderJob::Options worker;
                 worker.executable = path->text().trimmed();
                 worker.backend = backend->currentText();
@@ -497,8 +532,12 @@ struct RenderPanel::Impl {
             else if (manifest.value("revision").toString() != QString::number(document.revision()))
                 text += " · model has changed since";
             const auto device = manifest.value("device").toObject();
-            text += "\nBlender " + manifest.value("blenderVersionString").toString() +
-                    " · Studio · " + device.value("backend").toString();
+            const auto lighting = manifest.value("lighting").toObject();
+            const bool sun = lighting.contains("settings"), hdri = lighting.contains("environment");
+            const auto lightName = sun ? (hdri ? "Sun study + HDR" : "Sun study")
+                                       : (hdri ? "HDR environment" : "Studio");
+            text += "\nBlender " + manifest.value("blenderVersionString").toString() + " · " +
+                    lightName + " · " + device.value("backend").toString();
             if (device.value("name") != device.value("backend"))
                 text += " · " + device.value("name").toString();
             if (manifest.value("cpuFallbackUsed") == true)
@@ -509,8 +548,10 @@ struct RenderPanel::Impl {
                  {std::pair{"wiresOmitted", "standalone edges omitted"},
                   {"sectionCutEdgesOmitted", "section cut edges omitted"},
                   {"annotationsOmitted", "dimensions and labels omitted"},
-                  {"editableTextSourcesOmitted", "editable text sources omitted; geometry retained"},
+                  {"editableTextSourcesOmitted",
+                   "editable text sources omitted; geometry retained"},
                   {"solarLightingOmitted", "sun lighting omitted; study settings retained"},
+                  {"environmentLightingOmitted", "HDR environment lighting omitted"},
                   {"referenceImagesOmitted", "reference images omitted"},
                   {"guidesOmitted", "guides omitted"},
                   {"analyticCurvesTessellatedOrOmitted", "curves approximated or omitted"},

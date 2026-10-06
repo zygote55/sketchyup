@@ -84,7 +84,7 @@ QJsonObject describeRenderCamera(const RenderCamera &c) {
             {"farClip", c.farClip}};
 }
 RenderOptions parseRenderOptions(const QJsonObject &json) {
-    fields(json, {"apiVersion", "width", "height", "samples", "seed", "camera"});
+    fields(json, {"apiVersion", "width", "height", "samples", "seed", "camera", "environment"});
     require(json.value("apiVersion") == 1, "Render settings require apiVersion 1");
     RenderOptions result;
     auto &s = result.settings;
@@ -113,6 +113,17 @@ RenderOptions parseRenderOptions(const QJsonObject &json) {
         c.farClip = number(camera, "farClip", c.farClip);
         renderCameraTransform(c);
         result.camera = c;
+    }
+    if (json.contains("environment")) {
+        require(json.value("environment").isObject(), "Environment settings must be an object");
+        const auto environment = json.value("environment").toObject();
+        fields(environment, {"path", "strength", "rotationDegrees"});
+        require(environment.value("path").isString() &&
+                    !environment.value("path").toString().isEmpty(),
+                "Choose an HDR environment file");
+        result.environment = readRenderEnvironment(environment.value("path").toString(),
+                                                   number(environment, "strength", 1),
+                                                   number(environment, "rotationDegrees", 0));
     }
     return result;
 }
@@ -145,6 +156,9 @@ RenderSnapshot RenderSnapshot::capture(const Document &document, RenderOptions o
     }
     RenderSnapshot result(document.readSnapshot(), options.settings,
                           options.camera.value_or(RenderCamera{}), std::move(hidden));
+    if (options.environment)
+        validateRenderEnvironment(*options.environment);
+    result.environment_ = std::move(options.environment);
     if (!options.camera) {
         const double inf = std::numeric_limits<double>::infinity();
         Vec3 low{inf, inf, inf}, high{-inf, -inf, -inf};

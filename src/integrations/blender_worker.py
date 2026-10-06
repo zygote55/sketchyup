@@ -359,6 +359,122 @@ def import_snapshot(scene_bytes, directory):
         raise WorkerError('invalid_snapshot', 'Importer did not preserve sided appearance identities')
 
 
+def environment_world(world, metadata, source):
+    if (type(metadata) is not dict or metadata.get('file') != 'environment.hdr'
+            or metadata.get('mediaType') != 'image/vnd.radiance'
+            or metadata.get('projection') != 'equirectangular'
+            or metadata.get('colorSpace') != 'Linear Rec.709'
+            or type(metadata.get('width')) is not int or type(metadata.get('height')) is not int
+            or not 1 <= metadata['height'] <= 2048
+            or metadata['width'] != metadata['height'] * 2
+            or type(metadata.get('bytes')) is not int or not 0 < metadata['bytes'] <= 40 * 1024 * 1024
+            or any(type(metadata.get(key)) not in (int, float) or not math.isfinite(metadata[key])
+                   for key in ('strength', 'rotationDegrees'))
+            or not 0 <= metadata['strength'] <= 100 or not -360 <= metadata['rotationDegrees'] <= 360):
+        raise WorkerError('invalid_snapshot', 'Invalid frozen HDR environment metadata')
+    path = source / 'environment.hdr'
+    if path.is_symlink() or not path.is_file() or path.stat().st_size != metadata['bytes']:
+        raise WorkerError('invalid_snapshot', 'Expected the captured bounded HDR environment')
+    data = path.read_bytes()
+    if sha(data) != metadata.get('sha256'):
+        raise WorkerError('invalid_snapshot', 'Captured HDR environment changed')
+    # Decode exactly the verified bytes from a private temporary path, then pack.
+    with tempfile.NamedTemporaryFile(suffix='.hdr') as temporary:
+        temporary.write(data)
+        temporary.flush()
+        image = bpy.data.images.load(temporary.name, check_existing=False)
+        if tuple(image.size) != (metadata['width'], metadata['height']) or not image.is_float:
+            raise WorkerError('invalid_snapshot', 'Decoded environment dimensions or format mismatch')
+        image.colorspace_settings.name = 'Linear Rec.709'
+        image.pack()
+    nodes, links = world.node_tree.nodes, world.node_tree.links
+    texture = nodes.new('ShaderNodeTexEnvironment')
+    texture.image = image
+    texture.projection = 'EQUIRECTANGULAR'
+    texture.interpolation = 'Linear'
+    coordinates = nodes.new('ShaderNodeTexCoord')
+    mapping = nodes.new('ShaderNodeVectorRotate')
+    mapping.rotation_type = 'Z_AXIS'
+    mapping.inputs['Angle'].default_value = math.radians(-metadata['rotationDegrees'])
+    links.new(coordinates.outputs['Generated'], mapping.inputs['Vector'])
+    links.new(mapping.outputs['Vector'], texture.inputs['Vector'])
+    links.new(texture.outputs['Color'], nodes['Background'].inputs['Color'])
+    nodes['Background'].inputs['Strength'].default_value = metadata['strength']
+
+
+def configure_lighting(manifest, source=None):
+    """Use the frozen native sun direction; never consult location/time on this host."""
+    solar = manifest.get('solar')
+    position = manifest.get('solarPosition')
+    if solar is None and position is None:
+        enabled = False  # Pre-sun snapshots retain their original studio lighting.
+    else:
+        if (type(solar) is not dict or type(position) is not dict
+                or type(solar.get('enabled')) is not bool
+                or type(solar.get('shadows')) is not bool
+                or solar.get('algorithm') != 'noaa-meeus-geometric-v1'
+                or position.get('algorithm') != solar['algorithm']):
+            raise WorkerError('invalid_snapshot', 'Invalid frozen sun study')
+        enabled = solar['enabled']
+        direction = position.get('direction')
+        if (type(direction) is not list or len(direction) != 3
+                or any(type(value) not in (int, float) or not math.isfinite(value)
+                       for value in direction)
+                or abs(sum(value * value for value in direction) - 1) > 1e-9
+                or type(position.get('aboveHorizon')) is not bool
+                or position['aboveHorizon'] != (direction[2] > 0)
+                or type(position.get('directLightActive')) is not bool
+                or position['directLightActive'] != (enabled and position['aboveHorizon'])
+                or type(position.get('shadowsActive')) is not bool
+                or position['shadowsActive'] != (enabled and solar['shadows'] and position['aboveHorizon'])):
+            raise WorkerError('invalid_snapshot', 'Invalid frozen sun direction or daylight state')
+    scene = bpy.context.scene
+    world = bpy.data.worlds.new('SketchyUp ambient world')
+    world.use_nodes = True
+    world.node_tree.nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
+    world.node_tree.nodes['Background'].inputs['Strength'].default_value = .25
+    scene.world = world
+    environment = manifest.get('environment')
+    if environment is not None:
+        if source is None:
+            raise WorkerError('invalid_snapshot', 'Missing packaged environment directory')
+        environment_world(world, environment, source)
+    world_strength = environment['strength'] if environment is not None else .25
+    if enabled:
+        energy = 3.0 if position['directLightActive'] else 0.0
+        report = {'mode': 'solar-hdri-v1' if environment is not None else 'solar-v1',
+                  'worldStrength': world_strength, 'energy': energy,
+                  'angle': .00935, 'shadows': position['shadowsActive'],
+                  'settings': solar, 'position': position}
+        if environment is not None:
+            report['environment'] = environment
+        if energy:
+            light = bpy.data.lights.new('SketchyUp Sun', 'SUN')
+            light.energy = energy
+            light.angle = report['angle']
+            light.use_shadow = report['shadows']
+            obj = bpy.data.objects.new(light.name, light)
+            scene.collection.objects.link(obj)
+            obj.rotation_euler = (-Vector(direction)).to_track_quat('-Z', 'Y').to_euler()
+        return report
+    if environment is not None:
+        return {'mode': 'hdri-v1', 'worldStrength': world_strength, 'environment': environment}
+    bounds = manifest['nativeBounds']
+    low, high = Vector(bounds['min']), Vector(bounds['max'])
+    center = (low + high) * .5
+    radius = max(.01, (high - low).length * .5)
+    for name, direction, power in [('Key', (1, -1, 2), 80), ('Fill', (-1, -.2, 1), 25)]:
+        light = bpy.data.lights.new('SketchyUp ' + name, 'AREA')
+        light.energy = power * radius * radius
+        light.shape = 'DISK'
+        light.size = radius * 1.5
+        obj = bpy.data.objects.new(light.name, light)
+        scene.collection.objects.link(obj)
+        obj.location = center + Vector(direction) * radius * 2
+        obj.rotation_euler = (center - obj.location).to_track_quat('-Z', 'Y').to_euler()
+    return {'mode': 'studio-v1', 'worldStrength': .25}
+
+
 def render(request, directory):
     source = Path(request['sourceDirectory'])
     manifest, manifest_bytes = load_json(source / 'manifest.json', 16 * 1024 * 1024)
@@ -406,24 +522,7 @@ def render(request, directory):
     scene.view_settings.look = 'None'
     scene.view_settings.exposure = 0
     scene.view_settings.gamma = 1
-    world = bpy.data.worlds.new('SketchyUp studio world')
-    world.use_nodes = True
-    world.node_tree.nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
-    world.node_tree.nodes['Background'].inputs['Strength'].default_value = .25
-    scene.world = world
-    bounds = manifest['nativeBounds']
-    low, high = Vector(bounds['min']), Vector(bounds['max'])
-    center = (low + high) * .5
-    radius = max(.01, (high - low).length * .5)
-    for name, direction, power in [('Key', (1, -1, 2), 80), ('Fill', (-1, -.2, 1), 25)]:
-        light = bpy.data.lights.new('SketchyUp ' + name, 'AREA')
-        light.energy = power * radius * radius
-        light.shape = 'DISK'
-        light.size = radius * 1.5
-        obj = bpy.data.objects.new(light.name, light)
-        scene.collection.objects.link(obj)
-        obj.location = center + Vector(direction) * radius * 2
-        obj.rotation_euler = (center - obj.location).to_track_quat('-Z', 'Y').to_euler()
+    lighting = configure_lighting(manifest, source)
     scene.render.filepath = str(directory / 'image.png')
     progress('rendering')
     bpy.ops.render.render(write_still=True)
@@ -432,12 +531,17 @@ def render(request, directory):
     if image.is_symlink() or not image.is_file() or not 0 < image.stat().st_size <= 64 * 1024 * 1024:
         raise WorkerError('render_error', 'Renderer did not produce a bounded PNG')
     image_bytes = image.read_bytes()
+    losses = dict(manifest['losses'])
+    if manifest.get('solar', {}).get('enabled'):
+        losses['solarLightingOmitted'] = 0
+    if 'environment' in manifest:
+        losses['environmentLightingOmitted'] = 0
     return {'status': 'succeeded', 'documentId': manifest['documentId'], 'revision': manifest['revision'],
             'manifestSha256': request['manifestSha256'], 'sceneSha256': manifest['scene']['sha256'],
-            'settings': settings, 'device': actual_device, 'losses': manifest['losses'],
-            'preset': {'name': 'studio-v1', 'engine': 'CYCLES', 'threads': 4, 'adaptiveSampling': False,
+            'settings': settings, 'device': actual_device, 'losses': losses, 'lighting': lighting,
+            'preset': {'name': lighting['mode'], 'engine': 'CYCLES', 'threads': 4, 'adaptiveSampling': False,
                        'denoising': False, 'maxBounces': 8, 'viewTransform': 'Standard', 'look': 'None',
-                       'exposure': 0, 'gamma': 1, 'worldStrength': .25},
+                       'exposure': 0, 'gamma': 1, 'worldStrength': lighting['worldStrength']},
             'image': {'file': 'image.png', 'width': settings['width'], 'height': settings['height'],
                       'bytes': len(image_bytes), 'sha256': sha(image_bytes)}}
 
@@ -459,7 +563,8 @@ def main():
         if not bpy.app.build_options.cycles or 'cycles' not in bpy.context.preferences.addons:
             raise WorkerError('cycles_unavailable', 'This Blender build does not include Cycles')
         if request['operation'] == 'probe':
-            result = {'status': 'available', **capabilities(request['backend'])}
+            result = {'status': 'available', 'lightingPolicies': ['studio-v1', 'solar-v1', 'hdri-v1', 'solar-hdri-v1'],
+                      **capabilities(request['backend'])}
         else:
             result = render(request, directory)
         publish(directory, {**base, **result})
