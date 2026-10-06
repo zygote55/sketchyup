@@ -154,12 +154,15 @@ void RenderJobsDialog::selection() {
         remove_->setEnabled(!pending(job.state));
         const auto captured =
             QDateTime::fromMSecsSinceEpoch(job.createdMs).toLocalTime().toString(Qt::ISODate);
-        const auto text =
-            provenance_(job) + "\nCaptured " + captured + "\n" + job.message +
-            "\nDevice: " + job.options.backend + " / " + job.options.deviceId +
-            (job.options.allowCpuFallback ? " (CPU fallback allowed)" : " (no CPU fallback)") +
-            "\n\nSource manifest SHA-256: " + job.manifestHash + "\n\n" +
-            QString::fromUtf8(QJsonDocument(queue_.diagnostics(id)).toJson());
+        const auto text = provenance_(job) + "\nCaptured " + captured + "\n" + job.message +
+                          "\nDevice: " + job.options.backend + " / " + job.options.deviceId +
+                          (job.options.backend == "CPU"
+                               ? QString{}
+                               : (job.options.backend != "OPENGL" && job.options.allowCpuFallback
+                                      ? " (CPU fallback allowed)"
+                                      : " (no CPU fallback)")) +
+                          "\n\nSource manifest SHA-256: " + job.manifestHash + "\n\n" +
+                          QString::fromUtf8(QJsonDocument(queue_.diagnostics(id)).toJson());
         if (details_->toPlainText() != text)
             details_->setPlainText(text);
         return;
