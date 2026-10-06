@@ -1,10 +1,12 @@
 #include "text/text_worker.hpp"
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
 #include <QTemporaryDir>
+#include <QThread>
 #include <iostream>
 using namespace sketchy;
 namespace {
@@ -103,6 +105,28 @@ int main(int argc, char **argv) {
         rejects([&] { runTextWorker(settings, options); });
         options.executable = script("sys.stdout.write('{\"protocol\":2,\"ok\":true}')\n");
         rejects([&] { runTextWorker(settings, options); });
+        options.executable = script("time.sleep(5)\n");
+        QElapsedTimer interruptedTime;
+        interruptedTime.start();
+        QString interruptedError;
+        auto *thread = QThread::create([&] {
+            try {
+                runTextWorker(settings, options);
+            } catch (const std::exception &error) {
+                interruptedError = QString::fromUtf8(error.what());
+            }
+        });
+        thread->start();
+        QThread::msleep(100);
+        thread->requestInterruption();
+        const auto finished = thread->wait(6000);
+        if (!finished) {
+            thread->requestInterruption();
+            thread->wait();
+        }
+        delete thread;
+        check(finished && interruptedError.contains("canceled") && interruptedTime.elapsed() < 2000,
+              "Thread interruption kills the helper promptly");
         options.executable = files.filePath("missing-worker");
         rejects([&] { runTextWorker(settings, options); });
         std::cout << "Headless font worker, exact geometry transport, deadline and malformed "
