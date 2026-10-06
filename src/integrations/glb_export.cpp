@@ -1,6 +1,7 @@
 #include "integrations/glb_export.hpp"
 #include "core/face_textures.hpp"
 #include "core/shading_normals.hpp"
+#include "core/section_records.hpp"
 #include "io/assets.hpp"
 #include "io/texture_image.hpp"
 #include <QCryptographicHash>
@@ -98,7 +99,7 @@ struct Writer {
     std::map<Id, int> nodeMap;
     std::set<Id> usedAssets, usedMaterials;
     size_t faces{}, triangles{}, references{}, hiddenBodies{}, hiddenFaces{}, wires{}, guides{},
-        curves{}, backDifferences{};
+        curves{}, backDifferences{}, cutEdges{}, capTriangles{};
     Bounds bounds;
     explicit Writer(const RenderSnapshot &snapshot)
         : snapshot(snapshot), doc(snapshot.document()) {}
@@ -220,11 +221,53 @@ struct Writer {
         materialCache[key] = index;
         return index;
     }
-    std::pair<int, QJsonArray> mesh(Id owner, const Body &body) {
+    std::tuple<int, QJsonArray, QJsonObject> mesh(Id owner, const Body &body) {
         std::map<int, Primitive> groups;
         QJsonArray faceMap;
         const auto world = doc.worldTransform(owner);
         const ShadingNormals shading(body);
+        const auto cuts = effectiveSectionCuts(doc, owner);
+        std::vector<Triangle> source;
+        std::map<Id, std::vector<SectionTriangle>> retained;
+        SectionMesh section;
+        QJsonObject sectionInfo;
+        QJsonArray caps;
+        if (!cuts.empty()) {
+            std::vector<Triangle> worldSource;
+            for (const auto &[face, record] : body.surface.faces)
+                if (snapshot.visible(owner, face)) {
+                    const auto triangles = body.surface.triangulate(face);
+                    require(triangles.size() <= sectionInputTriangleLimit - source.size(),
+                            "Section export exceeds input triangle budget");
+                    for (const auto &triangle : triangles) {
+                        source.push_back(triangle);
+                        worldSource.push_back({world.point(triangle.a), world.point(triangle.b),
+                                               world.point(triangle.c), face});
+                    }
+                }
+            // Clip in the same world coordinates as the viewport, then return derived
+            // positions to the existing local-node frame. Provenance stays unchanged.
+            section = sectionMesh(worldSource, cuts);
+            const auto inverse = world.inverse();
+            for (auto &triangle : section.triangles) {
+                for (auto &vertex : triangle.vertices)
+                    vertex.point = inverse.point(vertex.point);
+                if (triangle.source != noSectionSource)
+                    retained[triangle.face].push_back(triangle);
+            }
+            QJsonArray planes, unfilled;
+            for (const auto &cut : cuts)
+                planes.append(id(cut.id));
+            for (auto plane : section.unfilledSections)
+                unfilled.append(id(plane));
+            size_t displayedEdges{};
+            for (const auto &edge : section.edges)
+                if (doc.sections().at(edge.section)->edges)
+                    ++displayedEdges;
+            cutEdges += displayedEdges;
+            sectionInfo = {{"active", planes}, {"unfilled", unfilled},
+                           {"cutEdgesOmitted", double(displayedEdges)}};
+        }
         for (const auto &[face, record] : body.surface.faces) {
             if (!snapshot.visible(owner, face)) {
                 ++hiddenFaces;
@@ -235,6 +278,8 @@ struct Writer {
                 references += loop.size();
                 require(references <= 2000000, "GLB has too many face vertices");
             }
+            if (!cuts.empty() && !retained.contains(face))
+                continue;
             const auto front = surfaceAppearance(doc.materials(), body, face),
                        back = surfaceAppearance(doc.materials(), body, face, true);
             useMaterial(back.material);
@@ -248,15 +293,19 @@ struct Writer {
             if (paired)
                 ++backDifferences;
             const int appearance = material(front, back, paired);
-            const auto tessellated = body.surface.triangulate(face);
-            triangles += tessellated.size() * (paired ? 2 : 1);
+            const auto tessellated = cuts.empty() ? body.surface.triangulate(face)
+                                                  : std::vector<Triangle>{};
+            const auto count = cuts.empty() ? tessellated.size() : retained.at(face).size();
+            triangles += count * (paired ? 2 : 1);
             require(triangles <= 1000000, "GLB has too many visible triangles");
             auto appendSide = [&](int index, bool reverse) {
                 auto &group = groups[index];
                 const int start = group.count;
                 const auto &image = reverse ? backImage : frontImage;
                 const auto &mapping = reverse ? backMapping : frontMapping;
-                for (const auto &triangle : tessellated) {
+                for (size_t t = 0; t < count; ++t) {
+                    const auto *derived = cuts.empty() ? nullptr : &retained.at(face)[t];
+                    const auto &triangle = derived ? source.at(derived->source) : tessellated[t];
                     const auto normals = shading.triangle(triangle);
                     const std::array<Vec3, 3> points{triangle.a, triangle.b, triangle.c};
                     std::array<std::array<float, 2>, 3> uv{};
@@ -266,12 +315,25 @@ struct Writer {
                              mapping.coordinates(points[2])},
                             {1. / (64 * image.width), 1. / (64 * image.height)});
                     for (const auto corner : {0, reverse ? 2 : 1, reverse ? 1 : 2}) {
-                        const auto p = points[corner];
+                        const auto p = derived ? derived->vertices[corner].point : points[corner];
+                        auto normal = normals[corner];
+                        std::array<double, 2> coordinate{uv[corner][0], uv[corner][1]};
+                        if (derived) {
+                            normal = {};
+                            coordinate = {};
+                            for (size_t k = 0; k < 3; ++k) {
+                                const auto weight = derived->vertices[corner].weights[k];
+                                normal = normal + normals[k] * weight;
+                                coordinate[0] += uv[k][0] * weight;
+                                coordinate[1] += uv[k][1] * weight;
+                            }
+                            normal = normalized(normal);
+                        }
                         vector(group.positions, p);
-                        vector(group.normals, normals[corner] * (reverse ? -1 : 1));
+                        vector(group.normals, normal * (reverse ? -1 : 1));
                         if (image.texture >= 0) {
-                            scalar(group.coordinates, uv[corner][0]);
-                            scalar(group.coordinates, uv[corner][1]);
+                            scalar(group.coordinates, coordinate[0]);
+                            scalar(group.coordinates, coordinate[1]);
                         }
                         ++group.count;
                         group.bounds.add(
@@ -284,18 +346,54 @@ struct Writer {
             QJsonObject entry{{"id", id(face)},
                               {"material", appearance},
                               {"firstVertex", appendSide(appearance, false)},
-                              {"vertexCount", int(tessellated.size() * 3)},
+                              {"vertexCount", int(count * 3)},
                               {"frontMaterial", id(front.material)},
                               {"backMaterial", id(back.material)}};
             if (paired) {
                 entry["backAppearance"] = appearance + 1;
                 entry["backFirstVertex"] = appendSide(appearance + 1, true);
-                entry["backVertexCount"] = int(tessellated.size() * 3);
+                entry["backVertexCount"] = int(count * 3);
             }
             faceMap.append(entry);
         }
+        for (const auto &cut : cuts) {
+            const auto &record = *doc.sections().at(cut.id);
+            if (!record.fill)
+                continue;
+            const auto normal = cut.plane.transformed(world.inverse()).normal * -1;
+            int appearance = -1, first{}, count{};
+            for (const auto &triangle : section.triangles) {
+                if (triangle.section != cut.id || triangle.source != noSectionSource)
+                    continue;
+                if (appearance < 0) {
+                    const SurfaceAppearance color{record.color, 1, 0};
+                    appearance = material(color, color, false);
+                    first = groups[appearance].count;
+                }
+                require(++triangles <= 1000000, "GLB has too many visible triangles");
+                ++capTriangles;
+                auto &group = groups[appearance];
+                std::array<Vec3, 3> points{triangle.vertices[0].point, triangle.vertices[1].point,
+                                         triangle.vertices[2].point};
+                if (dot(cross(points[1] - points[0], points[2] - points[0]), normal) < 0)
+                    std::swap(points[1], points[2]);
+                for (const auto p : points) {
+                    vector(group.positions, p);
+                    vector(group.normals, normal);
+                    ++group.count;
+                    ++count;
+                    group.bounds.add({double(float(p.x)), double(float(p.y)), double(float(p.z))});
+                    bounds.add(world.point(p));
+                }
+            }
+            if (count)
+                caps.append(QJsonObject{{"section", id(cut.id)}, {"material", appearance},
+                                         {"firstVertex", first}, {"vertexCount", count}});
+        }
+        if (!cuts.empty())
+            sectionInfo["caps"] = caps;
         if (groups.empty())
-            return {-1, faceMap};
+            return {-1, faceMap, sectionInfo};
         QCryptographicHash hash(QCryptographicHash::Sha256);
         for (const auto &[appearance, group] : groups) {
             QByteArray header;
@@ -318,8 +416,15 @@ struct Writer {
                 record["backPrimitive"] = primitiveIndices.at(record["backAppearance"].toInt());
             faceMap[i] = record;
         }
+        for (qsizetype i = 0; i < caps.size(); ++i) {
+            auto entry = caps[i].toObject();
+            entry["primitive"] = primitiveIndices.at(entry["material"].toInt());
+            caps[i] = entry;
+        }
+        if (!cuts.empty())
+            sectionInfo["caps"] = caps;
         if (meshCache.contains(key))
-            return {meshCache.at(key), faceMap};
+            return {meshCache.at(key), faceMap, sectionInfo};
         QJsonArray primitives;
         for (const auto &[appearance, group] : groups) {
             require(group.count > 0, "Visible face produced no GLB triangles");
@@ -336,7 +441,7 @@ struct Writer {
         const int index = meshes.size();
         meshes.append(QJsonObject{{"primitives", primitives}});
         meshCache[key] = index;
-        return {index, faceMap};
+        return {index, faceMap, sectionInfo};
     }
     GlbExport run() {
         // A proper rotation converts native Z-up metres into glTF Y-up metres.
@@ -350,7 +455,7 @@ struct Writer {
             }
             trs(record->transform);
             nodeMap[owner] = nodes.size();
-            const auto [geometry, faceMap] = mesh(owner, *record);
+            const auto [geometry, faceMap, sectionInfo] = mesh(owner, *record);
             QJsonObject node{{"name", QString::fromStdString(record->name)},
                              {"matrix", matrix(record->transform)},
                              {"extras", QJsonObject{{"sketchyupBody", id(owner)}}}};
@@ -364,6 +469,8 @@ struct Writer {
                               {"faces", faceMap}};
             if (geometry >= 0)
                 entry["mesh"] = geometry;
+            if (!sectionInfo.isEmpty())
+                entry["sections"] = sectionInfo;
             if (doc.instances().contains(owner)) {
                 const auto &instance = *doc.instances().at(owner);
                 QJsonObject members;
@@ -425,6 +532,7 @@ struct Writer {
         QJsonObject losses{
             {"wiresOmitted", double(wires)},
             {"guidesOmitted", double(guides)},
+            {"sectionCutEdgesOmitted", double(cutEdges)},
             {"analyticCurvesTessellatedOrOmitted", double(curves)},
             {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size()) - textures.size()},
             {"missingAssets", double(missingAssets)}};
@@ -494,6 +602,7 @@ struct Writer {
             {"hiddenBodiesOmitted", double(hiddenBodies)},
             {"hiddenFacesOmitted", double(hiddenFaces)},
             {"visibleTriangles", double(triangles)},
+            {"sectionCapTriangles", double(capTriangles)},
             {"facesWithDistinctSides", double(backDifferences)},
             {"uniqueMeshes", meshes.size()},
             {"colorPolicy", "Linear PBR swatch factor times normalized sRGB straight-alpha image"}};

@@ -89,6 +89,7 @@ int main(int argc, char **argv) {
         QTest::keyClick(setup, Qt::Key_Escape);
         check(!setup->isVisible(), "Setup closes by keyboard");
         const auto before = encodeDocument(doc);
+        const auto capturedSections = doc.activeSections();
         const auto history = doc.history().total;
         const auto camera = view.renderCamera();
         check(!camera.orthographic &&
@@ -181,6 +182,18 @@ int main(int argc, char **argv) {
         check(panel.latest() && panel.latest()->manifest.value("revision").toString() ==
                                     QString::number(captured),
               "Verified result belongs to captured revision");
+        if (!capturedSections.empty()) {
+            check(panel.latest()->manifest["sectionCapTriangles"].toInt() > 0 &&
+                      doc.activeSections() == capturedSections,
+                  "Native render captures named section caps without changing activation");
+            for (const auto value : panel.latest()->manifest["bodies"].toArray())
+                for (const auto section : value.toObject()["sections"].toObject()["active"].toArray()) {
+                    const auto id = section.toString().toULongLong();
+                    check(std::any_of(capturedSections.begin(), capturedSections.end(),
+                                      [&](const auto &entry) { return entry.second == id; }),
+                          "Render section provenance belongs to captured activation");
+                }
+        }
         check(tabs->count() == 2 && tabs->currentIndex() == 1,
               "Result is beside model in native window");
         auto *provenance = window.findChild<QLabel *>("renderProvenance");
