@@ -67,3 +67,13 @@ stops the transition. A changed document invalidates a pending transition. View 
 Reduced camera motion persists a preference and applies scene cameras immediately.
 Projection switches directly. Stored double precision values remain unchanged by
 the viewport's existing float camera representation.
+
+## Export boundary
+
+The 160 ms transition is an editor navigation effect, not a saved animation track.
+Current GLB/Blender export uses its explicit render settings and immutable model
+snapshot; it does not implicitly select a saved scene or export the tab sequence
+as camera keyframes. Camera values can be read through `saved_scene.describe` for
+an explicit rendering request. Exported camera animation is not supported by this
+layer; any future animation export must define timing, projection changes and
+selective visibility/style/section transitions before emitting tracks.

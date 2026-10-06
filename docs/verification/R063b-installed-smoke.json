@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "exampleCommands": 4,
+  "createdSceneIdsExact": true,
+  "boundedPagination": true,
+  "selectiveDescribe": true,
+  "visibilityQuery": true,
+  "recallPreservesGeometryAndRecords": true,
+  "renamePreservesSnapshot": true,
+  "reorder": true,
+  "updatePropertyOwnership": true,
+  "cameraOnlyModelRecallRejectsNoOp": true,
+  "delete": true,
+  "invalidBatchPreservesFile": true,
+  "relocatedRoundtripExact": true,
+  "installedSchemas": 7,
+  "installedContractMatches": true,
+  "desktopBinaryMatches": true
+}
