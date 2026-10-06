@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "installedContractMatches": true,
+  "reports": [
+    {
+      "fixture": "texture-2",
+      "imageCount": 2,
+      "uniqueMeshes": 1,
+      "bytes": 4468,
+      "sha256": "376898f69dc0eec46d87b545c3bac808ecb043db4855affefb3692e52a22a226",
+      "exactAfterRelocation": true
+    },
+    {
+      "fixture": "texture-5",
+      "imageCount": 1,
+      "uniqueMeshes": 1,
+      "bytes": 4272,
+      "sha256": "7b1185777ea275c1f138c89a8969439a4a70759aeaa0eda7de23849546945a10",
+      "exactAfterRelocation": true
+    },
+    {
+      "fixture": "texture-11",
+      "imageCount": 1,
+      "uniqueMeshes": 1,
+      "bytes": 3384,
+      "sha256": "2c6db76afdae78ba8bcd00d6e90f9cee5ad5d4c8c6633316ca81981a52c58a88",
+      "exactAfterRelocation": true
+    }
+  ]
+}

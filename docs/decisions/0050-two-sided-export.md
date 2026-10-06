@@ -4,6 +4,10 @@ Status: R057.d implementation; local acceptance and CI status are recorded in
 [verification](../verification/R057d-two-sided-export.md). Edge display semantics
 remain a separate R057 layer.
 
+R061.d extends these physical-side rules to [independent textures and UVs](0064-textured-glb-export.md).
+Textured snapshots use version 2 of the sided metadata; the worker still accepts
+the version 1 color/opacity snapshots described here.
+
 ## Standard interchange
 
 Identical front/back appearances retain one double-sided primitive. Different

@@ -101,12 +101,67 @@ def prepare_sided_glb(data):
     sides = root.get('extras', {}).get('sketchyupSidedMaterials')
     if sides is None:
         return data, {}  # Original v1 snapshots remain readable.
-    require(type(sides) is dict and sides.get('version') == 1
+    require(type(sides) is dict and type(sides.get('version')) is int and sides['version'] in (1, 2)
             and type(sides.get('pairs')) is list and len(sides['pairs']) <= 2048,
             'Unsupported sided material metadata')
     materials = root.get('materials', [])
     require(type(materials) is list and len(materials) <= 4096, 'Too many materials')
-    back_to_front, colors, used = {}, {}, set()
+    binary = memoryview(data)[json_size + 28:]
+    accessors, views = root['accessors'], root['bufferViews']
+    extra = bytearray()
+    images = {}
+    image_pixels = 0
+    if sides['version'] == 2:
+        records = root.get('images', [])
+        require(type(records) is list and len(records) <= 1024, 'Too many texture images')
+        for index, record in enumerate(records):
+            require(type(record) is dict and record.get('mimeType') == 'image/png'
+                    and 'uri' not in record and not record.get('extensions'),
+                    'Texture image must be an embedded normalized PNG')
+            view_index = record.get('bufferView')
+            require(type(view_index) is int and 0 <= view_index < len(views),
+                    'Invalid texture image view')
+            view = views[view_index]
+            offset, size = view.get('byteOffset', 0), view.get('byteLength')
+            require(type(offset) is int and offset >= 0 and offset % 4 == 0
+                    and type(size) is int and size >= 33 and offset + size <= len(binary)
+                    and view.get('buffer') == 0 and 'byteStride' not in view,
+                    'Invalid texture image range')
+            pixels = binary[offset:offset + size]
+            require(pixels[:8] == b'\x89PNG\r\n\x1a\n'
+                    and pixels[8:16] == b'\x00\x00\x00\x0dIHDR', 'Invalid texture PNG header')
+            width, height, depth = struct.unpack_from('>IIB', pixels, 16)
+            require(0 < width <= 4096 and 0 < height <= 4096 and depth == 8,
+                    'Texture PNG exceeds supported dimensions or depth')
+            image_pixels += width * height * 4
+            require(image_pixels <= 256 * 1024 * 1024, 'Decoded texture images exceed 256 MiB')
+            images[index] = pixels
+        samplers = root.get('samplers', [])
+        require(type(samplers) is list and len(samplers) <= 1024, 'Invalid texture sampler table')
+        require(type(root.get('textures')) is list and len(root['textures']) <= 1024,
+                'Invalid texture table')
+        for texture in root['textures']:
+            require(type(texture) is dict and set(texture) == {'source', 'sampler'}
+                    and type(texture['source']) is int and texture['source'] in images
+                    and type(texture['sampler']) is int
+                    and 0 <= texture['sampler'] < len(samplers),
+                    'Unsupported texture binding')
+            require(samplers[texture['sampler']] == {
+                'magFilter': 9729, 'minFilter': 9729, 'wrapS': 10497, 'wrapT': 10497},
+                'Unsupported texture sampling')
+
+    def texture_source(pbr):
+        if 'baseColorTexture' not in pbr:
+            return None
+        binding = pbr['baseColorTexture']
+        require(sides['version'] == 2 and type(binding) is dict
+                and set(binding) == {'index', 'texCoord'} and binding['texCoord'] == 0
+                and type(binding['index']) is int
+                and 0 <= binding['index'] < len(root['textures']),
+                'Unsupported base color texture')
+        return root['textures'][binding['index']]['source']
+
+    back_to_front, colors, used, sources = {}, {}, set(), {}
     for pair in sides['pairs']:
         require(type(pair) is dict and set(pair) == {'front', 'back'}, 'Invalid material pair')
         front, back = pair['front'], pair['back']
@@ -115,30 +170,36 @@ def prepare_sided_glb(data):
                     'Invalid or reused sided material index')
             used.add(index)
             material = materials[index]
+            require(type(material) is dict, 'Invalid sided material')
             pbr = material.get('pbrMetallicRoughness', {})
+            require(type(pbr) is dict, 'Invalid sided PBR appearance')
             rgba = pbr.get('baseColorFactor')
             require(material.get('doubleSided') is False
                     and material.get('extras', {}).get('sketchyupAppearance') == index
-                    and set(pbr) == {'baseColorFactor', 'metallicFactor', 'roughnessFactor'}
+                    and set(pbr) in ({'baseColorFactor', 'metallicFactor', 'roughnessFactor'},
+                                     {'baseColorFactor', 'metallicFactor', 'roughnessFactor', 'baseColorTexture'})
                     and pbr['metallicFactor'] == 0 and pbr['roughnessFactor'] == .8
                     and not material.get('extensions')
                     and type(rgba) is list and len(rgba) == 4
                     and all(type(c) in (int, float) and math.isfinite(c) and 0 <= c <= 1 for c in rgba)
-                    and material.get('alphaMode') == ('BLEND' if rgba[3] < 1 else 'OPAQUE'),
+                    and material.get('alphaMode') in ({'BLEND'} if rgba[3] < 1 else
+                        {'OPAQUE', 'BLEND'} if 'baseColorTexture' in pbr else {'OPAQUE'}),
                     'Unsupported sided material appearance')
+            sources[index] = texture_source(pbr)
         back_to_front[back] = front
-        colors[front] = materials[back]['pbrMetallicRoughness']['baseColorFactor']
+        colors[front] = {'rgba': materials[back]['pbrMetallicRoughness']['baseColorFactor']}
+        if sources[back] is not None:
+            colors[front].update({'image': sources[back], 'png': images[sources[back]]})
     if not colors:
         return data, {}
-    binary = memoryview(data)[json_size + 28:]
-    accessors, views = root['accessors'], root['bufferViews']
 
-    def attribute(index):
+    def attribute(index, dimensions=3):
         require(type(index) is int and 0 <= index < len(accessors), 'Invalid paired accessor')
         accessor = accessors[index]
         count, view_index = accessor.get('count'), accessor.get('bufferView')
         require(type(count) is int and 0 < count <= 3000000 and count % 3 == 0
-                and accessor.get('componentType') == 5126 and accessor.get('type') == 'VEC3'
+                and accessor.get('componentType') == 5126
+                and accessor.get('type') == ('VEC2' if dimensions == 2 else 'VEC3')
                 and not accessor.get('sparse') and not accessor.get('normalized')
                 and accessor.get('byteOffset', 0) == 0
                 and type(view_index) is int and 0 <= view_index < len(views),
@@ -146,20 +207,29 @@ def prepare_sided_glb(data):
         view = views[view_index]
         offset = view.get('byteOffset', 0)
         require(type(offset) is int and offset >= 0 and offset % 4 == 0
-                and view.get('buffer') == 0 and view.get('byteLength') == count * 12
-                and view.get('byteStride', 12) == 12 and offset + count * 12 <= len(binary),
+                and view.get('buffer') == 0 and view.get('byteLength') == count * dimensions * 4
+                and view.get('byteStride', dimensions * 4) == dimensions * 4
+                and offset + count * dimensions * 4 <= len(binary),
                 'Invalid paired buffer range')
-        return binary[offset:offset + count * 12]
+        value = binary[offset:offset + count * dimensions * 4]
+        require(all(math.isfinite(x[0]) for x in struct.iter_unpack('<f', value)),
+                'Paired attributes must be finite')
+        return value
 
     def attributes(primitive):
         require(primitive.get('mode', 4) == 4 and 'indices' not in primitive
                 and not primitive.get('targets') and not primitive.get('extensions')
-                and set(primitive.get('attributes', {})) == {'POSITION', 'NORMAL'},
+                and set(primitive.get('attributes', {})) ==
+                    ({'POSITION', 'NORMAL', 'TEXCOORD_0'} if sources[primitive['material']] is not None
+                     else {'POSITION', 'NORMAL'}),
                 'Unsupported paired primitive')
         positions = attribute(primitive['attributes']['POSITION'])
         normals = attribute(primitive['attributes']['NORMAL'])
         require(len(positions) == len(normals), 'Paired normal count mismatch')
-        return positions, normals
+        uv = (attribute(primitive['attributes']['TEXCOORD_0'], 2)
+              if sources[primitive['material']] is not None else None)
+        require(uv is None or len(uv) * 3 == len(positions) * 2, 'Paired UV count mismatch')
+        return positions, normals, uv
 
     front_to_back = {front: back for back, front in back_to_front.items()}
     count, seen = 0, set()
@@ -175,8 +245,8 @@ def prepare_sided_glb(data):
             back = front_to_back[front]
             require(front in groups and back in groups, 'Missing paired primitive')
             seen.add(front)
-            fp, fn = attributes(groups[front])
-            bp, bn = attributes(groups[back])
+            fp, fn, fu = attributes(groups[front])
+            bp, bn, bu = attributes(groups[back])
             require(len(fp) == len(bp), 'Paired triangle count mismatch')
             count += len(fp) // 18  # Two sides, 36 bytes per triangle.
             require(count <= 1000000, 'Too many paired triangles')
@@ -190,26 +260,58 @@ def prepare_sided_glb(data):
                     reverse = struct.unpack_from('<3f', bn, start+b)
                     require(all(math.isfinite(x) and x == -y for x, y in zip(n, reverse)),
                             'Paired normals are not opposite')
+            if bu is not None:
+                reordered = bytearray(len(bu))
+                for start in range(0, len(bu), 24):
+                    reordered[start:start+8] = bu[start:start+8]
+                    reordered[start+8:start+16] = bu[start+16:start+24]
+                    reordered[start+16:start+24] = bu[start+8:start+16]
+                offset = len(binary) + len(extra)
+                require(offset + len(reordered) <= 256 * 1024 * 1024,
+                        'Derived UV buffers exceed GLB bound')
+                views.append({'buffer': 0, 'byteOffset': offset,
+                              'byteLength': len(reordered), 'target': 34962})
+                accessors.append({'bufferView': len(views) - 1, 'componentType': 5126,
+                                  'count': len(reordered) // 8, 'type': 'VEC2'})
+                extra.extend(reordered)
+                attrs = groups[front]['attributes']
+                # Blender imports contiguous UV sets. A plain front gets an unused
+                # set zero so the independent back is always UVMap.001.
+                attrs.setdefault('TEXCOORD_0', len(accessors) - 1)
+                attrs['TEXCOORD_1'] = len(accessors) - 1
         mesh['primitives'] = [p for p in mesh['primitives'] if p.get('material') not in back_to_front]
         require(bool(mesh['primitives']), 'Sided conversion removed a complete mesh')
     require(seen == set(colors), 'Unused sided material pair')
+    root['buffers'][0]['byteLength'] = len(binary) + len(extra)
     encoded = json.dumps(root, separators=(',', ':'), allow_nan=False).encode('utf-8')
     encoded += b' ' * (-len(encoded) % 4)
     require(len(encoded) <= 16 * 1024 * 1024, 'Derived GLB JSON exceeds its bound')
-    converted = (struct.pack('<5I', magic, version, len(encoded) + binary_size + 28,
+    converted = (struct.pack('<5I', magic, version, len(encoded) + binary_size + len(extra) + 28,
                              len(encoded), json_type) + encoded
-                 + struct.pack('<2I', binary_size, binary_type) + binary.tobytes())
+                 + struct.pack('<2I', binary_size + len(extra), binary_type)
+                 + binary.tobytes() + extra)
     require(len(converted) <= 256 * 1024 * 1024, 'Derived GLB exceeds its bound')
     return converted, colors
 
 
 def import_snapshot(scene_bytes, directory):
     converted, back_colors = prepare_sided_glb(scene_bytes)
+    back_images = {}
     # Only a private derived copy is imported; original bytes and their hash stay intact.
     with tempfile.TemporaryDirectory(prefix='cycles-import-', dir=directory) as temporary:
         path = Path(temporary) / 'scene.glb'
         path.write_bytes(converted)
         bpy.ops.import_scene.gltf(filepath=str(path))
+        for appearance in back_colors.values():
+            if 'image' not in appearance or appearance['image'] in back_images:
+                continue
+            image_path = Path(temporary) / f"back-{appearance['image']}.png"
+            image_path.write_bytes(appearance['png'])
+            image = bpy.data.images.load(str(image_path), check_existing=False)
+            image.colorspace_settings.name = 'sRGB'
+            image.alpha_mode = 'STRAIGHT'
+            image.pack()
+            back_images[appearance['image']] = image
     found = set()
     for material in bpy.data.materials:
         index = material.get('sketchyupAppearance')
@@ -221,10 +323,31 @@ def import_snapshot(scene_bytes, directory):
         output = next(n for n in nodes if n.type == 'OUTPUT_MATERIAL')
         back = nodes.new('ShaderNodeBsdfPrincipled')
         back.label = 'Native back appearance'
-        back.inputs['Base Color'].default_value = back_colors[index]
-        back.inputs['Alpha'].default_value = back_colors[index][3]
+        appearance = back_colors[index]
+        rgba = appearance['rgba']
+        back.inputs['Base Color'].default_value = rgba
+        back.inputs['Alpha'].default_value = rgba[3]
         back.inputs['Metallic'].default_value = 0
         back.inputs['Roughness'].default_value = .8
+        if 'image' in appearance:
+            uv = nodes.new('ShaderNodeUVMap')
+            uv.uv_map = 'UVMap.001'
+            texture = nodes.new('ShaderNodeTexImage')
+            texture.image = back_images[appearance['image']]
+            texture.interpolation = 'Linear'
+            texture.extension = 'REPEAT'
+            links.new(uv.outputs['UV'], texture.inputs['Vector'])
+            multiply = nodes.new('ShaderNodeMixRGB')
+            multiply.blend_type = 'MULTIPLY'
+            multiply.inputs[0].default_value = 1
+            multiply.inputs[2].default_value = rgba
+            links.new(texture.outputs['Color'], multiply.inputs[1])
+            links.new(multiply.outputs[0], back.inputs['Base Color'])
+            alpha = nodes.new('ShaderNodeMath')
+            alpha.operation = 'MULTIPLY'
+            alpha.inputs[1].default_value = rgba[3]
+            links.new(texture.outputs['Alpha'], alpha.inputs[0])
+            links.new(alpha.outputs[0], back.inputs['Alpha'])
         geometry = nodes.new('ShaderNodeNewGeometry')
         mix = nodes.new('ShaderNodeMixShader')
         links.new(geometry.outputs['Backfacing'], mix.inputs[0])

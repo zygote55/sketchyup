@@ -40,4 +40,10 @@ TextureMapping pinnedTextureMapping(const std::array<Vec3, 3> &points,
 // within floating-point error, including non-uniform scale, shear and reflection.
 // A normal body/instance placement does not need this conversion: sample local p.
 TextureMapping transformTextureMapping(const TextureMapping &source, const Transform &oldToNew);
+
+// Remove one common integer repeat offset per triangle before float packing.
+// This preserves interpolation across repeat seams; excessive float error rejects.
+std::array<std::array<float, 2>, 3>
+floatTextureCoordinates(const std::array<TextureCoordinate, 3> &coordinates,
+                        TextureCoordinate maximumError);
 } // namespace sketchy

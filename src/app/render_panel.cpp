@@ -510,7 +510,8 @@ struct RenderPanel::Impl {
                   {"guidesOmitted", "guides omitted"},
                   {"analyticCurvesTessellatedOrOmitted", "curves approximated or omitted"},
                   {"differentBackAppearancesUseFront", "back faces use front appearance"},
-                  {"textureAssetsPreservedWithoutUVMapping", "textures have no UV mapping"},
+                  {"textureAssetsPreservedWithoutUVMapping",
+                   "some material images could not be rendered"},
                   {"missingAssets", "some material assets are missing"}})
                 if (losses.value(key).toDouble() > 0)
                     limitations.append(QString::fromLatin1(label));

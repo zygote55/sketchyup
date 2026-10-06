@@ -1,0 +1,20 @@
+{
+  "schema": 16,
+  "fixtures": [
+    {
+      "file": "tests/fixtures/texture-sides-v16.sketchyup",
+      "sha256": "3bd0faf6ec018342a81ce0624b458a229c4b18270412e0b422e09f325dc01864",
+      "bytes": 3119
+    },
+    {
+      "file": "tests/fixtures/texture-mirror-v16.sketchyup",
+      "sha256": "e0cfca0ff883c425357eeeccf68e9023db1727718cfd6914877f0921d175c70f",
+      "bytes": 6343
+    },
+    {
+      "file": "tests/fixtures/texture-jpeg-v16.sketchyup",
+      "sha256": "edff458edd2faf48fbca43956c03714d893fad3b89952e9578b5bd663e17a7c1",
+      "bytes": 3658
+    }
+  ]
+}
