@@ -39,6 +39,9 @@ no persistent site metadata or geographic coordinate system is introduced.
 
 ## Rendering limitation found by acceptance
 
+Follow-up: [R060.f](R060f-viewport-precision.md) fixes the defect below. These
+original captures remain as before-fix evidence.
+
 The actual Wayland DPR 2 capture at the distant origin shows triangle artifacts,
 including a gap on the staircase. A controlled capture after translating the same
 assembly to zero, keeping its yaw and framing its bounds, removes those artifacts.

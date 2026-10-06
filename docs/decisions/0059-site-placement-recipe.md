@@ -71,4 +71,5 @@ The model and numeric edits retain double precision at the distant test coordina
 The existing viewport converts world positions and camera matrices to floats before
 projection. Controlled near/far captures show visible triangle artifacts at the
 large coordinates. R060.e does not claim translation-invariant rasterization;
-viewport precision is a required follow-up before the integrated M6 gate closes.
+[R060.f camera-relative rendering](0060-camera-relative-rendering.md) fixes this
+viewport precision defect before the integrated M6 gate.

@@ -174,11 +174,12 @@ QMatrix4x4 Viewport::matrix() const {
                         std::sin(pitch_ * degreesToRadians));
     const auto up =
         std::abs(pitch_) > 89.999f ? QVector3D{0, pitch_ > 0 ? 1.f : -1.f, 0} : QVector3D{0, 0, 1};
-    view.lookAt(target_ + direction * distance_, target_, up);
+    const auto target = qv(target_ - renderOrigin_);
+    view.lookAt(target + direction * distance_, target, up);
     return projection * view;
 }
 QPointF Viewport::project(Vec3 p) const {
-    auto v = matrix() * QVector4D(qv(p), 1);
+    auto v = matrix() * QVector4D(qv(p - renderOrigin_), 1);
     if (std::abs(v.w()) < 1e-9)
         return {};
     auto n = v.toVector3DAffine();
@@ -189,7 +190,7 @@ std::pair<Vec3, Vec3> Viewport::ray(QPointF p) const {
     float x = 2 * p.x() / width() - 1, y = 1 - 2 * p.y() / height();
     auto a = (inv * QVector4D(x, y, -1, 1)).toVector3DAffine(),
          b = (inv * QVector4D(x, y, 1, 1)).toVector3DAffine();
-    return {vec(a), normalized(vec(b - a))};
+    return {vec(a) + renderOrigin_, normalized(vec(b - a))};
 }
 InferenceCamera Viewport::inferenceCamera() const {
     InferenceCamera camera;
@@ -198,6 +199,18 @@ InferenceCamera Viewport::inferenceCamera() const {
     for (int i = 0; i < 16; ++i) {
         camera.clipFromWorld[i] = projection.constData()[i];
         camera.worldFromClip[i] = inverse.constData()[i];
+    }
+    // Compose the world translations in double precision for public inference matrices.
+    for (int row = 0; row < 4; ++row)
+        camera.clipFromWorld[12 + row] -=
+            double(projection.constData()[row]) * renderOrigin_.x +
+            double(projection.constData()[4 + row]) * renderOrigin_.y +
+            double(projection.constData()[8 + row]) * renderOrigin_.z;
+    for (int col = 0; col < 4; ++col) {
+        const auto w = double(inverse.constData()[col * 4 + 3]);
+        camera.worldFromClip[col * 4] += renderOrigin_.x * w;
+        camera.worldFromClip[col * 4 + 1] += renderOrigin_.y * w;
+        camera.worldFromClip[col * 4 + 2] += renderOrigin_.z * w;
     }
     camera.width = width();
     camera.height = height();
@@ -495,7 +508,8 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
     auto candidate = [&](Id body, Id edge, Vec3 a, Vec3 b) {
         if (!selectable({body, SelectionKind::Edge, edge}))
             return;
-        auto ca = transform * QVector4D(qv(a), 1), cb = transform * QVector4D(qv(b), 1);
+        auto ca = transform * QVector4D(qv(a - renderOrigin_), 1),
+             cb = transform * QVector4D(qv(b - renderOrigin_), 1);
         double first = 0, last = 1;
         auto clip = [&](double fa, double fb) {
             if (fa < 0 && fb < 0)
@@ -519,8 +533,8 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
         const auto delta = b - a;
         b = a + delta * last;
         a = a + delta * first;
-        ca = transform * QVector4D(qv(a), 1);
-        cb = transform * QVector4D(qv(b), 1);
+        ca = transform * QVector4D(qv(a - renderOrigin_), 1);
+        cb = transform * QVector4D(qv(b - renderOrigin_), 1);
         if (ca.w() <= 0 || cb.w() <= 0)
             return;
         const auto pa = project(a), pb = project(b), screen = pb - pa;
@@ -599,7 +613,7 @@ void Viewport::rebuild() {
         return true;
     });
     auto vertex = [](Vec3 p, std::array<float, 3> c) {
-        return Vertex{float(p.x), float(p.y), float(p.z), c[0], c[1], c[2]};
+        return Vertex{p.x, p.y, p.z, c[0], c[1], c[2]};
     };
     if (gridDirty_) {
         std::vector<Vertex> grid;
@@ -759,7 +773,8 @@ void Viewport::rebuild() {
                 }
             }
         }
-        if (appearanceChanged || !cache.opaqueGpu.buffer.isCreated() ||
+        if (appearanceChanged || cache.opaqueGpu.origin != renderOrigin_ ||
+            !cache.opaqueGpu.buffer.isCreated() ||
             !cache.linesGpu.buffer.isCreated() || !cache.hiddenLinesGpu.buffer.isCreated()) {
             upload(cache.opaqueGpu, cache.opaque);
             upload(cache.linesGpu, cache.lines);
@@ -781,18 +796,25 @@ void Viewport::rebuild() {
     cacheDirty_ = false;
 }
 void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent) {
-    if (vertices.size() > size_t(std::numeric_limits<int>::max()) / sizeof(Vertex))
+    if (vertices.size() > size_t(std::numeric_limits<int>::max()) / sizeof(PackedVertex))
         throw std::runtime_error("Viewport buffer exceeds the supported size");
     if (!batch.buffer.isCreated()) {
         if (!batch.buffer.create())
             throw std::runtime_error("Could not create viewport buffer");
         batch.buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
     }
+    std::vector<PackedVertex> packed;
+    packed.reserve(vertices.size());
+    for (const auto &v : vertices)
+        packed.push_back({float(v.x - renderOrigin_.x), float(v.y - renderOrigin_.y),
+                          float(v.z - renderOrigin_.z), v.r, v.g, v.b, v.a,
+                          v.br, v.bg, v.bb, v.ba});
     batch.buffer.bind();
-    batch.buffer.allocate(vertices.data(), int(vertices.size() * sizeof(Vertex)));
+    batch.buffer.allocate(packed.data(), int(packed.size() * sizeof(PackedVertex)));
+    batch.origin = renderOrigin_;
     batch.buffer.release();
     batch.count = int(vertices.size());
-    stats_.uploadedBytes += vertices.size() * sizeof(Vertex);
+    stats_.uploadedBytes += vertices.size() * sizeof(PackedVertex);
     if (transparent)
         ++stats_.transparencyUploads;
     else
@@ -806,10 +828,10 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count) {
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), nullptr);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(PackedVertex), nullptr);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                           reinterpret_cast<void *>(3 * sizeof(float)));
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                           reinterpret_cast<void *>(7 * sizeof(float)));
     if (count > 1)
         glDrawArraysInstanced(mode, 0, batch.count, count);
@@ -832,9 +854,10 @@ void Viewport::sortTransparent(const QMatrix4x4 &transform) {
                         std::cos(pitch_ * degreesToRadians) * std::sin(yaw_ * degreesToRadians),
                         std::sin(pitch_ * degreesToRadians));
     auto depth = [&](const auto &t) {
-        QVector3D center((t[0].x + t[1].x + t[2].x) / 3, (t[0].y + t[1].y + t[2].y) / 3,
-                         (t[0].z + t[1].z + t[2].z) / 3);
-        return QVector3D::dotProduct(center - target_, direction);
+        const Vec3 center{(t[0].x + t[1].x + t[2].x) / 3,
+                          (t[0].y + t[1].y + t[2].y) / 3,
+                          (t[0].z + t[1].z + t[2].z) / 3};
+        return dot(center - target_, vec(direction));
     };
     std::stable_sort(sorted.begin(), sorted.end(),
                      [&](const auto &a, const auto &b) { return depth(a) < depth(b); });
@@ -880,6 +903,7 @@ void Viewport::paintScene() {
     shader_->setUniformValue("clipEnabled", clipPlane_ ? 1 : 0);
     if (clipPlane_) {
         auto c = *clipPlane_;
+        c[3] += c[0] * renderOrigin_.x + c[1] * renderOrigin_.y + c[2] * renderOrigin_.z;
         shader_->setUniformValue("clipPlane", QVector4D(c[0], c[1], c[2], c[3]));
     }
     if (benchmarkTriangles_ > 0) {
@@ -1284,20 +1308,18 @@ void Viewport::fit() {
     if (doc_.bodies().empty()) {
         target_ = {0, 0, 0};
         distance_ = 14;
-        update();
+        cameraChanged();
         return;
     }
-    QVector3D lo(1e9, 1e9, 1e9), hi(-1e9, -1e9, -1e9);
+    Vec3 lo{1e9, 1e9, 1e9}, hi{-1e9, -1e9, -1e9};
     bool hasVertices = false;
     for (const auto &[id, b] : doc_.bodies()) {
         const auto world = doc_.worldTransform(id);
         auto include = [&](Vec3 local) {
             hasVertices = true;
-            const auto point = qv(world.point(local));
-            for (int i = 0; i < 3; ++i) {
-                lo[i] = std::min(lo[i], point[i]);
-                hi[i] = std::max(hi[i], point[i]);
-            }
+            const auto point = world.point(local);
+            lo = {std::min(lo.x, point.x), std::min(lo.y, point.y), std::min(lo.z, point.z)};
+            hi = {std::max(hi.x, point.x), std::max(hi.y, point.y), std::max(hi.z, point.z)};
         };
         for (auto [vid, local] : b->surface.vertices)
             include(local);
@@ -1308,13 +1330,13 @@ void Viewport::fit() {
     if (!hasVertices) {
         target_ = {0, 0, 0};
         distance_ = 14;
-        update();
+        cameraChanged();
         return;
     }
-    target_ = (lo + hi) / 2;
+    target_ = (lo + hi) * .5;
     const auto aspect = double(width()) / std::max(1, height());
     const auto halfAngle = std::atan(std::tan(fov_ * degreesToRadians / 2) * std::min(1., aspect));
-    const auto radius = (hi - lo).length() * .5;
+    const auto radius = length(hi - lo) * .5;
     distance_ =
         std::max(2., radius * 1.1 / (ortho_ ? .45 * std::min(1., aspect) : std::sin(halfAngle)));
     cameraChanged();
@@ -1325,7 +1347,7 @@ void Viewport::frameBounds(Vec3 low, Vec3 high) {
             throw std::runtime_error("Cannot frame non-finite geometry");
     if (low.x > high.x || low.y > high.y || low.z > high.z)
         throw std::runtime_error("Cannot frame empty bounds");
-    target_ = qv(low + (high - low) * .5);
+    target_ = low + (high - low) * .5;
     const auto aspect = double(width()) / std::max(1, height());
     const auto halfAngle = std::atan(std::tan(fov_ * degreesToRadians / 2) * std::min(1., aspect));
     const auto radius = length(high - low) * .5;
@@ -2323,7 +2345,7 @@ void Viewport::benchmark(int count, bool instanced) {
         float x = (i % 1000) * 1.2f, y = (i / 1000) * 1.2f;
         float z = instanced ? 0 : std::sin(float(i) * .017f) * .2f;
         for (auto p : {Vec3{x, y, z}, Vec3{x + 1, y, z}, Vec3{x, y + 1, z + .1f}})
-            benchmarkVertices_.push_back({float(p.x), float(p.y), float(p.z), .4f, .6f, .5f});
+            benchmarkVertices_.push_back({p.x, p.y, p.z, .4f, .6f, .5f});
     }
     stats_.meshTriangles = count;
     benchmarkDirty_ = true;
@@ -2331,6 +2353,6 @@ void Viewport::benchmark(int count, bool instanced) {
     distance_ = 1600;
     pitch_ = 89;
     ortho_ = true;
-    update();
+    cameraChanged();
 }
 } // namespace sketchy

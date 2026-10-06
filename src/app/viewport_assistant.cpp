@@ -81,7 +81,7 @@ void Viewport::rebuildAssistantPreview() {
         if (assistantTriangles_.size() + assistantLines_.size() >= maximumVertices)
             throw std::runtime_error("Assistant preview exceeds the display geometry limit");
         vertices.push_back(
-            {float(point.x), float(point.y), float(point.z), color[0], color[1], color[2]});
+            {point.x, point.y, point.z, color[0], color[1], color[2]});
     };
     auto geometry = [&](const Document &source, Id id, std::array<float, 3> color, bool faces,
                         const Body *other = nullptr, bool edges = true) {

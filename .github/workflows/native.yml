@@ -85,6 +85,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/roof_recipe_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/stair_recipe_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/furniture_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/viewport_precision_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/site_recipe_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/hosted_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/hosted_array_input_tests
@@ -92,6 +93,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/roof_recipe_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/stair_recipe_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/furniture_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/viewport_precision_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/site_recipe_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/group_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/group_input_tests
@@ -184,6 +186,7 @@ jobs:
           scripts/test-wayland.sh build/dev/roof_recipe_input_tests
           scripts/test-wayland.sh build/dev/stair_recipe_input_tests
           scripts/test-wayland.sh build/dev/furniture_recipe_input_tests
+          scripts/test-wayland.sh build/dev/viewport_precision_tests
           scripts/test-wayland.sh build/dev/site_recipe_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_array_input_tests
@@ -191,6 +194,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/roof_recipe_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/stair_recipe_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/furniture_recipe_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/viewport_precision_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/site_recipe_input_tests
           scripts/test-wayland.sh build/dev/group_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/group_input_tests
@@ -268,13 +272,14 @@ jobs:
       - name: Sanitized native MCP inspection
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON
-          cmake --build --preset sanitize --target site_recipe_input_tests furniture_recipe_input_tests stair_recipe_input_tests roof_recipe_input_tests recipe_hosted_input_tests hosted_array_input_tests hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
+          cmake --build --preset sanitize --target viewport_precision_tests site_recipe_input_tests furniture_recipe_input_tests stair_recipe_input_tests roof_recipe_input_tests recipe_hosted_input_tests hosted_array_input_tests hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_array_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/recipe_hosted_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/roof_recipe_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/stair_recipe_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/furniture_recipe_input_tests
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/viewport_precision_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/site_recipe_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/diagnostics_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/edge_input_tests

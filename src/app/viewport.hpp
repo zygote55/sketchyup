@@ -229,8 +229,12 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     int paintSide_{2};
     Document::SaveStamp paintSession_;
     struct Vertex {
-        float x{}, y{}, z{}, r{}, g{}, b{}, a{1};
+        double x{}, y{}, z{};
+        float r{}, g{}, b{}, a{1};
         float br{r}, bg{g}, bb{b}, ba{a};
+    };
+    struct PackedVertex {
+        float x, y, z, r, g, b, a, br, bg, bb, ba;
     };
     Document &doc_;
     ToolSession session_;
@@ -239,6 +243,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     struct GpuBatch {
         QOpenGLBuffer buffer{QOpenGLBuffer::VertexBuffer};
         int count{};
+        Vec3 origin{};
     };
     std::unique_ptr<QOpenGLShaderProgram> shader_;
     GpuBatch gridGpu_, transparentGpu_, benchmarkGpu_;
@@ -393,7 +398,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     QString previewError_;
     std::vector<std::array<Vec3, 2>> previewEdges_;
     std::vector<Guide> previewGuides_;
-    QVector3D target_{0, 0, 0};
+    Vec3 target_{};
+    Vec3 renderOrigin_{}; // Nearby, snapped origin for GPU floats; model stays in world doubles.
     float yaw_{-45}, pitch_{35}, distance_{14};
     bool ortho_{false}, trackpad_{};
     float fov_{45};
