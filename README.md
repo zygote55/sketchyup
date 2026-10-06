@@ -496,7 +496,10 @@ least one boolean flag; omitted flags retain their current value. Flags persist
 and participate in shared component edits, preview and Undo. Edge detail and
 paged topology inspection expose them. Smooth flags now drive shared corner
 normals in the viewport, GLB export and Blender renders, including mirrored
-components. Native hide/soften/reveal controls are still in development. See the [edge appearance example](examples/edge-appearance.json)
+components. **Edit → Edge appearance** changes flags on selected edges.
+Use **View → Show hidden geometry** to display hidden/softened edges as dashed
+strokes and select them for Reveal or Harden. These actions keep other flags
+intact and support Undo. Locks and group/component editing boundaries still apply. See the [edge appearance example](examples/edge-appearance.json)
 and [contract](docs/decisions/0051-edge-appearance.md).
 
 Follow Me (**Shift+F**) sweeps a selected profile face along selected connected

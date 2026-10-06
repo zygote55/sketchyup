@@ -1,4 +1,5 @@
 #include "core/selection.hpp"
+#include "core/edge_appearance.hpp"
 #include "core/groups.hpp"
 #include <algorithm>
 namespace sketchy {
@@ -21,6 +22,11 @@ bool Selection::exists(const Document &doc, SelectedEntity e) const {
 bool Selection::hidden(const Document &doc, SelectedEntity e) const {
     if (hidden_.contains(e))
         return true;
+    if (e.kind == SelectionKind::Edge && doc.bodies().contains(e.body)) {
+        const auto appearance = edgeAppearance(*doc.bodies().at(e.body), e.entity);
+        if (appearance.hidden || appearance.soft)
+            return true;
+    }
     for (auto body = e.body; body && doc.bodies().contains(body);
          body = doc.bodies().at(body)->parent)
         if (doc.bodies().at(body)->hidden || !tagVisible(doc.tags(), doc.bodies().at(body)->tag) ||

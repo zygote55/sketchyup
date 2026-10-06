@@ -29,6 +29,7 @@
 #include <QTabWidget>
 #include <QToolBar>
 #include <QVBoxLayout>
+#include <tuple>
 namespace sketchy {
 QAction *Window::action(const QString &id, const QString &title, const QKeySequence &shortcut,
                         const std::function<void()> &fn) {
@@ -263,6 +264,22 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                            [this] { viewport_->hideSelection(); }));
     edit->addAction(action("selection.reveal", "Reveal hidden geometry in this view", {},
                            [this] { viewport_->revealHiddenGeometry(); }));
+    auto *edgeAppearance = edit->addMenu("Edge appearance");
+    const std::array<std::tuple<const char *, const char *, const char *, bool>, 6> edgeActions{
+        {{"edge.hide", "Hide selected edges", "hidden", true},
+         {"edge.reveal", "Reveal selected edges", "hidden", false},
+         {"edge.soften", "Soften selected edges", "soft", true},
+         {"edge.harden", "Harden selected edges", "soft", false},
+         {"edge.smooth", "Smooth across selected edges", "smooth", true},
+         {"edge.flat", "Use flat shading across selected edges", "smooth", false}}};
+    for (const auto &[name, label, flag, value] : edgeActions) {
+        auto *entry = action(name, label, {}, [this, flag, value] {
+            viewport_->setSelectedEdgeAppearance(flag, value);
+        });
+        entry->setProperty("command", "geometry.edge_appearance");
+        entry->setProperty("requiresSelection", true);
+        edgeAppearance->addAction(entry);
+    }
     edit->addAction(action("selection.lock", "Lock selected contexts in this view", {},
                            [this] { viewport_->lockSelection(); }));
     edit->addAction(action("selection.unlock", "Unlock all contexts in this view", {},
@@ -820,6 +837,13 @@ void Window::sync() {
     findChild<QAction *>("selection.showHidden")
         ->setChecked(viewport_->selectionState().showingHidden());
     const auto &selection = viewport_->selectionState().entities();
+    const bool selectedEdges = !selection.empty() && selection.size() <= 4096 &&
+                               std::all_of(selection.begin(), selection.end(), [](auto entity) {
+                                   return entity.kind == SelectionKind::Edge;
+                               });
+    for (const auto *name :
+         {"edge.hide", "edge.reveal", "edge.soften", "edge.harden", "edge.smooth", "edge.flat"})
+        findChild<QAction *>(name)->setEnabled(selectedEdges);
     findChild<QAction *>("group.selection")->setEnabled(!selection.empty());
     const bool whole =
         !selection.empty() && std::all_of(selection.begin(), selection.end(),

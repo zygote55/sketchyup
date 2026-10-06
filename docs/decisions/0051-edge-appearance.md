@@ -3,7 +3,7 @@
 Status: R057.e data/lineage and R057.f shared command acceptance pass locally.
 Shared smooth-normal consumption is implemented in R057.g
 ([shading contract](0052-smooth-shading.md)). Native controls and explicit hidden-edge
-display are subsequent R057 work.
+display pass local acceptance in R057.h.
 
 Each native edge may have independent `hidden`, `soft` and `smooth` boolean flags.
 All false is the implicit default and is omitted from the sparse body map. Hidden
@@ -70,3 +70,26 @@ transaction, headless-session and MCP schemas include the same command, and the
 native assistant allowlist permits proposing it. `entity.describe` returns an
 edge's `edgeAppearance`; paged `topology.query` edge rows include `appearance`.
 Neither inspection path infers flags from geometry or coordinates.
+
+## Native controls and reveal mode
+
+Edit → Edge appearance exposes Hide/Reveal, Soften/Harden and Smooth/Flat for a
+nonempty selection of typed edges. Actions change one flag through the shared
+command, including component scope, and create one Undo item. Selection remains
+for visible edges; suppressed edges leave ordinary selection immediately. Open a
+group/component to edit its edges, and use Make Unique to isolate a shared member.
+
+View → Show hidden geometry exposes hidden and softened edges with a distinct
+dashed stroke and permits selecting them to clear their flags. The existing
+transient hide/reveal actions do not clear persistent flags. Disabling the reveal
+mode prunes suppressed selections without changing document bytes or history.
+Both persistent and transient locks and context boundaries remain authoritative.
+Revealing an edge does not implicitly harden it, and hardening it does not clear
+smooth shading.
+
+Drawing, edge picking and point/direction inference use the same selection
+visibility policy. A hidden loose wire also loses its isolated endpoint inference;
+a shared endpoint may remain inferable through another visible incident edge.
+The revealed-line GPU batch uses display-scaled dashes and ordinary depth testing;
+its buffer participates in context cleanup and recreation. Face geometry, shading
+and tessellation remain independent of stroke suppression.

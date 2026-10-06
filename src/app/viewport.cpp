@@ -69,7 +69,7 @@ void Viewport::cleanupGL() {
             batch->count = 0;
         }
         for (auto &[id, cache] : bodyCaches_)
-            for (auto *batch : {&cache->opaqueGpu, &cache->linesGpu}) {
+            for (auto *batch : {&cache->opaqueGpu, &cache->linesGpu, &cache->hiddenLinesGpu}) {
                 batch->buffer.destroy();
                 batch->count = 0;
             }
@@ -679,6 +679,7 @@ void Viewport::rebuild() {
             transparentDirty_ = true;
             cache.opaque.clear();
             cache.lines.clear();
+            cache.hiddenLines.clear();
             cache.transparent.clear();
             if (alpha > 0) {
                 const ShadingNormals shading(*body);
@@ -752,15 +753,17 @@ void Viewport::rebuild() {
                         selection_.hidden(doc_, entity) || !selection_.inActiveHierarchy(doc_, id)
                             ? std::array<float, 3>{.56f, .58f, .60f}
                             : std::array<float, 3>{.19f, .24f, .23f};
-                    cache.lines.push_back(vertex(edge.a, color));
-                    cache.lines.push_back(vertex(edge.b, color));
+                    auto &lines = selection_.hidden(doc_, entity) ? cache.hiddenLines : cache.lines;
+                    lines.push_back(vertex(edge.a, color));
+                    lines.push_back(vertex(edge.b, color));
                 }
             }
         }
         if (appearanceChanged || !cache.opaqueGpu.buffer.isCreated() ||
-            !cache.linesGpu.buffer.isCreated()) {
+            !cache.linesGpu.buffer.isCreated() || !cache.hiddenLinesGpu.buffer.isCreated()) {
             upload(cache.opaqueGpu, cache.opaque);
             upload(cache.linesGpu, cache.lines);
+            upload(cache.hiddenLinesGpu, cache.hiddenLines);
             ++stats_.bodyUploads;
         }
         cache.record = body;
@@ -871,6 +874,7 @@ void Viewport::paintScene() {
     shader_->setUniformValue("mvp", transform);
     shader_->setUniformValue("instanced", instances_ > 0 ? 1 : 0);
     shader_->setUniformValue("stipple", 0);
+    shader_->setUniformValue("pixelRatio", float(devicePixelRatioF()));
     shader_->setUniformValue("surfacePass", 0);
     shader_->setUniformValue("pixelOffset", QVector2D{});
     shader_->setUniformValue("clipEnabled", clipPlane_ ? 1 : 0);
@@ -913,6 +917,10 @@ void Viewport::paintScene() {
         shader_->setUniformValue("surfacePass", 0);
         for (auto &[id, cache] : bodyCaches_)
             draw(cache->linesGpu, GL_LINES);
+        shader_->setUniformValue("stipple", 2);
+        for (auto &[id, cache] : bodyCaches_)
+            draw(cache->hiddenLinesGpu, GL_LINES);
+        shader_->setUniformValue("stipple", 0);
         drawSelectionOverlay();
         drawAssistantPreview();
     }

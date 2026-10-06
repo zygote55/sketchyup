@@ -51,6 +51,33 @@ void Viewport::applyMaterialToSelection() {
     refresh();
     emit changed();
 }
+void Viewport::setSelectedEdgeAppearance(const QString &flag, bool value) {
+    if (flag != "hidden" && flag != "soft" && flag != "smooth")
+        throw std::runtime_error("Choose hide, soften or smooth for selected edges");
+    syncSelection();
+    QJsonArray edges;
+    for (auto entity : selection_.entities()) {
+        if (entity.kind != SelectionKind::Edge || !selectable(entity))
+            throw std::runtime_error("Select editable edges; open groups/components first");
+        edges.append(QJsonObject{{"body", QString::number(entity.body)},
+                                 {"edge", QString::number(entity.entity)}});
+    }
+    if (edges.empty())
+        throw std::runtime_error(
+            "Select edges; use View → Show hidden geometry to reveal hidden or softened edges");
+    QJsonObject command{{"command", "geometry.edge_appearance"},
+                        {"context", QString::number(selection_.context())},
+                        {"entities", edges},
+                        {flag, value}};
+    cancel();
+    commitCommands({command});
+    refresh();
+    emit changed();
+    emit message(
+        value && flag != "smooth"
+            ? "Edge appearance applied · View → Show hidden geometry reveals suppressed edges"
+            : "Edge appearance applied · Undo restores the previous flags");
+}
 void Viewport::paintAt(QPointF point, bool sample) {
     selection_.sync(doc_);
     const auto hit = nearestFace(point);
