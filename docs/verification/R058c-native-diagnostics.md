@@ -56,3 +56,26 @@ including the real Blender worker. Native orientation and responsive shell regre
 suites also pass on X11. A fresh temporary installation reopens the installed
 orientation example with no findings and the independently expected 8 m³ volume,
 and includes the native report/repair contract. Owned temporary files are removed.
+
+## CI focus/lifetime follow-up
+
+CI exposed a report-to-model focus handoff failure and intermittent Wayland native
+surface leaks in the interaction fixture. The handoff now requests activation while
+the report is still alive, processes pending window-system events, closes the report,
+and waits for actual destruction before checking stable native model focus and
+creating the preview. Activation retries remain bounded by the existing five-second
+handoff limit. Staleness, active-preview and Escape guards remain authoritative;
+a weak lifetime guard protects the controller across event synchronization.
+
+The fixture now requires the report's own `QGuiApplication::focusWindow()` and exact
+active widget, rather than accepting a transient window as active before its native
+focus delivery. Close checks verify destruction and drain pending window-system
+events; teardown synchronizes before destroying the final model surface.
+
+A deterministic delayed-deletion case fails against the original implementation:
+it creates an orientation preview while the hidden report remains alive. The revised
+implementation waits for actual deletion and then completes the same preview.
+The complete revised fixture passes X11 and Wayland at DPR 1 and 2. Three consecutive
+Wayland DPR 2 runs pass AddressSanitizer, UndefinedBehaviorSanitizer and leak detection,
+with no sanitizer suppression or disabled check. Fresh exact-head CI remains required
+before merging this layer and its dependents. Existing visual captures are unchanged.
