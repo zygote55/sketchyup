@@ -62,3 +62,23 @@ No screenshot has been retouched.
 | [m6-site-after.sketchyup](../../examples/m6-site-after.sketchyup) | `fde297a539283834959cdd88a26513b4996ed2c27436d73b55026a416c679403` |
 | [R060e-site-far.png](images/R060e-site-far.png) | `edc19e478549e19a8388ba42f3975c70e77724e214bb32984dd2af37eb778e95` |
 | [R060e-site-near.png](images/R060e-site-near.png) | `47232ad208801e2711ac574385f1fcf8d9f63eeeeac7c794bed59ad3b89f6d20` |
+
+## Sanitized full-recipe timing correction
+
+Exact-head CI first exposed the recipe harness's 30-second child-process deadline
+on this larger example. The original sanitizer recipe suite also fails locally.
+A direct run outside that deadline takes **66.33 seconds** and reports
+`STAGE_UNAVAILABLE: Proposal expired during preparation` while sealing: the
+example also outgrows the default 60-second transaction lifetime under instrumentation.
+
+The shipped site example now explicitly requests the existing bounded 300-second
+transaction lifetime. The test allows this one child up to 360 seconds and reports
+its arguments, timeout/crash reason and bounded stderr/output when it fails.
+Smaller recipes keep their 30-second deadline. No production timeout default,
+maximum lifetime, expiry validation or result assertion changes.
+
+The corrected sanitized CLI run completes all **11 steps in 65.76 seconds** with
+no stderr, equal staged/committed measurements and byte-for-byte native reopen.
+These timings are instrumented correctness evidence, not interactive performance
+claims. Original and corrected output remain under
+`build/evidence/r060e-sanitize-recipe-diagnostic/` in the topology checkout.
