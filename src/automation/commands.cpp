@@ -1608,7 +1608,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.hosted)
+        !edit.hosted && !edit.style)
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();

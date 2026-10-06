@@ -65,7 +65,7 @@ QByteArray encodeContainer(const Document &doc) {
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
-                                  {"encoding", "json-v16"},
+                                  {"encoding", "json-v17"},
                                   {"offset", "0"},
                                   {"bytes", QString::number(document.size())},
                                   {"sha256", hash(document)}}};
@@ -97,7 +97,7 @@ QByteArray encodeContainer(const Document &doc) {
                                               "groups-v1", "face-colors-v1", "components-v1",
                                               "tags-v1", "materials-v1", "assets-v1",
                                               "display-units-v1", "edge-appearance-v1",
-                                              "component-glue-v1", "hosted-components-v1", "texture-mapping-v1"}},
+                                              "component-glue-v1", "hosted-components-v1", "texture-mapping-v1", "model-style-v1"}},
                                   {"allocatorFloors", floors(doc, true, true, true, true, true)},
                                   {"assets", assets},
                                   {"chunks", chunks}})
@@ -135,7 +135,12 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    const bool textureMapping = features == std::set<QString>{
+    const bool modelStyle = features == std::set<QString>{
+        "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
+        "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
+        "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
+        "model-style-v1"};
+    const bool textureMapping = modelStyle || features == std::set<QString>{
         "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
         "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
         "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1"};
@@ -217,7 +222,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (textureMapping ? "json-v16"
+        chunk["encoding"] != (modelStyle ? "json-v17"
+                              : textureMapping ? "json-v16"
                               : hostedComponents ? "json-v15"
                               : componentGlue  ? "json-v14"
                               : edgeAppearance ? "json-v13"
@@ -260,7 +266,8 @@ Document decodeContainer(const QByteArray &bytes) {
     if (cursor != total)
         throw std::runtime_error("Trailing or unreferenced container data");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != (textureMapping ? 16
+    if (payloadTree["version"] != (modelStyle ? 17
+                                   : textureMapping ? 16
                                    : hostedComponents ? 15
                                    : componentGlue  ? 14
                                    : edgeAppearance ? 13

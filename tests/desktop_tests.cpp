@@ -76,6 +76,7 @@ int main(int argc, char **argv) {
                 "Transform command is one undo step");
         auto legacy = QJsonDocument::fromJson(bytes).object();
         legacy["version"] = 1;
+        legacy.remove("style");
         legacy.remove("hosted");
         legacy.remove("displayUnits");
         legacy.remove("revision");

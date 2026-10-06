@@ -72,7 +72,8 @@ void checkPreserved(const Document &before, const Document &after, Id target) {
     if (before.definitions() != after.definitions() || before.instances() != after.instances() ||
         before.hostedComponents() != after.hostedComponents() ||
         before.materials() != after.materials() || before.tags() != after.tags() ||
-        before.assets() != after.assets() || before.displayUnits() != after.displayUnits())
+        before.assets() != after.assets() || before.displayUnits() != after.displayUnits() ||
+        before.style() != after.style())
         fail("Site placement changed model resources or component relationships");
 }
 } // namespace
