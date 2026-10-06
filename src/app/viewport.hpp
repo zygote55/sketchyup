@@ -153,6 +153,7 @@ class Viewport : public QOpenGLWidget {
     SceneSnapshot captureSceneSnapshot(bool camera, bool visibility, bool style, bool section) const;
     QJsonObject editSavedScenes(const QJsonArray &commands);
     QJsonObject editSections(const QJsonArray &commands);
+    QJsonObject editAnnotations(const QJsonArray &commands);
     void recallSavedScene(Id scene);
     void setReducedMotion(bool enabled);
     void setAssistantPreview(std::shared_ptr<const Document::PreparedEdit> edit);
@@ -326,6 +327,9 @@ class Viewport : public QOpenGLWidget {
     void rebuildSelectionOverlay();
     void drawSelectionOverlay();
     void paintSelection(QPainter &painter);
+    void paintAnnotations(QPainter &painter);
+    Document::SaveStamp annotationStamp_;
+    std::map<Id, AnnotationMeasurement> annotationMeasurements_;
     bool visible(SelectedEntity entity) const;
     bool selectable(SelectedEntity entity) const;
     void selectionChanged(bool policy = false);

@@ -11,6 +11,7 @@ class HistoryPanel;
 class StylesPanel;
 class ScenesPanel;
 class SectionsPanel;
+class AnnotationsPanel;
 class OrganizationPanel : public QWidget {
   public:
     OrganizationPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
@@ -21,6 +22,7 @@ class OrganizationPanel : public QWidget {
     void showStyles();
     void showScenes();
     void showSections();
+    void showAnnotations();
 
   private:
     Document &doc_;
@@ -35,6 +37,7 @@ class OrganizationPanel : public QWidget {
     StylesPanel *styles_{};
     ScenesPanel *scenes_{};
     SectionsPanel *sections_{};
+    AnnotationsPanel *annotations_{};
     bool syncing_{};
     std::set<Id> knownBodies_, knownTags_;
     Document::SaveStamp session_;
