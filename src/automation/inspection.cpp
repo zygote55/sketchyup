@@ -1,4 +1,5 @@
 #include "automation/inspection.hpp"
+#include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
@@ -313,8 +314,19 @@ QJsonObject summary(const Document &doc, Id id, const Selection *editor) {
         {"tag", QString::number(b.tag)},
         {"parent", b.parent ? QJsonValue(inspectionReference(doc, b.parent)) : QJsonValue()},
         {"visibility", visibility(doc, {id, id, "body"}, editor)}};
-    if (const auto instance = doc.instances().find(id); instance != doc.instances().end())
+    if (const auto instance = doc.instances().find(id); instance != doc.instances().end()) {
         result["definition"] = QString::number(instance->second->definition);
+        auto attachment = attachmentDescription(doc, id);
+        if (attachment.isObject()) {
+            auto record = attachment.toObject();
+            const auto host = record["host"].toString().toULongLong();
+            record["hostRef"] = inspectionReference(doc, host);
+            record["faceRef"] =
+                inspectionReference(doc, host, "face", record["face"].toString().toULongLong());
+            attachment = record;
+        }
+        result["attachment"] = attachment;
+    }
     return result;
 }
 QByteArray compact(const QJsonObject &o) { return QJsonDocument(o).toJson(QJsonDocument::Compact); }
@@ -520,6 +532,22 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         const auto ref = resolve(doc, request["target"]);
         const auto &b = *doc.bodies().at(ref.body);
         data = summary(doc, ref.body, editor);
+        // Materialized member topology preserves canonical entity IDs. Publish
+        // the nearest definition binding without expanding its entire contents.
+        for (auto owner = ref.body; owner; owner = doc.bodies().at(owner)->parent) {
+            const auto instance = doc.instances().find(owner);
+            if (instance == doc.instances().end())
+                continue;
+            for (const auto &[member, body] : instance->second->members)
+                if (body == ref.body) {
+                    data["canonicalBinding"] =
+                        QJsonObject{{"instance", inspectionReference(doc, owner)},
+                                    {"definition", QString::number(instance->second->definition)},
+                                    {"member", QString::number(member)}};
+                    break;
+                }
+            break;
+        }
         data["ref"] = request["target"];
         data["visibility"] = visibility(doc, ref, editor);
         data["localToParent"] = matrix(b.transform);
@@ -721,6 +749,7 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         data = page.finish();
         data["definition"] = request["definition"];
         data["name"] = QString::fromStdString(doc.definitions().at(definition)->name);
+        data["glue"] = componentGlueDescription(*doc.definitions().at(definition));
         break;
     }
     case Operation::Diagnose: {

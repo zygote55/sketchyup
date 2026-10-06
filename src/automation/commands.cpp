@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/entity_info.hpp"
+#include "automation/hosted_commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_session.hpp"
 #include "automation/model_recipes.hpp"
@@ -244,14 +245,16 @@ QJsonObject describe(const Document &doc) {
             members[QString::number(member)] = QString::number(target);
         instances.append(QJsonObject{{"root", QString::number(root)},
                                      {"definition", QString::number(instance->definition)},
-                                     {"members", members}});
+                                     {"members", members},
+                                     {"attachment", attachmentDescription(doc, root)}});
     }
     for (const auto &[id, definition] : doc.definitions())
         definitions.append(QJsonObject{{"id", QString::number(id)},
                                        {"name", QString::fromStdString(definition->name)},
                                        {"root", QString::number(definition->root)},
                                        {"members", qint64(definition->members.size())},
-                                       {"instances", qint64(uses[id])}});
+                                       {"instances", qint64(uses[id])},
+                                       {"glue", componentGlueDescription(*definition)}});
     for (const auto &[id, b] : doc.bodies()) {
         QJsonArray faces;
         for (const auto &[fid, f] : b->surface.faces)
@@ -377,6 +380,7 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
             if (instance->definition == definition->id)
                 instances.append(QString::number(root));
         return {{"scope", "definition"},
+                {"glue", componentGlueDescription(*definition)},
                 {"definition", QString::number(definition->id)},
                 {"name", QString::fromStdString(definition->name)},
                 {"root", QString::number(definition->root)},
@@ -1313,6 +1317,10 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             if (command.contains("parent"))
                 parent = command["parent"] == "0" ? 0 : id(command["parent"]);
             staged.transform(target, transform, parent);
+        } else if (isHostedCommand(name)) {
+            const auto result = executeHostedCommand(staged, command);
+            compose(result.changes);
+            componentOperations.append(result.operation);
         } else if (name.startsWith("component.")) {
             if (command.contains("name") && !command["name"].isString())
                 throw std::runtime_error("Component name must be a string");
@@ -1383,7 +1391,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                         throw IntersectionError("INTERSECTION_SCOPE",
                                                 "Whole-model intersection inside a component "
                                                 "requires an explicit instance scope");
-                    if (nested.toString().startsWith("assembly.") || nested == "component.edit" ||
+                    if (isHostedCommand(nested.toString()) ||
+                        nested.toString().startsWith("assembly.") || nested == "component.edit" ||
                         nested == "component.edit_instance" || nested == "component.axes" ||
                         (nested.toString().startsWith("tag.") && nested != "tag.assign"))
                         throw std::runtime_error(
@@ -1583,7 +1592,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         }
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
-        edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits)
+        edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
+        !edit.hosted)
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();
@@ -1675,8 +1685,12 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"solidOperations", survivingSolidOperations}};
     for (qsizetype i = 0; i < componentOperations.size(); ++i) {
         auto operation = componentOperations[i].toObject();
-        if (!doc.instances().contains(operation["instance"].toString().toULongLong()))
+        if (operation.contains("instance") &&
+            !doc.instances().contains(operation["instance"].toString().toULongLong()))
             operation["instance"] = "0";
+        if (isHostedCommand(operation["command"].toString()) && operation.contains("attachment"))
+            operation["attachment"] =
+                attachmentDescription(doc, operation["instance"].toString().toULongLong());
         componentOperations[i] = operation;
     }
     QJsonObject changes;

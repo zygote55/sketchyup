@@ -76,7 +76,7 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
     stage.result.remove("status");
     stage.result.remove("revision");
     const auto &snapshot = stage.prepared->snapshot();
-    auto diff = [&](QString kind, const auto &before, const auto &after) {
+    auto diff = [&](QString kind, const auto &before, const auto &after, auto equal) {
         auto a = before.begin();
         auto b = after.begin();
         while (a != before.end() || b != after.end()) {
@@ -87,19 +87,25 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
                 stage.changes.push_back({kind, "created", b->first});
                 ++b;
             } else {
-                if (a->second != b->second)
+                if (!equal(a->second, b->second))
                     stage.changes.push_back({kind, "updated", a->first});
                 ++a;
                 ++b;
             }
         }
     };
-    diff("body", live.bodies(), snapshot.bodies());
-    diff("definition", live.definitions(), snapshot.definitions());
-    diff("instance", live.instances(), snapshot.instances());
-    diff("tag", live.tags(), snapshot.tags());
-    diff("material", live.materials(), snapshot.materials());
-    diff("asset", live.assets(), snapshot.assets());
+    diff("body", live.bodies(), snapshot.bodies(), std::equal_to<>{});
+    diff("definition", live.definitions(), snapshot.definitions(), std::equal_to<>{});
+    diff("instance", live.instances(), snapshot.instances(), std::equal_to<>{});
+    diff("tag", live.tags(), snapshot.tags(), std::equal_to<>{});
+    diff("material", live.materials(), snapshot.materials(), std::equal_to<>{});
+    diff("asset", live.assets(), snapshot.assets(), std::equal_to<>{});
+    // Hosted aggregates freeze their inner records together; fresh pointers do
+    // not imply that an unrelated host or attachment changed.
+    const auto sameRecord = [](const auto &a, const auto &b) { return a == b || *a == *b; };
+    diff("host", live.hostedComponents().hosts, snapshot.hostedComponents().hosts, sameRecord);
+    diff("attachment", live.hostedComponents().attachments, snapshot.hostedComponents().attachments,
+         sameRecord);
     if (live.displayUnits() != snapshot.displayUnits())
         stage.changes.push_back({"displayUnits", "updated", 0});
     const auto resultBytes = QJsonDocument(stage.result).toJson(QJsonDocument::Compact).size();

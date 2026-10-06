@@ -1,0 +1,109 @@
+[
+  {
+    "command": "geometry.face",
+    "name": "Wall",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          10,
+          0,
+          0
+        ],
+        [
+          10,
+          10,
+          0
+        ],
+        [
+          0,
+          10,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "1",
+    "face": "5",
+    "distance": 1
+  },
+  {
+    "command": "geometry.face",
+    "name": "Window outline",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          2,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "component.create",
+    "body": "2",
+    "name": "Hosted window"
+  },
+  {
+    "command": "component.glue",
+    "definition": "1",
+    "glue": {
+      "member": "3",
+      "face": "5",
+      "anchor": [
+        1,
+        1,
+        0
+      ],
+      "tangent": [
+        1,
+        0,
+        0
+      ],
+      "cutsOpening": true
+    }
+  },
+  {
+    "command": "component.attach",
+    "body": "2",
+    "host": "1",
+    "face": "10",
+    "anchor": [
+      3,
+      3,
+      1
+    ],
+    "inset": 0.2
+  },
+  {
+    "command": "geometry.translate",
+    "body": "2",
+    "delta": [
+      1,
+      0,
+      0
+    ]
+  }
+]

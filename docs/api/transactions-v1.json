@@ -59,7 +59,8 @@
                                 "type": "string"
                             }
                         },
-                        "required": [],
+                        "required": [
+                        ],
                         "type": "object"
                     },
                     "operation": {
@@ -2771,6 +2772,232 @@
                                     },
                                     "required": [
                                         "members",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Set or clear the canonical component glue face",
+                                    "properties": {
+                                        "command": {
+                                            "const": "component.glue"
+                                        },
+                                        "definition": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "glue": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "anchor": {
+                                                    "items": {
+                                                        "maximum": 1000000,
+                                                        "minimum": -1000000,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                },
+                                                "cutsOpening": {
+                                                    "type": "boolean"
+                                                },
+                                                "face": {
+                                                    "description": "Canonical uint64 decimal string",
+                                                    "maxLength": 20,
+                                                    "pattern": "^[1-9][0-9]*$",
+                                                    "type": "string"
+                                                },
+                                                "member": {
+                                                    "description": "Canonical uint64 decimal string",
+                                                    "maxLength": 20,
+                                                    "pattern": "^[1-9][0-9]*$",
+                                                    "type": "string"
+                                                },
+                                                "tangent": {
+                                                    "items": {
+                                                        "maximum": 1000000,
+                                                        "minimum": -1000000,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 3,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "required": [
+                                                "member",
+                                                "face",
+                                                "anchor",
+                                                "tangent",
+                                                "cutsOpening"
+                                            ],
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "definition",
+                                        "glue",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Place component on an ordinary host face; anchor, tangent and inset are host-local, angle is radians",
+                                    "properties": {
+                                        "anchor": {
+                                            "items": {
+                                                "maximum": 1000000,
+                                                "minimum": -1000000,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 3,
+                                            "minItems": 3,
+                                            "type": "array"
+                                        },
+                                        "angle": {
+                                            "type": "number"
+                                        },
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "component.attach"
+                                        },
+                                        "face": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "host": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "inset": {
+                                            "type": "number"
+                                        },
+                                        "scale": {
+                                            "items": {
+                                                "maximum": 1000000,
+                                                "minimum": -1000000,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 3,
+                                            "minItems": 3,
+                                            "type": "array"
+                                        },
+                                        "tangent": {
+                                            "items": {
+                                                "maximum": 1000000,
+                                                "minimum": -1000000,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 3,
+                                            "minItems": 3,
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "host",
+                                        "face",
+                                        "anchor",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Bind component at its current pose with explicit host-local normal inset",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "component.bind"
+                                        },
+                                        "face": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "host": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "inset": {
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "host",
+                                        "face",
+                                        "inset",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Detach component and restore its host opening",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "component.detach"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Retain host cut geometry and release all its component attachments",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "component.bake_host"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
                                         "command"
                                     ],
                                     "type": "object"

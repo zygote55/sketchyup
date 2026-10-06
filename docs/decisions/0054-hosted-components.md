@@ -1,8 +1,9 @@
 # 0054 — Explicit face frames and hosted component openings
 
-Status: R059.a placement, R059.b opening geometry, R059.c canonical glue records
-and R059.d immutable host regeneration are locally verified. CI/dependency merges
-remain pending. R059.e adds persistent host bindings; native/automation workflows follow.
+Status: R059.a placement, R059.b opening geometry, R059.c canonical glue records,
+R059.d immutable host regeneration and R059.e persistent attachments are locally
+verified. CI/dependency merges remain pending. R059.f exposes shared commands and
+bounded inspection; native placement, copy policy and recipe adoption follow.
 
 ## Face placement
 
@@ -208,3 +209,39 @@ Undo even for an alignment-only metadata edit.
 This layer exposes core attachment APIs. Shared commands, native placement controls,
 copy/array attachment policy and explicit migration of existing recipe relationships
 remain separate R059 work; existing unbound component copies do not acquire a host.
+
+
+## Shared attachment commands and inspection
+
+Five catalog operations use the authoritative document APIs: `component.glue`,
+`component.attach`, `component.bind`, `component.detach`, and `component.bake_host`.
+Glue requires an explicit definition and either null or exactly the canonical
+member/face, member-local anchor/tangent, and boolean cutting flag. Attach requires
+an independent instance, ordinary host/face and host-local anchor. Its optional
+rotation is radians; scale is signed and defaults to one; tangent defaults to local
+X, and signed host-normal inset defaults to zero. Bind preserves the current pose
+and requires an explicit inset rather than guessing one. Detach restores the
+opening; Bake retains current cut geometry and releases every attachment on that host.
+
+All five participate in the shared catalog, strict field validation, private batches,
+immutable preview, native persistence, durable transactions and one-step Undo.
+Metadata-only bindings are real edits. A late invalid command, stale revision,
+invalid scope or lock rejects the whole batch. Hosted commands cannot run inside a
+canonical `component.edit` draft: an explicit scene-level operation is required.
+Receipts include affected host/attachment IDs and bounded attachment/opening details.
+Paged stage changes include `host` and `attachment` record kinds, including edits
+with unchanged body geometry.
+
+`entity.describe` supplies the nearest canonical member/definition binding for
+materialized geometry, preserving the inspected entity ID within that member.
+`component.instances` returns canonical glue plus paged instance summaries. Attached
+instance summaries expose their host, face, relative affine frame, inset, cutting
+flag, entry/exit and reveal IDs, along with typed current host and face references.
+Original surfaces and full opening caches are not copied into ordinary inspection.
+Existing page and response byte budgets still apply.
+
+Native assistant policy exposes attach/bind/detach routinely, glue only with shared
+edit permission, and baking only with destructive permission. Native editor locks
+cover changed host/attachment records and glue-only definition edits in addition to
+body geometry. Locks are checked both for preview and again before publication,
+including an editor lock acquired after a metadata-only preview was sealed.
