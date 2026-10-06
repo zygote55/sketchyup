@@ -204,6 +204,9 @@ int main(int argc, char **argv) {
         auto *provenance = window.findChild<QLabel *>("renderProvenance");
         check(provenance && provenance->text().contains("model has changed since"),
               "Changed source is labeled");
+        if (qEnvironmentVariableIsSet("SKETCHYUP_RENDER_SECTION_FIXTURE"))
+            check(provenance->text().contains("section cut edges omitted"),
+                  "Native result labels section line-transfer limitation");
         const auto imagePath = files.path() + "/result.png";
         panel.saveLatest(imagePath);
         check(read(imagePath) == panel.latest()->png, "Saved PNG matches verified bytes");
