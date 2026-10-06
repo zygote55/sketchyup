@@ -241,6 +241,7 @@ void componentsAndMalformed() {
     bodies[0] = record;
     root["bodies"] = bodies;
     root["version"] = 12;
+    root.remove("solar");
     root.remove("style");
     root.remove("scenes");
     root.remove("sections");
