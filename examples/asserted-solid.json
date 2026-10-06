@@ -1,0 +1,7 @@
+[
+  {"command":"geometry.face","name":"Asserted 2 × 3 × 1 m solid","loops":[[[0,0,0],[2,0,0],[2,3,0],[0,3,0]]]},
+  {"command":"assert.measurement","body":"1","space":"local","metric":"volume","expected":6,"tolerance":0.0000001},
+  {"command":"geometry.extrude_isolated","body":"1","face":"5","distance":1},
+  {"command":"assert.measurement","body":"1","space":"local","metric":"area","expected":22,"tolerance":0.0000001},
+  {"command":"assert.measurement","body":"1","space":"local","metric":"dimensions","expected":[2,3,1],"tolerance":0.0000001}
+]

@@ -72,6 +72,14 @@ QJsonArray commandCatalog() {
                             "Transform only inspected vertex IDs to preserve member thickness; "
                             "uniform bounds scaling changes thickness.";
     return {
+        spec("assert.measurement", "Require a final batch measurement to match", "Verification",
+             {{"body", stableId()}, {"space", space},
+              {"metric", QJsonObject{{"type", "string"},
+                  {"enum", QJsonArray{"length", "area", "volume", "dimensions", "minimum", "maximum"}}}},
+              {"expected", QJsonObject{{"oneOf", QJsonArray{number(), list(number(), 3, 3)}}}},
+              {"tolerance", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1},
+                  {"description", "Explicit absolute tolerance in m, m2 or m3; bounds compare each axis"}}}},
+             {"body", "space", "metric", "expected", "tolerance"}),
         spec("document.units", "Change document units", "Document",
              {{"units", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"m", "mm", "ft-in"}}}}},
              {"units"}),

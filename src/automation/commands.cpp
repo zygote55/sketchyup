@@ -5,6 +5,7 @@
 #include "automation/inspection.hpp"
 #include "automation/inspection_session.hpp"
 #include "automation/model_recipes.hpp"
+#include "automation/measurement_assertions.hpp"
 #include "automation/transactions.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
@@ -171,6 +172,7 @@ QJsonObject capabilities() {
         {"inspection", inspectionCapabilities()},
         {"inspectionSession", inspectionSessionCapabilities()},
         {"transactions", transactionCapabilities()},
+        {"measurementAssertions", measurementAssertionCapabilities()},
         {"units", "m"},
         {"up", "Z"},
         {"commands",
@@ -586,7 +588,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     }
     Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans,
-        solidOperations;
+        solidOperations, assertionCommands;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
     };
@@ -660,7 +662,9 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
                 throw std::runtime_error("Missing command parameter");
-        if (name.startsWith("assembly.")) {
+        if (name == "assert.measurement") {
+            assertionCommands.append(command);
+        } else if (name.startsWith("assembly.")) {
             const auto recipe = executeModelRecipe(staged, command);
             for (const auto &step : recipe.steps)
                 compose(decodedChanges(step.toObject()["changes"].toObject()));
@@ -1391,6 +1395,9 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                         throw IntersectionError("INTERSECTION_SCOPE",
                                                 "Whole-model intersection inside a component "
                                                 "requires an explicit instance scope");
+                    if (nested == "assert.measurement")
+                        throw std::runtime_error("Place measurement assertions in the outer batch on "
+                                                 "the materialized instance");
                     if (isHostedCommand(nested.toString()) ||
                         nested.toString().startsWith("assembly.") || nested == "component.edit" ||
                         nested == "component.edit_instance" || nested == "component.axes" ||
@@ -1565,6 +1572,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         } else
             throw std::runtime_error("Unavailable command");
     }
+    const auto assertions = evaluateMeasurementAssertions(staged, assertionCommands);
     Edit edit{historyLabel, {}};
     edit.metadata = historyMetadata;
     appendSceneMetadataChanges(edit, doc, staged);
@@ -1680,6 +1688,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdMaterials", createdMaterials},
                 {"createdAssets", createdAssets},
                 {"recipeOperations", recipeOperations},
+                {"assertions", assertions},
                 {"sweeps", survivingSweeps},
                 {"booleans", survivingBooleans},
                 {"solidOperations", survivingSolidOperations}};
@@ -1739,6 +1748,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"createdAssets", createdAssets},
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
+                       {"assertions", assertions},
                        {"sweeps", survivingSweeps},
                        {"booleans", survivingBooleans},
                        {"solidOperations", survivingSolidOperations},

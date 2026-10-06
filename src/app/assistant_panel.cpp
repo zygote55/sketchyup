@@ -416,7 +416,8 @@ struct AssistantPanel::Impl {
                 request["target"] = inspectionReference(document, id);
             result.context.append(request);
         }
-        const QStringList routine{"assembly.room",
+        const QStringList routine{"assert.measurement",
+                                  "assembly.room",
                                   "assembly.room.adopt_hosted",
                                   "assembly.window.resize",
                                   "geometry.face",

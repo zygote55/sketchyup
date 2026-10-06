@@ -998,6 +998,9 @@ int main(int argc, char **argv) {
                         {"commands", QJsonArray{QJsonObject{{"command", "geometry.translate"},
                                                             {"body", "2"},
                                                             {"delta", QJsonArray{.1, 0, 0}}}}}});
+        cases.append(QJsonObject{{"command", "assert.measurement"}, {"body", "1"},
+                                 {"space", "local"}, {"metric", "area"}, {"expected", 1},
+                                 {"tolerance", 1e-7}});
         cases.append(QJsonObject{{"command", "assembly.room"}});
         cases.append(QJsonObject{{"command", "assembly.room.adopt_hosted"}, {"body", "3"}});
         cases.append(QJsonObject{{"command", "assembly.window.resize"},
@@ -1012,10 +1015,13 @@ int main(int argc, char **argv) {
             check(!descriptor["label"].toString().isEmpty(), "Human command label exists");
             auto schema = descriptor["parameters"].toObject();
             auto request = [&](const Document &doc, QJsonObject item) {
+                QJsonArray commands{item};
+                if (command["command"] == "assert.measurement")
+                    commands.prepend(QJsonObject{{"command", "document.units"}, {"units", "mm"}});
                 return QJsonObject{{"apiVersion", 1},
                                    {"documentId", QString::fromStdString(doc.identity())},
                                    {"expectedRevision", QString::number(doc.revision())},
-                                   {"commands", QJsonArray{item}}};
+                                   {"commands", commands}};
             };
             Document doc = source;
             if (command["command"].toString().startsWith("assembly.")) {
