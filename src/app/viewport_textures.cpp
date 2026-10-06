@@ -8,7 +8,8 @@ void Viewport::syncTextures() {
         if (opacity_.contains(id) && opacity_.at(id) == 0)
             continue;
         if (body->referenceImage && visible({id, SelectionKind::Body, 0}))
-            assets.emplace(body->referenceImage->asset, doc_.assets().at(body->referenceImage->asset));
+            assets.emplace(body->referenceImage->asset,
+                           doc_.assets().at(body->referenceImage->asset));
         for (const auto &[face, record] : body->surface.faces) {
             if (!visible({id, SelectionKind::Face, face}))
                 continue;
@@ -68,12 +69,16 @@ Viewport::TextureProjection Viewport::textureProjection(const Body &body, const 
                                                         bool back) const {
     if (body.referenceImage) {
         const auto &reference = *body.referenceImage;
-        if (!textureImages_.contains(reference.asset) || !textureAssets_.contains(reference.asset) ||
-            !TextureCache::sameImage(textureAssets_.at(reference.asset), doc_.assets().at(reference.asset))) return {};
+        if (!textureImages_.contains(reference.asset) ||
+            !textureAssets_.contains(reference.asset) ||
+            !TextureCache::sameImage(textureAssets_.at(reference.asset),
+                                     doc_.assets().at(reference.asset)))
+            return {};
         TextureProjection result;
         result.image = reference.asset;
         size_t i = 0;
-        for (auto p : {local.a, local.b, local.c}) result.uv[i++] = {float(p.x / reference.width), float(1 - p.y / reference.height)};
+        for (auto p : {local.a, local.b, local.c})
+            result.uv[i++] = {float(p.x / reference.width), float(1 - p.y / reference.height)};
         return result;
     }
     const auto sides = faceMaterials(body, local.face);
@@ -116,8 +121,9 @@ QString Viewport::textureSummary() const {
     if (textureCache_.pending())
         return "Loading images…";
     if (textureFallbacks_ || textureMappingFallbacks_)
-        return textureMappingFallbacks_ ? "Some textures use a color preview: mapping too large"
-                                        : "Some images are unavailable; reference planes show a purple placeholder";
+        return textureMappingFallbacks_
+                   ? "Some textures use a color preview: mapping too large"
+                   : "Some images are unavailable; reference planes show a purple placeholder";
     return {};
 }
 } // namespace sketchy

@@ -521,18 +521,21 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
         if (distance > 0 && (nearer || tied) && !clipped(o + d * distance, body)) {
             const bool back = (a < 0) != (doc_.worldTransform(body).determinant() < 0);
             const auto &record = *doc_.bodies().at(body);
-            if ((record.referenceImage ? record.referenceImage->opacity : surfaceAppearance(doc_.materials(), record, t.face, back).opacity) == 0)
+            if ((record.referenceImage
+                     ? record.referenceImage->opacity
+                     : surfaceAppearance(doc_.materials(), record, t.face, back).opacity) == 0)
                 return;
             const auto projection = textureProjection(record, local, back);
             if (projection.image) {
                 const auto &uv = projection.uv;
-                TextureCoordinate coordinates{
-                    uv[0][0] * (1 - u - v) + uv[1][0] * u + uv[2][0] * v,
-                    uv[0][1] * (1 - u - v) + uv[1][1] * u + uv[2][1] * v};
+                TextureCoordinate coordinates{uv[0][0] * (1 - u - v) + uv[1][0] * u + uv[2][0] * v,
+                                              uv[0][1] * (1 - u - v) + uv[1][1] * u + uv[2][1] * v};
                 const auto &image = *textureImages_.at(projection.image);
                 if (record.referenceImage) {
-                    coordinates.u = std::clamp(coordinates.u, .5 / image.width(), 1 - .5 / image.width());
-                    coordinates.v = std::clamp(coordinates.v, .5 / image.height(), 1 - .5 / image.height());
+                    coordinates.u =
+                        std::clamp(coordinates.u, .5 / image.width(), 1 - .5 / image.width());
+                    coordinates.v =
+                        std::clamp(coordinates.v, .5 / image.height(), 1 - .5 / image.height());
                 }
                 if (image.sampleLinear(coordinates)[3] == 0)
                     return;
@@ -597,7 +600,8 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
                 continue;
             for (size_t i = 0; i < cache->worldTriangles.size(); ++i)
                 intersect(cache->worldTriangles[i], cache->localTriangles[i], id);
-            if (!cache->record->referenceImage) rememberCaps(id, cache->sectionMesh);
+            if (!cache->record->referenceImage)
+                rememberCaps(id, cache->sectionMesh);
         }
     for (const auto &[body, triangle] : caps) {
         const auto e1 = triangle.b - triangle.a, e2 = triangle.c - triangle.a;
@@ -642,10 +646,16 @@ Viewport::Bounds Viewport::bodyBounds(Id id) const {
     }
     if (const auto &image = doc_.bodies().at(id)->referenceImage) {
         for (const auto point : referenceImageCorners(*image, world)) {
-            if (!bounds.valid) { bounds.minimum = bounds.maximum = point; bounds.valid = true; }
-            else {
-                bounds.minimum = {std::min(bounds.minimum.x, point.x), std::min(bounds.minimum.y, point.y), std::min(bounds.minimum.z, point.z)};
-                bounds.maximum = {std::max(bounds.maximum.x, point.x), std::max(bounds.maximum.y, point.y), std::max(bounds.maximum.z, point.z)};
+            if (!bounds.valid) {
+                bounds.minimum = bounds.maximum = point;
+                bounds.valid = true;
+            } else {
+                bounds.minimum = {std::min(bounds.minimum.x, point.x),
+                                  std::min(bounds.minimum.y, point.y),
+                                  std::min(bounds.minimum.z, point.z)};
+                bounds.maximum = {std::max(bounds.maximum.x, point.x),
+                                  std::max(bounds.maximum.y, point.y),
+                                  std::max(bounds.maximum.z, point.z)};
             }
         }
     }
@@ -806,7 +816,9 @@ void Viewport::rebuild() {
         const float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
 
         const bool meshChanged =
-            !cache.record || (cache.record != body && (cache.record->surface != body->surface || cache.record->referenceImage != body->referenceImage));
+            !cache.record ||
+            (cache.record != body && (cache.record->surface != body->surface ||
+                                      cache.record->referenceImage != body->referenceImage));
         const bool topologyChanged =
             meshChanged || !cache.record || cache.record->topology.edges != body->topology.edges;
         const bool worldChanged = meshChanged || !cache.record || cache.world != world;
@@ -823,7 +835,8 @@ void Viewport::rebuild() {
             if (record->asset && textureImages_.contains(record->asset))
                 images.emplace(record->asset, textureImages_.at(record->asset));
         if (body->referenceImage && textureImages_.contains(body->referenceImage->asset))
-            images.emplace(body->referenceImage->asset, textureImages_.at(body->referenceImage->asset));
+            images.emplace(body->referenceImage->asset,
+                           textureImages_.at(body->referenceImage->asset));
         const auto cuts = effectiveSectionCuts(doc_, id);
         SectionRecords sections;
         for (const auto &cut : cuts)
@@ -889,23 +902,36 @@ void Viewport::rebuild() {
                 };
                 auto appendTriangle = [&](size_t triangleIndex, const SectionTriangle *cut) {
                     const auto &triangle = cache.worldTriangles[triangleIndex];
-                    const SelectedEntity entity{id, body->referenceImage ? SelectionKind::Body : SelectionKind::Face, triangle.face};
+                    const SelectedEntity entity{
+                        id, body->referenceImage ? SelectionKind::Body : SelectionKind::Face,
+                        triangle.face};
                     if (!visible(entity))
                         return;
                     if (body->referenceImage) {
                         std::array<Vertex, 3> vertices;
                         size_t corner = 0;
-                        for (auto point : {triangle.a, triangle.b, triangle.c}) vertices[corner++] = vertex(point, {1, 1, 1});
+                        for (auto point : {triangle.a, triangle.b, triangle.c})
+                            vertices[corner++] = vertex(point, {1, 1, 1});
                         referenceVertices(*body, cache.localTriangles[triangleIndex], vertices);
                         for (auto &v : vertices) {
-                            v.a *= alpha; v.ba = v.a;
-                            if (selection_.hidden(doc_, entity)) v.a = v.ba = std::min(v.a, .18f);
-                            v.dim = !selection_.inActiveHierarchy(doc_, id) || selection_.locked(doc_, id) ? .35f : 1.f;
+                            v.a *= alpha;
+                            v.ba = v.a;
+                            if (selection_.hidden(doc_, entity))
+                                v.a = v.ba = std::min(v.a, .18f);
+                            v.dim = !selection_.inActiveHierarchy(doc_, id) ||
+                                            selection_.locked(doc_, id)
+                                        ? .35f
+                                        : 1.f;
                         }
-                        if (cut) vertices = clippedVertices(vertices, *cut);
+                        if (cut)
+                            vertices = clippedVertices(vertices, *cut);
                         const auto &v = vertices[0];
-                        if ((v.image && textureImages_.at(v.image)->hasTransparency()) || (v.a > 0 && v.a < 1)) cache.transparent.push_back(vertices);
-                        if (v.a == 1) cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
+                        if ((v.image && textureImages_.at(v.image)->hasTransparency()) ||
+                            (v.a > 0 && v.a < 1))
+                            cache.transparent.push_back(vertices);
+                        if (v.a == 1)
+                            cache.opaque.insert(cache.opaque.end(), vertices.begin(),
+                                                vertices.end());
                         return;
                     }
                     const auto crossProduct =
@@ -1052,8 +1078,8 @@ void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool
             batch.runs.push_back({int(packed.size()), 0, v.image, v.backImage});
         ++batch.runs.back().count;
         packed.push_back({float(v.x - renderOrigin_.x), float(v.y - renderOrigin_.y),
-                          float(v.z - renderOrigin_.z), v.r, v.g, v.b, v.a,
-                          v.br, v.bg, v.bb, v.ba, v.u, v.v, v.bu, v.bv, v.light, v.dim, v.backLight, v.reference});
+                          float(v.z - renderOrigin_.z), v.r, v.g, v.b, v.a, v.br, v.bg, v.bb, v.ba,
+                          v.u, v.v, v.bu, v.bv, v.light, v.dim, v.backLight, v.reference});
     }
     batch.buffer.bind();
     batch.buffer.allocate(packed.data(), int(packed.size() * sizeof(PackedVertex)));
@@ -1084,7 +1110,7 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count) {
     gl_->glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                           reinterpret_cast<void *>(11 * sizeof(float)));
     gl_->glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
-                          reinterpret_cast<void *>(15 * sizeof(float)));
+                               reinterpret_cast<void *>(15 * sizeof(float)));
     shader_->setUniformValue("rasterExport", rasterSize_.isEmpty() ? 0 : 1);
     shader_->setUniformValue("wireframe", doc_.style().mode == ModelStyleMode::Wireframe ? 1 : 0);
     shader_->setUniformValue("frontImage", 0);
@@ -1629,7 +1655,8 @@ void Viewport::fit() {
         for (auto [vid, local] : b->surface.vertices)
             include(local);
         if (b->referenceImage)
-            for (const auto point : referenceImageCorners(*b->referenceImage, {})) include(point);
+            for (const auto point : referenceImageCorners(*b->referenceImage, {}))
+                include(point);
         if (guidesVisible_)
             for (const auto &[gid, guide] : b->guides)
                 include(guide.origin);

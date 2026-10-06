@@ -88,7 +88,8 @@ void Viewport::drawSolarShadowMap(const QMatrix4x4 &viewMatrix) {
         hasCaster = true;
     };
     for (const auto &[id, cache] : bodyCaches_) {
-        if (cache->record->referenceImage) continue;
+        if (cache->record->referenceImage)
+            continue;
         for (size_t i = 0; i + 2 < cache->opaque.size(); i += 3)
             include(cache->opaque[i], cache->opaque[i + 1], cache->opaque[i + 2]);
         for (const auto &triangle : cache->transparent)
