@@ -1,7 +1,7 @@
 # 0052 — Smooth shading derives bounded corner normals
 
 Status: R057.g local kernel, native display and Blender acceptance pass. Native hide/soften/reveal
-controls and explicit edge display follow in a subsequent R057 layer.
+controls and explicit edge display are implemented in R057.h.
 
 `ShadingNormals` derives area-weighted normals from a body's surface, persistent
 edge topology and independent smooth flags. It never modifies positions, face

@@ -116,6 +116,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void setPaintMaterial(Id material, int side);
     void editMaterials(const QJsonArray &commands);
     void applyMaterialToSelection();
+    void setSelectedEdgeAppearance(const QString &flag, bool value);
     void setPersistentState(bool hide, bool lock);
     void revealPersistentEntities();
     void unlockPersistentEntities();
@@ -279,9 +280,9 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
         };
         std::vector<MeshEdge> localEdges, worldEdges;
         Bounds bounds;
-        std::vector<Vertex> opaque, lines;
+        std::vector<Vertex> opaque, lines, hiddenLines;
         std::vector<std::array<Vertex, 3>> transparent;
-        GpuBatch opaqueGpu, linesGpu;
+        GpuBatch opaqueGpu, linesGpu, hiddenLinesGpu;
         float alpha{1};
         std::uint64_t presentationRevision{};
     };
