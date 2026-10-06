@@ -85,6 +85,8 @@ Change appendCopy(const BodyPtr &old, const Body &geometry, GeometryCopies &mapp
     for (const auto &[id, edge] : geometry.topology.edges) {
         auto a = mapping.vertices.at(edge.a), b = mapping.vertices.at(edge.b);
         mapping.edges[id] = edgeIds.at({std::min(a, b), std::max(a, b)});
+        if (geometry.edgeAppearances.contains(id))
+            body->edgeAppearances[mapping.edges[id]] = geometry.edgeAppearances.at(id);
     }
     for (const auto &[id, curve] : geometry.curves) {
         auto record = curve;

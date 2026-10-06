@@ -31,6 +31,8 @@ std::shared_ptr<Body> extractGeometry(const Body &source, const GeometrySubset &
             surface.wires.push_back({record.a, record.b});
         }
     result->topology = Topology::rebuild(surface, source.topology, source.topology.nextId);
+    std::erase_if(result->edgeAppearances,
+                  [&](const auto &entry) { return !result->topology.edges.contains(entry.first); });
     for (auto vertex : part.explicitVertices)
         if (std::none_of(result->topology.edges.begin(), result->topology.edges.end(),
                          [&](const auto &item) {

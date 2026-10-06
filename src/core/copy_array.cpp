@@ -63,7 +63,7 @@ ArrayResult copyArraySelected(Document &doc, const TransformTargets &targets,
     for (const auto &[id, body] : staged.bodies()) {
         const auto old = doc.bodies().contains(id) ? doc.bodies().at(id) : nullptr;
         if (old != body)
-            edit.changes.push_back({id, old, body});
+            edit.changes.push_back({id, old, body, {}, {}, {}, true});
     }
     for (auto &instance : result.instances) {
         for (const auto &[id, copies] : instance.geometryCopies) {

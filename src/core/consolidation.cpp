@@ -1,5 +1,6 @@
 #include "core/consolidation.hpp"
 #include "core/appearance.hpp"
+#include "core/edge_appearance.hpp"
 #include "core/selection.hpp"
 #include "core/tags.hpp"
 #include <algorithm>
@@ -125,6 +126,7 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
     std::map<std::array<Id, 2>, Id> edges;
     for (const auto &[id, edge] : merged->topology.edges)
         edges[{edge.a, edge.b}] = id;
+    std::map<Id, EdgeAppearance> styles;
     for (auto sourceId : sources) {
         const auto &source = *doc.bodies().at(sourceId);
         auto &map = result.transfers.at(sourceId);
@@ -133,8 +135,15 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
                 target = cleaned.vertices.at(target).front();
         for (const auto &[id, edge] : source.topology.edges) {
             const auto a = map.vertices.at(edge.a), b = map.vertices.at(edge.b);
-            if (a != b)
-                map.edges[id] = edges.at({std::min(a, b), std::max(a, b)});
+            if (a != b) {
+                const auto target = edges.at({std::min(a, b), std::max(a, b)});
+                map.edges[id] = target;
+                const auto style = edgeAppearance(source, id);
+                const auto [it, added] = styles.emplace(target, style);
+                if (!added && it->second != style)
+                    throw std::runtime_error(
+                        "Merged edges have different appearances; make their flags alike first");
+            }
         }
         for (const auto &[id, curve] : source.curves) {
             auto &copy = merged->curves.at(map.curves.at(id));
@@ -149,7 +158,11 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
             }
         }
     }
-    Change target{destination, old, merged};
+    merged->edgeAppearances.clear();
+    for (const auto &[id, style] : styles)
+        if (style != EdgeAppearance{})
+            merged->edgeAppearances[id] = style;
+    Change target{destination, old, merged, {}, {}, {}, true};
     for (const auto &[id, descendants] : cleaned.vertices)
         if (old->surface.vertices.contains(id))
             target.vertexDescendants[id] = descendants;
@@ -177,6 +190,7 @@ ConsolidationResult consolidateContext(Document &doc, Id context,
         empty->surface.faces.clear();
         empty->surface.wires.clear();
         empty->topology.edges.clear();
+        empty->edgeAppearances.clear();
         empty->faceColors.clear();
         empty->faceMaterials.clear();
         empty->curves.clear();

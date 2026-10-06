@@ -462,9 +462,9 @@ int main(int argc, char **argv) {
         auto records = legacy["bodies"].toArray();
         for (int i = 0; i < records.size(); ++i) {
             auto body = records[i].toObject();
-            for (const auto &key :
-                 {"parent", "transform", "properties", "nextEdgeId", "edges", "curves", "guides",
-                  "kind", "hidden", "locked", "faceColors", "tag", "materials", "faceMaterials"})
+            for (const auto &key : {"parent", "transform", "properties", "nextEdgeId", "edges",
+                                    "curves", "guides", "kind", "hidden", "locked", "faceColors",
+                                    "tag", "materials", "faceMaterials", "edgeAppearances"})
                 body.remove(key);
             records[i] = body;
         }

@@ -11,6 +11,9 @@ struct Change {
     Id id;
     BodyPtr before, after;
     std::map<Id, std::vector<Id>> faceDescendants{}, vertexDescendants{}, edgeDescendants{};
+    // True for validated snapshots/composed edits. Do not re-inherit metadata
+    // that a later operation in the same transaction intentionally changed.
+    bool edgeAppearancesResolved{};
 };
 struct DefinitionChange {
     Id id{};

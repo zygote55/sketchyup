@@ -98,6 +98,13 @@ int main(int argc, char **argv) {
         root.remove("displayUnits");
         rejects([&] { decodeDocument(QJsonDocument(root).toJson()); });
         root["version"] = 11;
+        auto legacyBodies = root["bodies"].toArray();
+        for (qsizetype i = 0; i < legacyBodies.size(); ++i) {
+            auto body = legacyBodies[i].toObject();
+            body.remove("edgeAppearances");
+            legacyBodies[i] = body;
+        }
+        root["bodies"] = legacyBodies;
         check(decodeDocument(QJsonDocument(root).toJson()).displayUnits() == DisplayUnit::Meters,
               "Legacy raw schema defaults to meters");
         check(
