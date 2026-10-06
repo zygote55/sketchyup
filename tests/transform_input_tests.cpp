@@ -20,7 +20,14 @@ bool sameContent(const Body &a, const Body &b) {
     return a == expected;
 }
 void click(Viewport &view, Vec3 point) {
-    QTest::mouseClick(&view, Qt::LeftButton, {}, view.project(point).toPoint());
+    // Keep fractional logical pixels: rounding the baseline changes the scale ratio,
+    // especially at DPR 2. Deliver the same widget events as pointer motion below.
+    const auto at = view.project(point);
+    const auto global = view.mapToGlobal(at);
+    QMouseEvent press(QEvent::MouseButtonPress, at, global, Qt::LeftButton, Qt::LeftButton, {});
+    QCoreApplication::sendEvent(&view, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, at, global, Qt::LeftButton, Qt::NoButton, {});
+    QCoreApplication::sendEvent(&view, &release);
     QCoreApplication::processEvents();
 }
 void movePointer(Viewport &view, Vec3 point) {
