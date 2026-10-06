@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
               "Unchecked properties omitted from scene");
         const auto history = doc.history().total;
         view->recallSavedScene(first);
-        check(view->captureSceneSnapshot(true, true, true, true) == initial &&
+        check(view->captureSceneSnapshot(true, true, true, true, true) == initial &&
                   doc.history().total == history + 1,
               "Recall restores opted-in camera, visibility, style and section");
         doc.undo();
@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
               "Clicking selected tab recalls again after navigation");
         tabs->setFocus();
         QTest::keyClick(tabs, Qt::Key_Left);
-        check(view->captureSceneSnapshot(true, true, true, true) == initial,
+        check(view->captureSceneSnapshot(true, true, true, true, true) == initial,
               "Viewport scene tabs support keyboard recall");
         choose(window, second);
         click(window, "sceneEarlierButton");
