@@ -1,0 +1,38 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 4.011
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 6.135
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 6.541
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 7.14
+  }
+]
