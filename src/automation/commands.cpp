@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "io/model_style_io.hpp"
+#include "automation/scene_commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/entity_info.hpp"
 #include "automation/hosted_commands.hpp"
@@ -675,6 +676,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             for (const auto &step : recipe.steps)
                 compose(decodedChanges(step.toObject()["changes"].toObject()));
             recipeOperations.append(recipe.report);
+        } else if (isSavedSceneCommand(name)) {
+            executeSavedSceneCommand(staged, command);
         } else if (name == "document.style") {
             staged.setStyle(decodeModelStyle(command["style"]));
         } else if (name == "document.units") {
@@ -1410,7 +1413,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                         throw std::runtime_error("Place measurement assertions in the outer batch on "
                                                  "the materialized instance");
                     if (isHostedCommand(nested.toString()) ||
-                        nested.toString().startsWith("assembly.") || nested == "component.edit" ||
+                        nested.toString().startsWith("assembly.") ||
+                        nested.toString().startsWith("saved_scene.") || nested == "component.edit" ||
                         nested == "component.edit_instance" || nested == "component.axes" ||
                         (nested.toString().startsWith("tag.") && nested != "tag.assign"))
                         throw std::runtime_error(
@@ -1619,6 +1623,10 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     for (const auto &change : edit.changes)
         if (!change.before && change.after)
             created.append(QString::number(change.id));
+    QJsonArray createdScenes;
+    for (const auto &change : edit.scenes)
+        if (!change.before && change.after)
+            createdScenes.append(QString::number(change.id));
     QJsonArray createdDefinitions;
     for (const auto &change : edit.definitions)
         if (!change.before && change.after)
@@ -1698,6 +1706,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdTags", createdTags},
                 {"createdMaterials", createdMaterials},
                 {"createdAssets", createdAssets},
+                {"createdScenes", createdScenes},
                 {"recipeOperations", recipeOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
@@ -1757,6 +1766,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"createdTags", createdTags},
                        {"createdMaterials", createdMaterials},
                        {"createdAssets", createdAssets},
+                {"createdScenes", createdScenes},
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
                        {"assertions", assertions},

@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/scene_commands.hpp"
 #include "core/copy_array.hpp"
 namespace sketchy {
 namespace {
@@ -134,6 +135,22 @@ QJsonArray commandCatalog() {
               {"tolerance", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1},
                   {"description", "Explicit absolute tolerance in m, m2 or m3; bounds compare each axis"}}}},
              {"body", "space", "metric", "expected", "tolerance"}),
+        spec("saved_scene.create", "Create a selective saved scene", "Saved scenes",
+             {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
+              {"snapshot", savedSceneSnapshotSchema(modelStyleSchema())}}, {"name", "snapshot"}),
+        spec("saved_scene.rename", "Rename a saved scene", "Saved scenes",
+             {{"scene", stableId()},
+              {"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}}},
+             {"scene", "name"}),
+        spec("saved_scene.update", "Replace a saved scene's opted-in properties", "Saved scenes",
+             {{"scene", stableId()}, {"snapshot", savedSceneSnapshotSchema(modelStyleSchema())}},
+             {"scene", "snapshot"}),
+        spec("saved_scene.reorder", "Order all saved scenes", "Saved scenes",
+             {{"order", list(stableId(), 0, 256)}}, {"order"}),
+        spec("saved_scene.delete", "Delete a saved scene", "Saved scenes",
+             {{"scene", stableId()}}, {"scene"}),
+        spec("saved_scene.recall", "Recall saved model style and intrinsic visibility", "Saved scenes",
+             {{"scene", stableId()}}, {"scene"}),
         spec("document.style", "Change model style", "Document",
              {{"style", modelStyleSchema()}}, {"style"}),
         spec("document.units", "Change document units", "Document",

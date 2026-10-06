@@ -74,4 +74,38 @@ void eraseScene(Document &doc, Id id) {
     }
     doc.apply(std::move(edit), doc.revision());
 }
+Edit sceneRecallEdit(const Document &doc, Id id) {
+    const auto scene = requireScene(doc, id);
+    Edit edit{"Recall scene", {}};
+    const auto &snapshot = scene->snapshot;
+    if (snapshot.style && *snapshot.style != doc.style())
+        edit.style = std::pair{doc.style(), *snapshot.style};
+    if (snapshot.visibility) {
+        for (const auto &[body, visible] : snapshot.visibility->bodyVisible) {
+            if (!doc.bodies().contains(body) || doc.bodies().at(body)->hidden == !visible)
+                continue;
+            const auto before = doc.bodies().at(body);
+            auto after = std::make_shared<Body>(*before);
+            after->hidden = !visible;
+            edit.changes.push_back({body, before, after});
+        }
+        for (const auto &[tag, visible] : snapshot.visibility->tagVisible) {
+            if (!doc.tags().contains(tag) || doc.tags().at(tag)->visible == visible)
+                continue;
+            const auto before = doc.tags().at(tag);
+            auto after = std::make_shared<TagRecord>(*before);
+            after->visible = visible;
+            edit.tags.push_back({tag, before, after});
+        }
+    }
+    return edit;
+}
+bool sceneRecallChangesModel(const Edit &edit) {
+    return !edit.changes.empty() || !edit.tags.empty() || edit.style.has_value();
+}
+void recallSceneModel(Document &doc, Id id) {
+    auto edit = sceneRecallEdit(doc, id);
+    if (sceneRecallChangesModel(edit))
+        doc.apply(std::move(edit), doc.revision());
+}
 } // namespace sketchy

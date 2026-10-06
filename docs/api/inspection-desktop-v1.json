@@ -45,6 +45,153 @@
             "sideEffects": "none"
         },
         {
+            "name": "saved_scenes.query",
+            "paged": true,
+            "parameters": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "saved_scenes.query"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "requiresRevision": true,
+            "sideEffects": "none"
+        },
+        {
+            "name": "saved_scene.describe",
+            "paged": false,
+            "parameters": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "saved_scene.describe"
+                    },
+                    "scene": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "scene",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "requiresRevision": true,
+            "sideEffects": "none"
+        },
+        {
+            "name": "saved_scene.visibility",
+            "paged": true,
+            "parameters": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "cursor": {
+                        "maxLength": 512,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "limit": {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                    },
+                    "query": {
+                        "const": "saved_scene.visibility"
+                    },
+                    "scene": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "scene",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "requiresRevision": true,
+            "sideEffects": "none"
+        },
+        {
             "name": "selection.get",
             "paged": true,
             "parameters": {
