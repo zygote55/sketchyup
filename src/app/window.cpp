@@ -667,6 +667,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         findChild<QAction *>("view.tray")->setChecked(true);
         organization_->showScenes();
     }));
+    view->addAction(action("view.sections", "Section planes", {}, [this] {
+        sideTabs_->show();
+        sideTabs_->setCurrentWidget(tray_);
+        tray_->show();
+        findChild<QAction *>("view.tray")->setChecked(true);
+        organization_->showSections();
+    }));
     auto *reducedMotion = action("view.reduced_motion", "Reduced camera motion", {}, [this] {
         const auto enabled = findChild<QAction *>("view.reduced_motion")->isChecked();
         QSettings().setValue("reducedMotion", enabled);

@@ -4,6 +4,7 @@
 #include "app/materials_panel.hpp"
 #include "app/styles_panel.hpp"
 #include "app/scenes_panel.hpp"
+#include "app/sections_panel.hpp"
 #include "core/groups.hpp"
 #include <QAction>
 #include <QComboBox>
@@ -256,9 +257,12 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tabs_->addTab(styles_, "Styles");
     scenes_ = new ScenesPanel(doc_, view_);
     tabs_->addTab(scenes_, "Scenes");
+    sections_ = new SectionsPanel(doc_, view_);
+    tabs_->addTab(sections_, "Sections");
     setFocusProxy(outliner_);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
-        setFocusProxy(index == 6 ? static_cast<QWidget *>(scenes_)
+        setFocusProxy(index == 7 ? static_cast<QWidget *>(sections_)
+                      : index == 6 ? static_cast<QWidget *>(scenes_)
                       : index == 5 ? static_cast<QWidget *>(styles_)
                       : index == 4   ? static_cast<QWidget *>(history_)
                       : index == 3 ? static_cast<QWidget *>(materials_)
@@ -488,6 +492,7 @@ void OrganizationPanel::filter() {
 void OrganizationPanel::showMaterials() { tabs_->setCurrentWidget(materials_); }
 void OrganizationPanel::showStyles() { tabs_->setCurrentWidget(styles_); }
 void OrganizationPanel::showScenes() { tabs_->setCurrentWidget(scenes_); }
+void OrganizationPanel::showSections() { tabs_->setCurrentWidget(sections_); }
 void OrganizationPanel::showHistory() {
     tabs_->setCurrentWidget(history_);
     history_->setFocus();
@@ -596,6 +601,7 @@ void OrganizationPanel::refresh() {
     materials_->refresh();
     styles_->refresh();
     scenes_->refresh();
+    sections_->refresh();
     // Save acknowledgements can move the saved marker without advancing content revision.
     history_->refresh(true);
 }

@@ -152,6 +152,7 @@ class Viewport : public QOpenGLWidget {
     void refresh();
     SceneSnapshot captureSceneSnapshot(bool camera, bool visibility, bool style, bool section) const;
     QJsonObject editSavedScenes(const QJsonArray &commands);
+    QJsonObject editSections(const QJsonArray &commands);
     void recallSavedScene(Id scene);
     void setReducedMotion(bool enabled);
     void setAssistantPreview(std::shared_ptr<const Document::PreparedEdit> edit);
@@ -350,10 +351,21 @@ class Viewport : public QOpenGLWidget {
         std::vector<std::array<Vertex, 3>> transparent;
         GpuBatch opaqueGpu, linesGpu, hiddenLinesGpu;
         size_t mappingFallbacks{};
+        std::vector<SectionCut> sectionCuts;
+        SectionRecords sections;
+        SectionMesh sectionMesh;
+        std::vector<std::pair<Id, Triangle>> sectionCaps;
+        QString sectionError;
         float alpha{1};
         std::uint64_t presentationRevision{};
     };
     std::map<Id, std::unique_ptr<BodyCache>> bodyCaches_;
+    void prepareSections(Id body, BodyCache &cache);
+    bool sectionOccludes(Vec3 origin, Vec3 direction, double target) const;
+    static std::array<Vertex, 3> clippedVertices(const std::array<Vertex, 3> &source,
+                                                const SectionTriangle &triangle);
+    std::array<Vertex, 3> sectionCapVertices(Id body, const SectionTriangle &triangle,
+                                           float alpha) const;
     bool gridDirty_{true};
     QMetaObject::Connection contextCleanup_;
     QOpenGLVertexArrayObject vao_;
@@ -502,8 +514,8 @@ class Viewport : public QOpenGLWidget {
     double guideMeasurement(Vec3 end) const;
     QString guideMeasurementText(Vec3 end) const;
     void finishGuide(Vec3 end);
-    std::optional<std::array<QPointF, 2>> guideSegment(const Guide &guide) const;
-    void paintGuide(QPainter &painter, const Guide &guide) const;
+    std::optional<std::array<QPointF, 2>> guideSegment(const Guide &guide, Id body = 0) const;
+    void paintGuide(QPainter &painter, const Guide &guide, Id body = 0) const;
     void paintGuides(QPainter &painter) const;
     size_t inferenceCount() const { return inference_.candidates.size() + directions_.size(); }
     void armReference();
@@ -523,7 +535,7 @@ class Viewport : public QOpenGLWidget {
     void upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent = false);
     void draw(GpuBatch &batch, GLenum mode, int instances = 1);
     void sortTransparent(const QMatrix4x4 &matrix);
-    bool clipped(Vec3 point) const;
+    bool clipped(Vec3 point, Id body = 0) const;
     void finishShape(Vec3 end, std::optional<QJsonObject> command = std::nullopt);
     QJsonObject shapeCommand(Vec3 end) const;
     QJsonObject extrusionCommand(double distance) const;

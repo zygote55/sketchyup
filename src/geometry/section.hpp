@@ -17,6 +17,7 @@ struct SectionPlane {
 struct SectionCut {
     Id id{};
     SectionPlane plane;
+    bool operator==(const SectionCut &) const = default;
 };
 struct SectionVertex {
     Vec3 point;

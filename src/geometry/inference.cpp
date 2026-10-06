@@ -298,6 +298,9 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
                    bool otherGuide = false) {
         if (plane && std::abs(dot(p - plane->origin, plane->normal)) > tolerance)
             return;
+        if (q.pointVisible && (!q.pointVisible(body, p) ||
+                              (otherBody && !q.pointVisible(otherBody, p))))
+            return;
         const auto screen = q.camera.project(p);
         if (!screen)
             return;
@@ -476,9 +479,12 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
                 ++result.visitedPrimitives;
                 if (p.kind == InferenceKind::OnFace && visiblePrimitive(body, p))
                     if (auto t = triangleHit(eye, ray, p.a, p.b, p.c);
-                        t && *t < target - std::max(tolerance, target * 1e-8))
+                        t && *t < target - std::max(tolerance, target * 1e-8) &&
+                        (!q.pointVisible || q.pointVisible(body, eye + ray * *t)))
                         occluded = true;
             });
+        if (!overlay && !occluded && q.extraOcclusion)
+            occluded = q.extraOcclusion(eye, ray, target);
         if (!occluded)
             visible.push_back(candidate);
         if (visible.size() == 32) {

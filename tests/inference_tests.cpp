@@ -81,6 +81,16 @@ int main(int argc, char **argv) {
         check(has(index.query(policy), InferenceKind::Center, {}),
               "Hidden face does not occlude visible geometry");
         policy.visible = {};
+        policy.pointVisible = [](Id body, Vec3 point) { return body != 2 || point.z < .5; };
+        check(has(index.query(policy), InferenceKind::Center, {}),
+              "Clipped ray intersections no longer occlude retained inference");
+        check(!has(index.query(policy), InferenceKind::OnFace, {0, 0, 1}),
+              "Removed surface points are not inference candidates");
+        policy.extraOcclusion = [](Vec3, Vec3, double) { return true; };
+        check(index.query(policy).candidates.empty(),
+              "Derived section surfaces can occlude native candidates");
+        policy.pointVisible = {};
+        policy.extraOcclusion = {};
         policy.eligible = [](Id body, InferenceEntity, Id) { return body != 2; };
         check(index.query(policy).candidates.empty(),
               "Visible locked geometry still occludes eligible geometry");

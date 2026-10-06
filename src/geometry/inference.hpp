@@ -40,6 +40,10 @@ struct InferenceQuery {
     bool includeGuides{true};
     // Optional editor view policy. Visible but ineligible faces still occlude.
     std::function<bool(Id, InferenceEntity, Id)> visible{}, eligible{};
+    // View clipping affects both candidate points and occluding ray intersections.
+    std::function<bool(Id, Vec3)> pointVisible{};
+    // Derived surfaces (for example section caps) may occlude native inference.
+    std::function<bool(Vec3, Vec3, double)> extraOcclusion{};
 };
 struct InferenceResult {
     std::vector<InferenceCandidate> candidates;

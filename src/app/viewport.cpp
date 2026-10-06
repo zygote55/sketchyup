@@ -462,6 +462,15 @@ void Viewport::beginChain() {
 Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
     auto [o, d] = ray(p);
     FaceHit hit;
+    std::vector<std::pair<Id, Triangle>> caps;
+    auto rememberCaps = [&](Id body, const SectionMesh &mesh) {
+        if (doc_.style().mode == ModelStyleMode::Wireframe)
+            return;
+        for (const auto &triangle : mesh.triangles)
+            if (triangle.source == noSectionSource && doc_.sections().at(triangle.section)->fill)
+                caps.push_back({body, {triangle.vertices[0].point, triangle.vertices[1].point,
+                                      triangle.vertices[2].point, 0}});
+    };
     auto intersect = [&](const Triangle &t, const Triangle &local, Id body) {
         if (!visible({body, SelectionKind::Face, t.face}))
             return;
@@ -483,7 +492,7 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
         const bool nearer = distance < hit.distance - tolerance;
         const bool tied = std::abs(distance - hit.distance) <= tolerance &&
                           std::pair{body, t.face} > std::pair{hit.body, hit.face};
-        if (distance > 0 && (nearer || tied) && !clipped(o + d * distance)) {
+        if (distance > 0 && (nearer || tied) && !clipped(o + d * distance, body)) {
             const bool back = (a < 0) != (doc_.worldTransform(body).determinant() < 0);
             const auto &record = *doc_.bodies().at(body);
             if (surfaceAppearance(doc_.materials(), record, t.face, back).opacity == 0)
@@ -507,17 +516,33 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
             if (cachedDocument_ == doc_.identity() && opacity_.contains(id) && opacity_.at(id) == 0)
                 continue;
             const auto world = doc_.worldTransform(id);
-            for (const auto &local : body->surface.triangles()) {
-                auto triangle = local;
-                triangle.a = world.point(local.a);
-                triangle.b = world.point(local.b);
-                triangle.c = world.point(local.c);
-                intersect(triangle, local, id);
+            const auto local = body->surface.triangles();
+            auto transformed = local;
+            for (auto &triangle : transformed) {
+                triangle.a = world.point(triangle.a);
+                triangle.b = world.point(triangle.b);
+                triangle.c = world.point(triangle.c);
             }
+            const auto cuts = effectiveSectionCuts(doc_, id);
+            if (!cuts.empty()) {
+                auto source = transformed;
+                std::erase_if(source, [&](const auto &triangle) {
+                    return !visible({id, SelectionKind::Face, triangle.face});
+                });
+                try {
+                    rememberCaps(id, sectionMesh(source, cuts));
+                } catch (const std::exception &) {
+                    // The queued repaint reports the bounded-kernel failure. Do
+                    // not select geometry which that view cannot display.
+                    continue;
+                }
+            }
+            for (size_t i = 0; i < transformed.size(); ++i)
+                intersect(transformed[i], local[i], id);
         }
     } else
         for (const auto &[id, cache] : bodyCaches_) {
-            if (cache->alpha == 0 || !cache->bounds.valid)
+            if (cache->alpha == 0 || !cache->bounds.valid || !cache->sectionError.isEmpty())
                 continue;
             double low = 0, high = INFINITY;
             for (auto values :
@@ -541,7 +566,23 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
                 continue;
             for (size_t i = 0; i < cache->worldTriangles.size(); ++i)
                 intersect(cache->worldTriangles[i], cache->localTriangles[i], id);
+            rememberCaps(id, cache->sectionMesh);
         }
+    for (const auto &[body, triangle] : caps) {
+        const auto e1 = triangle.b - triangle.a, e2 = triangle.c - triangle.a;
+        const auto h = cross(d, e2);
+        const auto determinant = dot(e1, h);
+        if (std::abs(determinant) <= length(e1) * length(e2) * 1e-12)
+            continue;
+        const auto relative = o - triangle.a;
+        const auto u = dot(relative, h) / determinant;
+        const auto q = cross(relative, e1);
+        const auto v = dot(d, q) / determinant;
+        const auto distance = dot(e2, q) / determinant;
+        if (u >= 0 && v >= 0 && u + v <= 1 && distance > 0 &&
+            distance < hit.distance - tolerance && !clipped(o + d * distance, body))
+            hit = {0, 0, distance}; // Cap occludes native face tools without inventing a face ID.
+    }
     return hit;
 }
 std::pair<Id, Id> Viewport::pick(QPointF point) const {
@@ -575,6 +616,7 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
         throw std::runtime_error("Edge pick radius must be between 0 and 64 logical pixels");
     std::pair<Id, Id> hit{};
     double best = radius * radius, nearest = INFINITY;
+    std::map<Id, std::vector<SectionCut>> cutsByBody;
     const auto transform = matrix();
     auto candidate = [&](Id body, Id edge, Vec3 a, Vec3 b) {
         if (!selectable({body, SelectionKind::Edge, edge}))
@@ -594,6 +636,12 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
         for (int axis = 0; axis < 3; ++axis)
             if (!clip(ca.w() + ca[axis], cb.w() + cb[axis]) ||
                 !clip(ca.w() - ca[axis], cb.w() - cb[axis]))
+                return;
+        auto [cuts, inserted] = cutsByBody.try_emplace(body);
+        if (inserted)
+            cuts->second = effectiveSectionCuts(doc_, body);
+        for (const auto &cut : cuts->second)
+            if (!clip(cut.plane.distance(a), cut.plane.distance(b)))
                 return;
         if (clipPlane_) {
             const auto &p = *clipPlane_;
@@ -631,7 +679,7 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
             return;
         const auto face = nearestFace(nearestPixel);
         // A small depth tolerance accommodates the float projection and edge bias.
-        if (face.body && face.distance < depth - std::max(1e-5, depth * 1e-5))
+        if (face.distance < depth - std::max(1e-5, depth * 1e-5))
             return;
         best = distanceSquared;
         nearest = depth;
@@ -648,7 +696,7 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
         }
     } else
         for (const auto &[id, cache] : bodyCaches_) {
-            if (cache->alpha == 0)
+            if (cache->alpha == 0 || !cache->sectionError.isEmpty())
                 continue;
             for (const auto &edge : cache->worldEdges)
                 candidate(id, edge.id, edge.a, edge.b);
@@ -734,7 +782,12 @@ void Viewport::rebuild() {
         for (const auto &[material, record] : materials)
             if (record->asset && textureImages_.contains(record->asset))
                 images.emplace(record->asset, textureImages_.at(record->asset));
-        const bool appearanceChanged = worldChanged || topologyChanged || !cache.record ||
+        const auto cuts = effectiveSectionCuts(doc_, id);
+        SectionRecords sections;
+        for (const auto &cut : cuts)
+            sections.emplace(cut.id, doc_.sections().at(cut.id));
+        const bool appearanceChanged = cache.sectionCuts != cuts || cache.sections != sections ||
+                                       worldChanged || topologyChanged || !cache.record ||
                                        cache.record->color != body->color ||
                                        cache.record->faceColors != body->faceColors ||
                                        cache.record->materials != body->materials ||
@@ -773,6 +826,9 @@ void Viewport::rebuild() {
             }
         }
         if (appearanceChanged) {
+            cache.sectionCuts = cuts;
+            cache.sections = std::move(sections);
+            prepareSections(id, cache);
             transparentDirty_ = true;
             cache.mappingFallbacks = 0;
             cache.opaque.clear();
@@ -789,17 +845,16 @@ void Viewport::rebuild() {
                         inverse.m[8] * n.x + inverse.m[9] * n.y + inverse.m[10] * n.z};
                     return transformed * (1 / length(transformed));
                 };
-                for (size_t triangleIndex = 0; triangleIndex < cache.worldTriangles.size();
-                     ++triangleIndex) {
+                auto appendTriangle = [&](size_t triangleIndex, const SectionTriangle *cut) {
                     const auto &triangle = cache.worldTriangles[triangleIndex];
                     const SelectedEntity entity{id, SelectionKind::Face, triangle.face};
                     if (!visible(entity))
-                        continue;
+                        return;
                     const auto crossProduct =
                         cross(triangle.b - triangle.a, triangle.c - triangle.a);
                     const auto magnitude = length(crossProduct);
                     if (magnitude == 0)
-                        continue;
+                        return;
                     const auto normals = shading.triangle(cache.localTriangles[triangleIndex]);
                     auto front = surfaceAppearance(doc_.materials(), *body, triangle.face);
                     auto back = surfaceAppearance(doc_.materials(), *body, triangle.face, true);
@@ -836,6 +891,8 @@ void Viewport::rebuild() {
                     }
                     textureVertices(*body, cache.localTriangles[triangleIndex],
                                     world.determinant() < 0, vertices);
+                    if (cut)
+                        vertices = clippedVertices(vertices, *cut);
                     const auto &first = vertices[0];
                     bool imageTransparency = false;
                     for (const auto side : {std::pair{front.material, first.image},
@@ -852,6 +909,27 @@ void Viewport::rebuild() {
                         cache.transparent.push_back(vertices);
                     if (front.opacity == 1 || back.opacity == 1)
                         cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
+                };
+                if (cache.sectionCuts.empty()) {
+                    for (size_t i = 0; i < cache.worldTriangles.size(); ++i)
+                        appendTriangle(i, nullptr);
+                } else if (cache.sectionError.isEmpty()) {
+                    for (const auto &triangle : cache.sectionMesh.triangles) {
+                        if (triangle.source != noSectionSource) {
+                            appendTriangle(triangle.source, &triangle);
+                        } else if (cache.sections.at(triangle.section)->fill) {
+                            const auto vertices = sectionCapVertices(id, triangle, alpha);
+                            if (vertices[0].a == 1)
+                                cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
+                            else if (vertices[0].a > 0)
+                                cache.transparent.push_back(vertices);
+                        }
+                    }
+                    for (const auto &edge : cache.sectionMesh.edges)
+                        if (cache.sections.at(edge.section)->edges) {
+                            cache.lines.push_back(vertex(edge.a, doc_.style().edge));
+                            cache.lines.push_back(vertex(edge.b, doc_.style().edge));
+                        }
                 }
                 for (const auto &edge : cache.worldEdges) {
                     const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
@@ -862,8 +940,12 @@ void Viewport::rebuild() {
                             ? std::array<float, 3>{.56f, .58f, .60f}
                             : doc_.style().edge;
                     auto &lines = selection_.hidden(doc_, entity) ? cache.hiddenLines : cache.lines;
-                    lines.push_back(vertex(edge.a, color));
-                    lines.push_back(vertex(edge.b, color));
+                    if (!cache.sectionError.isEmpty())
+                        continue;
+                    if (const auto segment = sectionSegment(edge.a, edge.b, cache.sectionCuts)) {
+                        lines.push_back(vertex((*segment)[0], color));
+                        lines.push_back(vertex((*segment)[1], color));
+                    }
                 }
             }
         }
@@ -1243,7 +1325,8 @@ void Viewport::paintScene() {
                 const auto &guide = body.guides.at(constraint.entity);
                 if (guide.kind == GuideKind::Line)
                     paintGuide(p,
-                               guideLine(world.point(guide.origin), world.vector(guide.direction)));
+                               guideLine(world.point(guide.origin), world.vector(guide.direction)),
+                               constraint.body);
             } else if (constraint.entityType == InferenceEntity::Edge)
                 highlight(constraint.entity);
             else if (constraint.kind == DirectionKind::Tangent &&
@@ -2473,11 +2556,20 @@ void Viewport::setClipPlane(std::optional<std::array<double, 4>> plane) {
     clipPlane_ = plane;
     update();
 }
-bool Viewport::clipped(Vec3 point) const {
-    if (!clipPlane_)
+bool Viewport::clipped(Vec3 point, Id body) const {
+    if (clipPlane_) {
+        const auto &p = *clipPlane_;
+        if (p[0] * point.x + p[1] * point.y + p[2] * point.z + p[3] < 0)
+            return true;
+    }
+    if (doc_.activeSections().empty())
         return false;
-    auto p = *clipPlane_;
-    return p[0] * point.x + p[1] * point.y + p[2] * point.z + p[3] < 0;
+    if (!cacheDirty_ && cachedDocument_ == doc_.identity() &&
+        cachedRevision_ == doc_.revision() && bodyCaches_.contains(body)) {
+        const auto &cache = *bodyCaches_.at(body);
+        return !cache.sectionError.isEmpty() || !sectionContains(point, cache.sectionCuts);
+    }
+    return !sectionContains(point, effectiveSectionCuts(doc_, body));
 }
 void Viewport::benchmark(int count, bool instanced) {
     if (count < 1 || count > 1000000)

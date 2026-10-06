@@ -1,0 +1,326 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "section_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 2.88
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "section_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 4.163
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "section_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.511
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "section_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 6.032
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "section_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 1.896
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "section_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 4.245
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "section_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.804
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "section_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.589
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "section_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.116
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "section_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.149
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "section_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.847
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "section_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.069
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "section_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 0.847
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "section_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.287
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "section_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.667
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "section_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.965
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "selection_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.144
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "selection_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.501
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "selection_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.983
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "selection_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.682
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "inference_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 0.948
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "inference_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 2.888
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "inference_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.613
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "inference_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.777
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.059
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.37
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.833
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.143
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "texture_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.808
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.309
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "texture_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.576
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.166
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.621
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.276
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.347
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.75
+  }
+]
