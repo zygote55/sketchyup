@@ -47,6 +47,7 @@ jobs:
           blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-glb.py -- build/glb-fixtures
           blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-sides.py -- build/glb-fixtures
           blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-solar.py -- build/solar-oracle
+          blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-environment.py -- build/environment-oracle
       - name: Actual Blender worker lifecycle
         run: |
           SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^blender_real$' --output-on-failure

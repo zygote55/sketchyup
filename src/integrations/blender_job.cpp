@@ -66,16 +66,22 @@ void version(const QJsonObject &result) {
 }
 QJsonObject lightingReport(const QJsonObject &source) {
     const auto solar = source.value("solar").toObject();
-    if (!solar.value("enabled").toBool())
-        return {{"mode", "studio-v1"}, {"worldStrength", .25}};
-    const auto position = source.value("solarPosition").toObject();
-    return {{"mode", "solar-v1"},
-            {"worldStrength", .25},
-            {"energy", position.value("directLightActive").toBool() ? 3. : 0.},
-            {"angle", .00935},
-            {"shadows", position.value("shadowsActive")},
-            {"settings", solar},
-            {"position", position}};
+    const auto environment = source.value("environment").toObject();
+    const bool hdri = !environment.isEmpty(), sun = solar.value("enabled").toBool();
+    QJsonObject report{
+        {"mode", sun ? (hdri ? "solar-hdri-v1" : "solar-v1") : (hdri ? "hdri-v1" : "studio-v1")},
+        {"worldStrength", hdri ? environment.value("strength").toDouble() : .25}};
+    if (hdri)
+        report["environment"] = environment;
+    if (sun) {
+        const auto position = source.value("solarPosition").toObject();
+        report["energy"] = position.value("directLightActive").toBool() ? 3. : 0.;
+        report["angle"] = .00935;
+        report["shadows"] = position.value("shadowsActive");
+        report["settings"] = solar;
+        report["position"] = position;
+    }
+    return report;
 }
 std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const QString &directory,
                                             const QJsonObject &result,
@@ -99,8 +105,10 @@ std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const Q
                 preset.value("engine") == "CYCLES" && preset.value("threads") == 4,
             "Worker render preset mismatch");
     auto losses = source.value("losses").toObject();
-    if (expectedLighting.value("mode") == "solar-v1")
+    if (source.value("solar").toObject().value("enabled").toBool())
         losses["solarLightingOmitted"] = 0;
+    if (source.contains("environment"))
+        losses["environmentLightingOmitted"] = 0;
     require(result.value("lighting") == expectedLighting && result.value("losses") == losses,
             "Worker lighting or transfer report does not match the captured source");
     const auto image = result.value("image").toObject(),

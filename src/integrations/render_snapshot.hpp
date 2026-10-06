@@ -1,5 +1,6 @@
 #pragma once
 #include "core/selection.hpp"
+#include "integrations/render_environment.hpp"
 #include <QJsonObject>
 namespace sketchy {
 struct RenderSettings {
@@ -13,6 +14,7 @@ struct RenderCamera {
 struct RenderOptions {
     RenderSettings settings;
     std::optional<RenderCamera> camera;
+    std::optional<RenderEnvironment> environment;
 };
 void validateRenderSettings(const RenderSettings &settings);
 Transform renderCameraTransform(const RenderCamera &camera);
@@ -28,6 +30,7 @@ class RenderSnapshot {
     const Document &document() const { return document_; }
     const RenderSettings &settings() const { return settings_; }
     const RenderCamera &camera() const { return camera_; }
+    const std::optional<RenderEnvironment> &environment() const { return environment_; }
     bool visible(Id body, Id face = 0) const;
 
   private:
@@ -36,6 +39,7 @@ class RenderSnapshot {
     Document document_;
     RenderSettings settings_;
     RenderCamera camera_;
+    std::optional<RenderEnvironment> environment_;
     SelectionSet hidden_;
 };
 } // namespace sketchy

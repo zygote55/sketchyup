@@ -105,6 +105,21 @@ int fake(QCoreApplication &app, const QStringList &args) {
             losses["solarLightingOmitted"] = 0;
             result["losses"] = losses;
         }
+        if (source.contains("environment")) {
+            const auto environment = source["environment"].toObject();
+            auto lighting = result["lighting"].toObject();
+            lighting["mode"] =
+                source["solar"].toObject()["enabled"].toBool() ? "solar-hdri-v1" : "hdri-v1";
+            lighting["worldStrength"] = environment["strength"];
+            lighting["environment"] = environment;
+            result["lighting"] = lighting;
+            auto preset = result["preset"].toObject();
+            preset["name"] = lighting["mode"];
+            result["preset"] = preset;
+            auto losses = result["losses"].toObject();
+            losses["environmentLightingOmitted"] = 0;
+            result["losses"] = losses;
+        }
         if (mode == "lighting")
             result["lighting"] = QJsonObject{};
         if (mode == "losses")
@@ -181,6 +196,13 @@ int main(int argc, char **argv) {
         auto input = std::async(std::launch::async, [snapshot] {
                          return PreparedRender::prepare(snapshot);
                      }).get();
+        const auto hdrPath = files.filePath("environment.hdr");
+        QByteArray hdr = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 2\n";
+        for (int i = 0; i < 2; ++i)
+            hdr.append(char(128)).append(char(64)).append(char(32)).append(char(129));
+        write(hdrPath, hdr);
+        auto environment = readRenderEnvironment(hdrPath, .5, 90);
+        check(QFile::remove(hdrPath), "Remove original environment after capture");
         const auto sourceBytes = read(input->sourceDirectory() + "/scene.glb");
         int launcherSequence{};
         auto options = [&](const QString &mode) {
@@ -257,6 +279,23 @@ int main(int argc, char **argv) {
                           0 &&
                       read(solarInput->sourceDirectory() + "/scene.glb") == solarSource,
                   "Real sun render uses immutable captured settings and preserves GLB source");
+            render.environment = environment;
+            const auto environmentInput =
+                PreparedRender::prepare(RenderSnapshot::capture(document, render));
+            BlenderJob environmentJob;
+            environmentJob.start(environmentInput, real);
+            wait(environmentJob, 65000);
+            if (!environmentJob.result())
+                std::cerr << QJsonDocument(environmentJob.report()).toJson().constData();
+            check(
+                environmentJob.result() &&
+                    environmentJob.result()->manifest["lighting"].toObject()["environment"] ==
+                        environmentInput->manifest()["environment"] &&
+                    environmentJob.result()
+                            ->manifest["losses"]
+                            .toObject()["environmentLightingOmitted"] == 0 &&
+                    read(environmentInput->sourceDirectory() + "/environment.hdr") == hdr,
+                "Real worker renders packaged HDR after original removal and verifies conversion");
             real.backend = "METAL";
             real.deviceId = "deliberately-unavailable-test-device";
             BlenderJob fallback;
@@ -324,6 +363,16 @@ int main(int argc, char **argv) {
                           job.result()->manifest["lighting"].toObject()["settings"] ==
                               sunInput->manifest()["solar"],
                       "Verified result retains explicit sun settings and applied-lighting report");
+        }
+        render.environment = environment;
+        const auto environmentInput =
+            PreparedRender::prepare(RenderSnapshot::capture(document, render));
+        for (const auto &mode : {"success", "lighting", "losses"}) {
+            BlenderJob job;
+            job.start(environmentInput, options(mode));
+            wait(job);
+            check(bool(job.result()) == (QString(mode) == "success"),
+                  "HDR renders require captured environment and converted loss report");
         }
         for (const auto &mode : {"fallback", "fail", "crash"}) {
             BlenderJob job;
