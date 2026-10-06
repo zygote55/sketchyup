@@ -156,7 +156,7 @@ TextGeometry decodeTextGeometry(const QJsonObject &o) {
     size_t vertices{}, faces{};
     for (const auto &[id, body] : doc.bodies()) {
         require(body->kind == BodyKind::Geometry && body->name == "Glyph region" &&
-                    body->color == Body{}.color && !body->parent &&
+                    body->color == Body{}.color && !body->textSource && !body->parent &&
                     body->transform == Transform{} && !body->tag && !body->hidden &&
                     !body->locked && body->surface.wires.empty() && body->curves.empty() &&
                     body->guides.empty() && body->properties.empty() &&

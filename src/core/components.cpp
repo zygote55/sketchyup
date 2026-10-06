@@ -9,6 +9,7 @@ Id allocate(Id &next) {
     return next++;
 }
 void emptyGeometry(Body &body) {
+    body.textSource.reset();
     body.surface.vertices.clear();
     body.surface.faces.clear();
     body.surface.wires.clear();

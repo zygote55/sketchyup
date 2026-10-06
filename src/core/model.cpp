@@ -77,6 +77,7 @@ size_t bytes(const BodyPtr &b) {
     size_t n = sizeof(Body) + b->name.size() + b->surface.vertices.size() * (sizeof(Vec3) + 64) +
                b->surface.wires.size() * sizeof(std::array<Id, 2>) +
                b->topology.edges.size() * (sizeof(EdgeRecord) + 64);
+    if (b->textSource) n += textSourceBytes(*b->textSource);
     n += b->edgeAppearances.size() * (sizeof(Id) + sizeof(EdgeAppearance) + 64);
     n += b->faceColors.size() * (sizeof(Id) + sizeof(std::array<float, 3>) + 64);
     n += b->faceMaterials.size() * (sizeof(Id) + sizeof(MaterialSides) + 64);
@@ -136,6 +137,9 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies) {
         throw std::runtime_error("Document complexity exceeds editing limits");
 }
 void validate(const Body &b) {
+    if (b.textSource) {
+        validateTextSource(*b.textSource);
+    }
     if (!b.id || b.name.size() > 1024)
         throw std::runtime_error("Invalid body identity or name");
     for (float c : b.color)
