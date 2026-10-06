@@ -1,6 +1,7 @@
 #include "app/render_panel.hpp"
 #include "app/window.hpp"
 #include "automation/commands.hpp"
+#include "core/entity_measure.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
@@ -65,6 +66,14 @@ int main(int argc, char **argv) {
         view.refresh();
         emit view.changed();
         view.fit();
+        if (const auto focus = qEnvironmentVariable("SKETCHYUP_RENDER_FOCUS"); !focus.isEmpty()) {
+            bool valid{};
+            const auto body = focus.toULongLong(&valid);
+            check(valid && doc.bodies().contains(body), "Explicit render fixture focus exists");
+            const auto bounds = measureEntity(doc, {body, SelectionKind::Body, 0}).world.bounds;
+            check(bounds.has_value(), "Render fixture focus has finite bounds");
+            view.frameBounds(bounds->low, bounds->high);
+        }
         auto *action = window.findChild<QAction *>("camera.render");
         check(action, "Render is in action registry");
         action->trigger();
@@ -128,6 +137,8 @@ int main(int argc, char **argv) {
         setup->hide();
         RenderOptions settings;
         settings.settings = {128, 128, 4, 0};
+        if (!qEnvironmentVariableIsEmpty("SKETCHYUP_RENDER_FOCUS"))
+            settings.camera = camera;
         BlenderJob::Options worker;
         worker.executable = executable("success");
         panel.start(settings, worker, true);

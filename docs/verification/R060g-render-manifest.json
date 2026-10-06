@@ -1,0 +1,65 @@
+{
+    "adapter": "sketchyup-blender-v1",
+    "apiVersion": 1,
+    "attempts": [
+        {
+            "backend": "CPU",
+            "deviceId": "CPU",
+            "exitCode": 0,
+            "logTail": "Blender 5.2.2 LTS (hash d13f752e3b9c built 2026-09-22 17:10:25)\n[ALSOFT] (EE) Failed to connect PipeWire event context (errno: 112)\nSKETCHYUP_PROGRESS {\"phase\": \"loading\"}\n09:07:42 | INFO: Data are loaded, start creating Blender stuff\n09:07:42 | INFO: Blender create Mesh node 0\n09:07:42 | INFO: Blender create Mesh node 1\n09:07:42 | INFO: Blender create Mesh node 2\n09:07:42 | INFO: Blender create Mesh node 3\n09:07:42 | INFO: Blender create Mesh node 4\n09:07:42 | INFO: Blender create Mesh node 5\n09:07:42 | INFO: Blender create Mesh node 6\n09:07:42 | INFO: Blender create Mesh node 7\n09:07:42 | INFO: Blender create Mesh node 8\n09:07:42 | INFO: Blender create Mesh node 9\n09:07:42 | INFO: Blender create Mesh node 10\n09:07:42 | INFO: Blender create Mesh node 12\n09:07:42 | INFO: Blender create Mesh node 13\n09:07:42 | INFO: Blender create Mesh node 11\n09:07:42 | INFO: glTF import finished in 0.02s\n/tmp/sketchyup-worker-UrLDmI/attempt-1/worker.py:287: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0\n  world.use_nodes = True\nSKETCHYUP_PROGRESS {\"phase\": \"rendering\"}\n00:01.897  render           | Saved: '/tmp/sketchyup-worker-UrLDmI/attempt-1/image.png'\nSKETCHYUP_PROGRESS {\"phase\": \"verifying-output\"}\nSKETCHYUP_PROGRESS {\"phase\": \"completed\"}\n\nBlender quit\n",
+            "normalExit": true,
+            "workerStatus": "succeeded"
+        }
+    ],
+    "blenderBuildHash": "d13f752e3b9c",
+    "blenderVersion": [
+        5,
+        2,
+        2
+    ],
+    "blenderVersionString": "5.2.2 LTS",
+    "cpuFallbackUsed": false,
+    "device": {
+        "backend": "CPU",
+        "id": "CPU",
+        "name": "CPU"
+    },
+    "documentId": "af4f2318cc157e0decc7aadd6f40d80c",
+    "image": {
+        "bytes": 170839,
+        "file": "image.png",
+        "height": 512,
+        "sha256": "39e3954619f796697964cba265d68fefc74f911cc2dff4e27d100e034d3ea098",
+        "width": 512
+    },
+    "losses": {
+        "analyticCurvesTessellatedOrOmitted": 0,
+        "guidesOmitted": 0,
+        "missingAssets": 0,
+        "textureAssetsPreservedWithoutUVMapping": 0,
+        "wiresOmitted": 0
+    },
+    "manifestSha256": "f31d1a74de040f2ec95968e24984a9a0ee37f4e0c47931c7de528aa5f9246da7",
+    "preset": {
+        "adaptiveSampling": false,
+        "denoising": false,
+        "engine": "CYCLES",
+        "exposure": 0,
+        "gamma": 1,
+        "look": "None",
+        "maxBounces": 8,
+        "name": "studio-v1",
+        "threads": 4,
+        "viewTransform": "Standard",
+        "worldStrength": 0.25
+    },
+    "revision": "34",
+    "sceneSha256": "1a459776efe464ba0109600bc07cc46b174341ed282b5d12ae8252667add80d7",
+    "settings": {
+        "height": 512,
+        "samples": 32,
+        "seed": 0,
+        "width": 512
+    },
+    "status": "succeeded"
+}

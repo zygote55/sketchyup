@@ -30,6 +30,37 @@ QJsonObject batch(Document &doc, QJsonArray commands) {
                               {"commands", commands}});
 }
 bool near(double a, double b) { return std::abs(a - b) < 1e-6; }
+Id recipeRoot(const Document &doc, const std::string &kind) {
+    Id result{};
+    for (const auto &[id, body] : doc.bodies()) {
+        const auto it = body->properties.find("recipe.kind");
+        if (it != body->properties.end() && std::get_if<std::string>(&it->second) &&
+            std::get<std::string>(it->second) == kind) {
+            if (result)
+                return 0;
+            result = id;
+        }
+    }
+    return result;
+}
+bool preservedBaseline(const Document &before, const Document &after, Id placement = 0) {
+    for (const auto &[id, body] : before.bodies()) {
+        if (!after.bodies().contains(id))
+            return false;
+        auto expected = *body;
+        if (id == placement)
+            expected.transform = after.bodies().at(id)->transform;
+        if (expected != *after.bodies().at(id))
+            return false;
+    }
+    const auto a = QJsonDocument::fromJson(encodeDocument(before)).object();
+    const auto b = QJsonDocument::fromJson(encodeDocument(after)).object();
+    for (const auto key : {"definitions", "instances", "materials", "tags", "assets"})
+        for (const auto &record : a[key].toArray())
+            if (!b[key].toArray().contains(record))
+                return false;
+    return a["hosted"] == b["hosted"] && before.displayUnits() == after.displayUnits();
+}
 class TrialNetwork : public QNetworkAccessManager {
   public:
     QJsonArray exchanges;
@@ -78,11 +109,12 @@ int main(int argc, char **argv) {
         const auto args = app.arguments();
         check(args.size() == 5,
               "Usage: provider_trial ENDPOINT|--openai|--chatgpt MODEL|configured "
-              "measure|room|resize|unsupported|unavailable REPORT.json");
+              "measure|room|resize|advanced|site|unsupported|unavailable REPORT.json");
         const auto trial = args[3];
-        check(
-            QStringList{"measure", "room", "resize", "unsupported", "unavailable"}.contains(trial),
-            "Unknown corpus task");
+        check(QStringList{"measure", "room", "resize", "advanced", "site", "unsupported",
+                          "unavailable"}
+                  .contains(trial),
+              "Unknown corpus task");
         const bool plan = args[1] == "--chatgpt";
         const bool remote = plan || args[1] == "--openai";
         OllamaConfiguration config;
@@ -107,7 +139,19 @@ int main(int argc, char **argv) {
               "Create private retained synthetic corpus directory");
         Document fixture;
         Id first{}, second{}, room{}, wall{}, frame{}, glass{};
-        if (trial == "resize") {
+        if (trial == "site") {
+            fixture = loadDocument(QStringLiteral(SOURCE_DIR "/examples/m6-site-before.sketchyup"));
+            for (const auto &[id, body] : fixture.bodies())
+                if (body->name == "Site study" && !body->parent)
+                    first = id;
+            check(first != 0, "Synthetic site fixture has its authored root");
+        } else if (trial == "advanced") {
+            const auto made = batch(fixture, {QJsonObject{{"command", "assembly.room"}}});
+            room =
+                made["recipeOperations"].toArray()[0].toObject()["room"].toString().toULongLong();
+            batch(fixture, {QJsonObject{{"command", "assembly.room.adopt_hosted"},
+                                        {"body", QString::number(room)}}});
+        } else if (trial == "resize") {
             const auto recipe = batch(fixture, {QJsonObject{{"command", "assembly.room"}}})
                                     .value("recipeOperations")
                                     .toArray()[0]
@@ -165,7 +209,29 @@ int main(int argc, char **argv) {
         options.limits.turns = plan ? 16 : 12;
         if (plan)
             options.limits.totalReportedTokens = 262144;
-        if (trial == "room") {
+        if (trial == "advanced") {
+            options.prompt =
+                "Preserve the existing room and both hosted windows exactly. Add four editable "
+                "assemblies using the published default recipe parameters: a gable roof at "
+                "[0,0,0] m (6 by 4 m footprint, 30 degree pitch, 0.3 m overhang, 0.15 m vertical "
+                "thickness, 2.7 m plate); 12-step stairs at [7,0,0] m (1 m width, 2.4 m total "
+                "rise, 0.28 m going); a table at [0,-2,0] m (1.2 by 0.8 by 0.75 m, 0.04 m top, "
+                "0.05 m legs, 0.06 m inset); and an open cabinet at [2,-2,0] m (0.9 by 0.4 by "
+                "1.2 m, 0.018 m panels, two shelves). Keep repeated furniture members shared. "
+                "Use one transaction, inspect the returned roots, measure the private roof and "
+                "stair volumes and furniture envelopes, then present a preview. Do not claim "
+                "it is applied.";
+            options.allowedCommands = {"assembly.roof", "assembly.stairs", "assembly.table",
+                                       "assembly.cabinet", "assert.measurement"};
+        } else if (trial == "site") {
+            options.prompt =
+                "Place the complete existing study group, body " + QString::number(first) +
+                ", at [100000125,200000250,12500] mm in world coordinates, with an explicit yaw "
+                "delta of 0.5235987755982988 radians around world Z. Preserve all local geometry, "
+                "materials, scale, shared components, hosted windows and unrelated objects. "
+                "Inspect the target and measure its private world bounds, then present a preview.";
+            options.allowedCommands = {"assembly.site_place", "assert.measurement"};
+        } else if (trial == "room") {
             options.prompt = "Create a 6 m by 4 m room, 2.7 m high, with two 1.2 m wide windows "
                              "using outer-frame window dimensions and the default room assembly. "
                              "Inspect and measure the private "
@@ -255,7 +321,7 @@ int main(int argc, char **argv) {
         const auto proposal = provider.task().result();
         // The trial harness explicitly acts as the host reviewer for its disposable fixture.
         if (provider.task().phase() == Phase::PreviewReady &&
-            (trial == "room" || trial == "resize"))
+            (trial == "room" || trial == "resize" || trial == "advanced" || trial == "site"))
             provider.apply();
         const auto result = provider.task().result();
         const auto endState = state();
@@ -281,7 +347,59 @@ int main(int argc, char **argv) {
                              {"documentId", endState.value("documentId")},
                              {"expectedRevision", endState.value("revision")}});
             auto actual = loadDocument(output);
-            if (trial == "room") {
+            if (trial == "advanced") {
+                unrelatedPreserved = preservedBaseline(fixture, actual);
+                geometryVerified = unrelatedPreserved && actual.bodies().size() == 37 &&
+                                   actual.definitions().size() == 4 &&
+                                   actual.instances().size() == 12 &&
+                                   actual.revision() == fixture.revision() + 1;
+                QJsonArray measured;
+                const std::array<std::string, 4> kinds{"gable-roof", "straight-stairs", "table",
+                                                       "cabinet"};
+                const std::array<Vec3, 4> positions{Vec3{}, Vec3{7, 0, 0}, Vec3{0, -2, 0},
+                                                    Vec3{2, -2, 0}};
+                for (size_t i = 0; i < kinds.size(); ++i) {
+                    const auto root = recipeRoot(actual, kinds[i]);
+                    if (!root) {
+                        geometryVerified = false;
+                        continue;
+                    }
+                    const auto metric = measureEntity(actual, {root, SelectionKind::Body, 0});
+                    geometryVerified &=
+                        length(actual.worldTransform(root).point({}) - positions[i]) < 1e-6;
+                    if (i < 2)
+                        geometryVerified &=
+                            metric.world.volume && near(*metric.world.volume, i ? 4.368 : 4.554);
+                    else
+                        geometryVerified &=
+                            metric.local.bounds &&
+                            length(metric.local.bounds->dimensions() -
+                                   (i == 2 ? Vec3{1.2, .8, .75} : Vec3{.9, .4, 1.2})) < 1e-6;
+                    measured.append(QJsonObject{{"kind", QString::fromStdString(kinds[i])},
+                                                {"body", QString::number(root)},
+                                                {"volume", metric.world.volume
+                                                               ? QJsonValue(*metric.world.volume)
+                                                               : QJsonValue{}}});
+                }
+                measurements = {{"assemblies", measured},
+                                {"existingRecordsPreserved", unrelatedPreserved}};
+            } else if (trial == "site") {
+                unrelatedPreserved = preservedBaseline(fixture, actual, first);
+                const auto transform = actual.worldTransform(first);
+                auto expected = Transform::rotation({0, 0, 1}, 0.5235987755982988) *
+                                fixture.worldTransform(first);
+                expected.m[12] = 100000.125;
+                expected.m[13] = 200000.25;
+                expected.m[14] = 12.5;
+                geometryVerified = unrelatedPreserved &&
+                                   actual.bodies().size() == fixture.bodies().size() &&
+                                   actual.revision() == fixture.revision() + 1;
+                for (size_t i = 0; i < 16; ++i)
+                    geometryVerified &= std::abs(transform.m[i] - expected.m[i]) < 1e-7;
+                const auto position = transform.point({});
+                measurements = {{"worldOrigin", QJsonArray{position.x, position.y, position.z}},
+                                {"localRecordsPreserved", unrelatedPreserved}};
+            } else if (trial == "room") {
                 for (const auto &[id, body] : actual.bodies()) {
                     const auto kind = body->properties.find("recipe.kind");
                     if (kind != body->properties.end() &&
