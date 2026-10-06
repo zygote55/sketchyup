@@ -411,8 +411,13 @@ front/back affine UV projections through modeling edits, Undo, shared components
 and relocation ([mapping contract](docs/decisions/0062-face-texture-records.md)).
 The image backend decodes bounded static PNG/JPEG assets into consistent sRGB
 and straight-alpha pixels ([image contract](docs/decisions/0063-texture-image-decoding.md)).
-GLB/Blender export includes those images and independent UVs. Native texture-authoring
-controls and textured viewport drawing remain pending.
+GLB/Blender export and the native viewport display those images with independent
+side mappings. `material.map_texture` authors planar, three-pin or affine
+projections in explicit local/world coordinates; null resets the chosen side(s).
+Face inspection returns stored and effective mappings. See the
+[command contract](docs/decisions/0066-texture-authoring-commands.md) and
+[packaged example](examples/texture-mapping.json). Native mapping controls remain
+pending.
 Materials offers Attach file, Replace file
 (including missing-resource resolution), Detach file and undoable Clean files
 for unused resources. New/edit dialogs can also bind an existing stored file.

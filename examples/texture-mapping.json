@@ -1,0 +1,126 @@
+[
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          2,
+          0,
+          1
+        ],
+        [
+          2,
+          2,
+          1
+        ],
+        [
+          0,
+          2,
+          1
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "asset.import",
+    "name": "Embedded checker",
+    "mediaType": "image/png",
+    "data": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP4z8DwHwhB4D8INAAAP1MIeVB6J+0AAAAASUVORK5CYII="
+  },
+  {
+    "command": "material.create",
+    "name": "Textured panel",
+    "color": [
+      1,
+      1,
+      1
+    ],
+    "opacity": 1,
+    "asset": "1"
+  },
+  {
+    "command": "material.assign",
+    "body": "1",
+    "face": "5",
+    "material": "1",
+    "side": "both"
+  },
+  {
+    "command": "material.map_texture",
+    "body": "1",
+    "face": "5",
+    "side": "front",
+    "space": "local",
+    "projection": {
+      "type": "planar",
+      "origin": [
+        0.25,
+        0.25,
+        1
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "tangent": [
+        1,
+        0,
+        0
+      ],
+      "width": 0.75,
+      "height": -0.5,
+      "rotationRadians": 0.5235987755982988,
+      "offset": [
+        0.125,
+        -0.25
+      ]
+    }
+  },
+  {
+    "command": "material.map_texture",
+    "body": "1",
+    "face": "5",
+    "side": "back",
+    "space": "world",
+    "projection": {
+      "type": "pins",
+      "points": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          2,
+          0,
+          1
+        ],
+        [
+          0,
+          2,
+          1
+        ]
+      ],
+      "coordinates": [
+        [
+          1,
+          0
+        ],
+        [
+          -1,
+          0
+        ],
+        [
+          1,
+          2
+        ]
+      ]
+    }
+  }
+]

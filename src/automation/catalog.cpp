@@ -61,6 +61,45 @@ QJsonObject edgeAppearanceSpec() {
     entry["parameters"] = parameters;
     return entry;
 }
+QJsonObject textureMappingSpec(const QJsonObject &point, const QJsonObject &space) {
+    auto object = [](QJsonObject properties, QJsonArray required) {
+        return QJsonObject{{"type", "object"}, {"properties", properties},
+                           {"required", required}, {"additionalProperties", false}};
+    };
+    const auto repeats = list(QJsonObject{{"type", "number"}, {"minimum", -1e9},
+                                          {"maximum", 1e9}}, 2, 2);
+    const auto vector = list(number(), 3, 3);
+    const QJsonObject size{
+        {"description", "Signed repeat size in metres; a negative size mirrors that axis"},
+        {"oneOf", QJsonArray{
+            QJsonObject{{"type", "number"}, {"minimum", 1e-6}, {"maximum", 1e6}},
+            QJsonObject{{"type", "number"}, {"minimum", -1e6}, {"maximum", -1e-6}}}}};
+    const auto planar = object(
+        {{"type", QJsonObject{{"const", "planar"}}}, {"origin", point},
+         {"normal", vector}, {"tangent", vector}, {"width", size}, {"height", size},
+         {"rotationRadians", number()}, {"offset", repeats}},
+        {"type", "origin", "normal", "tangent", "width", "height"});
+    const auto pins = object(
+        {{"type", QJsonObject{{"const", "pins"}}}, {"points", list(point, 3, 3)},
+         {"coordinates", list(repeats, 3, 3)}}, {"type", "points", "coordinates"});
+    const auto gradient = list(QJsonObject{{"type", "number"}, {"minimum", -1e9},
+                                           {"maximum", 1e9}}, 3, 3);
+    const auto affine = object(
+        {{"type", QJsonObject{{"const", "affine"}}}, {"origin", point},
+         {"uGradient", gradient}, {"vGradient", gradient}, {"offset", repeats}},
+        {"type", "origin", "uGradient", "vGradient", "offset"});
+    return spec(
+        "material.map_texture", "Set or reset a face texture projection in metres/radians",
+        "Materials",
+        {{"body", stableId()}, {"face", stableId()},
+         {"side", QJsonObject{{"type", "string"},
+                               {"enum", QJsonArray{"front", "back", "both"}}}},
+         {"space", space},
+         {"projection", QJsonObject{
+             {"description", "Null restores implicit mapping on the chosen side(s); UVs are unwrapped repeats with a top-left origin and +V down"},
+             {"oneOf", QJsonArray{QJsonObject{{"type", "null"}}, planar, pins, affine}}}}},
+        {"body", "face", "side", "space", "projection"});
+}
 } // namespace
 QJsonArray commandCatalog() {
     auto coordinate = QJsonObject{
@@ -495,6 +534,7 @@ QJsonArray commandCatalog() {
               {"side",
                QJsonObject{{"type", "string"}, {"enum", QJsonArray{"front", "back", "both"}}}}},
              {"body", "material"}),
+        textureMappingSpec(point, space),
         spec("material.color", "Paint selection", "Materials",
              {{"body", stableId()},
               {"color", list({{"type", "number"}, {"minimum", 0}, {"maximum", 1}}, 3, 3)}},

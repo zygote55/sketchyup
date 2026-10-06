@@ -1,3 +1,4 @@
+#include "automation/texture_commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
@@ -203,6 +204,9 @@ void validate(const QJsonValue &value, const QJsonObject &schema) {
     } else if (type == "boolean") {
         if (!value.isBool())
             fail("INVALID_REQUEST", "Expected boolean");
+    } else if (type == "null") {
+        if (!value.isNull())
+            fail("INVALID_REQUEST", "Expected null");
     } else if (type == "number" || type == "integer") {
         const double n = value.toDouble();
         if (!value.isDouble() || !std::isfinite(n) || (type == "integer" && std::floor(n) != n))
@@ -567,6 +571,8 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         const auto materials = ref.kind == "face" ? faceMaterials(b, ref.id) : b.materials;
         data["materials"] = QJsonObject{{"front", QString::number(materials.front)},
                                         {"back", QString::number(materials.back)}};
+        if (ref.kind == "face")
+            data["textureMapping"] = faceTextureDescription(b, ref.id);
         break;
     }
     case Operation::Properties: {
