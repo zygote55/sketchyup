@@ -28,6 +28,10 @@ struct BlenderResult {
     QByteArray png;
     QImage image;
 };
+struct BlenderSceneResult {
+    QJsonObject manifest;
+    QByteArray blend;
+};
 class BlenderJob : public QObject {
     Q_OBJECT
   public:
@@ -55,6 +59,7 @@ class BlenderJob : public QObject {
     ~BlenderJob() override;
     void probe(Options options);
     void start(std::shared_ptr<const PreparedRender> input, Options options);
+    void handoff(std::shared_ptr<const PreparedRender> input, Options options);
     void cancel();
     Phase phase() const;
     bool done() const;
@@ -62,6 +67,7 @@ class BlenderJob : public QObject {
     qint64 processId() const;
     QJsonObject report() const;
     std::shared_ptr<const BlenderResult> result() const;
+    std::shared_ptr<const BlenderSceneResult> sceneResult() const;
   signals:
     void changed();
 

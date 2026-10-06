@@ -581,14 +581,6 @@ def render(request, directory):
     scene.view_settings.exposure = 0
     scene.view_settings.gamma = 1
     lighting = configure_lighting(manifest, source)
-    scene.render.filepath = str(directory / 'image.png')
-    progress('rendering')
-    bpy.ops.render.render(write_still=True)
-    progress('verifying-output')
-    image = directory / 'image.png'
-    if image.is_symlink() or not image.is_file() or not 0 < image.stat().st_size <= 64 * 1024 * 1024:
-        raise WorkerError('render_error', 'Renderer did not produce a bounded PNG')
-    image_bytes = image.read_bytes()
     losses = dict(manifest['losses'])
     if manifest.get('solar', {}).get('enabled'):
         losses['solarLightingOmitted'] = 0
@@ -608,12 +600,37 @@ def render(request, directory):
     else:
         preset.update({'adaptiveSampling': False, 'denoising': False, 'maxBounces': 8,
                        'seed': settings['seed']})
-    return {'status': 'succeeded', 'documentId': manifest['documentId'], 'revision': manifest['revision'],
-            'manifestSha256': request['manifestSha256'], 'sceneSha256': manifest['scene']['sha256'],
-            'settings': settings, 'device': actual_device, 'losses': losses, 'lighting': lighting,
-            'preset': preset,
+    common = {'status': 'succeeded', 'documentId': manifest['documentId'], 'revision': manifest['revision'],
+              'manifestSha256': request['manifestSha256'], 'sceneSha256': manifest['scene']['sha256'],
+              'settings': settings, 'device': actual_device, 'losses': losses, 'lighting': lighting,
+              'preset': preset}
+    if request['operation'] == 'handoff':
+        progress('saving-scene')
+        # Everything required for rendering travels inside the .blend file.
+        bpy.ops.file.pack_all()
+        scene.render.filepath = '//render.png'
+        transfer = bpy.data.texts.new('SketchyUp transfer.json')
+        transfer.write(json.dumps({**common, 'oneWay': True,
+            'notice': 'Edits in Blender do not update the native SketchyUp model.'}, sort_keys=True))
+        path = directory / 'scene.blend'
+        bpy.ops.wm.save_as_mainfile(filepath=str(path), check_existing=False, compress=False)
+        if path.is_symlink() or not path.is_file() or not 12 < path.stat().st_size <= 512 * 1024 * 1024:
+            raise WorkerError('handoff_error', 'Blender did not save a bounded scene')
+        data = path.read_bytes()
+        return {**common, 'sceneFile': {'file': 'scene.blend', 'bytes': len(data),
+                  'sha256': sha(data), 'assetsPacked': True, 'oneWay': True}}
+    scene.render.filepath = str(directory / 'image.png')
+    progress('rendering')
+    bpy.ops.render.render(write_still=True)
+    progress('verifying-output')
+    image = directory / 'image.png'
+    if image.is_symlink() or not image.is_file() or not 0 < image.stat().st_size <= 64 * 1024 * 1024:
+        raise WorkerError('render_error', 'Renderer did not produce a bounded PNG')
+    image_bytes = image.read_bytes()
+    return {**common,
             'image': {'file': 'image.png', 'width': settings['width'], 'height': settings['height'],
                       'bytes': len(image_bytes), 'sha256': sha(image_bytes)}}
+
 
 
 def main():
@@ -624,7 +641,7 @@ def main():
             'blenderBuildHash': bpy.app.build_hash.decode('ascii', errors='replace')}
     try:
         request, _ = load_json(request_path, 64 * 1024)
-        if (request.get('apiVersion') != 1 or request.get('operation') not in ('probe', 'render') or
+        if (request.get('apiVersion') != 1 or request.get('operation') not in ('probe', 'render', 'handoff') or
                 request.get('backend') not in BACKENDS or not isinstance(request.get('deviceId'), str) or
                 len(request['deviceId']) > 512):
             raise WorkerError('invalid_request', 'Unsupported worker request')

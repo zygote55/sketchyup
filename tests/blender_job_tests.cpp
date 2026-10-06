@@ -181,6 +181,17 @@ int fake(QCoreApplication &app, const QStringList &args) {
         result["image"] = description;
         if (mode == "missing")
             QFile::remove(root + "/image.png");
+        if (request.value("operation") == "handoff") {
+            QByteArray scene = mode == "invalid-scene" ? "invalid scene" : "BLENDER-v502fixture";
+            write(root + "/scene.blend", scene);
+            result.remove("image");
+            result["sceneFile"] =
+                QJsonObject{{"file", mode == "scene-path" ? "../scene.blend" : "scene.blend"},
+                            {"bytes", scene.size()},
+                            {"sha256", mode == "scene-hash" ? QString("wrong") : hash(scene)},
+                            {"assetsPacked", mode != "unpacked-scene"},
+                            {"oneWay", true}};
+        }
         if (mode == "fractional-version")
             result["blenderVersion"] = QJsonArray{5, 2, .5};
     }
