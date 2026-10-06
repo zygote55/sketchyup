@@ -416,8 +416,11 @@ side mappings. `material.map_texture` authors planar, three-pin or affine
 projections in explicit local/world coordinates; null resets the chosen side(s).
 Face inspection returns stored and effective mappings. See the
 [command contract](docs/decisions/0066-texture-authoring-commands.md) and
-[packaged example](examples/texture-mapping.json). Native mapping controls remain
-pending.
+[packaged example](examples/texture-mapping.json). Select editable faces and use
+**Texture mapping…** in Materials to set repeat dimensions, origin, rotation and
+UV offset. Choose a source face and world coordinates to project one mapping
+across selected faces. **Reset mapping** restores the chosen sides to their default
+projection. See the [native editor contract](docs/decisions/0067-native-texture-editor.md).
 Materials offers Attach file, Replace file
 (including missing-resource resolution), Detach file and undoable Clean files
 for unused resources. New/edit dialogs can also bind an existing stored file.
