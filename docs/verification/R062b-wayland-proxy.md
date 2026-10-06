@@ -51,3 +51,43 @@ An initial additional Wayland scale-2 check also passed. All used leak detection
 with no suppressions. [Native results](R062b-focus-native.json). These focused
 checks supplement the existing full product checks; remote CI remains a separate
 gate, and this does not claim every possible downstream Wayland lifecycle is fixed.
+
+## Remaining failure and private CI client fix
+
+The focus change was insufficient. Scene head `97154583a9652ab55148a4d9593941c51b23df20`
+failed run `37484748047` with one 96-byte proxy allocation at the cancellation of
+the Styles dialog (`style_input_tests.cpp:162`). The failure log was inspected;
+the run was not blindly retried. It exercises the same independently reproduced
+destroyed-argument accounting defect.
+
+The [local source patch](../../scripts/wayland-1.26-destroyed-proxy.patch) releases
+the queued reference when `validate_closure_objects` clears its destroyed argument.
+The receiver reference and other queued argument references retain their existing
+lifetimes. The standalone failing case and dispatch-first control both pass with
+zero leaks after this change. The changed client also passes the reproducer with
+the client library itself instrumented by ASan/UBSan. All **26 upstream Wayland
+tests pass**. [Results](R062b-wayland-client-fix.json).
+
+The [CI build script](../../scripts/ci-wayland-client.sh) downloads the exact
+Wayland 1.26.0 release, verifies its SHA-256, applies the patch without fuzz, runs
+the upstream tests and both standalone probe orderings, then copies only the
+client library and its original license into a private build directory. It
+requires the pinned system version and fails if that prerequisite changes. This
+is a local patch, not a claim of upstream acceptance.
+
+Only sanitized native test processes opt into this client through
+`SKETCHYUP_WAYLAND_CLIENT_LIBRARY`. Weston, the Wayland server, regular native
+checks, product packaging and the user's desktop continue using system libraries.
+Leak detection remains enabled; no leak suppression or system installation is
+used. This keeps the application sanitizer gate useful without treating the
+known system-library defect as an application allocation. The system Wayland
+1.26 dialog lifecycle defect remains a documented external limitation until a
+fixed distribution library is available.
+
+Six native ASan/UBSan checks pass with the private client: Styles at scale 1 and
+three scale-2 runs, assistant preview at scale 2, and current native MCP at scale 2.
+[Native results](R062b-fixed-client-native.json). The initial MCP probes were rejected
+by a stale catalog and then a relocated executable missing its adjacent CLI;
+rebuilding and running from its actual build directory passed. Neither rejection
+was a sanitizer failure. The complete private-client build script also passed
+end-to-end, including the source checksum, 26 upstream tests and both leak probes.

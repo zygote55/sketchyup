@@ -1,0 +1,19 @@
+Release the queued argument reference before replacing a destroyed proxy with
+null. destroy_queued_closure cannot release it after the pointer has been cleared.
+Local fix against the MIT-licensed Wayland 1.26.0 release; not an upstream claim.
+See docs/verification/R062b-wayland-proxy.md for the independent reproducer.
+
+--- a/src/wayland-client.c
++++ b/src/wayland-client.c
+@@ -265,8 +265,10 @@ validate_closure_objects(struct wl_closure *closure)
+ 		case WL_ARG_NEW_ID:
+ 		case WL_ARG_OBJECT:
+ 			proxy = (struct wl_proxy *) closure->args[i].o;
+-			if (proxy && proxy->flags & WL_PROXY_FLAG_DESTROYED)
++			if (proxy && proxy->flags & WL_PROXY_FLAG_DESTROYED) {
+ 				closure->args[i].o = NULL;
++				wl_proxy_unref(proxy);
++			}
+ 			break;
+ 		default:
+ 			break;
