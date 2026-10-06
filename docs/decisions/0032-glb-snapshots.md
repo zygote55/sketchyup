@@ -37,10 +37,11 @@ initial subset. Omitted content is counted in the manifest.
 
 Native sRGB swatches convert to linear PBR base colors, with metallic zero,
 roughness 0.8 and the recorded opacity. Transparent materials use alpha blending.
-The front appearance is double-sided. Distinct back appearances cannot be
-represented by this simple material policy: the manifest counts those faces and
-preserves their source material assignments. No silent two-sided fidelity claim
-is made.
+R057.d preserves distinct sides with opposite single-sided triangles; identical
+appearances retain one double-sided surface. The Cycles worker converts paired
+triangles into a single surface with front/back shaders. See the
+[two-sided transfer contract](0050-two-sided-export.md) for metadata, limits and
+historical snapshot compatibility.
 
 Assets referenced by visible front/back materials are copied from the native
 managed payloads into GLB buffer views. Their IDs, names, media types, byte ranges
@@ -93,7 +94,10 @@ cameras, malformed settings and CLI publication. The official
 is pinned to `2.0.0-dev.3.10` with an integrity-locked test dependency, retaining its
 Apache-2.0 license. It is not an application runtime dependency.
 
-A Blender script imports four fixtures with script auto-execution disabled and a
+A Blender script imports the original four fixtures with script auto-execution disabled and a
 nonzero Python-error exit code. It checks dimensions, reflected instance count,
 shared mesh identity, outward normals, camera framing and material color/opacity.
 Blender is an optional external application, not linked or bundled with SketchyUp.
+
+R057.d adds sided export fixtures, actual Cycles pixels and malformed-pair rejection
+through `scripts/verify-blender-sides.py`; all eleven GLBs pass the same validator.

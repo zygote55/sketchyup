@@ -437,4 +437,4 @@ install(FILES examples/planar-offset.json examples/profile-sweep.json DESTINATIO
 install(FILES docs/decisions/0045-face-intersections.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/face-orientation.json examples/solid-trim.json examples/solid-split.json examples/solid-outer-shell.json examples/enclosed-cavity.json examples/solid-boolean.json examples/face-intersection.json DESTINATION share/doc/sketchyup/examples)
 
-install(FILES docs/decisions/0049-face-orientation.md docs/decisions/0048-split-outer-shell.md docs/decisions/0047-shell-containment.md docs/decisions/0046-solid-booleans.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/decisions/0050-two-sided-export.md docs/decisions/0049-face-orientation.md docs/decisions/0048-split-outer-shell.md docs/decisions/0047-shell-containment.md docs/decisions/0046-solid-booleans.md DESTINATION share/doc/sketchyup/decisions)
