@@ -21,8 +21,15 @@ add_library(sketchyup_core src/core/text_source.cpp src/core/annotation_records.
 target_include_directories(sketchyup_core PUBLIC src)
 target_link_libraries(sketchyup_core PRIVATE clipper2 sketchyup_manifold)
 target_compile_options(sketchyup_core PRIVATE -Wall -Wextra -Wpedantic)
+add_library(sketchyup_solar src/solar/solar.cpp)
+target_include_directories(sketchyup_solar PUBLIC src)
+target_compile_options(sketchyup_solar PRIVATE -Wall -Wextra -Wpedantic)
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(solar_tests tests/solar_tests.cpp)
+  target_link_libraries(solar_tests PRIVATE sketchyup_solar)
+  target_compile_definitions(solar_tests PRIVATE SOLAR_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/noaa-solar-day.csv")
+  add_test(NAME solar COMMAND solar_tests)
   add_executable(annotation_record_tests tests/annotation_record_tests.cpp)
   target_link_libraries(annotation_record_tests PRIVATE sketchyup_core)
   add_test(NAME annotation_records COMMAND annotation_record_tests)
@@ -698,3 +705,5 @@ install(FILES docs/decisions/0085-editable-text-workflows.md DESTINATION share/d
 install(FILES examples/text-sign.json examples/text-sign.sketchyup DESTINATION share/doc/sketchyup/examples)
 
 install(FILES docs/decisions/0086-native-editable-text.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0087-offline-solar-position.md DESTINATION share/doc/sketchyup/decisions)
