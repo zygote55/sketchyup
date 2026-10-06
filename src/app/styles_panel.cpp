@@ -139,10 +139,10 @@ void StylesPanel::customize() {
         form->addRow(label, button);
         connect(button, &QPushButton::clicked, &dialog, [&, field, update, label] {
             const auto &rgb = candidate.*field;
+            const auto initial = QColor::fromRgbF(rgb[0], rgb[1], rgb[2]);
             const auto selected =
-                QColorDialog::getColor(QColor::fromRgbF(rgb[0], rgb[1], rgb[2]), &dialog, label,
-                                       QColorDialog::DontUseNativeDialog);
-            if (selected.isValid()) {
+                QColorDialog::getColor(initial, &dialog, label, QColorDialog::DontUseNativeDialog);
+            if (selected.isValid() && selected != initial) {
                 candidate.*field = {float(selected.redF()), float(selected.greenF()),
                                     float(selected.blueF())};
                 update();

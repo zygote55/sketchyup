@@ -156,15 +156,32 @@ int main(int argc, char **argv) {
         });
         check(encodeContainer(doc) == beforeCancel, "Cancel leaves saved presentation unchanged");
         auto precise = doc.style();
+        precise.background = {.1234567f, .2345678f, .3456789f};
         precise.profileWidth = 3.12345678912345;
         precise.xrayOpacity = .234567891234567;
         precise.groundHeight = .123456789123456;
         doc.setStyle(precise);
         sync(window);
         const auto exact = encodeContainer(doc);
-        modal(window, [&](QDialog *dialog) { accept(dialog); });
+        modal(window, [&](QDialog *dialog) {
+            QTimer chooser;
+            chooser.setInterval(10);
+            bool shown = false;
+            QObject::connect(&chooser, &QTimer::timeout, dialog, [&] {
+                auto *colors = dialog->findChild<QColorDialog *>();
+                if (!colors || !colors->isVisible())
+                    return;
+                chooser.stop();
+                shown = true;
+                colors->accept();
+            });
+            chooser.start();
+            dialog->findChild<QPushButton *>("styleBackgroundColor")->click();
+            check(shown, "Unchanged native color chooser opened");
+            accept(dialog);
+        });
         check(encodeContainer(doc) == exact,
-              "Untouched editor acceptance preserves full precision and history");
+              "Untouched numeric and color acceptance preserves full precision and history");
         modal(window, [&](QDialog *dialog) {
             type(dialog, "styleProfileWidth", "5");
             doc.move(1, {1, 0, 0});
