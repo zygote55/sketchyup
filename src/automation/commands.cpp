@@ -7,6 +7,7 @@
 #include "automation/model_recipes.hpp"
 #include "automation/measurement_assertions.hpp"
 #include "automation/transactions.hpp"
+#include "automation/texture_commands.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
@@ -359,10 +360,13 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                                 : doc.assets().at(asset)->payload ? "present"
                                                                   : "missing"}};
         };
-        return {{"documentId", QString::fromStdString(doc.identity())},
-                {"revision", QString::number(doc.revision())},
-                {"front", appearance(false)},
-                {"back", appearance(true)}};
+        QJsonObject result{{"documentId", QString::fromStdString(doc.identity())},
+                           {"revision", QString::number(doc.revision())},
+                           {"front", appearance(false)},
+                           {"back", appearance(true)}};
+        if (face)
+            result["textureMapping"] = faceTextureDescription(*body, face);
+        return result;
     }
     if (name == "tags.describe") {
         fields(request, {"query"});
@@ -694,6 +698,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                                  : std::nullopt);
             else
                 eraseAsset(staged, id(command["asset"]));
+        } else if (name == "material.map_texture") {
+            compose(executeTextureMappingCommand(staged, command));
         } else if (name == "material.create" || name == "material.edit" ||
                    name == "material.delete" || name == "material.assign") {
             if (command.contains("name") && !command["name"].isString())
@@ -1370,6 +1376,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                             !(operation.startsWith("geometry.") || operation == "entity.position" ||
                               operation == "entity.dimensions" ||
                               operation == "entity.properties" || operation == "material.assign" ||
+                              operation == "material.map_texture" ||
                               operation == "material.color"))
                             throw std::runtime_error("Instance edit requires ordinary scoped "
                                                      "geometry or appearance commands");

@@ -3081,6 +3081,246 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Set or reset a face texture projection in metres/radians",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "material.map_texture"
+                                        },
+                                        "face": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "projection": {
+                                            "description": "Null restores implicit mapping on the chosen side(s); UVs are unwrapped repeats with a top-left origin and +V down",
+                                            "oneOf": [
+                                                {
+                                                    "type": "null"
+                                                },
+                                                {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "height": {
+                                                            "description": "Signed repeat size in metres; a negative size mirrors that axis",
+                                                            "oneOf": [
+                                                                {
+                                                                    "maximum": 1000000,
+                                                                    "minimum": 1e-06,
+                                                                    "type": "number"
+                                                                },
+                                                                {
+                                                                    "maximum": -1e-06,
+                                                                    "minimum": -1000000,
+                                                                    "type": "number"
+                                                                }
+                                                            ]
+                                                        },
+                                                        "normal": {
+                                                            "items": {
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "offset": {
+                                                            "items": {
+                                                                "maximum": 1000000000,
+                                                                "minimum": -1000000000,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 2,
+                                                            "minItems": 2,
+                                                            "type": "array"
+                                                        },
+                                                        "origin": {
+                                                            "items": {
+                                                                "maximum": 1000000,
+                                                                "minimum": -1000000,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "rotationRadians": {
+                                                            "type": "number"
+                                                        },
+                                                        "tangent": {
+                                                            "items": {
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "type": {
+                                                            "const": "planar"
+                                                        },
+                                                        "width": {
+                                                            "description": "Signed repeat size in metres; a negative size mirrors that axis",
+                                                            "oneOf": [
+                                                                {
+                                                                    "maximum": 1000000,
+                                                                    "minimum": 1e-06,
+                                                                    "type": "number"
+                                                                },
+                                                                {
+                                                                    "maximum": -1e-06,
+                                                                    "minimum": -1000000,
+                                                                    "type": "number"
+                                                                }
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "type",
+                                                        "origin",
+                                                        "normal",
+                                                        "tangent",
+                                                        "width",
+                                                        "height"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "coordinates": {
+                                                            "items": {
+                                                                "items": {
+                                                                    "maximum": 1000000000,
+                                                                    "minimum": -1000000000,
+                                                                    "type": "number"
+                                                                },
+                                                                "maxItems": 2,
+                                                                "minItems": 2,
+                                                                "type": "array"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "points": {
+                                                            "items": {
+                                                                "items": {
+                                                                    "maximum": 1000000,
+                                                                    "minimum": -1000000,
+                                                                    "type": "number"
+                                                                },
+                                                                "maxItems": 3,
+                                                                "minItems": 3,
+                                                                "type": "array"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "type": {
+                                                            "const": "pins"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "type",
+                                                        "points",
+                                                        "coordinates"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "offset": {
+                                                            "items": {
+                                                                "maximum": 1000000000,
+                                                                "minimum": -1000000000,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 2,
+                                                            "minItems": 2,
+                                                            "type": "array"
+                                                        },
+                                                        "origin": {
+                                                            "items": {
+                                                                "maximum": 1000000,
+                                                                "minimum": -1000000,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "type": {
+                                                            "const": "affine"
+                                                        },
+                                                        "uGradient": {
+                                                            "items": {
+                                                                "maximum": 1000000000,
+                                                                "minimum": -1000000000,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        },
+                                                        "vGradient": {
+                                                            "items": {
+                                                                "maximum": 1000000000,
+                                                                "minimum": -1000000000,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 3,
+                                                            "minItems": 3,
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "type",
+                                                        "origin",
+                                                        "uGradient",
+                                                        "vGradient",
+                                                        "offset"
+                                                    ],
+                                                    "type": "object"
+                                                }
+                                            ]
+                                        },
+                                        "side": {
+                                            "enum": [
+                                                "front",
+                                                "back",
+                                                "both"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "space": {
+                                            "enum": [
+                                                "local",
+                                                "world"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "face",
+                                        "side",
+                                        "space",
+                                        "projection",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Paint selection",
                                     "properties": {
                                         "body": {

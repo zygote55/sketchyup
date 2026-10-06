@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "installedContractAndSchemasMatch": true,
+  "desktopBinaryMatches": true,
+  "exampleCommands": 6,
+  "embeddedImages": 1,
+  "glbBytes": 3736,
+  "glbSha256": "15b9c97bf896a1ffdc796653085427d71e5b6ecb01458361f227c91254adc257",
+  "exactAfterRelocation": true
+}
