@@ -229,6 +229,7 @@ void Viewport::finishTransform(const QJsonObject &input, bool arrayEligible) {
     for (auto target : transformSelection_)
         if (!selectable(target))
             throw std::runtime_error("Transform source is no longer editable");
+    validateHostedTransform(command);
     const auto revision = doc_.revision();
     const auto result = session_.commit(command);
     if (revision == doc_.revision()) {

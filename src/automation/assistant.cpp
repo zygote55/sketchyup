@@ -131,7 +131,11 @@ const char *instructions =
     "uses host-local anchor/tangent/inset and radians; component.bind retains the current pose "
     "and requires an explicit host-local inset. Never infer a cutting silhouette or host binding "
     "from a name. Detach restores the opening; bake_host keeps cut geometry and releases all "
-    "attachments on that host. "
+    "attachments on that host. Copying or arraying an attached whole instance retains its host "
+    "binding and creates an independently validated opening. Copy a host with all its attached "
+    "instances to create an independent assembly; a partial attachment subset is rejected. "
+    "Copying only a host keeps its visible cut geometry without bindings. Use component.instance "
+    "when an explicitly unbound placement is requested. "
     "Measure and validate the private result; never substitute thickness-changing scale for "
     "a request to preserve frame members. No screenshots are sent.";
 } // namespace

@@ -1451,6 +1451,7 @@ QJsonObject Viewport::previewCommand(const QJsonObject &command) {
     previewEdges_.clear();
     previewGuides_.clear();
     try {
+        validateHostedTransform(command);
         result = session_.preview(command);
         const auto geometry = result["geometry"].toObject();
         for (auto it = geometry.begin(); it != geometry.end(); ++it) {

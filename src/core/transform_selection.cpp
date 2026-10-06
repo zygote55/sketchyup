@@ -1,6 +1,7 @@
 #include "core/transform_selection.hpp"
 #include "core/appearance.hpp"
 #include "core/geometry_subset.hpp"
+#include "core/hosted_components.hpp"
 #include <algorithm>
 namespace sketchy {
 namespace {
@@ -231,6 +232,8 @@ TransformResult transformSelected(Document &doc, const TransformTargets &targets
                     target = result.copies.at(target);
                 edit.instances.push_back({result.copies.at(root), nullptr, binding});
             }
+    if (copy)
+        expandHostedCopies(doc, edit, result.copies);
     if (!edit.changes.empty())
         result.changes = doc.apply(std::move(edit), doc.revision());
     return result;

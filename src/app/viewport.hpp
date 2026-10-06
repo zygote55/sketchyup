@@ -367,6 +367,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void finishHostedPlacement();
     bool hostedMeasurements(const QString &text);
     void validateHostedLocks(const QJsonObject &command) const;
+    void validateHostedTransform(const QJsonObject &command) const;
     std::optional<QJsonObject> orientationCommand_;
     bool orientConnected_{};
     std::vector<std::array<Vec3, 2>> orientationNormals_;

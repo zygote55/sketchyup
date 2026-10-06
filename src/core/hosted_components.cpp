@@ -391,31 +391,162 @@ std::set<Id> hostedEditingContexts(const Edit &edit) {
         result.insert(host);
     return result;
 }
-void validateHostedAmendment(const Edit &original, const HostedComponents &baseline,
-                             const HostedComponents &replacement) {
-    auto validate = [](const auto &old, const auto &next, const auto &allowed, size_t created) {
-        size_t additions = 0;
-        for (auto id : changedKeys(old, next)) {
-            if (!allowed.contains(id))
-                fail("HOST_SCOPE", "Amendment cannot change unrelated hosted component records");
-            additions += !old.contains(id) && next.contains(id);
+void expandHostedCopies(const Document &before, Edit &edit, const std::map<Id, Id> &copies) {
+    const auto &original = before.hostedComponents();
+    std::set<Id> roots, copiedHosts;
+    for (const auto &[root, attachment] : original.attachments)
+        if (copies.contains(root)) {
+            roots.insert(root);
+            if (copies.contains(attachment->host))
+                copiedHosts.insert(attachment->host);
         }
-        if (additions != created)
-            fail("HOST_SCOPE", "Amendment must retain attachment and host creation counts");
-    };
+    if (roots.empty())
+        return;
+    for (const auto &[root, attachment] : original.attachments)
+        if (copiedHosts.contains(attachment->host) && !copies.contains(root))
+            fail("HOST_COPY_SCOPE", "Copy a host with all its attached components, or copy only "
+                                    "the host as baked geometry");
+
+    // Validate/materialize the ordinary copy in a private document first. The
+    // caller still publishes a single edit; failures cannot allocate source IDs.
+    Document candidate = before.readSnapshot();
+    candidate.apply(edit, candidate.revision());
+    auto bodies = candidate.bodies();
+    auto records = std::make_shared<HostedComponents>(candidate.hostedComponents());
+    for (auto host : copiedHosts) {
+        auto copied = std::make_shared<HostedSurface>(*original.hosts.at(host));
+        copied->openings.clear();
+        for (const auto &[root, opening] : original.hosts.at(host)->openings)
+            copied->openings[copies.at(root)] = opening;
+        records->hosts[copies.at(host)] = std::move(copied);
+    }
+    std::set<Id> affected;
+    for (auto root : roots) {
+        auto attachment = std::make_shared<ComponentAttachment>(*original.attachments.at(root));
+        if (copies.contains(attachment->host))
+            attachment->host = copies.at(attachment->host);
+        const auto copiedRoot = copies.at(root);
+        const auto &definition =
+            *candidate.definitions().at(candidate.instances().at(copiedRoot)->definition);
+        attachment->frame = candidate.worldTransform(attachment->host).inverse() *
+                            candidate.worldTransform(copiedRoot) *
+                            matrix(resolveComponentGlue(definition).frame);
+        affected.insert(attachment->host);
+        records->attachments[copiedRoot] = std::move(attachment);
+    }
+    bounded(*records);
+    std::map<Id, std::map<Id, OpeningProfile>> requested;
+    size_t corners = 0;
+    const auto owned = ownedMembers(candidate.instances());
+    for (const auto &[root, attachment] : records->attachments) {
+        const auto &definition = definitionFor(root, *attachment, bodies, candidate.definitions(),
+                                               candidate.instances(), owned);
+        const auto profile =
+            cutProfile(records->hosts.at(attachment->host)->uncut, *attachment, definition);
+        if (profile.corners.size() > 4096 - corners)
+            fail("HOST_LIMIT", "Copied openings exceed the aggregate profile budget");
+        corners += profile.corners.size();
+        if (definition.glue->cutsOpening)
+            requested[attachment->host][root] = profile;
+    }
+    for (auto host : affected) {
+        const auto &record = *records->hosts.at(host);
+        const auto result =
+            regenerateHost(record.uncut, *bodies.at(host), record.openings, requested[host]);
+        bodyChange(before, edit, bodies, std::make_shared<const Body>(result.body),
+                   result.faceDescendants);
+        records->hosts[host] =
+            std::make_shared<const HostedSurface>(HostedSurface{record.uncut, result.openings});
+    }
+    bounded(*records);
+    edit.hosted = HostedChange{before.hostedRecords(), std::move(records)};
+    edit.hostedResolved = true;
+}
+void validateHostedAmendment(const Edit &original, const Edit &replacementEdit,
+                             const HostedComponents &baseline, const HostedComponents &replacement,
+                             bool resizeCopies) {
     const auto &previous = original.hosted ? *original.hosted->before : baseline;
     const auto &after = original.hosted ? *original.hosted->after : baseline;
+    auto freshBodies = [](const Edit &edit) {
+        std::set<Id> result;
+        for (const auto &change : edit.changes)
+            if (!change.before && change.after)
+                result.insert(change.id);
+        return result;
+    };
+    auto freshBindings = [](const Edit &edit) {
+        std::map<Id, Id> result;
+        for (const auto &change : edit.instances)
+            if (!change.before && change.after)
+                result[change.root] = change.after->definition;
+        return result;
+    };
+    const auto oldBodies = freshBodies(original), newBodies = freshBodies(replacementEdit);
+    const auto oldBindings = freshBindings(original), newBindings = freshBindings(replacementEdit);
+    std::set<Id> copiedHosts, copiedAttachments;
+    for (const auto &[host, record] : after.hosts)
+        if (!previous.hosts.contains(host) && oldBodies.contains(host))
+            copiedHosts.insert(host);
+    for (const auto &[root, record] : after.attachments)
+        if (!previous.attachments.contains(root) && oldBodies.contains(root) &&
+            oldBindings.contains(root))
+            copiedAttachments.insert(root);
+
+    // Re-entry retires copied body IDs. Accept fresh replacements only when
+    // their host baseline and binding shape match copies in the original edit.
+    // Existing unrelated bodies/bindings never become eligible through this path.
+    auto newCopiedHost = [&](Id host) {
+        if (!newBodies.contains(host) || baseline.hosts.contains(host) ||
+            !replacement.hosts.contains(host))
+            return false;
+        return std::any_of(copiedHosts.begin(), copiedHosts.end(), [&](Id originalHost) {
+            return sameGeometry(after.hosts.at(originalHost)->uncut,
+                                replacement.hosts.at(host)->uncut);
+        });
+    };
+    auto newCopiedAttachment = [&](Id root) {
+        if (!newBodies.contains(root) || !newBindings.contains(root) ||
+            baseline.attachments.contains(root) || !replacement.attachments.contains(root))
+            return false;
+        const auto &next = *replacement.attachments.at(root);
+        return std::any_of(
+            copiedAttachments.begin(), copiedAttachments.end(), [&](Id originalRoot) {
+                const auto &source = *after.attachments.at(originalRoot);
+                const bool sameHost = copiedHosts.contains(source.host)
+                                          ? newCopiedHost(next.host) &&
+                                                sameGeometry(after.hosts.at(source.host)->uncut,
+                                                             replacement.hosts.at(next.host)->uncut)
+                                          : next.host == source.host;
+                return sameHost && source.face == next.face && source.inset == next.inset &&
+                       oldBindings.at(originalRoot) == newBindings.at(root);
+            });
+    };
     auto added = [](const auto &a, const auto &b) {
         size_t result = 0;
         for (const auto &[id, value] : b)
             result += !a.contains(id);
         return result;
     };
+    auto validate = [&](const auto &old, const auto &next, const auto &allowed, size_t created,
+                        size_t copied, const auto &replacementCopy) {
+        size_t additions = 0, freshCopies = 0;
+        for (auto id : changedKeys(old, next)) {
+            const bool fresh = replacementCopy(id);
+            if (!allowed.contains(id) && !fresh)
+                fail("HOST_SCOPE", "Amendment cannot change unrelated hosted component records");
+            additions += !old.contains(id) && next.contains(id);
+            freshCopies += fresh;
+        }
+        if (additions != created &&
+            !(resizeCopies && copied && additions && copied == created && additions == freshCopies))
+            fail("HOST_SCOPE", "Amendment must retain attachment and host creation counts");
+    };
     validate(baseline.hosts, replacement.hosts, changedKeys(previous.hosts, after.hosts),
-             added(previous.hosts, after.hosts));
+             added(previous.hosts, after.hosts), copiedHosts.size(), newCopiedHost);
     validate(baseline.attachments, replacement.attachments,
              changedKeys(previous.attachments, after.attachments),
-             added(previous.attachments, after.attachments));
+             added(previous.attachments, after.attachments), copiedAttachments.size(),
+             newCopiedAttachment);
 }
 namespace {
 HostedChangeReport setAttachment(Document &doc, Id root, ComponentAttachment attachment,
