@@ -1,5 +1,6 @@
 #include "core/transform_selection.hpp"
 #include "core/appearance.hpp"
+#include "core/face_textures.hpp"
 #include "core/geometry_subset.hpp"
 #include "core/hosted_components.hpp"
 #include <algorithm>
@@ -9,16 +10,19 @@ using Part = GeometrySubset;
 void transformPart(Body &body, const Part &part, const Transform &matrix) {
     for (auto vertex : part.vertices)
         body.surface.vertices.at(vertex) = matrix.point(body.surface.vertices.at(vertex));
-    if (matrix.determinant() < 0)
-        for (auto &[id, face] : body.surface.faces) {
-            bool complete = true;
-            for (const auto &loop : face.loops)
-                for (auto vertex : loop)
-                    complete &= part.vertices.contains(vertex);
-            if (complete)
+    for (auto &[id, face] : body.surface.faces) {
+        bool complete = true;
+        for (const auto &loop : face.loops)
+            for (auto vertex : loop)
+                complete &= part.vertices.contains(vertex);
+        if (complete) {
+            const auto mapping = transformTextureMappings(faceTextureMappings(body, id), matrix);
+            setFaceTextureMappings(body, id, mapping);
+            if (matrix.determinant() < 0)
                 for (auto &loop : face.loops)
                     std::reverse(loop.begin(), loop.end());
         }
+    }
     for (auto it = body.curves.begin(); it != body.curves.end();) {
         bool any = false, all = true;
         for (auto edge : it->second.edges) {
@@ -75,7 +79,9 @@ Change appendCopy(const BodyPtr &old, const Body &geometry, GeometryCopies &mapp
         for (auto &loop : record.loops)
             for (auto &vertex : loop)
                 vertex = mapping.vertices.at(vertex);
-        body->surface.faces[record.id] = std::move(record);
+        const auto copiedFace = record.id;
+        body->surface.faces[copiedFace] = std::move(record);
+        setFaceTextureMappings(*body, copiedFace, faceTextureMappings(geometry, id));
     }
     for (auto wire : geometry.surface.wires)
         body->surface.wires.push_back({mapping.vertices.at(wire[0]), mapping.vertices.at(wire[1])});

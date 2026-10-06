@@ -16,6 +16,7 @@ void emptyGeometry(Body &body) {
     body.edgeAppearances.clear();
     body.faceColors.clear();
     body.faceMaterials.clear();
+    body.faceTextureMappings.clear();
     body.curves.clear();
     body.guides.clear();
 }

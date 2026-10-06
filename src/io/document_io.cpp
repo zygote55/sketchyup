@@ -39,6 +39,34 @@ void supportedFields(const QJsonObject &record, const QStringList &allowed) {
         if (!allowed.contains(it.key()))
             throw std::runtime_error("Unsupported document field: " + it.key().toStdString());
 }
+QJsonValue encodeTextureMapping(const std::optional<TextureMapping> &mapping) {
+    if (!mapping)
+        return QJsonValue::Null;
+    const auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
+    return QJsonObject{{"origin", point(mapping->origin)},
+                       {"uGradient", point(mapping->uGradient)},
+                       {"vGradient", point(mapping->vGradient)},
+                       {"offset", QJsonArray{mapping->offset.u, mapping->offset.v}}};
+}
+std::optional<TextureMapping> decodeTextureMapping(const QJsonValue &value) {
+    if (value.isNull())
+        return {};
+    const auto record = object(value);
+    supportedFields(record, {"origin", "uGradient", "vGradient", "offset"});
+    const auto point = [](const QJsonValue &value) {
+        const auto values = array(value);
+        if (values.size() != 3)
+            throw std::runtime_error("Texture mapping vector requires three coordinates");
+        return Vec3{number(values[0]), number(values[1]), number(values[2])};
+    };
+    const auto offset = array(record["offset"]);
+    if (offset.size() != 2)
+        throw std::runtime_error("Texture offset requires two coordinates");
+    TextureMapping mapping{point(record["origin"]), point(record["uGradient"]),
+                           point(record["vGradient"]), {number(offset[0]), number(offset[1])}};
+    mapping.validate();
+    return mapping;
+}
 } // namespace
 QJsonObject encodeCurve(Id id, const Curve &curve) {
     auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
@@ -114,10 +142,15 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
         QJsonObject faceMaterials;
         for (const auto &[face, sides] : b->faceMaterials)
             faceMaterials[sid(face)] = QJsonArray{sid(sides.front), sid(sides.back)};
+        QJsonObject faceTextureMappings;
+        for (const auto &[face, sides] : b->faceTextureMappings)
+            faceTextureMappings[sid(face)] =
+                QJsonArray{encodeTextureMapping(sides.front), encodeTextureMapping(sides.back)};
         bodies.append(
             QJsonObject{{"id", sid(id)},
                         {"materials", QJsonArray{sid(b->materials.front), sid(b->materials.back)}},
                         {"faceMaterials", faceMaterials},
+                        {"faceTextureMappings", faceTextureMappings},
                         {"edgeAppearances", edgeAppearances},
                         {"parent", sid(b->parent)},
                         {"kind", b->kind == BodyKind::Group ? "group" : "geometry"},
@@ -201,7 +234,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 15},
+                {"version", 16},
                 {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
                 {"revision", sid(doc.revision())},
                 {"units", "m"},
@@ -252,9 +285,23 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
             allowed += {"materials", "faceMaterials"};
         if (version >= 13)
             allowed.append("edgeAppearances");
+        if (version >= 16)
+            allowed.append("faceTextureMappings");
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
+        if (version >= 16) {
+            const auto mappings = object(o["faceTextureMappings"]);
+            if (mappings.size() > 100000)
+                throw std::runtime_error("Too many face texture mappings");
+            for (auto it = mappings.begin(); it != mappings.end(); ++it) {
+                const auto sides = array(it.value());
+                if (sides.size() != 2)
+                    throw std::runtime_error("Expected front/back texture mappings");
+                b->faceTextureMappings[readId(it.key())] =
+                    {decodeTextureMapping(sides[0]), decodeTextureMapping(sides[1])};
+            }
+        }
         if (version >= 13) {
             const auto styles = object(o["edgeAppearances"]);
             if (styles.size() > qsizetype(Topology::edgeLimit))
@@ -490,7 +537,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 9 && root["version"].toDouble() != 10 &&
          root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
          root["version"].toDouble() != 13 && root["version"].toDouble() != 14 &&
-         root["version"].toDouble() != 15) ||
+         root["version"].toDouble() != 15 && root["version"].toDouble() != 16) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");

@@ -104,6 +104,7 @@ int main(int argc, char **argv) {
             record.remove("materials");
             record.remove("faceMaterials");
             record.remove("edgeAppearances");
+            record.remove("faceTextureMappings");
             record.remove("parent");
             record.remove("transform");
             record.remove("properties");

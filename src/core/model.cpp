@@ -1,5 +1,6 @@
 #include "core/model.hpp"
 #include "core/appearance.hpp"
+#include "core/face_textures.hpp"
 #include "core/edge_appearance.hpp"
 #include "geometry/offset.hpp"
 #include <algorithm>
@@ -71,6 +72,7 @@ size_t bytes(const BodyPtr &b) {
     n += b->edgeAppearances.size() * (sizeof(Id) + sizeof(EdgeAppearance) + 64);
     n += b->faceColors.size() * (sizeof(Id) + sizeof(std::array<float, 3>) + 64);
     n += b->faceMaterials.size() * (sizeof(Id) + sizeof(MaterialSides) + 64);
+    n += b->faceTextureMappings.size() * (sizeof(Id) + sizeof(TextureMappingSides) + 64);
     n += b->guides.size() * (sizeof(Guide) + 64);
     for (const auto &[id, curve] : b->curves)
         n += sizeof(Curve) + 64 + curve.edges.size() * sizeof(OrientedEdge);
@@ -142,6 +144,7 @@ void validate(const Body &b) {
     }
     if (b.edgeAppearances.size() > Topology::edgeLimit)
         throw std::runtime_error("Too many edge appearance records");
+    validateFaceTextureMappings(b);
     b.transform.validate();
     if (b.properties.size() > 128)
         throw std::runtime_error("Too many entity properties");
@@ -408,7 +411,7 @@ ChangeReport Document::offsetFace(Id context, Id face, double distance, bool wor
     auto body = std::make_shared<Body>(*old);
     body->surface = std::move(result.surface);
     inheritFaceAppearance(*old, *body, result.faces, faceColor(*old, face),
-                          faceMaterials(*old, face));
+                          faceMaterials(*old, face), faceTextureMappings(*old, face));
     return apply({"Offset face boundaries", {{context, old, body, std::move(result.faces)}}},
                  revision_);
 }
@@ -419,14 +422,15 @@ ChangeReport Document::pushPull(Id context, Id face, double distance, bool newFa
     body->surface = std::move(result.surface);
     if (old)
         inheritFaceAppearance(*old, *body, result.faces, faceColor(*old, face),
-                              faceMaterials(*old, face));
+                              faceMaterials(*old, face), faceTextureMappings(*old, face));
     return apply({"Push/pull face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 void Document::extrude(Id id, Id face, double distance) {
     auto old = bodies_.at(id);
     auto b = std::make_shared<Body>(*old);
     b->surface.extrude(face, distance);
-    inheritFaceAppearance(*old, *b, {}, faceColor(*old, face), faceMaterials(*old, face));
+    inheritFaceAppearance(*old, *b, {}, faceColor(*old, face), faceMaterials(*old, face),
+                          faceTextureMappings(*old, face));
     apply({"Extrude face", {{id, old, b}}}, revision_);
 }
 void Document::move(Id id, Vec3 delta) {
@@ -445,6 +449,7 @@ void Document::paint(Id id, std::array<float, 3> color) {
     b->faceColors.clear();
     b->materials = {};
     b->faceMaterials.clear();
+    b->faceTextureMappings.clear();
     apply({"Paint", {{id, old, b}}}, revision_);
 }
 Transform Document::worldTransform(Id id) const { return worldTransformIn(bodies_, id); }
@@ -837,6 +842,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             }
             validateEdgeAppearances(*change.after);
             reportEdgeAppearanceChanges(before, *change.after, changes.edges);
+            reportFaceTextureMappingChanges(before, *change.after, changes.faces);
             change.edgeAppearancesResolved = true;
         }
         edit.bytes += sizeof(Change) + bytes(change.before) + bytes(change.after);

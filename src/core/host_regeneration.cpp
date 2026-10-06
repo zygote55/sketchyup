@@ -1,6 +1,7 @@
 #include "core/host_regeneration.hpp"
 #include "core/appearance.hpp"
 #include "core/edge_appearance.hpp"
+#include "core/face_textures.hpp"
 #include <algorithm>
 #include <set>
 namespace sketchy {
@@ -199,6 +200,9 @@ RegeneratedHost regenerate(const Surface &uncut, const Body &current, const Host
     std::erase_if(result.body.faceMaterials, [&](const auto &entry) {
         return !result.body.surface.faces.contains(entry.first);
     });
+    std::erase_if(result.body.faceTextureMappings, [&](const auto &entry) {
+        return !result.body.surface.faces.contains(entry.first);
+    });
     std::erase_if(result.body.edgeAppearances, [&](const auto &entry) {
         return !result.body.topology.edges.contains(entry.first);
     });
@@ -210,6 +214,8 @@ RegeneratedHost regenerate(const Surface &uncut, const Body &current, const Host
             descendants.push_back(face);
             if (current.surface.faces.contains(face))
                 continue;
+            setFaceTextureMappings(result.body, face,
+                                   faceTextureMappings(current, opening.profile.face));
             const auto color = faceColor(current, opening.profile.face);
             const auto materials = faceMaterials(current, opening.profile.face);
             if (color != result.body.color)

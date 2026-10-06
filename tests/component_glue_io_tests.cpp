@@ -3,6 +3,7 @@
 #include "core/components.hpp"
 #include "io/document_io.hpp"
 #include "io/recovery.hpp"
+#include "legacy_texture_fields.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QJsonDocument>
@@ -65,7 +66,7 @@ int main(int argc, char **argv) {
         check(resolveComponentGlue(*reopened.definitions().at(made.definition)).profile.size() == 4,
               "Reopened glue resolves against authoritative geometry");
         const auto json = QJsonDocument::fromJson(raw).object();
-        check(json["version"] == 15, "Glue schema version is explicit");
+        check(json["version"] == 16, "Glue schema version is explicit");
         auto missing = json;
         auto definitions = missing["definitions"].toArray();
         auto definition = definitions[0].toObject();
@@ -76,6 +77,7 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QJsonDocument(missing).toJson()); });
         missing["version"] = 13;
         missing.remove("hosted");
+        removeTextureMappingFields(missing);
         auto migrated = decodeDocument(QJsonDocument(missing).toJson());
         check(!migrated.definitions().at(made.definition)->glue &&
                   migrated.instances().size() == doc.instances().size(),
@@ -116,6 +118,10 @@ int main(int argc, char **argv) {
             chunk["encoding"] = "json-v13";
             chunks[0] = chunk;
             manifest["chunks"] = chunks;
+            features = manifest["requiredFeatures"].toArray();
+            features.removeAt(features.size() - 1);
+            manifest["requiredFeatures"] = features;
+            removeTextureMappingFields(document);
             document["version"] = 13;
             document.remove("hosted");
             auto records = document["definitions"].toArray();

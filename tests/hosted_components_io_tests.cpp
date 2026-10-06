@@ -3,6 +3,7 @@
 #include "core/hosted_components.hpp"
 #include "io/document_io.hpp"
 #include "io/recovery.hpp"
+#include "legacy_texture_fields.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QJsonDocument>
@@ -72,7 +73,7 @@ void roundtripAndRecovery(bool cutting) {
     validateHostedComponents(reopened.hostedComponents(), reopened.bodies(), reopened.definitions(),
                              reopened.instances());
     const auto json = QJsonDocument::fromJson(raw).object();
-    check(json["version"] == 15, "Hosted document schema version is explicit");
+    check(json["version"] == 16, "Hosted document schema version is explicit");
     for (int variant = 0; variant < 17; ++variant) {
         auto bad = json;
         auto hosted = bad["hosted"].toObject();
@@ -190,6 +191,10 @@ void roundtripAndRecovery(bool cutting) {
         chunk["encoding"] = "json-v14";
         chunks[0] = chunk;
         manifest["chunks"] = chunks;
+        features = manifest["requiredFeatures"].toArray();
+        features.removeAt(features.size() - 1);
+        manifest["requiredFeatures"] = features;
+        removeTextureMappingFields(document);
         document["version"] = 14;
         document.remove("hosted");
     });

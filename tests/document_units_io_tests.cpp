@@ -103,6 +103,7 @@ int main(int argc, char **argv) {
         for (qsizetype i = 0; i < legacyBodies.size(); ++i) {
             auto body = legacyBodies[i].toObject();
             body.remove("edgeAppearances");
+            body.remove("faceTextureMappings");
             legacyBodies[i] = body;
         }
         root["bodies"] = legacyBodies;

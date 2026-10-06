@@ -1,5 +1,6 @@
 #include "core/profile_sweep.hpp"
 #include "core/appearance.hpp"
+#include "core/face_textures.hpp"
 #include "core/groups.hpp"
 namespace sketchy {
 ProfileSweepResult sweepFace(Document &doc, Id source, Id face, const std::vector<Vec3> &path,
@@ -26,6 +27,8 @@ ProfileSweepResult sweepFace(Document &doc, Id source, Id face, const std::vecto
     body->color = faceColor(*old, face);
     body->materials = faceMaterials(*old, face);
     body->tag = old->tag;
+    for (const auto &[generated, record] : body->surface.faces)
+        setFaceTextureMappings(*body, generated, faceTextureMappings(*old, face));
     auto changes = doc.apply({"Sweep profile", {{body->id, nullptr, body}}}, doc.revision());
     return {body->id, std::move(result.caps), std::move(result.sides), std::move(result.segments),
             std::move(changes)};
