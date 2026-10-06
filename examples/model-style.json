@@ -27,7 +27,7 @@
     ]
   },
   {
-    "command": "geometry.extrude",
+    "command": "geometry.extrude_isolated",
     "body": "1",
     "face": "5",
     "distance": 1
