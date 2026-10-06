@@ -6,6 +6,7 @@
 #include "app/scenes_panel.hpp"
 #include "app/sections_panel.hpp"
 #include "app/annotations_panel.hpp"
+#include "app/text_panel.hpp"
 #include "core/groups.hpp"
 #include <QAction>
 #include <QComboBox>
@@ -262,9 +263,12 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tabs_->addTab(sections_, "Sections");
     annotations_ = new AnnotationsPanel(doc_, view_);
     tabs_->addTab(annotations_, "Annotations");
+    text_ = new TextPanel(doc_, view_);
+    tabs_->addTab(text_, "3D Text");
     setFocusProxy(outliner_);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
-        setFocusProxy(index == 8 ? static_cast<QWidget *>(annotations_)
+        setFocusProxy(index == 9 ? static_cast<QWidget *>(text_)
+                      : index == 8 ? static_cast<QWidget *>(annotations_)
                       : index == 7 ? static_cast<QWidget *>(sections_)
                       : index == 6 ? static_cast<QWidget *>(scenes_)
                       : index == 5 ? static_cast<QWidget *>(styles_)
@@ -496,6 +500,7 @@ void OrganizationPanel::filter() {
 void OrganizationPanel::showMaterials() { tabs_->setCurrentWidget(materials_); }
 void OrganizationPanel::showStyles() { tabs_->setCurrentWidget(styles_); }
 void OrganizationPanel::showScenes() { tabs_->setCurrentWidget(scenes_); }
+void OrganizationPanel::showText() { tabs_->setCurrentWidget(text_); }
 void OrganizationPanel::showAnnotations() { tabs_->setCurrentWidget(annotations_); }
 void OrganizationPanel::showSections() { tabs_->setCurrentWidget(sections_); }
 void OrganizationPanel::showHistory() {
@@ -608,6 +613,7 @@ void OrganizationPanel::refresh() {
     scenes_->refresh();
     sections_->refresh();
     annotations_->refresh();
+    text_->refresh();
     // Save acknowledgements can move the saved marker without advancing content revision.
     history_->refresh(true);
 }

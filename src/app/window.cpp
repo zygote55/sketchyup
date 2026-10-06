@@ -681,6 +681,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         findChild<QAction *>("view.tray")->setChecked(true);
         organization_->showAnnotations();
     }));
+    view->addAction(action("view.text", "3D text", {}, [this] {
+        sideTabs_->show();
+        sideTabs_->setCurrentWidget(tray_);
+        tray_->show();
+        findChild<QAction *>("view.tray")->setChecked(true);
+        organization_->showText();
+    }));
     auto *reducedMotion = action("view.reduced_motion", "Reduced camera motion", {}, [this] {
         const auto enabled = findChild<QAction *>("view.reduced_motion")->isChecked();
         QSettings().setValue("reducedMotion", enabled);
