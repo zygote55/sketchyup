@@ -446,7 +446,30 @@ int main(int argc, char **argv) {
         doc = Document{};
         view.refresh();
         QGuiApplication::sync();
-        window.close();
+        if (QGuiApplication::platformName().startsWith("wayland")) {
+            QTimer::singleShot(0, &window,
+                               [&] { doc.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}}); });
+            window.close();
+            check(QTest::qWaitFor([&] { return window.windowHandle()->isVisible(); }, 2000) &&
+                      window.isVisible() && !doc.bodies().empty(),
+                  "An intervening model edit cancels deferred shutdown and remaps the window");
+            doc = Document{};
+            view.refresh();
+        }
+        unsigned lastClosed = 0;
+        QObject::connect(&app, &QGuiApplication::lastWindowClosed, &window, [&] { ++lastClosed; });
+        QTimer::singleShot(0, &window, [&] {
+            // A repeated close during native drain cannot destroy the surface early.
+            QTimer::singleShot(0, &window, [&] { window.close(); });
+            window.close();
+        });
+        QTimer::singleShot(5000, &app, [&] { app.exit(2); });
+        const auto exitCode = app.exec();
+        if (exitCode || lastClosed != 1 || window.isVisible())
+            std::cerr << "Shutdown result: exit=" << exitCode << " lastClosed=" << lastClosed
+                      << " visible=" << window.isVisible() << '\n';
+        check(exitCode == 0 && lastClosed == 1 && !window.isVisible(),
+              "Final native close emits lastWindowClosed once and quits the application");
         events();
         QGuiApplication::sync();
     } catch (const std::exception &error) {
