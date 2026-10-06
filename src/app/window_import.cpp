@@ -1,3 +1,4 @@
+#include "app/report_sheet.hpp"
 #include "app/window.hpp"
 #include "io/formline.hpp"
 #include <QDialog>
@@ -20,21 +21,18 @@ void Window::importFormlinePath(const QString &path) {
     viewport_->fit();
     sync();
     status_->setText("Imported an unsaved native model · Source file unchanged");
-    QDialog report(this);
-    report.setObjectName("formlineImportReport");
-    report.setWindowTitle("Formline import report");
+    ReportSheet report("formlineImportReport", "Formline import report", this);
     report.resize(560, 420);
-    auto *layout = new QVBoxLayout(&report);
-    auto *summary =
-        new QLabel(QString("Imported %1 objects into a new unsaved model.\n"
-                           "Meters; Y-up converted to Z-up. Cylinders retain 48 sides.\n"
-                           "Open the imported group to edit faces. Save to a new .sketchyup file; "
-                           "the source is unchanged.")
-                       .arg(imported.report.value("objects").toInt()));
+    auto *summary = report.summary;
+    summary->setText(
+        QString("Imported %1 objects into a new unsaved model.\n"
+                "Meters; Y-up converted to Z-up. Cylinders retain 48 sides.\n"
+                "Open the imported group to edit faces. Save to a new .sketchyup file; "
+                "the source is unchanged.")
+            .arg(imported.report.value("objects").toInt()));
     summary->setObjectName("formlineImportSummary");
     summary->setTextFormat(Qt::PlainText);
     summary->setWordWrap(true);
-    layout->addWidget(summary);
     auto *details = new QPlainTextEdit;
     details->setObjectName("formlineImportDetails");
     details->setReadOnly(true);
@@ -63,10 +61,7 @@ void Window::importFormlinePath(const QString &path) {
             text += QString(" Count: %1.").arg(warning.value("count").toInt());
     }
     details->setPlainText(text);
-    layout->addWidget(details, 1);
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close);
-    connect(buttons, &QDialogButtonBox::rejected, &report, &QDialog::reject);
-    layout->addWidget(buttons);
+    report.body->addWidget(details, 1);
     report.exec();
 }
 } // namespace sketchy

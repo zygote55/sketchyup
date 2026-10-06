@@ -264,6 +264,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                            [this] { viewport_->hideSelection(); }));
     edit->addAction(action("selection.reveal", "Reveal hidden geometry in this view", {},
                            [this] { viewport_->revealHiddenGeometry(); }));
+    edit->addAction(action("geometry.diagnose", "Geometry diagnostics…", {},
+                           [this] { showGeometryDiagnostics(); }));
     auto *edgeAppearance = edit->addMenu("Edge appearance");
     const std::array<std::tuple<const char *, const char *, const char *, bool>, 6> edgeActions{
         {{"edge.hide", "Hide selected edges", "hidden", true},
@@ -844,6 +846,8 @@ void Window::sync() {
     for (const auto *name :
          {"edge.hide", "edge.reveal", "edge.soften", "edge.harden", "edge.smooth", "edge.flat"})
         findChild<QAction *>(name)->setEnabled(selectedEdges);
+    findChild<QAction *>("geometry.diagnose")
+        ->setEnabled(viewport_->selectedBody() || viewport_->selectionState().context());
     findChild<QAction *>("group.selection")->setEnabled(!selection.empty());
     const bool whole =
         !selection.empty() && std::all_of(selection.begin(), selection.end(),

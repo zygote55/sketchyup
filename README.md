@@ -502,6 +502,13 @@ strokes and select them for Reveal or Harden. These actions keep other flags
 intact and support Undo. Locks and group/component editing boundaries still apply. See the [edge appearance example](examples/edge-appearance.json)
 and [contract](docs/decisions/0051-edge-appearance.md).
 
+**Edit → Geometry diagnostics** opens findings for selected geometry or the active
+editing context. Select or frame listed entities, refresh after edits, and preview
+eligible orientation repairs. Connected orientation requires an explicit reference
+face. Enter applies the preview; Escape cancels; Undo restores the edit. Shared
+components follow their usual editing scope. Truncated samples cannot reverse a
+whole shell, and diagnostics never delete unrelated geometry automatically.
+
 `geometry.diagnose` inspects one explicit body record and returns bounded findings
 for open boundaries, non-manifold geometry, inconsistent or inverted orientation,
 loose geometry and near-degenerate faces. Counts distinguish complete scans from

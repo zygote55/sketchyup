@@ -134,6 +134,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     bool hasAssistantPreview() const;
     void setAssistantPreviewFocus(Id body);
     void fit();
+    void frameBounds(Vec3 low, Vec3 high);
     void standardView(int view);
     void setOrthographic(bool enabled);
     bool orthographic() const { return ortho_; }

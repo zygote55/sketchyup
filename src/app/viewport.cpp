@@ -1308,6 +1308,20 @@ void Viewport::fit() {
         std::max(2., radius * 1.1 / (ortho_ ? .45 * std::min(1., aspect) : std::sin(halfAngle)));
     cameraChanged();
 }
+void Viewport::frameBounds(Vec3 low, Vec3 high) {
+    for (const auto point : {low, high})
+        if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z))
+            throw std::runtime_error("Cannot frame non-finite geometry");
+    if (low.x > high.x || low.y > high.y || low.z > high.z)
+        throw std::runtime_error("Cannot frame empty bounds");
+    target_ = qv(low + (high - low) * .5);
+    const auto aspect = double(width()) / std::max(1, height());
+    const auto halfAngle = std::atan(std::tan(fov_ * degreesToRadians / 2) * std::min(1., aspect));
+    const auto radius = length(high - low) * .5;
+    distance_ =
+        std::max(.05, radius * 1.1 / (ortho_ ? .45 * std::min(1., aspect) : std::sin(halfAngle)));
+    cameraChanged();
+}
 QJsonObject Viewport::shapeCommand(Vec3 end) const {
     if (guideTool())
         return guideCommand(end);

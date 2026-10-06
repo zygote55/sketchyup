@@ -46,6 +46,8 @@ class Window : public QMainWindow {
     QHBoxLayout *content_{};
     QTabWidget *sideTabs_{};
     QPointer<QDialog> assistantSheet_;
+    QPointer<QDialog> diagnosticsSheet_;
+    void showGeometryDiagnostics();
     bool assistantShown_{}, assistantFenced_{};
     int assistantRecoveryInterval_{};
     std::map<QAction *, bool> assistantActionStates_;
