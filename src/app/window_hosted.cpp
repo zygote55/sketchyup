@@ -56,6 +56,8 @@ void Window::addHostedActions(QMenu *menu) {
         [this] { viewport_->detachSelectedComponent(); });
     add("component.bake_host", "Bake host openings and release attachments", "component.bake_host",
         [this] { viewport_->bakeSelectedHost(); });
+    add("assembly.room.adopt_hosted", "Adopt recipe window attachments",
+        "assembly.room.adopt_hosted", [this] { viewport_->adoptSelectedRecipeRoom(); });
 }
 void Window::syncHostedActions() {
     const auto &selection = viewport_->selectionState().entities();
@@ -89,6 +91,20 @@ void Window::syncHostedActions() {
         host = selection.begin()->body;
     findChild<QAction *>("component.bake_host")
         ->setEnabled(selection.size() == 1 && doc_.hostedComponents().hosts.contains(host));
+    bool recipe = false;
+    if (!scope && selection.size() == 1 && selection.begin()->kind == SelectionKind::Body) {
+        const auto &body = *doc_.bodies().at(selection.begin()->body);
+        const auto kind = body.properties.find("recipe.kind"),
+                   wall = body.properties.find("recipe.wall");
+        if (body.kind == BodyKind::Group && kind != body.properties.end() &&
+            wall != body.properties.end()) {
+            const auto *name = std::get_if<std::string>(&kind->second);
+            const auto *target = std::get_if<std::string>(&wall->second);
+            const auto id = target ? QString::fromStdString(*target).toULongLong() : 0;
+            recipe = name && *name == "room" && id && !doc_.hostedComponents().hosts.contains(id);
+        }
+    }
+    findChild<QAction *>("assembly.room.adopt_hosted")->setEnabled(recipe);
 }
 void Window::hostedGlueDialog() {
     auto glue = viewport_->selectedGlueFace();

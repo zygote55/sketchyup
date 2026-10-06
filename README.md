@@ -455,8 +455,17 @@ anchor coordinates or one signed inset length; repeated numeric input revises th
 same Undo item. **Attachment placement options** sets rotation in degrees, signed
 scale and inset; restart placement after closing it. **Bind component at current
 pose** uses the explicit inset while retaining position. Edit also offers detach,
-clear shared glue, and bake host openings. Automatic attachment policy for copies
-and adoption of legacy recipe relationships remain in progress.
+clear shared glue, and bake host openings.
+
+To upgrade a validated room recipe, select the whole room and choose
+**Edit → Adopt recipe window attachments**. This gives both windows general hosted
+behavior in one Undo step, retaining their poses, IDs and paint. Existing files
+keep their original relationships until explicitly upgraded. The shared command
+is `assembly.room.adopt_hosted` with the room's `body` ID; the
+[executable example](examples/hosted-room-recipe-v1.json) creates and adopts a room,
+then widens one window. Definitions used outside the room must first be made unique.
+The authored instance-only resize remains available after adoption, while ordinary
+Move and Delete update openings through the general host system.
 
 The topology query exposes stable context-scoped edges, oriented loops and radial
 adjacency, plus analytic curve parameters and ordered derived-edge references.

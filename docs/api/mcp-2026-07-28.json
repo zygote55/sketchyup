@@ -2123,6 +2123,27 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Adopt explicit authored room host relationships",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "assembly.room.adopt_hosted"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Resize one authored window and its host opening",
                                     "properties": {
                                         "body": {

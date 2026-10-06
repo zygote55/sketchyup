@@ -129,6 +129,8 @@ QJsonArray commandCatalog() {
                QJsonObject{{"type", "number"}, {"minimum", .01}, {"maximum", .5}}},
               {"frameDepth", QJsonObject{{"type", "number"}, {"minimum", .01}, {"maximum", 1}}}},
              {}),
+        spec("assembly.room.adopt_hosted", "Adopt explicit authored room host relationships", "Recipes",
+             {{"body", stableId()}}, {"body"}),
         spec("assembly.window.resize", "Resize one authored window and its host opening", "Recipes",
              {{"body", stableId()},
               {"width", QJsonObject{{"type", "number"}, {"minimum", .3}, {"maximum", 10}}},

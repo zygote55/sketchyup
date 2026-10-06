@@ -123,6 +123,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     void configureComponentGlue(std::optional<ComponentGlue> glue);
     void detachSelectedComponent();
     void bakeSelectedHost();
+    void adoptSelectedRecipeRoom();
     void paintSelection(std::array<float, 3> color);
     void organize(const QJsonArray &commands);
     Id paintMaterial() const;

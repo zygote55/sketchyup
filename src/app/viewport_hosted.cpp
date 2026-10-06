@@ -305,4 +305,36 @@ void Viewport::bakeSelectedHost() {
     emit changed();
     emit message("Host geometry baked · Attachments released · Ctrl+Z restores the relationships");
 }
+void Viewport::adoptSelectedRecipeRoom() {
+    syncSelection();
+    if (componentScope() || selection_.entities().size() != 1 || hasAssistantPreview())
+        throw std::runtime_error("Finish any assistant preview and select one authored room group");
+    const auto selected = *selection_.entities().begin();
+    if (selected.kind != SelectionKind::Body || !selectable(selected) ||
+        doc_.bodies().at(selected.body)->kind != BodyKind::Group)
+        throw std::runtime_error("Select one editable authored room group");
+    const QJsonObject command{{"command", "assembly.room.adopt_hosted"},
+                              {"body", QString::number(selected.body)}};
+    const auto preview =
+        previewBatch(doc_, {{"apiVersion", 1},
+                            {"documentId", QString::fromStdString(doc_.identity())},
+                            {"expectedRevision", QString::number(doc_.revision())},
+                            {"commands", QJsonArray{command}}});
+    const auto report = preview["recipeOperations"].toArray().first().toObject();
+    std::set<Id> affected{selected.body, report["wall"].toString().toULongLong()};
+    for (const auto &root : report["adoptedAttachments"].toArray()) {
+        const auto instance = root.toString().toULongLong();
+        affected.insert(instance);
+        for (const auto &[member, body] : doc_.instances().at(instance)->members)
+            affected.insert(body);
+    }
+    for (const auto body : affected)
+        if (selection_.locked(doc_, body))
+            throw std::runtime_error("Unlock the room wall and window members before adoption");
+    cancel();
+    commitCommands({command}, false);
+    refresh();
+    emit changed();
+    emit message("Recipe windows now update their host openings · Ctrl+Z undoes the upgrade");
+}
 } // namespace sketchy

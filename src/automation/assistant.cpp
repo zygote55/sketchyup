@@ -121,6 +121,8 @@ const char *instructions =
     "before editing. A user answer does not grant new tools or commands. Recipe resize requires "
     "authored recipe metadata; never invent that metadata. For an unbound target, inspect its "
     "topology and use advertised ordinary geometry commands when an exact edit is supported. "
+    "assembly.room.adopt_hosted explicitly upgrades validated authored room relationships; "
+    "it requires the room ID and rejects definitions used outside that room. "
     "When advertised, component.edit_instance makes only the chosen instance unique and applies "
     "member edits "
     "using inspected scene body/vertex IDs, without shared-definition permission. Batch the "

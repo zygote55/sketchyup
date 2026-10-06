@@ -274,7 +274,7 @@ locks cover all affected placements and former/new hosts before publication.
 
 These controls expose the same bounded command and persistence behavior. Nested
 canonical placements and component-owned hosts remain unsupported. Explicit recipe
-adoption remains separate R059 work.
+adoption is described below.
 
 
 ## Copy and array relationships
@@ -309,3 +309,41 @@ Persistent document locks remain authoritative. Native preview and commit also c
 editor locks on indirectly affected hosts and attachments: copying an attached
 instance cannot modify an editor-locked host, and moving a host cannot carry an
 editor-locked attachment. Complete assembly copies only change their fresh records.
+
+
+## Explicit adoption of authored rooms
+
+`assembly.room.adopt_hosted` accepts the explicit `body` ID of a validated version-one
+room group. It checks reciprocal room/wall/window/slot metadata, dimensions, poses,
+canonical frame/glass membership, oriented geometry and document locks. It rejects
+already-adopted or ambiguous records, existing glue, unsupported edits, component-owned
+rooms and definitions used by placements outside the room. Names never establish a
+relationship. Make outside-shared windows unique before requesting adoption.
+
+A private candidate reconstructs the uncut wall, defines the shared frame's cutting
+glue face, binds both windows at their existing poses and validates the resulting
+opening cache against the original geometry. Publication is one composed edit. Body,
+vertex and face IDs, current paint/materials, edge flags and instance poses survive.
+Coordinates are preserved to modeling precision; regeneration can change their last
+floating-point bit, and oriented loop start/order can canonicalize. The authored
+cut loops are not an independent second source of truth after adoption.
+
+The receipt identifies the room, wall, adopted attachments and preserved vertex/face
+counts. `expandedCommands` records ordinary glue commands; installing the validated
+uncut baseline/cache is an explicit core edit in the same private recipe batch.
+Preview is private, failure rolls back earlier batch commands, and Undo restores the
+original unbound recipe. Schema 15 already represents these records, so no format
+migration or inference during load is needed. Default `assembly.room` remains compatible.
+
+Ordinary move, deletion, copy and shared-definition edits now use the general hosted
+lifecycle. The instance-only resize recipe retains its strict authored-geometry checks
+and make-unique behavior; adopted windows regenerate the opening through that lifecycle
+once, while legacy windows retain their manual opening edit. Independent moves can
+invalidate the stricter authored resize contract without disabling ordinary tools.
+
+The native Edit action requires one whole room in ordinary context, rejects an active
+assistant preview, and checks editor locks on the room, wall, windows and canonical
+members before commit. The assistant exposes adoption as a routine action because
+all affected placements must be inside the selected room. The executable
+`examples/hosted-room-recipe-v1.json` creates and adopts in one transaction, then
+performs an instance-only resize in a second transaction using typed result references.
