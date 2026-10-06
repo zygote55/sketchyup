@@ -48,6 +48,106 @@
                 "sideEffects": "none"
             },
             {
+                "name": "annotations.query",
+                "paged": true,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "cursor": {
+                            "maxLength": 512,
+                            "type": "string"
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "kind": {
+                            "enum": [
+                                "distance",
+                                "label"
+                            ],
+                            "type": "string"
+                        },
+                        "limit": {
+                            "maximum": 100,
+                            "minimum": 1,
+                            "type": "integer"
+                        },
+                        "query": {
+                            "const": "annotations.query"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
+                "name": "annotation.describe",
+                "paged": false,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "annotation": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "query": {
+                            "const": "annotation.describe"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "annotation",
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
                 "name": "sections.query",
                 "paged": true,
                 "parameters": {
@@ -1950,6 +2050,456 @@
                                             "metric",
                                             "expected",
                                             "tolerance",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Create an associative distance dimension or label",
+                                        "oneOf": [
+                                            {
+                                                "properties": {
+                                                    "anchors": {
+                                                        "maxItems": 2,
+                                                        "minItems": 2
+                                                    },
+                                                    "kind": {
+                                                        "const": "distance"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "properties": {
+                                                    "anchors": {
+                                                        "maxItems": 1,
+                                                        "minItems": 1
+                                                    },
+                                                    "kind": {
+                                                        "const": "label"
+                                                    },
+                                                    "text": {
+                                                        "minLength": 1
+                                                    }
+                                                },
+                                                "required": [
+                                                    "text"
+                                                ]
+                                            }
+                                        ],
+                                        "properties": {
+                                            "anchors": {
+                                                "description": "Exactly two anchors for distance or one for label. Providing anchors explicitly rebinds; omission on update preserves association and broken state. Edge fractions follow canonical a-to-b endpoints.",
+                                                "items": {
+                                                    "oneOf": [
+                                                        {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "const": "point"
+                                                                },
+                                                                "point": {
+                                                                    "items": {
+                                                                        "maximum": 1000000,
+                                                                        "minimum": -1000000,
+                                                                        "type": "number"
+                                                                    },
+                                                                    "maxItems": 3,
+                                                                    "minItems": 3,
+                                                                    "type": "array"
+                                                                },
+                                                                "space": {
+                                                                    "const": "world"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "space",
+                                                                "point"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "body": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "kind": {
+                                                                    "const": "vertex"
+                                                                },
+                                                                "vertex": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "body",
+                                                                "vertex"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "body": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "edge": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "fraction": {
+                                                                    "maximum": 1,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "kind": {
+                                                                    "const": "edge"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "body",
+                                                                "edge",
+                                                                "fraction"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "body": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "face": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "kind": {
+                                                                    "const": "face"
+                                                                },
+                                                                "point": {
+                                                                    "items": {
+                                                                        "maximum": 1000000,
+                                                                        "minimum": -1000000,
+                                                                        "type": "number"
+                                                                    },
+                                                                    "maxItems": 3,
+                                                                    "minItems": 3,
+                                                                    "type": "array"
+                                                                },
+                                                                "space": {
+                                                                    "enum": [
+                                                                        "local",
+                                                                        "world"
+                                                                    ],
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "body",
+                                                                "face",
+                                                                "space",
+                                                                "point"
+                                                            ],
+                                                            "type": "object"
+                                                        }
+                                                    ]
+                                                },
+                                                "maxItems": 2,
+                                                "minItems": 1,
+                                                "type": "array"
+                                            },
+                                            "color": {
+                                                "items": {
+                                                    "maximum": 1,
+                                                    "minimum": 0,
+                                                    "type": "number"
+                                                },
+                                                "maxItems": 3,
+                                                "minItems": 3,
+                                                "type": "array"
+                                            },
+                                            "command": {
+                                                "const": "annotation.create"
+                                            },
+                                            "kind": {
+                                                "enum": [
+                                                    "distance",
+                                                    "label"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "leader": {
+                                                "type": "boolean"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "offset": {
+                                                "description": "World metre vector from anchor or midpoint to text; defaults to zero",
+                                                "items": {
+                                                    "maximum": 1000000,
+                                                    "minimum": -1000000,
+                                                    "type": "number"
+                                                },
+                                                "maxItems": 3,
+                                                "minItems": 3,
+                                                "type": "array"
+                                            },
+                                            "text": {
+                                                "description": "Label content (required nonempty), or optional distance prefix",
+                                                "maxLength": 4096,
+                                                "type": "string"
+                                            },
+                                            "textSize": {
+                                                "maximum": 48,
+                                                "minimum": 8,
+                                                "type": "number"
+                                            }
+                                        },
+                                        "required": [
+                                            "name",
+                                            "kind",
+                                            "anchors",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Edit or explicitly rebind a dimension or label",
+                                        "minProperties": 3,
+                                        "properties": {
+                                            "anchors": {
+                                                "description": "Exactly two anchors for distance or one for label. Providing anchors explicitly rebinds; omission on update preserves association and broken state. Edge fractions follow canonical a-to-b endpoints.",
+                                                "items": {
+                                                    "oneOf": [
+                                                        {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "const": "point"
+                                                                },
+                                                                "point": {
+                                                                    "items": {
+                                                                        "maximum": 1000000,
+                                                                        "minimum": -1000000,
+                                                                        "type": "number"
+                                                                    },
+                                                                    "maxItems": 3,
+                                                                    "minItems": 3,
+                                                                    "type": "array"
+                                                                },
+                                                                "space": {
+                                                                    "const": "world"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "space",
+                                                                "point"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "body": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "kind": {
+                                                                    "const": "vertex"
+                                                                },
+                                                                "vertex": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "body",
+                                                                "vertex"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "body": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "edge": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "fraction": {
+                                                                    "maximum": 1,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "kind": {
+                                                                    "const": "edge"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "body",
+                                                                "edge",
+                                                                "fraction"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "body": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "face": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "kind": {
+                                                                    "const": "face"
+                                                                },
+                                                                "point": {
+                                                                    "items": {
+                                                                        "maximum": 1000000,
+                                                                        "minimum": -1000000,
+                                                                        "type": "number"
+                                                                    },
+                                                                    "maxItems": 3,
+                                                                    "minItems": 3,
+                                                                    "type": "array"
+                                                                },
+                                                                "space": {
+                                                                    "enum": [
+                                                                        "local",
+                                                                        "world"
+                                                                    ],
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "body",
+                                                                "face",
+                                                                "space",
+                                                                "point"
+                                                            ],
+                                                            "type": "object"
+                                                        }
+                                                    ]
+                                                },
+                                                "maxItems": 2,
+                                                "minItems": 1,
+                                                "type": "array"
+                                            },
+                                            "annotation": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "color": {
+                                                "items": {
+                                                    "maximum": 1,
+                                                    "minimum": 0,
+                                                    "type": "number"
+                                                },
+                                                "maxItems": 3,
+                                                "minItems": 3,
+                                                "type": "array"
+                                            },
+                                            "command": {
+                                                "const": "annotation.update"
+                                            },
+                                            "kind": {
+                                                "enum": [
+                                                    "distance",
+                                                    "label"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "leader": {
+                                                "type": "boolean"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "offset": {
+                                                "description": "World metre vector from anchor or midpoint to text; defaults to zero",
+                                                "items": {
+                                                    "maximum": 1000000,
+                                                    "minimum": -1000000,
+                                                    "type": "number"
+                                                },
+                                                "maxItems": 3,
+                                                "minItems": 3,
+                                                "type": "array"
+                                            },
+                                            "text": {
+                                                "description": "Label content (required nonempty), or optional distance prefix",
+                                                "maxLength": 4096,
+                                                "type": "string"
+                                            },
+                                            "textSize": {
+                                                "maximum": 48,
+                                                "minimum": 8,
+                                                "type": "number"
+                                            }
+                                        },
+                                        "required": [
+                                            "annotation",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Delete a dimension or label",
+                                        "properties": {
+                                            "annotation": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "command": {
+                                                "const": "annotation.delete"
+                                            }
+                                        },
+                                        "required": [
+                                            "annotation",
                                             "command"
                                         ],
                                         "type": "object"
@@ -7166,6 +7716,84 @@
                                         }
                                     },
                                     "required": [
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "cursor": {
+                                            "maxLength": 512,
+                                            "type": "string"
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "enum": [
+                                                "distance",
+                                                "label"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "limit": {
+                                            "maximum": 100,
+                                            "minimum": 1,
+                                            "type": "integer"
+                                        },
+                                        "query": {
+                                            "const": "annotations.query"
+                                        }
+                                    },
+                                    "required": [
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "annotation": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "query": {
+                                            "const": "annotation.describe"
+                                        }
+                                    },
+                                    "required": [
+                                        "annotation",
                                         "apiVersion",
                                         "documentId",
                                         "expectedRevision",

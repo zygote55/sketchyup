@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/annotation_commands.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
 #include "core/copy_array.hpp"
@@ -57,6 +58,31 @@ QJsonObject spec(QString name, QString label, QString category, QJsonObject prop
                                        {"additionalProperties", false}}},
             {"validation", "Schema plus authoritative geometry, document and resource validation"},
             {"undo", "one batch history item"}};
+}
+QJsonObject annotationCreateSpec() {
+    auto entry = spec("annotation.create", "Create an associative distance dimension or label", "Annotations",
+                      annotationPropertiesSchema(), {"name", "kind", "anchors"});
+    auto parameters = entry["parameters"].toObject();
+    parameters["oneOf"] = QJsonArray{
+        QJsonObject{{"properties", QJsonObject{
+            {"kind", QJsonObject{{"const", "distance"}}},
+            {"anchors", QJsonObject{{"minItems", 2}, {"maxItems", 2}}}}}},
+        QJsonObject{{"properties", QJsonObject{
+            {"kind", QJsonObject{{"const", "label"}}},
+            {"anchors", QJsonObject{{"minItems", 1}, {"maxItems", 1}}},
+            {"text", QJsonObject{{"minLength", 1}}}}}, {"required", QJsonArray{"text"}}}};
+    entry["parameters"] = parameters;
+    return entry;
+}
+QJsonObject annotationUpdateSpec() {
+    auto properties = annotationPropertiesSchema();
+    properties["annotation"] = stableId();
+    auto entry = spec("annotation.update", "Edit or explicitly rebind a dimension or label", "Annotations",
+                      properties, {"annotation"});
+    auto parameters = entry["parameters"].toObject();
+    parameters["minProperties"] = 3;
+    entry["parameters"] = parameters;
+    return entry;
 }
 QJsonObject edgeAppearanceSpec() {
     auto entry = spec(
@@ -136,6 +162,10 @@ QJsonArray commandCatalog() {
               {"tolerance", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1},
                   {"description", "Explicit absolute tolerance in m, m2 or m3; bounds compare each axis"}}}},
              {"body", "space", "metric", "expected", "tolerance"}),
+        annotationCreateSpec(),
+        annotationUpdateSpec(),
+        spec("annotation.delete", "Delete a dimension or label", "Annotations",
+             {{"annotation", stableId()}}, {"annotation"}),
         spec("section.create", "Create an oriented context section plane", "Sections",
              {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
               {"context", stableId(true)}, {"space", space}, {"plane", sectionPlaneSchema()},
