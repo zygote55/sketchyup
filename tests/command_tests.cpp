@@ -999,6 +999,7 @@ int main(int argc, char **argv) {
                                                             {"body", "2"},
                                                             {"delta", QJsonArray{.1, 0, 0}}}}}});
         cases.append(QJsonObject{{"command", "assembly.room"}});
+        cases.append(QJsonObject{{"command", "assembly.room.adopt_hosted"}, {"body", "3"}});
         cases.append(QJsonObject{{"command", "assembly.window.resize"},
                                  {"body", "6"},
                                  {"width", 1.4},
@@ -1019,14 +1020,14 @@ int main(int argc, char **argv) {
             Document doc = source;
             if (command["command"].toString().startsWith("assembly.")) {
                 doc = Document{};
-                if (command["command"] == "assembly.window.resize") {
+                if (command["command"] == "assembly.window.resize" ||
+                    command["command"] == "assembly.room.adopt_hosted") {
                     const auto room =
                         executeBatch(doc, request(doc, {{"command", "assembly.room"}}));
-                    command["body"] = room["recipeOperations"]
-                                          .toArray()[0]
-                                          .toObject()["windows"]
-                                          .toArray()[0]
-                                          .toObject()["body"];
+                    const auto authored = room["recipeOperations"].toArray()[0].toObject();
+                    command["body"] = command["command"] == "assembly.room.adopt_hosted"
+                                          ? authored["room"]
+                                          : authored["windows"].toArray()[0].toObject()["body"];
                 }
             }
             if (command["command"].toString().startsWith("asset.") &&

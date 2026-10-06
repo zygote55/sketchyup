@@ -417,6 +417,7 @@ struct AssistantPanel::Impl {
             result.context.append(request);
         }
         const QStringList routine{"assembly.room",
+                                  "assembly.room.adopt_hosted",
                                   "assembly.window.resize",
                                   "geometry.face",
                                   "geometry.rectangle",

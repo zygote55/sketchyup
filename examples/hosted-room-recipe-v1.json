@@ -1,0 +1,351 @@
+{
+  "apiVersion": 1,
+  "steps": [
+    {
+      "id": "info",
+      "request": {
+        "apiVersion": 1,
+        "operation": "session.describe"
+      }
+    },
+    {
+      "id": "begin",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.begin",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "info#/result/revision"
+        },
+        "history": {
+          "label": "Create room with general hosted windows",
+          "taskId": "hosted-room-v1",
+          "assistant": false
+        }
+      }
+    },
+    {
+      "id": "draw",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.apply",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": 0,
+        "operationId": "create-room",
+        "commands": [
+          {
+            "command": "assembly.room"
+          }
+        ]
+      }
+    },
+    {
+      "id": "adopt",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.apply",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": {
+          "$ref": "draw#/result/stageVersion"
+        },
+        "operationId": "adopt-room-windows",
+        "commands": [
+          {
+            "command": "assembly.room.adopt_hosted",
+            "body": {
+              "$ref": "draw#/result/createdIds/recipeOperations/0/room"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "preview_measurement",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.inspect",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "request": {
+          "apiVersion": 1,
+          "documentId": {
+            "$ref": "info#/result/documentId"
+          },
+          "expectedRevision": {
+            "$ref": "adopt#/result/proposedRevision"
+          },
+          "query": "measure.entity",
+          "target": {
+            "documentId": {
+              "$ref": "info#/result/documentId"
+            },
+            "contextPath": [],
+            "body": {
+              "$ref": "draw#/result/createdIds/recipeOperations/0/room"
+            },
+            "kind": "body",
+            "id": {
+              "$ref": "draw#/result/createdIds/recipeOperations/0/room"
+            }
+          },
+          "space": "world"
+        }
+      }
+    },
+    {
+      "id": "seal",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.preview",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": {
+          "$ref": "adopt#/result/stageVersion"
+        }
+      }
+    },
+    {
+      "id": "commit",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.commit",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "requestId": {
+          "$ref": "seal#/result/requestId"
+        },
+        "payloadHash": {
+          "$ref": "seal#/result/payloadHash"
+        }
+      }
+    },
+    {
+      "id": "save",
+      "request": {
+        "apiVersion": 1,
+        "operation": "document.save",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "commit#/result/result/revision"
+        }
+      }
+    },
+    {
+      "id": "measurement",
+      "request": {
+        "apiVersion": 1,
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "commit#/result/result/revision"
+        },
+        "query": "measure.entity",
+        "target": {
+          "documentId": {
+            "$ref": "info#/result/documentId"
+          },
+          "contextPath": [],
+          "body": {
+            "$ref": "draw#/result/createdIds/recipeOperations/0/room"
+          },
+          "kind": "body",
+          "id": {
+            "$ref": "draw#/result/createdIds/recipeOperations/0/room"
+          }
+        },
+        "space": "world"
+      }
+    },
+    {
+      "id": "resize_info",
+      "request": {
+        "apiVersion": 1,
+        "operation": "session.describe"
+      }
+    },
+    {
+      "id": "resize_begin",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.begin",
+        "documentId": {
+          "$ref": "resize_info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "resize_info#/result/revision"
+        },
+        "history": {
+          "label": "Widen Window A to 1.4 m",
+          "taskId": "recipe-window-resize-v1",
+          "assistant": false
+        }
+      }
+    },
+    {
+      "id": "resize_draw",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.apply",
+        "documentId": {
+          "$ref": "resize_info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "resize_begin#/result/transactionId"
+        },
+        "expectedVersion": 0,
+        "operationId": "resize-one-window",
+        "commands": [
+          {
+            "command": "assembly.window.resize",
+            "body": {
+              "$ref": "draw#/result/createdIds/recipeOperations/0/windows/0/body"
+            },
+            "scope": "instance",
+            "width": 1.4
+          }
+        ]
+      }
+    },
+    {
+      "id": "resize_preview_measurement",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.inspect",
+        "documentId": {
+          "$ref": "resize_info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "resize_begin#/result/transactionId"
+        },
+        "request": {
+          "apiVersion": 1,
+          "documentId": {
+            "$ref": "resize_info#/result/documentId"
+          },
+          "expectedRevision": {
+            "$ref": "resize_draw#/result/proposedRevision"
+          },
+          "query": "measure.entity",
+          "target": {
+            "documentId": {
+              "$ref": "resize_info#/result/documentId"
+            },
+            "contextPath": [
+              {
+                "$ref": "draw#/result/createdIds/recipeOperations/0/room"
+              }
+            ],
+            "body": {
+              "$ref": "draw#/result/createdIds/recipeOperations/0/windows/0/body"
+            },
+            "kind": "body",
+            "id": {
+              "$ref": "draw#/result/createdIds/recipeOperations/0/windows/0/body"
+            }
+          },
+          "space": "world"
+        }
+      }
+    },
+    {
+      "id": "resize_seal",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.preview",
+        "documentId": {
+          "$ref": "resize_info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "resize_begin#/result/transactionId"
+        },
+        "expectedVersion": {
+          "$ref": "resize_draw#/result/stageVersion"
+        }
+      }
+    },
+    {
+      "id": "resize_commit",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.commit",
+        "documentId": {
+          "$ref": "resize_info#/result/documentId"
+        },
+        "requestId": {
+          "$ref": "resize_seal#/result/requestId"
+        },
+        "payloadHash": {
+          "$ref": "resize_seal#/result/payloadHash"
+        }
+      }
+    },
+    {
+      "id": "resize_save",
+      "request": {
+        "apiVersion": 1,
+        "operation": "document.save",
+        "documentId": {
+          "$ref": "resize_info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "resize_commit#/result/result/revision"
+        }
+      }
+    },
+    {
+      "id": "resize_measurement",
+      "request": {
+        "apiVersion": 1,
+        "documentId": {
+          "$ref": "resize_info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "resize_commit#/result/result/revision"
+        },
+        "query": "measure.entity",
+        "target": {
+          "documentId": {
+            "$ref": "resize_info#/result/documentId"
+          },
+          "contextPath": [
+            {
+              "$ref": "draw#/result/createdIds/recipeOperations/0/room"
+            }
+          ],
+          "body": {
+            "$ref": "draw#/result/createdIds/recipeOperations/0/windows/0/body"
+          },
+          "kind": "body",
+          "id": {
+            "$ref": "draw#/result/createdIds/recipeOperations/0/windows/0/body"
+          }
+        },
+        "space": "world"
+      }
+    }
+  ]
+}

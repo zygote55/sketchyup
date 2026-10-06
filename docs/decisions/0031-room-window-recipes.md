@@ -67,3 +67,20 @@ using the selected instance's explicit ID.
 Each committed stage has its own undo entry. The runner is sequential rather
 than a whole-file transaction: if a later stage fails, earlier saved commits
 remain. No provider, network connection or M6 offset/boolean operation is needed.
+
+
+## Explicit general-host adoption (M6)
+
+`assembly.room.adopt_hosted` upgrades an existing validated room by explicit body ID;
+it does not change default creation or infer relationships when loading old files.
+See the [hosted-component contract](0054-hosted-components.md#explicit-adoption-of-authored-rooms)
+for validation, preserved identities/appearance, outside-shared definition rejection
+and the native menu action. Unlike the two original recipes, adoption includes one
+validated core edit to install the uncut wall and opening identity cache, in addition
+to its reported ordinary glue commands.
+
+After adoption, the instance-only resize makes the selected definition unique as
+before. The general hosted lifecycle regenerates its opening, so the recipe skips
+the legacy manual jamb-vertex transform. Its authored-geometry validation still applies.
+`examples/hosted-room-recipe-v1.json` demonstrates creation/adoption in one Undo task,
+followed by a separate instance-only resize task, with no provider dependency.

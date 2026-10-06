@@ -111,14 +111,18 @@ int main(int argc, char **argv) {
                                6) < tolerance,
                   "Saved recipe reopens and measures without a display or provider");
         }
-        for (bool resize : {false, true}) {
-            const QString name =
-                resize ? "room-window-resize-recipe-v1.json" : "room-recipe-v1.json";
+        for (int variant : {0, 1, 2}) {
+            const bool resize = variant != 0, hosted = variant == 2;
+            const QString name = hosted   ? "hosted-room-recipe-v1.json"
+                                 : resize ? "room-window-resize-recipe-v1.json"
+                                          : "room-recipe-v1.json";
             const auto model = files.path() + "/" + name + ".sketchyup";
             const auto result =
                 cli({"--recipe", QStringLiteral(SOURCE_DIR "/examples/") + name, "--new",
                      "--output", model, "--outcomes", files.path() + "/" + name + "-outcomes"});
-            check(result.code == 0 && result.rows.size() == (resize ? 16 : 8),
+            check(result.code == 0 && result.rows.size() == (hosted   ? 17
+                                                             : resize ? 16
+                                                                      : 8),
                   "Shipped modeling recipe completes all steps");
             for (const auto &row : result.rows)
                 check(row.toObject()["ok"] == true, "Modeling recipe step succeeds");
@@ -130,6 +134,14 @@ int main(int argc, char **argv) {
                                       .toArray()[0]
                                       .toObject();
             const auto windows = authored["windows"].toArray();
+            check(saved.hostedComponents().hosts.size() == (hosted ? 1 : 0) &&
+                      saved.hostedComponents().attachments.size() == (hosted ? 2 : 0),
+                  "Only the explicitly adopted recipe persists general host relationships");
+            const auto wall = authored["wall"].toString().toULongLong();
+            const auto wallVolume =
+                measureEntity(saved, {wall, SelectionKind::Body, 0}).local.volume;
+            check(wallVolume && std::abs(*wallVolume - (resize ? 9.848 : 9.888)) < tolerance,
+                  "Saved legacy and adopted recipes have independently expected wall volumes");
             check(saved.revision() == (resize ? 2 : 1) && saved.bodies().size() == 9 &&
                       saved.definitions().size() == (resize ? 2 : 1),
                   "Installed recipe saves exact transaction count and component scope");

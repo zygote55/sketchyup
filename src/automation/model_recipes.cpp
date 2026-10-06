@@ -4,6 +4,7 @@
 #include "automation/inspection_validation.hpp"
 #include "core/entity_measure.hpp"
 #include "core/groups.hpp"
+#include "core/hosted_components.hpp"
 #include <QJsonDocument>
 #include <algorithm>
 namespace sketchy {
@@ -401,6 +402,261 @@ QJsonObject allProperties(const Body &record) {
             value);
     return result;
 }
+using FaceLoops = std::vector<std::vector<Id>>;
+std::vector<Id> normalizedLoop(std::vector<Id> loop) {
+    if (loop.empty())
+        fail("Recipe face loop is empty");
+    std::rotate(loop.begin(), std::min_element(loop.begin(), loop.end()), loop.end());
+    return loop;
+}
+FaceLoops normalizedLoops(FaceLoops loops) {
+    for (auto &loop : loops)
+        loop = normalizedLoop(std::move(loop));
+    std::sort(loops.begin() + 1, loops.end());
+    return loops;
+}
+std::map<Id, Id> matchingVertices(const Surface &source, const Surface &target) {
+    std::map<Id, Id> result;
+    std::set<Id> used;
+    for (const auto &[vertex, point] : source.vertices) {
+        Id match{};
+        for (const auto &[candidate, position] : target.vertices)
+            if (length(point - position) < tolerance) {
+                if (match)
+                    fail("Recipe vertex correspondence is ambiguous");
+                match = candidate;
+            }
+        if (!match || !used.insert(match).second)
+            fail("Recipe geometry no longer matches its authored shape");
+        result[vertex] = match;
+    }
+    return result;
+}
+Surface remappedSurface(const Surface &source, const std::map<Id, Id> &vertices,
+                        const std::map<Id, Id> &faces, Id next) {
+    Surface result;
+    result.nextId = next;
+    for (const auto &[id, point] : source.vertices)
+        result.vertices[vertices.at(id)] = point;
+    for (const auto &[id, face] : source.faces) {
+        auto loops = face.loops;
+        for (auto &loop : loops)
+            for (auto &vertex : loop)
+                vertex = vertices.at(vertex);
+        result.faces[faces.at(id)] = {faces.at(id), std::move(loops)};
+    }
+    if (!source.wires.empty())
+        fail("Recipe adoption does not accept host wires");
+    result.validate();
+    return result;
+}
+ModelRecipeResult adoptRoom(Document &doc, const QJsonObject &command) {
+    const Id roomId = command["body"].toString().toULongLong();
+    const auto &room = body(doc, roomId);
+    kind(room, "room");
+    if (room.kind != BodyKind::Group)
+        fail("Choose an authored room group");
+    for (auto ancestor = roomId; ancestor; ancestor = body(doc, ancestor).parent)
+        if (doc.instances().contains(ancestor))
+            fail("A shared component room needs an independent scope before adoption");
+    const Id wallId = idProperty(room, "wall");
+    const auto originalWall = doc.bodies().at(wallId);
+    const auto &wall = *originalWall;
+    if (wall.kind != BodyKind::Geometry || wall.parent != roomId ||
+        idProperty(wall, "room") != roomId || textProperty(wall, "role") != "host-wall" ||
+        !wall.curves.empty() || !wall.guides.empty() || persistentlyLocked(doc, wallId) ||
+        doc.hostedComponents().hosts.contains(wallId))
+        fail("Choose an unlocked, unbound authored room wall");
+    sameTransform(wall.transform, {});
+    const double w = numericProperty(room, "width", 2, 100),
+                 d = numericProperty(room, "depth", 2, 100),
+                 h = numericProperty(room, "height", 1, 10),
+                 t = numericProperty(room, "wallThickness", .05, 1);
+    if (w <= 2 * t || d <= 2 * t)
+        fail("Authored room dimensions conflict");
+    struct Placement {
+        Id root{}, definition{};
+        double inset{};
+        QJsonObject glue;
+    };
+    std::vector<Placement> placements;
+    std::vector<Opening> openings;
+    std::set<Id> roots, definitions;
+    for (int slot = 0; slot < 2; ++slot) {
+        const Id root = idProperty(wall, "window." + std::to_string(slot));
+        const auto &record = body(doc, root);
+        const auto region = opening(record);
+        if (!roots.insert(root).second || !doc.instances().contains(root) ||
+            record.parent != roomId || idProperty(record, "room") != roomId ||
+            idProperty(record, "wall") != wallId || numericProperty(record, "slot", 0, 1) != slot ||
+            persistentlyLocked(doc, root) || doc.hostedComponents().attachments.contains(root))
+            fail("Authored window bindings are missing, locked or already adopted");
+        sameTransform(record.transform, Transform::translation({region.cx, 0, region.sill}));
+        const double member = numericProperty(record, "memberThickness", .01, .5),
+                     depth = numericProperty(record, "frameDepth", .01, 1);
+        if (depth > t || region.width <= 2 * member || region.height <= 2 * member ||
+            region.cx - region.width / 2 <= t || region.cx + region.width / 2 >= w - t ||
+            region.sill + region.height >= h)
+            fail("Authored window dimensions conflict with its wall");
+        Id frame{}, glass{};
+        for (const auto &[part, value] : doc.bodies())
+            if (value->parent == root) {
+                if (value->kind != BodyKind::Geometry || !value->curves.empty() ||
+                    !value->guides.empty() || persistentlyLocked(doc, part))
+                    fail("Window contains unsupported or locked members");
+                sameTransform(value->transform, {});
+                const auto role = textProperty(*value, "role");
+                if (role == "frame" && !frame)
+                    frame = part;
+                else if (role == "glass" && !glass)
+                    glass = part;
+                else
+                    fail("Window contains additional or ambiguous members");
+            }
+        const auto &instance = *doc.instances().at(root);
+        if (!frame || !glass || instance.members.size() != 3 ||
+            doc.definitions().at(instance.definition)->glue)
+            fail("Adoption requires the unmodified authored frame and glass without existing glue");
+        sameShape(body(doc, frame).surface,
+                  frameShape(region.width, region.height, member, depth, t));
+        sameShape(body(doc, glass).surface, glassShape(region.width, region.height, member, t));
+        const auto y = (t + depth) / 2;
+        Id face{}, canonical{};
+        for (const auto &[candidate, value] : body(doc, frame).surface.faces)
+            if (value.loops.size() == 2 &&
+                std::all_of(value.loops.front().begin(), value.loops.front().end(), [&](Id v) {
+                    return std::abs(body(doc, frame).surface.vertices.at(v).y - y) < tolerance;
+                })) {
+                if (face)
+                    fail("Authored frame alignment face is ambiguous");
+                face = candidate;
+            }
+        for (const auto &[memberId, placed] : instance.members)
+            if (placed == frame)
+                canonical = memberId;
+        if (!face || !canonical)
+            fail("Authored frame lacks a canonical alignment face");
+        placements.push_back({root,
+                              instance.definition,
+                              -y,
+                              {{"member", id(canonical)},
+                               {"face", id(face)},
+                               {"anchor", point({0, y, region.height / 2})},
+                               {"tangent", point({1, 0, 0})},
+                               {"cutsOpening", true}}});
+        definitions.insert(instance.definition);
+        openings.push_back(region);
+    }
+    if (openings[0].cx + openings[0].width / 2 >= openings[1].cx - openings[1].width / 2)
+        fail("Authored host openings overlap");
+    for (const auto &[root, instance] : doc.instances())
+        if (definitions.contains(instance->definition) && !roots.contains(root))
+            fail(
+                "Make the room windows unique before adopting a definition used outside this room");
+    Document expected;
+    Builder reference(expected);
+    const auto expectedWall = createWalls(reference, w, d, t, h, openings);
+    sameShape(wall.surface, body(expected, expectedWall).surface);
+
+    // Reconstruct only a validated recipe baseline, retaining the live wall's
+    // original corner and face IDs. No caller-supplied replacement surface exists.
+    Document uncutDocument;
+    Builder uncutBuilder(uncutDocument);
+    const auto uncutId = createWalls(uncutBuilder, w, d, t, h, {});
+    const auto &referenceSurface = body(uncutDocument, uncutId).surface;
+    const auto baselineVertices = matchingVertices(referenceSurface, wall.surface);
+    std::map<std::vector<Id>, Id> actualBoundaries;
+    for (const auto &[face, value] : wall.surface.faces)
+        if (!actualBoundaries.emplace(normalizedLoop(value.loops.front()), face).second)
+            fail("Authored wall boundaries are ambiguous");
+    std::map<Id, Id> baselineFaces;
+    for (const auto &[face, value] : referenceSurface.faces) {
+        auto loop = value.loops.front();
+        for (auto &vertex : loop)
+            vertex = baselineVertices.at(vertex);
+        const auto key = normalizedLoop(std::move(loop));
+        if (!actualBoundaries.contains(key))
+            fail("Authored wall lacks an original face boundary");
+        baselineFaces[face] = actualBoundaries.at(key);
+    }
+    const auto uncut =
+        remappedSurface(referenceSurface, baselineVertices, baselineFaces, wall.surface.nextId);
+    Id entry{};
+    for (const auto &[face, value] : uncut.faces)
+        if (uncut.normal(face).y < -.99 &&
+            std::abs(uncut.vertices.at(value.loops.front().front()).y) < tolerance)
+            entry = face;
+    if (!entry)
+        fail("Authored room lacks its exterior front wall face");
+    Builder build(doc);
+    std::set<Id> configured;
+    for (const auto &placement : placements)
+        if (configured.insert(placement.definition).second)
+            build.run({{"command", "component.glue"},
+                       {"definition", id(placement.definition)},
+                       {"glue", placement.glue}});
+    auto scratch = doc.readSnapshot();
+    auto baseline = std::make_shared<Body>();
+    baseline->id = wallId;
+    baseline->parent = wall.parent;
+    baseline->transform = wall.transform;
+    baseline->surface = uncut;
+    baseline->topology = Topology::rebuild(uncut, wall.topology);
+    scratch.apply({"Validate recipe baseline", {{wallId, scratch.bodies().at(wallId), baseline}}},
+                  scratch.revision());
+    for (const auto &placement : placements)
+        bindComponentAtCurrentPose(scratch, placement.root, wallId, entry, placement.inset);
+    const auto &generated = scratch.bodies().at(wallId)->surface;
+    sameShape(generated, wall.surface);
+    const auto vertices = matchingVertices(generated, wall.surface);
+    std::map<FaceLoops, Id> actualFaces;
+    for (const auto &[face, value] : wall.surface.faces)
+        if (!actualFaces.emplace(normalizedLoops(value.loops), face).second)
+            fail("Authored wall faces are ambiguous");
+    std::map<Id, Id> faces;
+    for (const auto &[face, value] : generated.faces) {
+        auto loops = value.loops;
+        for (auto &loop : loops)
+            for (auto &vertex : loop)
+                vertex = vertices.at(vertex);
+        const auto key = normalizedLoops(std::move(loops));
+        if (!actualFaces.contains(key))
+            fail("Adoption changed an authored wall face");
+        faces[face] = actualFaces.at(key);
+    }
+    auto records = std::make_shared<HostedComponents>(doc.hostedComponents());
+    auto host = std::make_shared<HostedSurface>(*scratch.hostedComponents().hosts.at(wallId));
+    for (auto &[owner, opening] : host->openings) {
+        opening.profile.face = faces.at(opening.profile.face);
+        opening.exit = faces.at(opening.exit);
+        for (auto &[key, pair] : opening.vertices)
+            for (auto &vertex : pair)
+                vertex = vertices.at(vertex);
+        for (auto &[key, face] : opening.jambs)
+            face = faces.at(face);
+    }
+    records->hosts[wallId] = host;
+    QJsonArray adopted;
+    for (const auto &placement : placements) {
+        records->attachments[placement.root] =
+            scratch.hostedComponents().attachments.at(placement.root);
+        adopted.append(id(placement.root));
+    }
+    auto canonicalWall = std::make_shared<Body>(wall);
+    canonicalWall->surface = remappedSurface(generated, vertices, faces, wall.surface.nextId);
+    canonicalWall->topology = Topology::rebuild(canonicalWall->surface, wall.topology);
+    Edit edit{"Adopt authored room attachments",
+              {{wallId, doc.bodies().at(wallId), canonicalWall}}};
+    edit.hosted = HostedChange{doc.hostedRecords(), records};
+    edit.hostedResolved = true;
+    doc.apply(std::move(edit), doc.revision());
+    return build.finish({{"recipe", "room-hosted-adoption-v1"},
+                         {"room", id(roomId)},
+                         {"wall", id(wallId)},
+                         {"adoptedAttachments", adopted},
+                         {"preservedVertices", int(wall.surface.vertices.size())},
+                         {"preservedFaces", int(wall.surface.faces.size())}});
+}
 ModelRecipeResult resizeWindow(Document &doc, const QJsonObject &command) {
     const Id selected = command.value("body").toString().toULongLong();
     const auto before = doc.readSnapshot();
@@ -413,6 +669,7 @@ ModelRecipeResult resizeWindow(Document &doc, const QJsonObject &command) {
     if (!doc.instances().contains(selected))
         fail("Window must be a component instance");
     const Id roomId = idProperty(window, "room"), wallId = idProperty(window, "wall");
+    const bool adopted = doc.hostedComponents().hosts.contains(wallId);
     const auto &room = body(before, roomId), &wall = body(before, wallId);
     kind(room, "room");
     if (room.kind != BodyKind::Group || window.parent != roomId || wall.parent != roomId ||
@@ -451,6 +708,11 @@ ModelRecipeResult resizeWindow(Document &doc, const QJsonObject &command) {
             idProperty(record, "room") != roomId || idProperty(record, "wall") != wallId ||
             numericProperty(record, "slot", 0, 1) != slot)
             fail("Host opening bindings no longer agree");
+        const auto attached = doc.hostedComponents().attachments.find(instance);
+        if ((attached != doc.hostedComponents().attachments.end()) != adopted ||
+            (adopted && (attached->second->host != wallId ||
+                         !doc.hostedComponents().hosts.at(wallId)->openings.contains(instance))))
+            fail("Authored window and general host relationships no longer agree");
         sameTransform(record.transform, Transform::translation({region.cx, 0, region.sill}));
         if (region.cx - region.width / 2 <= t || region.cx + region.width / 2 >= w - t ||
             region.sill + region.height >= h)
@@ -493,6 +755,15 @@ ModelRecipeResult resizeWindow(Document &doc, const QJsonObject &command) {
     Builder reference(expected);
     const Id expectedWall = createWalls(reference, w, d, t, h, openings);
     sameShape(wall.surface, body(expected, expectedWall).surface);
+    if (adopted) {
+        Document uncut;
+        Builder referenceUncut(uncut);
+        const auto referenceWall = createWalls(referenceUncut, w, d, t, h, {});
+        sameShape(doc.hostedComponents().hosts.at(wallId)->uncut,
+                  body(uncut, referenceWall).surface);
+        if (doc.hostedComponents().hosts.at(wallId)->openings.size() != openings.size())
+            fail("Authored wall has additional hosted openings");
+    }
     const auto volumeBefore = measureEntity(doc, {wallId, SelectionKind::Body, 0}).local.volume;
     if (!volumeBefore)
         fail("Host wall must remain a closed solid");
@@ -522,8 +793,10 @@ ModelRecipeResult resizeWindow(Document &doc, const QJsonObject &command) {
         build.run({{"command", "component.make_unique"}, {"body", id(selected)}});
     build.run(componentScopeCommand(
         doc, selected, {vertexShift(memberLeft, -delta / 2), vertexShift(memberRight, delta / 2)}));
-    build.run(vertexShift(hostLeft, -delta / 2));
-    build.run(vertexShift(hostRight, delta / 2));
+    if (!adopted) {
+        build.run(vertexShift(hostLeft, -delta / 2));
+        build.run(vertexShift(hostRight, delta / 2));
+    }
     auto properties = allProperties(body(doc, selected));
     properties["recipe.width"] = width;
     build.properties(selected, properties);
@@ -571,6 +844,8 @@ ModelRecipeResult executeModelRecipe(Document &doc, const QJsonObject &command) 
         command, commandDescription(command.value("command").toString())["parameters"].toObject());
     if (command.value("command") == "assembly.room")
         return room(doc, command);
+    if (command.value("command") == "assembly.room.adopt_hosted")
+        return adoptRoom(doc, command);
     if (command.value("command") == "assembly.window.resize")
         return resizeWindow(doc, command);
     fail("Unsupported modeling recipe");
