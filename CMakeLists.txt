@@ -722,3 +722,5 @@ install(FILES docs/decisions/0088-solar-study-records.md DESTINATION share/doc/s
 
 install(FILES docs/decisions/0089-solar-workflows.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/sun-study.json examples/sun-study.sketchyup DESTINATION share/doc/sketchyup/examples)
+
+install(FILES docs/decisions/0090-native-sun-and-shadows.md DESTINATION share/doc/sketchyup/decisions)

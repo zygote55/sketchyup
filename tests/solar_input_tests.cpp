@@ -1,9 +1,12 @@
 #include "app/window.hpp"
+#include "core/assets.hpp"
+#include "core/materials.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QBuffer>
 #include <QCheckBox>
 #include <QDateEdit>
 #include <QDialog>
@@ -61,7 +64,8 @@ QColor sample(Viewport &view, Vec3 point) {
     QCoreApplication::processEvents();
     view.repaint();
     const auto image = view.grabFramebuffer();
-    check(!image.isNull(), "Solar framebuffer available");
+    check(!image.isNull() && view.rendererReady() && view.renderStats().glError == 0,
+          "Solar framebuffer available without GL errors");
     const auto p = view.project(point);
     const QPoint pixel(qRound(p.x() * image.width() / view.width()),
                        qRound(p.y() * image.height() / view.height()));
@@ -125,6 +129,22 @@ int main(int argc, char **argv) {
         sync(window);
         check(view.captureSceneSnapshot(false, false, false, false, true).solar == settings,
               "Native scene capture opts into solar alone");
+        auto precise = settings;
+        precise.latitude = 40.12345678912345;
+        view.applyModelSolar(precise);
+        const auto preciseRevision = doc.revision();
+        modal(window, [&](QDialog *dialog) { save(dialog); });
+        check(doc.solar() == precise && doc.revision() == preciseRevision,
+              "Untouched sun editor preserves exact coordinate precision");
+        view.applyModelSolar(settings);
+        modal(window, [&](QDialog *dialog) {
+            dialog->findChild<QLineEdit *>("solarOffset")->setText("+05:45");
+            save(dialog);
+        });
+        check(doc.solar().time.utcOffsetMinutes == 345,
+              "Native UTC input accepts quarter-hour offsets");
+        doc.undo();
+        sync(window);
         view.standardView(1);
         view.frameBounds({-9, -8, 0}, {9, 9, 4});
         sync(window);
@@ -148,6 +168,28 @@ int main(int argc, char **argv) {
         check(sample(view, probe).lightness() > shadow.lightness() + 25,
               "Translucent fragments below the shadow cutoff do not cast opaque shadows");
         view.setBodyOpacity(body, 1.f);
+        QImage cutout(4, 4, QImage::Format_RGBA8888);
+        cutout.fill(QColor(255, 255, 255, 0));
+        QByteArray imageBytes;
+        QBuffer imageBuffer(&imageBytes);
+        imageBuffer.open(QIODevice::WriteOnly);
+        check(cutout.save(&imageBuffer, "PNG"), "Shadow cutout fixture encodes");
+        const auto asset = createAsset(doc, "Transparent shadow fixture", "image/png",
+                                       std::make_shared<AssetPayload>(std::vector<std::uint8_t>(
+                                           imageBytes.begin(), imageBytes.end())));
+        const auto material =
+            createMaterial(doc, "Transparent shadow fixture", {1, 1, 1}, 1, asset);
+        assignMaterial(doc, body, {}, material, true, true);
+        sync(window);
+        sample(view, probe);
+        check(QTest::qWaitFor([&] { return !view.texturesPending(); }, 10000),
+              "Shadow texture worker settles");
+        check(sample(view, probe).lightness() > shadow.lightness() + 25,
+              "Texture alpha cutouts do not cast solid shadows");
+        doc.undo();
+        doc.undo();
+        doc.undo();
+        sync(window);
         view.setClipPlane(std::array<double, 4>{0, 0, -1, 1});
         check(sample(view, probe).lightness() > shadow.lightness() + 25,
               "Free clipping removes the clipped-away shadow caster");
