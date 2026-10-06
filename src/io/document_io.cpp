@@ -171,12 +171,23 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonObject references;
         for (auto [member, target] : definition->references)
             references[sid(member)] = sid(target);
+        QJsonValue glue = QJsonValue::Null;
+        if (definition->glue) {
+            const auto &record = *definition->glue;
+            glue = QJsonObject{
+                {"member", sid(record.member)},
+                {"face", sid(record.face)},
+                {"anchor", QJsonArray{record.anchor.x, record.anchor.y, record.anchor.z}},
+                {"tangent", QJsonArray{record.tangent.x, record.tangent.y, record.tangent.z}},
+                {"cutsOpening", record.cutsOpening}};
+        }
         definitions.append(QJsonObject{{"id", sid(id)},
                                        {"root", sid(definition->root)},
                                        {"nextMemberId", sid(definition->nextMemberId)},
                                        {"name", QString::fromStdString(definition->name)},
                                        {"members", encodeBodies(definition->members)},
-                                       {"references", references}});
+                                       {"references", references},
+                                       {"glue", glue}});
     }
     for (const auto &[root, instance] : doc.instances()) {
         QJsonObject members;
@@ -189,7 +200,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 13},
+                {"version", 14},
                 {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
                 {"revision", sid(doc.revision())},
                 {"units", "m"},
@@ -476,7 +487,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
          root["version"].toDouble() != 7 && root["version"].toDouble() != 8 &&
          root["version"].toDouble() != 9 && root["version"].toDouble() != 10 &&
          root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
-         root["version"].toDouble() != 13) ||
+         root["version"].toDouble() != 13 && root["version"].toDouble() != 14) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");
@@ -606,8 +617,10 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
             throw std::runtime_error("Too many component records");
         for (auto value : definitionRecords) {
             const auto record = object(value);
-            supportedFields(record,
-                            {"id", "root", "nextMemberId", "name", "members", "references"});
+            QStringList allowed{"id", "root", "nextMemberId", "name", "members", "references"};
+            if (root["version"].toInt() >= 14)
+                allowed.append("glue");
+            supportedFields(record, allowed);
             auto definition = std::make_shared<ComponentDefinition>();
             definition->id = readId(record["id"]);
             definition->root = readId(record["root"]);
@@ -619,6 +632,26 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
             const auto references = object(record["references"]);
             for (auto it = references.begin(); it != references.end(); ++it)
                 definition->references[readId(it.key())] = readId(it.value());
+            if (root["version"].toInt() >= 14) {
+                if (!record.contains("glue"))
+                    throw std::runtime_error("Missing component glue field");
+                if (!record["glue"].isNull()) {
+                    const auto glue = object(record["glue"]);
+                    supportedFields(glue, {"member", "face", "anchor", "tangent", "cutsOpening"});
+                    auto point = [](const QJsonValue &value) {
+                        const auto values = array(value);
+                        if (values.size() != 3)
+                            throw std::runtime_error(
+                                "Glue point/direction needs three coordinates");
+                        return Vec3{number(values[0]), number(values[1]), number(values[2])};
+                    };
+                    if (!glue["cutsOpening"].isBool())
+                        throw std::runtime_error("Glue cutting behavior must be boolean");
+                    definition->glue = ComponentGlue{readId(glue["member"]), readId(glue["face"]),
+                                                     point(glue["anchor"]), point(glue["tangent"]),
+                                                     glue["cutsOpening"].toBool()};
+                }
+            }
             if (!definitions.emplace(definition->id, definition).second)
                 throw std::runtime_error("Duplicate component definition");
         }

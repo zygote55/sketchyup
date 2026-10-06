@@ -11,7 +11,7 @@ namespace {
 }
 bool equal(const ComponentDefinition &a, const ComponentDefinition &b) {
     if (a.id != b.id || a.root != b.root || a.nextMemberId != b.nextMemberId || a.name != b.name ||
-        a.references != b.references || a.members.size() != b.members.size())
+        a.references != b.references || a.glue != b.glue || a.members.size() != b.members.size())
         return false;
     for (const auto &[id, body] : a.members)
         if (!b.members.contains(id) || *body != *b.members.at(id))

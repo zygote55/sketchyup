@@ -3,9 +3,16 @@
 #include "core/body.hpp"
 #include "core/material_records.hpp"
 #include "core/tag_records.hpp"
+#include <optional>
 namespace sketchy {
 class Document;
 struct Edit;
+struct ComponentGlue {
+    Id member{}, face{};
+    Vec3 anchor{}, tangent{1, 0, 0}; // Member-local plane anchor and in-plane direction.
+    bool cutsOpening{};              // The selected face's outer loop is the cut outline.
+    bool operator==(const ComponentGlue &) const = default;
+};
 struct ComponentDefinition {
     Id id{}, root{}, nextMemberId{1};
     std::string name{"Component"};
@@ -13,6 +20,7 @@ struct ComponentDefinition {
     // A reference occupies a leaf group node; its geometry comes from the
     // referenced definition, and the node provides placement and instance state.
     std::map<Id, Id> references;
+    std::optional<ComponentGlue> glue;
 };
 using DefinitionPtr = std::shared_ptr<const ComponentDefinition>;
 using ComponentDefinitions = std::map<Id, DefinitionPtr>;

@@ -893,6 +893,11 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     for (const auto &change : edit.instances)
         if (lockedIn(bodies_, change.root))
             throw std::runtime_error("Cannot change a locked component instance binding");
+    for (const auto &change : edit.definitions)
+        if (change.before && change.after && change.before->glue != change.after->glue)
+            for (const auto &[root, instance] : instances_)
+                if (instance->definition == change.id && lockedIn(bodies_, root))
+                    throw std::runtime_error("Cannot change glue behavior of a locked component");
     for (const auto &[id, body] : bodies_) {
         if (!body->locked)
             continue;

@@ -16,6 +16,7 @@ ComponentResult editComponentDefinition(Document &doc, Id definition,
                                         const std::function<ChangeReport(Document &)> &edit,
                                         Transform editingFrame = {});
 ComponentResult setComponentAxes(Document &doc, Id definition, Transform axes);
+ComponentResult setComponentGlue(Document &doc, Id definition, std::optional<ComponentGlue> glue);
 // Map a materialized definition-edit draft to one live placement, including references.
 std::map<Id, Id> componentScopeMembers(const Document &doc, const Document &draft, Id instance);
 } // namespace sketchy

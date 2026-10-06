@@ -65,7 +65,7 @@ QByteArray encodeContainer(const Document &doc) {
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
-                                  {"encoding", "json-v13"},
+                                  {"encoding", "json-v14"},
                                   {"offset", "0"},
                                   {"bytes", QString::number(document.size())},
                                   {"sha256", hash(document)}}};
@@ -86,20 +86,21 @@ QByteArray encodeContainer(const Document &doc) {
         payload.append(bytes);
     }
     const auto manifest =
-        QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
-                                  {"epoch", "1"},
-                                  {"revision", QString::number(doc.revision())},
-                                  {"writer", "SketchyUp/0.1.0"},
-                                  {"units", "m"},
-                                  {"up", "Z"},
-                                  {"requiredFeatures",
-                                   QJsonArray{"scene-v2", "topology-v1", "curves-v1", "guides-v1",
-                                              "groups-v1", "face-colors-v1", "components-v1",
-                                              "tags-v1", "materials-v1", "assets-v1",
-                                              "display-units-v1", "edge-appearance-v1"}},
-                                  {"allocatorFloors", floors(doc, true, true, true, true, true)},
-                                  {"assets", assets},
-                                  {"chunks", chunks}})
+        QJsonDocument(
+            QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
+                        {"epoch", "1"},
+                        {"revision", QString::number(doc.revision())},
+                        {"writer", "SketchyUp/0.1.0"},
+                        {"units", "m"},
+                        {"up", "Z"},
+                        {"requiredFeatures",
+                         QJsonArray{"scene-v2", "topology-v1", "curves-v1", "guides-v1",
+                                    "groups-v1", "face-colors-v1", "components-v1", "tags-v1",
+                                    "materials-v1", "assets-v1", "display-units-v1",
+                                    "edge-appearance-v1", "component-glue-v1"}},
+                        {"allocatorFloors", floors(doc, true, true, true, true, true)},
+                        {"assets", assets},
+                        {"chunks", chunks}})
             .toJson(QJsonDocument::Compact);
     if (manifest.size() > manifestLimit)
         throw std::runtime_error("Container manifest exceeds 1 MiB");
@@ -134,7 +135,14 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
+    const bool componentGlue =
+        features == std::set<QString>{"scene-v2",         "topology-v1",      "curves-v1",
+                                      "guides-v1",        "groups-v1",        "face-colors-v1",
+                                      "components-v1",    "tags-v1",          "materials-v1",
+                                      "assets-v1",        "display-units-v1", "edge-appearance-v1",
+                                      "component-glue-v1"};
     const bool edgeAppearance =
+        componentGlue ||
         features == std::set<QString>{"scene-v2",      "topology-v1",      "curves-v1",
                                       "guides-v1",     "groups-v1",        "face-colors-v1",
                                       "components-v1", "tags-v1",          "materials-v1",
@@ -197,18 +205,19 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (edgeAppearance ? "json-v13"
-                              : displayUnits ? "json-v12"
-                              : assets       ? "json-v11"
-                              : materials    ? "json-v10"
-                              : tags         ? "json-v9"
-                              : components   ? "json-v8"
-                              : faceColors   ? "json-v7"
-                              : groups       ? "json-v6"
-                              : guides       ? "json-v5"
-                              : curves       ? "json-v4"
-                              : topology     ? "json-v3"
-                                             : "json-v2") ||
+        chunk["encoding"] != (componentGlue    ? "json-v14"
+                              : edgeAppearance ? "json-v13"
+                              : displayUnits   ? "json-v12"
+                              : assets         ? "json-v11"
+                              : materials      ? "json-v10"
+                              : tags           ? "json-v9"
+                              : components     ? "json-v8"
+                              : faceColors     ? "json-v7"
+                              : groups         ? "json-v6"
+                              : guides         ? "json-v5"
+                              : curves         ? "json-v4"
+                              : topology       ? "json-v3"
+                                               : "json-v2") ||
         integer(chunk["offset"]) != 0 || documentSize > documentLimit || documentSize > total)
         throw std::runtime_error("Invalid document chunk range or encoding");
     const auto payload = bytes.mid(16 + length, documentSize);
@@ -237,18 +246,19 @@ Document decodeContainer(const QByteArray &bytes) {
     if (cursor != total)
         throw std::runtime_error("Trailing or unreferenced container data");
     const auto payloadTree = QJsonDocument::fromJson(payload).object();
-    if (payloadTree["version"] != (edgeAppearance ? 13
-                                   : displayUnits ? 12
-                                   : assets       ? 11
-                                   : materials    ? 10
-                                   : tags         ? 9
-                                   : components   ? 8
-                                   : faceColors   ? 7
-                                   : groups       ? 6
-                                   : guides       ? 5
-                                   : curves       ? 4
-                                   : topology     ? 3
-                                                  : 2))
+    if (payloadTree["version"] != (componentGlue    ? 14
+                                   : edgeAppearance ? 13
+                                   : displayUnits   ? 12
+                                   : assets         ? 11
+                                   : materials      ? 10
+                                   : tags           ? 9
+                                   : components     ? 8
+                                   : faceColors     ? 7
+                                   : groups         ? 6
+                                   : guides         ? 5
+                                   : curves         ? 4
+                                   : topology       ? 3
+                                                    : 2))
         throw std::runtime_error("Document chunk encoding mismatch");
     if (assets && payloadTree["assetStorage"] != "external")
         throw std::runtime_error("Packaged document requires external asset chunks");
