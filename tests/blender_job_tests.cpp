@@ -35,6 +35,17 @@ void write(const QString &path, const QByteArray &data) {
 QString hash(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
 }
+QJsonObject fakeRasterDevice() {
+    const QJsonObject graphics{{"backend_type", "OPENGL"},
+                               {"device_type", "SOFTWARE"},
+                               {"renderer", "Explicit test renderer"},
+                               {"vendor", "Test"},
+                               {"version", "4.6"}};
+    return {{"backend", "OPENGL"},
+            {"name", graphics.value("renderer")},
+            {"graphics", graphics},
+            {"id", "opengl:" + hash(QJsonDocument(graphics).toJson(QJsonDocument::Compact))}};
+}
 int fake(QCoreApplication &app, const QStringList &args) {
     const auto mode = args[2];
     const auto requestPath = args.last();
@@ -59,9 +70,14 @@ int fake(QCoreApplication &app, const QStringList &args) {
         result["code"] = "device_unavailable";
     } else if (request.value("operation") == "probe") {
         result["status"] = "available";
+        result["engines"] = QJsonArray{request.value("backend") == "OPENGL" ? "eevee" : "cycles"};
         result["backends"] = QJsonArray{"CPU"};
         result["devices"] =
             QJsonArray{QJsonObject{{"id", "CPU"}, {"name", "CPU"}, {"backend", "CPU"}}};
+        if (request.value("backend") == "OPENGL") {
+            result["backends"] = QJsonArray{"OPENGL"};
+            result["devices"] = QJsonArray{fakeRasterDevice()};
+        }
     } else {
         const auto source =
             QJsonDocument::fromJson(
@@ -86,7 +102,27 @@ int fake(QCoreApplication &app, const QStringList &args) {
         result["sceneSha256"] = source.value("scene").toObject().value("sha256");
         result["device"] =
             QJsonObject{{"backend", request.value("backend")}, {"id", request.value("deviceId")}};
-        result["preset"] = QJsonObject{{"name", "studio-v1"}, {"engine", "CYCLES"}, {"threads", 4}};
+        const bool eevee = settings.value("engine") == "eevee";
+        result["preset"] =
+            QJsonObject{{"name", "studio-v1"},
+                        {"engine", eevee ? "BLENDER_EEVEE" : "CYCLES"},
+                        {"threads", 4},
+                        {"samplingPolicy", eevee ? "eevee-preview-v1" : "cycles-fixed-v1"},
+                        {"samples", settings.value("samples")}};
+        if (eevee) {
+            result["device"] = fakeRasterDevice();
+            auto losses = result["losses"].toObject();
+            losses["indirectLightingApproximated"] = 1;
+            if (settings.value("seed").toInt())
+                losses["samplingSeedNotApplied"] = 1;
+            result["losses"] = losses;
+        }
+        if (mode == "graphics") {
+            auto device = result["device"].toObject();
+            device["graphics"] = QJsonObject{};
+            result["device"] = device;
+        }
+
         result["lighting"] = QJsonObject{{"mode", "studio-v1"}, {"worldStrength", .25}};
         if (source["solar"].toObject()["enabled"].toBool()) {
             const auto position = source["solarPosition"].toObject();
@@ -296,6 +332,42 @@ int main(int argc, char **argv) {
                             .toObject()["environmentLightingOmitted"] == 0 &&
                     read(environmentInput->sourceDirectory() + "/environment.hdr") == hdr,
                 "Real worker renders packaged HDR after original removal and verifies conversion");
+            auto previewOptions = real;
+            previewOptions.backend = "OPENGL";
+            previewOptions.deviceId = "probe-only";
+            previewOptions.allowCpuFallback = false;
+            BlenderJob previewProbe;
+            previewProbe.probe(previewOptions);
+            wait(previewProbe, 20000);
+            check(previewProbe.phase() == Phase::Succeeded, "Real Eevee OpenGL capability probe");
+            const auto graphics = previewProbe.report()["worker"].toObject()["devices"].toArray();
+            check(graphics.size() == 1, "Eevee reports the active OpenGL renderer explicitly");
+            previewOptions.deviceId = graphics[0].toObject()["id"].toString();
+            render.settings.engine = RenderEngine::Eevee;
+            const auto previewInput =
+                PreparedRender::prepare(RenderSnapshot::capture(document, render));
+            BlenderJob preview;
+            preview.start(previewInput, previewOptions);
+            wait(preview, 65000);
+            if (!preview.result())
+                std::cerr << QJsonDocument(preview.report()).toJson().constData();
+            check(preview.result() &&
+                      preview.result()->manifest["preset"].toObject()["engine"] ==
+                          "BLENDER_EEVEE" &&
+                      preview.result()
+                              ->manifest["losses"]
+                              .toObject()["indirectLightingApproximated"] == 1,
+                  "Actual Eevee renders captured sun/HDR with explicit renderer and approximation "
+                  "report");
+            previewOptions.deviceId = "opengl:changed-device";
+            previewOptions.allowCpuFallback = true;
+            BlenderJob changedDevice;
+            changedDevice.start(previewInput, previewOptions);
+            wait(changedDevice, 65000);
+            check(!changedDevice.result() &&
+                      changedDevice.report()["attempts"].toArray().size() == 1,
+                  "Changed OpenGL renderer fails without switching engine to Cycles CPU");
+            render.settings.engine = RenderEngine::Cycles;
             real.backend = "METAL";
             real.deviceId = "deliberately-unavailable-test-device";
             BlenderJob fallback;
@@ -374,6 +446,30 @@ int main(int argc, char **argv) {
             check(bool(job.result()) == (QString(mode) == "success"),
                   "HDR renders require captured environment and converted loss report");
         }
+        auto previewSettings = render;
+        previewSettings.settings.engine = RenderEngine::Eevee;
+        previewSettings.settings.seed = 7;
+        const auto previewInput =
+            PreparedRender::prepare(RenderSnapshot::capture(document, previewSettings));
+        for (const auto &mode : {"success", "lighting", "losses", "graphics", "fail"}) {
+            auto selected = options(mode);
+            selected.backend = "OPENGL";
+            selected.deviceId = fakeRasterDevice()["id"].toString();
+            BlenderJob job;
+            job.start(previewInput, selected);
+            wait(job);
+            check(bool(job.result()) == (QString(mode) == "success") &&
+                      job.report()["attempts"].toArray().size() == 1,
+                  "Eevee verifies renderer and conversion without implicit CPU fallback");
+        }
+        bool mismatchRejected{};
+        try {
+            BlenderJob mismatch;
+            mismatch.start(previewInput, options("success"));
+        } catch (const std::exception &) {
+            mismatchRejected = true;
+        }
+        check(mismatchRejected, "Engine/device mismatch rejects before launching worker");
         for (const auto &mode : {"fallback", "fail", "crash"}) {
             BlenderJob job;
             auto gpu = options(mode);

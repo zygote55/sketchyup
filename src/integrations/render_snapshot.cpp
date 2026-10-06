@@ -48,6 +48,8 @@ Vec3 vector(const QJsonValue &value) {
 }
 } // namespace
 void validateRenderSettings(const RenderSettings &s) {
+    require(s.engine == RenderEngine::Cycles || s.engine == RenderEngine::Eevee,
+            "Unsupported render engine");
     require(s.width >= 64 && s.width <= 4096 && s.height >= 64 && s.height <= 4096 &&
                 s.samples >= 1 && s.samples <= 1024 && s.seed >= 0 && s.seed <= 1000000,
             "Render resolution, samples or seed exceed bounds");
@@ -71,7 +73,11 @@ Transform renderCameraTransform(const RenderCamera &c) {
     return result;
 }
 QJsonObject describeRenderSettings(const RenderSettings &s) {
-    return {{"width", s.width}, {"height", s.height}, {"samples", s.samples}, {"seed", s.seed}};
+    return {{"width", s.width},
+            {"height", s.height},
+            {"samples", s.samples},
+            {"seed", s.seed},
+            {"engine", s.engine == RenderEngine::Eevee ? "eevee" : "cycles"}};
 }
 QJsonObject describeRenderCamera(const RenderCamera &c) {
     return {{"projection", c.orthographic ? "orthographic" : "perspective"},
@@ -84,7 +90,8 @@ QJsonObject describeRenderCamera(const RenderCamera &c) {
             {"farClip", c.farClip}};
 }
 RenderOptions parseRenderOptions(const QJsonObject &json) {
-    fields(json, {"apiVersion", "width", "height", "samples", "seed", "camera", "environment"});
+    fields(json,
+           {"apiVersion", "width", "height", "samples", "seed", "camera", "environment", "engine"});
     require(json.value("apiVersion") == 1, "Render settings require apiVersion 1");
     RenderOptions result;
     auto &s = result.settings;
@@ -92,6 +99,11 @@ RenderOptions parseRenderOptions(const QJsonObject &json) {
     s.height = integer(json, "height", s.height);
     s.samples = integer(json, "samples", s.samples);
     s.seed = integer(json, "seed", s.seed);
+    if (json.contains("engine")) {
+        require(json.value("engine") == "cycles" || json.value("engine") == "eevee",
+                "Choose cycles or eevee rendering");
+        s.engine = json.value("engine") == "eevee" ? RenderEngine::Eevee : RenderEngine::Cycles;
+    }
     validateRenderSettings(s);
     if (json.contains("camera")) {
         require(json.value("camera").isObject(), "Camera settings must be an object");

@@ -7,12 +7,13 @@ import sys
 import bpy
 from mathutils import Vector
 
+engine = 'BLENDER_EEVEE' if sys.argv[-1] == 'eevee' else 'CYCLES'
 root = Path(sys.argv[sys.argv.index('--') + 1]).resolve()
 spec = importlib.util.spec_from_file_location('worker', Path(__file__).resolve().parents[1] / 'src/integrations/blender_worker.py')
 worker = importlib.util.module_from_spec(spec)
 sys.dont_write_bytecode = True
 spec.loader.exec_module(worker)
-output = root / 'renders'
+output = root / ('renders-eevee' if engine == 'BLENDER_EEVEE' else 'renders')
 output.mkdir(exist_ok=True)
 reports = []
 for fixture in ('nested', 'texture'):
@@ -45,7 +46,7 @@ for fixture in ('nested', 'texture'):
                     normal = (obj.matrix_world.to_3x3().inverted().transposed() @ obj.data.corner_normals[loop].vector).normalized()
                     assert (normal - Vector((0, 0, 1))).length < 1e-4, 'Imported mirrored cap normal points out of retained volume'
     assert abs(cap_area - 5) < 1e-5, ('Independent imported cap area', cap_area)
-    scene.render.engine = 'CYCLES'
+    scene.render.engine = engine
     scene.cycles.samples = 16
     scene.cycles.seed = 7
     scene.cycles.use_denoising = False
@@ -95,6 +96,6 @@ for fixture in ('nested', 'texture'):
     assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
     reports.append({'fixture': fixture, 'capArea': cap_area, 'worldCapsOutward': True, 'pixels': probes, 'passed': True})
 assert not list(output.glob('cycles-import-*'))
-result = {'blender': bpy.app.version_string, 'reports': reports}
-(root / 'section-blender-validation.json').write_text(json.dumps(result, indent=2) + '\n')
+result = {'blender': bpy.app.version_string, 'engine': engine, 'reports': reports}
+(root / ('section-blender-eevee-validation.json' if engine == 'BLENDER_EEVEE' else 'section-blender-validation.json')).write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps(result))

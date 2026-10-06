@@ -9,6 +9,7 @@ import sys
 import bpy
 from mathutils import Vector
 
+engine = 'BLENDER_EEVEE' if sys.argv[-1] == 'eevee' else 'CYCLES'
 output = Path(sys.argv[sys.argv.index('--') + 1]).resolve()
 output.mkdir(parents=True, exist_ok=True)
 spec = importlib.util.spec_from_file_location('worker', Path(__file__).resolve().parents[1] / 'src/integrations/blender_worker.py')
@@ -64,7 +65,7 @@ for variant in ('east', 'north', 'no-shadows', 'night', 'disabled', 'legacy'):
     camera.rotation_euler = (0, 0, 0)
     camera.data.type = 'ORTHO'
     camera.data.ortho_scale = 6
-    scene.render.engine = 'CYCLES'
+    scene.render.engine = engine
     scene.cycles.samples = 64
     scene.cycles.seed = 7
     scene.cycles.use_denoising = False
@@ -109,6 +110,6 @@ for field, value in [('direction', [1, 0, 1]), ('directLightActive', False), ('s
         raise AssertionError('Invalid frozen solar input accepted')
     except worker.WorkerError as error:
         assert error.code == 'invalid_snapshot'
-result = {'blender': bpy.app.version_string, 'reports': reports, 'invalidSnapshotsRejected': 4}
-(output / 'solar-blender-validation.json').write_text(json.dumps(result, indent=2) + '\n')
+result = {'blender': bpy.app.version_string, 'engine': engine, 'reports': reports, 'invalidSnapshotsRejected': 4}
+(output / ('solar-blender-eevee-validation.json' if engine == 'BLENDER_EEVEE' else 'solar-blender-validation.json')).write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps(result))

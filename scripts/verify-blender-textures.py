@@ -10,13 +10,14 @@ import sys
 import bpy
 from mathutils import Vector
 
+engine = 'BLENDER_EEVEE' if sys.argv[-1] == 'eevee' else 'CYCLES'
 root = Path(sys.argv[sys.argv.index('--') + 1]).resolve()
 repo = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('worker', repo / 'src/integrations/blender_worker.py')
 worker = importlib.util.module_from_spec(spec)
 sys.dont_write_bytecode = True
 spec.loader.exec_module(worker)
-output = root / 'texture-renders'
+output = root / ('texture-renders-eevee' if engine == 'BLENDER_EEVEE' else 'texture-renders')
 output.mkdir(exist_ok=True)
 reports = []
 
@@ -57,7 +58,7 @@ for variant in range(12):
     assert all(len(obj.data.polygons) == (8 if variant == 9 else 2) for obj in meshes)
     if variant == 5:
         assert meshes[0].data is meshes[1].data, 'Mirrored instances still share one mesh'
-    scene.render.engine = 'CYCLES'
+    scene.render.engine = engine
     scene.cycles.samples = 32
     scene.cycles.seed = 42
     scene.cycles.use_denoising = False
@@ -172,6 +173,6 @@ for mutation in mutations:
             offset = value['bufferViews'][accessor['bufferView']]['byteOffset']
             struct.pack_into('<f',binary,8+offset,float('nan'))
     rejects(encode(value,binary))
-report = {'blender':bpy.app.version_string,'reports':reports,'malformedTexturesRejected':len(mutations)}
-(root/'texture-blender-validation.json').write_text(json.dumps(report,indent=2)+'\n')
+report = {'blender':bpy.app.version_string,'engine':engine,'reports':reports,'malformedTexturesRejected':len(mutations)}
+(root/('texture-blender-eevee-validation.json' if engine == 'BLENDER_EEVEE' else 'texture-blender-validation.json')).write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report))
