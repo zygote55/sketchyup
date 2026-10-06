@@ -38,7 +38,16 @@ void type(QDialog *dialog, const char *name, const QString &text) {
     field->selectAll();
     QTest::keyClicks(field, text);
 }
+bool focusDialog(QDialog *dialog) {
+    dialog->activateWindow();
+    return QTest::qWaitForWindowExposed(dialog) &&
+           QTest::qWaitFor([&] { return QGuiApplication::focusWindow() == dialog->windowHandle(); });
+}
 void accept(QDialog *dialog) {
+    // A user can activate OK only after native focus returns from a child picker.
+    // Closing before queued Wayland enter events dispatch leaks destroyed proxy
+    // arguments in libwayland-client 1.26 (see the retained isolated reproducer).
+    check(focusDialog(dialog), "Style dialog has native focus before acceptance");
     dialog->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Ok)->click();
 }
 void modal(Window &window, const std::function<void(QDialog *)> &operation) {
@@ -172,7 +181,11 @@ int main(int argc, char **argv) {
                 if (!colors || !colors->isVisible())
                     return;
                 chooser.stop();
-                shown = true;
+                shown = focusDialog(colors);
+                if (!shown) {
+                    colors->reject();
+                    return;
+                }
                 colors->accept();
             });
             chooser.start();
@@ -200,7 +213,11 @@ int main(int argc, char **argv) {
                 if (!colors || !colors->isVisible())
                     return;
                 chooser.stop();
-                shown = true;
+                shown = focusDialog(colors);
+                if (!shown) {
+                    colors->reject();
+                    return;
+                }
                 colors->setCurrentColor(QColor("#17263b"));
                 colors->accept();
             });
