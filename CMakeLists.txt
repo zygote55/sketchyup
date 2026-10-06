@@ -772,4 +772,5 @@ install(FILES docs/decisions/0097-render-environments.md DESTINATION share/doc/s
 install(FILES docs/decisions/0098-eevee-preview.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0099-retained-render-jobs.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0100-render-queue-lifecycle.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/decisions/0101-native-render-jobs.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/reference-grid.json examples/reference-grid.sketchyup DESTINATION share/doc/sketchyup/examples)

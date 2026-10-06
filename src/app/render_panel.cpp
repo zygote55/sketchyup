@@ -242,9 +242,21 @@ struct RenderPanel::Impl {
         addResult(queue->result(id), id);
     }
     void publish() {
-        chip.setText(status);
+        QString chipText = status;
+        if (queue) {
+            int running{}, waiting{};
+            for (const auto &record : queue->jobs()) {
+                running += record.state == RenderJobState::Running ||
+                           record.state == RenderJobState::Canceling;
+                waiting += record.state == RenderJobState::Queued;
+            }
+            if (running || waiting)
+                chipText = QString::number(running) + " rendering · " + QString::number(waiting) +
+                           " queued";
+        }
+        chip.setText(chipText);
         chip.setVisible(elapsed.isValid());
-        chip.setAccessibleName("Render job: " + status);
+        chip.setAccessibleName("Render jobs: " + chipText);
         if (dialog) {
             const auto seconds = elapsed.isValid() ? elapsed.elapsed() / 1000 : 0;
             jobStatus->setText(status + (active() ? " · " + QString::number(seconds) + " s" : "") +

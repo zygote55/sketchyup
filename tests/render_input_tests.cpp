@@ -363,6 +363,15 @@ int main(int argc, char **argv) {
             check(QTest::qWaitFor([&] { return jobList->topLevelItemCount() == 3; }),
                   "Third native render queues behind active workers");
             check(jobList->topLevelItem(2)->text(0) == "queued", "Jobs shows queued state");
+            check(
+                window.findChild<QPushButton *>("renderStatusChip")->text().contains("2 rendering"),
+                "Status chip counts all active jobs");
+            if (const auto evidence = qEnvironmentVariable("SKETCHYUP_RENDER_JOBS_EVIDENCE");
+                !evidence.isEmpty()) {
+                check(jobs->grab().save(evidence + "-jobs.png"), "Capture native Jobs list");
+                check(window.grab().save(evidence + "-window.png"),
+                      "Capture modeling window with queued work");
+            }
             jobList->setCurrentItem(jobList->topLevelItem(0));
             jobs->findChild<QPushButton *>("cancelStoredRender")->click();
             check(QTest::qWaitFor([&] { return jobList->topLevelItem(2)->text(0) == "completed"; }),
