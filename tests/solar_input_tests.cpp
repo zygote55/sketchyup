@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
@@ -142,6 +143,54 @@ int main(int argc, char **argv) {
               "Sun casts a visible ground shadow at geometric projection");
         check(view.pick(view.project(probe)).first == 0 && !view.selectionAt(view.project(probe)),
               "Shadow plane does not become pickable geometry");
+        view.applyModelSolar(settings);
+        view.setBodyOpacity(body, .25f);
+        check(sample(view, probe).lightness() > shadow.lightness() + 25,
+              "Translucent fragments below the shadow cutoff do not cast opaque shadows");
+        view.setBodyOpacity(body, 1.f);
+        view.setClipPlane(std::array<double, 4>{0, 0, -1, 1});
+        check(sample(view, probe).lightness() > shadow.lightness() + 25,
+              "Free clipping removes the clipped-away shadow caster");
+        view.setClipPlane({});
+        const auto section = createSection(doc, "Solar cut", 0, {{0, 0, -1}, 1});
+        setActiveSection(doc, 0, section);
+        sync(window);
+        check(sample(view, probe).lightness() > shadow.lightness() + 25,
+              "Named section caps and clipped geometry produce the shorter shadow");
+        setActiveSection(doc, 0, {});
+        sync(window);
+        const auto beforeHidden = doc.bodies().at(body);
+        auto hidden = std::make_shared<Body>(*beforeHidden);
+        hidden->hidden = true;
+        doc.apply({"Hide shadow caster", {{body, beforeHidden, hidden}}}, doc.revision());
+        sync(window);
+        check(sample(view, probe).lightness() > shadow.lightness() + 25,
+              "Hidden bodies do not cast shadows");
+        doc.undo();
+        sync(window);
+        auto rotated = settings;
+        rotated.northDegrees = 90;
+        view.applyModelSolar(rotated);
+        const auto rotatedSun = solarPosition(rotated);
+        const auto rotatedProbe = top - rotatedSun.direction * (top.z / rotatedSun.direction.z);
+        const auto rotatedShadow = sample(view, rotatedProbe);
+        rotated.shadows = false;
+        view.applyModelSolar(rotated);
+        check(sample(view, rotatedProbe).lightness() > rotatedShadow.lightness() + 25,
+              "Model north rotates the projected shadow");
+        view.applyModelSolar(settings);
+        const Vec3 shift{250000, 250000, 0};
+        doc.transform(body, Transform::translation(shift));
+        view.frameBounds(Vec3{-9, -8, 0} + shift, Vec3{9, 9, 4} + shift);
+        sync(window);
+        const auto distantShadow = sample(view, probe + shift);
+        view.applyModelSolar(unshadowed);
+        check(sample(view, probe + shift).lightness() > distantShadow.lightness() + 25,
+              "Camera-relative shadows survive distant placement");
+        doc.undo();
+        doc.undo();
+        view.frameBounds({-9, -8, 0}, {9, 9, 4});
+        sync(window);
         auto night = settings;
         night.time.hour = 0;
         view.applyModelSolar(night);
@@ -153,8 +202,17 @@ int main(int argc, char **argv) {
               "Night disables directional shadowing");
         view.applyModelSolar(settings);
         const auto evidence = qEnvironmentVariable("SKETCHYUP_SOLAR_EVIDENCE");
-        if (!evidence.isEmpty())
+        if (!evidence.isEmpty()) {
+            view.standardView(0);
+            view.frameBounds({-5, -1, 0}, {3, 4, 4});
+            sync(window);
             check(view.grabFramebuffer().save(evidence), "Solar viewport evidence saved");
+        }
+        const auto editorEvidence = qEnvironmentVariable("SKETCHYUP_SOLAR_EDITOR_EVIDENCE");
+        if (!editorEvidence.isEmpty())
+            modal(window, [&](QDialog *dialog) {
+                check(dialog->grab().save(editorEvidence), "Native sun editor evidence saved");
+            });
         const auto path = isolated.filePath("sun.sketchyup");
         saveDocument(doc, path);
         check(loadDocument(path).solar() == settings, "Native solar file reopens exactly");

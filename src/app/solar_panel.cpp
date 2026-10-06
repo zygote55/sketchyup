@@ -32,7 +32,8 @@ SolarPanel::SolarPanel(Document &document, Viewport &viewport, QWidget *parent)
     setObjectName("solarPanel");
     auto *layout = new QVBoxLayout(this);
     auto *note = new QLabel("Study the sun using an explicit location and time. North is model +Y "
-                            "unless rotated; +X is east. All calculations work offline.");
+                            "unless rotated; +X is east. All calculations work offline. Shadows "
+                            "appear in textured, shaded and monochrome modes.");
     note->setWordWrap(true);
     layout->addWidget(note);
     details_ = new QLabel;
