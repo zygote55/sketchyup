@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -19,6 +20,7 @@
 #include <iostream>
 using namespace sketchy;
 namespace {
+int focusedReportClosures{};
 void check(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -56,6 +58,11 @@ QDialog *open(Window &window, Id body) {
     events();
     auto *report = window.findChild<QDialog *>("geometryDiagnosticsReport");
     check(report && report->isVisible(), "Native report visible");
+    const QPointer<QWindow> native = report->windowHandle();
+    QObject::connect(report, &QDialog::finished, &window, [native] {
+        if (native && QGuiApplication::focusWindow() == native)
+            ++focusedReportClosures;
+    });
     report->activateWindow();
     check(QTest::qWaitFor(
               [&] {
@@ -410,6 +417,29 @@ int main(int argc, char **argv) {
                   !view.previewValid() && encodeContainer(doc) == duringHandoff,
               "Escape cancels a pending focus handoff before preview creation");
         events();
+        for (bool escape : {false, true}) {
+            report = open(window, body);
+            QPointer<QDialog> closing = report;
+            int finished = 0;
+            QObject::connect(report, &QDialog::finished, &window, [&](int result) {
+                check(result == QDialog::Rejected, "Report close keeps its rejection result");
+                ++finished;
+            });
+            if (escape)
+                QTest::keyClick(report, Qt::Key_Escape);
+            else {
+                auto *buttons = report->findChild<QDialogButtonBox *>();
+                check(buttons, "Report close button exists");
+                QTest::mouseClick(buttons->button(QDialogButtonBox::Close), Qt::LeftButton);
+            }
+            // A second close request must not bypass the pending native drain.
+            if (closing)
+                closing->close();
+            check(QTest::qWaitFor([&] { return closing.isNull(); }, 2000) && finished == 1,
+                  "Close button and Escape finish once after native report teardown");
+        }
+        check(focusedReportClosures == 0,
+              "Report releases native focus before finished permits surface deletion");
         std::cout << "Native diagnostic findings, selection/frame, explicit repairs, Undo and "
                      "staleness passed; DPR "
                   << view.devicePixelRatioF() << std::endl;
