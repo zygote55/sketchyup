@@ -1,0 +1,81 @@
+[
+  {
+    "command": "geometry.face",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          2,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "1",
+    "face": "5",
+    "distance": 2
+  },
+  {
+    "command": "material.create",
+    "name": "Front red",
+    "color": [
+      0.8,
+      0.1,
+      0.1
+    ]
+  },
+  {
+    "command": "material.create",
+    "name": "Back blue",
+    "color": [
+      0.1,
+      0.1,
+      0.8
+    ]
+  },
+  {
+    "command": "material.assign",
+    "body": "1",
+    "material": "1",
+    "side": "front"
+  },
+  {
+    "command": "material.assign",
+    "body": "1",
+    "material": "2",
+    "side": "back"
+  },
+  {
+    "command": "geometry.reverse_faces",
+    "context": "0",
+    "entities": [
+      {
+        "body": "1",
+        "face": "5"
+      }
+    ]
+  },
+  {
+    "command": "geometry.orient_faces",
+    "context": "0",
+    "body": "1",
+    "face": "10"
+  }
+]

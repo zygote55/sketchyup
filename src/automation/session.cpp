@@ -3,6 +3,7 @@
 #include "geometry/boolean.hpp"
 #include "geometry/intersection.hpp"
 #include "geometry/offset.hpp"
+#include "geometry/orientation.hpp"
 #include "geometry/sweep.hpp"
 #include <QCryptographicHash>
 #include <QDir>
@@ -292,6 +293,8 @@ QJsonObject automationFailure(const std::exception &error) {
     else if (auto typed = dynamic_cast<const SweepError *>(&error))
         code = QString::fromStdString(typed->code());
     else if (auto typed = dynamic_cast<const IntersectionError *>(&error))
+        code = QString::fromStdString(typed->code());
+    else if (auto typed = dynamic_cast<const OrientationError *>(&error))
         code = QString::fromStdString(typed->code());
     else if (auto typed = dynamic_cast<const BooleanError *>(&error))
         code = QString::fromStdString(typed->code());

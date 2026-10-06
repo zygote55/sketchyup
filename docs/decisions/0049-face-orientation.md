@@ -37,3 +37,25 @@ also preserve curves, metadata and identity lineage, enforce editing scope,
 support component publication, preview and one Undo item. Native controls and
 edge softening/smoothing/hiding are later R057 layers; this kernel does not claim
 the complete roadmap entry.
+
+
+R057.b publishes `geometry.reverse_faces` (`context`, `entities` containing
+`body`/`face`) and `geometry.orient_faces` (`context`, `body`, reference `face`).
+Reverse accepts 1–4,096 explicit faces across at most 128 raw bodies. Every target
+must be visible, unlocked and editable in that context. Duplicate face entries
+reject. Orient traverses only the selected reference body's connected surface;
+an already consistent result becomes the batch's usual no-change rejection.
+
+One staged edit replaces affected body records and swaps material sides on the
+reported reversed faces. Body defaults, colors, opacity/assets, metadata,
+placements, curve bindings and authoritative topology stay intact. An override is
+removed when the swapped sides equal the unchanged body defaults. Material zero
+keeps its legacy color fallback on the same physical side. This convention also
+holds under reflected/nonuniform placements. Ordinary change receipts retain
+stable face IDs and report changed incidence on affected edges.
+
+Both commands participate in catalog/schema publication, assistant policy,
+component-scoped ID mapping, preview, stale-revision checking, batch rollback,
+Undo/Redo and native-container persistence. Native controls and exporter-side
+front/back handling are separate acceptance layers; this command slice does not
+remove the existing GLB back-material loss report.
