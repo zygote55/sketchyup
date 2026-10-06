@@ -1,0 +1,6 @@
+[
+  {"command":"geometry.wire","body":"0","start":[0,0,0],"end":[4,0,0]},
+  {"command":"annotation.create","name":"Measured span","kind":"distance","anchors":[{"kind":"edge","body":"1","edge":"1","fraction":0.25},{"kind":"edge","body":"1","edge":"1","fraction":0.75}],"offset":[0,1,0],"text":"Span"},
+  {"command":"annotation.create","name":"Joint label","kind":"label","anchors":[{"kind":"edge","body":"1","edge":"1","fraction":0.5}],"text":"Review split joint","offset":[0,0.5,0]},
+  {"command":"geometry.split_edge","body":"1","edge":"1","fraction":0.5}
+]

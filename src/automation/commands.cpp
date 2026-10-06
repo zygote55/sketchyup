@@ -2,6 +2,7 @@
 #include "io/model_style_io.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
+#include "automation/annotation_commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/entity_info.hpp"
 #include "automation/hosted_commands.hpp"
@@ -677,6 +678,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             for (const auto &step : recipe.steps)
                 compose(decodedChanges(step.toObject()["changes"].toObject()));
             recipeOperations.append(recipe.report);
+        } else if (isAnnotationCommand(name)) {
+            executeAnnotationCommand(staged, command);
         } else if (isSectionCommand(name)) {
             executeSectionCommand(staged, command);
         } else if (isSavedSceneCommand(name)) {
@@ -1418,7 +1421,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                     if (isHostedCommand(nested.toString()) ||
                         nested.toString().startsWith("assembly.") ||
                         nested.toString().startsWith("saved_scene.") ||
-                        nested.toString().startsWith("section.") || nested == "component.edit" ||
+                        nested.toString().startsWith("section.") ||
+                        nested.toString().startsWith("annotation.") || nested == "component.edit" ||
                         nested == "component.edit_instance" || nested == "component.axes" ||
                         (nested.toString().startsWith("tag.") && nested != "tag.assign"))
                         throw std::runtime_error(
@@ -1620,13 +1624,17 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.hosted && !edit.style && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections)
+        !edit.hosted && !edit.style && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();
     for (const auto &change : edit.changes)
         if (!change.before && change.after)
             created.append(QString::number(change.id));
+    QJsonArray createdAnnotations;
+    for (const auto &change : edit.annotations)
+        if (!change.before && change.after)
+            createdAnnotations.append(QString::number(change.id));
     QJsonArray createdSections;
     for (const auto &change : edit.sections)
         if (!change.before && change.after)
@@ -1716,6 +1724,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdAssets", createdAssets},
                 {"createdScenes", createdScenes},
                 {"createdSections", createdSections},
+                {"createdAnnotations", createdAnnotations},
                 {"recipeOperations", recipeOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
@@ -1777,6 +1786,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"createdAssets", createdAssets},
                 {"createdScenes", createdScenes},
                 {"createdSections", createdSections},
+                {"createdAnnotations", createdAnnotations},
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
                        {"assertions", assertions},
