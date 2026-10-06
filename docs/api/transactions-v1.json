@@ -1166,6 +1166,88 @@
                                                     ],
                                                     "type": "object"
                                                 },
+                                                "solar": {
+                                                    "additionalProperties": false,
+                                                    "description": "Complete offline sun study. UTC offset is explicit and includes any user-selected daylight-saving adjustment; invalid calendar dates reject.",
+                                                    "properties": {
+                                                        "algorithm": {
+                                                            "const": "noaa-meeus-geometric-v1",
+                                                            "type": "string"
+                                                        },
+                                                        "day": {
+                                                            "maximum": 31,
+                                                            "minimum": 1,
+                                                            "type": "integer"
+                                                        },
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "hour": {
+                                                            "maximum": 23,
+                                                            "minimum": 0,
+                                                            "type": "integer"
+                                                        },
+                                                        "latitude": {
+                                                            "maximum": 90,
+                                                            "minimum": -90,
+                                                            "type": "number"
+                                                        },
+                                                        "longitude": {
+                                                            "maximum": 180,
+                                                            "minimum": -180,
+                                                            "type": "number"
+                                                        },
+                                                        "minute": {
+                                                            "maximum": 59,
+                                                            "minimum": 0,
+                                                            "type": "integer"
+                                                        },
+                                                        "month": {
+                                                            "maximum": 12,
+                                                            "minimum": 1,
+                                                            "type": "integer"
+                                                        },
+                                                        "northDegrees": {
+                                                            "maximum": 180,
+                                                            "minimum": -180,
+                                                            "type": "number"
+                                                        },
+                                                        "second": {
+                                                            "maximum": 59,
+                                                            "minimum": 0,
+                                                            "type": "integer"
+                                                        },
+                                                        "shadows": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "utcOffsetMinutes": {
+                                                            "maximum": 840,
+                                                            "minimum": -840,
+                                                            "type": "integer"
+                                                        },
+                                                        "year": {
+                                                            "maximum": 2099,
+                                                            "minimum": 1901,
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "algorithm",
+                                                        "day",
+                                                        "enabled",
+                                                        "hour",
+                                                        "latitude",
+                                                        "longitude",
+                                                        "minute",
+                                                        "month",
+                                                        "northDegrees",
+                                                        "second",
+                                                        "shadows",
+                                                        "utcOffsetMinutes",
+                                                        "year"
+                                                    ],
+                                                    "type": "object"
+                                                },
                                                 "style": {
                                                     "additionalProperties": false,
                                                     "properties": {
@@ -1556,6 +1638,88 @@
                                                     ],
                                                     "type": "object"
                                                 },
+                                                "solar": {
+                                                    "additionalProperties": false,
+                                                    "description": "Complete offline sun study. UTC offset is explicit and includes any user-selected daylight-saving adjustment; invalid calendar dates reject.",
+                                                    "properties": {
+                                                        "algorithm": {
+                                                            "const": "noaa-meeus-geometric-v1",
+                                                            "type": "string"
+                                                        },
+                                                        "day": {
+                                                            "maximum": 31,
+                                                            "minimum": 1,
+                                                            "type": "integer"
+                                                        },
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "hour": {
+                                                            "maximum": 23,
+                                                            "minimum": 0,
+                                                            "type": "integer"
+                                                        },
+                                                        "latitude": {
+                                                            "maximum": 90,
+                                                            "minimum": -90,
+                                                            "type": "number"
+                                                        },
+                                                        "longitude": {
+                                                            "maximum": 180,
+                                                            "minimum": -180,
+                                                            "type": "number"
+                                                        },
+                                                        "minute": {
+                                                            "maximum": 59,
+                                                            "minimum": 0,
+                                                            "type": "integer"
+                                                        },
+                                                        "month": {
+                                                            "maximum": 12,
+                                                            "minimum": 1,
+                                                            "type": "integer"
+                                                        },
+                                                        "northDegrees": {
+                                                            "maximum": 180,
+                                                            "minimum": -180,
+                                                            "type": "number"
+                                                        },
+                                                        "second": {
+                                                            "maximum": 59,
+                                                            "minimum": 0,
+                                                            "type": "integer"
+                                                        },
+                                                        "shadows": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "utcOffsetMinutes": {
+                                                            "maximum": 840,
+                                                            "minimum": -840,
+                                                            "type": "integer"
+                                                        },
+                                                        "year": {
+                                                            "maximum": 2099,
+                                                            "minimum": 1901,
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "algorithm",
+                                                        "day",
+                                                        "enabled",
+                                                        "hour",
+                                                        "latitude",
+                                                        "longitude",
+                                                        "minute",
+                                                        "month",
+                                                        "northDegrees",
+                                                        "second",
+                                                        "shadows",
+                                                        "utcOffsetMinutes",
+                                                        "year"
+                                                    ],
+                                                    "type": "object"
+                                                },
                                                 "style": {
                                                     "additionalProperties": false,
                                                     "properties": {
@@ -1853,7 +2017,7 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
-                                    "description": "Recall saved model style, visibility and named sections",
+                                    "description": "Recall saved model style, sun study, visibility and named sections",
                                     "properties": {
                                         "command": {
                                             "const": "saved_scene.recall"
@@ -1867,6 +2031,103 @@
                                     },
                                     "required": [
                                         "scene",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Change offline sun study",
+                                    "properties": {
+                                        "command": {
+                                            "const": "document.solar"
+                                        },
+                                        "solar": {
+                                            "additionalProperties": false,
+                                            "description": "Complete offline sun study. UTC offset is explicit and includes any user-selected daylight-saving adjustment; invalid calendar dates reject.",
+                                            "properties": {
+                                                "algorithm": {
+                                                    "const": "noaa-meeus-geometric-v1",
+                                                    "type": "string"
+                                                },
+                                                "day": {
+                                                    "maximum": 31,
+                                                    "minimum": 1,
+                                                    "type": "integer"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "hour": {
+                                                    "maximum": 23,
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                },
+                                                "latitude": {
+                                                    "maximum": 90,
+                                                    "minimum": -90,
+                                                    "type": "number"
+                                                },
+                                                "longitude": {
+                                                    "maximum": 180,
+                                                    "minimum": -180,
+                                                    "type": "number"
+                                                },
+                                                "minute": {
+                                                    "maximum": 59,
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                },
+                                                "month": {
+                                                    "maximum": 12,
+                                                    "minimum": 1,
+                                                    "type": "integer"
+                                                },
+                                                "northDegrees": {
+                                                    "maximum": 180,
+                                                    "minimum": -180,
+                                                    "type": "number"
+                                                },
+                                                "second": {
+                                                    "maximum": 59,
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                },
+                                                "shadows": {
+                                                    "type": "boolean"
+                                                },
+                                                "utcOffsetMinutes": {
+                                                    "maximum": 840,
+                                                    "minimum": -840,
+                                                    "type": "integer"
+                                                },
+                                                "year": {
+                                                    "maximum": 2099,
+                                                    "minimum": 1901,
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "algorithm",
+                                                "day",
+                                                "enabled",
+                                                "hour",
+                                                "latitude",
+                                                "longitude",
+                                                "minute",
+                                                "month",
+                                                "northDegrees",
+                                                "second",
+                                                "shadows",
+                                                "utcOffsetMinutes",
+                                                "year"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "solar",
                                         "command"
                                     ],
                                     "type": "object"
@@ -6038,6 +6299,34 @@
                                     },
                                     "query": {
                                         "const": "document.describe"
+                                    }
+                                },
+                                "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "solar.describe"
                                     }
                                 },
                                 "required": [

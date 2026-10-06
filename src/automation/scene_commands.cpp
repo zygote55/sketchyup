@@ -1,4 +1,5 @@
 #include "automation/scene_commands.hpp"
+#include "automation/solar_commands.hpp"
 #include "io/scenes_io.hpp"
 #include <QJsonArray>
 namespace sketchy {
@@ -92,6 +93,7 @@ QJsonObject savedSceneSnapshotSchema(const QJsonObject &styleSchema) {
                             {"orthographic", flag}})},
          {"visibility", visibility},
          {"style", styleSchema},
+         {"solar", solarSettingsSchema()},
          {"section", section}});
     result["required"] = QJsonArray{};
     result["minProperties"] = 1;
@@ -137,7 +139,7 @@ QJsonObject savedSceneDescription(const Document &doc, Id id) {
                                            {"hidden", int(visibility->hiddenEntities.size())},
                                            {"showHidden", visibility->showHidden}};
     result["recall"] = QJsonObject{
-        {"model", "saved_scene.recall applies opted-in style, intrinsic visibility and named section activation as one "
+        {"model", "saved_scene.recall applies opted-in style, sun study, intrinsic visibility and named section activation as one "
                   "undoable batch"},
         {"editor",
          "Camera, editor-hidden entities, show-hidden and free clipping are navigation state; native "
