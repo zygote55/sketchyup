@@ -1,8 +1,8 @@
 # 0054 — Explicit face frames and hosted component openings
 
-Status: R059.a immutable placement frame and R059.b immutable opening geometry
-and R059.c canonical glue records are locally verified. CI/dependency merges remain
-pending. Host bindings, opening maintenance and native/automation workflows follow.
+Status: R059.a placement, R059.b opening geometry, R059.c canonical glue records
+and R059.d immutable host regeneration are locally verified. CI/dependency merges
+remain pending. Persistent host bindings and native/automation workflows follow.
 
 ## Face placement
 
@@ -107,3 +107,39 @@ without invented glue behavior. Containers require `component-glue-v1` with
 `json-v14`, preventing older readers from silently dropping it. Immutable saves,
 recovery checkpoints and durable transaction reconstruction retain glue-only edits
 and their Undo baseline. There is still no persistent host attachment in this layer.
+
+## Identity-preserving host regeneration
+
+`regenerateHost` accepts an uncut surface, the current authoritative body, prior
+opening records and requested profiles keyed by their component owner. Each profile
+corner has a stable source key. Each opening records its entry/exit faces, native
+entry/exit vertices by source corner, and native reveal faces by unordered source
+edge. At most 16 openings per host and the existing bounded opening geometry apply.
+
+Before rebuilding, the helper reproduces the old cuts and verifies their exact
+native surface against the current host. An independent host geometry change or
+inconsistent/colliding identity record rejects; current geometry is never silently
+replaced by an older baseline. Openings cannot terminate on another opening's reveal.
+
+Construction and verification use a temporary dense identity space. The result maps
+original geometry back to its original IDs and reuses still-live opening vertices
+and reveal faces for matching source keys. New features allocate only above current
+floors. Rebuilding topology against current records retains unchanged endpoint/edge
+identities. Moving or resizing a profile with the same topology therefore consumes
+no identities, even with exhausted live allocators. Deleted features retire normally;
+recreating a removed opening cannot resurrect their old IDs.
+
+The uncut baseline stores geometry only. Current host metadata, original-face paint,
+materials and edge flags remain authoritative. Retained reveal faces preserve their
+paint; new reveals inherit the current entry face's physical material sides and
+color. Retired appearance entries are removed, and cleared original edge flags do
+not reappear from a saved baseline. Analytic curves are rebound or retired through
+the existing bounded curve policy; guides and unrelated body state are retained.
+
+Removing one request rebuilds the remaining openings. Removing the final request
+restores uncut geometry while retaining current metadata and allocator floors.
+The result supplies explicit face lineage and is compatible with an immutable
+PreparedEdit and one Undo item. Callers must mark its edge appearance as resolved
+when publishing, so later edit composition cannot re-inherit retired styles.
+This helper does not yet store host attachments in Document or automatically observe
+instance movement/deletion; that authoritative integration follows separately.
