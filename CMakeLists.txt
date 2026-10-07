@@ -960,3 +960,6 @@ install(FILES docs/decisions/0131-atomic-library-insertion.md DESTINATION share/
 install(FILES docs/decisions/0132-bounded-local-library-catalog.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0133-native-template-and-library-workflows.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0134-versioned-extension-manifests.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES examples/extensions/panel.sketchyext DESTINATION share/doc/sketchyup/examples/extensions)
