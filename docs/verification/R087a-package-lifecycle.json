@@ -1,0 +1,57 @@
+{
+  "source": "8f93b4fca51a52a6cfd77e25366dc2c57430b178",
+  "image": "sketchyup-build:20261002",
+  "imageId": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c",
+  "sourceArchiveSha256": "35e6b0e7708bcde7895888c5b589aae02580c98daf618d68a1cac0a53e232a20",
+  "packages": {
+    "sketchyup-0.1.0-1-x86_64.pkg.tar.zst": {
+      "bytes": 6712856,
+      "sha256": "22f0f9d1162e138d54e8cab1eb94420098eddb343d7e8f1685fcc1cef5d4a7ee"
+    },
+    "sketchyup-debug-0.1.0-1-x86_64.pkg.tar.zst": {
+      "bytes": 180158930,
+      "sha256": "2cf78b0d3b1746933db34f81f65c8a2870045ae12bf206655ace256bbbbb9408"
+    },
+    "sketchyup-0.1.0-2-x86_64.pkg.tar.zst": {
+      "bytes": 6712917,
+      "sha256": "5cda95be132dc88840bd072d21a272d4d0c0e758f9ce5f05e66aaacafb4e982e"
+    },
+    "sketchyup-debug-0.1.0-2-x86_64.pkg.tar.zst": {
+      "bytes": 180159015,
+      "sha256": "3f8c86d6f1a6473ccbd1cf108e7780e711b268bcaeb4502b68544294d382184d"
+    }
+  },
+  "logSha256": "611d898b78d50778c29613d2293ff3b1544986a0f1ed381b839c2a5b4246d360",
+  "registeredTests": 181,
+  "passedTests": 170,
+  "skippedOptionalConsumerTests": 11,
+  "ctestSeconds": 107.77,
+  "configurations": {
+    "default": {
+      "registeredTests": 181,
+      "nativeFixturesInDefaultBuild": 78,
+      "registeredDesktopTargetsBuilt": true
+    },
+    "package": {
+      "registeredTests": 181,
+      "nativeFixturesInDefaultBuild": 0,
+      "registeredDesktopTargetsBuilt": true
+    },
+    "no-cli": {
+      "registeredTests": 173,
+      "nativeFixturesInDefaultBuild": 77,
+      "registeredDesktopTargetsBuilt": true
+    }
+  },
+  "installLaunchMimeUpgradeReopenRemovalPassed": true,
+  "historicalFormatMigrationTested": false,
+  "releaseAccepted": false,
+  "retainedPreferences": {
+    "packagesentinel": "retain",
+    "theme": "1",
+    "interfacetextpercent": "150",
+    "reducedmotion": "true",
+    "recoveryseconds": "0",
+    "fieldofview": "67"
+  }
+}

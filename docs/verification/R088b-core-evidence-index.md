@@ -20,7 +20,7 @@ R085 physical platforms, R086 live providers and R087 final packages/upgrades.
 | Scope | Capability | Regression evidence | Additional evidence / explicit limitation |
 | --- | --- | --- | --- |
 | [N01](../SCOPE.md) | Native desktop and viewport | [desktop](R085b-full-ctest.txt) | [Native backend and corrected fractional cases; physical transitions open](R085b-native-surface-color.md) |
-| [N02](../SCOPE.md) | Build and package | [desktop](R085b-full-ctest.txt) | [Earlier package lifecycle; final current/reference and upgrade gate open](R014-package.md) |
+| [N02](../SCOPE.md) | Build and package | [desktop](R085b-full-ctest.txt) | [Development lifecycle passed; clean-machine, historical migration and final gate open](R087a-package-lifecycle.md) |
 | [N03](../SCOPE.md) | Native interaction | [shortcut_bindings](R085b-full-ctest.txt) | [Native keyboard workflow; full platform/input coverage open](R084m-integrated-keyboard-shortcuts.md) |
 | [N04](../SCOPE.md) | Scaling and displays | [desktop](R085b-full-ctest.txt) | [Partial scale matrix; physical mixed-DPI transitions open](R085b-native-surface-color.md) |
 | [N05](../SCOPE.md) | Accessibility/preferences | [shortcut_bindings](R085b-full-ctest.txt) | [Linux accessibility bridge; complete control/dialog audit open](R084l-integrated-accessibility-bridge.md) |
@@ -68,7 +68,7 @@ R085 physical platforms, R086 live providers and R087 final packages/upgrades.
 | [A02](../SCOPE.md) | Queries and perception | [inspection](R085b-full-ctest.txt), [inspection_session](R085b-full-ctest.txt) | Scope gate M5; final integration remains open |
 | [A03](../SCOPE.md) | Transactions and preview | [staging](R085b-full-ctest.txt), [transaction_dispatch](R085b-full-ctest.txt), [outcome_store](R085b-full-ctest.txt) | Scope gate M5; final integration remains open |
 | [A04](../SCOPE.md) | Embedded assistant | [assistant](R085b-full-ctest.txt), [native_assistant_session](R085b-full-ctest.txt) | [21 remote tasks and three offline controls pass; local gate remains open](R086b-remote-evaluation.md) |
-| [A05](../SCOPE.md) | Provider independence | [ollama_provider](R085b-full-ctest.txt), [openai_provider](R085b-full-ctest.txt), [chatgpt_auth](R085b-full-ctest.txt) | [Remote corpus passes; required local configuration has not passed](R086b-remote-evaluation.md) |
+| [A05](../SCOPE.md) | Provider independence | [ollama_provider](R085b-full-ctest.txt), [openai_provider](R085b-full-ctest.txt), [chatgpt_auth](R085b-full-ctest.txt) | [Remote corpus passes; frozen local corpus fails seven live-task thresholds](R086c-local-evaluation.md) |
 | [A06](../SCOPE.md) | External automation | [mcp](R085b-full-ctest.txt), [automation_session](R085b-full-ctest.txt) | Scope gate M5/M8; final integration remains open |
 | [A07](../SCOPE.md) | Agent instructions/examples | [shipped_recipes](R085b-full-ctest.txt), [tool_reference_drift](R085b-full-ctest.txt) | Scope gate M5/M8; final integration remains open |
 | [A08](../SCOPE.md) | AI verification | [measurement_assertions](R085b-full-ctest.txt), [transaction_sequence](R085b-full-ctest.txt) | [Remote injection/preservation scoring passes; local and release gates remain open](R086b-remote-evaluation.md) |

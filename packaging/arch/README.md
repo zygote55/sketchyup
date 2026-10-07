@@ -23,6 +23,12 @@ Qt Wayland, the shared MIME database and DejaVu fonts (so a minimal install has
 readable UI text). The desktop launcher accepts one local
 file (`%f`); native file dialogs and CLI provide other entry points.
 
+PKGBUILD sets `SKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF` to avoid repeatedly linking
+the opt-in native display fixtures which its CTest phase does not execute.
+Every registered CTest executable and installed application/helper still builds.
+The option defaults to `ON` for development and native CI; individual fixture
+targets remain explicitly buildable in either configuration.
+
 For repeatable acceptance without installing anything on the workstation:
 
 ```sh
