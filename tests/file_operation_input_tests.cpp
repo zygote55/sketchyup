@@ -206,6 +206,8 @@ int main(int argc, char **argv) {
             {"platform", QGuiApplication::platformName()},
             {"graphics", window.viewport()->graphicsDescription()},
             {"scale", window.devicePixelRatioF()},
+            {"viewportLogicalWidth", window.viewport()->width()},
+            {"viewportLogicalHeight", window.viewport()->height()},
             {"cache", cache},
             {"timings", timings}};
         window.close();
