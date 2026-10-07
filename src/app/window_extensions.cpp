@@ -11,6 +11,7 @@
 #include <QFormLayout>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStandardPaths>
 #include <QThread>
 #include <QVBoxLayout>
@@ -58,7 +59,12 @@ void Window::extensionsDialog() {
     layout.addLayout(&form);
     auto *parameterBox = new QWidget;
     auto *parameters = new QFormLayout(parameterBox);
-    layout.addWidget(parameterBox);
+    auto *parameterScroll = new QScrollArea;
+    parameterScroll->setWidgetResizable(true);
+    parameterScroll->setWidget(parameterBox);
+    parameterScroll->setMinimumHeight(80);
+    parameterScroll->setMaximumHeight(240);
+    layout.addWidget(parameterScroll, 1);
     auto *status = new QLabel;
     status->setObjectName("extensionStatus");
     status->setTextFormat(Qt::PlainText);
@@ -123,6 +129,8 @@ void Window::extensionsDialog() {
                 editor->setAccessibleName(spec["label"].toString());
                 auto *label = new QLabel(spec["label"].toString());
                 label->setTextFormat(Qt::PlainText);
+                label->setWordWrap(true);
+                label->setMaximumWidth(220);
                 label->setBuddy(editor);
                 parameters->addRow(label, editor);
                 editors[name] = editor;
