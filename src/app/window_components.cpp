@@ -27,6 +27,10 @@ void Window::addComponentActions(QMenu *menu) {
                           [this] { viewport_->makeComponentUnique(); });
     unique->setProperty("command", "component.make_unique");
     menu->addAction(unique);
+    menu->addAction(action("component.browseLibrary", "Browse component library…", {},
+                           [this] { libraryDialog(false); }));
+    menu->addAction(action("component.saveLibrary", "Save component to library…", {},
+                           [this] { saveLibraryDialog(true); }));
     addHostedActions(menu);
 }
 void Window::componentDialog(const QString &operation) {

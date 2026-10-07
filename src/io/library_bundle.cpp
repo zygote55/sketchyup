@@ -1,5 +1,6 @@
 #include "io/library_bundle.hpp"
 #include "core/components.hpp"
+#include "core/scenes.hpp"
 #include "io/new_file.hpp"
 #include "io/texture_image.hpp"
 #include <QCryptographicHash>
@@ -188,8 +189,11 @@ void writeTemplateBundle(const QByteArray &bytes, const QString &newPath) {
     publishNewFile(newPath, bytes);
 }
 Document instantiateTemplate(const TemplateBundle &bundle) {
-    const auto &d = bundle.document;
-    validateMetadata(bundle.metadata, d);
+    validateMetadata(bundle.metadata, bundle.document);
+    auto defaults = bundle.document.readSnapshot();
+    if (bundle.metadata.defaultScene)
+        recallSceneModel(defaults, bundle.metadata.defaultScene);
+    const auto &d = defaults;
     Document result;
     result.restore(result.identity(), d.nextId(), d.bodies(), 0, d.definitions(), d.instances(),
                    d.nextDefinitionId(), d.tags(), d.nextTagId(), d.materials(), d.nextMaterialId(),

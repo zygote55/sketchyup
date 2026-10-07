@@ -50,6 +50,9 @@ class Window : public QMainWindow {
     void exportObjDialog();
     void exportRasterDialog();
     void exportMeasuredDialog();
+    void libraryDialog(bool templates);
+    void saveLibraryDialog(bool component);
+    void openTemplatePath(const QString &path);
 
   protected:
     bool eventFilter(QObject *, QEvent *) override;
