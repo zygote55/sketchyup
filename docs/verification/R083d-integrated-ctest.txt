@@ -1,0 +1,31 @@
+Test project /home/keith/projects/sketchyup-topology/build/dev
+      Start  51: geometry_fuzz
+ 1/13 Test  #51: geometry_fuzz ....................   Passed    2.35 sec
+      Start  62: new_file_faults
+ 2/13 Test  #62: new_file_faults ..................   Passed    0.05 sec
+      Start  63: parser_fault_corpus
+ 3/13 Test  #63: parser_fault_corpus ..............   Passed    1.34 sec
+      Start 115: native_format
+ 4/13 Test #115: native_format ....................   Passed    2.23 sec
+      Start 137: transaction_sequence
+ 5/13 Test #137: transaction_sequence .............   Passed    6.44 sec
+      Start 138: transaction_coordinator
+ 6/13 Test #138: transaction_coordinator ..........   Passed    1.18 sec
+      Start 139: outcome_store
+ 7/13 Test #139: outcome_store ....................   Passed    8.99 sec
+      Start 140: staging
+ 8/13 Test #140: staging ..........................   Passed    1.27 sec
+      Start 146: geometry_sequence
+ 9/13 Test #146: geometry_sequence ................   Passed    1.03 sec
+      Start 167: recovery_cli
+10/13 Test #167: recovery_cli .....................   Passed    0.25 sec
+      Start 168: recovery
+11/13 Test #168: recovery .........................   Passed    2.60 sec
+      Start 169: m4_persistence
+12/13 Test #169: m4_persistence ...................   Passed    0.08 sec
+      Start 172: persistence
+13/13 Test #172: persistence ......................   Passed    0.33 sec
+
+100% tests passed out of 13
+
+Total Test time (real) =  28.15 sec
