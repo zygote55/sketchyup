@@ -10,10 +10,14 @@ void Window::toggleAssistant() {
     assistantShown_ = !assistantShown_;
     layoutAssistant();
     if (assistantShown_) {
+        if (assistantSheet_ && assistantSheet_->isVisible())
+            assistantSheet_->activateWindow();
         assistant_->refresh();
         assistant_->focusComposer();
-    } else
+    } else {
+        activateWindow();
         viewport_->setFocus();
+    }
 }
 void Window::layoutAssistant() {
     if (!assistant_ || !sideTabs_)
