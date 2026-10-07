@@ -1,4 +1,5 @@
 #include "app/viewport.hpp"
+#include "core/camera_motion.hpp"
 #include <QNativeGestureEvent>
 #include <QWheelEvent>
 #include <algorithm>
@@ -87,6 +88,16 @@ void Viewport::panCamera(QPointF position, QPointF delta) {
     cameraChanged();
 }
 void Viewport::orbitCamera(QPointF delta) {
+    if (tool_ == Tool::Walk || tool_ == Tool::LookAround) {
+        try {
+            applySceneCamera(lookAround({target_, yaw_, pitch_, distance_, fov_, ortho_},
+                                        std::clamp(-delta.x() * .4, -360., 360.),
+                                        std::clamp(delta.y() * .4, -180., 180.)));
+        } catch (const std::exception &error) {
+            emit message(error.what());
+        }
+        return;
+    }
     yaw_ = std::remainder(yaw_ - delta.x() * .4, 360.);
     pitch_ = std::clamp(pitch_ + delta.y() * .4, -89., 89.);
     cameraChanged();
@@ -94,6 +105,16 @@ void Viewport::orbitCamera(QPointF delta) {
 void Viewport::zoomCamera(QPointF position, double factor) {
     if (!std::isfinite(factor) || factor <= 0)
         return;
+    if (tool_ == Tool::Walk) {
+        walkSpeed_ = std::clamp(walkSpeed_ / factor, .1, 50.);
+        emit message(
+            QString("Walk speed: %1 m/s · Shift triples speed").arg(walkSpeed_, 0, 'f', 1));
+        return;
+    }
+    if (tool_ == Tool::LookAround) {
+        setFieldOfView(std::clamp(fov_ * factor, 5., 120.));
+        return;
+    }
     const auto [center, normal] = ray(QPointF(width() * .5, height() * .5));
     const Vec3 target = target_;
     auto onPlane = [&] {
@@ -109,9 +130,10 @@ void Viewport::zoomCamera(QPointF position, double factor) {
 void Viewport::wheelEvent(QWheelEvent *event) {
     const bool pixel = !event->pixelDelta().isNull();
     const QPointF delta = pixel ? QPointF(event->pixelDelta()) : QPointF(event->angleDelta()) / 8;
+    const bool walking = tool_ == Tool::Walk || tool_ == Tool::LookAround;
     if (trackpad_ && event->modifiers().testFlag(Qt::AltModifier))
         orbitCamera(delta);
-    else if (trackpad_ && !event->modifiers().testFlag(Qt::ControlModifier))
+    else if (!walking && trackpad_ && !event->modifiers().testFlag(Qt::ControlModifier))
         panCamera(event->position(), delta);
     else {
         const auto steps = pixel ? event->pixelDelta().y() / 15. : event->angleDelta().y() / 120.;
