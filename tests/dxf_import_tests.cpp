@@ -2,6 +2,8 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <iostream>
 #include <numbers>
@@ -94,6 +96,37 @@ int main(int argc, char **argv) {
         check(legacy.report["curves"].toInt() == 2 &&
                   legacy.document.bodies().at(4)->surface.wires.size() == 3,
               "R12 polyline conversion and caller resolution");
+        QTemporaryDir directory;
+        check(directory.isValid(), "CLI scratch");
+        const auto cli = QCoreApplication::applicationDirPath() + "/sketchyup-cli";
+        auto invoke = [&](QStringList args, bool success) {
+            QProcess p;
+            p.start(cli, args);
+            check(p.waitForStarted(10000) && p.waitForFinished(30000), "DXF CLI completed");
+            check((p.exitCode() == 0) == success, "DXF CLI expected status");
+            const auto bytes = p.readAllStandardOutput() + p.readAllStandardError();
+            check(QJsonDocument::fromJson(bytes).isObject(), "DXF CLI structured result");
+        };
+        const auto native = directory.filePath("new.sketchyup"),
+                   output = directory.filePath("new.dxf");
+        const QStringList base{"--import-dxf", path, "--dxf-unit", "header"};
+        invoke(base, true);
+        invoke(base + QStringList{"--output", native}, true);
+        invoke(base + QStringList{"--output", native}, false);
+        invoke({"--import-dxf", path}, false);
+        invoke(base + QStringList{"--dxf-segments", "11"}, false);
+        invoke(base + QStringList{"--dxf-segments", "256"}, true);
+        invoke(base + QStringList{"--stl-up", "z"}, false);
+        invoke({"--dxf-unit", "mm"}, false);
+        const QStringList exported{"--export-dxf", output, "--input", native, "--dxf-unit", "mm"};
+        invoke(exported, true);
+        invoke(exported, false);
+        invoke(exported + QStringList{"--dxf-segments", "48"}, false);
+        invoke({"--export-dxf", directory.filePath("bad.dxf"), "--input", native, "--dxf-unit",
+                "header"},
+               false);
+        check(loadDxf(output).report["curves"].toInt() == 3, "CLI export retains analytic curves");
+        check(file.seek(0) && file.readAll() == bytes, "CLI leaves source DXF untouched");
         std::cout << "Native DXF independent dimensions, layers, analytic curves, undo, "
                      "persistence and bounds passed\n";
     } catch (const std::exception &e) {
