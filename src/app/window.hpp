@@ -51,6 +51,7 @@ class Window : public QMainWindow {
     void exportRasterDialog();
     void exportMeasuredDialog();
     void libraryDialog(bool templates);
+    void extensionsDialog();
     void saveLibraryDialog(bool component);
     void openTemplatePath(const QString &path);
     void openTemplateBundle(const struct TemplateBundle &bundle);

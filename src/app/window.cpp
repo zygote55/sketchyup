@@ -609,6 +609,9 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     addTool("Zoom", "Z", Viewport::Tool::Zoom, "Drag up to zoom in · Drag down to zoom out", false);
     auto *cameraMenu = menuBar()->addMenu("&Camera");
     cameraMenu->addAction(action("camera.render", "Render…", {}, [this] { render_->showSetup(); }));
+    auto *extensions = menuBar()->addMenu("E&xtensions");
+    extensions->addAction(
+        action("extensions.manage", "Manage extensions…", {}, [this] { extensionsDialog(); }));
     auto *view = menuBar()->addMenu("&View");
     auto *hidden = action("selection.showHidden", "Show hidden geometry", {}, [this] {
         viewport_->showHiddenGeometry(findChild<QAction *>("selection.showHidden")->isChecked());
