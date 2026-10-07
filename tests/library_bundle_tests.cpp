@@ -52,6 +52,7 @@ int main(int argc, char **argv) {
         SceneSnapshot scene;
         scene.camera = SceneCamera{};
         scene.style = style;
+        scene.style->axesVisible = true;
         const auto defaultScene = createScene(source, "Starting view", scene);
         TemplateMetadata metadata{
             "Metric room", "Embedded starting model", {"Metric", "Room"}, defaultScene};
@@ -69,7 +70,7 @@ int main(int argc, char **argv) {
         check(first.identity() != source.identity() && first.identity() != second.identity() &&
                   first.dirty() && !first.canUndo() && first.revision() == 0,
               "Every template instance has fresh unsaved identity and empty history");
-        check(first.displayUnits() == DisplayUnit::Millimeters && first.style() == style &&
+        check(first.displayUnits() == DisplayUnit::Millimeters && first.style() == *scene.style &&
                   first.activeSections() == source.activeSections() &&
                   first.annotations().size() == 1 && first.definitions().size() == 1 &&
                   first.instances().size() == 1 && first.scenes().contains(defaultScene) &&
@@ -280,6 +281,27 @@ int main(int argc, char **argv) {
             templates == 1 && components == 1 && errors == 2 && matches == 1,
             "Catalog fully validates kinds, searches all terms and rejects malformed/link entries");
         rejects([&] { scanLibraryDirectory(files.filePath("missing")); });
+        const auto selectedEntry =
+            *std::find_if(catalog.entries.begin(), catalog.entries.end(),
+                          [&](const auto &entry) { return entry.path == componentMoved; });
+        check(readLibraryEntry(selectedEntry) == componentBytes,
+              "Selected catalog payload matches validated bytes");
+        QFile changed(componentMoved);
+        check(changed.open(QIODevice::WriteOnly | QIODevice::Truncate) &&
+                  changed.write(bundle) == bundle.size(),
+              "Changed bundle fixture");
+        changed.close();
+        rejects([&] { readLibraryEntry(selectedEntry); });
+        QTemporaryDir crowded;
+        for (int i = 0; i < 130; ++i) {
+            QFile candidate(crowded.filePath(QString::number(i) + ".sketchylib"));
+            check(candidate.open(QIODevice::WriteOnly) && candidate.write("bad") == 3,
+                  "Bounded catalog fixture");
+        }
+        const auto bounded = scanLibraryDirectory(crowded.path());
+        check(bounded.entries.size() == 128 && !bounded.notices.isEmpty(),
+              "Catalog entry budget is explicit");
+
         std::cout << "Template bundles: embedded resources, relocation, fresh documents, "
                      "immutability and malformed bounds passed\n";
     } catch (const std::exception &e) {
