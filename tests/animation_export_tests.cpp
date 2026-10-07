@@ -104,12 +104,16 @@ int main(int argc, char **argv) {
         interrupted.start(capture, files.filePath("interrupted"), hanging);
         QElapsedTimer launchWait;
         launchWait.start();
-        while (!interrupted.message().contains("Rendering") && launchWait.elapsed() < 10000) {
+        auto launched = [&] {
+            const auto *worker = interrupted.findChild<BlenderJob *>();
+            return worker && worker->phase() == BlenderJob::Phase::Rendering &&
+                   worker->processId() > 0;
+        };
+        while (!launched() && launchWait.elapsed() < 10000) {
             QCoreApplication::processEvents();
             QThread::msleep(2);
         }
-        check(interrupted.message().contains("Rendering"),
-              "Animation worker starts before cancellation");
+        check(launched(), "Animation worker starts before cancellation");
         interrupted.cancel();
         wait(interrupted);
         check(interrupted.state() == AnimationExport::State::Canceled &&

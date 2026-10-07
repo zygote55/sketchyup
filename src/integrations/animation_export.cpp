@@ -33,6 +33,7 @@ struct AnimationExport::Impl {
     std::future<std::shared_ptr<const PreparedRender>> preparing;
     std::shared_ptr<const PreparedRender> input;
     QJsonArray frames;
+    QJsonObject lastAttempt;
     QTimer timer;
     qint64 bytes{};
     bool canceling{};
@@ -49,6 +50,7 @@ struct AnimationExport::Impl {
                           {"revision", QString::number(capture->sourceRevision())},
                           {"framesPerSecond", capture->framesPerSecond()},
                           {"totalFrames", int(capture->frames().size())},
+                          {"lastAttempt", lastAttempt},
                           {"frames", frames}};
         QSaveFile file(directory + "/animation.json");
         const auto data = QJsonDocument(value).toJson();
@@ -121,6 +123,7 @@ struct AnimationExport::Impl {
         const auto finished = worker;
         worker.clear();
         finished->deleteLater();
+        lastAttempt = finished->report();
         if (canceling) {
             terminal(State::Canceled, "Animation canceled; finished frames are retained");
             return;
@@ -206,6 +209,8 @@ void AnimationExport::start(AnimationCapture capture, QString directory,
     }
 }
 void AnimationExport::cancel() {
+    if (QThread::currentThread() != thread())
+        throw std::runtime_error("Animation cancellation requires its owner thread");
     if (impl_->state != State::Running && impl_->state != State::Canceling)
         return;
     impl_->canceling = true;

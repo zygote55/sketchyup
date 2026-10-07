@@ -772,3 +772,16 @@ model capabilities before document transfer, and rejects context overflow rather
 than silently dropping history. See the [local profile and trial evidence](docs/verification/R045-local-provider.md)
 for the exact model digest, CPU limits, known failures and opt-in corpus runner.
 Ordinary modeling does not require a provider.
+
+### Saved-scene animation
+
+Render setup offers **Export scene animation** after checking Blender. Choose
+saved camera scenes in their presentation order, frame rate, transition/hold times
+and a new output folder. Export produces up to 240 PNG frames and a timing manifest;
+Cancel keeps finished frames. Cameras, visibility, named sections and sun studies
+come from an immutable capture, so modeling can continue during export. Transfer
+limitations are recorded per frame. Temporary clipping/show-hidden overlays must
+be disabled in saved scenes. The first exporter has no movie encoding or crash
+resume; an unfinished manifest and any completed frames remain for inspection.
+See [capture semantics](docs/decisions/0106-immutable-animation-capture.md) and
+[frame export](docs/decisions/0107-native-animation-frame-export.md).

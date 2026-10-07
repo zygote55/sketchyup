@@ -795,3 +795,7 @@ install(FILES docs/decisions/0102-packed-blender-scene-handoff.md DESTINATION sh
 install(FILES docs/decisions/0103-native-blender-handoff.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0104-camera-motion-and-timelines.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/reference-grid.json examples/reference-grid.sketchyup DESTINATION share/doc/sketchyup/examples)
+
+install(FILES docs/decisions/0106-immutable-animation-capture.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0107-native-animation-frame-export.md DESTINATION share/doc/sketchyup/decisions)
