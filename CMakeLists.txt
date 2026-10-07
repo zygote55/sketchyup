@@ -801,6 +801,8 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_link_libraries(tool_lifecycle_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(interaction_tests tests/interaction_tests.cpp)
     target_link_libraries(interaction_tests PRIVATE sketchyup_desktop Qt6::Test)
+    add_executable(native_accessibility_audit tests/native_accessibility_audit.cpp)
+    target_link_libraries(native_accessibility_audit PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(shell_tests tests/shell_tests.cpp)
     target_link_libraries(shell_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(dialog_tests tests/dialog_tests.cpp)
@@ -1064,3 +1066,4 @@ install(FILES docs/decisions/0142-deterministic-parser-corruption.md DESTINATION
 install(FILES docs/decisions/0143-new-file-publication-faults.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0144-seeded-transaction-sequences.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/decisions/0145-native-accessibility-inventory.md DESTINATION share/doc/sketchyup/decisions)
