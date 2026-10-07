@@ -93,7 +93,9 @@ int main(int argc, char **argv) {
         QObject::connect(&optionsTimer, &QTimer::timeout, &window, [&] {
             if (auto *file = window.findChild<QFileDialog *>("objImportFileDialog");
                 file && file->isVisible()) {
-                file->selectFile(source);
+                auto *name = file->findChild<QLineEdit *>("fileNameEdit");
+                check(name, "OBJ filename field available");
+                name->setText(source);
                 QMetaObject::invokeMethod(file, "accept");
             } else if (auto *dialog = window.findChild<QDialog *>("objOptionsDialog");
                        dialog && dialog->isVisible()) {
@@ -102,11 +104,13 @@ int main(int argc, char **argv) {
                 dialog->reject();
             }
         });
+        std::cerr << "OBJ stage: cancel options\n";
         optionsTimer.start();
         window.findChild<QAction *>("file.importObj")->trigger();
         optionsTimer.stop();
         check(optionsSeen && prompts == 0 && encodeDocument(doc) == old,
               "Canceling explicit OBJ options preserves current model");
+        std::cerr << "OBJ stage: cancel replacement\n";
         window.importObjPath(source, {.001, ObjUpAxis::Z});
         check(prompts == 1 && !reportSeen && encodeDocument(doc) == old,
               "Canceling replacement preserves current model");
@@ -129,7 +133,9 @@ int main(int argc, char **argv) {
         QObject::connect(&choose, &QTimer::timeout, &window, [&] {
             if (auto *file = window.findChild<QFileDialog *>("objImportFileDialog");
                 file && file->isVisible()) {
-                file->selectFile(source);
+                auto *name = file->findChild<QLineEdit *>("fileNameEdit");
+                check(name, "OBJ filename field available");
+                name->setText(source);
                 QMetaObject::invokeMethod(file, "accept");
             } else if (auto *dialog = window.findChild<QDialog *>("objOptionsDialog");
                        dialog && dialog->isVisible()) {
@@ -139,6 +145,7 @@ int main(int argc, char **argv) {
                 dialog->accept();
             }
         });
+        std::cerr << "OBJ stage: accept import options\n";
         choose.start();
         window.findChild<QAction *>("file.importObj")->trigger();
         choose.stop();
@@ -165,6 +172,7 @@ int main(int argc, char **argv) {
                 dialog->reject();
             }
         });
+        std::cerr << "OBJ stage: export report\n";
         exportTimer.start();
         window.exportObjPath(files.filePath("obj-package"), {.001, ObjUpAxis::Z});
         exportTimer.stop();
@@ -189,6 +197,7 @@ int main(int argc, char **argv) {
             QTest::keyClicks(name, target);
             QMetaObject::invokeMethod(dialog, "accept");
         });
+        std::cerr << "OBJ stage: native save\n";
         saveTimer.start();
         window.findChild<QAction *>("file.save")->trigger();
         check(saveSeen && !doc.dirty() && QFile::exists(target + ".sketchyup"),
@@ -199,6 +208,7 @@ int main(int argc, char **argv) {
         copy.close();
         check(encodeDocument(loadDocument(target + ".sketchyup")) == encodeDocument(doc),
               "Native import survives save/reopen");
+        std::cerr << "OBJ stage: edit imported geometry\n";
         auto geometry =
             std::find_if(doc.bodies().begin(), doc.bodies().end(), [](const auto &entry) {
                 return entry.second->kind == BodyKind::Geometry &&
