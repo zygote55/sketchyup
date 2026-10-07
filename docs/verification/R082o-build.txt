@@ -1,0 +1,38 @@
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.7s)
+-- Generating done (0.7s)
+-- Build files have been written to: /work/package/src/build
+[1/23] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/inference.cpp.o
+[2/23] Linking CXX static library libsketchyup_core.a
+[3/23] Automatic MOC for target sketchyup_render
+[4/21] Automatic MOC for target sketchyup_providers
+[5/19] Linking CXX executable sketchyup-text-worker
+[6/19] Linking CXX executable sketchyup-extension-worker
+[7/19] Automatic MOC for target sketchyup_desktop
+[8/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_textures.cpp.o
+[9/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport.cpp.o
+[10/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_guides.cpp.o
+[11/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_selection.cpp.o
+[12/18] Linking CXX static library libsketchyup_desktop.a
+[13/18] Automatic MOC for target real_model_benchmark
+[14/17] Running rcc for resource performance_fixture_textures
+[15/17] Building CXX object CMakeFiles/real_model_benchmark.dir/.qt/rcc/qrc_performance_fixture_textures.cpp.o
+[16/17] Building CXX object CMakeFiles/real_model_benchmark.dir/tests/real_model_benchmark.cpp.o
+[17/17] Linking CXX executable real_model_benchmark
+86644f569db8f5c498bdd7ac3acee6015f5de37a61c657623f8415c1d3aa6da0  /capture/real_model_benchmark
+Benchmark smoke scale=1 scenario=repeated
+Benchmark smoke scale=1 scenario=unique
+Benchmark smoke scale=1 scenario=deep
+Benchmark smoke scale=1 scenario=far
+Benchmark smoke scale=1 scenario=textures
+Benchmark smoke scale=2 scenario=repeated
+Benchmark smoke scale=2 scenario=unique
+Benchmark smoke scale=2 scenario=deep
+Benchmark smoke scale=2 scenario=far
+Benchmark smoke scale=2 scenario=textures
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.7s)
+-- Generating done (0.7s)
+-- Build files have been written to: /work/package/src/build
