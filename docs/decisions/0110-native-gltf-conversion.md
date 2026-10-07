@@ -31,7 +31,10 @@ affine pinned mapping with the same top-left origin and downward V direction.
 `KHR_texture_transform` offset, rotation, scale and coordinate-set override apply
 before pinning. Texture addressing must repeat; clamp/mirror reject. Nearest
 filtering becomes bilinear with an explicit notice. Existing image decode and
-asset byte limits apply to original and derived payloads.
+asset byte limits apply to original and derived payloads. Native affine mappings
+require finite, independent, nonzero UV gradients; collapsed or numerically unstable
+texture mappings reject explicitly. Repeated material names receive unique suffixes
+and a conversion notice, since native material names must be unique.
 
 Perspective and orthographic cameras become ordered named scene views. Eye and
 view direction come from the complete world transform. Perspective vertical FOV
