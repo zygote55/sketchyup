@@ -342,6 +342,13 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI)
     foreach(trial_target provider_trial local_provider_trial)
       target_compile_definitions(${trial_target} PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     endforeach()
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME provider_release_score COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/provider_release_score_tests.py")
+    add_test(NAME provider_release_corpus COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/provider_release_corpus_tests.py"
+      $<TARGET_FILE:provider_trial>)
+    set_tests_properties(provider_release_corpus PROPERTIES TIMEOUT 120)
     add_executable(ollama_provider_tests tests/ollama_provider_tests.cpp)
     target_link_libraries(ollama_provider_tests PRIVATE sketchyup_providers)
     add_test(NAME ollama_provider COMMAND ollama_provider_tests)
