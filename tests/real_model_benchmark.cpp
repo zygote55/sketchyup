@@ -77,11 +77,14 @@ int main(int argc, char **argv) {
             QCryptographicHash::hash(canonical, QCryptographicHash::Sha256).toHex();
         const auto fixtureMs = timer.nsecsElapsed() / 1e6;
         const auto fixtureRss = peakRss();
-        Viewport view(doc);
-        view.setFixedSize(1920, 1080);
+        QWidget host;
+        host.setWindowTitle("SketchyUp performance benchmark");
+        host.resize(1920, 1080);
+        Viewport view(doc, &host);
+        view.resize(1920, 1080);
         view.setSynchronousFrameTiming(true);
-        view.show();
-        check(QTest::qWaitForWindowExposed(&view), "Benchmark viewport exposed");
+        host.show();
+        check(QTest::qWaitForWindowExposed(&host), "Benchmark viewport exposed");
         view.setFixedSize(qRound(1920 / view.devicePixelRatioF()),
                           qRound(1080 / view.devicePixelRatioF()));
         QTest::qWait(100);
@@ -150,6 +153,9 @@ int main(int argc, char **argv) {
             {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
             {"pixelWidth", pixels.width()},
             {"pixelHeight", pixels.height()},
+            {"hostLogicalWidth", host.width()},
+            {"hostLogicalHeight", host.height()},
+            {"viewportClippedByHost", view.width() > host.width() || view.height() > host.height()},
             {"scale", view.devicePixelRatioF()},
             {"style", encodeModelStyle(doc.style())},
             {"frameSamples", 50},
