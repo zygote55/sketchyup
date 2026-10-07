@@ -927,3 +927,5 @@ install(FILES docs/decisions/0118-bounded-stl-export.md DESTINATION share/doc/sk
 install(FILES docs/decisions/0117-native-stl-conversion.md docs/decisions/0116-bounded-stl-source-parsing.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0125-measured-document-capture.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0126-measured-pdf-svg-output.md DESTINATION share/doc/sketchyup/decisions)
