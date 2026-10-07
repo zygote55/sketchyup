@@ -146,6 +146,10 @@ int main(int argc, char **argv) {
                       consumer.exitCode() == 0,
                   "Independent raster PDF consumer");
             const QImage rasterImage(rasterPrefix + ".png");
+            if (!rasterImage.isNull())
+                std::cerr << "Raster centre/margin: "
+                          << rasterImage.pixelColor(1270, 1016).name().toStdString() << " / "
+                          << rasterImage.pixelColor(50, 50).name().toStdString() << '\n';
             check(!rasterImage.isNull() && rasterImage.pixelColor(1270, 1016) == QColor(Qt::red) &&
                       rasterImage.pixelColor(50, 50) == QColor(Qt::white),
                   "Embedded appearance raster and paper margins render correctly");

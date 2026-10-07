@@ -322,6 +322,7 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
                 "PDF page layout rejected");
         QPainter painter;
         require(painter.begin(&pdf), "PDF painter could not start");
+        painter.setRenderHint(QPainter::LosslessImageRendering);
         painter.scale(100, 100);
         painter.setClipRect(content(page));
         if (pageRaster)
