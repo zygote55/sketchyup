@@ -831,3 +831,5 @@ install(FILES third_party/cgltf/LICENSE DESTINATION share/licenses/sketchyup REN
 install(FILES docs/decisions/0109-bounded-gltf-packages.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0110-native-gltf-conversion.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0111-native-gltf-import-workflow.md DESTINATION share/doc/sketchyup/decisions)

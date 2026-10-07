@@ -107,10 +107,10 @@ int main(int argc, char **argv) {
             if (blender.isEmpty())
                 return 77;
             QProcess producer;
-            producer.start(blender,
-                           {"--background", "--factory-startup", "--disable-autoexec", "--python",
-                            QStringLiteral(SOURCE_DIR "/tests/gltf_blender_fixture.py"), "--",
-                            dir.path()});
+            producer.start(blender, {"--background", "--factory-startup", "--disable-autoexec",
+                                     "--python-exit-code", "1", "--python",
+                                     QStringLiteral(SOURCE_DIR "/tests/gltf_blender_fixture.py"),
+                                     "--", dir.path()});
             check(producer.waitForStarted(10000) && producer.waitForFinished(90000) &&
                       producer.exitStatus() == QProcess::NormalExit && producer.exitCode() == 0,
                   "Actual Blender fixture export");
@@ -356,6 +356,37 @@ int main(int argc, char **argv) {
         huge.primitive(p);
         huge.save(path);
         rejects([&] { loadGltf(path); });
+        Fixture compressed;
+        const auto largePng = encodeTexturePng(
+            TextureImage(4096, 4096, std::vector<std::uint8_t>(64 * 1024 * 1024, 255)));
+        QJsonArray images, textures, materials, meshes, roots;
+        for (int i = 0; i < 5; ++i) {
+            images.append(QJsonObject{
+                {"uri", "data:image/png;base64," + QString::fromLatin1(largePng.toBase64())}});
+            textures.append(QJsonObject{{"source", i}});
+            materials.append(
+                QJsonObject{{"pbrMetallicRoughness",
+                             QJsonObject{{"baseColorTexture", QJsonObject{{"index", i}}}}}});
+            auto primitive = compressed.primitive();
+            primitive["material"] = i;
+            meshes.append(QJsonObject{{"primitives", QJsonArray{primitive}}});
+            roots.append(QJsonObject{{"mesh", i}});
+        }
+        compressed.tree["images"] = images;
+        compressed.tree["textures"] = textures;
+        compressed.tree["materials"] = materials;
+        compressed.tree["meshes"] = meshes;
+        compressed.tree["nodes"] = roots;
+        compressed.tree["scenes"] = QJsonArray{QJsonObject{{"nodes", QJsonArray{0, 1, 2, 3, 4}}}};
+        compressed.save(path);
+        bool decodedBudget = false;
+        try {
+            loadGltf(path);
+        } catch (const std::exception &error) {
+            decodedBudget =
+                QString::fromUtf8(error.what()).contains("aggregate decoded-image budget");
+        }
+        check(decodedBudget, "Small compressed images cannot bypass aggregate decode budget");
         // Native exporter is another producer; a GLB must return the same metre dimensions.
         Document native;
         native.addFace({{{0, 0, 0}, {2, 0, 0}, {0, 3, 0}}});
