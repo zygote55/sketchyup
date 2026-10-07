@@ -1,14 +1,15 @@
 #pragma once
 #include "app/inference_worker.hpp"
+#include "app/texture_cache.hpp"
 #include "app/theme.hpp"
 #include "app/tool_session.hpp"
-#include "app/texture_cache.hpp"
 #include "core/model.hpp"
 #include "core/selection.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
 #include "integrations/render_snapshot.hpp"
+#include "io/measured_export.hpp"
 #include <QElapsedTimer>
 #include <QImage>
 #include <QMatrix4x4>
@@ -221,6 +222,9 @@ class Viewport : public QOpenGLWidget {
     double lastFrameMs() const { return frameMs_; }
     bool texturesPending() const { return textureCache_.pending(); }
     QString textureSummary() const;
+    // Orthographic projection in the current view direction, at physical page scale.
+    MeasuredExport renderMeasuredView(MeasuredPage page, MeasuredFormat format, bool raster,
+                                      int dpi = 150);
     QImage renderRaster(QSize pixels);
     void exportRaster(const QString &path, QSize pixels);
   signals:
@@ -567,6 +571,8 @@ class Viewport : public QOpenGLWidget {
     QString nextPointHint() const;
     void rebuild();
     QSize rasterSize_;
+    std::optional<QMatrix4x4> measuredRasterMatrix_;
+    double measuredAnnotationScale_{1};
     int renderWidth() const { return rasterSize_.isEmpty() ? width() : rasterSize_.width(); }
     int renderHeight() const { return rasterSize_.isEmpty() ? height() : rasterSize_.height(); }
     qreal renderPixelRatio() const { return rasterSize_.isEmpty() ? devicePixelRatioF() : 1.; }
