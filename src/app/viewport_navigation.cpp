@@ -130,9 +130,10 @@ void Viewport::zoomCamera(QPointF position, double factor) {
 void Viewport::wheelEvent(QWheelEvent *event) {
     const bool pixel = !event->pixelDelta().isNull();
     const QPointF delta = pixel ? QPointF(event->pixelDelta()) : QPointF(event->angleDelta()) / 8;
+    const bool walking = tool_ == Tool::Walk || tool_ == Tool::LookAround;
     if (trackpad_ && event->modifiers().testFlag(Qt::AltModifier))
         orbitCamera(delta);
-    else if (trackpad_ && !event->modifiers().testFlag(Qt::ControlModifier))
+    else if (!walking && trackpad_ && !event->modifiers().testFlag(Qt::ControlModifier))
         panCamera(event->position(), delta);
     else {
         const auto steps = pixel ? event->pixelDelta().y() / 15. : event->angleDelta().y() / 120.;
