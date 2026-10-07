@@ -85,9 +85,25 @@ int main(int argc, char **argv) {
         view.setSynchronousFrameTiming(true);
         host.show();
         check(QTest::qWaitForWindowExposed(&host), "Benchmark viewport exposed");
-        view.setFixedSize(qRound(1920 / view.devicePixelRatioF()),
-                          qRound(1080 / view.devicePixelRatioF()));
-        QTest::qWait(100);
+        // Native Wayland may deliver the final output scale after first exposure.
+        // Keep the child framebuffer independent of both tiling and that late scale.
+        bool sized{};
+        QSize observed;
+        for (int attempt = 0; attempt < 100 && !sized; ++attempt) {
+            view.setFixedSize(qRound(1920 / view.devicePixelRatioF()),
+                              qRound(1080 / view.devicePixelRatioF()));
+            QTest::qWait(25);
+            observed = view.grabFramebuffer().size();
+            sized = observed == QSize(1920, 1080);
+        }
+        if (!sized)
+            throw std::runtime_error(QString("Benchmark framebuffer %1x%2, logical %3x%4, scale %5")
+                                         .arg(observed.width())
+                                         .arg(observed.height())
+                                         .arg(view.width())
+                                         .arg(view.height())
+                                         .arg(view.devicePixelRatioF())
+                                         .toStdString());
         view.fit();
         QCoreApplication::processEvents();
         std::vector<double> frames, picks, edits;
