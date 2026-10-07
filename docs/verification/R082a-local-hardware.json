@@ -1,0 +1,18 @@
+{
+  "cpu": "Intel Core Ultra 7 155H",
+  "logicalCpus": 22,
+  "ramBytes": 32969736192,
+  "gpu": "Intel Arc Graphics (MTL), integrated",
+  "compositor": "Hyprland 0.56.2",
+  "kernel": "7.2.5-3-omarchy",
+  "qt": "6.11.2",
+  "nativeDriver": "Mesa 26.2.2-arch1.1",
+  "framebuffer": [
+    1920,
+    1080
+  ],
+  "nativeScale": 1.6,
+  "releaseAcceptance": false,
+  "load": "Another worktree was compiling during this exploratory measurement; repeat under controlled load before acceptance.",
+  "discreteHardware": "Not available on this host"
+}

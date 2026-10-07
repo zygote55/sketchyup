@@ -800,6 +800,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_link_libraries(m4_workflow_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(units_input_tests tests/units_input_tests.cpp)
     target_link_libraries(units_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    add_executable(real_model_benchmark tests/real_model_benchmark.cpp)
+    target_link_libraries(real_model_benchmark PRIVATE sketchyup_desktop Qt6::Test)
+    target_compile_definitions(real_model_benchmark PRIVATE SKETCHYUP_BENCHMARK_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
     add_executable(history_input_tests tests/history_input_tests.cpp)
     target_link_libraries(history_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(recovery_input_tests tests/recovery_input_tests.cpp)
@@ -1042,3 +1045,5 @@ install(FILES docs/decisions/0139-executable-agent-recipes.md DESTINATION share/
 install(FILES docs/decisions/0140-optional-capability-discovery.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/M8_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
+
+install(FILES docs/decisions/0141-real-model-performance-fixtures.md DESTINATION share/doc/sketchyup/decisions)
