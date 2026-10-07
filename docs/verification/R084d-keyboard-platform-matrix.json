@@ -1,0 +1,74 @@
+[
+  {
+    "implementation": "e480ccafa143399b3012f7f0a88786712163220f",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "keyboard_modeling_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 0.993
+  },
+  {
+    "implementation": "e480ccafa143399b3012f7f0a88786712163220f",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "keyboard_modeling_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.036
+  },
+  {
+    "implementation": "e480ccafa143399b3012f7f0a88786712163220f",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "keyboard_modeling_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 3.71
+  },
+  {
+    "implementation": "e480ccafa143399b3012f7f0a88786712163220f",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "keyboard_modeling_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.049
+  },
+  {
+    "implementation": "3cb6f2c9c734800afeb166d0af53d0bc1f043b4b",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "keyboard_modeling_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 2.177
+  },
+  {
+    "implementation": "3cb6f2c9c734800afeb166d0af53d0bc1f043b4b",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "keyboard_modeling_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 4.093
+  },
+  {
+    "implementation": "3cb6f2c9c734800afeb166d0af53d0bc1f043b4b",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "keyboard_modeling_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 5.034
+  },
+  {
+    "implementation": "3cb6f2c9c734800afeb166d0af53d0bc1f043b4b",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "keyboard_modeling_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 5.51
+  }
+]
