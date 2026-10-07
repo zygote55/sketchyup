@@ -21,6 +21,7 @@
 #include <functional>
 #include <optional>
 class QTabBar;
+class QTimer;
 class QVariantAnimation;
 namespace sketchy {
 class Viewport : public QOpenGLWidget {
@@ -30,7 +31,8 @@ class Viewport : public QOpenGLWidget {
     ~Viewport() override;
     const Document &document() const { return doc_; }
     bool inspectionBusy() const {
-        return session_.active() || dragging_ || toolPressed_ || selectionPressed_ || selectingBox_;
+        return session_.active() || dragging_ || toolPressed_ || selectionPressed_ ||
+               selectingBox_ || !walkKeys_.empty();
     }
     bool inspectionRenderOverrides() const {
         return benchmarkTriangles_ > 0 || !opacity_.empty() || clipPlane_.has_value();
@@ -62,9 +64,13 @@ class Viewport : public QOpenGLWidget {
         Intersect = 23,
         Boolean = 24,
         Orientation = 25,
-        HostedPlacement = 26
+        HostedPlacement = 26,
+        LookAround = 27,
+        Walk = 28
     };
     void setTool(Tool tool);
+    void setSceneTransitionDuration(int milliseconds);
+    int sceneTransitionDuration() const { return sceneTransitionMs_; }
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
     void useSelectedFacePlane();
     DrawingPlane drawingPlane() const { return plane_; }
@@ -480,6 +486,14 @@ class Viewport : public QOpenGLWidget {
     std::vector<Guide> previewGuides_;
     QTabBar *sceneTabs_{};
     QVariantAnimation *sceneAnimation_{};
+    int sceneTransitionMs_{160};
+    QTimer *walkTimer_{};
+    QElapsedTimer walkElapsed_;
+    std::set<int> walkKeys_;
+    double walkSpeed_{3};
+    void initializeWalkNavigation();
+    void stopWalking();
+    bool walkNavigation(QEvent *event);
     bool reducedMotion_{}, sceneCameraStep_{};
     SceneCamera sceneCameraFrom_, sceneCameraTo_;
     Document::SaveStamp sceneAnimationStamp_;

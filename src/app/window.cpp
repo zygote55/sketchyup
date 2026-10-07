@@ -589,6 +589,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
     addTool("Zoom", "Z", Viewport::Tool::Zoom, "Drag up to zoom in · Drag down to zoom out", false);
     auto *cameraMenu = menuBar()->addMenu("&Camera");
+    cameraMenu->addAction(addTool(
+        "Look around", "", Viewport::Tool::LookAround,
+        "Drag or use arrows to look from a fixed eye · Wheel changes field of view", false));
+    cameraMenu->addAction(addTool(
+        "Walk", "", Viewport::Tool::Walk,
+        "WASD/arrows walk · Q/E change height · Shift moves faster · Drag looks · Esc exits",
+        false));
     cameraMenu->addAction(action("camera.render", "Render…", {}, [this] { render_->showSetup(); }));
     auto *view = menuBar()->addMenu("&View");
     auto *hidden = action("selection.showHidden", "Show hidden geometry", {}, [this] {
