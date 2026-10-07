@@ -1092,7 +1092,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R074 — Complete GLB/glTF import and exchange guarantees
 
-**Status:** In progress. Bounded immutable GLB/glTF package capture passes [145-suite, sanitizer, native, installed and source-package acceptance](verification/R074a-contained-gltf-packages.md). Native geometry/material/camera conversion and import workflow follow; remote CI and ordered merge remain. **Track:** Interchange. **Scope:** X02. **UX:** §6.4.
+**Status:** In progress. Bounded package capture and editable geometry/material/camera conversion pass [147-suite, sanitizer, Blender, native, installed and source-package acceptance](verification/R074b-native-gltf-conversion.md). Native/CLI workflow follows; remote CI and ordered merge remain. **Track:** Interchange. **Scope:** X02. **UX:** §6.4.
 
 **Requires:** [R048](#r048), [R061](#r061), [R073](#r073); milestone gate rule above.
 
