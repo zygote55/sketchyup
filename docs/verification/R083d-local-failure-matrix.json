@@ -1,0 +1,131 @@
+{
+  "matrix": [
+    {
+      "mode": "normal",
+      "sourceCommit": "333341b14ac048f146e7d564da6e57da5e9b1ec2",
+      "suites": [
+        {
+          "name": "geometry_fuzz",
+          "seconds": 2.33
+        },
+        {
+          "name": "new_file_faults",
+          "seconds": 0.04
+        },
+        {
+          "name": "parser_fault_corpus",
+          "seconds": 1.33
+        },
+        {
+          "name": "native_format",
+          "seconds": 2.16
+        },
+        {
+          "name": "transaction_sequence",
+          "seconds": 7.72
+        },
+        {
+          "name": "transaction_coordinator",
+          "seconds": 1.39
+        },
+        {
+          "name": "outcome_store",
+          "seconds": 9.59
+        },
+        {
+          "name": "staging",
+          "seconds": 1.26
+        },
+        {
+          "name": "geometry_sequence",
+          "seconds": 1.05
+        },
+        {
+          "name": "recovery_cli",
+          "seconds": 0.29
+        },
+        {
+          "name": "recovery",
+          "seconds": 2.72
+        },
+        {
+          "name": "m4_persistence",
+          "seconds": 0.07
+        },
+        {
+          "name": "persistence",
+          "seconds": 0.35
+        }
+      ],
+      "totalSeconds": 30.33
+    },
+    {
+      "mode": "sanitized",
+      "sourceCommit": "7563bbed8d7e9ce3302141d6df1efcab518ab967",
+      "suites": [
+        {
+          "name": "geometry_fuzz",
+          "seconds": 16.14
+        },
+        {
+          "name": "new_file_faults",
+          "seconds": 0.08
+        },
+        {
+          "name": "parser_fault_corpus",
+          "seconds": 21.21
+        },
+        {
+          "name": "native_format",
+          "seconds": 18.78
+        },
+        {
+          "name": "transaction_sequence",
+          "seconds": 46.88
+        },
+        {
+          "name": "transaction_coordinator",
+          "seconds": 9.65
+        },
+        {
+          "name": "outcome_store",
+          "seconds": 124.62
+        },
+        {
+          "name": "staging",
+          "seconds": 12.8
+        },
+        {
+          "name": "geometry_sequence",
+          "seconds": 9.43
+        },
+        {
+          "name": "recovery_cli",
+          "seconds": 4.2
+        },
+        {
+          "name": "recovery",
+          "seconds": 29.34
+        },
+        {
+          "name": "m4_persistence",
+          "seconds": 0.68
+        },
+        {
+          "name": "persistence",
+          "seconds": 2.5
+        }
+      ],
+      "totalSeconds": 296.33
+    }
+  ],
+  "extendedGeometryCorpus": {
+    "firstSeed": 33536,
+    "seeds": 64,
+    "steps": 48,
+    "accepted": 1895,
+    "rejected": 803,
+    "noops": 374,
+    "passed": true
+  }
+}
