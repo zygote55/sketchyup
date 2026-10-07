@@ -243,6 +243,9 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
     result.report["annotationText"] = pageRaster ? "rasterized" : "shaped vector outlines";
     result.report["missingFontGlyphs"] = double(geometry.missingGlyphs);
     if (pageRaster) {
+        result.report["mode"] = "orthographicRasterAppearance";
+        result.report["technicalLineOmissions"] = result.report.take("losses");
+        result.report["surfaceColorAndLighting"] = "appearance captured in page raster";
         result.report["rasterWidth"] = pageRaster->width();
         result.report["rasterHeight"] = pageRaster->height();
         result.report["rasterDpi"] = pageRaster->width() * 25.4 / page.widthMm;
