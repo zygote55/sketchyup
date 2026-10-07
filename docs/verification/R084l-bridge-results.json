@@ -1,0 +1,86 @@
+[
+  {
+    "fixture": "built-in courtyard demo; private config/data and owned process only",
+    "platformRequested": "wayland",
+    "scope": "AT-SPI tree/text/selection/action interfaces and measured Entity info",
+    "measurementsInput": {
+      "name": "Measurements in meters",
+      "role": "text",
+      "description": "width, depth"
+    },
+    "selectionDescription": "1 context\nCourtyard slab",
+    "entityInfo": [
+      "8 m · 6 m · 0.15 m",
+      "100.2 m²",
+      "7.2 m³"
+    ],
+    "accessibleNodes": 561,
+    "passes": true,
+    "releaseAcceptance": false,
+    "limitations": "No interactive speech/braille session or exhaustive state/dialog audit",
+    "scaleRequested": 1
+  },
+  {
+    "fixture": "built-in courtyard demo; private config/data and owned process only",
+    "platformRequested": "wayland",
+    "scope": "AT-SPI tree/text/selection/action interfaces and measured Entity info",
+    "measurementsInput": {
+      "name": "Measurements in meters",
+      "role": "text",
+      "description": "width, depth"
+    },
+    "selectionDescription": "1 context\nCourtyard slab",
+    "entityInfo": [
+      "8 m · 6 m · 0.15 m",
+      "100.2 m²",
+      "7.2 m³"
+    ],
+    "accessibleNodes": 561,
+    "passes": true,
+    "releaseAcceptance": false,
+    "limitations": "No interactive speech/braille session or exhaustive state/dialog audit",
+    "scaleRequested": 2
+  },
+  {
+    "fixture": "built-in courtyard demo; private config/data and owned process only",
+    "platformRequested": "xcb",
+    "scope": "AT-SPI tree/text/selection/action interfaces and measured Entity info",
+    "measurementsInput": {
+      "name": "Measurements in meters",
+      "role": "text",
+      "description": "width, depth"
+    },
+    "selectionDescription": "1 context\nCourtyard slab",
+    "entityInfo": [
+      "8 m · 6 m · 0.15 m",
+      "100.2 m²",
+      "7.2 m³"
+    ],
+    "accessibleNodes": 561,
+    "passes": true,
+    "releaseAcceptance": false,
+    "limitations": "No interactive speech/braille session or exhaustive state/dialog audit",
+    "scaleRequested": 1
+  },
+  {
+    "fixture": "built-in courtyard demo; private config/data and owned process only",
+    "platformRequested": "xcb",
+    "scope": "AT-SPI tree/text/selection/action interfaces and measured Entity info",
+    "measurementsInput": {
+      "name": "Measurements in meters",
+      "role": "text",
+      "description": "width, depth"
+    },
+    "selectionDescription": "1 context\nCourtyard slab",
+    "entityInfo": [
+      "8 m · 6 m · 0.15 m",
+      "100.2 m²",
+      "7.2 m³"
+    ],
+    "accessibleNodes": 561,
+    "passes": true,
+    "releaseAcceptance": false,
+    "limitations": "No interactive speech/braille session or exhaustive state/dialog audit",
+    "scaleRequested": 2
+  }
+]

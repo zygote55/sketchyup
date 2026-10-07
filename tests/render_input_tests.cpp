@@ -1,4 +1,5 @@
 #include "app/render_panel.hpp"
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "core/entity_measure.hpp"
@@ -8,6 +9,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QJsonDocument>
@@ -18,10 +20,10 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
-#include <QSurfaceFormat>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 #include <QTreeWidget>
 #include <iostream>
 #include <numbers>
@@ -41,7 +43,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir files;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     qputenv("XDG_DATA_HOME", files.path().toUtf8());
@@ -439,6 +441,45 @@ int main(int argc, char **argv) {
             check(panel.status().contains("completed") &&
                       QFileInfo::exists(files.filePath("native-animation/frame-0003.png")),
                   "Native export publishes complete frame sequence");
+            panel.showSetup();
+            path->setText(executable("success"));
+            backend->setCurrentText("CPU");
+            probe->click();
+            check(QTest::qWaitFor([&] { return start->isEnabled(); }),
+                  "Animation setup verifies selected worker");
+            setup->findChild<QSpinBox *>("renderWidth")->setValue(64);
+            setup->findChild<QSpinBox *>("renderHeight")->setValue(64);
+            bool choseAnimation{};
+            QTimer::singleShot(0, &window, [&] {
+                auto *sheet = window.findChild<QDialog *>("animationSetup");
+                if (!sheet)
+                    return;
+                auto *fps = sheet->findChild<QSpinBox *>("animationFps");
+                auto *transition = sheet->findChild<QDoubleSpinBox *>("animationTransition");
+                auto *hold = sheet->findChild<QDoubleSpinBox *>("animationHold");
+                auto *destination = sheet->findChild<QLineEdit *>("animationDestination");
+                auto *buttons = sheet->findChild<QDialogButtonBox *>();
+                if (!fps || !transition || !hold || !destination || !buttons) {
+                    sheet->reject();
+                    return;
+                }
+                fps->setValue(1);
+                transition->setValue(1);
+                hold->setValue(0);
+                destination->setText(files.filePath("native-animation-dialog"));
+                if (const auto evidence = qEnvironmentVariable("SKETCHYUP_ANIMATION_EVIDENCE");
+                    !evidence.isEmpty())
+                    sheet->grab().save(evidence + "-setup.png");
+                choseAnimation = true;
+                buttons->button(QDialogButtonBox::Save)->click();
+                if (sheet->isVisible())
+                    sheet->reject();
+            });
+            setup->findChild<QPushButton *>("exportSceneAnimation")->click();
+            check(choseAnimation && QTest::qWaitFor([&] { return !panel.active(); }, 15000) &&
+                      QFileInfo::exists(files.filePath("native-animation-dialog/frame-0002.png")),
+                  "Native animation dialog chooses scenes, timing and destination and exports "
+                  "frames");
             worker.executable = executable("hang");
             panel.exportAnimation({sceneA, sceneB}, {24, 2, 0}, animationSettings, worker,
                                   files.filePath("native-animation-canceled"));

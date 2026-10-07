@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/components.hpp"
 #include "core/materials.hpp"
@@ -11,7 +12,6 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QPushButton>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -91,7 +91,7 @@ void chooseFile(Window &window, const char *button, const QString &path) {
 int main(int argc, char **argv) {
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir files;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);

@@ -66,6 +66,8 @@ EntityInfoPanel::EntityInfoPanel(Document &doc, Viewport &view, QWidget *parent)
     layout->addWidget(frame_);
     setFocusProxy(frame_);
     auto *scroll = new QScrollArea;
+    scroll->setObjectName("entityInfoScroll");
+    scroll->setAccessibleName("Selected entity properties");
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     auto *content = new QWidget;

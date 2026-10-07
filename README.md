@@ -3,7 +3,7 @@
 An independent native Linux 3D modeler in development. C++20, Qt 6 and OpenGL;
 ordinary editing runs locally without an account or browser runtime. Own code
 is MIT licensed. Bundled Clipper2 retains its Boost Software License 1.0 and
-Manifold retains Apache License 2.0; their notices ship with the application.
+Manifold retains Apache License 2.0 and cgltf retains MIT; their notices ship with the application.
 Arch/Omarchy is the primary development environment.
 
 ## Current build
@@ -15,12 +15,12 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. M7 presentation and rendering is in progress. Shared components support native editing.
+M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. M7 presentation/rendering and M8 exchange/extensibility have implementations and local verification in the review stack; their CI, ordered merges and milestone acceptance remain open. Shared components support native editing.
 OpenAI and experimental loopback Ollama adapters, transactional previews and optional
 Blender rendering are implemented. Live OpenAI acceptance passed the M5 and M6
 workflow gates; the measured local CPU Ollama profile timed out on the initial
 modeling corpus. General
-exchange formats remain planned. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
+exchange now includes bounded glTF/GLB, OBJ/MTL, STL and 2D DXF workflows, with explicit conversion losses. Curves retain analytic parameters alongside configurable segmented editing geometry. The application remains a development build; the current native storage contract is documented below.
 Automatic recovery copies are enabled every 30 seconds; File → Recovery settings
 changes the interval (5–3,600 seconds) or disables it. The recovery status shows
 only the last verified copy and identifies newer edits still in memory. A write
@@ -46,6 +46,10 @@ conversion details; the original file stays unchanged. See the
 
 ## Build and run
 
+Start with the [user workflow guide](docs/USER_GUIDE.md) and
+[development support matrix](docs/SUPPORT_MATRIX.md) for tested behavior and
+remaining release gates.
+
 Requires CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ base/Wayland development
 packages, OpenSSL 3 development headers and OpenGL 3.3. Python 3 is required
 when building the default CLI verification targets (`BUILD_TESTING=ON`). Verified locally with Qt 6.11.2 on Wayland and X11.
@@ -54,7 +58,7 @@ download code. See [measured evidence and limitations](docs/verification/native-
 
 ```sh
 cmake --preset dev
-cmake --build --preset dev --parallel 4
+cmake --build --preset dev --parallel 2
 ctest --preset dev
 ./build/dev/sketchyup --demo
 ```
@@ -773,6 +777,15 @@ model capabilities before document transfer, and rejects context overflow rather
 than silently dropping history. See the [local profile and trial evidence](docs/verification/R045-local-provider.md)
 for the exact model digest, CPU limits, known failures and opt-in corpus runner.
 Ordinary modeling does not require a provider.
+
+### Walk and scene timing
+
+The Camera menu includes **Look around** and **Walk**. Look around keeps the eye
+fixed while dragging or pressing arrow keys; scroll changes the lens. Walk uses
+WASD/arrows, Q/E for height, Shift for faster movement and scroll for speed. Escape
+returns to Select. Navigation does not edit the model or its undo history.
+The Scenes panel remembers a transition duration from zero to ten seconds; zero
+or reduced motion recalls cameras immediately.
 
 ### Saved-scene animation
 

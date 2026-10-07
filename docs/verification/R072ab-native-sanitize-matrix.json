@@ -1,0 +1,114 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 1.551
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 2.326
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 3.623
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 5.457
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 4.18
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 4.484
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 4.283
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 4.951
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 3.974
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 4.172
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 4.254
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 6.467
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 6.969
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 6.891
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 7.201
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 7.621
+  }
+]

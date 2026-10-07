@@ -1,0 +1,7 @@
+{
+  "date": "2026-10-06",
+  "installedContractExact": true,
+  "desktopExact": true,
+  "cliExact": true,
+  "headlessTextModelRoundtripExact": true
+}

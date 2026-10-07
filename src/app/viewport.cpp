@@ -18,6 +18,26 @@
 #include <limits>
 #include <numbers>
 namespace sketchy {
+Viewport::GeometryCacheMemory Viewport::geometryCacheMemory() const {
+    GeometryCacheMemory result;
+    const auto capacity = [](const auto &values) {
+        return values.capacity() * sizeof(values.front());
+    };
+    for (const auto &[id, owned] : bodyCaches_) {
+        (void)id;
+        const auto &cache = *owned;
+        result.bodyVectorCapacityBytes +=
+            capacity(cache.localTriangles) + capacity(cache.worldTriangles) +
+            capacity(cache.localEdges) + capacity(cache.worldEdges) + capacity(cache.opaque) +
+            capacity(cache.lines) + capacity(cache.hiddenLines) + capacity(cache.transparent) +
+            capacity(cache.sectionCuts) + capacity(cache.sectionCaps);
+        result.bodyGpuPayloadBytes +=
+            size_t(cache.opaqueGpu.count + cache.linesGpu.count + cache.hiddenLinesGpu.count) *
+            sizeof(PackedVertex);
+    }
+    return result;
+}
+
 namespace {
 QVector3D qv(Vec3 p) { return {float(p.x), float(p.y), float(p.z)}; }
 Vec3 vec(QVector3D p) { return {p.x(), p.y(), p.z()}; }
@@ -26,6 +46,7 @@ constexpr float degreesToRadians = std::numbers::pi_v<float> / 180;
 Viewport::Viewport(Document &doc, QWidget *parent)
     : QOpenGLWidget(parent), doc_(doc), session_(doc) {
     initializeSceneViews();
+    initializeWalkNavigation();
     selection_.sync(doc_);
     session_.setScopeProvider([this] { return componentScope(); });
     setFocusPolicy(Qt::StrongFocus);
@@ -1182,6 +1203,10 @@ void Viewport::paintScene(QPaintDevice *device) {
         return;
     syncModelStyle();
     syncSolar();
+    // Decoding can publish between the polling timer and an explicit fresh frame.
+    // Consume that generation before rendering surfaces, shadows or captures.
+    if (textureCache_.snapshot() != textureSnapshot_)
+        cacheDirty_ = pickDirty_ = true;
     QPainter p(device ? device : this);
     p.beginNativePainting();
     QElapsedTimer timer;
@@ -1273,6 +1298,8 @@ void Viewport::paintScene(QPaintDevice *device) {
         if (!rasterSize_.isEmpty())
             throw std::runtime_error("Graphics error while rendering export");
     }
+    if (synchronousFrameTiming_)
+        gl_->glFinish();
     ++stats_.frames;
     frameMs_ = timer.nsecsElapsed() / 1e6;
     p.endNativePainting();
@@ -1335,6 +1362,12 @@ void Viewport::paintScene(QPaintDevice *device) {
         p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    trackpad_ ? "Two fingers: pan · Alt-scroll: orbit · Ctrl-scroll / pinch: zoom"
                              : "Drag: active camera tool · Shift/right drag: pan · Wheel: zoom");
+    if (tool_ == Tool::Walk || tool_ == Tool::LookAround)
+        p.drawText(QRect(20, hudBottom - 88, width() - 40, 62), Qt::TextWordWrap,
+                   tool_ == Tool::Walk
+                       ? "Walk: WASD/arrows · Q/E: lower/raise · Shift: faster · Drag: look · "
+                         "Wheel: speed · Esc: select"
+                       : "Look around: drag or arrow keys · Wheel: field of view · Esc: select");
     if (drawingTool() && tool_ != Tool::Freehand)
         p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    "Shift: hold inference · Arrows: axis / edge lock · Tab: alternatives · Hover: "
@@ -1558,6 +1591,8 @@ void Viewport::setSelection(Id body, Id face) {
 void Viewport::setTool(Tool tool) {
     cancel();
     tool_ = tool;
+    if (tool == Tool::Walk || tool == Tool::LookAround)
+        setOrthographic(false);
     if (tool == Tool::Circle)
         curveSegments_ = std::max(3u, curveSegments_);
     if (tool == Tool::Pie)
@@ -1602,6 +1637,7 @@ void Viewport::clearPreview() {
     update();
 }
 void Viewport::cancel() {
+    stopWalking();
     stopSceneTransition();
     hostedCommand_.reset();
     orientationCommand_.reset();
@@ -2129,6 +2165,14 @@ bool Viewport::measurements(const QString &text) {
         if (tool_ == Tool::Extrude) {
             if (input.kind != MeasurementKind::Values || values.size() != 1)
                 throw std::runtime_error("Push/pull expects one signed distance");
+            if (session_.phase() == ToolSession::Phase::Ready) {
+                if (!selected_ || !selectedFace_)
+                    throw std::runtime_error("Select one editable face to push/pull");
+                const auto &surface = doc_.bodies().at(selected_)->surface;
+                const auto anchor = doc_.worldTransform(selected_).point(
+                    surface.vertices.at(surface.faces.at(selectedFace_).loops[0][0]));
+                beginExtrusion(selected_, selectedFace_, anchor);
+            }
             finishExtrusion(values[0]);
             return true;
         }
@@ -2254,6 +2298,8 @@ bool Viewport::measurements(const QString &text) {
     return doc_.revision() != revision || measurementCompleted_;
 }
 bool Viewport::event(QEvent *event) {
+    if (walkNavigation(event))
+        return true;
     if (nativeNavigation(event))
         return true;
     if (event->type() == QEvent::KeyPress) {
@@ -2287,8 +2333,9 @@ bool Viewport::event(QEvent *event) {
             transformControlPending_ = false;
         }
         if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
-            tool_ != Tool::Zoom && tool_ != Tool::Paint && tool_ != Tool::Sweep &&
-            tool_ != Tool::Intersect && tool_ != Tool::Boolean && tool_ != Tool::Orientation &&
+            tool_ != Tool::Zoom && tool_ != Tool::Walk && tool_ != Tool::LookAround &&
+            tool_ != Tool::Paint && tool_ != Tool::Sweep && tool_ != Tool::Intersect &&
+            tool_ != Tool::Boolean && tool_ != Tool::Orientation &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
             !key->text().isEmpty() && QString("0123456789.+-[<xX/").contains(key->text()[0])) {
             event->accept();
@@ -2330,7 +2377,8 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         return;
     }
     if (e->button() != Qt::LeftButton || tool_ == Tool::Orbit || tool_ == Tool::Pan ||
-        tool_ == Tool::Zoom || e->modifiers().testFlag(Qt::AltModifier)) {
+        tool_ == Tool::Zoom || tool_ == Tool::LookAround || tool_ == Tool::Walk ||
+        e->modifiers().testFlag(Qt::AltModifier)) {
         dragging_ = true;
         dragButton_ = e->button();
         toolPressed_ = false;
@@ -2476,7 +2524,9 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
             cancel();
     }
     if (dragging_) {
-        if (tool_ == Tool::Zoom && dragButton_ == Qt::LeftButton)
+        if ((tool_ == Tool::Walk || tool_ == Tool::LookAround) && dragButton_ == Qt::LeftButton)
+            orbitCamera(delta);
+        else if (tool_ == Tool::Zoom && dragButton_ == Qt::LeftButton)
             zoomCamera(e->position(), std::exp(std::clamp(delta.y() * .01, -2., 2.)));
         else if (tool_ == Tool::Pan || dragButton_ == Qt::RightButton ||
                  e->modifiers().testFlag(Qt::ShiftModifier))
@@ -2619,8 +2669,9 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
         return;
     }
     if (tool_ != Tool::Select && tool_ != Tool::Orbit && tool_ != Tool::Pan &&
-        tool_ != Tool::Zoom && tool_ != Tool::Paint && tool_ != Tool::Sweep &&
-        tool_ != Tool::Intersect && tool_ != Tool::Boolean && tool_ != Tool::Orientation &&
+        tool_ != Tool::Zoom && tool_ != Tool::Walk && tool_ != Tool::LookAround &&
+        tool_ != Tool::Paint && tool_ != Tool::Sweep && tool_ != Tool::Intersect &&
+        tool_ != Tool::Boolean && tool_ != Tool::Orientation &&
         !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
         !e->text().isEmpty() && QString("0123456789.+-[<xX/").contains(e->text()[0])) {
         emit measurementsRequested(e->text());

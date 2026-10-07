@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
@@ -13,7 +14,6 @@
 #include <QHeaderView>
 #include <QMimeData>
 #include <QPushButton>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -103,7 +103,7 @@ std::unique_ptr<QMimeData> dragData(QTreeWidget *tree) {
 int main(int argc, char **argv) {
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir preferences;
     qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
     QApplication app(argc, argv);

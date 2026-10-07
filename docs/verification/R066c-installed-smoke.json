@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "actualV21MigrationExact": true,
+  "existingAnnotationsPreserved": true,
+  "typedSourceRoundtrip": true,
+  "unicodeMultilinePreserved": true,
+  "cachedGeometryPreserved": true,
+  "reopensWithoutFontOrHelper": true,
+  "relocatedRoundtripExact": true,
+  "unitsPreserveSource": true,
+  "v21ReaderRejected": true,
+  "installedSchemas": 7,
+  "contractMatches": true,
+  "desktopMatches": true
+}

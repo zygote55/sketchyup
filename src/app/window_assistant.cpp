@@ -1,3 +1,4 @@
+#include "app/interface_preferences.hpp"
 #include "app/window.hpp"
 #include <QAction>
 #include <QDialog>
@@ -10,10 +11,14 @@ void Window::toggleAssistant() {
     assistantShown_ = !assistantShown_;
     layoutAssistant();
     if (assistantShown_) {
+        if (assistantSheet_ && assistantSheet_->isVisible())
+            assistantSheet_->activateWindow();
         assistant_->refresh();
         assistant_->focusComposer();
-    } else
+    } else {
+        activateWindow();
         viewport_->setFocus();
+    }
 }
 void Window::layoutAssistant() {
     if (!assistant_ || !sideTabs_)
@@ -30,18 +35,19 @@ void Window::layoutAssistant() {
     assistant_->setMaximumWidth(QWIDGETSIZE_MAX);
     if (assistantSheet_)
         assistantSheet_->hide();
-    sideTabs_->setFixedWidth(248);
+    const auto textPercent = interfaceTextPercent();
+    sideTabs_->setFixedWidth(std::min(320, interfaceExtent(248, textPercent)));
     sideTabs_->setVisible(width() >= 800);
     if (!assistantShown_) {
         assistant_->hide();
         return;
     }
     if (width() >= 1500) {
-        assistant_->setFixedWidth(340);
+        assistant_->setFixedWidth(std::min(420, interfaceExtent(340, textPercent)));
         content_->addWidget(assistant_);
         assistant_->show();
     } else if (width() >= 1100) {
-        sideTabs_->setFixedWidth(340);
+        sideTabs_->setFixedWidth(std::min(420, interfaceExtent(340, textPercent)));
         sideTabs_->addTab(assistant_, "Assistant");
         sideTabs_->setCurrentWidget(assistant_);
         sideTabs_->show();
@@ -52,7 +58,16 @@ void Window::layoutAssistant() {
             assistantSheet_->setObjectName("assistantSheet");
             assistantSheet_->setWindowTitle("Assistant");
             new QVBoxLayout(assistantSheet_);
-            auto *toggle = new QShortcut(QKeySequence("Ctrl+J"), assistantSheet_);
+            auto *action = findChild<QAction *>("view.assistant");
+            auto *toggle = new QShortcut(action->shortcut(), assistantSheet_);
+            toggle->setObjectName("assistantSheetToggle");
+            const auto updateToggle = [action, toggle] {
+                toggle->setKey(action->shortcut());
+                // Plain keys remain viewport-only, including while the composer is in a sheet.
+                toggle->setEnabled(action->shortcutContext() == Qt::WindowShortcut);
+            };
+            connect(action, &QAction::changed, toggle, updateToggle);
+            updateToggle();
             connect(toggle, &QShortcut::activated, this, &Window::toggleAssistant);
             connect(assistantSheet_, &QDialog::rejected, this, [this] {
                 assistantShown_ = false;
@@ -61,7 +76,8 @@ void Window::layoutAssistant() {
             });
         }
         assistantSheet_->layout()->addWidget(assistant_);
-        assistantSheet_->resize(std::min(400, width() - 32), std::max(420, height() - 64));
+        assistantSheet_->resize(std::min(interfaceExtent(400, textPercent), width() - 32),
+                                std::max(420, height() - 64));
         assistantSheet_->show();
         assistant_->show();
         // Keep the existing model viewport available beside the nonmodal sheet.

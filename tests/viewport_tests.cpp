@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "io/document_io.hpp"
 #include <QApplication>
@@ -7,7 +8,6 @@
 #include <QOpenGLContext>
 #include <QPointer>
 #include <QScreen>
-#include <QSurfaceFormat>
 #include <QTest>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setSamples(0);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
     try {
         Document doc;
@@ -81,6 +81,10 @@ int main(int argc, char **argv) {
         view->fit();
         frame(view);
         check(view->rendererReady(), "Renderer initialized");
+        const auto colorFormat = view->context()->format();
+        check(colorFormat.redBufferSize() >= 8 && colorFormat.greenBufferSize() >= 8 &&
+                  colorFormat.blueBufferSize() >= 8,
+              "Viewport context preserves eight-bit RGB channels");
         Vec3 probe{-.6, .4, 1};
         auto opaque = sample(view, probe);
         check(opaque.red() > opaque.blue() * 3, "Near opaque face occludes the far face");
@@ -284,6 +288,8 @@ int main(int argc, char **argv) {
             {"passed", true},
             {"platform", QGuiApplication::platformName()},
             {"scale", view->devicePixelRatioF()},
+            {"colorBits", QJsonArray{colorFormat.redBufferSize(), colorFormat.greenBufferSize(),
+                                     colorFormat.blueBufferSize(), colorFormat.alphaBufferSize()}},
             {"contextGenerations", int(view->renderStats().contextGeneration)},
             {"bodyMeshBuilds", qint64(view->renderStats().bodyMeshBuilds)},
             {"bodyUploads", qint64(view->renderStats().bodyUploads)},

@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "actualSchema23MigrationExact": true,
+  "typedReferenceRoundtripByteExact": true,
+  "embeddedPixelsRetainedAfterRelocation": true,
+  "relocatedCliWithoutHelper": true,
+  "referencePlaneExportLossExplicit": true,
+  "schema23ReaderRejects": true,
+  "displayUnitsDoNotRescale": true,
+  "missingPayloadRetained": true,
+  "invalidRecordRejectsWithoutOutput": true,
+  "installedSchemas": 7,
+  "contractsMatch": true,
+  "desktopMatches": true
+}

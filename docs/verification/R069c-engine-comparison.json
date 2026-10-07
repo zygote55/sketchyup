@@ -1,0 +1,26 @@
+[
+  {
+    "family": "smooth",
+    "fixtures": 4,
+    "channelsCompared": 16,
+    "maximumAbsolutePixelDifference": 0.0,
+    "tolerance": 0.15,
+    "passed": true
+  },
+  {
+    "family": "texture",
+    "fixtures": 12,
+    "channelsCompared": 432,
+    "maximumAbsolutePixelDifference": 0.046997547236969694,
+    "tolerance": 0.15,
+    "passed": true
+  },
+  {
+    "family": "section",
+    "fixtures": 2,
+    "channelsCompared": 12,
+    "maximumAbsolutePixelDifference": 0.003921568393707275,
+    "tolerance": 0.15,
+    "passed": true
+  }
+]

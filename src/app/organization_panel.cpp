@@ -31,6 +31,51 @@ namespace sketchy {
 namespace {
 Id identity(QTreeWidgetItem *item) { return item ? item->data(0, Qt::UserRole).toULongLong() : 0; }
 QString sid(Id id) { return QString::number(id); }
+class AdaptiveButtons final : public QObject {
+    QGridLayout *grid_;
+    bool pending_{};
+    int columns_{3};
+    void schedule() {
+        if (pending_)
+            return;
+        pending_ = true;
+        QTimer::singleShot(0, this, [this] {
+            pending_ = false;
+            int needed = 1;
+            for (int i = 0; i < grid_->count(); ++i) {
+                auto *widget = grid_->itemAt(i)->widget();
+                widget->ensurePolished();
+                needed = std::max(needed, widget->sizeHint().width());
+            }
+            const auto spacing = std::max(0, grid_->horizontalSpacing());
+            const auto available = grid_->geometry().width();
+            const auto columns = std::clamp((available + spacing) / (needed + spacing), 1, 3);
+            if (columns == columns_)
+                return;
+            columns_ = columns;
+            std::vector<QLayoutItem *> items;
+            while (auto *item = grid_->takeAt(0))
+                items.push_back(item);
+            for (size_t i = 0; i < items.size(); ++i)
+                grid_->addItem(items[i], int(i) / columns, int(i) % columns);
+        });
+    }
+
+  public:
+    explicit AdaptiveButtons(QGridLayout *grid, QWidget *page) : QObject(page), grid_(grid) {
+        page->installEventFilter(this);
+        schedule();
+    }
+
+  protected:
+    bool eventFilter(QObject *, QEvent *event) override {
+        if (event->type() == QEvent::Resize || event->type() == QEvent::FontChange ||
+            event->type() == QEvent::StyleChange || event->type() == QEvent::Show ||
+            event->type() == QEvent::LayoutRequest)
+            schedule();
+        return false;
+    }
+};
 class HierarchyTree : public QTreeWidget {
   public:
     std::function<bool(const std::set<Id> &, Id)> reparent;
@@ -151,6 +196,10 @@ void form(QWidget *parent, const QString &title, const std::function<void(QFormL
         }
     });
     dialog.exec();
+    // Modal dismissal can leave the parent inactive on X11. Return subsequent
+    // keyboard operations to the originating panel and its current focus proxy.
+    parent->window()->activateWindow();
+    parent->setFocus(Qt::OtherFocusReason);
 }
 } // namespace
 OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *parent)
@@ -160,6 +209,7 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     layout->setContentsMargins(0, 0, 0, 0);
     tabs_ = new QTabWidget;
     tabs_->setObjectName("organizationTabs");
+    tabs_->setAccessibleName("Model panels");
     layout->addWidget(tabs_, 1);
     error_ = new QLabel;
     error_->setObjectName("organizationError");
@@ -187,6 +237,7 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     entityLayout->addWidget(outliner_, 1);
     auto *buttons = new QGridLayout;
     entityLayout->addLayout(buttons);
+    new AdaptiveButtons(buttons, entities);
     control(entities, buttons, 0, "outliner.rename", "Rename", Qt::Key_F2,
             [this] { attempt([&] { rename(false); }); });
     control(entities, buttons, 1, "outliner.move", "Move to", QKeySequence("Ctrl+Shift+M"),
@@ -238,6 +289,7 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tagLayout->addWidget(tags_, 1);
     auto *tagButtons = new QGridLayout;
     tagLayout->addLayout(tagButtons);
+    new AdaptiveButtons(tagButtons, tagPage);
     control(tagPage, tagButtons, 0, "tags.new", "New tag", QKeySequence("Ctrl+Alt+N"),
             [this] { attempt([&] { createTag(false); }); });
     control(tagPage, tagButtons, 1, "tags.folder", "Folder", QKeySequence("Ctrl+Alt+F"),

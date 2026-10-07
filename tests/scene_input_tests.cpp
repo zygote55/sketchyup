@@ -1,4 +1,5 @@
 #include "app/scenes_panel.hpp"
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
@@ -14,7 +15,7 @@
 #include <QJsonDocument>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QSurfaceFormat>
+#include <QSpinBox>
 #include <QTabBar>
 #include <QTemporaryDir>
 #include <QTest>
@@ -93,7 +94,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir isolated;
     qputenv("XDG_CONFIG_HOME", isolated.path().toUtf8());
     QApplication app(argc, argv);
@@ -231,6 +232,16 @@ int main(int argc, char **argv) {
                                              .contains("Document changed"),
                   "Stale scene draft rejected in place");
         });
+        auto *duration = window.findChild<QSpinBox *>("sceneTransitionDuration");
+        check(duration, "Scene panel exposes transition duration");
+        duration->setValue(0);
+        check(view->sceneTransitionDuration() == 0,
+              "Scene timing control updates viewport preference");
+        view->setReducedMotion(false);
+        view->recallSavedScene(second);
+        check(*view->captureSceneSnapshot(true, false, false, false).camera == top,
+              "Zero-duration scene recall is immediate");
+        duration->setValue(160);
         view->setReducedMotion(false);
         view->standardView(3);
         view->recallSavedScene(second);

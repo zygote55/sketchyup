@@ -1,5 +1,7 @@
 #include "app/window.hpp"
+#include "app/context_label.hpp"
 #include "app/inspection_service.hpp"
+#include "app/interface_preferences.hpp"
 #include "app/render_panel.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
@@ -20,6 +22,7 @@
 #include <QKeyEvent>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSettings>
@@ -36,6 +39,39 @@
 #include <wayland-client.h>
 namespace sketchy {
 namespace {
+class ElidedLabel final : public QLabel {
+  public:
+    explicit ElidedLabel(const QString &text = {}) : QLabel(text) {
+        setTextFormat(Qt::PlainText);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    }
+
+  protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setPen(palette().color(foregroundRole()));
+        painter.drawText(contentsRect(), alignment(),
+                         fontMetrics().elidedText(text(), Qt::ElideRight, contentsRect().width()));
+    }
+};
+void resizeContextLabels(QWidget *window) {
+    auto *breadcrumb = window->findChild<QLabel *>("contextBreadcrumb");
+    auto *banner = window->findChild<QLabel *>("componentScopeBanner");
+    if (breadcrumb && banner) {
+        breadcrumb->ensurePolished();
+        breadcrumb->setMaximumWidth(std::max(100, breadcrumb->parentWidget()->width() - 32));
+        breadcrumb->adjustSize();
+        banner->ensurePolished();
+        banner->setFixedWidth(
+            std::max(100, std::min(640, breadcrumb->parentWidget()->width() - 32)));
+        banner->move(16, breadcrumb->geometry().bottom() + 8);
+        banner->adjustSize();
+    }
+    if (auto *hint = window->findChild<QLabel *>("hint")) {
+        hint->ensurePolished();
+        hint->setMinimumHeight(hint->heightForWidth(hint->width()));
+    }
+}
 class WindowUnmapBarrier final : public QObject {
     wl_callback *callback_{};
     std::function<void()> finish_;
@@ -87,6 +123,7 @@ QAction *Window::action(const QString &id, const QString &title, const QKeySeque
     a->setObjectName(id);
     a->setProperty("category", id.section('.', 0, 0));
     a->setShortcut(shortcut);
+    a->setProperty("defaultShortcut", QVariant::fromValue(shortcut));
     addAction(a);
     publicActions_.push_back(a);
     connect(a, &QAction::triggered, this, [this, fn, id] { run(fn, id.startsWith("view.")); });
@@ -110,9 +147,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     auto *brand = new QLabel("SKETCHYUP");
     brand->setObjectName("brand");
     headerLayout->addWidget(brand);
-    title_ = new QLabel;
-    headerLayout->addWidget(title_);
-    headerLayout->addStretch();
+    title_ = new ElidedLabel;
+    headerLayout->addWidget(title_, 1);
     auto *search = new QPushButton("Commands  Ctrl+K");
     search->setObjectName("commandSearch");
     headerLayout->addWidget(search);
@@ -146,6 +182,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     content->setSpacing(0);
     auto *tools = new QToolBar;
     tools->setObjectName("toolRail");
+    tools->setAccessibleName("Modeling tools");
     tools->setFocusPolicy(Qt::StrongFocus);
     tools->setOrientation(Qt::Vertical);
     tools->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -155,6 +192,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     inspection_ = std::make_unique<DesktopInspection>(*viewport_);
     auto *modelTabs = new QTabWidget;
     modelTabs->setObjectName("modelTabs");
+    modelTabs->setAccessibleName("Model and render views");
     modelTabs->setTabBarAutoHide(true);
     modelTabs->setTabsClosable(true);
     modelTabs->addTab(viewport_, "Model");
@@ -207,6 +245,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     trayLayout->addWidget(hint);
     sideTabs_ = new QTabWidget;
     sideTabs_->setObjectName("assistantSideTabs");
+    sideTabs_->setAccessibleName("Model panels and assistant");
     sideTabs_->setTabBarAutoHide(true);
     sideTabs_->addTab(tray_, "Model");
     sideTabs_->setFixedWidth(248);
@@ -217,7 +256,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     auto *bottom = new QWidget;
     bottom->setObjectName("footer");
     auto *bottomLayout = new QHBoxLayout(bottom);
-    status_ = new QLabel("Select a tool to begin");
+    status_ = new ElidedLabel("Select a tool to begin");
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     bottomLayout->addWidget(status_, 1);
@@ -303,6 +342,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.units", "Document units…", {}, [this] { unitsSettings(); }));
     file->addAction(action("file.quit", "Quit", QKeySequence::Quit, [this] { close(); }));
     auto *edit = menuBar()->addMenu("&Edit");
+    edit->addAction(
+        action("edit.shortcuts", "Keyboard shortcuts…", {}, [this] { shortcutSettings(); }));
     undo_ = action("edit.undo", "Undo", QKeySequence::Undo, [this] {
         viewport_->cancel();
         doc_.undo();
@@ -608,6 +649,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
     addTool("Zoom", "Z", Viewport::Tool::Zoom, "Drag up to zoom in · Drag down to zoom out", false);
     auto *cameraMenu = menuBar()->addMenu("&Camera");
+    cameraMenu->addAction(addTool(
+        "Look around", "", Viewport::Tool::LookAround,
+        "Drag or use arrows to look from a fixed eye · Wheel changes field of view", false));
+    cameraMenu->addAction(addTool(
+        "Walk", "", Viewport::Tool::Walk,
+        "WASD/arrows walk · Q/E change height · Shift moves faster · Drag looks · Esc exits",
+        false));
     cameraMenu->addAction(action("camera.render", "Render…", {}, [this] { render_->showSetup(); }));
     auto *extensions = menuBar()->addMenu("E&xtensions");
     extensions->addAction(
@@ -750,6 +798,23 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     panel->setCheckable(true);
     panel->setChecked(true);
     view->addAction(panel);
+    view->addAction(action("view.textSize", "Interface text size…", {}, [this] {
+        const QStringList sizes{"75%", "100%", "125%", "150%", "175%", "200%"};
+        bool accepted = false;
+        const auto choice =
+            QInputDialog::getItem(this, "Interface text size", "Text size", sizes,
+                                  (interfaceTextPercent() - 75) / 25, false, &accepted);
+        if (accepted) {
+            QSettings preferences("SketchyUp", "SketchyUp");
+            preferences.setValue("interfaceTextPercent", 75 + 25 * sizes.indexOf(choice));
+            preferences.sync();
+            if (preferences.status() != QSettings::NoError)
+                throw std::runtime_error("Could not save interface text size");
+            applyTheme();
+        }
+        activateWindow();
+        viewport_->setFocus();
+    }));
     auto *themes = view->addMenu("Theme");
     auto *themeGroup = new QActionGroup(this);
     const QStringList themeNames{"System theme", "Light theme", "Dark theme"};
@@ -757,6 +822,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         auto *entry =
             action("view.theme." + QString::number(mode), themeNames[mode], {}, [this, mode] {
                 themeMode_ = mode;
+                QSettings("SketchyUp", "SketchyUp").setValue("theme", mode);
                 applyTheme();
             });
         entry->setCheckable(true);
@@ -796,6 +862,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             removeAction(a);
             viewport_->addAction(a);
         }
+    initializeShortcuts();
     connect(viewport_, &Viewport::toolChanged, this, [this](int mode) {
         measurements_->setEnabled(mode != int(Viewport::Tool::Paint));
         if (mode == int(Viewport::Tool::Paint))
@@ -840,23 +907,24 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     sync();
 }
 void Window::applyTheme() {
+    const auto textPercent = interfaceTextPercent();
     const bool dark =
         themeMode_ == 2 ||
         (themeMode_ == 0 && QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark);
     const auto colors = themeColors(dark);
     auto style = QStringLiteral(R"(
-QMainWindow,QWidget {background:$surface;color:$ink;font-family:'DejaVu Sans';font-size:12px;}
+QMainWindow,QWidget {background:$surface;color:$ink;font-family:'DejaVu Sans';font-size:$textPx;}
 QMenuBar {padding:5px;background:$surface;border-bottom:1px solid $border;}
 QMenuBar::item {padding:5px 10px;} QMenuBar::item:selected,QMenu::item:selected {background:$selected;}
 QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #header {border-bottom:1px solid $border;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
-#tray {border-left:1px solid $border;} #section {font-size:10px;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
-#hint {color:$muted;font-size:11px;padding:12px 0;} #footer {border-top:1px solid $border;}
+#tray {border-left:1px solid $border;} #section {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
+#hint {color:$muted;font-size:$hintPx;padding:12px 0;} #footer {border-top:1px solid $border;}
 QToolBar {border:0;border-right:1px solid $border;spacing:6px;padding:10px 5px;}
 QToolButton {padding:12px 5px;border-radius:4px;} QToolButton:checked {background:$selected;color:$ink;}
 QToolButton:hover,QPushButton:hover {background:$hover;}
 QPushButton {border:1px solid $border;padding:7px 11px;border-radius:4px;}
-QLineEdit {background:$input;border:1px solid $border;border-radius:4px;padding:7px;selection-background-color:$accent;}
+QLineEdit {background:$input;border:1px solid $border;border-radius:4px;padding:7px;selection-background-color:$accent;selection-color:$selectionInk;}
 QLineEdit:focus {border:1px solid $accent;}
 QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 QListWidget,QTreeWidget {border:0;background:transparent;}
@@ -864,6 +932,10 @@ QTreeWidget:focus {border:1px solid $accent;} QTreeWidget::item {padding:3px 1px
 QTreeWidget::item:selected {background:$selected;color:$ink;}
 QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
 )");
+    style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
+    style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
+    style.replace("$hintPx", QString::number(interfaceExtent(11, textPercent)) + "px");
+    style.replace("$selectionInk", dark ? colors.surface.name() : colors.input.name());
     style.replace("$surface", colors.surface.name());
     style.replace("$ink", colors.ink.name());
     style.replace("$border", colors.border.name());
@@ -873,10 +945,17 @@ QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} Q
     style.replace("$input", colors.input.name());
     style.replace("$accent", colors.accent.name());
     setStyleSheet(style);
+    findChild<QToolBar *>("toolRail")->setFixedWidth(interfaceExtent(78, textPercent));
+    measurements_->setFixedWidth(interfaceExtent(150, textPercent));
+    if (property("interfaceTextPercent").toInt() != textPercent) {
+        setProperty("interfaceTextPercent", textPercent);
+        layoutAssistant();
+    }
+    updateCommandSearchLabel(this);
+    QTimer::singleShot(0, this, [this] { resizeContextLabels(this); });
     viewport_->setTheme(colors);
-    auto linkPalette = breadcrumb_->palette();
-    linkPalette.setColor(QPalette::Link, colors.accent);
-    breadcrumb_->setPalette(linkPalette);
+    setContextLabelColor(breadcrumb_, colors.accent);
+    setContextLabelColor(componentBanner_, colors.accent);
 }
 void Window::run(const std::function<void()> &fn, bool viewOnly) {
     if (!viewOnly && assistant_ && assistant_->uncertain()) {
@@ -1001,7 +1080,7 @@ void Window::sync() {
         breadcrumb += QString(" &rsaquo; <a href=\"%1\">%2</a>")
                           .arg(*it)
                           .arg(QString::fromStdString(doc_.bodies().at(*it)->name).toHtmlEscaped());
-    breadcrumb_->setText(breadcrumb);
+    setContextLabelText(breadcrumb_, breadcrumb);
     breadcrumb_->setToolTip(path.empty() ? "Editing the model"
                                          : "Click an ancestor to close nested contexts");
     breadcrumb_->setMaximumWidth(std::max(100, viewport_->width() - 32));
@@ -1022,6 +1101,7 @@ void Window::sync() {
                                                 2, doc_.displayUnits());
     }
     info_->setText(text);
+    info_->setAccessibleDescription(text);
     if (assistantFenced_) {
         for (auto &[action, wasEnabled] : assistantActionStates_)
             action->setEnabled(false);
@@ -1161,6 +1241,8 @@ void Window::closeEvent(QCloseEvent *e) {
 }
 void Window::resizeEvent(QResizeEvent *e) {
     QMainWindow::resizeEvent(e);
+    updateCommandSearchLabel(this);
+    QTimer::singleShot(0, this, [this] { resizeContextLabels(this); });
     if (sideTabs_)
         layoutAssistant();
     if (auto *panel = findChild<QAction *>("view.tray"))
@@ -1275,8 +1357,10 @@ void Window::palette() {
     connect(query, &QLineEdit::returnPressed, &dialog, accept);
     connect(list, &QListWidget::itemActivated, &dialog, [&](QListWidgetItem *) { accept(); });
     query->setFocus();
-    if (dialog.exec() == QDialog::Accepted && chosen)
+    if (dialog.exec() == QDialog::Accepted && chosen) {
+        activateWindow();
         chosen();
+    }
 }
 void Window::demo() {
     Document d;

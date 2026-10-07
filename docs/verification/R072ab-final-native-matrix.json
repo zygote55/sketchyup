@@ -1,0 +1,44 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "desktop_inspection_tests",
+    "exitCode": 0,
+    "seconds": 3.152
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.169
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "render_input_tests",
+    "exitCode": 0,
+    "seconds": 7.111
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "history_input_tests",
+    "exitCode": 0,
+    "seconds": 3.116
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 3.22
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 4.316
+  }
+]

@@ -1,0 +1,75 @@
+{
+  "implementation": "506840a",
+  "files": [
+    {
+      "file": "ascii.stl",
+      "bytes": 1235,
+      "sha256": "0e017a74cc5958f4d58eb6f1ed41ef308afb285c9069d6c058f85c63dbc87695"
+    },
+    {
+      "file": "binary.stl",
+      "bytes": 684,
+      "sha256": "3e34d8caeb6f57c581ed1d60bc5846565746eaa55fbcd67581544ef4bdd5361f"
+    },
+    {
+      "file": "block.sketchylib",
+      "bytes": 5930,
+      "sha256": "3cd6ffb0c599a11083f0bf202c3db5488a652f7181a9beb03ee15b9c4a7ce528"
+    },
+    {
+      "file": "footprint.dxf",
+      "bytes": 356,
+      "sha256": "66c1852451f6d98945b01177305e57980753f54a4142fba9115d7b3cfde048a5"
+    },
+    {
+      "file": "glb/manifest.json",
+      "bytes": 5738,
+      "sha256": "0bd33e94557f79da7367038dd91b8085033fd62da4c515490f49ca5ba0f206f5"
+    },
+    {
+      "file": "glb/scene.glb",
+      "bytes": 2912,
+      "sha256": "a5a1bdf81fb923dd48df749597228683fec2b0307ae3163c1f19e614d41f4ada"
+    },
+    {
+      "file": "obj/manifest.json",
+      "bytes": 1514,
+      "sha256": "6f0d6177c6b98ec282ee10b455b4e439c101eaf5b0470b5c01b9f2efffcb41ff"
+    },
+    {
+      "file": "obj/materials.mtl",
+      "bytes": 85,
+      "sha256": "c1283f12b4334944a9ed6536cb50d40a3c9bec88ed43ad5e81a0486852262632"
+    },
+    {
+      "file": "obj/model.obj",
+      "bytes": 412,
+      "sha256": "2e6ecf394aaf6ed48c3940a63a1560b6498093c0f251d32dfad188567c7e865e"
+    },
+    {
+      "file": "plan.pdf",
+      "bytes": 4072,
+      "sha256": "f347ddd901dda32e5cd00e7b9bef016b4b4e4b8322cbd68d55bd3faf5aa9e191"
+    },
+    {
+      "file": "plan.png",
+      "bytes": 3853,
+      "sha256": "fbd5cd38518a19928dc855b39e879adf337c3f15e221bcf25cdaf008ebd87276"
+    },
+    {
+      "file": "plan.svg",
+      "bytes": 1508,
+      "sha256": "0a0fe4ad0e015f78f3df2149cb51769bc69cbd1c00eb2c685976a00dbd65d255"
+    },
+    {
+      "file": "study.sketchylib",
+      "bytes": 5917,
+      "sha256": "b519f1c4761a77a45a35a3cc8ac3a861731c96b7f71fdc97aa40aa616a33acee"
+    },
+    {
+      "file": "study.sketchyup",
+      "bytes": 5431,
+      "sha256": "6c9430cfcb2715ce606a963005d97e307a1c65353d2e33982196ab2abd306af3"
+    }
+  ]
+}
