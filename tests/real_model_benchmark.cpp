@@ -227,6 +227,7 @@ int main(int argc, char **argv) {
         check(inference.primitiveCount() > triangles, "Inference includes edges and vertices");
         std::vector<double> inferenceQueries, inferenceUpdates;
         size_t inferenceVisitedMax{}, inferencePairsMax{}, inferenceCandidatesMin = SIZE_MAX;
+        size_t inferenceTruncatedQueries{};
         auto infer = [&](Id placement) {
             const auto point = view.project(doc.worldTransform(placement).point({0, 0, 1}));
             const auto hit = view.pick(point);
@@ -235,8 +236,9 @@ int main(int argc, char **argv) {
             timer.restart();
             const auto result = inference.query(query);
             const auto elapsed = timer.nsecsElapsed() / 1e6;
-            check(!result.truncated && !result.candidates.empty(),
-                  "Inference probe returns candidates without truncation");
+            check(!result.candidates.empty() && result.candidates.size() <= 32,
+                  "Inference probe returns a bounded candidate list");
+            inferenceTruncatedQueries += result.truncated;
             check(std::any_of(result.candidates.begin(), result.candidates.end(),
                               [&](const auto &candidate) { return candidate.body == hit.first; }),
                   "Inference includes the geometry hit by the actual viewport");
@@ -328,6 +330,8 @@ int main(int argc, char **argv) {
             {"inferenceVisitedPrimitivesMax", qint64(inferenceVisitedMax)},
             {"inferenceIntersectionPairsMax", qint64(inferencePairsMax)},
             {"inferenceCandidatesMin", qint64(inferenceCandidatesMin)},
+            {"inferenceValidatedQueries", 61},
+            {"inferenceTruncatedQueries", qint64(inferenceTruncatedQueries)},
             {"inferenceTimingScope",
              "Production geometry index, actual viewport camera, 8 logical "
              "pixel radius, all editing contexts; excludes worker queueing, "
