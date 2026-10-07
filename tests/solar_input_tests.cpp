@@ -13,11 +13,14 @@
 #include <QDialogButtonBox>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QRunnable>
 #include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QThreadPool>
 #include <QTimeEdit>
 #include <QTimer>
+#include <future>
 #include <iostream>
 using namespace sketchy;
 namespace {
@@ -60,9 +63,11 @@ void modal(Window &window, const std::function<void(QDialog *)> &operation) {
     if (failure)
         std::rethrow_exception(failure);
 }
-QColor sample(Viewport &view, Vec3 point) {
-    QCoreApplication::processEvents();
-    view.repaint();
+QColor sample(Viewport &view, Vec3 point, bool processEvents = true) {
+    if (processEvents) {
+        QCoreApplication::processEvents();
+        view.repaint();
+    }
     const auto image = view.grabFramebuffer();
     check(!image.isNull() && view.rendererReady() && view.renderStats().glError == 0,
           "Solar framebuffer available without GL errors");
@@ -72,6 +77,33 @@ QColor sample(Viewport &view, Vec3 point) {
     check(image.rect().contains(pixel), "Solar probe in viewport");
     return image.pixelColor(pixel);
 }
+// Hold decoding until a frame has used the fallback, then publish without pumping
+// GUI timers. The next explicitly requested frame must consume the completed image.
+class DecodeGate {
+    QThreadPool *pool_{QThreadPool::globalInstance()};
+    int previous_{pool_->maxThreadCount()};
+    std::promise<void> release_;
+    bool released_{};
+
+  public:
+    DecodeGate() {
+        check(pool_->waitForDone(10000), "Existing workers settle before decode gate");
+        pool_->setMaxThreadCount(1);
+        auto gate = release_.get_future().share();
+        pool_->start(QRunnable::create([gate] { gate.wait(); }));
+    }
+    void finish() {
+        release_.set_value();
+        released_ = true;
+        check(pool_->waitForDone(10000), "Controlled texture decode publishes");
+    }
+    ~DecodeGate() {
+        if (!released_)
+            release_.set_value();
+        pool_->waitForDone(10000);
+        pool_->setMaxThreadCount(previous_);
+    }
+};
 } // namespace
 int main(int argc, char **argv) {
     QSurfaceFormat format;
@@ -189,12 +221,19 @@ int main(int argc, char **argv) {
         const auto material =
             createMaterial(doc, "Transparent shadow fixture", {1, 1, 1}, 1, asset);
         assignMaterial(doc, body, {}, material, true, true);
-        sync(window);
-        sample(view, probe);
-        check(QTest::qWaitFor([&] { return !view.texturesPending(); }, 10000),
-              "Shadow texture worker settles");
-        check(sample(view, probe).lightness() > shadow.lightness() + 25,
-              "Texture alpha cutouts do not cast solid shadows");
+        {
+            DecodeGate gate;
+            sync(window);
+            sample(view, probe);
+            check(view.texturesPending(), "Controlled texture remains queued during fallback");
+            gate.finish();
+            check(!view.texturesPending(), "Shadow texture worker settles");
+            const auto frames = view.renderStats().frames;
+            const auto cutoutShadow = sample(view, probe, false);
+            check(view.renderStats().frames > frames, "Explicit capture paints a fresh frame");
+            check(cutoutShadow.lightness() > shadow.lightness() + 25,
+                  "Fresh frame consumes texture alpha before the refresh timer");
+        }
         doc.undo();
         doc.undo();
         doc.undo();
