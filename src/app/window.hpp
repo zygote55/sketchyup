@@ -63,6 +63,7 @@ class Window : public QMainWindow {
 
   private:
     bool closePending_{};
+    bool fileOperation_{};
     Document doc_;
     Viewport *viewport_{};
     RenderPanel *render_{};

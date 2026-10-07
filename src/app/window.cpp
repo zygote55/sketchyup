@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "app/context_label.hpp"
+#include "app/file_operation.hpp"
 #include "app/inspection_service.hpp"
 #include "app/interface_preferences.hpp"
 #include "app/render_panel.hpp"
@@ -25,6 +26,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScopedValueRollback>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QStyle>
@@ -1109,6 +1111,11 @@ void Window::sync() {
     }
 }
 bool Window::save(bool saveAs) {
+    if (fileOperation_) {
+        status_->setText("Wait for the current file operation to finish.");
+        return false;
+    }
+    QScopedValueRollback busy(fileOperation_, true);
     if (assistant_ && assistant_->uncertain()) {
         status_->setText("Reconcile the assistant outcome before saving.");
         return false;
@@ -1137,17 +1144,25 @@ bool Window::save(bool saveAs) {
     if (target.isEmpty())
         return false;
     try {
-        saveDocument(doc_, target);
+        const auto stamp = doc_.saveStamp();
+        const auto revision = doc_.revision();
+        runFileOperation(this, "Saving model…", [snapshot = doc_.readSnapshot(), target]() mutable {
+            saveDocument(snapshot, target);
+        });
+        if (!doc_.markSaved(stamp))
+            throw std::runtime_error("Saved the prior model; the active document session changed");
         path_ = target;
-        recoveryContext_ = {QFileInfo(target).absoluteFilePath(), doc_.revision(),
+        recoveryContext_ = {QFileInfo(target).absoluteFilePath(), revision,
                             QDateTime::currentDateTimeUtc()};
         recoveredName_.clear();
         saveFailure_.clear();
         saveBanner_->hide();
-        clearRecovery();
+        if (!doc_.dirty())
+            clearRecovery();
         rememberPath(target);
         sync();
-        status_->setText("Saved locally");
+        status_->setText(doc_.dirty() ? "Saved snapshot; newer edits remain unsaved."
+                                      : "Saved locally");
         return true;
     } catch (const std::exception &e) {
         saveFailure_ = QString::fromUtf8(e.what());
@@ -1160,6 +1175,10 @@ bool Window::save(bool saveAs) {
     }
 }
 bool Window::canReplace() {
+    if (fileOperation_) {
+        status_->setText("Wait for the current file operation to finish.");
+        return false;
+    }
     if (assistant_ && assistant_->uncertain()) {
         status_->setText("Reconcile the assistant outcome before replacing or closing this model.");
         return false;
@@ -1171,6 +1190,10 @@ bool Window::canReplace() {
         if ((choice != QMessageBox::Save && choice != QMessageBox::Discard) ||
             (choice == QMessageBox::Save && !save()))
             return false;
+        if (choice == QMessageBox::Save && doc_.dirty()) {
+            status_->setText("New edits arrived while saving. Review them before continuing.");
+            return false;
+        }
     }
     try {
         if (assistant_)
@@ -1183,8 +1206,13 @@ bool Window::canReplace() {
     return true;
 }
 void Window::openPath(const QString &path) {
+    if (fileOperation_)
+        throw std::runtime_error("Wait for the current file operation to finish");
     // Validate before asking to discard the current document.
-    auto loaded = loadDocument(path);
+    auto loaded = [&] {
+        QScopedValueRollback busy(fileOperation_, true);
+        return runFileOperation(this, "Opening model…", [path] { return loadDocument(path); });
+    }();
     if (!canReplace())
         return;
     doc_ = std::move(loaded);
