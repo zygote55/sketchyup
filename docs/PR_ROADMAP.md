@@ -1238,7 +1238,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R086 — Gate AI release on live provider evaluations
 
-**Status:** In progress. An overlapping [versioned corpus and scoring gate](verification/R086a-frozen-provider-corpus.md) freezes eight synthetic tasks, repeated-run thresholds and hard safety blockers before live evaluations. The [OpenAI ChatGPT-plan run](verification/R086b-remote-evaluation.md) passes all 24 reviewed checks (21 live tasks and three offline controls), with no safety blockers. Local-provider acceptance, remaining release review, final integration, remote CI and ordered merges remain open. **Track:** Quality. **Scope:** A04, A05, A08. **UX:** —.
+**Status:** In progress. An overlapping [versioned corpus and scoring gate](verification/R086a-frozen-provider-corpus.md) freezes eight synthetic tasks, repeated-run thresholds and hard safety blockers before live evaluations. The [OpenAI ChatGPT-plan run](verification/R086b-remote-evaluation.md) passes all 24 reviewed checks (21 live tasks and three offline controls), with no safety blockers. The [frozen local profile](verification/R086c-local-evaluation.md) fails all seven live-task thresholds (0/3 each), while all three unavailable controls and every manual fallback pass; no safety blocker was observed. Local-profile support/replacement evaluation, remaining release review, final integration, remote CI and ordered merges remain open. **Track:** Quality. **Scope:** A04, A05, A08. **UX:** —.
 
 **Requires:** [R081](#r081), [R046](#r046), [R083](#r083); milestone gate rule above.
 
