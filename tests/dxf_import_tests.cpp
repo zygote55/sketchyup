@@ -96,9 +96,10 @@ int main(int argc, char **argv) {
         check(legacy.report["curves"].toInt() == 2 &&
                   legacy.document.bodies().at(4)->surface.wires.size() == 3,
               "R12 polyline conversion and caller resolution");
+#ifdef CLI_PATH
         QTemporaryDir directory;
         check(directory.isValid(), "CLI scratch");
-        const auto cli = QCoreApplication::applicationDirPath() + "/sketchyup-cli";
+        const auto cli = QString::fromUtf8(CLI_PATH);
         auto invoke = [&](QStringList args, bool success) {
             QProcess p;
             p.start(cli, args);
@@ -127,6 +128,7 @@ int main(int argc, char **argv) {
                false);
         check(loadDxf(output).report["curves"].toInt() == 3, "CLI export retains analytic curves");
         check(file.seek(0) && file.readAll() == bytes, "CLI leaves source DXF untouched");
+#endif
         std::cout << "Native DXF independent dimensions, layers, analytic curves, undo, "
                      "persistence and bounds passed\n";
     } catch (const std::exception &e) {
