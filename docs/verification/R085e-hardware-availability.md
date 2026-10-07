@@ -1,11 +1,15 @@
 # Reference hardware availability
 
-2026-10-07. The project owner confirmed that only the current Linux development
-machine is available; it exposes Intel integrated graphics. No discrete-GPU Linux
-machine is available for the required later benchmark.
+2026-10-07. Initially the project owner confirmed that only the current Linux
+development machine, with Intel integrated graphics, was available. That blocked
+the discrete-GPU portion of R082/R085; the requirement was not waived.
 
-The discrete-GPU portion of R082/R085 acceptance is therefore blocked by hardware
-availability. This is not a waiver or a passing result. Integrated-GPU and software
-rendering evidence keep their stated scope, and development/local checks continue.
-The release gate remains open until the required hardware evidence is obtained or
-an explicit, documented acceptance-scope decision changes that requirement.
+Later the same day, the owner supplied access to a CachyOS system with a discrete
+AMD Navi 21 GPU and 16 GiB VRAM. Authenticated inspection confirms an active
+XFCE/X11 session and accelerated OpenGL through `amdgpu`/Mesa. The
+[discrete-GPU follow-up](R085f-discrete-gpu.md) records the exact environment,
+retained benchmark binary and bounded measurements.
+
+Hardware availability no longer blocks that work. The full fixture corpus,
+controlled reference measurements, current release-candidate checks and acceptance
+remain open. Existing Intel and software evidence retain their original scope.
