@@ -84,10 +84,13 @@ TextPanel::TextPanel(Document &doc, Viewport &view, QWidget *parent)
         connect(action, &QAction::triggered, this, [this, operation] { attempt(operation); });
         auto *button = new QPushButton(label);
         button->setObjectName(id + "Button");
+        button->setToolTip(shortcut.isEmpty()
+                               ? label
+                               : label + " (" + shortcut.toString(QKeySequence::NativeText) + ")");
         connect(button, &QPushButton::clicked, action, &QAction::trigger);
         buttons->addWidget(button, row, column);
     };
-    button("textCreate", "Create 3D text…", 0, 0, QKeySequence("Ctrl+Shift+T"),
+    button("textCreate", "Create 3D text…", 0, 0, QKeySequence("Ctrl+Alt+Shift+T"),
            [this] { edit(true); });
     button("textEdit", "Edit text…", 0, 1, QKeySequence(Qt::Key_F2), [this] { edit(false); });
     button("textBake", "Bake geometry", 1, 0, {}, [this] { bake(); });
