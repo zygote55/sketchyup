@@ -1,0 +1,24 @@
+{
+  "manifestVersion": 1,
+  "commandApiVersion": 1,
+  "execution": "command-batch-v1",
+  "id": "org.sketchyup.panel",
+  "name": "Parametric panel",
+  "version": "1.0.0",
+  "description": "Create a named rectangular face at the model origin. Dimensions are in metres.",
+  "capabilities": {"commands": ["geometry.face"]},
+  "actions": [{
+    "id": "create-panel",
+    "name": "Create panel",
+    "description": "Creates one editable face in the XY plane as one undoable edit.",
+    "parameters": [
+      {"name": "width", "label": "Width (m)", "type": "number", "default": 2, "minimum": 0.001, "maximum": 1000},
+      {"name": "height", "label": "Height (m)", "type": "number", "default": 1, "minimum": 0.001, "maximum": 1000},
+      {"name": "name", "label": "Panel name", "type": "string", "default": "Panel"}
+    ],
+    "commands": [{"command": "geometry.face", "name": {"$parameter": "name"}, "loops": [[
+      [0, 0, 0], [{"$parameter": "width"}, 0, 0],
+      [{"$parameter": "width"}, {"$parameter": "height"}, 0], [0, {"$parameter": "height"}, 0]
+    ]]}]
+  }]
+}
