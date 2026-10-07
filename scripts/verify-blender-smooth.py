@@ -9,12 +9,13 @@ import sys
 import bpy
 from mathutils import Vector
 
+engine = 'BLENDER_EEVEE' if sys.argv[-1] == 'eevee' else 'CYCLES'
 root = Path(sys.argv[sys.argv.index('--') + 1]).resolve()
 spec = importlib.util.spec_from_file_location('worker', Path(__file__).resolve().parents[1] / 'src/integrations/blender_worker.py')
 worker = importlib.util.module_from_spec(spec)
 sys.dont_write_bytecode = True
 spec.loader.exec_module(worker)
-output = root / 'renders'
+output = root / ('renders-eevee' if engine == 'BLENDER_EEVEE' else 'renders')
 output.mkdir(exist_ok=True)
 reports = []
 pixels = {}
@@ -60,7 +61,7 @@ for variant in range(4):
             expected = Vector((c*n.x - s*n.y, s*n.x + c*n.y, n.z)).normalized()
             actual = (matrix @ mesh.corner_normals[index].vector).normalized()
             assert (actual - expected).length < 5e-4, 'Physical mirrored world normal'
-    scene.render.engine = 'CYCLES'
+    scene.render.engine = engine
     scene.cycles.samples = 32
     scene.cycles.seed = 7
     scene.cycles.use_denoising = False
@@ -111,6 +112,6 @@ assert abs(pixels[0][0] - pixels[1][0]) > .025, ('Smooth normals change actual C
 assert abs(pixels[0][0] - pixels[3][0]) < .015, ('Explicit hard top retains flat shading', pixels)
 assert abs(pixels[1][0] - pixels[2][0]) < .015, ('Adding mirrored shared instance leaves original shading intact', pixels)
 assert not list(output.glob('cycles-import-*')), 'Private worker import copies are removed'
-result = {'blender': bpy.app.version_string, 'reports': reports}
-(root / 'smooth-blender-validation.json').write_text(json.dumps(result, indent=2) + '\n')
+result = {'blender': bpy.app.version_string, 'engine': engine, 'reports': reports}
+(root / ('smooth-blender-eevee-validation.json' if engine == 'BLENDER_EEVEE' else 'smooth-blender-validation.json')).write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps(result))

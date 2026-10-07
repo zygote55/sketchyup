@@ -1,0 +1,51 @@
+{
+  "blender": "5.2.1 LTS",
+  "engine": "BLENDER_EEVEE",
+  "reports": [
+    {
+      "rotationDegrees": 0,
+      "strength": 1,
+      "mean": [
+        0.8998162420466542,
+        0.2476715836673975,
+        0.26292893569916487,
+        1.0
+      ],
+      "originalRemovedBeforeRender": true
+    },
+    {
+      "rotationDegrees": 180,
+      "strength": 1,
+      "mean": [
+        0.2648897198960185,
+        0.2476715836673975,
+        0.8997549675405025,
+        1.0
+      ],
+      "originalRemovedBeforeRender": true
+    },
+    {
+      "rotationDegrees": 0,
+      "strength": 0.25,
+      "mean": [
+        0.4808823838829994,
+        0.11482843942940235,
+        0.12334559578448534,
+        1.0
+      ],
+      "originalRemovedBeforeRender": true
+    },
+    {
+      "rotationDegrees": 0,
+      "strength": 0,
+      "mean": [
+        0.00042892159399343655,
+        0.00042892159399343655,
+        0.00042892159399343655,
+        1.0
+      ],
+      "originalRemovedBeforeRender": true
+    }
+  ],
+  "invalidSnapshotsRejected": 8
+}

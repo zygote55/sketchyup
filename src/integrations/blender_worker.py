@@ -12,7 +12,7 @@ import bpy
 from mathutils import Vector
 
 ADAPTER = 'sketchyup-blender-v1'
-BACKENDS = {'CPU', 'CUDA', 'OPTIX', 'HIP', 'ONEAPI', 'METAL'}
+BACKENDS = {'CPU', 'CUDA', 'OPTIX', 'HIP', 'ONEAPI', 'METAL', 'OPENGL'}
 
 
 class WorkerError(Exception):
@@ -48,7 +48,23 @@ def publish(directory, result):
     os.replace(temporary, directory / 'result.json')
 
 
+def raster_device():
+    import gpu
+    gpu.init()
+    identity = {key: getattr(gpu.platform, key + '_get')() for key in
+                ('backend_type', 'device_type', 'renderer', 'vendor', 'version')}
+    if identity['backend_type'] != 'OPENGL':
+        raise WorkerError('device_unavailable', 'Eevee preview requires the probed OpenGL renderer')
+    digest = sha(json.dumps(identity, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode())
+    return {'backend': 'OPENGL', 'id': 'opengl:' + digest,
+            'name': identity['renderer'], 'graphics': identity}
+
+
 def capabilities(backend):
+    if backend == 'OPENGL':
+        device = raster_device()
+        return {'backends': ['OPENGL'], 'devices': [device], 'backendAvailable': True,
+                'engines': ['eevee'], 'deviceSelection': 'active-context-fingerprint'}
     preferences = bpy.context.preferences.addons['cycles'].preferences
     compiled = ['CPU'] + [item[0] for item in preferences.get_device_types(bpy.context) if item[0] != 'NONE']
     if backend == 'CPU':
@@ -60,10 +76,16 @@ def capabilities(backend):
         # can crash Blender on unsupported systems, even when CPU was requested.
         devices = [{'id': device.id, 'name': device.name, 'backend': device.type}
                    for device in preferences.get_devices_for_type(backend) if device.type == backend]
-    return {'backends': compiled, 'devices': devices, 'backendAvailable': bool(devices)}
+    return {'backends': compiled, 'devices': devices, 'backendAvailable': bool(devices), 'engines': ['cycles'],
+            'deviceSelection': 'explicit-cycles-device'}
 
 
 def configure_device(backend, device_id):
+    if backend == 'OPENGL':
+        device = raster_device()
+        if device['id'] != device_id:
+            raise WorkerError('device_unavailable', 'OpenGL renderer changed since the explicit device selection')
+        return device
     if backend == 'CPU':
         bpy.context.scene.cycles.device = 'CPU'
         return {'backend': 'CPU', 'id': 'CPU', 'name': 'CPU'}
@@ -517,6 +539,9 @@ def render(request, directory):
             not 64 <= settings['width'] <= 4096 or not 64 <= settings['height'] <= 4096 or
             not 1 <= settings['samples'] <= 1024 or not 0 <= settings['seed'] <= 1000000):
         raise WorkerError('invalid_snapshot', 'Unsupported snapshot settings')
+    engine = settings.get('engine', 'cycles')
+    if engine not in ('cycles', 'eevee') or (engine == 'eevee') != (request['backend'] == 'OPENGL'):
+        raise WorkerError('invalid_request', 'Render engine and selected device backend do not match')
     progress('loading')
     bpy.ops.wm.read_factory_settings(use_empty=True)
     import_snapshot(scene_bytes, directory)
@@ -526,13 +551,22 @@ def render(request, directory):
     if len(cameras) != 1:
         raise WorkerError('invalid_snapshot', 'Snapshot requires exactly one render camera')
     scene.camera = cameras[0]
-    scene.render.engine = 'CYCLES'
+    scene.render.engine = 'BLENDER_EEVEE' if engine == 'eevee' else 'CYCLES'
     actual_device = configure_device(request['backend'], request['deviceId'])
-    scene.cycles.samples = settings['samples']
-    scene.cycles.seed = settings['seed']
-    scene.cycles.use_adaptive_sampling = False
-    scene.cycles.use_denoising = False
-    scene.cycles.max_bounces = 8
+    if engine == 'eevee':
+        scene.eevee.taa_render_samples = settings['samples']
+        scene.eevee.use_raytracing = False
+        scene.eevee.use_fast_gi = True
+        scene.eevee.use_shadows = True
+        scene.eevee.shadow_resolution_scale = 1
+        scene.eevee.shadow_ray_count = 1
+        scene.eevee.shadow_step_count = 6
+    else:
+        scene.cycles.samples = settings['samples']
+        scene.cycles.seed = settings['seed']
+        scene.cycles.use_adaptive_sampling = False
+        scene.cycles.use_denoising = False
+        scene.cycles.max_bounces = 8
     scene.render.threads_mode = 'FIXED'
     scene.render.threads = 4
     scene.render.resolution_x = settings['width']
@@ -560,12 +594,24 @@ def render(request, directory):
         losses['solarLightingOmitted'] = 0
     if 'environment' in manifest:
         losses['environmentLightingOmitted'] = 0
+    if engine == 'eevee':
+        losses['indirectLightingApproximated'] = 1
+    preset = {'name': lighting['mode'], 'engine': scene.render.engine, 'threads': 4,
+              'samplingPolicy': 'eevee-preview-v1' if engine == 'eevee' else 'cycles-fixed-v1',
+              'samples': settings['samples'], 'viewTransform': 'Standard', 'look': 'None',
+              'exposure': 0, 'gamma': 1, 'worldStrength': lighting['worldStrength']}
+    if engine == 'eevee':
+        preset.update({'rayTracing': False, 'fastGI': True, 'shadows': True,
+                       'shadowResolutionScale': 1, 'shadowRayCount': 1, 'shadowStepCount': 6})
+        if settings['seed']:
+            losses['samplingSeedNotApplied'] = 1
+    else:
+        preset.update({'adaptiveSampling': False, 'denoising': False, 'maxBounces': 8,
+                       'seed': settings['seed']})
     return {'status': 'succeeded', 'documentId': manifest['documentId'], 'revision': manifest['revision'],
             'manifestSha256': request['manifestSha256'], 'sceneSha256': manifest['scene']['sha256'],
             'settings': settings, 'device': actual_device, 'losses': losses, 'lighting': lighting,
-            'preset': {'name': lighting['mode'], 'engine': 'CYCLES', 'threads': 4, 'adaptiveSampling': False,
-                       'denoising': False, 'maxBounces': 8, 'viewTransform': 'Standard', 'look': 'None',
-                       'exposure': 0, 'gamma': 1, 'worldStrength': lighting['worldStrength']},
+            'preset': preset,
             'image': {'file': 'image.png', 'width': settings['width'], 'height': settings['height'],
                       'bytes': len(image_bytes), 'sha256': sha(image_bytes)}}
 
@@ -584,7 +630,7 @@ def main():
             raise WorkerError('invalid_request', 'Unsupported worker request')
         if bpy.app.version[:2] != (5, 2):
             raise WorkerError('unsupported_version', 'This adapter supports Blender 5.2 LTS')
-        if not bpy.app.build_options.cycles or 'cycles' not in bpy.context.preferences.addons:
+        if request['backend'] != 'OPENGL' and (not bpy.app.build_options.cycles or 'cycles' not in bpy.context.preferences.addons):
             raise WorkerError('cycles_unavailable', 'This Blender build does not include Cycles')
         if request['operation'] == 'probe':
             result = {'status': 'available', 'lightingPolicies': ['studio-v1', 'solar-v1', 'hdri-v1', 'solar-hdri-v1'],

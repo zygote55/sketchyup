@@ -1,0 +1,82 @@
+[
+  {
+    "implementation": "98006c4fa82519d45bcc063a16c8bd78b78069d4",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "render_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 2.305
+  },
+  {
+    "implementation": "98006c4fa82519d45bcc063a16c8bd78b78069d4",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "render_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.313
+  },
+  {
+    "implementation": "98006c4fa82519d45bcc063a16c8bd78b78069d4",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "render_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.891
+  },
+  {
+    "implementation": "98006c4fa82519d45bcc063a16c8bd78b78069d4",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "render_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.268
+  },
+  {
+    "implementation": "98006c4fa82519d45bcc063a16c8bd78b78069d4",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "render_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 9.977
+  },
+  {
+    "implementation": "98006c4fa82519d45bcc063a16c8bd78b78069d4",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "render_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 10.618
+  },
+  {
+    "implementation": "98006c4fa82519d45bcc063a16c8bd78b78069d4",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "render_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 12.291
+  },
+  {
+    "implementation": "98006c4fa82519d45bcc063a16c8bd78b78069d4",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "render_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 12.596
+  }
+]

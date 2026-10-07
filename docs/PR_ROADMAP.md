@@ -1030,7 +1030,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R069 — Complete Blender material, camera and lighting conversion
 
-**Status:** In progress. R069.a–b carries immutable sun studies and bounded HDR environments into Blender, verifies applied lighting/transfer reports and exposes native HDR setup ([133-suite, native/sanitizer, actual-pixel and installed acceptance](verification/R069ab-blender-lighting.md)). Eevee preview and broader conversion comparisons follow. **Track:** Rendering. **Scope:** P08. **UX:** —.
+**Status:** Implementation and local acceptance complete. R069.a–b carries immutable sun studies and bounded HDR environments into Blender, verifies applied lighting/transfer reports and exposes native HDR setup ([133-suite, native/sanitizer, actual-pixel and installed acceptance](verification/R069ab-blender-lighting.md)). R069.c adds explicit Eevee previews and renderer fingerprints, cross-engine pixel comparisons and native/installed acceptance ([evidence](verification/R069c-eevee-preview.md)). Remote CI and ordered merges remain. **Track:** Rendering. **Scope:** P08. **UX:** —.
 
 **Requires:** [R061](#r061), [R064](#r064), [R067](#r067), [R049](#r049); milestone gate rule above.
 
