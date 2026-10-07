@@ -28,6 +28,61 @@ bool has(const InferenceResult &r, InferenceKind kind, Vec3 point) {
 }
 int main(int argc, char **argv) {
     try {
+        // Real viewport matrices from the 25-unique-prism performance fixture.
+        // The float inverse has a small round-trip error. Reprojecting a surface
+        // candidate must not let its own face hide it.
+        Document precision;
+        std::vector<Vec3> precisionLoop;
+        for (int i = 0; i < 26; ++i) {
+            const auto angle = 2 * std::numbers::pi * i / 26;
+            precisionLoop.push_back({1.064 * std::cos(angle), 1.064 * std::sin(angle), 0});
+        }
+        const auto precisionBody = precision.addFace({precisionLoop});
+        precision.extrude(precisionBody,
+                          precision.bodies().at(precisionBody)->surface.faces.begin()->first, 1);
+        precision.transform(precisionBody, Transform::translation({12, 4, 0}));
+        InferenceCamera captured;
+        captured.clipFromWorld = {0.9602474570274353,  -0.9791561961174011, -0.5792322754859924,
+                                  -0.5792279839515686, 0.9602474570274353,  0.9791561961174011,
+                                  0.5792322754859924,  0.5792279839515686,  0,
+                                  1.9776078462600708,  -0.5735806822776794, -0.5735764503479004,
+                                  -15.455582618713379, -1.050899863243103,  37.42549514770508,
+                                  37.43265151977539};
+        captured.worldFromClip = {0.520699143409729,
+                                  0.520699143409729,
+                                  0,
+                                  0,
+                                  -0.16797274214241043,
+                                  0.1679857684948729,
+                                  0.3393215835094452,
+                                  8.094048666862363e-07,
+                                  -3975.7705078125,
+                                  1810.4658203125,
+                                  -2936.37890625,
+                                  -134.52928161621094,
+                                  3975.220703125,
+                                  -1809.900146484375,
+                                  2935.8271484375,
+                                  134.5302734375};
+        captured.width = 1920;
+        captured.height = 1080;
+        InferenceIndex precisionIndex;
+        precisionIndex.sync(precision);
+        const InferenceQuery precisionQuery{captured, 957.2705078125, 655.7332153320312, 8};
+        const auto precise = precisionIndex.query(precisionQuery);
+        check(std::any_of(precise.candidates.begin(), precise.candidates.end(),
+                          [&](const auto &candidate) { return candidate.body == precisionBody; }),
+              "A visible face cannot occlude itself after camera round-trip error");
+        const auto blocker =
+            precision.addFace({{{-100, -100, 2}, {100, -100, 2}, {100, 100, 2}, {-100, 100, 2}}});
+        precisionIndex.sync(precision);
+        const auto blocked = precisionIndex.query(precisionQuery);
+        check(
+            std::none_of(blocked.candidates.begin(), blocked.candidates.end(),
+                         [&](const auto &candidate) { return candidate.body == precisionBody; }) &&
+                std::any_of(blocked.candidates.begin(), blocked.candidates.end(),
+                            [&](const auto &candidate) { return candidate.body == blocker; }),
+            "A separate foreground face still occludes the original surface");
         Document doc;
         doc.addWire(0, {-.8, 0, 0}, {.8, 0, 0});
         InferenceIndex index;
