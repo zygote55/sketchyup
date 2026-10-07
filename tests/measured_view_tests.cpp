@@ -93,6 +93,8 @@ int main() {
         check(result.lines.size() == 2, "Depth interpolation clips only the behind portion");
         near(result.lines[0].b.x, 90);
         near(result.lines[1].a.x, 100 - 4e-6);
+        const MeasuredTriangle broad{{Vec3{-100, -100, 1}, Vec3{100, -100, 1}, Vec3{0, 100, 1}}};
+        rejects([&] { measuredHiddenLines(page, {}, std::vector<MeasuredTriangle>(1000, broad)); });
         std::cout << "Measured millimetres, orthographic frames, margins, hidden intervals and "
                      "depth clipping passed\n";
     } catch (const std::exception &e) {
