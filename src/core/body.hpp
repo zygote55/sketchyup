@@ -1,5 +1,6 @@
 #pragma once
 #include "core/texture_mapping.hpp"
+#include "core/reference_image.hpp"
 #include "core/text_source.hpp"
 #include "core/transform.hpp"
 #include "geometry/cleanup.hpp"
@@ -13,7 +14,7 @@
 #include <string>
 #include <variant>
 namespace sketchy {
-enum class BodyKind { Geometry, Group };
+enum class BodyKind { Geometry, Group, ReferenceImage };
 struct MaterialSides {
     Id front{}, back{};
     bool operator==(const MaterialSides &) const = default;
@@ -47,6 +48,7 @@ struct Body {
     Id tag{}; // Zero is Untagged; organizational visibility never owns geometry.
     std::map<std::string, std::variant<bool, double, std::string>> properties;
     std::optional<TextSource> textSource;
+    std::optional<ReferenceImage> referenceImage;
     bool operator==(const Body &) const = default;
 };
 using BodyPtr = std::shared_ptr<const Body>;

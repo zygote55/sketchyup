@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
             doc.setStyle(style);
             const auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
             const auto root = QJsonDocument::fromJson(raw).object();
-            check(root["version"] == 23 && decodeDocument(raw).style() == style,
+            check(root["version"] == 24 && decodeDocument(raw).style() == style,
                   "Current schema preserves all style fields and modes");
             auto reopened = decodeContainer(bytes);
             check(reopened.style() == style && encodeContainer(reopened) == bytes &&
@@ -202,7 +202,7 @@ int main(int argc, char **argv) {
             auto original = QJsonDocument::fromJson(
                                 bytes.mid(16 + length, chunk["bytes"].toString().toLongLong()))
                                 .object();
-            original["version"] = 23;
+            original["version"] = 24;
         original["solar"] = encodeSolarSettings(SolarSettings{});
             original["annotations"] = QJsonArray{};
             original["nextAnnotationId"] = "1";
