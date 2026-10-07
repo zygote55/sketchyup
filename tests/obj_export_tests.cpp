@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <iostream>
 using namespace sketchy;
@@ -97,6 +98,24 @@ int main(int argc, char **argv) {
               "Nested hierarchy loss");
         const auto output = dir.path() + "/package";
         writeObjExport(package, output);
+        if (app.arguments().contains("--blender-real")) {
+            const auto blender = qEnvironmentVariable("SKETCHYUP_BLENDER_TEST");
+            if (blender.isEmpty())
+                return 77;
+            QProcess consumer;
+            consumer.start(blender, {"--background", "--factory-startup", "--disable-autoexec",
+                                     "--python-exit-code", "1", "--python",
+                                     QStringLiteral(SOURCE_DIR "/tests/obj_blender_consumer.py"),
+                                     "--", output + "/model.obj"});
+            check(consumer.waitForStarted(10000) && consumer.waitForFinished(90000) &&
+                      consumer.exitStatus() == QProcess::NormalExit && consumer.exitCode() == 0,
+                  "Actual Blender OBJ consumer");
+            check(consumer.readAllStandardOutput().contains("SKETCHYUP_OBJ_CONSUMER_VERIFIED"),
+                  "Independent Blender assertions completed");
+            std::cout
+                << "Blender verified OBJ geometry, UV, texture, units, reflection and opacity\n";
+            return 0;
+        }
         check(QJsonDocument::fromJson(read(output + "/manifest.json")).object() == package.manifest,
               "Manifest published intact");
         const auto imported = loadObj(output + "/model.obj", {.001, ObjUpAxis::Y});
@@ -178,6 +197,21 @@ int main(int argc, char **argv) {
             }
         }
         near(area, 12);
+        Document separate;
+        auto seams = std::make_shared<Body>();
+        seams->id = 1;
+        seams->surface.vertices = {{1, {0, 0, 0}}, {2, {1, 0, 0}},  {3, {0, 1, 0}},
+                                   {4, {0, 0, 0}}, {5, {-1, 0, 0}}, {6, {0, 0, 1}}};
+        seams->surface.nextId = 7;
+        seams->surface.addFaceIds({{1, 2, 3}});
+        seams->surface.addFaceIds({{4, 5, 6}});
+        seams->topology = Topology::rebuild(seams->surface, {});
+        Edit se{"Separate coincident vertices", {{1, nullptr, seams}}};
+        se.nextIdFloor = 2;
+        separate.apply(std::move(se), separate.revision());
+        const auto sp = exportObj(separate, {1, ObjUpAxis::Z});
+        check(parseObj(sp.obj, {1, ObjUpAxis::Z}).vertices.size() == 6,
+              "Distinct coincident native vertices retain separate OBJ indices");
         Document wires;
         auto w = std::make_shared<Body>();
         w->id = 1;

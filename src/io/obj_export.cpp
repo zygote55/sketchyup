@@ -135,9 +135,9 @@ struct Writer {
     void geometry(Id id, const Body &body) {
         const auto world = doc.worldTransform(id), inverse = world.inverse();
         const bool reflected = world.determinant() < 0;
-        std::map<Triple, size_t> vertexIndices;
-        auto vertex = [&](Vec3 local) {
-            const Triple key{local.x, local.y, local.z};
+        std::map<std::pair<Id, Triple>, size_t> vertexIndices;
+        auto vertex = [&](Vec3 local, Id identity) {
+            const auto key = std::make_pair(identity, Triple{local.x, local.y, local.z});
             if (!vertexIndices.contains(key)) {
                 require(vertexCount < 100000, "OBJ export exceeds 100000 positions");
                 const auto p = axis(world.point(local)) * (1 / options.metresPerUnit);
@@ -157,22 +157,29 @@ struct Writer {
                                    {"sourceBody", QString::number(id)},
                                    {"sourceName", QString::fromStdString(body.name)}});
         ShadingNormals shading(body);
+        size_t currentMaterial = 0;
         for (const auto &[faceId, face] : body.surface.faces) {
             const auto [materialId, textured] = material(body, faceId);
             const bool hasUV = textured || faceTextureMappings(body, faceId).front.has_value();
             const auto mapping = effectiveFaceTextureMapping(body, faceId);
-            elements += "usemtl material-" + QByteArray::number(materialId) + "\n";
-            auto polygon = [&](std::vector<Vec3> points, std::vector<Vec3> smooth) {
+            if (materialId != currentMaterial) {
+                elements += "usemtl material-" + QByteArray::number(materialId) + "\n";
+                currentMaterial = materialId;
+            }
+            auto polygon = [&](std::vector<Vec3> points, std::vector<Vec3> smooth,
+                               std::vector<Id> identities) {
                 require(++faceCount <= 100000, "OBJ export exceeds 100000 faces");
                 cornerCount += points.size();
                 require(cornerCount <= 500000, "OBJ export exceeds 500000 corners");
                 if (reflected) {
                     std::reverse(points.begin(), points.end());
                     std::reverse(smooth.begin(), smooth.end());
+                    std::reverse(identities.begin(), identities.end());
                 }
                 elements += 'f';
                 for (size_t i = 0; i < points.size(); ++i) {
-                    const auto v = vertex(points[i]), n = normal(transformedNormal(smooth[i]));
+                    const auto v = vertex(points[i], identities[i]),
+                               n = normal(transformedNormal(smooth[i]));
                     elements += ' ' + QByteArray::number(v) + '/';
                     if (hasUV)
                         elements += QByteArray::number(uv(mapping.coordinates(points[i])));
@@ -187,13 +194,49 @@ struct Writer {
                     points.push_back(body.surface.vertices.at(v));
                     smooth.push_back(shading.corner(faceId, v));
                 }
-                polygon(std::move(points), std::move(smooth));
+                polygon(std::move(points), std::move(smooth), face.loops[0]);
             } else {
                 loss("facesTriangulated");
+                using Grid = std::array<std::int64_t, 3>;
+                auto grid = [](Vec3 p) {
+                    return Grid{std::int64_t(std::floor(p.x * 1e6)),
+                                std::int64_t(std::floor(p.y * 1e6)),
+                                std::int64_t(std::floor(p.z * 1e6))};
+                };
+                std::map<Grid, std::vector<Id>> vertices;
+                for (const auto &loop : face.loops)
+                    for (const auto v : loop)
+                        vertices[grid(body.surface.vertices.at(v))].push_back(v);
+                auto original = [&](Vec3 point) {
+                    const auto key = grid(point);
+                    Id identity = 0;
+                    double closest = 2e-7;
+                    for (int x = -1; x <= 1; ++x)
+                        for (int y = -1; y <= 1; ++y)
+                            for (int z = -1; z <= 1; ++z) {
+                                const auto found =
+                                    vertices.find({key[0] + x, key[1] + y, key[2] + z});
+                                if (found == vertices.end())
+                                    continue;
+                                for (const auto v : found->second) {
+                                    const auto distance =
+                                        length(body.surface.vertices.at(v) - point);
+                                    if (distance < closest) {
+                                        closest = distance;
+                                        identity = v;
+                                    }
+                                }
+                            }
+                    require(identity != 0, "OBJ triangulation cannot resolve an original vertex");
+                    return identity;
+                };
                 for (const auto &triangle : body.surface.triangulate(faceId)) {
                     const auto smooth = shading.triangle(triangle);
-                    polygon({triangle.a, triangle.b, triangle.c},
-                            {smooth[0], smooth[1], smooth[2]});
+                    const std::vector<Id> ids{original(triangle.a), original(triangle.b),
+                                              original(triangle.c)};
+                    polygon({body.surface.vertices.at(ids[0]), body.surface.vertices.at(ids[1]),
+                             body.surface.vertices.at(ids[2])},
+                            {smooth[0], smooth[1], smooth[2]}, ids);
                 }
             }
         }
@@ -201,8 +244,8 @@ struct Writer {
             require(++wireCount <= 100000, "OBJ export exceeds 100000 wire segments");
             cornerCount += 2;
             require(cornerCount <= 500000, "OBJ export exceeds 500000 corners");
-            const auto a = vertex(body.surface.vertices.at(wire[0])),
-                       b = vertex(body.surface.vertices.at(wire[1]));
+            const auto a = vertex(body.surface.vertices.at(wire[0]), wire[0]),
+                       b = vertex(body.surface.vertices.at(wire[1]), wire[1]);
             elements += "l " + QByteArray::number(a) + ' ' + QByteArray::number(b) + "\n";
             textBudget();
         }
