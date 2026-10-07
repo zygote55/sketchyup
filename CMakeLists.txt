@@ -660,6 +660,12 @@ if(SKETCHYUP_BUILD_CLI)
   target_link_libraries(sketchyup-cli PRIVATE sketchyup_io Qt6::Gui)
   add_dependencies(sketchyup-cli sketchyup-text-worker)
   install(TARGETS sketchyup-cli RUNTIME DESTINATION bin)
+  if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME tool_reference_drift COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate-tool-reference.py"
+      --cli $<TARGET_FILE:sketchyup-cli> --root "${CMAKE_CURRENT_SOURCE_DIR}" --check)
+  endif()
 endif()
 if(SKETCHYUP_BUILD_DESKTOP)
   find_package(Qt6 6.8 REQUIRED COMPONENTS Widgets OpenGLWidgets Test Network)
@@ -997,3 +1003,7 @@ install(FILES docs/decisions/0136-bounded-extension-worker.md DESTINATION share/
 install(FILES docs/api/extensions-v1.json DESTINATION share/doc/sketchyup/api)
 
 install(FILES docs/decisions/0137-native-extension-management.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/TOOL_REFERENCE.md DESTINATION share/doc/sketchyup)
+install(FILES docs/api/tool-reference-v1.json DESTINATION share/doc/sketchyup/api)
+install(FILES docs/decisions/0138-generated-tool-reference.md DESTINATION share/doc/sketchyup/decisions)
