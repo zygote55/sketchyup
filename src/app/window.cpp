@@ -1279,8 +1279,10 @@ void Window::palette() {
     connect(query, &QLineEdit::returnPressed, &dialog, accept);
     connect(list, &QListWidget::itemActivated, &dialog, [&](QListWidgetItem *) { accept(); });
     query->setFocus();
-    if (dialog.exec() == QDialog::Accepted && chosen)
+    if (dialog.exec() == QDialog::Accepted && chosen) {
+        activateWindow();
         chosen();
+    }
 }
 void Window::demo() {
     Document d;
