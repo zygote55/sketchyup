@@ -47,6 +47,7 @@ struct Importer {
     QJsonObject losses;
     std::map<const cgltf_mesh *, DefinitionPtr> meshes;
     std::map<const cgltf_material *, Id> materials;
+    std::set<std::string> materialNames;
     std::map<std::pair<const cgltf_image *, int>, Id> images;
     Id nextBody{1}, nextDefinition{1}, nextMaterial{1}, nextAsset{1}, nextScene{1};
     size_t vertices{}, faces{}, records{}, assetSize{}, decodedBytes{};
@@ -67,6 +68,11 @@ struct Importer {
         auto m = std::make_shared<MaterialRecord>();
         m->id = nextMaterial++;
         m->name = name(source ? source->name : nullptr, "glTF material " + std::to_string(m->id));
+        const auto originalName = m->name;
+        for (size_t suffix = 1; !materialNames.insert(m->name).second; ++suffix)
+            m->name = originalName + " (glTF " + std::to_string(suffix) + ")";
+        if (m->name != originalName)
+            loss("duplicateMaterialNamesRenamed");
         m->color = {1, 1, 1};
         if (source) {
             const auto &pbr = source->pbr_metallic_roughness;
@@ -406,6 +412,7 @@ struct Importer {
         // publication.
         (void)decodeDocument(encodeDocument(result.document));
         const QJsonObject descriptions{
+            {"duplicateMaterialNamesRenamed", "Duplicate material names receive unique suffixes."},
             {"backFaceCullingOmitted", "Faces remain visible from both sides."},
             {"metallicRoughnessOmitted", "Metallic and roughness shading is not retained."},
             {"normalMapsOmitted", "Normal maps are omitted."},

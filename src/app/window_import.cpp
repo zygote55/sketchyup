@@ -25,7 +25,7 @@ void Window::importGltfPath(const QString &path) {
     report.resize(600, 440);
     report.summary->setObjectName("gltfImportSummary");
     report.summary->setText(
-        QString("Imported %1 triangles in %2 mesh instances, with %3 camera views.\n"
+        QString("Imported model\nTriangles: %1 · Mesh instances: %2 · Camera views: %3\n"
                 "Meters; Y-up converted to Z-up. Save to a new .sketchyup file.")
             .arg(imported.report["triangles"].toInteger())
             .arg(imported.report["instances"].toInteger())
