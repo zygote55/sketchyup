@@ -1,11 +1,13 @@
 #include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "core/components.hpp"
+#include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include "io/model_style_io.hpp"
 #include <QApplication>
 #include <QCryptographicHash>
 #include <QElapsedTimer>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QSysInfo>
 #include <QTemporaryDir>
@@ -42,27 +44,59 @@ int main(int argc, char **argv) {
     qputenv("XDG_DATA_HOME", settings.path().toUtf8());
     QApplication app(argc, argv);
     try {
+        check(argc <= 3, "Usage: real_model_benchmark [count] [repeated|unique|deep|far]");
         bool ok = argc == 1;
         const int count = argc == 1 ? 1000 : QString::fromLocal8Bit(argv[1]).toInt(&ok);
         check(ok && count >= 1 && count <= 10000, "Instance count must be 1..10000");
+        const QString scenario = argc == 3 ? QString::fromLocal8Bit(argv[2]) : "repeated";
+        check(scenario == "repeated" || scenario == "unique" || scenario == "deep" ||
+                  scenario == "far",
+              "Unknown benchmark scenario");
         QElapsedTimer timer;
         timer.start();
         Document doc;
-        std::vector<Vec3> loop;
-        for (int i = 0; i < 26; ++i) {
-            const auto angle = 2 * std::numbers::pi * i / 26;
-            loop.push_back({std::cos(angle), std::sin(angle), 0});
-        }
-        const auto body = doc.addFace({loop});
-        doc.extrude(body, doc.bodies().at(body)->surface.faces.begin()->first, 1);
-        const auto component = createComponent(doc, body, "26-sided benchmark prism");
+        auto prism = [&](double radius) {
+            std::vector<Vec3> loop;
+            for (int i = 0; i < 26; ++i) {
+                const auto angle = 2 * std::numbers::pi * i / 26;
+                loop.push_back({radius * std::cos(angle), radius * std::sin(angle), 0});
+            }
+            const auto body = doc.addFace({loop});
+            doc.extrude(body, doc.bodies().at(body)->surface.faces.begin()->first, 1);
+            return body;
+        };
         const int columns = int(std::ceil(std::sqrt(count)));
-        std::vector<Id> instances{component.instance};
-        for (int i = 1; i < count; ++i)
-            instances.push_back(placeComponent(doc, component.definition,
-                                               Transform::translation(
-                                                   {4.0 * (i % columns), 4.0 * (i / columns), 0}))
-                                    .instance);
+        std::vector<Id> instances;
+        if (scenario == "unique") {
+            // Distinct authoritative surfaces, not merely separate definitions
+            // of identical geometry. The visible triangle count stays fixed.
+            for (int i = 0; i < count; ++i) {
+                const auto body = prism(1 + .2 * i / count);
+                doc.transform(
+                    body, Transform::translation({4.0 * (i % columns), 4.0 * (i / columns), 0}));
+                instances.push_back(body);
+            }
+        } else {
+            // Preserve the original repeated fixture, including allocation and
+            // revision order, so its canonical hash remains comparable.
+            const auto component = createComponent(doc, prism(1), "26-sided benchmark prism");
+            instances.push_back(component.instance);
+            for (int i = 1; i < count; ++i)
+                instances.push_back(placeComponent(doc, component.definition,
+                                                   Transform::translation({4.0 * (i % columns),
+                                                                           4.0 * (i / columns), 0}))
+                                        .instance);
+        }
+        const int outerGroups = scenario == "deep" ? 32 : scenario == "far" ? 1 : 0;
+        const Vec3 offset = scenario == "far" ? Vec3{900000, -900000, 900000} : Vec3{};
+        if (outerGroups) {
+            auto group = createGroup(doc, std::set<Id>(instances.begin(), instances.end()),
+                                     "Benchmark root");
+            for (int i = 1; i < outerGroups; ++i)
+                group = createGroup(doc, {group}, "Benchmark nesting " + std::to_string(i));
+            if (scenario == "far")
+                doc.transform(group, Transform::translation(offset));
+        }
         auto json = QJsonDocument::fromJson(encodeDocument(doc)).object();
         json["documentId"] = "0000000000000000000000000000082a";
         doc = decodeDocument(QJsonDocument(json).toJson(QJsonDocument::Compact));
@@ -126,7 +160,7 @@ int main(int argc, char **argv) {
             frames.push_back(view.lastFrameMs());
             const auto instance = i % count;
             const auto point =
-                view.project({4.0 * (instance % columns), 4.0 * (instance / columns), 1});
+                view.project(doc.worldTransform(instances[instance]).point({0, 0, 1}));
             timer.restart();
             const auto hit = view.pick(point);
             picks.push_back(timer.nsecsElapsed() / 1e6);
@@ -157,9 +191,13 @@ int main(int argc, char **argv) {
               "Repeated transform edits retain fixed body-cache capacity");
         check(view.renderStats().glError == 0, "Benchmark leaves no OpenGL error");
         QJsonObject report{
-            {"fixtureVersion", 1},
+            {"fixtureVersion", scenario == "repeated" ? 1 : 2},
+            {"fixtureScenario", scenario},
             {"fixtureSha256", QString::fromLatin1(fixtureHash)},
-            {"instances", count},
+            {"instances", qint64(doc.instances().size())},
+            {"placements", count},
+            {"outerGroups", outerGroups},
+            {"coordinateOffset", QJsonArray{offset.x, offset.y, offset.z}},
             {"triangles", qint64(triangles)},
             {"bodies", qint64(doc.bodies().size())},
             {"platform", QGuiApplication::platformName()},
