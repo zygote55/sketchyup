@@ -1,6 +1,7 @@
 #include "core/annotations.hpp"
 #include "core/assets.hpp"
 #include "core/components.hpp"
+#include "core/groups.hpp"
 #include "core/materials.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
@@ -140,7 +141,7 @@ int main(int argc, char **argv) {
             return changes;
         });
         // A parent definition has a real nested reference, not a baked copy.
-        const auto group = library.group({part}, "Assembly");
+        const auto group = createGroup(library, {part}, "Assembly");
         const auto outer = createComponent(library, group, "Assembly");
         library.addFace({{{9, 0, 0}, {10, 0, 0}, {9, 1, 0}}});
         createAsset(library, "Unrelated missing asset", "image/png");
