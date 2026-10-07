@@ -176,9 +176,9 @@ int main(int argc, char **argv) {
                         dialog->findChild<QDoubleSpinBox *>("measuredWidth")->setValue(254);
                         dialog->findChild<QDoubleSpinBox *>("measuredHeight")->setValue(203.2);
                         dialog->findChild<QDoubleSpinBox *>("measuredScale")->setValue(50);
-                        dialog->findChild<QDialogButtonBox *>()
-                            ->button(QDialogButtonBox::Save)
-                            ->click();
+                        auto *save =
+                            dialog->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Save);
+                        QMetaObject::invokeMethod(save, "click", Qt::QueuedConnection);
                     }
                 }
             } catch (const std::exception &e) {
