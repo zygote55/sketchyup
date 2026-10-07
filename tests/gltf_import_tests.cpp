@@ -286,6 +286,41 @@ int main(int argc, char **argv) {
         bad.tree["nodes"] = nodes;
         bad.save(path);
         rejects([&] { loadGltf(path); });
+        // Both strip and fan expansion preserve winding; budget checks precede allocation.
+        for (int mode : {5, 6}) {
+            Fixture strip;
+            const int positions = strip.floats({0, 0, 0, 2, 0, 0, 0, 3, 0, 2, 3, 0}, "VEC3", 3);
+            auto p = strip.primitive();
+            p["mode"] = mode;
+            p["attributes"] = QJsonObject{{"POSITION", positions}};
+            strip.primitive(p);
+            strip.save(path);
+            const auto result = loadGltf(path);
+            check(result.report["triangles"] == 4,
+                  "Strip/fan expands two triangles in each instance");
+            if (mode == 5) {
+                const auto &surface =
+                    result.document.definitions().begin()->second->members.at(2)->surface;
+                for (const auto &[id, face] : surface.faces) {
+                    (void)face;
+                    near(surface.normal(id).y, -1);
+                }
+            }
+        }
+        Fixture huge;
+        auto accessor = huge.accessors[0].toObject();
+        accessor["count"] = 100001;
+        huge.accessors[0] = accessor;
+        auto view = huge.views[0].toObject();
+        view["byteLength"] = 100001 * 12;
+        huge.views[0] = view;
+        huge.buffer.resize(100001 * 12);
+        auto p = huge.primitive();
+        p["attributes"] = QJsonObject{{"POSITION", 0}};
+        p["mode"] = 5;
+        huge.primitive(p);
+        huge.save(path);
+        rejects([&] { loadGltf(path); });
         // Native exporter is another producer; a GLB must return the same metre dimensions.
         Document native;
         native.addFace({{{0, 0, 0}, {2, 0, 0}, {0, 3, 0}}});

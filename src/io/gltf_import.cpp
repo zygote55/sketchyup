@@ -401,7 +401,41 @@ struct Importer {
         // Full native serialization validates world bounds and all linked records before
         // publication.
         (void)decodeDocument(encodeDocument(result.document));
-        result.report = {{"format", "glTF 2.0"},
+        const QJsonObject descriptions{
+            {"backFaceCullingOmitted", "Faces remain visible from both sides."},
+            {"metallicRoughnessOmitted", "Metallic and roughness shading is not retained."},
+            {"normalMapsOmitted", "Normal maps are omitted."},
+            {"occlusionMapsOmitted", "Occlusion maps are omitted."},
+            {"emissionOmitted", "Emission colors and maps are omitted."},
+            {"unlitShadingOmitted", "Unlit materials use native lighting."},
+            {"nearestTextureFilteringApproximated", "Nearest texture filtering becomes bilinear."},
+            {"nonTrianglePrimitivesOmitted", "Point and line primitives are omitted."},
+            {"customNormalsRecomputed",
+             "Normals are recomputed from faces; indexed seams are retained."},
+            {"vertexColorsOmitted", "Per-vertex colors are omitted."},
+            {"tangentsRecomputed", "Explicit tangent vectors are not retained."},
+            {"degenerateTrianglesOmitted", "Degenerate triangles are omitted."},
+            {"cameraRollApproximated", "Camera roll is replaced by the native upright view."},
+            {"cameraAspectAndClipPlanesOmitted",
+             "Camera aspect ratio and clipping use native view settings."},
+            {"punctualLightsOmitted", "Punctual lights are omitted."},
+            {"animationsOmitted",
+             "Animation tracks are omitted; imported nodes retain their saved poses."},
+            {"optionalExtensionsOmitted",
+             "Optional extensions other than texture transforms use their base glTF fallback."},
+            {"additionalScenesOmitted", "Only the default scene (or first scene) is imported."}};
+        QJsonArray notices, omittedExtensions;
+        for (auto it = losses.begin(); it != losses.end(); ++it)
+            notices.append(QJsonObject{{"code", it.key()},
+                                       {"count", it.value()},
+                                       {"message", descriptions.value(it.key())}});
+        for (size_t i = 0; i < data.extensions_used_count; ++i)
+            if (std::string(data.extensions_used[i]) != "KHR_texture_transform")
+                omittedExtensions.append(QString::fromUtf8(data.extensions_used[i]));
+        result.report = {{"apiVersion", 1},
+                         {"notices", notices},
+                         {"omittedExtensions", omittedExtensions},
+                         {"format", "glTF 2.0"},
                          {"units", "m"},
                          {"sourceUp", "Y"},
                          {"nativeUp", "Z"},
