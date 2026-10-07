@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
         check(doc.identity() != source.identity() && doc.dirty() && !doc.canUndo() &&
                   doc.displayUnits() == DisplayUnit::Millimeters && !doc.style().axesVisible,
               "Template creates fresh unsaved model with default scene and empty history");
-        const auto camera = view.renderCamera();
+        const auto camera = *view.captureSceneSnapshot(true, false, false, false).camera;
         check(camera.orthographic && std::abs(camera.yaw - 25) < 1e-5 &&
                   std::abs(camera.distance - 7) < 1e-5,
               "Saved default camera applied without animation");
