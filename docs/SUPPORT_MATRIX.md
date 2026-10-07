@@ -18,7 +18,7 @@ M9 release acceptance remains open. See the [roadmap](https://github.com/zygote5
 | Local assistant | Explicit numeric-loopback Ollama adapter; retained Qwen CPU profile fails all seven frozen live-task thresholds and remains experimental | [Measured profile and failures](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086c-local-evaluation.md); no quality guarantee, automatic download or cloud fallback |
 | Blender | Optional Blender 5.2-family rendering/handoff, with runtime/device checks | [M7 procedure](M7_ACCEPTANCE.md); CPU/actual consumer evidence does not validate every GPU/driver combination |
 | Ordinary modeling | No provider, account, browser runtime or Blender required | Shared native/core operations; [combined exchange study](M8_ACCEPTANCE.md) also exercises offline editing and undo |
-| Packaging | Experimental Arch package `0.1.0-2`, MIT application code plus retained dependency notices | [Passed development lifecycle](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R087a-package-lifecycle.md); current/reference clean-machine and final release-candidate acceptance remain open |
+| Packaging | Experimental Arch package `0.1.0-2`, MIT application code plus retained dependency notices | [Current development lifecycle and prior-application upgrade](verification/R087f-current-package.md); current/reference clean-machine and final release-candidate acceptance remain open |
 
 Physical display scale and **View → Interface text size** are separate controls.
 Qt client scale factors in isolated tests emulate fractional sizing; they do not

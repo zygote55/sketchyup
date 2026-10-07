@@ -1,0 +1,56 @@
+{
+  "source": "29fb31bba53e0b6dd2c0d5a73ffbc7fa1b44903e",
+  "sourceArchiveSha256": "22965c163a9f647cf3860ec3a01755dabd03b380a60ac4b7cc8daa1f7e947814",
+  "imageId": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c",
+  "packages": {
+    "sketchyup-0.1.0-1-x86_64.pkg.tar.zst": {
+      "bytes": 6730567,
+      "sha256": "1f47d3c9b68ee5390e97bd74ab7da82c6115d3e017b9320ccf1ffca526d16e44"
+    },
+    "sketchyup-0.1.0-2-x86_64.pkg.tar.zst": {
+      "bytes": 6730637,
+      "sha256": "6fae27ff966b23f44f10d776b731a2809fa9b42300cd41b8d83c1336b6da9acc"
+    },
+    "sketchyup-debug-0.1.0-1-x86_64.pkg.tar.zst": {
+      "bytes": 180266524,
+      "sha256": "60312dbe7115f57e845a7b7e6624d7c77f4fcde951b3e27b33343902584a11bd"
+    },
+    "sketchyup-debug-0.1.0-2-x86_64.pkg.tar.zst": {
+      "bytes": 180266429,
+      "sha256": "d2a0285d43ee4a20781819a244594594161479fd03becc1a542bc3fe113c94d4"
+    }
+  },
+  "registeredTests": 181,
+  "passedTests": 170,
+  "skippedOptionalConsumerTests": 11,
+  "ctestSeconds": 109.2,
+  "historicalMigrationFixtures": 25,
+  "installedLifecyclePassed": true,
+  "priorApplicationUpgradePassed": true,
+  "packageExitCode": 0,
+  "oomKilled": false,
+  "resources": {
+    "cpuCeiling": 8,
+    "affinity": [
+      0,
+      1,
+      3,
+      6,
+      8,
+      10,
+      12,
+      13
+    ],
+    "outerBuildJobs": 2,
+    "ltoJobsPerLink": 1,
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0,
+    "pids": 256,
+    "diskBackedTemporaryFiles": true
+  },
+  "completedAt": "2026-10-07T18:06:34.635732219Z",
+  "logSha256": "d513a94c452c3a358ff79191815b57367ddba95afa1fb17e75783d490eb1bc3e",
+  "provenance": "Cached incremental completion after interrupted fresh attempt, hidden-LTO-worker retry and owner-authorized CPU-limit change. Not an uninterrupted clean-from-empty build.",
+  "evidenceCollection": "Recovered actual exit-zero Docker state and logs after runner/watcher processes were no longer present; cause of their exit not established. Follow-up checks completed under systemd user services.",
+  "releaseAcceptance": false
+}
