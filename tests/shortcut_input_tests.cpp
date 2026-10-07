@@ -84,6 +84,9 @@ template <class F> void editor(Window &window, F exercise) {
     if (failure)
         std::rethrow_exception(failure);
     check(handled, "Native shortcut editor opened");
+    check(QTest::qWaitForWindowActive(&window) &&
+              QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),
+          "Shortcut editor restores parent activation and modeling focus");
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -178,9 +181,16 @@ int main(int argc, char **argv) {
             action(window, "view.assistant")->trigger();
             auto *sheet = window.findChild<QDialog *>("assistantSheet");
             auto *composer = window.findChild<QPlainTextEdit *>("assistantComposer");
-            check(sheet && sheet->isVisible() && composer &&
-                      QTest::qWaitFor([&] { return composer->hasFocus(); }),
-                  "Floating assistant composer focused");
+            if (!(sheet && sheet->isVisible() && composer &&
+                  QTest::qWaitFor([&] { return composer->hasFocus(); })))
+                throw std::runtime_error(
+                    QString("Floating composer: width=%1 sheet=%2 visible=%3 focus=%4")
+                        .arg(window.width())
+                        .arg(bool(sheet))
+                        .arg(sheet && sheet->isVisible())
+                        .arg(QApplication::focusWidget() ? QApplication::focusWidget()->objectName()
+                                                         : "none")
+                        .toStdString());
             QTest::keyClick(composer, Qt::Key_J, Qt::ControlModifier | Qt::AltModifier);
             check(QTest::qWaitFor([&] { return !sheet->isVisible(); }),
                   "Rebound modifier shortcut closes floating assistant");
