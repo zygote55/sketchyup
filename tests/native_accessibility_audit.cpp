@@ -119,13 +119,13 @@ int main(int argc, char **argv) {
             {"contexts", contexts},
             {"actions", actions},
             {"f6FocusOwners", regions},
-            {"scope", "Visible enabled tab-focusable widgets in four model-panel contexts and two "
+            {"scope", "Visible enabled tab-focusable widgets in all model-panel tabs and two "
                       "themes; public QAction inventory and F6 routing. Names come from Qt "
                       "accessibility interfaces."},
             {"limitations",
              "Does not prove screen-reader operation, contrast, focus visibility, all dialogs, "
-             "independent text scaling or complete mouse-free modeling. No provider preference "
-             "dialog or credential store is accessed."},
+             "independent text scaling or complete mouse-free modeling. The fixture uses isolated "
+             "application settings and does not open provider preferences or request credentials."},
             {"releaseAcceptance", false}};
         std::cout << QJsonDocument(report).toJson().toStdString();
         window.document().markSaved();
