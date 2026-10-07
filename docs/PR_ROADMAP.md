@@ -1140,7 +1140,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R078 — Export scaled orthographic PDF and SVG views
 
-**Status:** In progress. R078.a–d [measured PDF/SVG CLI](verification/R078d-measured-cli.md) pass independent physical-scale rendering, visibility/section/dimension, headless workflow, sanitizer, installed and source-package checks. Native dialog and raster capture follow in R078.e. **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** In progress. R078.a–e [native measured PDF/SVG export](verification/R078e-native-measured-export.md) are locally implemented and verified, including independent physical-scale rendering, vector/raster modes, headless/native workflows, source/view preservation and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R064](#r064), [R065](#r065), [R068](#r068); milestone gate rule above.
 
