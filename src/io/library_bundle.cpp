@@ -1,4 +1,5 @@
 #include "io/library_bundle.hpp"
+#include "core/components.hpp"
 #include "io/new_file.hpp"
 #include "io/texture_image.hpp"
 #include <QCryptographicHash>
@@ -70,9 +71,8 @@ std::pair<int, int> thumbnail(const QByteArray &png) {
             "Template thumbnail dimensions disagree");
     return {int(width), int(height)};
 }
-} // namespace
-QByteArray encodeTemplateBundle(const Document &source, const TemplateMetadata &metadata,
-                                const QByteArray &thumbnailPng) {
+QByteArray encodeBundle(const Document &source, const TemplateMetadata &metadata,
+                        const QByteArray &thumbnailPng, Id definition = 0) {
     validateMetadata(metadata, source);
     const auto [width, height] = thumbnail(thumbnailPng);
     const auto model = encodeContainer(source);
@@ -85,11 +85,12 @@ QByteArray encodeTemplateBundle(const Document &source, const TemplateMetadata &
     const auto manifest =
         QJsonDocument(
             QJsonObject{{"bundleVersion", 1},
-                        {"kind", "template"},
+                        {"kind", definition ? "component" : "template"},
                         {"name", metadata.name},
                         {"description", metadata.description},
                         {"labels", labels},
-                        {"defaultScene", QString::number(metadata.defaultScene)},
+                        {definition ? "definition" : "defaultScene",
+                         QString::number(definition ? definition : metadata.defaultScene)},
                         {"model", QJsonObject{{"bytes", model.size()}, {"sha256", hash(model)}}},
                         {"thumbnail", QJsonObject{{"bytes", thumbnailPng.size()},
                                                   {"sha256", hash(thumbnailPng)},
@@ -110,7 +111,7 @@ QByteArray encodeTemplateBundle(const Document &source, const TemplateMetadata &
     result += thumbnailPng;
     return result;
 }
-TemplateBundle decodeTemplateBundle(const QByteArray &bytes) {
+TemplateBundle decodeBundle(const QByteArray &bytes, Id *definition = nullptr) {
     require(bytes.size() >= headerSize && bytes.size() <= libraryBundleLimit &&
                 bytes.startsWith(magic),
             "Invalid or oversized library bundle");
@@ -127,9 +128,9 @@ TemplateBundle decodeTemplateBundle(const QByteArray &bytes) {
     require(error.error == QJsonParseError::NoError && parsed.isObject(),
             "Invalid library manifest JSON");
     const auto m = parsed.object();
-    fields(m, {"bundleVersion", "kind", "name", "description", "labels", "defaultScene", "model",
-               "thumbnail"});
-    require(m["bundleVersion"] == 1 && m["kind"] == "template",
+    fields(m, {"bundleVersion", "kind", "name", "description", "labels",
+               definition ? "definition" : "defaultScene", "model", "thumbnail"});
+    require(m["bundleVersion"] == 1 && m["kind"] == (definition ? "component" : "template"),
             "Unsupported library bundle version or kind");
     TemplateMetadata metadata;
     metadata.name = text(m["name"], 256);
@@ -138,10 +139,15 @@ TemplateBundle decodeTemplateBundle(const QByteArray &bytes) {
     for (const auto &label : m["labels"].toArray())
         metadata.labels.append(text(label, 64));
     bool idOk{};
-    const auto scene = text(m["defaultScene"], 20);
+    const auto scene = text(m[definition ? "definition" : "defaultScene"], 20);
     metadata.defaultScene = scene.toULongLong(&idOk);
     require(idOk && QString::number(metadata.defaultScene) == scene,
-            "Invalid template scene identity");
+            "Invalid library scene or component identity");
+    if (definition) {
+        *definition = metadata.defaultScene;
+        metadata.defaultScene = 0;
+        require(*definition != 0, "Component definition must be nonzero");
+    }
     require(m["model"].isObject() && m["thumbnail"].isObject(),
             "Library payload descriptors must be objects");
     const auto modelInfo = m["model"].toObject(), imageInfo = m["thumbnail"].toObject();
@@ -160,13 +166,22 @@ TemplateBundle decodeTemplateBundle(const QByteArray &bytes) {
     validateMetadata(metadata, document);
     return {std::move(metadata), std::move(document), png};
 }
-TemplateBundle loadTemplateBundle(const QString &path) {
+QByteArray loadBundleBytes(const QString &path) {
     QFile file(path);
     require(file.open(QIODevice::ReadOnly) && file.size() <= libraryBundleLimit,
             "Cannot read bounded library bundle");
     const auto bytes = file.read(libraryBundleLimit + 1);
     require(file.error() == QFileDevice::NoError, "Library bundle read failed");
-    return decodeTemplateBundle(bytes);
+    return bytes;
+}
+} // namespace
+QByteArray encodeTemplateBundle(const Document &source, const TemplateMetadata &metadata,
+                                const QByteArray &thumbnailPng) {
+    return encodeBundle(source, metadata, thumbnailPng);
+}
+TemplateBundle decodeTemplateBundle(const QByteArray &bytes) { return decodeBundle(bytes); }
+TemplateBundle loadTemplateBundle(const QString &path) {
+    return decodeTemplateBundle(loadBundleBytes(path));
 }
 void writeTemplateBundle(const QByteArray &bytes, const QString &newPath) {
     (void)decodeTemplateBundle(bytes);
@@ -183,5 +198,44 @@ Document instantiateTemplate(const TemplateBundle &bundle) {
                    d.annotations(), d.nextAnnotationId(), d.solar());
     result.markRecovered();
     return result;
+}
+QByteArray encodeComponentBundle(const Document &source, Id definition,
+                                 const TemplateMetadata &metadata, const QByteArray &thumbnailPng) {
+    require(!metadata.defaultScene, "Component bundles do not contain default scenes");
+    const auto captured = captureLibraryComponent(source, definition);
+    return encodeBundle(captured, metadata, thumbnailPng, definition);
+}
+ComponentBundle decodeComponentBundle(const QByteArray &bytes) {
+    Id definition{};
+    auto bundle = decodeBundle(bytes, &definition);
+    const auto &d = bundle.document;
+    const auto captured = captureLibraryComponent(d, definition);
+    require(d.definitions().size() == captured.definitions().size() &&
+                d.tags().size() == captured.tags().size() &&
+                d.materials().size() == captured.materials().size() &&
+                d.assets().size() == captured.assets().size() &&
+                d.bodies().size() == captured.bodies().size() &&
+                d.instances().size() == captured.instances().size() && d.scenes().empty() &&
+                d.sections().empty() && d.annotations().empty(),
+            "Component bundle contains unrelated records");
+    size_t roots{};
+    for (const auto &[id, body] : d.bodies()) {
+        if (body->parent)
+            continue;
+        ++roots;
+        require(d.instances().contains(id) && d.instances().at(id)->definition == definition &&
+                    body->transform == Transform{},
+                "Component bundle root placement is invalid");
+    }
+    require(roots == 1, "Component bundle must contain one root instance");
+    return {std::move(bundle.metadata), std::move(bundle.document), definition,
+            std::move(bundle.thumbnailPng)};
+}
+ComponentBundle loadComponentBundle(const QString &path) {
+    return decodeComponentBundle(loadBundleBytes(path));
+}
+void writeComponentBundle(const QByteArray &bytes, const QString &newPath) {
+    (void)decodeComponentBundle(bytes);
+    publishNewFile(newPath, bytes);
 }
 } // namespace sketchy
