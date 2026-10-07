@@ -4,6 +4,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDir>
 #include <QInputDialog>
 #include <QPushButton>
 #include <QSettings>
@@ -104,6 +105,13 @@ int main(int argc, char **argv) {
                     check(window.viewport()->width() >= 300, "Enlarged UI retains usable viewport");
                     auto *tools = window.findChild<QToolBar *>("toolRail");
                     check(tools && tools->width() == 156, "Tool rail grows with text");
+                    if (argc == 2) {
+                        const auto folder = QString::fromLocal8Bit(argv[1]);
+                        check(QDir().mkpath(folder), "Create text-size capture directory");
+                        check(window.grab().save(
+                                  folder + QString("/theme-%1-width-%2.png").arg(mode).arg(width)),
+                              "Capture enlarged native interface");
+                    }
                     std::cout << "Text size 200%, theme " << mode << ", logical width " << width
                               << ", viewport " << window.viewport()->width() << '\n';
                 }
