@@ -22,7 +22,9 @@ GLB length, aligned JSON/BIN chunks and the absence of trailing chunks are check
 Buffers must match their declared lengths (with only the permitted GLB padding).
 Checked range arithmetic precedes parser validation: views, component alignment,
 strides, counts and sparse indices must fit captured bytes. Sparse indices must be
-strictly increasing, unique and in range. Hierarchies are acyclic and depth limited.
+strictly increasing, unique and in range. Sparse accessors require tightly packed
+base and sparse views: the pinned parser reads sparse values using the base stride,
+so interleaved base accessors are rejected before its sparse readers can run. Hierarchies are acyclic and depth limited.
 
 Sidecars use relative UTF-8 paths contained in the canonical source folder.
 Traversal, absolute paths, URL schemes, queries, fragments, malformed percent
