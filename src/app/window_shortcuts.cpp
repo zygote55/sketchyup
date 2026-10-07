@@ -160,7 +160,9 @@ void Window::shortcutSettings() {
         notices->setText(draft.notices().join('\n'));
     };
     auto selectedId = [&] {
-        return list->currentItem() ? list->currentItem()->data(Qt::UserRole).toString() : QString{};
+        return list->currentItem() && !list->currentItem()->isHidden()
+                   ? list->currentItem()->data(Qt::UserRole).toString()
+                   : QString{};
     };
     auto showConflict = [&] {
         replace->setEnabled(false);
@@ -191,8 +193,16 @@ void Window::shortcutSettings() {
             auto *item = list->item(i);
             item->setHidden(!item->text().contains(text, Qt::CaseInsensitive));
         }
-        if (list->currentItem() && list->currentItem()->isHidden())
+        // Commit hidden-row layout before keyboard focus/navigation can enter the list.
+        list->doItemsLayout();
+        if (!list->currentItem() || list->currentItem()->isHidden()) {
             list->setCurrentRow(-1);
+            for (int i = 0; i < list->count(); ++i)
+                if (!list->item(i)->isHidden()) {
+                    list->setCurrentRow(i);
+                    break;
+                }
+        }
     });
     connect(editor, &QKeySequenceEdit::keySequenceChanged, &dialog, showConflict);
     auto change = [&](bool reassign) {
