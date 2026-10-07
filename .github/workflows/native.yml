@@ -381,6 +381,18 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/assistant_preview_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/render_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/native_mcp_tests
+      - name: Release completed build artifacts before package rebuild
+        run: |
+          # All consumers of these binaries have completed. Keep CTest evidence,
+          # then reclaim Debug/ASan objects and executables for the full package gate.
+          mkdir -p build/ci-test-logs
+          for configuration in dev sanitize; do
+            if [ -d "build/$configuration/Testing" ]; then
+              cp -a "build/$configuration/Testing" "build/ci-test-logs/$configuration"
+            fi
+          done
+          rm -rf -- build/dev build/sanitize
+          df -h . /work
       - name: Disposable Arch package acceptance
         run: |
           useradd --create-home builder
