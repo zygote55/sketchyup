@@ -80,6 +80,38 @@ void creationPlacementAndReplacement() {
     check(doc.bodies() == snapshot && doc.definitions() == definitions,
           "Rejected component operations are atomic");
 }
+void leafEditsBesideUnchangedInstances() {
+    Document doc;
+    const auto leaf = createComponent(doc, square(doc), "Leaf");
+    const auto member = leaf.movedGeometry.at(leaf.instance);
+    const auto peer = placeComponent(doc, leaf.definition, Transform::translation({5, 0, 0}));
+    const auto peerMember = doc.instances().at(peer.instance)->members.at(member);
+    const auto unrelated = createComponent(doc, square(doc, 3), "Unrelated");
+    setEntityState(doc, unrelated.instance, {}, true);
+    const auto unrelatedMember = unrelated.movedGeometry.at(unrelated.instance);
+    const auto preserved = *doc.bodies().at(unrelatedMember);
+    editComponentDefinition(doc, leaf.definition, [&](Document &draft) {
+        draft.transform(member, Transform::scaling({2, 1, 1}), draft.bodies().at(member)->parent);
+        return ChangeReport{};
+    });
+    check(doc.worldArea(member, 5) == 2 && doc.worldArea(peerMember, 5) == 2 &&
+              *doc.bodies().at(unrelatedMember) == preserved,
+          "Changed leaf definitions update all peers beside an unchanged locked component");
+    const auto added = placeComponent(doc, leaf.definition, Transform::translation({10, 0, 0}));
+    const auto addedMember = doc.instances().at(added.instance)->members.at(member);
+    check(doc.worldArea(addedMember, 5) == 2 && doc.worldArea(peerMember, 5) == 2,
+          "New placements use the edited definition without disturbing existing peers");
+    doc.undo();
+    doc.undo();
+    check(doc.worldArea(member, 5) == 1 && doc.worldArea(peerMember, 5) == 1 &&
+              !doc.bodies().contains(addedMember),
+          "Placement and shared edit undo restore every affected leaf");
+    doc.redo();
+    doc.redo();
+    check(doc.worldArea(addedMember, 5) == 2 && *doc.bodies().at(unrelatedMember) == preserved,
+          "Redo restores edited placements while preserving unrelated geometry");
+    validateComponentInstances(doc.definitions(), doc.instances(), doc.bodies());
+}
 void nestedUniqueness() {
     Document doc;
     const auto leaf = createComponent(doc, square(doc), "Leaf");
@@ -254,6 +286,7 @@ void sharedHierarchyEdits() {
 int main() {
     try {
         creationPlacementAndReplacement();
+        leafEditsBesideUnchangedInstances();
         nestedUniqueness();
         sharedEditsAndAxes();
         sharedHierarchyEdits();

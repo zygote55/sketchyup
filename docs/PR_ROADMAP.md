@@ -1190,7 +1190,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R082 — Meet viewport, inference and memory budgets
 
-**Status:** In progress. An overlapping [real-model benchmark spike](verification/R082a-real-model-baseline.md) records exact-framebuffer integrated-GPU and software results, history and partial cache memory. Full fixture coverage, controlled reference hardware measurements and release acceptance remain open. **Track:** Quality. **Scope:** D06, N01. **UX:** —.
+**Status:** In progress. An overlapping [real-model benchmark spike](verification/R082a-real-model-baseline.md) records exact-framebuffer integrated-GPU and software results, history and partial cache memory. [Unchanged leaf projection reuse](verification/R082b-component-construction.md) reduces construction work with identical canonical output; limits and budgets are unchanged. Full fixture coverage, controlled reference hardware measurements and release acceptance remain open. **Track:** Quality. **Scope:** D06, N01. **UX:** —.
 
 **Requires:** [R081](#r081), [R072](#r072); milestone gate rule above.
 
@@ -1238,7 +1238,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R086 — Gate AI release on live provider evaluations
 
-**Status:** In progress. An overlapping [versioned corpus and scoring gate](verification/R086a-frozen-provider-corpus.md) freezes eight synthetic tasks, repeated-run thresholds and hard safety blockers before new live evaluations. Offline reproducibility and scorer rejection checks pass; repeated live remote/local evidence, semantic review and release acceptance remain open. **Track:** Quality. **Scope:** A04, A05, A08. **UX:** —.
+**Status:** In progress. An overlapping [versioned corpus and scoring gate](verification/R086a-frozen-provider-corpus.md) freezes eight synthetic tasks, repeated-run thresholds and hard safety blockers before live evaluations. The [OpenAI ChatGPT-plan run](verification/R086b-remote-evaluation.md) passes all 24 reviewed checks (21 live tasks and three offline controls), with no safety blockers. The [frozen local profile](verification/R086c-local-evaluation.md) fails all seven live-task thresholds (0/3 each), while all three unavailable controls and every manual fallback pass; no safety blocker was observed. Local-profile support/replacement evaluation, remaining release review, final integration, remote CI and ordered merges remain open. **Track:** Quality. **Scope:** A04, A05, A08. **UX:** —.
 
 **Requires:** [R081](#r081), [R046](#r046), [R083](#r083); milestone gate rule above.
 
@@ -1250,7 +1250,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R087 — Validate Arch release packages and upgrades
 
-**Status:** Planned. **Track:** Release. **Scope:** N02, D02. **UX:** —.
+**Status:** In progress. The [development package lifecycle](verification/R087a-package-lifecycle.md) passes install, launch, MIME, same-source package upgrade, reopen and removal in the pinned disposable Arch environment. Current/reference clean-machine and historical-migration checks, final release validation, remote CI and ordered merges remain open. **Track:** Release. **Scope:** N02, D02. **UX:** —.
 
 **Requires:** [R085](#r085), [R083](#r083), [R071](#r071); milestone gate rule above.
 
@@ -1262,7 +1262,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R088 — Publish user workflows, support matrix and parity report
 
-**Status:** Planned. **Track:** Planning. **Scope:** A07, X05, N05. **UX:** —.
+**Status:** In progress. Overlapping [installed development guides and support boundaries](verification/R088a-development-guides.md) document implemented workflows and known gaps, with byte-exact install and source-archive checks. A [59-row Core evidence index](verification/R088b-core-evidence-index.md) maps retained passing fixtures and explicit limitations without claiming full row acceptance. The complete Core parity report, release-candidate walkthrough and preceding acceptance gates remain open. **Track:** Planning. **Scope:** A07, X05, N05. **UX:** —.
 
 **Requires:** [R086](#r086), [R087](#r087), [R078](#r078); milestone gate rule above.
 

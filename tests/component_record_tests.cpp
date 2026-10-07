@@ -171,6 +171,15 @@ void documentTransactions() {
         shared.changes.push_back({member, original, updated});
     }
     const auto revision = doc.revision();
+    auto incomplete = shared;
+    incomplete.changes.pop_back();
+    const auto beforeIncomplete = doc.bodies();
+    const auto definitionsBeforeIncomplete = doc.definitions();
+    rejects([&] { doc.apply(incomplete, revision); },
+            "A changed definition cannot leave an unchanged peer's old projection behind");
+    check(doc.revision() == revision && doc.bodies() == beforeIncomplete &&
+              doc.definitions() == definitionsBeforeIncomplete,
+          "Incomplete shared edits preserve every scene and definition record");
     doc.apply(shared, revision);
     check(doc.revision() == revision + 1 &&
               doc.definitions().at(1)->members.at(1)->color == colored->color,

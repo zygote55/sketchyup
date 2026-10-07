@@ -1,3 +1,4 @@
+#include "core/groups.hpp"
 #include "core/model.hpp"
 #include <iostream>
 #include <numbers>
@@ -67,6 +68,23 @@ int main() {
         body->properties["width"] = 4.0;
         check(std::get<double>(doc.bodies().at(child)->properties.at("width")) == 1.2,
               "Properties frozen with authoritative records");
+        Document nestedBounds;
+        const auto nestedLeaf =
+            nestedBounds.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+        const auto emptyParent = createGroup(nestedBounds, {nestedLeaf});
+        const auto boundedScene = nestedBounds.bodies();
+        const auto boundedRevision = nestedBounds.revision();
+        rejects([&] {
+            nestedBounds.transform(emptyParent, Transform::translation({coordinateLimit, 0, 0}));
+        });
+        check(nestedBounds.bodies() == boundedScene && nestedBounds.revision() == boundedRevision,
+              "An empty parent's transform still validates unchanged descendants' world bounds");
+        nestedBounds.transform(emptyParent, Transform::translation({10, 0, 0}));
+        near(nestedBounds.worldTransform(nestedLeaf).point({0, 0, 0}), {10, 0, 0},
+             "A valid parent transform updates descendant world geometry");
+        nestedBounds.undo();
+        near(nestedBounds.worldTransform(nestedLeaf).point({0, 0, 0}), {},
+             "Parent transform undo restores descendant world geometry");
         Document identities;
         auto identityBody = identities.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
         auto identityFace = identities.bodies().at(identityBody)->surface.faces.begin()->first;

@@ -1,0 +1,321 @@
+{
+  "corpusVersion": 1,
+  "profile": "ollama-qwen4b",
+  "model": "qwen3:4b-instruct",
+  "profileStatus": "experimental-comparison",
+  "corpusPassed": false,
+  "releaseAccepted": false,
+  "monetaryCost": null,
+  "costPolicy": "Record reported tokens and wall time. Monetary cost is unreported; subscription usage is not assumed free.",
+  "thresholds": {
+    "measure": {
+      "successes": 0,
+      "runs": 3,
+      "minimum": 3
+    },
+    "room": {
+      "successes": 0,
+      "runs": 3,
+      "minimum": 2
+    },
+    "resize": {
+      "successes": 0,
+      "runs": 3,
+      "minimum": 2
+    },
+    "advanced": {
+      "successes": 0,
+      "runs": 3,
+      "minimum": 2
+    },
+    "site": {
+      "successes": 0,
+      "runs": 3,
+      "minimum": 2
+    },
+    "unsupported": {
+      "successes": 0,
+      "runs": 3,
+      "minimum": 3
+    },
+    "metadata": {
+      "successes": 0,
+      "runs": 3,
+      "minimum": 3
+    },
+    "unavailable": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    }
+  },
+  "blockers": [],
+  "runs": [
+    {
+      "trial": "measure",
+      "repeat": 1,
+      "passed": false,
+      "rawReportSha256": "150864a5a273f6547409896de38488ecdfd9b024a4ba056634988b90f46a85f2",
+      "phase": "failed",
+      "elapsedMs": 300035,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "measure",
+      "repeat": 2,
+      "passed": false,
+      "rawReportSha256": "520dad2d6ed3259a6678f82881756e2b9313d2027322529b53cd6a9d55a4f4f9",
+      "phase": "failed",
+      "elapsedMs": 300097,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "measure",
+      "repeat": 3,
+      "passed": false,
+      "rawReportSha256": "73d8971c72f80230aa26b1faf026be18167df4b711e00b074ee7b8f546151e1a",
+      "phase": "failed",
+      "elapsedMs": 300038,
+      "reportedTokens": 10255,
+      "providerTurns": 3,
+      "toolCalls": 1
+    },
+    {
+      "trial": "room",
+      "repeat": 1,
+      "passed": false,
+      "rawReportSha256": "ac81db4b1678632dbe2fe41fbc1deb74d96a299c01948f234e181255e82df368",
+      "phase": "failed",
+      "elapsedMs": 300086,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "room",
+      "repeat": 2,
+      "passed": false,
+      "rawReportSha256": "fcc19efcda23844b1f9733b282c44b5bdc0aed00cbfeff0a470447a9da3f232d",
+      "phase": "failed",
+      "elapsedMs": 300149,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "room",
+      "repeat": 3,
+      "passed": false,
+      "rawReportSha256": "1a4d6802895d18f0dcba2562188a56af58e0264ca36d3076b87f69196bad6106",
+      "phase": "failed",
+      "elapsedMs": 300084,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "resize",
+      "repeat": 1,
+      "passed": false,
+      "rawReportSha256": "d391afda8dc7d1fbb0ff1c36d687d0b287c8afd8ba911580725ff6b5c8c550b5",
+      "phase": "failed",
+      "elapsedMs": 300074,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "resize",
+      "repeat": 2,
+      "passed": false,
+      "rawReportSha256": "f9431de0bde971a4f38acc953a37ff990bd17658635bccce1ea35a4571ffffb2",
+      "phase": "failed",
+      "elapsedMs": 300138,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "resize",
+      "repeat": 3,
+      "passed": false,
+      "rawReportSha256": "5d25e2d4dc28632f95ad405ec219a29aa107b4094a090bb2a5c7a1bb29c4a588",
+      "phase": "failed",
+      "elapsedMs": 300144,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "advanced",
+      "repeat": 1,
+      "passed": false,
+      "rawReportSha256": "2265c61166720ccdcf1ea79fa92423eda4a6369e9a62f62ae5b526b5870733a1",
+      "phase": "failed",
+      "elapsedMs": 300558,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "advanced",
+      "repeat": 2,
+      "passed": false,
+      "rawReportSha256": "e48da9417eddec7865287fad1719105a227b6828264a5a3f843a33ad01ac6804",
+      "phase": "failed",
+      "elapsedMs": 300429,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "advanced",
+      "repeat": 3,
+      "passed": false,
+      "rawReportSha256": "f365fd51b51158e1474333254f980bcda62bb2a8064353a721c084f6ae5c2620",
+      "phase": "failed",
+      "elapsedMs": 300250,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "site",
+      "repeat": 1,
+      "passed": false,
+      "rawReportSha256": "851e5ff734225d9926034c28cddded67e7b3d09a615b0f6a8016a7629d759c61",
+      "phase": "failed",
+      "elapsedMs": 300937,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "site",
+      "repeat": 2,
+      "passed": false,
+      "rawReportSha256": "2a02509b05fbdeb52d8610523493974eec3d2818ddc28afd80b3383260fee29a",
+      "phase": "failed",
+      "elapsedMs": 300635,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "site",
+      "repeat": 3,
+      "passed": false,
+      "rawReportSha256": "f8e5ce273bb8c19abb1f20c0cb379650db5dd2458c4ab7c1ef7ca3fab3047abd",
+      "phase": "failed",
+      "elapsedMs": 301009,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 1,
+      "passed": false,
+      "rawReportSha256": "af2aecc2ae626ad66aef4db3d640494405a7048a7ca94a99e5833bfae6b79d42",
+      "phase": "failed",
+      "elapsedMs": 300170,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 2,
+      "passed": false,
+      "rawReportSha256": "afa1d77e1ade6cfa9533747182f4d58673d8315ce4a7cfa34748f339b0435c87",
+      "phase": "failed",
+      "elapsedMs": 300119,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 3,
+      "passed": false,
+      "rawReportSha256": "6231a5d0eaf2732ecfc940fd72d7aa3bfb2d48561678a2a9f6f0190db7044e6e",
+      "phase": "failed",
+      "elapsedMs": 300116,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "metadata",
+      "repeat": 1,
+      "passed": false,
+      "rawReportSha256": "5cedd4b8a565433837c7fe579cf3b6b7da7a085c8743381cd3bcecff38c6591a",
+      "phase": "failed",
+      "elapsedMs": 300080,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "metadata",
+      "repeat": 2,
+      "passed": false,
+      "rawReportSha256": "a6e2239b27cf2493474acd9c004579254d1ac837bfd86cc0dbe0ef2888517c40",
+      "phase": "failed",
+      "elapsedMs": 300055,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "metadata",
+      "repeat": 3,
+      "passed": false,
+      "rawReportSha256": "3376b4a010aaa00f03c7030aeccecb1df1e3da81d005f9ddb95796373c140c32",
+      "phase": "completed",
+      "elapsedMs": 281280,
+      "reportedTokens": 20710,
+      "providerTurns": 3,
+      "toolCalls": 1
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "8c211c4b6f969e536fcf97f75f89a4917bba500df575fbdc9edd20de40a3594d",
+      "phase": "failed",
+      "elapsedMs": 813,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "983f8521cfa1cab2263fe561a0ee88c1f7a2b99f5108966af6fcc4f7349836cb",
+      "phase": "failed",
+      "elapsedMs": 819,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "2a12fbc1a904ddbf676ad6c6f05bcafc9eeb6598d808c34d9b64fdaf18fa2a2f",
+      "phase": "failed",
+      "elapsedMs": 818,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    }
+  ],
+  "manifestSha256": "014105ffbd2f1e3aaca3182d4592d8ae765cf82f72362006c3eeb972004073d7",
+  "reviewBundleSha256": "d67e0c5df921f297a6ca987545aaf23909a11d8fa987ebf3ab3f909e14bc9d26"
+}
