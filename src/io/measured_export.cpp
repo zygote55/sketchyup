@@ -181,7 +181,7 @@ DrawingPaths paths(const MeasuredDrawing &drawing) {
         QTransform transform;
         transform.translate(textPoint.x(), textPoint.y());
         transform.scale(mmPerPixel, mmPerPixel);
-        const auto bounds = layout.boundingRect();
+        const auto bounds = glyphs.boundingRect();
         transform.translate(-bounds.center().x(), -bounds.center().y());
         Primitive background;
         background.fill = true;

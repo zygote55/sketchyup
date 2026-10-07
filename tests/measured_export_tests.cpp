@@ -180,6 +180,13 @@ int main(int argc, char **argv) {
         check(annotatedPdf.bytes.contains("/EmbeddedFiles") &&
                   annotatedPdf.bytes.contains("/EmbeddedFile"),
               "PDF includes machine-readable drawing report");
+        const auto fixtureFolder = qEnvironmentVariable("SKETCHYUP_MEASURED_FIXTURES");
+        if (!fixtureFolder.isEmpty()) {
+            QDir directory(fixtureFolder);
+            check(directory.mkpath("."), "Measured fixture folder");
+            writeMeasuredExport(annotated, directory.filePath("dimension.svg"));
+            writeMeasuredExport(annotatedPdf, directory.filePath("dimension.pdf"));
+        }
         QImage raster(1000, 800, QImage::Format_ARGB32_Premultiplied);
         raster.fill(Qt::red);
         const auto rasterSvg = exportMeasuredDrawing(page, MeasuredFormat::Svg, raster);
