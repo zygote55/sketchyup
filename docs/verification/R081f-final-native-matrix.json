@@ -1,0 +1,58 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "gltf_input_tests",
+    "exitCode": 0,
+    "seconds": 3.951
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "obj_input_tests",
+    "exitCode": 0,
+    "seconds": 4.206
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "stl_input_tests",
+    "exitCode": 0,
+    "seconds": 4.201
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "dxf_input_tests",
+    "exitCode": 0,
+    "seconds": 3.936
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "measured_input_tests",
+    "exitCode": 0,
+    "seconds": 3.989
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "library_input_tests",
+    "exitCode": 0,
+    "seconds": 4.113
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "extension_input_tests",
+    "exitCode": 0,
+    "seconds": 4.153
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.168
+  }
+]

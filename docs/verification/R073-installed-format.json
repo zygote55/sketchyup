@@ -1,0 +1,9 @@
+{
+  "inspectAndValidateHistoricalVersion": true,
+  "publicVersion": 24,
+  "containerVersion": 2,
+  "newMigrationCopy": true,
+  "sourceUnchanged": true,
+  "existingDestinationRejected": true,
+  "standaloneModesEnforced": true
+}

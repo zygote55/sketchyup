@@ -16,6 +16,9 @@ jobs:
           pacman -Syyuu --noconfirm --needed cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema nodejs npm blender ffmpeg poppler
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
+      - name: Configure desktop tests without the optional CLI
+        run: |
+          cmake -S . -B build/configure-desktop-no-cli -G Ninja -DSKETCHYUP_BUILD_DESKTOP=ON -DSKETCHYUP_BUILD_CLI=OFF -DBUILD_TESTING=ON
       - name: Configure and build
         run: |
           cmake --preset dev
@@ -59,7 +62,7 @@ jobs:
           blender --background --factory-startup --disable-autoexec --python-exit-code 1 --python scripts/verify-blender-textures.py -- build/texture-fixtures eevee
       - name: Actual Blender worker lifecycle
         run: |
-          SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^(blender_real|blender_handoff_real|animation_export_real|gltf_import_real|stl_export_real|stl_import_real|obj_import_real|obj_export_real)$' --output-on-failure
+          SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^(blender_real|blender_handoff_real|animation_export_real|m7_presentation_real|gltf_import_real|stl_export_real|stl_import_real|obj_import_real|obj_export_real)$' --output-on-failure
       - name: Independent DXF consumer
         run: |
           python -m venv build/dxf-oracle
@@ -175,6 +178,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/transform_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/navigation_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/navigation_input_tests
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/navigation_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/selection_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/selection_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/guide_input_tests
@@ -238,6 +242,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/recovery_input_tests
           scripts/test-wayland.sh build/dev/formline_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/formline_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m7_presentation_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/dxf_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/stl_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/obj_input_tests
@@ -392,19 +397,19 @@ jobs:
       - name: Sanitized bounded inspection and CLI
         run: |
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON
-          cmake --build --preset sanitize --target shortcut_bindings_tests extension_worker_tests extension_store_tests extension_manifest_tests library_bundle_tests measured_cli_tests measured_export_tests measured_view_tests measured_drawing_tests dxf_export_tests dxf_import_tests dxf_source_tests stl_export_tests stl_import_tests stl_source_tests obj_export_tests obj_import_tests obj_source_tests obj_material_tests gltf_import_tests gltf_package_tests native_format_tests reference_image_command_tests reference_image_io_tests reference_image_tests solar_command_tests solar_io_tests solar_tests text_command_tests text_source_io_tests text_worker_tests text_geometry_tests annotation_command_tests annotation_record_tests annotation_io_tests annotation_anchor_tests section_export_tests section_command_tests section_record_tests section_io_tests section_geometry_tests saved_scene_command_tests saved_scene_tests saved_scene_io_tests model_style_command_tests model_style_tests model_style_io_tests texture_command_tests texture_export_tests texture_image_tests face_texture_tests texture_mapping_tests m6_workflow_tests hosted_command_tests hosted_components_io_tests component_glue_io_tests diagnostic_inspection_tests edge_visibility_tests shading_normals_tests smooth_export_tests edge_command_tests edge_appearance_tests orientation_command_tests solid_command_tests boolean_command_tests intersection_command_tests sweep_command_tests offset_command_tests chatgpt_auth_tests native_assistant_session_tests ollama_provider_tests openai_provider_tests animation_capture_tests animation_export_tests render_queue_tests render_store_tests blender_handoff_tests blender_job_tests glb_export_tests site_recipe_tests furniture_recipe_tests stair_recipe_tests roof_recipe_tests measurement_assertion_tests recipe_hosted_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests --parallel 2
-          ctest --test-dir build/sanitize -R '^(shortcut_bindings|extension_worker|extension_store|extension_manifest|library_bundle|measured_cli|measured_export|measured_view|measured_drawing|dxf_export|dxf_import|dxf_source|stl_export|stl_import|stl_source|obj_export|obj_import|obj_source|obj_material|gltf_import|gltf_package|native_format|reference_image_commands|reference_image_io|reference_image|solar_commands|solar_io|solar|text_commands|text_source_io|text_worker|text_geometry|annotation_commands|annotation_records|annotations_io|annotation_anchors|section_export|section_commands|section_records|sections_io|section_geometry|saved_scene_commands|saved_scenes|saved_scenes_io|model_style_commands|model_style|model_style_io|texture_commands|texture_export|texture_image|face_textures|texture_mapping|m6_workflow|hosted_commands|hosted_components_io|component_glue_io|diagnostic_inspection|edge_visibility|shading_normals|smooth_export|edge_commands|edge_appearance|orientation_commands|solid_commands|boolean_commands|intersection_commands|sweep_commands|offset_commands|chatgpt_auth|native_assistant_session|ollama_provider|openai_provider|animation_capture|animation_export|render_queue|render_store|blender_handoff|blender_job|glb_export|site_recipe|furniture_recipe|stair_recipe|roof_recipe|measurement_assertions|recipe_hosted|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
+          cmake --build --preset sanitize --target shortcut_bindings_tests extension_worker_tests extension_store_tests extension_manifest_tests library_bundle_tests measured_cli_tests measured_export_tests measured_view_tests measured_drawing_tests dxf_export_tests dxf_import_tests dxf_source_tests stl_export_tests stl_import_tests stl_source_tests obj_export_tests obj_import_tests obj_source_tests obj_material_tests gltf_import_tests gltf_package_tests native_format_tests reference_image_command_tests reference_image_io_tests reference_image_tests solar_command_tests solar_io_tests solar_tests text_command_tests text_source_io_tests text_worker_tests text_geometry_tests annotation_command_tests annotation_record_tests annotation_io_tests annotation_anchor_tests section_export_tests section_command_tests section_record_tests section_io_tests section_geometry_tests saved_scene_command_tests saved_scene_tests saved_scene_io_tests model_style_command_tests model_style_tests model_style_io_tests texture_command_tests texture_export_tests texture_image_tests face_texture_tests texture_mapping_tests m6_workflow_tests hosted_command_tests hosted_components_io_tests component_glue_io_tests diagnostic_inspection_tests edge_visibility_tests shading_normals_tests smooth_export_tests edge_command_tests edge_appearance_tests orientation_command_tests solid_command_tests boolean_command_tests intersection_command_tests sweep_command_tests offset_command_tests chatgpt_auth_tests native_assistant_session_tests ollama_provider_tests openai_provider_tests animation_capture_tests animation_export_tests render_queue_tests render_store_tests blender_handoff_tests blender_job_tests glb_export_tests site_recipe_tests furniture_recipe_tests stair_recipe_tests roof_recipe_tests measurement_assertion_tests recipe_hosted_tests model_recipes_tests assistant_tests inspection_tests inspection_session_tests staging_tests outcome_store_tests transaction_coordinator_tests transaction_dispatch_tests automation_session_tests recipe_tests mcp_tests m7_presentation_tests --parallel 2
+          ctest --test-dir build/sanitize -R '^(m7_presentation|shortcut_bindings|extension_worker|extension_store|extension_manifest|library_bundle|measured_cli|measured_export|measured_view|measured_drawing|dxf_export|dxf_import|dxf_source|stl_export|stl_import|stl_source|obj_export|obj_import|obj_source|obj_material|gltf_import|gltf_package|native_format|reference_image_commands|reference_image_io|reference_image|solar_commands|solar_io|solar|text_commands|text_source_io|text_worker|text_geometry|annotation_commands|annotation_records|annotations_io|annotation_anchors|section_export|section_commands|section_records|sections_io|section_geometry|saved_scene_commands|saved_scenes|saved_scenes_io|model_style_commands|model_style|model_style_io|texture_commands|texture_export|texture_image|face_textures|texture_mapping|m6_workflow|hosted_commands|hosted_components_io|component_glue_io|diagnostic_inspection|edge_visibility|shading_normals|smooth_export|edge_commands|edge_appearance|orientation_commands|solid_commands|boolean_commands|intersection_commands|sweep_commands|offset_commands|chatgpt_auth|native_assistant_session|ollama_provider|openai_provider|animation_capture|animation_export|render_queue|render_store|blender_handoff|blender_job|glb_export|site_recipe|furniture_recipe|stair_recipe|roof_recipe|measurement_assertions|recipe_hosted|model_recipes|assistant|inspection(_session)?|staging|outcome_store|transaction_coordinator|transaction_dispatch|automation_session|recipes|mcp)$' --output-on-failure
       - name: Sanitized shipped recipes and discovery
         run: |
-          cmake --build --preset sanitize --target sketchyup-cli m8_exchange_tests --parallel 2
-          ctest --test-dir build/sanitize -R '^(m8_exchange|shipped_recipes|optional_capabilities|tool_reference_drift)$' --output-on-failure
+          cmake --build --preset sanitize --target sketchyup-cli m8_exchange_tests parser_fault_corpus_tests new_file_fault_tests transaction_sequence_tests --parallel 2
+          ctest --test-dir build/sanitize -R '^(transaction_sequence|new_file_faults|parser_fault_corpus|m8_exchange|shipped_recipes|optional_capabilities|tool_reference_drift)$' --output-on-failure
       - name: Verify private Wayland client reference fix
         run: scripts/ci-wayland-client.sh "$PWD/build/ci-wayland-client"
       - name: Sanitized native MCP inspection
         run: |
           export SKETCHYUP_WAYLAND_CLIENT_LIBRARY="$PWD/build/ci-wayland-client/lib"
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON
-          cmake --build --preset sanitize --target text_size_input_tests theme_input_tests shortcut_input_tests keyboard_modeling_input_tests preference_input_tests extension_input_tests library_input_tests measured_input_tests dxf_input_tests stl_input_tests obj_input_tests gltf_input_tests reference_image_input_tests raster_export_input_tests solar_input_tests text_input_tests annotation_input_tests annotation_viewport_tests section_input_tests section_viewport_tests scene_input_tests style_input_tests style_viewport_tests texture_input_tests texture_cache_tests texture_viewport_tests material_viewport_tests m6_workflow_input_tests viewport_precision_tests site_recipe_input_tests furniture_recipe_input_tests stair_recipe_input_tests roof_recipe_input_tests recipe_hosted_input_tests hosted_array_input_tests hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests --parallel 2
+          cmake --build --preset sanitize --target text_size_input_tests theme_input_tests shortcut_input_tests keyboard_modeling_input_tests preference_input_tests extension_input_tests library_input_tests measured_input_tests dxf_input_tests stl_input_tests obj_input_tests gltf_input_tests reference_image_input_tests raster_export_input_tests solar_input_tests text_input_tests annotation_input_tests annotation_viewport_tests section_input_tests section_viewport_tests scene_input_tests style_input_tests style_viewport_tests texture_input_tests texture_cache_tests texture_viewport_tests material_viewport_tests m6_workflow_input_tests viewport_precision_tests site_recipe_input_tests furniture_recipe_input_tests stair_recipe_input_tests roof_recipe_input_tests recipe_hosted_input_tests hosted_array_input_tests hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests m7_presentation_input_tests navigation_input_tests --parallel 2
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_array_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/recipe_hosted_input_tests
@@ -413,7 +418,9 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/furniture_recipe_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/m6_workflow_input_tests
           ctest --test-dir build/sanitize -R '^texture_cache$' --output-on-failure
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/navigation_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/scene_input_tests
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/m7_presentation_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/dxf_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/stl_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/obj_input_tests
@@ -448,6 +455,18 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/assistant_preview_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/render_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/native_mcp_tests
+      - name: Release completed build artifacts before package rebuild
+        run: |
+          # All consumers of these binaries have completed. Keep CTest evidence,
+          # then reclaim Debug/ASan objects and executables for the full package gate.
+          mkdir -p build/ci-test-logs
+          for configuration in dev sanitize; do
+            if [ -d "build/$configuration/Testing" ]; then
+              cp -a "build/$configuration/Testing" "build/ci-test-logs/$configuration"
+            fi
+          done
+          rm -rf -- build/dev build/sanitize
+          df -h .
       - name: Disposable Arch package acceptance
         run: |
           useradd --create-home builder

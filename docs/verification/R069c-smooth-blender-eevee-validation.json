@@ -1,0 +1,54 @@
+{
+  "blender": "5.2.1 LTS",
+  "engine": "BLENDER_EEVEE",
+  "reports": [
+    {
+      "fixture": "smooth-0",
+      "normalError": 0,
+      "pixel": [
+        0.5960784554481506,
+        0.5960784554481506,
+        0.5960784554481506,
+        1.0
+      ],
+      "sharedMesh": false,
+      "passed": true
+    },
+    {
+      "fixture": "smooth-1",
+      "normalError": 5.875999287921482e-05,
+      "pixel": [
+        0.6431372761726379,
+        0.6431372761726379,
+        0.6431372761726379,
+        1.0
+      ],
+      "sharedMesh": false,
+      "passed": true
+    },
+    {
+      "fixture": "smooth-2",
+      "normalError": 5.875999287921482e-05,
+      "pixel": [
+        0.6431372761726379,
+        0.6431372761726379,
+        0.6431372761726379,
+        1.0
+      ],
+      "sharedMesh": true,
+      "passed": true
+    },
+    {
+      "fixture": "smooth-3",
+      "normalError": 5.875999287921482e-05,
+      "pixel": [
+        0.5960784554481506,
+        0.5960784554481506,
+        0.5960784554481506,
+        1.0
+      ],
+      "sharedMesh": false,
+      "passed": true
+    }
+  ]
+}

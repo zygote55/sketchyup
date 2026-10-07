@@ -1,0 +1,383 @@
+{
+  "animation": {
+    "adapter": "sketchyup-animation-v1",
+    "apiVersion": 1,
+    "documentId": "4dbfe87a81e0b0b21f819e38c99a5c1f",
+    "frames": [
+      {
+        "file": "frame-0001.png",
+        "index": 0,
+        "manifest": "frame-0001.json",
+        "sha256": "158474716aa6fb340aa897fa78ad1fd6cfeb92a3a88bfde55b602be0feeb6e02"
+      },
+      {
+        "file": "frame-0002.png",
+        "index": 1,
+        "manifest": "frame-0002.json",
+        "sha256": "0015c2c2cf7e94491beb8b782a16fb9843c82500768ae55158d087e9e066423a"
+      },
+      {
+        "file": "frame-0003.png",
+        "index": 2,
+        "manifest": "frame-0003.json",
+        "sha256": "7ec88563cf9276695e715546cf73ba6c6087a70486e6ade8a327e96d547fd6b3"
+      }
+    ],
+    "framesPerSecond": 1,
+    "lastAttempt": {
+      "code": "",
+      "cpuFallbackUsed": false,
+      "message": "",
+      "phase": 5,
+      "progress": "Verifying image",
+      "worker": {
+        "adapter": "sketchyup-blender-v1",
+        "apiVersion": 1,
+        "blenderBuildHash": "9e2066aef7ef",
+        "blenderVersion": [
+          5,
+          2,
+          1
+        ],
+        "blenderVersionString": "5.2.1 LTS",
+        "device": {
+          "backend": "CPU",
+          "id": "CPU",
+          "name": "CPU"
+        },
+        "documentId": "4dbfe87a81e0b0b21f819e38c99a5c1f",
+        "image": {
+          "bytes": 71099,
+          "file": "image.png",
+          "height": 240,
+          "sha256": "7ec88563cf9276695e715546cf73ba6c6087a70486e6ade8a327e96d547fd6b3",
+          "width": 320
+        },
+        "lighting": {
+          "angle": 0.00935,
+          "energy": 3,
+          "mode": "solar-v1",
+          "position": {
+            "aboveHorizon": true,
+            "algorithm": "noaa-meeus-geometric-v1",
+            "azimuthDegrees": 178.53323003787935,
+            "declinationDegrees": 23.43814815617285,
+            "directLightActive": true,
+            "direction": [
+              0.007298393034043618,
+              -0.28503158309160853,
+              0.9584903390746369
+            ],
+            "elevationDegrees": 73.43367897187444,
+            "equationOfTimeMinutes": -1.823111008287894,
+            "refraction": "none; geometric solar center",
+            "shadowsActive": true,
+            "utcSeconds": "1277146800"
+          },
+          "settings": {
+            "algorithm": "noaa-meeus-geometric-v1",
+            "day": 21,
+            "enabled": true,
+            "hour": 12,
+            "latitude": 40,
+            "longitude": -105,
+            "minute": 0,
+            "month": 6,
+            "northDegrees": 0,
+            "second": 0,
+            "shadows": true,
+            "utcOffsetMinutes": -420,
+            "year": 2010
+          },
+          "shadows": true,
+          "worldStrength": 0.25
+        },
+        "losses": {
+          "analyticCurvesTessellatedOrOmitted": 0,
+          "annotationsOmitted": 4,
+          "editableTextSourcesOmitted": 0,
+          "environmentLightingOmitted": 0,
+          "guidesOmitted": 0,
+          "missingAssets": 0,
+          "referenceImagesOmitted": 0,
+          "sectionCutEdgesOmitted": 68,
+          "solarLightingOmitted": 0,
+          "textureAssetsPreservedWithoutUVMapping": 0,
+          "wiresOmitted": 0
+        },
+        "manifestSha256": "9121f07df241e75f9e87cc4357cd2ca981bf9f1797ef8718281ba059fb190b4d",
+        "preset": {
+          "adaptiveSampling": false,
+          "denoising": false,
+          "engine": "CYCLES",
+          "exposure": 0,
+          "gamma": 1,
+          "look": "None",
+          "maxBounces": 8,
+          "name": "solar-v1",
+          "samples": 4,
+          "samplingPolicy": "cycles-fixed-v1",
+          "seed": 0,
+          "threads": 4,
+          "viewTransform": "Standard",
+          "worldStrength": 0.25
+        },
+        "revision": "17",
+        "sceneSha256": "b505a632fd65412109b639cdf025d45ebbd47616221514d9ba7487f419488a0a",
+        "settings": {
+          "engine": "cycles",
+          "height": 240,
+          "samples": 4,
+          "seed": 0,
+          "width": 320
+        },
+        "status": "succeeded"
+      }
+    },
+    "message": "Animation frame sequence completed",
+    "revision": "17",
+    "state": "completed",
+    "totalFrames": 3
+  },
+  "annotations": 4,
+  "dimensions": [
+    {
+      "metres": 6,
+      "name": "Building width"
+    },
+    {
+      "metres": 4,
+      "name": "Building depth"
+    },
+    {
+      "metres": 2.7,
+      "name": "Wall height"
+    }
+  ],
+  "handoff": {
+    "adapter": "sketchyup-blender-v1",
+    "apiVersion": 1,
+    "blenderBuildHash": "9e2066aef7ef",
+    "blenderVersion": [
+      5,
+      2,
+      1
+    ],
+    "blenderVersionString": "5.2.1 LTS",
+    "cpuFallbackUsed": false,
+    "device": {
+      "backend": "CPU",
+      "id": "CPU",
+      "name": "CPU"
+    },
+    "documentId": "4dbfe87a81e0b0b21f819e38c99a5c1f",
+    "lighting": {
+      "angle": 0.00935,
+      "energy": 3,
+      "mode": "solar-v1",
+      "position": {
+        "aboveHorizon": true,
+        "algorithm": "noaa-meeus-geometric-v1",
+        "azimuthDegrees": 178.53323003787935,
+        "declinationDegrees": 23.43814815617285,
+        "directLightActive": true,
+        "direction": [
+          0.007298393034043618,
+          -0.28503158309160853,
+          0.9584903390746369
+        ],
+        "elevationDegrees": 73.43367897187444,
+        "equationOfTimeMinutes": -1.823111008287894,
+        "refraction": "none; geometric solar center",
+        "shadowsActive": true,
+        "utcSeconds": "1277146800"
+      },
+      "settings": {
+        "algorithm": "noaa-meeus-geometric-v1",
+        "day": 21,
+        "enabled": true,
+        "hour": 12,
+        "latitude": 40,
+        "longitude": -105,
+        "minute": 0,
+        "month": 6,
+        "northDegrees": 0,
+        "second": 0,
+        "shadows": true,
+        "utcOffsetMinutes": -420,
+        "year": 2010
+      },
+      "shadows": true,
+      "worldStrength": 0.25
+    },
+    "losses": {
+      "analyticCurvesTessellatedOrOmitted": 0,
+      "annotationsOmitted": 4,
+      "editableTextSourcesOmitted": 0,
+      "environmentLightingOmitted": 0,
+      "guidesOmitted": 0,
+      "missingAssets": 0,
+      "referenceImagesOmitted": 0,
+      "sectionCutEdgesOmitted": 0,
+      "solarLightingOmitted": 0,
+      "textureAssetsPreservedWithoutUVMapping": 0,
+      "wiresOmitted": 0
+    },
+    "manifestSha256": "c550c26e67ca85b481b54b08656667b3b356bc94f2d38886fecda07a63b447d9",
+    "preset": {
+      "adaptiveSampling": false,
+      "denoising": false,
+      "engine": "CYCLES",
+      "exposure": 0,
+      "gamma": 1,
+      "look": "None",
+      "maxBounces": 8,
+      "name": "solar-v1",
+      "samples": 4,
+      "samplingPolicy": "cycles-fixed-v1",
+      "seed": 0,
+      "threads": 4,
+      "viewTransform": "Standard",
+      "worldStrength": 0.25
+    },
+    "revision": "17",
+    "sceneFile": {
+      "assetsPacked": true,
+      "bytes": 654162,
+      "file": "scene.blend",
+      "oneWay": true,
+      "sha256": "04d1f452cbf55151cd4d0e14866197f7c98945dbb69bdcde5ad817fd940fdf71"
+    },
+    "sceneSha256": "d0e031ce186ee8583f80735282f8b70f5714f09edd9e06d7eb5dd016abe3eaa5",
+    "settings": {
+      "engine": "cycles",
+      "height": 240,
+      "samples": 4,
+      "seed": 0,
+      "width": 320
+    },
+    "status": "succeeded"
+  },
+  "independentHandoffReopen": true,
+  "sharedWindowInstances": 2,
+  "units": "m",
+  "views": [
+    {
+      "camera": {
+        "farClip": 1000,
+        "nearClip": 0.0013,
+        "position": [
+          9.108002035108406,
+          -6.723130931616847,
+          8.656493672563599
+        ],
+        "projection": "perspective",
+        "target": [
+          3,
+          2,
+          1.2
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "verticalFov": 0.7853981633974483,
+        "yMag": 5.8500000000000005
+      },
+      "losses": {
+        "analyticCurvesTessellatedOrOmitted": 0,
+        "annotationsOmitted": 4,
+        "editableTextSourcesOmitted": 0,
+        "environmentLightingOmitted": 0,
+        "guidesOmitted": 0,
+        "missingAssets": 0,
+        "referenceImagesOmitted": 0,
+        "sectionCutEdgesOmitted": 0,
+        "solarLightingOmitted": 1,
+        "textureAssetsPreservedWithoutUVMapping": 0,
+        "wiresOmitted": 0
+      },
+      "name": "01 \u00b7 Textured perspective",
+      "triangles": 142
+    },
+    {
+      "camera": {
+        "farClip": 1000,
+        "nearClip": 0.01,
+        "position": [
+          3,
+          1.9999999999999993,
+          10
+        ],
+        "projection": "orthographic",
+        "target": [
+          3,
+          2,
+          0
+        ],
+        "up": [
+          0,
+          1,
+          0
+        ],
+        "verticalFov": 0.7853981633974483,
+        "yMag": 4.5
+      },
+      "losses": {
+        "analyticCurvesTessellatedOrOmitted": 0,
+        "annotationsOmitted": 4,
+        "editableTextSourcesOmitted": 0,
+        "environmentLightingOmitted": 0,
+        "guidesOmitted": 0,
+        "missingAssets": 0,
+        "referenceImagesOmitted": 0,
+        "sectionCutEdgesOmitted": 0,
+        "solarLightingOmitted": 1,
+        "textureAssetsPreservedWithoutUVMapping": 0,
+        "wiresOmitted": 0
+      },
+      "name": "02 \u00b7 Dimensioned plan",
+      "triangles": 142
+    },
+    {
+      "camera": {
+        "farClip": 1000,
+        "nearClip": 0.0012,
+        "position": [
+          7.8669574520716665,
+          -4.950735584074831,
+          9.185281374238569
+        ],
+        "projection": "perspective",
+        "target": [
+          3,
+          2,
+          0.7
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "verticalFov": 0.7853981633974483,
+        "yMag": 5.4
+      },
+      "losses": {
+        "analyticCurvesTessellatedOrOmitted": 0,
+        "annotationsOmitted": 4,
+        "editableTextSourcesOmitted": 0,
+        "environmentLightingOmitted": 0,
+        "guidesOmitted": 0,
+        "missingAssets": 0,
+        "referenceImagesOmitted": 0,
+        "sectionCutEdgesOmitted": 68,
+        "solarLightingOmitted": 1,
+        "textureAssetsPreservedWithoutUVMapping": 0,
+        "wiresOmitted": 0
+      },
+      "name": "03 \u00b7 Section at 1.4 m",
+      "triangles": 160
+    }
+  ]
+}

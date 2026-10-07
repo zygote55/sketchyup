@@ -1,0 +1,74 @@
+[
+  {
+    "implementation": "46fd2069d180ce2bb809ae0b2b21e1381b33c3ce",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "measured_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 1.284
+  },
+  {
+    "implementation": "46fd2069d180ce2bb809ae0b2b21e1381b33c3ce",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "measured_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.034
+  },
+  {
+    "implementation": "46fd2069d180ce2bb809ae0b2b21e1381b33c3ce",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "measured_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.132
+  },
+  {
+    "implementation": "46fd2069d180ce2bb809ae0b2b21e1381b33c3ce",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "measured_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.243
+  },
+  {
+    "implementation": "ef9a68d6730fcf14bcdc4a67df0092c5d27b0f0a",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "measured_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 2.528
+  },
+  {
+    "implementation": "ef9a68d6730fcf14bcdc4a67df0092c5d27b0f0a",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "measured_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 4.21
+  },
+  {
+    "implementation": "ef9a68d6730fcf14bcdc4a67df0092c5d27b0f0a",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "measured_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 5.353
+  },
+  {
+    "implementation": "ef9a68d6730fcf14bcdc4a67df0092c5d27b0f0a",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "measured_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 5.496
+  }
+]

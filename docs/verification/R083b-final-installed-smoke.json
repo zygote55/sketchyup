@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-07",
+  "installedApplicationAndHelpersMatchPriorVerifiedBuild": true,
+  "installedCatalogsAndContractsByteExact": true,
+  "installedFileCounts": {
+    "decisions": 124,
+    "api": 11
+  },
+  "newContract": "0143-new-file-publication-faults.md"
+}

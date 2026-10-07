@@ -168,7 +168,8 @@ void Window::extensionsDialog() {
                                       "\nCommands: " + manifest.commands.join(", ") +
                                       (entry.error.isEmpty() ? QString{} : "\n" + entry.error));
                 for (const auto &action : manifest.actions)
-                    actions->addItem(action.toObject()["name"].toString(), action.toObject()["id"].toString());
+                    actions->addItem(action.toObject()["name"].toString(),
+                                     action.toObject()["id"].toString());
             } else
                 details->setPlainText(id + "\n" + entry.error);
         }

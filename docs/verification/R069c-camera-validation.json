@@ -1,0 +1,77 @@
+{
+  "blender": "5.2.1 LTS",
+  "reports": [
+    {
+      "fixture": "box",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          -4.030765694551519e-07
+        ],
+        [
+          2.0,
+          3.0000009536743164,
+          4.000000476837158
+        ]
+      ],
+      "meshObjects": 1,
+      "camera": "PERSP",
+      "passed": true
+    },
+    {
+      "fixture": "mirrored",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          -4.030765694551519e-07
+        ],
+        [
+          6.0,
+          3.0000009536743164,
+          4.000000476837158
+        ]
+      ],
+      "meshObjects": 2,
+      "camera": "PERSP",
+      "passed": true
+    },
+    {
+      "fixture": "materials",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          -4.030765694551519e-07
+        ],
+        [
+          2.0,
+          3.0000009536743164,
+          4.000000476837158
+        ]
+      ],
+      "meshObjects": 1,
+      "camera": "PERSP",
+      "passed": true
+    },
+    {
+      "fixture": "orthographic",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          -4.030765694551519e-07
+        ],
+        [
+          2.0,
+          3.0000009536743164,
+          4.000000476837158
+        ]
+      ],
+      "meshObjects": 1,
+      "camera": "ORTHO",
+      "passed": true
+    }
+  ]
+}

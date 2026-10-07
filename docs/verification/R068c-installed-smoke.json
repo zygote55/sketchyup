@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-06",
+  "displayVariablesRemoved": true,
+  "installedExampleMatchesSavedContent": true,
+  "readOnlyBoundedListingAndPixelInspection": true,
+  "decodedPixelDimensions": [
+    128,
+    64
+  ],
+  "invalidCalibrationAndLaterBatchFailureAtomic": true,
+  "calibrationPreservesAnchorAspectAndModeledGeometry": true,
+  "relocatedStandaloneCliAndEmbeddedPixels": true,
+  "referenceExportLossReported": true,
+  "installedSchemas": 7,
+  "examplesMatch": true,
+  "contractMatches": true,
+  "desktopMatches": true
+}

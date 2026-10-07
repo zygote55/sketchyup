@@ -1,4 +1,5 @@
 #include "app/viewport.hpp"
+#include "core/camera_motion.hpp"
 #include "core/scenes.hpp"
 #include "io/scenes_io.hpp"
 #include <QApplication>
@@ -32,7 +33,7 @@ void Viewport::initializeSceneViews() {
     sceneAnimation_ = new QVariantAnimation(this);
     syncSceneTabs();
     sceneAnimation_->setDuration(160);
-    sceneAnimation_->setEasingCurve(QEasingCurve::InOutCubic);
+    sceneAnimation_->setEasingCurve(QEasingCurve::Linear);
     sceneAnimation_->setStartValue(0.);
     sceneAnimation_->setEndValue(1.);
     connect(sceneAnimation_, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
@@ -40,20 +41,8 @@ void Viewport::initializeSceneViews() {
             stopSceneTransition();
             return;
         }
-        const auto t = value.toDouble();
-        auto camera = sceneCameraTo_;
-        camera.target = sceneCameraFrom_.target * (1 - t) + sceneCameraTo_.target * t;
-        camera.yaw =
-            std::remainder(sceneCameraFrom_.yaw +
-                               std::remainder(sceneCameraTo_.yaw - sceneCameraFrom_.yaw, 360.) * t,
-                           360.);
-        camera.pitch = sceneCameraFrom_.pitch * (1 - t) + sceneCameraTo_.pitch * t;
-        camera.distance = std::exp(std::log(sceneCameraFrom_.distance) * (1 - t) +
-                                   std::log(sceneCameraTo_.distance) * t);
-        camera.fieldOfView =
-            sceneCameraFrom_.fieldOfView * (1 - t) + sceneCameraTo_.fieldOfView * t;
-        if (t >= 1)
-            camera = sceneCameraTo_;
+        const auto camera =
+            interpolateSceneCamera(sceneCameraFrom_, sceneCameraTo_, value.toDouble());
         sceneCameraStep_ = true;
         applySceneCamera(camera);
         sceneCameraStep_ = false;
@@ -174,12 +163,13 @@ void Viewport::recallSavedScene(Id id, bool animate) {
     if (snapshot.section)
         clipPlane_ = snapshot.section->plane;
     if (snapshot.camera) {
-        if (!animate || reducedMotion_ || from == *snapshot.camera)
+        if (!animate || reducedMotion_ || sceneTransitionMs_ == 0 || from == *snapshot.camera)
             applySceneCamera(*snapshot.camera);
         else {
             sceneCameraFrom_ = from;
             sceneCameraTo_ = *snapshot.camera;
             sceneAnimationStamp_ = doc_.saveStamp();
+            sceneAnimation_->setDuration(sceneTransitionMs_);
             sceneAnimation_->start();
         }
     }

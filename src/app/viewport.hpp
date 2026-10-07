@@ -22,6 +22,7 @@
 #include <functional>
 #include <optional>
 class QTabBar;
+class QTimer;
 class QVariantAnimation;
 namespace sketchy {
 class Viewport : public QOpenGLWidget {
@@ -31,7 +32,8 @@ class Viewport : public QOpenGLWidget {
     ~Viewport() override;
     const Document &document() const { return doc_; }
     bool inspectionBusy() const {
-        return session_.active() || dragging_ || toolPressed_ || selectionPressed_ || selectingBox_;
+        return session_.active() || dragging_ || toolPressed_ || selectionPressed_ ||
+               selectingBox_ || !walkKeys_.empty();
     }
     bool inspectionRenderOverrides() const {
         return benchmarkTriangles_ > 0 || !opacity_.empty() || clipPlane_.has_value();
@@ -63,9 +65,13 @@ class Viewport : public QOpenGLWidget {
         Intersect = 23,
         Boolean = 24,
         Orientation = 25,
-        HostedPlacement = 26
+        HostedPlacement = 26,
+        LookAround = 27,
+        Walk = 28
     };
     void setTool(Tool tool);
+    void setSceneTransitionDuration(int milliseconds);
+    int sceneTransitionDuration() const { return sceneTransitionMs_; }
     void setDrawingPlane(std::optional<DrawingPlane> plane, Id context = 0);
     void useSelectedFacePlane();
     DrawingPlane drawingPlane() const { return plane_; }
@@ -215,7 +221,13 @@ class Viewport : public QOpenGLWidget {
         size_t meshTriangles{}, profileEdges{};
     };
     RenderStats renderStats() const { return stats_; }
+    struct GeometryCacheMemory {
+        size_t bodyVectorCapacityBytes{}, bodyGpuPayloadBytes{};
+    };
+    GeometryCacheMemory geometryCacheMemory() const;
     double lastFrameMs() const { return frameMs_; }
+    // Benchmark instrumentation only: include GPU completion in frame timing.
+    void setSynchronousFrameTiming(bool enabled) { synchronousFrameTiming_ = enabled; }
     bool texturesPending() const { return textureCache_.pending(); }
     QString textureSummary() const;
     // Orthographic projection in the current view direction, at physical page scale.
@@ -486,6 +498,14 @@ class Viewport : public QOpenGLWidget {
     std::vector<Guide> previewGuides_;
     QTabBar *sceneTabs_{};
     QVariantAnimation *sceneAnimation_{};
+    int sceneTransitionMs_{160};
+    QTimer *walkTimer_{};
+    QElapsedTimer walkElapsed_;
+    std::set<int> walkKeys_;
+    double walkSpeed_{3};
+    void initializeWalkNavigation();
+    void stopWalking();
+    bool walkNavigation(QEvent *event);
     bool reducedMotion_{}, sceneCameraStep_{};
     SceneCamera sceneCameraFrom_, sceneCameraTo_;
     Document::SaveStamp sceneAnimationStamp_;
@@ -511,6 +531,7 @@ class Viewport : public QOpenGLWidget {
     bool nativeNavigation(QEvent *event);
     int instances_{0}, benchmarkTriangles_{0};
     double frameMs_{};
+    bool synchronousFrameTiming_{};
     QString graphics_;
     QMatrix4x4 matrix() const;
     std::pair<Vec3, Vec3> ray(QPointF p) const;

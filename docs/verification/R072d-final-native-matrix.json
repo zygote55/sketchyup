@@ -1,0 +1,37 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "desktop_inspection_tests",
+    "exitCode": 0,
+    "seconds": 3.101
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.275
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "render_input_tests",
+    "exitCode": 0,
+    "seconds": 8.021
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "history_input_tests",
+    "exitCode": 0,
+    "seconds": 3.115
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "m7_presentation_input_tests",
+    "exitCode": 0,
+    "seconds": 3.681
+  }
+]
