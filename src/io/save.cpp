@@ -1,4 +1,5 @@
 #include "io/document_io.hpp"
+#include "io/native_limits.hpp"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -9,7 +10,7 @@
 #include <unistd.h>
 namespace sketchy {
 namespace {
-constexpr qint64 fileLimit = 128 * 1024 * 1024;
+constexpr qint64 fileLimit = NativeLimits::fileBytes;
 class Directory {
   public:
     explicit Directory(const QString &path) {

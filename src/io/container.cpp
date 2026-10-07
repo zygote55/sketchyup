@@ -1,6 +1,7 @@
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
+#include "io/native_limits.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -9,8 +10,8 @@
 #include <set>
 namespace sketchy {
 namespace {
-constexpr qsizetype manifestLimit = 1024 * 1024;
-constexpr qsizetype documentLimit = 32 * 1024 * 1024;
+constexpr qsizetype manifestLimit = NativeLimits::manifestBytes;
+constexpr qsizetype documentLimit = NativeLimits::modelBytes;
 const QByteArray magic("SKUPDOC\0", 8);
 QString hash(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
@@ -121,12 +122,11 @@ QByteArray encodeContainer(const Document &doc) {
 Document decodeContainer(const QByteArray &bytes) {
     // Explicit legacy migration, without rewriting the source file.
     if (!bytes.startsWith(magic)) {
-        if (bytes.size() > 128 * 1024 * 1024)
+        if (bytes.size() > qsizetype(NativeLimits::fileBytes))
             throw std::runtime_error("Raw document exceeds 128 MiB");
         return decodeDocument(bytes);
     }
-    if (bytes.size() < 16 ||
-        bytes.size() > 16 + manifestLimit + documentLimit + qsizetype(assetTotalLimit))
+    if (bytes.size() < 16 || bytes.size() > qsizetype(NativeLimits::containerBytes))
         throw std::runtime_error("Invalid or oversized container");
     const auto version = qFromLittleEndian<quint32>(bytes.constData() + 8);
     const auto length = qFromLittleEndian<quint32>(bytes.constData() + 12);

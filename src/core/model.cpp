@@ -1,6 +1,7 @@
 #include "core/model.hpp"
 #include "core/appearance.hpp"
 #include "core/component_validation.hpp"
+#include "core/document_limits.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/face_textures.hpp"
 #include "core/reference_images.hpp"
@@ -148,8 +149,10 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies,
             }
         }
     }
-    if (bodies.size() > 10000 || vertices > 100000 || faces > 100000 || wires > 100000 ||
-        edges > Topology::edgeLimit || curves > 10000 || guides > 10000)
+    if (bodies.size() > DocumentLimits::bodies || vertices > DocumentLimits::vertices ||
+        faces > DocumentLimits::faces || wires > DocumentLimits::wires ||
+        edges > DocumentLimits::edges || curves > DocumentLimits::curves ||
+        guides > DocumentLimits::guides)
         throw std::runtime_error("Document complexity exceeds editing limits");
 }
 void validate(const Body &b) {
@@ -1538,7 +1541,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
-        !next || bodies.size() > 10000)
+        !next || bodies.size() > DocumentLimits::bodies)
         throw std::runtime_error("Invalid document metadata");
     std::map<Id, Id> floors, edgeFloors;
     for (auto &[id, b] : bodies) {
