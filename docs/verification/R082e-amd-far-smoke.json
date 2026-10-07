@@ -1,0 +1,79 @@
+{
+    "bodies": 51,
+    "bodyCacheGpuPayloadBytes": 866400,
+    "bodyCacheVectorCapacityBytes": 2536400,
+    "bodyMeshBuilds": 51,
+    "buildType": "Release",
+    "cacheAccountingScope": "Body geometry vector capacity and GPU vertex payload only; excludes maps, textures, overlays, drivers and allocator overhead. RSS includes the process.",
+    "coordinateOffset": [
+        900000,
+        -900000,
+        900000
+    ],
+    "editAndReadbackP95Ms": 17.370752,
+    "finalPeakRssBytes": 149098496,
+    "fixtureBuildMs": 29.765049,
+    "fixturePeakRssBytes": 39702528,
+    "fixtureScenario": "far",
+    "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+    "fixtureVersion": 2,
+    "frameSamples": 50,
+    "gpuCompleteFrameP95Ms": 0.265715,
+    "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Core Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+    "hostLogicalHeight": 1080,
+    "hostLogicalWidth": 1920,
+    "initialHistoryBytes": 0,
+    "instances": 25,
+    "kernel": "7.2.7-1-cachyos",
+    "outerGroups": 1,
+    "pickP95Ms": 0.012484,
+    "pixelHeight": 1080,
+    "pixelWidth": 1920,
+    "placements": 25,
+    "platform": "xcb",
+    "qtVersion": "6.11.2",
+    "releaseAcceptance": false,
+    "retainedHistoryBytes": 326500,
+    "scale": 1,
+    "style": {
+        "axesVisible": true,
+        "back": [
+            0.550000011920929,
+            0.6200000047683716,
+            0.6800000071525574
+        ],
+        "background": [
+            0.9411764740943909,
+            0.9450980424880981,
+            0.9254902005195618
+        ],
+        "edge": [
+            0.18000000715255737,
+            0.2199999988079071,
+            0.20000000298023224
+        ],
+        "edgesVisible": true,
+        "front": [
+            0.8199999928474426,
+            0.8399999737739563,
+            0.800000011920929
+        ],
+        "gridVisible": true,
+        "ground": [
+            0.8600000143051147,
+            0.8700000047683716,
+            0.8199999928474426
+        ],
+        "groundHeight": 0,
+        "groundVisible": false,
+        "mode": "textured",
+        "profileWidth": 2,
+        "profiles": false,
+        "xrayOpacity": 0.25
+    },
+    "timingScope": "OpenGL scene through glFinish; excludes painter overlays and compositor. Edits include framebuffer readback.",
+    "triangles": 2500,
+    "uploadedBytesCumulative": 6092464,
+    "viewportClippedByHost": false,
+    "warmupFrames": 10
+}
