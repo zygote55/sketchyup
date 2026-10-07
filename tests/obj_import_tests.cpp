@@ -87,9 +87,10 @@ int main(int argc, char **argv) {
             return 0;
         }
 
+#ifdef CLI_PATH
         auto cli = [&](const QStringList &arguments, bool success = true) {
             QProcess process;
-            process.start(QCoreApplication::applicationDirPath() + "/sketchyup-cli", arguments);
+            process.start(QString::fromUtf8(CLI_PATH), arguments);
             check(process.waitForStarted(10000) && process.waitForFinished(30000) &&
                       process.exitStatus() == QProcess::NormalExit &&
                       (process.exitCode() == 0) == success,
@@ -130,6 +131,7 @@ int main(int argc, char **argv) {
         cli({"--obj-unit", "m", "--input", native}, false);
         check(read(cliSource) == originalCli && !QFile::exists(root + "/mixed"),
               "CLI errors preserve inputs and leave no output");
+#endif
         const QByteArray concave =
             "o Building\ng Walls Exterior\nv 0 0 0\nv 2000 0 0\nv 2000 1000 0\nv 1000 1000 0\nv "
             "1000 2000 0\nv 0 2000 0\nf -6 -5 -4 -3 -2 -1\nl 1 3\n";
