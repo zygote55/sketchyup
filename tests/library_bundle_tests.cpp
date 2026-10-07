@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
         auto brokenComponent = componentBytes;
         brokenComponent[brokenComponent.size() - 1] ^= 1;
         rejects([&] { decodeComponentBundle(brokenComponent); });
-        Document destination(DisplayUnit::Feet);
+        Document destination(DisplayUnit::FeetInches);
         const auto retainedBody = destination.addFace({{{-3, 0, 0}, {-2, 0, 0}, {-3, 1, 0}}});
         const auto oldBody = destination.bodies().at(retainedBody);
         const auto reusedAsset = createAsset(
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
         const auto inserted = insertLibraryComponent(destination, component, placement);
         check(destination.history().total == baselineHistory + 1 &&
                   destination.worldTransform(inserted.component.instance) == placement &&
-                  destination.displayUnits() == DisplayUnit::Feet &&
+                  destination.displayUnits() == DisplayUnit::FeetInches &&
                   destination.bodies().at(retainedBody) == oldBody,
               "Library insertion is one edit preserving units and existing geometry");
         check(
