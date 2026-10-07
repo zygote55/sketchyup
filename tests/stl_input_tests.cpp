@@ -3,9 +3,11 @@
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -102,6 +104,14 @@ int main(int argc, char **argv) {
             } else if (auto *dialog = window.findChild<QDialog *>("stlOptionsDialog");
                        dialog && dialog->isVisible()) {
                 optionsSeen = true;
+                const auto weld = dialog->findChild<QComboBox *>("stlWeld");
+                const auto tolerance = dialog->findChild<QDoubleSpinBox *>("stlTolerance");
+                check(weld->currentIndex() == 0 && !tolerance->isEnabled() &&
+                          !dialog->findChild<QCheckBox *>("stlDiscardDegenerate")->isChecked(),
+                      "No import repair is preselected");
+                weld->setCurrentIndex(2);
+                check(tolerance->isEnabled(), "Tolerance welding exposes bounded distance");
+
                 optionsTimer.stop();
                 dialog->reject();
             }
