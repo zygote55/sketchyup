@@ -898,6 +898,8 @@ install(FILES docs/decisions/0114-contained-obj-export-packages.md DESTINATION s
 
 install(FILES docs/decisions/0115-native-obj-interchange-workflow.md DESTINATION share/doc/sketchyup/decisions)
 
+install(FILES docs/decisions/0123-native-dxf-interchange-workflow.md DESTINATION share/doc/sketchyup/decisions)
+
 install(FILES docs/decisions/0122-planar-dxf-export.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0121-native-dxf-wire-conversion.md DESTINATION share/doc/sketchyup/decisions)
