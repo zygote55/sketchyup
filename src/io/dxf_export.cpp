@@ -19,7 +19,7 @@ struct Writer {
     double scale;
     DxfExport result;
     QByteArray &bytes;
-    size_t entityCount{}, vertexCount{}, arcCount{}, polylineCount{}, lineCount{};
+    size_t entityCount{}, vertexCount{}, arcCount{}, polylineCount{}, lineCount{}, edgeCount{};
     QJsonObject losses;
     QJsonArray layerNames;
     std::map<Id, QString> layers;
@@ -97,6 +97,9 @@ struct Writer {
         ++arcCount;
     }
     void geometry(Id id, const Body &body) {
+        require(body.topology.edges.size() <= 100000 - edgeCount,
+                "DXF export exceeds 100000 source edges");
+        edgeCount += body.topology.edges.size();
         const auto world = doc.worldTransform(id);
         const auto layer = layers.at(body.tag);
         std::map<Id, Vec3> points;

@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <iostream>
 #include <numbers>
@@ -60,6 +61,23 @@ int main(int argc, char **argv) {
         check(arcs == 2 && circles == 1 && expectedLine, "Independent DXF primitive inventory");
         const auto output = dir.filePath("new.dxf");
         writeDxfExport(result, output);
+        if (app.arguments().contains("--ezdxf-real")) {
+            const auto python = qEnvironmentVariable("SKETCHYUP_DXF_TEST");
+            if (python.isEmpty())
+                return 77;
+            QProcess consumer;
+            consumer.start(python,
+                           {QStringLiteral(SOURCE_DIR "/tests/dxf_reference_consumer.py"), output});
+            check(consumer.waitForStarted(10000) && consumer.waitForFinished(30000) &&
+                      consumer.exitStatus() == QProcess::NormalExit && consumer.exitCode() == 0,
+                  "Independent ezdxf export consumer");
+            check(consumer.readAllStandardOutput().contains("SKETCHYUP_DXF_CONSUMER_VERIFIED"),
+                  "Independent DXF assertions completed");
+            std::cout
+                << "ezdxf independently verified units, layers, arcs, polylines and extents\n";
+            return 0;
+        }
+
         rejects([&] { writeDxfExport(result, output); });
         QFile file(output);
         check(file.open(QIODevice::ReadOnly) && file.readAll() == result.bytes,
