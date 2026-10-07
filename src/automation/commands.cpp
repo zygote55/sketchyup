@@ -1,20 +1,19 @@
-#include "automation/reference_image_commands.hpp"
 #include "automation/commands.hpp"
-#include "automation/text_commands.hpp"
-#include "io/model_style_io.hpp"
-#include "io/solar_io.hpp"
-#include "automation/scene_commands.hpp"
-#include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/entity_info.hpp"
+#include "automation/extension.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/inspection_session.hpp"
-#include "automation/model_recipes.hpp"
 #include "automation/measurement_assertions.hpp"
-#include "automation/transactions.hpp"
+#include "automation/model_recipes.hpp"
+#include "automation/reference_image_commands.hpp"
+#include "automation/scene_commands.hpp"
+#include "automation/section_commands.hpp"
+#include "automation/text_commands.hpp"
 #include "automation/texture_commands.hpp"
+#include "automation/transactions.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
@@ -34,6 +33,8 @@
 #include "geometry/intersection.hpp"
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
+#include "io/model_style_io.hpp"
+#include "io/solar_io.hpp"
 #include <QString>
 #include <algorithm>
 #include <numbers>
@@ -177,6 +178,7 @@ QJsonObject capabilities() {
     return {
         {"apiVersion", 1},
         {"status", "experimental"},
+        {"extensions", extensionCapabilities()},
         {"inspection", inspectionCapabilities()},
         {"inspectionSession", inspectionSessionCapabilities()},
         {"transactions", transactionCapabilities()},
