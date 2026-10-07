@@ -9,6 +9,7 @@
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
 #include "io/native_format.hpp"
+#include "io/obj_export.hpp"
 #include "io/recovery.hpp"
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -52,6 +53,11 @@ int main(int argc, char **argv) {
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption(
         {"import-gltf", "Import GLB/glTF into a new native model; optional new --output", "path"});
+    parser.addOption({"import-obj", "Import OBJ/MTL; optional new native --output", "path"});
+    parser.addOption(
+        {"export-obj", "Export all model geometry to a new OBJ package directory", "directory"});
+    parser.addOption({"obj-unit", "Explicit OBJ coordinate unit: mm, cm, m, in or ft", "unit"});
+    parser.addOption({"obj-up", "Explicit OBJ up axis: y or z", "axis"});
     parser.addOption({"import-formline", "Import Formline v1 into a new native model", "path"});
     parser.addOption(
         {"recovery-list", "List verified inactive recovery sessions in a directory", "directory"});
@@ -69,6 +75,51 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("import-obj") || parser.isSet("export-obj")) {
+            const bool importing = parser.isSet("import-obj");
+            if (importing == parser.isSet("export-obj") ||
+                !parser.positionalArguments().isEmpty() || !parser.isSet("obj-unit") ||
+                !parser.isSet("obj-up"))
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST",
+                    "Choose one OBJ operation with explicit --obj-unit and --obj-up");
+            const QStringList allowed =
+                importing ? QStringList{"import-obj", "output", "obj-unit", "obj-up"}
+                          : QStringList{"export-obj", "input", "obj-unit", "obj-up"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "OBJ commands are standalone operations");
+            const std::map<QString, double> units{
+                {"mm", .001}, {"cm", .01}, {"m", 1}, {"in", .0254}, {"ft", .3048}};
+            const auto unit = parser.value("obj-unit"), up = parser.value("obj-up");
+            if (!units.contains(unit) || (up != "y" && up != "z"))
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST", "OBJ units are mm, cm, m, in or ft; up axis is y or z");
+            const sketchy::ObjImportOptions options{
+                units.at(unit), up == "y" ? sketchy::ObjUpAxis::Y : sketchy::ObjUpAxis::Z};
+            QJsonObject result;
+            if (importing) {
+                const auto imported = sketchy::loadObj(parser.value("import-obj"), options);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } else {
+                if (!parser.isSet("input"))
+                    throw sketchy::InspectionError(
+                        "INVALID_REQUEST", "OBJ export requires an explicit native --input");
+                const auto document = sketchy::loadDocument(parser.value("input"));
+                const auto package = sketchy::exportObj(document, options);
+                sketchy::writeObjExport(package, parser.value("export-obj"));
+                result = {{"status", "exported"}, {"manifest", package.manifest}};
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        if (parser.isSet("obj-unit") || parser.isSet("obj-up"))
+            throw sketchy::InspectionError("INVALID_REQUEST",
+                                           "OBJ options require --import-obj or --export-obj");
         const QStringList formatModes{"format-capabilities", "inspect-native", "validate-native",
                                       "migrate-native"};
         QString formatMode;
