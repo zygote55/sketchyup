@@ -74,3 +74,13 @@ This change does not introduce real viewport instancing, raise limits, reduce
 the required fixture, change performance budgets or accept R082/M9. Controlled
 reference runs, remaining performance scenarios, final integration, remote CI
 and ordered merges remain open.
+
+
+## Broader current-source regression
+
+After the package/guide parent integration, source
+`0c921a5` passes [all 178 non-desktop registered tests](R082b-full-headless-ctest.txt),
+including every configured real Blender, DXF and PDF consumer with no skips.
+The desktop build remains covered by its earlier baseline and current-head CI;
+this result does not relabel the 178-test headless configuration as 181 desktop
+checks or accept physical hardware/performance gates.
