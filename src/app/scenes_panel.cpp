@@ -26,6 +26,9 @@ ScenesPanel::ScenesPanel(Document &doc, Viewport &view, QWidget *parent)
     auto *timing = new QFormLayout;
     auto *duration = new QSpinBox;
     duration->setObjectName("sceneTransitionDuration");
+    duration->setAccessibleName("Camera transition duration in milliseconds");
+    duration->findChild<QLineEdit *>()->setAccessibleName(
+        "Camera transition duration in milliseconds");
     duration->setRange(0, 10000);
     duration->setSuffix(" ms");
     duration->setValue(std::clamp(QSettings().value("sceneTransitionMs", 160).toInt(), 0, 10000));
