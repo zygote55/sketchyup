@@ -11,9 +11,37 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QVBoxLayout>
+#include <algorithm>
 namespace sketchy {
 namespace {
 constexpr auto settingsKey = "shortcuts/v1";
+bool viewportShortcut(QAction *action, const QKeySequence &sequence) {
+    const bool plain =
+        !sequence.isEmpty() &&
+        !(sequence[0].keyboardModifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
+        !(sequence[0].key() >= Qt::Key_F1 && sequence[0].key() <= Qt::Key_F35);
+    return plain || action->property("defaultShortcutContext").toInt() == int(Qt::WidgetShortcut);
+}
+ShortcutBindings::Guard panelGuard(const std::vector<QAction *> &actions, QWidget *panels) {
+    return [actions, panels](const QString &id, const QKeySequence &sequence) -> QString {
+        const auto found = std::find_if(actions.begin(), actions.end(), [&](QAction *action) {
+            return action->objectName() == id;
+        });
+        if (found == actions.end() || viewportShortcut(*found, sequence))
+            return {};
+        for (auto *local : panels->findChildren<QAction *>()) {
+            if (local->shortcutContext() != Qt::WidgetShortcut &&
+                local->shortcutContext() != Qt::WidgetWithChildrenShortcut)
+                continue;
+            if (local->shortcuts().contains(sequence)) {
+                auto name = local->text().isEmpty() ? local->objectName() : local->text();
+                return "Shortcut belongs to a model panel (" + name.remove('&') +
+                       "). Choose a different key combination.";
+            }
+        }
+        return {};
+    };
+}
 ShortcutMap defaults(const std::vector<QAction *> &actions) {
     ShortcutMap result;
     for (auto *action : actions)
@@ -24,12 +52,7 @@ ShortcutMap defaults(const std::vector<QAction *> &actions) {
 void Window::applyShortcuts(const ShortcutBindings &bindings) {
     for (auto *action : publicActions_) {
         const auto sequence = bindings.effective().value(action->objectName());
-        const bool plain =
-            !sequence.isEmpty() &&
-            !(sequence[0].keyboardModifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
-            !(sequence[0].key() >= Qt::Key_F1 && sequence[0].key() <= Qt::Key_F35);
-        const bool viewportOnly =
-            plain || action->property("defaultShortcutContext").toInt() == int(Qt::WidgetShortcut);
+        const bool viewportOnly = viewportShortcut(action, sequence);
         removeAction(action);
         viewport_->removeAction(action);
         action->setShortcut(sequence);
@@ -53,7 +76,8 @@ void Window::initializeShortcuts() {
     try {
         QSettings settings("SketchyUp", "SketchyUp");
         ShortcutBindings bindings(defaults(publicActions_),
-                                  settings.value(settingsKey).toByteArray());
+                                  settings.value(settingsKey).toByteArray(),
+                                  panelGuard(publicActions_, organization_));
         applyShortcuts(bindings);
         if (!bindings.notices().isEmpty())
             QTimer::singleShot(0, this, [this] {
@@ -72,7 +96,8 @@ void Window::shortcutSettings() {
     if (settings.status() != QSettings::NoError)
         throw std::runtime_error("Cannot read shortcut preferences");
     const auto original = settings.value(settingsKey).toByteArray();
-    ShortcutBindings draft(defaults(publicActions_), original);
+    ShortcutBindings draft(defaults(publicActions_), original,
+                           panelGuard(publicActions_, organization_));
     QDialog dialog(this);
     dialog.setObjectName("shortcutDialog");
     dialog.setWindowTitle("Keyboard shortcuts");
