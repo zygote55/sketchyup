@@ -75,6 +75,16 @@ startup, saved identity/revision, upgrade/reopen and uninstall. A PATH shim adds
 capture/exit behavior to the installed app without changing its desktop entry.
 The capture report must match the installed CLI's document metadata.
 
+After upgrading, the installed CLI migrates the retained historical native fixtures
+to new files. `scripts/verify-installed-migrations.py` checks source hashes, identity,
+revision, geometry/resource inspection, and byte equality with the ordinary load/save
+path. Existing destinations and writable in-place sources must survive rejected
+migrations; truncated inputs must fail without publishing a file. The report and
+all resulting documents remain in the acceptance directory after uninstall. This
+exercises historical document formats, not installation of an older application
+package. The script requires an explicit CLI path, fixture directory and new output
+directory, so it can also verify an already installed package without rebuilding.
+
 Qt's QSettings stores theme/recent-file preferences at
 `$XDG_CONFIG_HOME/SketchyUp/SketchyUp.conf` (default
 `~/.config/SketchyUp/SketchyUp.conf`). Recovery copies and other application data
