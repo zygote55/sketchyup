@@ -1033,3 +1033,5 @@ install(FILES docs/M8_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
 install(FILES docs/decisions/0142-deterministic-parser-corruption.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0143-new-file-publication-faults.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0144-seeded-transaction-sequences.md DESTINATION share/doc/sketchyup/decisions)
