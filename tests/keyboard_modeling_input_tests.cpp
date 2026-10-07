@@ -32,7 +32,12 @@ void measurement(Window &window, const QString &text) {
     QTest::keyClicks(field, text);
     check(field->text() == text, "Typing units does not trigger modeling shortcuts");
     key(Qt::Key_Return);
-    check(window.viewport()->hasFocus(), "Accepted measurement returns focus to the viewport");
+    if (!QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }, 1000))
+        throw std::runtime_error(
+            ("Measurement " + text + ": " + field->accessibleDescription() + "; focus=" +
+             (QApplication::focusWidget() ? QApplication::focusWidget()->objectName()
+                                          : QString("none")))
+                .toStdString());
 }
 void palette(Window &window, const QString &text) {
     bool handled{};
