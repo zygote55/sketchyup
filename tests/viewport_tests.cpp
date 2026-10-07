@@ -204,6 +204,7 @@ int main(int argc, char **argv) {
                 check(QTest::qWaitForWindowExposed(&output), "Output test window exposed");
                 if (!placementHelper.isEmpty()) {
                     QProcess helper;
+                    helper.setProcessChannelMode(QProcess::ForwardedErrorChannel);
                     helper.start(
                         placementHelper,
                         {QString::number(QCoreApplication::applicationPid()), screen->name()});
