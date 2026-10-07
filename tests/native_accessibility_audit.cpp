@@ -61,12 +61,18 @@ int main(int argc, char **argv) {
     app.setApplicationName("SketchyUp");
     Window window;
     try {
+        check(app.arguments().size() == 1 ||
+                  (app.arguments().size() == 2 && app.arguments()[1] == "--inventory-only"),
+              "Usage: native_accessibility_audit [--inventory-only]");
+        const bool keyboard = !app.arguments().contains("--inventory-only");
         window.resize(1200, 900);
         window.demo();
         window.show();
         check(QTest::qWaitForWindowExposed(&window), "Audit window exposed");
-        window.activateWindow();
-        check(QTest::qWaitForWindowActive(&window), "Audit window owns keyboard focus");
+        if (keyboard) {
+            window.activateWindow();
+            check(QTest::qWaitForWindowActive(&window), "Audit window owns keyboard focus");
+        }
         const auto before = encodeContainer(window.document());
         QJsonArray actions;
         for (auto *action : window.findChildren<QAction *>()) {
@@ -100,8 +106,9 @@ int main(int argc, char **argv) {
         // Observe real keyboard routing. This inventory does not assert that the
         // present order or labels are accessible; those are the subsequent audit.
         QJsonArray regions;
-        window.viewport()->setFocus();
-        for (int i = 0; i < 12; ++i) {
+        if (keyboard)
+            window.viewport()->setFocus();
+        for (int i = 0; keyboard && i < 12; ++i) {
             auto *focused = QApplication::focusWidget();
             check(focused, "Keyboard region has a focus owner");
             regions.append(identity(focused));
@@ -119,9 +126,12 @@ int main(int argc, char **argv) {
             {"contexts", contexts},
             {"actions", actions},
             {"f6FocusOwners", regions},
-            {"scope", "Visible enabled tab-focusable widgets in all model-panel tabs and two "
-                      "themes; public QAction inventory and F6 routing. Names come from Qt "
-                      "accessibility interfaces."},
+            {"keyboardRoutingExercised", keyboard},
+            {"activeWindowAtCapture", window.isActiveWindow()},
+            {"scope",
+             "Visible enabled tab-focusable widgets in all model-panel tabs and two "
+             "themes; public QAction inventory and optional F6 routing. Names come from Qt "
+             "accessibility interfaces."},
             {"limitations",
              "Does not prove screen-reader operation, contrast, focus visibility, all dialogs, "
              "independent text scaling or complete mouse-free modeling. The fixture uses isolated "
