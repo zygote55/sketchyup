@@ -105,6 +105,9 @@ int main(int argc, char **argv) {
     app.setApplicationName("SketchyUp");
     try {
         QSettings settings;
+        // Private UI-only configuration enables the composer; no prompt is submitted.
+        settings.setValue("assistant/provider", "Ollama");
+        settings.setValue("assistant/localModel", "unused-shortcut-fixture");
         const QByteArray unknown("untouched\0bytes", 15);
         settings.setValue("futureNamespace/data", unknown);
         settings.setValue("shortcuts/v1",
