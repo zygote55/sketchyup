@@ -215,6 +215,10 @@ class Viewport : public QOpenGLWidget {
         size_t meshTriangles{}, profileEdges{};
     };
     RenderStats renderStats() const { return stats_; }
+    struct GeometryCacheMemory {
+        size_t bodyVectorCapacityBytes{}, bodyGpuPayloadBytes{};
+    };
+    GeometryCacheMemory geometryCacheMemory() const;
     double lastFrameMs() const { return frameMs_; }
     // Benchmark instrumentation only: include GPU completion in frame timing.
     void setSynchronousFrameTiming(bool enabled) { synchronousFrameTiming_ = enabled; }
