@@ -1,0 +1,74 @@
+[
+  {
+    "implementation": "8bec60360f637819ab81e115de3178bb7e0e5525",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "shortcut_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 1.63
+  },
+  {
+    "implementation": "8bec60360f637819ab81e115de3178bb7e0e5525",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "shortcut_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.399
+  },
+  {
+    "implementation": "8bec60360f637819ab81e115de3178bb7e0e5525",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "shortcut_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.041
+  },
+  {
+    "implementation": "8bec60360f637819ab81e115de3178bb7e0e5525",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "shortcut_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.719
+  },
+  {
+    "implementation": "4521c00150e80eb511933dd14fd2e2a99ebd15a2",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "shortcut_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 3.147
+  },
+  {
+    "implementation": "4521c00150e80eb511933dd14fd2e2a99ebd15a2",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "shortcut_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 6.496
+  },
+  {
+    "implementation": "4521c00150e80eb511933dd14fd2e2a99ebd15a2",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "shortcut_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 5.624
+  },
+  {
+    "implementation": "4521c00150e80eb511933dd14fd2e2a99ebd15a2",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "shortcut_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 6.454
+  }
+]

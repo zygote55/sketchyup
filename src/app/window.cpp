@@ -87,6 +87,7 @@ QAction *Window::action(const QString &id, const QString &title, const QKeySeque
     a->setObjectName(id);
     a->setProperty("category", id.section('.', 0, 0));
     a->setShortcut(shortcut);
+    a->setProperty("defaultShortcut", QVariant::fromValue(shortcut));
     addAction(a);
     publicActions_.push_back(a);
     connect(a, &QAction::triggered, this, [this, fn, id] { run(fn, id.startsWith("view.")); });
@@ -306,6 +307,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.units", "Document units…", {}, [this] { unitsSettings(); }));
     file->addAction(action("file.quit", "Quit", QKeySequence::Quit, [this] { close(); }));
     auto *edit = menuBar()->addMenu("&Edit");
+    edit->addAction(
+        action("edit.shortcuts", "Keyboard shortcuts…", {}, [this] { shortcutSettings(); }));
     undo_ = action("edit.undo", "Undo", QKeySequence::Undo, [this] {
         viewport_->cancel();
         doc_.undo();
@@ -807,6 +810,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             removeAction(a);
             viewport_->addAction(a);
         }
+    initializeShortcuts();
     connect(viewport_, &Viewport::toolChanged, this, [this](int mode) {
         measurements_->setEnabled(mode != int(Viewport::Tool::Paint));
         if (mode == int(Viewport::Tool::Paint))
