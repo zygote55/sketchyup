@@ -6,6 +6,7 @@ namespace sketchy {
 struct GlbExport {
     QByteArray glb;
     QJsonObject manifest;
+    QByteArray environment;
 };
 GlbExport exportGlb(const RenderSnapshot &snapshot);
 // Publishes only into a new explicit directory. The hash-bearing manifest is

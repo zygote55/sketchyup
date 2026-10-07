@@ -1018,7 +1018,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R068 — Import reference images and export raster views
 
-**Status:** Implementation and local acceptance complete; remote CI and ordered merges pending. R068.a–b ([PR #157](https://github.com/zygote55/sketchyup/pull/157)) provides calibrated image dimensions, typed image entities, managed-asset persistence, schema-24 migration, atomic history/recovery and explicit surface-export losses ([contracts](decisions/0092-reference-image-records.md), [130-suite acceptance evidence](verification/R068ab-reference-records.md)). R068.c ([PR #158](https://github.com/zygote55/sketchyup/pull/158)) adds shared authoring, bounded inspection, strict catalogs and a relocatable calibration example ([131-suite acceptance evidence](verification/R068c-reference-workflows.md)). R068.d–e adds native image import/display/editing, component workflows, anchored calibration and exact-resolution PNG export ([131-suite, 16-case native/sanitizer and installed acceptance](verification/R068de-native-images-raster.md)). **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** Implementation and local acceptance complete; remote CI and ordered merges pending. R068.a–b ([PR #157](https://github.com/zygote55/sketchyup/pull/157)) provides calibrated image dimensions, typed image entities, managed-asset persistence, schema-24 migration, atomic history/recovery and explicit surface-export losses ([contracts](decisions/0092-reference-image-records.md), [130-suite acceptance evidence](verification/R068ab-reference-records.md)). R068.c ([PR #158](https://github.com/zygote55/sketchyup/pull/158)) adds shared authoring, bounded inspection, strict catalogs and a relocatable calibration example ([131-suite acceptance evidence](verification/R068c-reference-workflows.md)). R068.d–e ([PR #159](https://github.com/zygote55/sketchyup/pull/159)) adds native image import/display/editing, component workflows, anchored calibration and exact-resolution PNG export ([131-suite, 16-case native/sanitizer and installed acceptance](verification/R068de-native-images-raster.md)). **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R061](#r061), [R062](#r062); milestone gate rule above.
 
@@ -1030,7 +1030,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R069 — Complete Blender material, camera and lighting conversion
 
-**Status:** Planned. **Track:** Rendering. **Scope:** P08. **UX:** —.
+**Status:** In progress. R069.a–b carries immutable sun studies and bounded HDR environments into Blender, verifies applied lighting/transfer reports and exposes native HDR setup ([133-suite, native/sanitizer, actual-pixel and installed acceptance](verification/R069ab-blender-lighting.md)). Eevee preview and broader conversion comparisons follow. **Track:** Rendering. **Scope:** P08. **UX:** —.
 
 **Requires:** [R061](#r061), [R064](#r064), [R067](#r067), [R049](#r049); milestone gate rule above.
 

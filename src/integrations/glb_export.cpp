@@ -540,6 +540,7 @@ struct Writer {
             {"editableTextSourcesOmitted", double(textSources)},
             {"referenceImagesOmitted", double(referenceImages)},
             {"solarLightingOmitted", doc.solar().enabled ? 1 : 0},
+            {"environmentLightingOmitted", snapshot.environment() ? 1 : 0},
             {"analyticCurvesTessellatedOrOmitted", double(curves)},
             {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size()) - textures.size()},
             {"missingAssets", double(missingAssets)}};
@@ -615,9 +616,14 @@ struct Writer {
             {"facesWithDistinctSides", double(backDifferences)},
             {"uniqueMeshes", meshes.size()},
             {"colorPolicy", "Linear PBR swatch factor times normalized sRGB straight-alpha image"}};
+        QByteArray environment;
+        if (snapshot.environment()) {
+            manifest["environment"] = describeRenderEnvironment(*snapshot.environment());
+            environment = snapshot.environment()->image;
+        }
         require(QJsonDocument(manifest).toJson(QJsonDocument::Compact).size() <= jsonLimit,
                 "GLB manifest exceeds 16 MiB");
-        return {std::move(glb), std::move(manifest)};
+        return {std::move(glb), std::move(manifest), std::move(environment)};
     }
 };
 } // namespace
@@ -632,6 +638,17 @@ void writeGlbExport(const GlbExport &scene, const QString &directory) {
                 identity.value("bytes").toInteger() == scene.glb.size() &&
                 identity.value("sha256") == digest(scene.glb),
             "Export manifest does not match GLB bytes");
+    if (scene.manifest.contains("environment")) {
+        const auto metadata = scene.manifest.value("environment").toObject();
+        RenderEnvironment environment{scene.environment, metadata.value("width").toInt(),
+                                      metadata.value("height").toInt(),
+                                      metadata.value("strength").toDouble(-1),
+                                      metadata.value("rotationDegrees").toDouble(1000)};
+        validateRenderEnvironment(environment);
+        require(describeRenderEnvironment(environment) == metadata,
+                "Export manifest does not match environment bytes");
+    } else
+        require(scene.environment.isEmpty(), "Unreported environment bytes");
     const QString path = QFileInfo(directory).absoluteFilePath();
     require(!QFileInfo::exists(path) && !QFileInfo(path).isSymLink() && QDir().mkdir(path),
             "Export requires a new directory with an existing parent");
@@ -647,9 +664,12 @@ void writeGlbExport(const GlbExport &scene, const QString &directory) {
                     "Cannot write complete export artifact");
         };
         write("scene.glb", scene.glb);
+        if (!scene.environment.isEmpty())
+            write("environment.hdr", scene.environment);
         write("manifest.json", manifest);
     } catch (...) {
         QFile::remove(output.filePath("scene.glb"));
+        QFile::remove(output.filePath("environment.hdr"));
         QFile::remove(output.filePath("manifest.json"));
         QDir().rmdir(path);
         throw;

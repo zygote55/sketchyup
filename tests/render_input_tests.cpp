@@ -7,9 +7,10 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
+#include <QDoubleSpinBox>
 #include <QFile>
-#include <QLabel>
 #include <QJsonDocument>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSettings>
@@ -232,6 +233,48 @@ int main(int argc, char **argv) {
                   "Subsequent render completes");
         }
         check(tabs->count() == 3, "Only two result tabs are retained");
+        action->trigger();
+        path->setText(executable("success"));
+        probe->click();
+        check(QTest::qWaitFor([&] { return start->isEnabled(); }), "HDR setup worker is verified");
+        auto *environmentPath = setup->findChild<QLineEdit *>("renderEnvironmentPath");
+        auto *environmentStrength = setup->findChild<QDoubleSpinBox *>("renderEnvironmentStrength");
+        auto *environmentRotation = setup->findChild<QDoubleSpinBox *>("renderEnvironmentRotation");
+        check(environmentPath && environmentStrength && environmentRotation,
+              "Native setup exposes environment selection, strength and rotation");
+        QByteArray hdr = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 2\n";
+        for (int i = 0; i < 2; ++i)
+            hdr.append(char(128)).append(char(64)).append(char(32)).append(char(129));
+        const auto hdrPath = files.filePath("lighting.hdr");
+        QFile hdrFile(hdrPath);
+        check(hdrFile.open(QIODevice::WriteOnly) && hdrFile.write(hdr) == hdr.size(),
+              "Write native HDR fixture");
+        hdrFile.close();
+        const auto beforeHdr = encodeDocument(doc);
+        const auto beforeHdrHistory = doc.history().total;
+        environmentPath->setText(hdrPath);
+        environmentStrength->setValue(.75);
+        environmentRotation->setValue(90);
+        start->click();
+        check(panel.active() && !setup->isVisible(), "Native HDR setup captures asynchronous job");
+        check(QFile::remove(hdrPath), "Original HDR can disappear after setup capture");
+        check(QTest::qWaitFor([&] { return !panel.active(); }, 10000), "Native HDR job completes");
+        check(panel.latest() &&
+                  panel.latest()
+                          ->manifest["lighting"]
+                          .toObject()["environment"]
+                          .toObject()["strength"] == .75 &&
+                  panel.latest()
+                          ->manifest["lighting"]
+                          .toObject()["environment"]
+                          .toObject()["rotationDegrees"] == 90 &&
+                  panel.latest()->manifest["losses"].toObject()["environmentLightingOmitted"] ==
+                      0 &&
+                  encodeDocument(doc) == beforeHdr && doc.history().total == beforeHdrHistory,
+              "Native HDR job retains chosen settings without document or history changes");
+        check(
+            tabs->currentWidget()->findChild<QLabel *>("renderProvenance")->text().contains("HDR"),
+            "Native result identifies applied HDR lighting");
         provenance = tabs->currentWidget()->findChild<QLabel *>("renderProvenance");
         doc = Document();
         panel.refreshProvenance();
