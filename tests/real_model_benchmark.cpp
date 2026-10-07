@@ -216,6 +216,42 @@ int main(int argc, char **argv) {
         check(view.renderStats().bodyMeshBuilds == warmStats.bodyMeshBuilds &&
                   view.renderStats().geometryUploads == warmStats.geometryUploads,
               "Stationary frames reuse geometry caches");
+        // Measure the production geometry index independently of worker queueing
+        // and editor context policy. The actual viewport camera supplies pixels.
+        InferenceIndex inference;
+        timer.restart();
+        inference.sync(doc);
+        const auto inferenceBuildMs = timer.nsecsElapsed() / 1e6;
+        const auto inferenceInitialBuilds = inference.bodyBuilds();
+        check(inferenceInitialBuilds == doc.bodies().size(), "Index all fixture bodies");
+        check(inference.primitiveCount() > triangles, "Inference includes edges and vertices");
+        std::vector<double> inferenceQueries, inferenceUpdates;
+        size_t inferenceVisitedMax{}, inferencePairsMax{}, inferenceCandidatesMin = SIZE_MAX;
+        auto infer = [&](Id placement) {
+            const auto point = view.project(doc.worldTransform(placement).point({0, 0, 1}));
+            const auto hit = view.pick(point);
+            check(hit.first != 0, "Inference probe intersects rendered geometry");
+            const InferenceQuery query{view.inferenceCamera(), point.x(), point.y(), 8};
+            timer.restart();
+            const auto result = inference.query(query);
+            const auto elapsed = timer.nsecsElapsed() / 1e6;
+            check(!result.truncated && !result.candidates.empty(),
+                  "Inference probe returns candidates without truncation");
+            check(std::any_of(result.candidates.begin(), result.candidates.end(),
+                              [&](const auto &candidate) { return candidate.body == hit.first; }),
+                  "Inference includes the geometry hit by the actual viewport");
+            inferenceVisitedMax = std::max(inferenceVisitedMax, result.visitedPrimitives);
+            inferencePairsMax = std::max(inferencePairsMax, result.intersectionPairs);
+            inferenceCandidatesMin = std::min(inferenceCandidatesMin, result.candidates.size());
+            return elapsed;
+        };
+        for (int i = 0; i < 10; ++i)
+            infer(instances[size_t(i) * (count - 1) / 9]);
+        for (int i = 0; i < 50; ++i)
+            inferenceQueries.push_back(infer(instances[size_t(i) * (count - 1) / 49]));
+        inference.sync(doc);
+        check(inference.bodyBuilds() == inferenceInitialBuilds,
+              "Stationary inference queries and sync reuse every body cache");
         const auto editing = instances.front();
         const auto base = doc.bodies().at(editing)->transform;
         const auto baselineBytes = doc.historyBytes();
@@ -225,6 +261,12 @@ int main(int argc, char **argv) {
             view.refresh();
             frame();
             edits.push_back(timer.nsecsElapsed() / 1e6);
+            const auto before = inference.bodyBuilds();
+            timer.restart();
+            inference.sync(doc);
+            inferenceUpdates.push_back(timer.nsecsElapsed() / 1e6);
+            check(inference.bodyBuilds() - before == (scenario == "unique" ? 1 : 2),
+                  "Inference transform rebuilds only the changed placement");
         }
         const auto historyBytes = doc.historyBytes();
         for (int i = 0; i < 100; ++i)
@@ -232,6 +274,9 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 100; ++i)
             doc.redo();
         check(doc.historyBytes() == historyBytes, "Undo/redo retains bounded history allocation");
+        inference.sync(doc);
+        frame();
+        infer(editing); // The post-history index must describe the current revision.
         const auto finalMemory = view.geometryCacheMemory();
         check(finalMemory.bodyVectorCapacityBytes == warmMemory.bodyVectorCapacityBytes &&
                   finalMemory.bodyGpuPayloadBytes == warmMemory.bodyGpuPayloadBytes,
@@ -271,6 +316,23 @@ int main(int argc, char **argv) {
             {"gpuCompleteFrameP95Ms", p95(frames)},
             {"pickP95Ms", p95(picks)},
             {"editAndReadbackP95Ms", p95(edits)},
+            {"inferenceInitialBuildMs", inferenceBuildMs},
+            {"inferenceQueryP95Ms", p95(inferenceQueries)},
+            {"inferenceUpdateP95Ms", p95(inferenceUpdates)},
+            {"inferenceQuerySamples", 50},
+            {"inferenceWarmupQueries", 10},
+            {"inferenceUpdateSamples", 100},
+            {"inferencePrimitiveCount", qint64(inference.primitiveCount())},
+            {"inferenceInitialBodyBuilds", qint64(inferenceInitialBuilds)},
+            {"inferenceFinalBodyBuilds", qint64(inference.bodyBuilds())},
+            {"inferenceVisitedPrimitivesMax", qint64(inferenceVisitedMax)},
+            {"inferenceIntersectionPairsMax", qint64(inferencePairsMax)},
+            {"inferenceCandidatesMin", qint64(inferenceCandidatesMin)},
+            {"inferenceTimingScope",
+             "Production geometry index, actual viewport camera, 8 logical "
+             "pixel radius, all editing contexts; excludes worker queueing, "
+             "editor eligibility policy and displayed feedback. Updates "
+             "are timed separately after edit/readback."},
             {"fixtureBuildMs", fixtureMs},
             {"fixturePeakRssBytes", fixtureRss},
             {"finalPeakRssBytes", peakRss()},
