@@ -29,3 +29,7 @@ The [versioned policy](R084e-shortcut-bindings.md) separately covers bounded and
 malformed records, unsupported versions, new-default conflicts and unknown values.
 Text scaling, full dialog/Outliner access and assistive-technology coverage remain
 required before R084/M9 acceptance. Remote CI and ordered integration remain open.
+
+The existing keyboard-only measured-modeling and legacy-preference suites also
+pass on native Wayland 2× against the final shortcut implementation, retaining
+rectangle/push-pull/undo and saved-preference behavior.
