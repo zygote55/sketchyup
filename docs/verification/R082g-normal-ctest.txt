@@ -1,0 +1,11 @@
+Test project <source>/build/dev
+    Start 42: guides
+1/3 Test #42: guides ...........................   Passed    0.02 sec
+    Start 43: constraints
+2/3 Test #43: constraints ......................   Passed    0.01 sec
+    Start 44: inference
+3/3 Test #44: inference ........................   Passed    0.60 sec
+
+100% tests passed out of 3
+
+Total Test time (real) =   0.64 sec
