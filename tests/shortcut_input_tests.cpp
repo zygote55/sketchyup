@@ -122,7 +122,8 @@ void keyboardShortcutTask(Window &window) {
                 if (!searched && dialog->objectName() == "commandPalette") {
                     searched = true;
                     auto *query = dialog->findChild<QLineEdit *>("paletteQuery");
-                    check(query && query->hasFocus(), "Palette search initially focused");
+                    check(query && QTest::qWaitFor([&] { return query->hasFocus(); }),
+                          "Palette search initially focused");
                     QTest::keyClicks(query, "Keyboard shortcuts");
                     auto *results = dialog->findChild<QListWidget *>("paletteResults");
                     check(results && results->count() == 1, "Shortcut command is discoverable");
@@ -134,7 +135,8 @@ void keyboardShortcutTask(Window &window) {
                         focusedKey(Qt::Key_Space);
                     } else {
                         auto *search = dialog->findChild<QLineEdit *>("shortcutSearch");
-                        check(search && search->hasFocus(), "Editor search initially focused");
+                        check(search && QTest::qWaitFor([&] { return search->hasFocus(); }),
+                              "Editor search initially focused");
                         QTest::keyClicks(search, "Rectangle");
                         auto *list = dialog->findChild<QListWidget *>("shortcutActions");
                         tabTo(list);
