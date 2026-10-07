@@ -3,22 +3,22 @@
 Snapshot: 2026-10-07. This describes the implementation and bounded local evidence
 in the review stack. **It is not a 1.0 support declaration.** M0–M6 have accepted
 gate records; M7/M8 implementations still require remote CI and ordered merges.
-M9 release acceptance remains open. See the [roadmap](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/PR_ROADMAP.md) and
-[scope matrix](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/SCOPE.md) for required Core, Extended and Investigate work.
+M9 release acceptance remains open. See the [roadmap](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/PR_ROADMAP.md) and
+[scope matrix](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/SCOPE.md) for required Core, Extended and Investigate work.
 
 ## Runtime and services
 
 | Area | Current boundary | Evidence / open work |
 | --- | --- | --- |
-| Linux desktop | Native Qt Widgets/OpenGL application; Arch/Omarchy development target; Wayland and X11 paths | [Current integration](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R085b-native-surface-color.md); physical output moves, suspend/resume and input methods remain open |
+| Linux desktop | Native Qt Widgets/OpenGL application; Arch/Omarchy development target; Wayland and X11 paths | [Current integration](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R085b-native-surface-color.md); physical output moves, suspend/resume and input methods remain open |
 | Qt/OpenGL | Build declares Qt 6.8+ and OpenGL 3.3; current local checks use Qt 6.11.2 | The declared minimum is not a claim of complete testing on every Qt release; [surface-color policy](decisions/0157-native-surface-color.md) requests eight-bit channels |
-| Hardware | Intel integrated-GPU exploratory measurements and isolated llvmpipe checks exist | [Real-model baseline](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R082a-real-model-baseline.md); controlled integrated/discrete acceptance, the full large-model corpus and memory budgets remain open |
-| Scaling/accessibility | Tested keyboard construction, Outliner, shortcut editor, contrast/text-size cases and real AT-SPI bridge operations | [R084 inventory and follow-ups](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R084a-local-accessibility-inventory.md); these do not establish every dialog, keyboard layout or interactive screen-reader workflow |
-| OpenAI | ChatGPT-plan and separate API-key adapters; OS credential storage; gpt-6-astra passes the frozen remote corpus | [M5](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/M5.md), [M6](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/M6.md), [24-check remote evaluation](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R086b-remote-evaluation.md); local-provider and final release acceptance remain gated |
-| Local assistant | Explicit numeric-loopback Ollama adapter; retained Qwen CPU profile is experimental | [Measured profile and failures](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R045-local-provider.md); no quality guarantee, automatic download or cloud fallback |
+| Hardware | Intel integrated-GPU exploratory measurements and isolated llvmpipe checks exist | [Real-model baseline](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R082a-real-model-baseline.md); controlled integrated/discrete acceptance, the full large-model corpus and memory budgets remain open |
+| Scaling/accessibility | Tested keyboard construction, Outliner, shortcut editor, contrast/text-size cases and real AT-SPI bridge operations | [R084 inventory and follow-ups](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R084a-local-accessibility-inventory.md); these do not establish every dialog, keyboard layout or interactive screen-reader workflow |
+| OpenAI | ChatGPT-plan and separate API-key adapters; OS credential storage; gpt-6-astra passes the frozen remote corpus | [M5](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/M5.md), [M6](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/M6.md), [24-check remote evaluation](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086b-remote-evaluation.md); local-provider and final release acceptance remain gated |
+| Local assistant | Explicit numeric-loopback Ollama adapter; retained Qwen CPU profile fails all seven frozen live-task thresholds and remains experimental | [Measured profile and failures](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086c-local-evaluation.md); no quality guarantee, automatic download or cloud fallback |
 | Blender | Optional Blender 5.2-family rendering/handoff, with runtime/device checks | [M7 procedure](M7_ACCEPTANCE.md); CPU/actual consumer evidence does not validate every GPU/driver combination |
 | Ordinary modeling | No provider, account, browser runtime or Blender required | Shared native/core operations; [combined exchange study](M8_ACCEPTANCE.md) also exercises offline editing and undo |
-| Packaging | Experimental Arch package `0.1.0-2`, MIT application code plus retained dependency notices | [Package lifecycle procedure](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/packaging/arch/README.md); current/reference clean-machine and final release-candidate acceptance remain open |
+| Packaging | Experimental Arch package `0.1.0-2`, MIT application code plus retained dependency notices | [Passed development lifecycle](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R087a-package-lifecycle.md); current/reference clean-machine and final release-candidate acceptance remain open |
 
 Physical display scale and **View → Interface text size** are separate controls.
 Qt client scale factors in isolated tests emulate fractional sizing; they do not
@@ -49,7 +49,7 @@ as native support.
 
 ## Release work still required
 
-The [59 Core rows](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/SCOPE.md) are the acceptance scope, not a count of completed
+The [59 Core rows](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/SCOPE.md) are the acceptance scope, not a count of completed
 features. Final performance/hardware evidence, broad accessibility coverage,
 release-candidate recovery checks, repeated provider evaluation, current/reference
 package lifecycle checks, verified documentation and the aggregate M0–M9 gate
@@ -59,4 +59,4 @@ subset or external render substitutes for those gates.
 The current 100k-triangle real-model fixture has exploratory timings; the larger
 instancing fixture exceeds present public aggregate bounds. Those limits have not
 been raised or the performance targets relaxed to manufacture a pass. Follow the
-[R082 baseline](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R082a-real-model-baseline.md) for the exact caveats.
+[R082 baseline](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R082a-real-model-baseline.md) for the exact caveats.
