@@ -121,6 +121,15 @@ int main(int argc, char **argv) {
             const auto content = encodeContainer(window.document());
             const auto before = settings.value("shortcuts/v1").toByteArray();
             editor(window, [&](QDialog &dialog) {
+                choose(dialog, "view.commands", "Ctrl+Shift+M");
+                click(dialog, "shortcutAssign");
+                check(error(dialog).contains("panel"),
+                      "Global custom shortcut cannot shadow a panel-local action");
+                check(!dialog.findChild<QPushButton *>("shortcutReassign")->isEnabled(),
+                      "Panel shortcut cannot be cleared by global reassignment");
+                dialog.reject();
+            });
+            editor(window, [&](QDialog &dialog) {
                 choose(dialog, "tool.1", "Ctrl+Alt+R");
                 click(dialog, "shortcutAssign");
                 check(action(window, "tool.1")->shortcut() == QKeySequence("R"),
