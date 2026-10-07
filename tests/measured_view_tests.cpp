@@ -28,7 +28,7 @@ int main() {
         near(end.x - start.x, 20);
         near(end.y, 50);
         const std::vector<MeasuredEdge> line{{{-2, 0, 0}, {2, 0, 0}, 7}};
-        const std::vector<MeasuredTriangle> front{{{{-1, -1, 1}, {1, -1, 1}, {0, 1, 1}}}};
+        const std::vector<MeasuredTriangle> front{{{Vec3{-1, -1, 1}, Vec3{1, -1, 1}, Vec3{0, 1, 1}}}};
         auto result = measuredHiddenLines(page, line, front);
         check(result.lines.size() == 2 && result.hiddenIntervals == 1,
               "Foreground triangle splits hidden interval");
