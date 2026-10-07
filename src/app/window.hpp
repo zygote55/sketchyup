@@ -4,6 +4,7 @@
 #include "app/recovery_controller.hpp"
 #include "app/viewport.hpp"
 #include "io/obj_source.hpp"
+#include "io/stl_export.hpp"
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -36,6 +37,10 @@ class Window : public QMainWindow {
     void importGltfPath(const QString &path);
     void importObjPath(const QString &path, ObjImportOptions options);
     void exportObjPath(const QString &path, ObjImportOptions options);
+    void importStlPath(const QString &path, StlCoordinateOptions options, StlRepairOptions repairs);
+    void exportStlPath(const QString &path, StlCoordinateOptions options, StlEncoding encoding);
+    void importStlDialog();
+    void exportStlDialog();
     void importObjDialog();
     void exportObjDialog();
     void exportRasterDialog();

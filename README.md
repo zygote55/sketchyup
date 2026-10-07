@@ -842,3 +842,14 @@ sketchyup-cli --export-obj new-package --input converted.sketchyup --obj-unit mm
 
 Import output and export folders must be new. Keep exported OBJ, MTL and image files
 together. See the [native OBJ workflow contract](docs/decisions/0115-native-obj-interchange-workflow.md).
+
+STL interchange uses explicit units and axes. File → Import STL offers per-copy
+welding and opt-in degenerate-facet removal; File → Export STL writes a new binary
+or ASCII file. Materials and hierarchy are not carried. For headless use:
+
+```sh
+sketchyup-cli --import-stl source.stl --stl-unit mm --stl-up z --stl-weld exact --output new.sketchyup
+sketchyup-cli --export-stl new.stl --input new.sketchyup --stl-unit mm --stl-up z --stl-encoding binary
+```
+
+See [STL workflow and limits](docs/decisions/0119-native-stl-interchange-workflow.md).
