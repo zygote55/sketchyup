@@ -2129,6 +2129,14 @@ bool Viewport::measurements(const QString &text) {
         if (tool_ == Tool::Extrude) {
             if (input.kind != MeasurementKind::Values || values.size() != 1)
                 throw std::runtime_error("Push/pull expects one signed distance");
+            if (session_.phase() == ToolSession::Phase::Ready) {
+                if (!selected_ || !selectedFace_)
+                    throw std::runtime_error("Select one editable face to push/pull");
+                const auto &surface = doc_.bodies().at(selected_)->surface;
+                const auto anchor = doc_.worldTransform(selected_).point(
+                    surface.vertices.at(surface.faces.at(selectedFace_).loops[0][0]));
+                beginExtrusion(selected_, selectedFace_, anchor);
+            }
             finishExtrusion(values[0]);
             return true;
         }
