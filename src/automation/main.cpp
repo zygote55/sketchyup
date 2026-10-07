@@ -6,6 +6,7 @@
 #include "automation/session.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
+#include "io/dxf_export.hpp"
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
 #include "io/native_format.hpp"
@@ -50,6 +51,12 @@ int main(int argc, char **argv) {
     parser.addOption({"query-file", "Run a read-only query object from a JSON file", "path"});
     parser.addOption({"inspect", "Run a bounded query using the explicit input document", "name"});
     parser.addOption({"inspect-file", "Run a versioned bounded inspection request", "path"});
+    parser.addOption(
+        {"import-dxf", "Import the supported 2D DXF subset; optional new native --output", "path"});
+    parser.addOption({"export-dxf", "Export world-XY model edges to a new DXF file", "path"});
+    parser.addOption(
+        {"dxf-unit", "Explicit unit: mm, cm, m, in, ft, or header for import", "unit"});
+    parser.addOption({"dxf-segments", "Import chord segments per full circle: 12..256", "count"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption(
@@ -89,6 +96,58 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("import-dxf") || parser.isSet("export-dxf")) {
+            auto invalid = [](const char *message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            const bool importing = parser.isSet("import-dxf");
+            if (importing == parser.isSet("export-dxf") ||
+                !parser.positionalArguments().isEmpty() || !parser.isSet("dxf-unit"))
+                invalid("Choose one DXF operation and explicit --dxf-unit");
+            const QStringList allowed =
+                importing ? QStringList{"import-dxf", "output", "dxf-unit", "dxf-segments"}
+                          : QStringList{"export-dxf", "input", "dxf-unit"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("DXF commands are standalone operations");
+            const std::map<QString, double> units{
+                {"mm", .001}, {"cm", .01}, {"m", 1}, {"in", .0254}, {"ft", .3048}};
+            const auto unit = parser.value("dxf-unit");
+            sketchy::DxfOptions options;
+            if (units.contains(unit))
+                options.metresPerUnit = units.at(unit);
+            else if (!importing || unit != "header")
+                invalid("DXF units are mm, cm, m, in, ft, or header for import");
+            QJsonObject result;
+            if (importing) {
+                unsigned segments = 96;
+                if (parser.isSet("dxf-segments")) {
+                    bool ok{};
+                    segments = parser.value("dxf-segments").toUInt(&ok);
+                    if (!ok || segments < 12 || segments > 256)
+                        invalid("DXF segments per full circle must be 12..256");
+                }
+                const auto imported =
+                    sketchy::loadDxf(parser.value("import-dxf"), options, segments);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } else {
+                if (!parser.isSet("input"))
+                    invalid("DXF export requires native --input");
+                const auto document = sketchy::loadDocument(parser.value("input"));
+                const auto exported = sketchy::exportDxf(document, *options.metresPerUnit);
+                sketchy::writeDxfExport(exported, parser.value("export-dxf"));
+                result = {{"status", "exported"}, {"exportReport", exported.report}};
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        for (const auto &option : parser.optionNames())
+            if (option.startsWith("dxf-"))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "DXF options require --import-dxf or --export-dxf");
         if (parser.isSet("import-stl") || parser.isSet("export-stl")) {
             auto invalid = [](const char *message) {
                 throw sketchy::InspectionError("INVALID_REQUEST", message);
