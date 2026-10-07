@@ -78,7 +78,8 @@ void palette(Window &window, const QString &text) {
     timer.stop();
     if (failure)
         std::rethrow_exception(failure);
-    check(handled && window.viewport()->hasFocus(), "Palette selection returns to modeling");
+    check(handled && QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),
+          "Palette selection returns to modeling");
 }
 } // namespace
 int main(int argc, char **argv) {
