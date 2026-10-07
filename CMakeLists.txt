@@ -807,3 +807,6 @@ install(FILES examples/reference-grid.json examples/reference-grid.sketchyup DES
 install(FILES docs/decisions/0106-immutable-animation-capture.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0107-native-animation-frame-export.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/api/native-format-v1.json DESTINATION share/doc/sketchyup/api)
+install(FILES docs/decisions/0108-public-native-format.md DESTINATION share/doc/sketchyup/decisions)

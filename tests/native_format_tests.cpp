@@ -38,6 +38,9 @@ template <class F> void rejects(F op) {
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
+        check(QJsonDocument::fromJson(read(QString(SOURCE_DIR) + "/docs/api/native-format-v1.json"))
+                      .object() == nativeFormatCapabilities(),
+              "Shipped public format contract matches implementation");
         QTemporaryDir files;
         check(files.isValid(), "Migration fixture directory");
         QDir fixtures(QString(SOURCE_DIR) + "/tests/fixtures");
