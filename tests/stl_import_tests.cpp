@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QProcess>
 #include <QTemporaryDir>
 #include <iostream>
@@ -162,6 +163,45 @@ int main(int argc, char **argv) {
         check(loaded.report["source"].toObject()["zeroNormals"].toInt() == 1,
               "Source normal findings survive conversion");
         check(file.open(QIODevice::ReadOnly) && file.readAll() == bytes, "Source bytes unchanged");
+        const auto cli = QCoreApplication::applicationDirPath() + "/sketchyup-cli";
+        auto invoke = [&](QStringList args, bool success) {
+            QProcess p;
+            p.start(cli, args);
+            check(p.waitForStarted(10000) && p.waitForFinished(30000), "STL CLI completed");
+            check((p.exitCode() == 0) == success, "STL CLI expected status");
+            const auto output = p.readAllStandardOutput() + p.readAllStandardError();
+            check(QJsonDocument::fromJson(output).isObject(), "STL CLI structured report");
+            return QJsonDocument::fromJson(output).object();
+        };
+        const auto native = dir.filePath("imported.sketchyup");
+        const QStringList base{"--import-stl", path, "--stl-unit", "mm",
+                               "--stl-up",     "z",  "--stl-weld", "exact"};
+        invoke(base, true);
+        invoke(base + QStringList{"--output", native}, true);
+        invoke(base + QStringList{"--output", native}, false);
+        invoke({"--import-stl", path, "--stl-unit", "mm", "--stl-up", "z"}, false);
+        invoke(base + QStringList{"--stl-tolerance", ".0001"}, false);
+        invoke(base + QStringList{"--script", "unused"}, false);
+        invoke({"--stl-weld", "none"}, false);
+        invoke({"--import-stl", path, "--stl-unit", "mm", "--stl-up", "z", "--stl-weld",
+                "tolerance", "--stl-tolerance", "nan"},
+               false);
+        for (const auto encoding : {"binary", "ascii"}) {
+            const auto output = dir.filePath(QString(encoding) + "-export.stl");
+            const QStringList args{"--export-stl",   output,  "--input",  native,
+                                   "--stl-unit",     "mm",    "--stl-up", "z",
+                                   "--stl-encoding", encoding};
+            invoke(args, true);
+            invoke(args, false);
+            check(
+                loadStl(output, {.001, StlUpAxis::Z}, {StlWeld::Exact}).report["facets"].toInt() ==
+                    1,
+                "CLI export retains source triangle");
+        }
+        invoke({"--export-stl", dir.filePath("bad.stl"), "--input", native, "--stl-unit", "mm",
+                "--stl-up", "z"},
+               false);
+        check(file.seek(0) && file.readAll() == bytes, "CLI leaves original STL unchanged");
         std::cout << "STL exact/none/tolerance welding, explicit repair, topology diagnostics, "
                      "units and undo passed\n";
     } catch (const std::exception &e) {
