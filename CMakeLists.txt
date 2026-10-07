@@ -855,3 +855,5 @@ install(FILES docs/decisions/0111-native-gltf-import-workflow.md DESTINATION sha
 install(FILES docs/decisions/0112-bounded-obj-mtl-parsing.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0113-native-obj-conversion.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0114-contained-obj-export-packages.md DESTINATION share/doc/sketchyup/decisions)
