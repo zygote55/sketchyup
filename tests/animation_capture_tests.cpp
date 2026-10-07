@@ -1,4 +1,5 @@
 #include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "integrations/animation_capture.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
@@ -33,6 +34,12 @@ int main(int argc, char **argv) {
         b.camera->yaw = 90;
         b.visibility->bodyVisible[body] = false;
         const auto first = createScene(doc, "First", a), second = createScene(doc, "Second", b);
+        const auto section = createSection(doc, "Saved cut", 0, {{1, 0, 0}, -1});
+        a.section = SceneSection{std::nullopt, {{0, section}}};
+        a.solar->enabled = true;
+        a.solar->latitude = 40;
+        a.solar->time.hour = 9;
+        updateScene(doc, first, a);
         const auto revision = doc.revision();
         const auto stamp = doc.saveStamp();
         const auto history = doc.canUndo();
@@ -50,6 +57,10 @@ int main(int argc, char **argv) {
             check(frame.sourceRevision() == revision && frame.sourceIdentity() == doc.identity(),
                   "Derived scene view retains original source provenance");
         }
+        check(animation.frame(0).document().activeSections() == a.section->active &&
+                  animation.frame(0).document().solar() == *a.solar &&
+                  animation.frame(2).document().solar() == *b.solar,
+              "Saved section activation and sun study apply only to private frame documents");
         const auto exported = exportGlb(animation.frame(0));
         check(exported.manifest["revision"].toString() == QString::number(revision) &&
                   exported.manifest["sceneView"].toString() == QString::number(first),
