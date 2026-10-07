@@ -13,6 +13,8 @@
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 #include <QSysInfo>
 #include <QTemporaryDir>
 #include <QTest>
@@ -35,6 +37,23 @@ qint64 peakRss() {
     check(getrusage(RUSAGE_SELF, &usage) == 0, "Read benchmark RSS");
     return qint64(usage.ru_maxrss) * 1024;
 }
+class TimedViewport final : public Viewport {
+  public:
+    using Viewport::Viewport;
+    double completeFrameMs() const { return completeFrameMs_; }
+
+  protected:
+    void paintGL() override {
+        QElapsedTimer timer;
+        timer.start();
+        Viewport::paintGL(); // Returns after QPainter finishes every viewport overlay.
+        context()->functions()->glFinish();
+        completeFrameMs_ = timer.nsecsElapsed() / 1e6;
+    }
+
+  private:
+    double completeFrameMs_{};
+};
 AssetPayloadPtr largeTexture(int variant) {
     QImage image(4096, 4096, QImage::Format_RGBA8888);
     check(!image.isNull(), "Allocate full-resolution texture fixture");
@@ -132,24 +151,27 @@ int main(int argc, char **argv) {
             if (scenario == "far")
                 doc.transform(group, Transform::translation(offset));
         }
-        auto json = QJsonDocument::fromJson(encodeDocument(doc)).object();
-        json["documentId"] = "0000000000000000000000000000082a";
-        doc = decodeDocument(QJsonDocument(json).toJson(QJsonDocument::Compact));
+        {
+            // Match ordinary load ownership: temporary parse/encoding buffers
+            // do not remain resident alongside the measured viewport caches.
+            auto json = QJsonDocument::fromJson(encodeDocument(doc)).object();
+            json["documentId"] = "0000000000000000000000000000082a";
+            doc = decodeDocument(QJsonDocument(json).toJson(QJsonDocument::Compact));
+        }
         size_t triangles{};
         for (const auto &[id, record] : doc.bodies()) {
             (void)id;
             triangles += record->surface.triangles().size();
         }
         check(triangles == size_t(count) * 100, "Fixture has exactly 100 triangles per instance");
-        const auto canonical = encodeContainer(doc);
         const auto fixtureHash =
-            QCryptographicHash::hash(canonical, QCryptographicHash::Sha256).toHex();
+            QCryptographicHash::hash(encodeContainer(doc), QCryptographicHash::Sha256).toHex();
         const auto fixtureMs = timer.nsecsElapsed() / 1e6;
         const auto fixtureRss = peakRss();
         QWidget host;
         host.setWindowTitle("SketchyUp performance benchmark");
         host.resize(1920, 1080);
-        Viewport view(doc, &host);
+        TimedViewport view(doc, &host);
         view.resize(1920, 1080);
         view.setSynchronousFrameTiming(true);
         QElapsedTimer textureReady;
@@ -177,7 +199,7 @@ int main(int argc, char **argv) {
                                          .toStdString());
         view.fit();
         QCoreApplication::processEvents();
-        std::vector<double> frames, picks, edits;
+        std::vector<double> frames, completeFrames, picks, edits;
         auto frame = [&] {
             QCoreApplication::processEvents();
             const auto before = view.renderStats().frames;
@@ -205,6 +227,9 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 50; ++i) {
             pixels = frame();
             frames.push_back(view.lastFrameMs());
+            check(view.completeFrameMs() > 0 && view.completeFrameMs() >= view.lastFrameMs(),
+                  "Complete viewport timing includes the measured GL scene");
+            completeFrames.push_back(view.completeFrameMs());
             const auto instance = i % count;
             const auto point =
                 view.project(doc.worldTransform(instances[instance]).point({0, 0, 1}));
@@ -335,6 +360,13 @@ int main(int argc, char **argv) {
             {"frameSamples", 50},
             {"warmupFrames", 10},
             {"gpuCompleteFrameP95Ms", p95(frames)},
+            {"viewportGpuCompleteP95Ms", p95(completeFrames)},
+            {"viewportTimingScope", "Complete Viewport::paintGL including QPainter overlays, "
+                                    "followed by glFinish; excludes child widgets, framebuffer "
+                                    "readback and compositor presentation. Scene timing retains "
+                                    "its separate intermediate glFinish."},
+            {"fixtureBufferScope", "Temporary JSON and canonical byte buffers are released before "
+                                   "viewport construction; fixture RSS still includes their peak."},
             {"pickP95Ms", p95(picks)},
             {"editAndReadbackP95Ms", p95(edits)},
             {"inferenceInitialBuildMs", inferenceBuildMs},
