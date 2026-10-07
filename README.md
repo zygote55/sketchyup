@@ -774,6 +774,15 @@ than silently dropping history. See the [local profile and trial evidence](docs/
 for the exact model digest, CPU limits, known failures and opt-in corpus runner.
 Ordinary modeling does not require a provider.
 
+### Walk and scene timing
+
+The Camera menu includes **Look around** and **Walk**. Look around keeps the eye
+fixed while dragging or pressing arrow keys; scroll changes the lens. Walk uses
+WASD/arrows, Q/E for height, Shift for faster movement and scroll for speed. Escape
+returns to Select. Navigation does not edit the model or its undo history.
+The Scenes panel remembers a transition duration from zero to ten seconds; zero
+or reduced motion recalls cameras immediately.
+
 ### Saved-scene animation
 
 Render setup offers **Export scene animation** after checking Blender. Choose

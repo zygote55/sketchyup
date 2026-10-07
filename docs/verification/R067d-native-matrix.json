@@ -1,0 +1,218 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "solar_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.988
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "solar_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 6.325
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "solar_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.949
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "solar_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.852
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 0.986
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.318
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 3.837
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.136
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 1.596
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.219
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.383
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "sanitized": false,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.793
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "solar_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 4.773
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "solar_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 4.174
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "solar_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 7.501
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "solar_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 9.32
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 1.904
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 4.187
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "style_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 4.764
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "style_viewport_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 5.261
+  },
+  {
+    "platform": "wayland",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 3.743
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": true,
+    "exitCode": 0,
+    "seconds": 5.919
+  },
+  {
+    "platform": "xcb",
+    "scale": 1,
+    "target": "scene_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 6.411
+  },
+  {
+    "platform": "xcb",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "sanitized": true,
+    "privateWaylandClient": false,
+    "exitCode": 0,
+    "seconds": 7.202
+  }
+]

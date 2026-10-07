@@ -213,9 +213,8 @@ int main(int argc, char **argv) {
         window.close();
         std::cout << "Native extensions: install, explicit enable, asynchronous sample, "
                      "undo/redo, stale/canceled/invalid actions and removal passed\n";
-        }
-        catch (const std::exception &error) {
-            std::cerr << error.what() << '\n';
-            return 1;
-        }
+    } catch (const std::exception &error) {
+        std::cerr << error.what() << '\n';
+        return 1;
     }
+}

@@ -994,7 +994,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R066 — Implement editable 3D text and font handling
 
-**Status:** Planned. **Track:** Geometry. **Scope:** P05. **UX:** —.
+**Status:** In progress. R066.a ([PR #148](https://github.com/zygote55/sketchyup/pull/148)) adds bounded local-font shaping, native planar/extruded glyph geometry and explicit font provenance ([contract](decisions/0082-shaped-text-geometry.md)). All 122 suites, the font geometry sanitizer suite and installed/package checks pass ([evidence](verification/R066a-shaped-text-geometry.md)). R066.b ([PR #149](https://github.com/zygote55/sketchyup/pull/149)) adds the bounded offscreen helper ([contract](decisions/0083-headless-text-worker.md)). All 123 suites, worker sanitizer coverage and installed/relocation/package checks pass ([evidence](verification/R066b-headless-text-worker.md)). R066.c ([PR #150](https://github.com/zygote55/sketchyup/pull/150)) adds schema-22 typed editable sources with cached geometry, history and recovery ([contract](decisions/0084-editable-text-persistence.md)). All 124 suites, nine sanitizer suites and native/installed/package checks pass ([evidence](verification/R066c-editable-text-persistence.md)). R066.d ([PR #151](https://github.com/zygote55/sketchyup/pull/151)) adds shared create/update/bake commands, bounded inspection and a native text-sign example ([contract](decisions/0085-editable-text-workflows.md)). All 125 suites, five sanitizer suites and schema/native/installed/package/Blender checks pass ([evidence](verification/R066d-editable-text-workflows.md)). R066.e ([PR #152](https://github.com/zygote55/sketchyup/pull/152)) adds the native editor, responsive private generation, cancellation and explicit font portability controls ([contract](decisions/0086-native-editable-text.md)). All 125 suites, eight native normal/sanitized cases and installed/package checks pass ([evidence](verification/R066e-native-editable-text.md)). Implementation and local acceptance are complete; delivery awaits remote CI and ordered dependency merges. **Track:** Geometry. **Scope:** P05. **UX:** —.
 
 **Requires:** [R065](#r065), [R016](#r016); milestone gate rule above.
 
@@ -1006,7 +1006,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R067 — Implement explicit location, sun and shadow controls
 
-**Status:** Planned. **Track:** Rendering. **Scope:** P06, P02. **UX:** §5, §11.
+**Status:** Implementation and local acceptance complete; remote CI and ordered dependency merges pending. R067.a ([PR #153](https://github.com/zygote55/sketchyup/pull/153)) provides the deterministic offline solar algorithm and 239 NOAA reference fixtures. R067.b ([PR #154](https://github.com/zygote55/sketchyup/pull/154)) persists studies in schema 23, scenes, history/recovery and render snapshots. R067.c ([PR #155](https://github.com/zygote55/sketchyup/pull/155)) adds shared authoring, bounded inspection and the installed example. R067.d ([PR #156](https://github.com/zygote55/sketchyup/pull/156)) adds native sun controls, scene capture and camera-focused viewport shadows ([contract](decisions/0090-native-sun-and-shadows.md), [acceptance evidence](verification/R067d-native-sun-and-shadows.md)): all 128 suites, 24 native/sanitizer cases, four integration cases and installed/package checks pass. **Track:** Rendering. **Scope:** P06, P02. **UX:** §5, §11.
 
 **Requires:** [R062](#r062), [R008](#r008); milestone gate rule above.
 
@@ -1018,7 +1018,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R068 — Import reference images and export raster views
 
-**Status:** Planned. **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** Implementation and local acceptance complete; remote CI and ordered merges pending. R068.a–b ([PR #157](https://github.com/zygote55/sketchyup/pull/157)) provides calibrated image dimensions, typed image entities, managed-asset persistence, schema-24 migration, atomic history/recovery and explicit surface-export losses ([contracts](decisions/0092-reference-image-records.md), [130-suite acceptance evidence](verification/R068ab-reference-records.md)). R068.c ([PR #158](https://github.com/zygote55/sketchyup/pull/158)) adds shared authoring, bounded inspection, strict catalogs and a relocatable calibration example ([131-suite acceptance evidence](verification/R068c-reference-workflows.md)). R068.d–e ([PR #159](https://github.com/zygote55/sketchyup/pull/159)) adds native image import/display/editing, component workflows, anchored calibration and exact-resolution PNG export ([131-suite, 16-case native/sanitizer and installed acceptance](verification/R068de-native-images-raster.md)). **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R061](#r061), [R062](#r062); milestone gate rule above.
 
@@ -1030,7 +1030,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R069 — Complete Blender material, camera and lighting conversion
 
-**Status:** Planned. **Track:** Rendering. **Scope:** P08. **UX:** —.
+**Status:** Implementation and local acceptance complete. R069.a–b carries immutable sun studies and bounded HDR environments into Blender, verifies applied lighting/transfer reports and exposes native HDR setup ([133-suite, native/sanitizer, actual-pixel and installed acceptance](verification/R069ab-blender-lighting.md)). R069.c adds explicit Eevee previews and renderer fingerprints, cross-engine pixel comparisons and native/installed acceptance ([evidence](verification/R069c-eevee-preview.md)). Remote CI and ordered merges remain. **Track:** Rendering. **Scope:** P08. **UX:** —.
 
 **Requires:** [R061](#r061), [R064](#r064), [R067](#r067), [R049](#r049); milestone gate rule above.
 
@@ -1042,7 +1042,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R070 — Implement full render job management
 
-**Status:** Planned. **Track:** Rendering. **Scope:** P08. **UX:** §9.
+**Status:** Locally complete; remote CI and ordered merge pending. Durable jobs, bounded concurrent scheduling, recovery, retries and native Jobs controls pass [storage/queue acceptance](verification/R070ab-durable-render-queue.md) and [135-suite, native, sanitizer and installed acceptance](verification/R070c-native-render-jobs.md). **Track:** Rendering. **Scope:** P08. **UX:** §9.
 
 **Requires:** [R069](#r069), [R050](#r050); milestone gate rule above.
 
@@ -1054,7 +1054,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R071 — Add Blender scene handoff
 
-**Status:** Planned. **Track:** Rendering. **Scope:** P09. **UX:** §9.
+**Status:** Locally complete; remote CI and ordered merge pending. Packed one-way scene handoff and native launch pass [137-suite, sanitizer, installed and Blender 5.2.1/5.2.2 reopening acceptance](verification/R071ab-blender-handoff.md). **Track:** Rendering. **Scope:** P09. **UX:** §9.
 
 **Requires:** [R069](#r069), [R070](#r070); milestone gate rule above.
 
@@ -1066,7 +1066,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R072 — Complete walk navigation and scene animation
 
-**Status:** Planned. **Track:** Desktop. **Scope:** G09, P03. **UX:** —.
+**Status:** In progress. Walk navigation, immutable capture and native frame export pass [143-suite, native, sanitizer, installed and integrated presentation acceptance](verification/R072d-animation-presentation.md). Local implementation is complete; remote CI and ordered merges remain. M7 acceptance is not yet claimed. **Track:** Desktop. **Scope:** G09, P03. **UX:** —.
 
 **Requires:** [R063](#r063), [R070](#r070); milestone gate rule above.
 
@@ -1080,7 +1080,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R073 — Stabilize the native format and migration tooling
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X06, D02. **UX:** —.
+**Status:** In progress. Public v24/container-v2 contract, strict inspection and safe migration pass [144-suite, native, sanitizer, installed and source-package acceptance](verification/R073-public-native-format.md). Local implementation is complete; remote CI and ordered merge remain. **Track:** Interchange. **Scope:** X06, D02. **UX:** —.
 
 **Requires:** [R037](#r037), [R065](#r065), [R063](#r063); milestone gate rule above.
 
@@ -1092,7 +1092,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R074 — Complete GLB/glTF import and exchange guarantees
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X02. **UX:** §6.4.
+**Status:** Locally complete across R074.a–c. Bounded package capture, native conversion and source-safe File-menu/CLI workflow pass [147-suite, sanitizer, Blender, eight-platform, installed and source-package acceptance](verification/R074c-native-gltf-workflow.md). Required remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X02. **UX:** §6.4.
 
 **Requires:** [R048](#r048), [R061](#r061), [R073](#r073); milestone gate rule above.
 
@@ -1104,7 +1104,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R075 — Implement OBJ and MTL interchange
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** Locally complete. R075.a–d pass [153-suite, independent Blender, sanitizer, eight-platform native, CLI, installed and source-package acceptance](verification/R075d-native-obj-workflow.md). Remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R061](#r061); milestone gate rule above.
 
@@ -1116,7 +1116,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R076 — Implement binary and text STL interchange
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** In progress. R076.a–d parsing, conversion, export and native/CLI workflows are locally complete with [158-suite, independent Blender, sanitizer, eight-platform, installed and source-package checks](verification/R076d-native-stl-workflow.md). Remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R058](#r058); milestone gate rule above.
 
@@ -1128,7 +1128,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R077 — Implement the documented 2D DXF subset
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X04. **UX:** —.
+**Status:** In progress. R077.a–d implementation and [local DXF workflow verification](verification/R077d-native-dxf-workflow.md) are complete, including independent ezdxf, sanitizer, eight platform cases, final native integration, installed workflows and source packaging. Remote CI, ordered merges and milestone acceptance remain open. **Track:** Interchange. **Scope:** X04. **UX:** —.
 
 **Requires:** [R024](#r024), [R073](#r073); milestone gate rule above.
 
@@ -1140,7 +1140,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R078 — Export scaled orthographic PDF and SVG views
 
-**Status:** Planned. **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** In progress. R078.a–e [native measured PDF/SVG export](verification/R078e-native-measured-export.md) are locally implemented and verified, including independent physical-scale rendering, vector/raster modes, headless/native workflows, source/view preservation and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R064](#r064), [R065](#r065), [R068](#r068); milestone gate rule above.
 
@@ -1152,7 +1152,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R079 — Ship templates and the local component library
 
-**Status:** Planned. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
+**Status:** In progress. R079.a–e [native template and library workflows](verification/R079e-native-library.md) are locally implemented and verified, including keyboard search/insertion, resource closure, atomic edits, default scenes, source preservation and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
 
 **Requires:** [R033](#r033), [R036](#r036), [R073](#r073); milestone gate rule above.
 
@@ -1164,7 +1164,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R080 — Publish extension capabilities and lifecycle
 
-**Status:** Planned. **Track:** Automation. **Scope:** X05, A01, A06. **UX:** §11.
+**Status:** In progress. R080.a–d [native extension management](verification/R080d-native-extensions.md) is locally implemented and verified, including lifecycle, worker failure/cancellation, document/package guards, public atomic edits, discovery and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Automation. **Scope:** X05, A01, A06. **UX:** §11.
 
 **Requires:** [R043](#r043), [R073](#r073); milestone gate rule above.
 
@@ -1176,7 +1176,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R081 — Ship generated tool reference and executable AI recipes
 
-**Status:** In progress. Generated reference, executable agent guide, all ten recipes, optional discovery and the combined exchange study pass [local normal/sanitizer and installed checks](verification/R081-local-agent-distribution.md). Complete integration, remote CI, ordered merges and milestone prerequisites remain open. **Track:** Automation. **Scope:** A07, A08, A06. **UX:** —.
+**Status:** In progress. Generated reference, executable agent guide, all ten recipes, optional discovery and the combined exchange study pass [local normal/sanitizer and installed checks](verification/R081-local-agent-distribution.md). [Final integrated verification](verification/R081f-integrated-regression.md) passes all 175 tests and eight native workflows. Remote CI, ordered merges and milestone prerequisites remain open. **Track:** Automation. **Scope:** A07, A08, A06. **UX:** —.
 
 **Requires:** [R060](#r060), [R080](#r080); milestone gate rule above.
 
@@ -1190,7 +1190,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R082 — Meet viewport, inference and memory budgets
 
-**Status:** Planned. **Track:** Quality. **Scope:** D06, N01. **UX:** —.
+**Status:** In progress. An overlapping [real-model benchmark spike](verification/R082a-real-model-baseline.md) records exact-framebuffer integrated-GPU and software results, history and partial cache memory. Full fixture coverage, controlled reference hardware measurements and release acceptance remain open. **Track:** Quality. **Scope:** D06, N01. **UX:** —.
 
 **Requires:** [R081](#r081), [R072](#r072); milestone gate rule above.
 
@@ -1202,7 +1202,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R083 — Harden files, recovery and transaction failure paths
 
-**Status:** Planned. **Track:** Quality. **Scope:** D02, D03, D04, D06, X06. **UX:** —.
+**Status:** In progress. Overlapping hardening fixtures and the [combined local failure matrix](verification/R083d-local-failure-matrix.md) pass normal and sanitizer runs, including parser corruption, publication faults and replayable transaction/geometry sequences. Release-candidate revalidation and final acceptance remain open. **Track:** Quality. **Scope:** D02, D03, D04, D06, X06. **UX:** —.
 
 **Requires:** [R073](#r073), [R038](#r038), [R041](#r041), [R074](#r074), [R075](#r075), [R076](#r076), [R077](#r077); milestone gate rule above.
 
@@ -1214,7 +1214,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R084 — Complete keyboard access and preference migration
 
-**Status:** In progress. An overlapping [native accessibility inventory](verification/R084a-local-accessibility-inventory.md) records all model-panel tabs, action shortcuts and F6 routing at Wayland 1×/2×. [Named region follow-up](verification/R084b-accessible-regions.md) resolves all eight inventory naming findings at both scales; [legacy preference checks](verification/R084c-preference-compatibility.md) fix theme persistence and pass eight normal/sanitized platform combinations. [Keyboard-only measured construction](verification/R084d-keyboard-modeling.md) fixes selected-face numeric push/pull and palette focus, passing eight platform/sanitizer checks. [Versioned shortcut policy](verification/R084e-shortcut-bindings.md) and the [native editor](verification/R084f-native-shortcut-editor.md) preserve bindings and pass eight platform/sanitizer cases. [Selected-text contrast](verification/R084g-selected-text-contrast.md) and [independent text scaling](verification/R084h-interface-text-size.md) pass normal/sanitized native matrices with layout regressions checked. [Painted context-link contrast](verification/R084i-context-link-contrast.md) also resolves the default-blue dark-theme defect. Complete accessibility acceptance remains open. **Track:** Desktop. **Scope:** N03, N05. **UX:** §3–§4, §10.
+**Status:** In progress. An overlapping [native accessibility inventory](verification/R084a-local-accessibility-inventory.md) records all model-panel tabs, action shortcuts and F6 routing at Wayland 1×/2×. [Named region follow-up](verification/R084b-accessible-regions.md) resolves all eight inventory naming findings at both scales; [legacy preference checks](verification/R084c-preference-compatibility.md) fix theme persistence and pass eight normal/sanitized platform combinations. [Keyboard-only measured construction](verification/R084d-keyboard-modeling.md) fixes selected-face numeric push/pull and palette focus, passing eight platform/sanitizer checks. [Versioned shortcut policy](verification/R084e-shortcut-bindings.md) and the [native editor](verification/R084f-native-shortcut-editor.md) preserve bindings and pass eight platform/sanitizer cases. [Selected-text contrast](verification/R084g-selected-text-contrast.md) and [independent text scaling](verification/R084h-interface-text-size.md) pass normal/sanitized native matrices with layout regressions checked. [Painted context-link contrast](verification/R084i-context-link-contrast.md) also resolves the default-blue dark-theme defect. [Panel shortcut reservations](verification/R084j-panel-shortcut-conflicts.md) prevent global overrides from shadowing local controls. Complete accessibility acceptance remains open. **Track:** Desktop. **Scope:** N03, N05. **UX:** §3–§4, §10.
 
 **Requires:** [R046](#r046), [R079](#r079), [R080](#r080); milestone gate rule above.
 

@@ -44,6 +44,9 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     QSurfaceFormat::setDefaultFormat(format);
+    QTemporaryDir isolated;
+    qputenv("XDG_CONFIG_HOME", isolated.path().toUtf8());
+    qputenv("XDG_DATA_HOME", isolated.path().toUtf8());
     QApplication app(argc, argv);
     QString status;
     try {
@@ -223,6 +226,56 @@ int main(int argc, char **argv) {
         view->selectEntities({});
         view->fit();
         QTest::qWait(40);
+        const auto beforeNavigation = encodeDocument(doc);
+        const auto beforeHistory = doc.history().total;
+        auto *look = window.findChild<QAction *>("tool.27");
+        auto *walk = window.findChild<QAction *>("tool.28");
+        check(look && walk, "Camera menu exposes look-around and walk tools");
+        look->trigger();
+        view->setFocus();
+        const auto beforeLook = view->renderCamera();
+        QTest::keyClick(view, Qt::Key_Right);
+        const auto afterLook = view->renderCamera();
+        check(length(afterLook.position - beforeLook.position) < 1e-5 &&
+                  length(afterLook.target - beforeLook.target) > .01,
+              "Look-around rotates about a fixed eye");
+        wheel(*view, QPoint(0, 30));
+        check(length(view->renderCamera().position - afterLook.position) < 1e-5 &&
+                  view->renderCamera().verticalFov != afterLook.verticalFov,
+              "Look wheel adjusts lens without moving eye");
+        walk->trigger();
+        view->setFocus();
+        const auto beforeWalk = view->renderCamera();
+        QTest::keyPress(view, Qt::Key_W);
+        check(QTest::qWaitFor([&] {
+                  return length(view->renderCamera().position - beforeWalk.position) > .02;
+              }),
+              "Held walk key advances camera");
+        QTest::keyRelease(view, Qt::Key_W);
+        const auto afterWalk = view->renderCamera();
+        check(std::abs(afterWalk.position.z - beforeWalk.position.z) < 1e-5,
+              "Walking preserves eye height");
+        QTest::qWait(70);
+        check(length(view->renderCamera().position - afterWalk.position) < 1e-8,
+              "Key release stops walking");
+        QTest::keyPress(view, Qt::Key_E);
+        check(QTest::qWaitFor(
+                  [&] { return view->renderCamera().position.z > afterWalk.position.z + .02; }),
+              "Explicit raise key changes height");
+        view->clearFocus();
+        const auto unfocused = view->renderCamera();
+        QTest::qWait(70);
+        check(length(view->renderCamera().position - unfocused.position) < 1e-8,
+              "Focus loss stops held movement");
+        view->setFocus();
+        QKeyEvent saveOverride(QEvent::ShortcutOverride, Qt::Key_S, Qt::ControlModifier);
+        saveOverride.setAccepted(false);
+        QCoreApplication::sendEvent(view, &saveOverride);
+        check(!saveOverride.isAccepted(), "Walk preserves the application Save shortcut");
+        QTest::keyClick(view, Qt::Key_Escape);
+        check(view->tool() == Viewport::Tool::Select, "Escape exits walk mode");
+        check(encodeDocument(doc) == beforeNavigation && doc.history().total == beforeHistory,
+              "Look and walk preserve model and undo history");
         const auto capture = app.arguments().indexOf("--capture");
         if (capture >= 0)
             check(view->grabFramebuffer().save(app.arguments().value(capture + 1)),

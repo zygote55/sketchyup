@@ -1,0 +1,142 @@
+{
+  "blender": "5.2.1 LTS",
+  "reports": [
+    {
+      "variant": "east",
+      "pixels": {
+        "west": 0.4113290111223857,
+        "south": 0.7725490927696228,
+        "lit": 0.7708061734835306
+      },
+      "lighting": {
+        "mode": "solar-v1",
+        "worldStrength": 0.25,
+        "energy": 3.0,
+        "angle": 0.00935,
+        "shadows": true,
+        "settings": {
+          "enabled": true,
+          "shadows": true,
+          "algorithm": "noaa-meeus-geometric-v1"
+        },
+        "position": {
+          "algorithm": "noaa-meeus-geometric-v1",
+          "direction": [
+            0.7071067811865475,
+            0.0,
+            0.7071067811865475
+          ],
+          "aboveHorizon": true,
+          "directLightActive": true,
+          "shadowsActive": true
+        }
+      },
+      "inputUnchanged": true
+    },
+    {
+      "variant": "north",
+      "pixels": {
+        "west": 0.7686275243759155,
+        "south": 0.41830068826675415,
+        "lit": 0.7708061734835306
+      },
+      "lighting": {
+        "mode": "solar-v1",
+        "worldStrength": 0.25,
+        "energy": 3.0,
+        "angle": 0.00935,
+        "shadows": true,
+        "settings": {
+          "enabled": true,
+          "shadows": true,
+          "algorithm": "noaa-meeus-geometric-v1"
+        },
+        "position": {
+          "algorithm": "noaa-meeus-geometric-v1",
+          "direction": [
+            0.0,
+            0.7071067811865475,
+            0.7071067811865475
+          ],
+          "aboveHorizon": true,
+          "directLightActive": true,
+          "shadowsActive": true
+        }
+      },
+      "inputUnchanged": true
+    },
+    {
+      "variant": "no-shadows",
+      "pixels": {
+        "west": 0.7686275243759155,
+        "south": 0.7725490927696228,
+        "lit": 0.7708061734835306
+      },
+      "lighting": {
+        "mode": "solar-v1",
+        "worldStrength": 0.25,
+        "energy": 3.0,
+        "angle": 0.00935,
+        "shadows": false,
+        "settings": {
+          "enabled": true,
+          "shadows": false,
+          "algorithm": "noaa-meeus-geometric-v1"
+        },
+        "position": {
+          "algorithm": "noaa-meeus-geometric-v1",
+          "direction": [
+            0.7071067811865475,
+            0.0,
+            0.7071067811865475
+          ],
+          "aboveHorizon": true,
+          "directLightActive": true,
+          "shadowsActive": false
+        }
+      },
+      "inputUnchanged": true
+    },
+    {
+      "variant": "night",
+      "pixels": {
+        "west": 0.40174295504887897,
+        "south": 0.40348587433497113,
+        "lit": 0.4217865268389384
+      },
+      "lighting": {
+        "mode": "solar-v1",
+        "worldStrength": 0.25,
+        "energy": 0.0,
+        "angle": 0.00935,
+        "shadows": false,
+        "settings": {
+          "enabled": true,
+          "shadows": true,
+          "algorithm": "noaa-meeus-geometric-v1"
+        },
+        "position": {
+          "algorithm": "noaa-meeus-geometric-v1",
+          "direction": [
+            0.7071067811865475,
+            0.0,
+            -0.7071067811865475
+          ],
+          "aboveHorizon": false,
+          "directLightActive": false,
+          "shadowsActive": false
+        }
+      },
+      "inputUnchanged": true
+    },
+    {
+      "variant": "disabled",
+      "studioRetained": true
+    },
+    {
+      "variant": "legacy",
+      "studioRetained": true
+    }
+  ],
+  "invalidSnapshotsRejected": 4
+}

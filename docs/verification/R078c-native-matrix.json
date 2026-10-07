@@ -1,0 +1,16 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "units_input_tests",
+    "exitCode": 0,
+    "seconds": 4.049
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "annotation_input_tests",
+    "exitCode": 0,
+    "seconds": 4.184
+  }
+]
