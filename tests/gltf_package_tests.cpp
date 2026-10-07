@@ -129,6 +129,42 @@ int main(int argc, char **argv) {
         bad["nodes"] = QJsonArray{QJsonObject{{"children", QJsonArray{0}}}};
         write(source, QJsonDocument(bad).toJson());
         rejects([&] { GltfPackage::read(source); });
+        auto sparseTree = fixture();
+        auto sparseBytes = vertices;
+        sparseBytes.append(char(1));
+        sparseBytes.resize(40, char(0));
+        for (float value : {4.f, 5.f, 6.f}) {
+            const auto offset = sparseBytes.size();
+            sparseBytes.resize(offset + 4);
+            qToLittleEndian<quint32>(std::bit_cast<quint32>(value), sparseBytes.data() + offset);
+        }
+        write(sidecar, sparseBytes);
+        auto sparseBuffers = sparseTree["buffers"].toArray();
+        auto sparseBuffer = sparseBuffers[0].toObject();
+        sparseBuffer["byteLength"] = sparseBytes.size();
+        sparseBuffers[0] = sparseBuffer;
+        sparseTree["buffers"] = sparseBuffers;
+        auto views = sparseTree["bufferViews"].toArray();
+        views.append(QJsonObject{{"buffer", 0}, {"byteOffset", 36}, {"byteLength", 1}});
+        views.append(QJsonObject{{"buffer", 0}, {"byteOffset", 40}, {"byteLength", 12}});
+        sparseTree["bufferViews"] = views;
+        auto accessors = sparseTree["accessors"].toArray();
+        auto accessor = accessors[0].toObject();
+        accessor["max"] = QJsonArray{4, 5, 6};
+        accessor["sparse"] =
+            QJsonObject{{"count", 1},
+                        {"indices", QJsonObject{{"bufferView", 1}, {"componentType", 5121}}},
+                        {"values", QJsonObject{{"bufferView", 2}}}};
+        accessors[0] = accessor;
+        sparseTree["accessors"] = accessors;
+        write(source, QJsonDocument(sparseTree).toJson());
+        auto sparse = GltfPackage::read(source);
+        check(cgltf_accessor_read_float(&sparse.data().accessors[0], 1, position, 3) &&
+                  position[0] == 4 && position[2] == 6,
+              "Sparse accessor overlays captured base geometry");
+        sparseBytes[36] = char(3);
+        write(sidecar, sparseBytes);
+        rejects([&] { GltfPackage::read(source); });
         Document doc;
         doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
         const auto exported = exportGlb(RenderSnapshot::capture(doc));

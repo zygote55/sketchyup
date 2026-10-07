@@ -227,6 +227,7 @@ struct GltfPackage::Impl {
                         view.size <= view.buffer->size - view.offset && view.stride <= 256,
                     "Unsupported or out-of-range glTF buffer view");
         }
+        size_t accessorElements{};
         for (size_t i = 0; i < parsed->accessors_count; ++i) {
             const auto &a = parsed->accessors[i];
             const auto component = cgltf_component_size(a.component_type),
@@ -234,6 +235,9 @@ struct GltfPackage::Impl {
             require(component && element && a.count > 0 && a.count <= 1000000 &&
                         a.stride % component == 0,
                     "Invalid or oversized glTF accessor");
+            require(a.count <= 2000000 - accessorElements,
+                    "glTF accessor work exceeds its element budget");
+            accessorElements += a.count;
             if (a.buffer_view) {
                 require(a.offset % component == 0 && a.buffer_view->offset % component == 0,
                         "Unaligned glTF accessor");
@@ -255,6 +259,36 @@ struct GltfPackage::Impl {
                         "Unaligned sparse glTF accessor");
                 range(s.indices_byte_offset, s.count, size, size, s.indices_buffer_view->size);
                 range(s.values_byte_offset, s.count, element, element, s.values_buffer_view->size);
+                const auto *indices =
+                    static_cast<const char *>(s.indices_buffer_view->buffer->data) +
+                    s.indices_buffer_view->offset + s.indices_byte_offset;
+                size_t previous{};
+                for (size_t j = 0; j < s.count; ++j) {
+                    const auto index = size == 1 ? size_t(static_cast<unsigned char>(indices[j]))
+                                       : size == 2
+                                           ? size_t(qFromLittleEndian<quint16>(indices + 2 * j))
+                                           : size_t(qFromLittleEndian<quint32>(indices + 4 * j));
+                    require(index < a.count && (j == 0 || index > previous),
+                            "Sparse glTF indices must be unique, ordered and in range");
+                    previous = index;
+                }
+            }
+        }
+        size_t primitiveElements{}, primitives{};
+        for (size_t i = 0; i < parsed->meshes_count; ++i) {
+            const auto &mesh = parsed->meshes[i];
+            require(mesh.primitives_count <= 10000 - primitives,
+                    "glTF primitive count exceeds limits");
+            primitives += mesh.primitives_count;
+            for (size_t j = 0; j < mesh.primitives_count; ++j) {
+                const auto &primitive = mesh.primitives[j];
+                require(primitive.attributes_count > 0 && primitive.attributes_count <= 16,
+                        "glTF primitive attribute count exceeds limits");
+                const auto count = primitive.indices ? primitive.indices->count
+                                                     : primitive.attributes[0].data->count;
+                require(count <= 1000000 - primitiveElements,
+                        "glTF primitive validation exceeds its work budget");
+                primitiveElements += count;
             }
         }
         for (size_t i = 0; i < parsed->nodes_count; ++i) {
