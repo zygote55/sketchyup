@@ -37,6 +37,8 @@ ASan/UBSan with leak detection and halt-on-error likewise retains the
 the [passing corrected component check](R082b-sanitize-components-recheck.txt).
 All ten selected regressions therefore pass in both configurations after the
 fixture correction; the initial failures are not removed from the evidence.
+The [source archive check](R082b-source-package.json) includes all 218 installed
+inputs byte for byte and excludes build products and Git metadata.
 
 The larger million-triangle fixture still exceeds existing document limits.
 This change does not introduce real viewport instancing, raise limits, reduce
