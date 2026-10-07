@@ -356,6 +356,25 @@ int main(int argc, char **argv) {
         huge.primitive(p);
         huge.save(path);
         rejects([&] { loadGltf(path); });
+        Fixture duplicates;
+        auto duplicateMaterials = duplicates.tree["materials"].toArray();
+        duplicateMaterials.append(duplicateMaterials[0]);
+        duplicates.tree["materials"] = duplicateMaterials;
+        auto duplicateMeshes = duplicates.tree["meshes"].toArray();
+        auto anotherPrimitive = duplicates.primitive();
+        anotherPrimitive["material"] = 1;
+        duplicateMeshes.append(QJsonObject{{"primitives", QJsonArray{anotherPrimitive}}});
+        duplicates.tree["meshes"] = duplicateMeshes;
+        auto duplicateNodes = duplicates.tree["nodes"].toArray();
+        auto anotherNode = duplicateNodes[2].toObject();
+        anotherNode["mesh"] = 1;
+        duplicateNodes[2] = anotherNode;
+        duplicates.tree["nodes"] = duplicateNodes;
+        duplicates.save(path);
+        const auto renamed = loadGltf(path);
+        check(renamed.document.materials().size() == 2 &&
+                  renamed.report["losses"].toObject()["duplicateMaterialNamesRenamed"] == 1,
+              "Valid repeated glTF names become distinct native materials with a notice");
         Fixture compressed;
         const auto largePng = encodeTexturePng(
             TextureImage(4096, 4096, std::vector<std::uint8_t>(64 * 1024 * 1024, 255)));
