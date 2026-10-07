@@ -78,6 +78,7 @@ QJsonObject measureOperation(const char *name, Window &window, Operation operati
     });
     clock.start();
     heartbeat.start();
+    std::cerr << "File worker fixture: " << name << " started\n";
     operation();
     const double operationMs = double(clock.nsecsElapsed()) / 1e6;
     if (includeFirstFrame) {
@@ -86,6 +87,8 @@ QJsonObject measureOperation(const char *name, Window &window, Operation operati
     }
     const auto finished = clock.nsecsElapsed();
     heartbeat.stop();
+    std::cerr << "File worker fixture: " << name << " finished in " << double(finished) / 1e6
+              << " ms\n";
     // Include synchronous work after the last callback, even if no timer ran.
     gaps.push_back(double(finished - last) / 1e6);
     std::sort(gaps.begin(), gaps.end());
@@ -122,6 +125,7 @@ int main(int argc, char **argv) {
             saveDocument(original, path);
         }
         const auto originalBytes = read(path);
+        std::cerr << "File worker fixture: creating window\n";
         Window window;
         window.resize(1280, 850);
         window.show();
@@ -146,6 +150,7 @@ int main(int argc, char **argv) {
               "Load delivers events and fences reentrant open/close");
         check(encodeContainer(window.document()) == originalBytes && read(path) == originalBytes,
               "Open validates exact native bytes without changing source");
+        std::cerr << "File worker fixture: missing-file check started\n";
         bool failurePulse = false, failed = false;
         QTimer::singleShot(0, &window, [&] { failurePulse = true; });
         try {
@@ -155,6 +160,7 @@ int main(int argc, char **argv) {
         }
         check(failed && failurePulse && encodeContainer(window.document()) == originalBytes,
               "Failed asynchronous load preserves the active document");
+        std::cerr << "File worker fixture: missing-file check finished\n";
         auto *save = window.findChild<QAction *>("file.save");
         auto *newFile = window.findChild<QAction *>("file.new");
         check(save && newFile, "Native file actions exist");
@@ -189,12 +195,16 @@ int main(int argc, char **argv) {
             }
         });
         chooseSave.start(10);
+        std::cerr << "File worker fixture: save-before-replace started\n";
         newFile->trigger();
+        std::cerr << "File worker fixture: save-before-replace finished\n";
         chooseSave.stop();
         check(choiceHandled && lateEdit && window.document().identity() == session &&
                   window.document().dirty(),
               "Save-before-replace never discards edits arriving during the worker save");
+        std::cerr << "File worker fixture: final save started\n";
         save->trigger();
+        std::cerr << "File worker fixture: final save finished\n";
         check(!window.document().dirty(), "Final save completes after replacement is declined");
         const QJsonObject metrics{
             {"passed", true},
@@ -210,7 +220,9 @@ int main(int argc, char **argv) {
             {"viewportLogicalHeight", window.viewport()->height()},
             {"cache", cache},
             {"timings", timings}};
+        std::cerr << "File worker fixture: close started\n";
         window.close();
+        std::cerr << "File worker fixture: close finished\n";
         std::cout << QJsonDocument(metrics).toJson(QJsonDocument::Compact).constData() << '\n';
         std::cout << "Native file workers: responsive load/save, stale-save preservation, "
                      "reentrant action fences and failed-load retention passed; bytes="
