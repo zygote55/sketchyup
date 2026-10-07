@@ -1,17 +1,27 @@
 #include "app/surface_format.hpp"
+#include "app/viewport.hpp"
 #include "app/window.hpp"
 #include "core/assets.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QCryptographicHash>
 #include <QDialog>
+#include <QElapsedTimer>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <algorithm>
+#include <fcntl.h>
 #include <iostream>
+#include <sys/mman.h>
+#include <unistd.h>
 using namespace sketchy;
 namespace {
 void check(bool value, const char *message) {
@@ -22,6 +32,71 @@ QByteArray read(const QString &path) {
     QFile file(path);
     check(file.open(QIODevice::ReadOnly), "Read native fixture");
     return file.readAll();
+}
+// The cold policy operates only on this test's private copy. mincore establishes
+// OS page-cache residency; it says nothing about storage-device/controller caches.
+QJsonObject prepareCache(const QString &path, qsizetype size) {
+    const auto policy = qEnvironmentVariable("SKETCHYUP_TEST_FILE_CACHE_POLICY", "warm");
+    check(policy == "warm" || policy == "verified-cold", "Unknown fixture cache policy");
+    QJsonObject result{{"policy", policy}};
+    if (policy == "warm")
+        return result; // read(path) immediately above populated the cache.
+    const int fd = ::open(QFile::encodeName(path).constData(), O_RDONLY | O_CLOEXEC);
+    check(fd >= 0, "Open owned cache fixture");
+    const bool evicted = ::fsync(fd) == 0 && ::posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED) == 0;
+    const auto pageSize = ::sysconf(_SC_PAGESIZE);
+    void *mapping =
+        evicted && pageSize > 0 ? ::mmap(nullptr, size, PROT_NONE, MAP_PRIVATE, fd, 0) : MAP_FAILED;
+    ::close(fd);
+    check(evicted && pageSize > 0 && mapping != MAP_FAILED, "Advise owned fixture cache eviction");
+    std::vector<unsigned char> residency((size + pageSize - 1) / pageSize);
+    const bool queried = ::mincore(mapping, size, residency.data()) == 0;
+    ::munmap(mapping, size);
+    check(queried, "Inspect fixture page-cache residency");
+    const auto resident = std::count_if(residency.begin(), residency.end(),
+                                        [](unsigned char value) { return value & 1; });
+    result["pages"] = qint64(residency.size());
+    result["residentPagesBeforeOpen"] = qint64(resident);
+    check(resident == 0, "Cold sample requires all owned fixture pages absent from OS cache");
+    return result;
+}
+template <class Operation>
+QJsonObject measureOperation(const char *name, Window &window, Operation operation,
+                             bool includeFirstFrame = false) {
+    QElapsedTimer clock;
+    QTimer heartbeat;
+    heartbeat.setTimerType(Qt::PreciseTimer);
+    heartbeat.setInterval(5);
+    std::vector<double> gaps;
+    qint64 last = 0;
+    int callbacks = 0;
+    QObject::connect(&heartbeat, &QTimer::timeout, &window, [&] {
+        const auto now = clock.nsecsElapsed();
+        gaps.push_back(double(now - last) / 1e6);
+        last = now;
+        ++callbacks;
+    });
+    clock.start();
+    heartbeat.start();
+    operation();
+    const double operationMs = double(clock.nsecsElapsed()) / 1e6;
+    if (includeFirstFrame) {
+        check(!window.viewport()->grabFramebuffer().isNull(), "Read first loaded viewport frame");
+        check(window.viewport()->renderStats().glError == 0, "Loaded viewport has no GL error");
+    }
+    const auto finished = clock.nsecsElapsed();
+    heartbeat.stop();
+    // Include synchronous work after the last callback, even if no timer ran.
+    gaps.push_back(double(finished - last) / 1e6);
+    std::sort(gaps.begin(), gaps.end());
+    return {{"operation", name},
+            {"operationMs", operationMs},
+            {"operationAndFirstFrameMs", double(finished) / 1e6},
+            {"includesFirstFrameReadback", includeFirstFrame},
+            {"heartbeatIntervalMs", 5},
+            {"heartbeatCallbacks", callbacks},
+            {"maximumHeartbeatGapMs", gaps.back()},
+            {"p95HeartbeatGapMs", gaps[(gaps.size() * 95 - 1) / 100]}};
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -64,7 +139,9 @@ int main(int argc, char **argv) {
             window.close();
             closeRejected = window.isVisible();
         });
-        window.openPath(path);
+        const auto cache = prepareCache(path, originalBytes.size());
+        QJsonArray timings;
+        timings.append(measureOperation("open", window, [&] { window.openPath(path); }, true));
         check(loadPulse && reentrantOpenRejected && closeRejected,
               "Load delivers events and fences reentrant open/close");
         check(encodeContainer(window.document()) == originalBytes && read(path) == originalBytes,
@@ -89,11 +166,11 @@ int main(int argc, char **argv) {
             window.document().move(1, {.25, 0, 0});
             save->trigger(); // Reentrant save must not publish another snapshot.
         });
-        save->trigger();
+        timings.append(measureOperation("save-with-newer-edit", window, [&] { save->trigger(); }));
         check(savePulse && read(path) == captured && window.document().dirty() &&
                   encodeContainer(window.document()) != captured,
               "Save delivers events, writes the captured state and keeps later edits dirty");
-        save->trigger();
+        timings.append(measureOperation("save-current", window, [&] { save->trigger(); }));
         check(!window.document().dirty() && read(path) == encodeContainer(window.document()),
               "A subsequent save durably records the newer state");
         window.document().move(1, {.125, 0, 0});
@@ -119,7 +196,20 @@ int main(int argc, char **argv) {
               "Save-before-replace never discards edits arriving during the worker save");
         save->trigger();
         check(!window.document().dirty(), "Final save completes after replacement is declined");
+        const QJsonObject metrics{
+            {"passed", true},
+            {"releaseAcceptance", false},
+            {"fileBytes", qint64(originalBytes.size())},
+            {"fixtureSha256",
+             QString::fromLatin1(
+                 QCryptographicHash::hash(originalBytes, QCryptographicHash::Sha256).toHex())},
+            {"platform", QGuiApplication::platformName()},
+            {"graphics", window.viewport()->graphicsDescription()},
+            {"scale", window.devicePixelRatioF()},
+            {"cache", cache},
+            {"timings", timings}};
         window.close();
+        std::cout << QJsonDocument(metrics).toJson(QJsonDocument::Compact).constData() << '\n';
         std::cout << "Native file workers: responsive load/save, stale-save preservation, "
                      "reentrant action fences and failed-load retention passed; bytes="
                   << originalBytes.size() << '\n';
