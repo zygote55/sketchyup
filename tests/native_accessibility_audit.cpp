@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <iostream>
@@ -88,15 +89,12 @@ int main(int argc, char **argv) {
                     break;
                 }
             check(found, "Audit theme action exists");
-            for (const QString &page :
-                 {QStringLiteral("view.tray"), QStringLiteral("view.materials"),
-                  QStringLiteral("view.annotations"), QStringLiteral("view.reference_images")}) {
-                auto *action = window.findChild<QAction *>(page);
-                check(action, "Audit page action exists");
-                if (!action->isCheckable() || !action->isChecked())
-                    action->trigger();
+            auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
+            check(tabs && tabs->count() > 0, "Audit model-panel tabs exist");
+            for (int page = 0; page < tabs->count(); ++page) {
+                tabs->setCurrentIndex(page);
                 QTest::qWait(50);
-                contexts.append(inspect(window, page, theme));
+                contexts.append(inspect(window, tabs->tabText(page), theme));
             }
         }
         // Observe real keyboard routing. This inventory does not assert that the
