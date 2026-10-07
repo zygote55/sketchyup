@@ -18,6 +18,26 @@
 #include <limits>
 #include <numbers>
 namespace sketchy {
+Viewport::GeometryCacheMemory Viewport::geometryCacheMemory() const {
+    GeometryCacheMemory result;
+    const auto capacity = [](const auto &values) {
+        return values.capacity() * sizeof(values.front());
+    };
+    for (const auto &[id, owned] : bodyCaches_) {
+        (void)id;
+        const auto &cache = *owned;
+        result.bodyVectorCapacityBytes +=
+            capacity(cache.localTriangles) + capacity(cache.worldTriangles) +
+            capacity(cache.localEdges) + capacity(cache.worldEdges) + capacity(cache.opaque) +
+            capacity(cache.lines) + capacity(cache.hiddenLines) + capacity(cache.transparent) +
+            capacity(cache.sectionCuts) + capacity(cache.sectionCaps);
+        result.bodyGpuPayloadBytes +=
+            size_t(cache.opaqueGpu.count + cache.linesGpu.count + cache.hiddenLinesGpu.count) *
+            sizeof(PackedVertex);
+    }
+    return result;
+}
+
 namespace {
 QVector3D qv(Vec3 p) { return {float(p.x), float(p.y), float(p.z)}; }
 Vec3 vec(QVector3D p) { return {p.x(), p.y(), p.z()}; }

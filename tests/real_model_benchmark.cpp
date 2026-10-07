@@ -96,6 +96,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 10; ++i)
             frame();
         const auto warmStats = view.renderStats();
+        const auto warmMemory = view.geometryCacheMemory();
         QSize pixels;
         for (int i = 0; i < 50; ++i) {
             pixels = frame();
@@ -127,6 +128,10 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 100; ++i)
             doc.redo();
         check(doc.historyBytes() == historyBytes, "Undo/redo retains bounded history allocation");
+        const auto finalMemory = view.geometryCacheMemory();
+        check(finalMemory.bodyVectorCapacityBytes == warmMemory.bodyVectorCapacityBytes &&
+                  finalMemory.bodyGpuPayloadBytes == warmMemory.bodyGpuPayloadBytes,
+              "Repeated transform edits retain fixed body-cache capacity");
         check(view.renderStats().glError == 0, "Benchmark leaves no OpenGL error");
         QJsonObject report{
             {"fixtureVersion", 1},
@@ -138,6 +143,7 @@ int main(int argc, char **argv) {
             {"graphics", view.graphicsDescription()},
             {"qtVersion", qVersion()},
             {"kernel", QSysInfo::kernelVersion()},
+            {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
             {"pixelWidth", pixels.width()},
             {"pixelHeight", pixels.height()},
             {"scale", view.devicePixelRatioF()},
@@ -154,6 +160,11 @@ int main(int argc, char **argv) {
             {"retainedHistoryBytes", qint64(historyBytes)},
             {"bodyMeshBuilds", qint64(view.renderStats().bodyMeshBuilds)},
             {"uploadedBytesCumulative", qint64(view.renderStats().uploadedBytes)},
+            {"bodyCacheVectorCapacityBytes", qint64(finalMemory.bodyVectorCapacityBytes)},
+            {"bodyCacheGpuPayloadBytes", qint64(finalMemory.bodyGpuPayloadBytes)},
+            {"cacheAccountingScope",
+             "Body geometry vector capacity and GPU vertex payload only; excludes maps, textures, "
+             "overlays, drivers and allocator overhead. RSS includes the process."},
             {"timingScope", "OpenGL scene through glFinish; excludes painter overlays and "
                             "compositor. Edits include framebuffer readback."},
             {"releaseAcceptance", false}};
