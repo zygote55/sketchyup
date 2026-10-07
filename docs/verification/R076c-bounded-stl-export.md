@@ -16,7 +16,7 @@ Export traverses complete world-space surface geometry, including hidden bodies,
 and preserves reflected winding. Units, up axis and encoding are explicit.
 Binary output rejects excessive float32 error, collapsed facets and reversed
 orientation; ASCII retains double precision. Both paths have bounded facet/file
-budgets and report format losses. A shared publication helper writes and verifies
+budgets and report format losses. A shared publication helper writes and synchronizes
 a temporary file, publishes without replacing an existing destination, and syncs
 the file and directory. Native-format publication regressions remain covered.
 The real Blender consumer checks exported geometry independently.
