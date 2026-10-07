@@ -542,6 +542,10 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI)
     target_link_libraries(transaction_dispatch_tests PRIVATE sketchyup_io)
     target_compile_definitions(transaction_dispatch_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME transaction_dispatch COMMAND transaction_dispatch_tests)
+    add_executable(transaction_sequence_tests tests/transaction_sequence_tests.cpp)
+    target_link_libraries(transaction_sequence_tests PRIVATE sketchyup_io)
+    add_test(NAME transaction_sequence COMMAND transaction_sequence_tests)
+    set_tests_properties(transaction_sequence PROPERTIES TIMEOUT 300)
     add_executable(transaction_coordinator_tests tests/transaction_coordinator_tests.cpp)
     target_link_libraries(transaction_coordinator_tests PRIVATE sketchyup_io)
     target_compile_definitions(transaction_coordinator_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -1058,3 +1062,5 @@ install(FILES docs/decisions/0141-real-model-performance-fixtures.md DESTINATION
 install(FILES docs/decisions/0142-deterministic-parser-corruption.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0143-new-file-publication-faults.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0144-seeded-transaction-sequences.md DESTINATION share/doc/sketchyup/decisions)
