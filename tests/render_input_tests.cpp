@@ -2,6 +2,7 @@
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "core/entity_measure.hpp"
+#include "core/scenes.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
@@ -13,6 +14,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -415,6 +417,38 @@ int main(int argc, char **argv) {
             panel.start(settings, worker, false);
             check(QTest::qWaitFor([&] { return !panel.active(); }),
                   "Leave verified image for window restart");
+            SceneSnapshot animationScene;
+            animationScene.camera = SceneCamera{};
+            const auto sceneA = createScene(doc, "Animation A", animationScene);
+            animationScene.camera->yaw = 90;
+            const auto sceneB = createScene(doc, "Animation B", animationScene);
+            const auto animationBefore = encodeDocument(doc);
+            const auto animationHistory = doc.history().total;
+            auto animationSettings = settings;
+            animationSettings.camera.reset();
+            check(setup->findChild<QPushButton *>("exportSceneAnimation"),
+                  "Render setup exposes saved-scene animation export");
+            panel.exportAnimation({sceneA, sceneB}, {24, 2, 0}, animationSettings, worker,
+                                  files.filePath("native-animation"));
+            auto *animationProgress =
+                window.findChild<QProgressDialog *>("animationExportProgress");
+            check(animationProgress && animationProgress->isVisible(),
+                  "Animation progress is native and modeless");
+            check(QTest::qWaitFor([&] { return !panel.active(); }, 15000),
+                  "Native frame batch completes");
+            check(panel.status().contains("completed") &&
+                      QFileInfo::exists(files.filePath("native-animation/frame-0003.png")),
+                  "Native export publishes complete frame sequence");
+            worker.executable = executable("hang");
+            panel.exportAnimation({sceneA, sceneB}, {24, 2, 0}, animationSettings, worker,
+                                  files.filePath("native-animation-canceled"));
+            check(panel.active(), "Animation contributes to render busy state");
+            panel.cancel();
+            check(QTest::qWaitFor([&] { return !panel.active(); }, 15000) &&
+                      panel.status().contains("canceled"),
+                  "Native animation cancel reaches terminal status");
+            check(encodeDocument(doc) == animationBefore && doc.history().total == animationHistory,
+                  "Native animation leaves model and history unchanged");
             check(doc.markSaved(doc.saveStamp()), "Mark disposable fixture saved before closing");
             window.close();
         }

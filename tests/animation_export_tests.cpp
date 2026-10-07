@@ -29,7 +29,7 @@ QString quote(QString s) { return "'" + s.replace("'", "'\\''") + "'"; }
 void wait(AnimationExport &job) {
     QElapsedTimer timer;
     timer.start();
-    while (!job.done() && timer.elapsed() < 15000) {
+    while (!job.done() && timer.elapsed() < 120000) {
         QCoreApplication::processEvents();
         QThread::msleep(2);
     }
@@ -37,6 +37,9 @@ void wait(AnimationExport &job) {
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    const bool real = app.arguments().contains("--real");
+    if (real && qEnvironmentVariableIsEmpty("SKETCHYUP_BLENDER_TEST"))
+        return 77;
     try {
         QTemporaryDir files;
         check(files.isValid(), "Animation fixture directory");
@@ -64,7 +67,8 @@ int main(int argc, char **argv) {
         const auto before = encodeDocument(doc);
         const auto history = doc.history().total;
         BlenderJob::Options options;
-        options.executable = launcher("success", "success");
+        options.executable =
+            real ? qEnvironmentVariable("SKETCHYUP_BLENDER_TEST") : launcher("success", "success");
         AnimationExport full;
         const auto output = files.filePath("complete");
         full.start(capture, output, options);
@@ -88,6 +92,29 @@ int main(int argc, char **argv) {
             check(detail["result"].isObject() && detail["camera"].isObject(),
                   "Per-frame transfer verification and camera retained");
         }
+        if (real) {
+            check(encodeDocument(doc) == before && doc.history().total == history,
+                  "Real Blender frames preserve live model");
+            std::cout << "Real Blender animation frame sequence verified\n";
+            return 0;
+        }
+        AnimationExport interrupted;
+        auto hanging = options;
+        hanging.executable = launcher("hang", "hang");
+        interrupted.start(capture, files.filePath("interrupted"), hanging);
+        QElapsedTimer launchWait;
+        launchWait.start();
+        while (!interrupted.message().contains("Rendering") && launchWait.elapsed() < 10000) {
+            QCoreApplication::processEvents();
+            QThread::msleep(2);
+        }
+        check(interrupted.message().contains("Rendering"),
+              "Animation worker starts before cancellation");
+        interrupted.cancel();
+        wait(interrupted);
+        check(interrupted.state() == AnimationExport::State::Canceled &&
+                  interrupted.completedFrames() == 0,
+              "Cancel running worker publishes no partial frame");
         AnimationExport canceled;
         QObject::connect(&canceled, &AnimationExport::changed, &app, [&] {
             if (canceled.completedFrames() == 1 &&

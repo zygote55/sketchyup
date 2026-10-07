@@ -1,5 +1,6 @@
 #pragma once
 #include "app/viewport.hpp"
+#include "integrations/animation_capture.hpp"
 #include "integrations/blender_job.hpp"
 #include <QObject>
 class QTabWidget;
@@ -15,6 +16,8 @@ class RenderPanel : public QObject {
     void showJobs();
     void refreshProvenance();
     void start(RenderOptions settings, BlenderJob::Options worker, bool currentView);
+    void exportAnimation(std::vector<Id> scenes, CameraPathTiming timing, RenderOptions settings,
+                         BlenderJob::Options worker, const QString &directory);
     void cancel();
     bool active() const;
     QString status() const;
