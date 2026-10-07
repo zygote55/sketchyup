@@ -135,7 +135,8 @@ int main(int argc, char **argv) {
         const auto inner = createComponent(library, part, "Part");
         editComponentDefinition(library, inner.definition, [&](Document &draft) {
             ChangeReport changes;
-            for (const auto &[id, body] : draft.bodies())
+            const auto records = draft.bodies();
+            for (const auto &[id, body] : records)
                 if (body->kind == BodyKind::Geometry)
                     changes = assignTag(draft, id, tag);
             return changes;
