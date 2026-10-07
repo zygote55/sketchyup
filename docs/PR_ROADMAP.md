@@ -1104,7 +1104,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R075 — Implement OBJ and MTL interchange
 
-**Status:** In progress. R075.a bounded OBJ/MTL parsers pass [149-suite, sanitizer, native, installed and source-package checks](verification/R075a-bounded-obj-mtl.md). Conversion and native import/export follow in R075.b–d; remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** In progress. R075.a–b bounded parsing and native conversion pass [151-suite, independent Blender, sanitizer, native, installed and source-package checks](verification/R075b-native-obj-conversion.md). Export and native/CLI workflow follow in R075.c–d; remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R061](#r061); milestone gate rule above.
 
