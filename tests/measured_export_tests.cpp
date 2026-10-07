@@ -69,7 +69,14 @@ int main(int argc, char **argv) {
         check(!xml.hasError() && root && physicalLine,
               "Independent SVG parser finds 40 mm source edge at 1:50");
         const auto pdf = exportMeasuredDrawing(page, MeasuredFormat::Pdf);
-        check(pdf.bytes.startsWith("%PDF-") && pdf.bytes.contains("/MediaBox [0 0 720 576]"),
+        const auto media =
+            QRegularExpression(R"(/MediaBox\s*\[\s*0\s+0\s+([0-9.]+)\s+([0-9.]+)\s*\])")
+                .match(QString::fromLatin1(pdf.bytes));
+        if (!media.hasMatch() || media.captured(1).toDouble() != 720 ||
+            media.captured(2).toDouble() != 576)
+            std::cerr << "MediaBox: " << media.captured().toStdString() << '\n';
+        check(pdf.bytes.startsWith("%PDF-") && media.hasMatch() &&
+                  media.captured(1).toDouble() == 720 && media.captured(2).toDouble() == 576,
               "PDF exact 10 by 8 inch media box");
         const auto file = scratch.filePath("measured.pdf");
         writeMeasuredExport(pdf, file);
