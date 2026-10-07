@@ -240,6 +240,12 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI)
   target_link_libraries(sketchyup-text-worker PRIVATE sketchyup_text sketchyup_io)
   install(TARGETS sketchyup-text-worker RUNTIME DESTINATION lib/sketchyup)
   if(BUILD_TESTING)
+    add_executable(m8_exchange_tests tests/m8_exchange_tests.cpp)
+    target_link_libraries(m8_exchange_tests PRIVATE sketchyup_io Qt6::Gui)
+    target_compile_definitions(m8_exchange_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_dependencies(m8_exchange_tests sketchyup-extension-worker)
+    add_test(NAME m8_exchange COMMAND m8_exchange_tests)
+    set_tests_properties(m8_exchange PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME=generic;QT_IM_MODULE=compose")
     add_executable(extension_worker_tests tests/extension_worker_tests.cpp)
     target_link_libraries(extension_worker_tests PRIVATE sketchyup_io)
     target_compile_definitions(extension_worker_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -1020,3 +1026,5 @@ install(FILES examples/material-recipe-v1.json DESTINATION share/doc/sketchyup/e
 install(FILES docs/decisions/0139-executable-agent-recipes.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0140-optional-capability-discovery.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/M8_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
