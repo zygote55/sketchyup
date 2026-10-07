@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QTemporaryDir>
+#include <QtEndian>
 #include <functional>
 #include <iostream>
 #include <new>
@@ -44,6 +45,29 @@ void write(const QString &path, const QByteArray &bytes) {
     check(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size(),
           "Write private corpus input");
     file.close();
+}
+// Component capture intentionally gives its standalone document a fresh identity.
+// Normalize only that synthetic identity and its envelope hash for reproducible seeds.
+QByteArray stableComponentSeed(QByteArray bytes) {
+    const auto manifestSize = qFromLittleEndian<quint32>(bytes.constData() + 8);
+    const auto modelSize = qFromLittleEndian<quint64>(bytes.constData() + 12);
+    const auto thumbnail = bytes.mid(24 + manifestSize + qsizetype(modelSize));
+    auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestSize)).object();
+    const auto document = decodeContainer(bytes.mid(24 + manifestSize, qsizetype(modelSize)));
+    auto json = QJsonDocument::fromJson(encodeDocument(document)).object();
+    json["documentId"] = "0000000000000000000000000000083b";
+    const auto model =
+        encodeContainer(decodeDocument(QJsonDocument(json).toJson(QJsonDocument::Compact)));
+    auto record = manifest["model"].toObject();
+    record["bytes"] = model.size();
+    record["sha256"] =
+        QString::fromLatin1(QCryptographicHash::hash(model, QCryptographicHash::Sha256).toHex());
+    manifest["model"] = record;
+    const auto encoded = QJsonDocument(manifest).toJson(QJsonDocument::Compact);
+    bytes.resize(24);
+    qToLittleEndian<quint32>(quint32(encoded.size()), bytes.data() + 8);
+    qToLittleEndian<quint64>(quint64(model.size()), bytes.data() + 12);
+    return bytes + encoded + model + thumbnail;
 }
 QJsonObject exercise(const QString &name, const QByteArray &seed,
                      const std::function<void(const QByteArray &, bool &)> &parse) {
@@ -180,13 +204,14 @@ int main(int argc, char **argv) {
                                     parsed = true;
                                     roundtrip(result.document);
                                 }));
-        results.append(exercise("component",
-                                encodeComponentBundle(source, component.definition, metadata, png),
-                                [](const auto &bytes, bool &parsed) {
-                                    const auto result = decodeComponentBundle(bytes);
-                                    parsed = true;
-                                    roundtrip(result.document);
-                                }));
+        results.append(exercise(
+            "component",
+            stableComponentSeed(encodeComponentBundle(source, component.definition, metadata, png)),
+            [](const auto &bytes, bool &parsed) {
+                const auto result = decodeComponentBundle(bytes);
+                parsed = true;
+                roundtrip(result.document);
+            }));
         results.append(exercise(
             "extension", read(QStringLiteral(SOURCE_DIR "/examples/extensions/panel.sketchyext")),
             [](const auto &bytes, bool &parsed) {
