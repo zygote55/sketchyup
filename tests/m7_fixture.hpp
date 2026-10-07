@@ -51,7 +51,7 @@ inline Study study() {
         (void)record;
         assignTextureMapping(doc, out.floor, face, TextureMapping{});
     }
-    const auto plaster = createMaterial(doc, "Warm plaster", {.88f, .85f, .78f});
+    const auto plaster = createMaterial(doc, "Study plaster", {.88f, .85f, .78f});
     assignMaterial(doc, out.wall, {}, plaster);
     auto vertex = [&](Vec3 point) {
         for (const auto &[id, p] : doc.bodies().at(out.wall)->surface.vertices)
