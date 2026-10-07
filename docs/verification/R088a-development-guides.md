@@ -23,3 +23,17 @@ these documentation checks. The final 59-Core-row parity report, complete
 release-candidate walkthrough, provider and package gates, remote CI, and
 ordered merges remain open. Existing evidence remains linked with its original
 scope and failures rather than being relabeled as final release acceptance.
+
+## Updated public evidence
+
+Source `14e5041` refreshes repository-only links to the published integration
+`7e54cbbf5b90783045f511b68bd57bdea3fa7146`. The support matrix now records the
+completed 24-check OpenAI evaluation and the corrected fractional surface cases.
+The [Core index](R088b-core-evidence-index.md) maps all 59 IDs to named passing
+tests in the newer 181-test integration run, while retaining each scope limit.
+Its test names, counts and supplemental links were checked against that record.
+
+The updated guides again install byte for byte in a docs-only configuration;
+the [updated source archive](R088b-source-package.json) verifies all 218 installed
+inputs. The earlier archive and source remain recorded above. These updates
+do not close the local-provider, physical-platform or final release gates.
