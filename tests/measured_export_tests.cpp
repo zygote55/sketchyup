@@ -135,7 +135,8 @@ int main(int argc, char **argv) {
             annotationXml.readNext();
         check(!annotationXml.hasError(), "Unicode SVG remains well-formed");
         const auto annotatedPdf = exportMeasuredDrawing(drawing(doc), MeasuredFormat::Pdf);
-        check(annotatedPdf.bytes.contains("drawing-report.json"),
+        check(annotatedPdf.bytes.contains("/EmbeddedFiles") &&
+                  annotatedPdf.bytes.contains("/EmbeddedFile"),
               "PDF includes machine-readable drawing report");
         QImage raster(1000, 800, QImage::Format_ARGB32_Premultiplied);
         raster.fill(Qt::red);

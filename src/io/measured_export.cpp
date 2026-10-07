@@ -60,7 +60,12 @@ struct DrawingPaths {
         values.push_back(std::move(p));
     }
 };
-QPointF point(Vec3 p) { return {p.x, p.y}; }
+QPointF point(Vec3 p) {
+    require(std::isfinite(p.x) && std::isfinite(p.y) && std::abs(p.x) <= 1e12 &&
+                std::abs(p.y) <= 1e12,
+            "Drawing point exceeds finite page bounds");
+    return {p.x, p.y};
+}
 QRectF content(const MeasuredPage &p) {
     return {p.marginMm, p.marginMm, p.widthMm - 2 * p.marginMm, p.heightMm - 2 * p.marginMm};
 }
