@@ -172,7 +172,7 @@ int main(int argc, char **argv) {
         const auto beforeHistory = doc.history().total;
         QTimer exportTimer;
         exportTimer.setInterval(10);
-        bool exportSeen = false;
+        bool exportSeen = false, exportScopeExplained = false;
         QObject::connect(&exportTimer, &QTimer::timeout, &window, [&] {
             if (auto *dialog = window.findChild<QDialog *>("stlOptionsDialog");
                 dialog && dialog->isVisible()) {
@@ -188,10 +188,9 @@ int main(int argc, char **argv) {
             } else if (auto *dialog = window.findChild<QDialog *>("stlReport");
                        dialog && dialog->isVisible()) {
                 exportSeen = true;
-                check(dialog->findChild<QPlainTextEdit *>("stlDetails")
-                          ->toPlainText()
-                          .contains("including hidden objects"),
-                      "Export report explains full geometry scope");
+                exportScopeExplained = dialog->findChild<QPlainTextEdit *>("stlDetails")
+                                           ->toPlainText()
+                                           .contains("including hidden surfaces");
                 exportTimer.stop();
                 dialog->reject();
             }
@@ -200,7 +199,7 @@ int main(int argc, char **argv) {
         exportTimer.start();
         window.findChild<QAction *>("file.exportStl")->trigger();
         exportTimer.stop();
-        check(exportSeen && QFile::exists(files.filePath("export.stl")) &&
+        check(exportSeen && exportScopeExplained && QFile::exists(files.filePath("export.stl")) &&
                   encodeDocument(doc) == beforeExport && doc.history().total == beforeHistory,
               "Native export leaves model and history unchanged");
         const auto target = files.filePath("native-copy");
