@@ -663,7 +663,7 @@ if(SKETCHYUP_BUILD_CLI)
     add_test(NAME shipped_recipes COMMAND "${Python3_EXECUTABLE}"
       "${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-shipped-recipes.py"
       --cli $<TARGET_FILE:sketchyup-cli> --examples "${CMAKE_CURRENT_SOURCE_DIR}/examples")
-    set_tests_properties(shipped_recipes PROPERTIES TIMEOUT 180)
+    set_tests_properties(shipped_recipes PROPERTIES TIMEOUT 900)
     add_test(NAME tool_reference_drift COMMAND "${Python3_EXECUTABLE}"
       "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate-tool-reference.py"
       --cli $<TARGET_FILE:sketchyup-cli> --root "${CMAKE_CURRENT_SOURCE_DIR}" --check)

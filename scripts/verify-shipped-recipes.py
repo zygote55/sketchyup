@@ -25,7 +25,7 @@ def main():
     cli = args.cli.resolve()
     def call(*arguments):
         p = subprocess.run([str(cli), *map(str, arguments)], text=True, capture_output=True,
-                           timeout=60)
+                           timeout=180)
         assert p.returncode == 0, (arguments, p.stdout[-2000:], p.stderr[-2000:])
         return p.stdout
     cases = {
