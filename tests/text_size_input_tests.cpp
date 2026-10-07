@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSurfaceFormat>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QToolBar>
@@ -105,6 +106,33 @@ int main(int argc, char **argv) {
                     check(window.viewport()->width() >= 300, "Enlarged UI retains usable viewport");
                     auto *tools = window.findChild<QToolBar *>("toolRail");
                     check(tools && tools->width() == 156, "Tool rail grows with text");
+                    auto *search = window.findChild<QPushButton *>("commandSearch");
+                    check(search->width() >= search->sizeHint().width(),
+                          "Command label fits its button");
+                    auto *breadcrumb = window.findChild<QLabel *>("contextBreadcrumb");
+                    check(breadcrumb->height() >= breadcrumb->fontMetrics().height() &&
+                              breadcrumb->width() >=
+                                  breadcrumb->fontMetrics().horizontalAdvance("Model"),
+                          "Model breadcrumb fits enlarged font");
+                    auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
+                    if (tabs->isVisible()) {
+                        for (int tab : {0, 1}) {
+                            tabs->setCurrentIndex(tab);
+                            check(QTest::qWaitFor([&] {
+                                      for (auto *button :
+                                           tabs->currentWidget()->findChildren<QPushButton *>())
+                                          if (button->isVisible() &&
+                                              button->width() < button->sizeHint().width())
+                                              return false;
+                                      return true;
+                                  }),
+                                  "Outliner and tag action labels fit after reflow");
+                        }
+                        tabs->setCurrentIndex(0);
+                        auto *hint = window.findChild<QLabel *>("hint");
+                        check(hint->height() >= hint->heightForWidth(hint->width()),
+                              "Wrapped navigation hint remains readable");
+                    }
                     if (argc == 2) {
                         const auto folder = QString::fromLocal8Bit(argv[1]);
                         check(QDir().mkpath(folder), "Create text-size capture directory");
