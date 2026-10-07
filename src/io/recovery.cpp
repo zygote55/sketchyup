@@ -1,4 +1,5 @@
 #include "io/recovery.hpp"
+#include "io/native_limits.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -15,7 +16,7 @@
 #include <unistd.h>
 namespace sketchy {
 namespace {
-constexpr qsizetype frameLimit = 64 * 1024, containerLimit = 128 * 1024 * 1024;
+constexpr qsizetype frameLimit = 64 * 1024, containerLimit = NativeLimits::fileBytes;
 constexpr qsizetype journalLimit = 8 * frameLimit;
 QString token() { return QUuid::createUuid().toString(QUuid::Id128); }
 QString digest(const QByteArray &bytes) {

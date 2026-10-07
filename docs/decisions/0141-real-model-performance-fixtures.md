@@ -121,3 +121,13 @@ hashes and density. No texture dimensions, geometry or cache budgets change.
 Fixture serialization buffers leave scope before viewport construction, matching
 ordinary ownership; peak fixture RSS still includes those transient allocations.
 See [qualification and remaining gaps](../verification/R082i-complete-frame.md).
+
+## Reuse unchanged viewport work
+
+R082.j uses immutable body identity to skip unchanged topology and appearance
+comparisons while refreshing referenced global materials. Empty asset, section and
+guide collections skip their respective scans; empty texture requests still retire
+obsolete images. Batch-invariant uniforms are set at both main shader binding sites.
+Forty hardware runs preserve the frozen fixture hashes and meet the initial
+frame/edit budgets; forty-two native checks cover normal and sanitized behavior.
+[Detailed comparison and remaining acceptance gaps](../verification/R082j-viewport-reuse.md).

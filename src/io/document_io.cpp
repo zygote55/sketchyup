@@ -1,9 +1,11 @@
 #include "io/document_io.hpp"
+#include "core/document_limits.hpp"
 #include "io/annotations_io.hpp"
 #include "io/assets.hpp"
 #include "io/hosted_components_io.hpp"
 #include "io/model_style_io.hpp"
 #include "io/native_format.hpp"
+#include "io/native_limits.hpp"
 #include "io/reference_image_io.hpp"
 #include "io/scenes_io.hpp"
 #include "io/sections_io.hpp"
@@ -16,8 +18,8 @@
 #include <set>
 namespace sketchy {
 namespace {
-constexpr qint64 fileLimit = 128 * 1024 * 1024;
-constexpr qint64 modelLimit = 32 * 1024 * 1024;
+constexpr qint64 fileLimit = NativeLimits::fileBytes;
+constexpr qint64 modelLimit = NativeLimits::modelBytes;
 QString sid(Id id) { return QString::number(id); }
 Id readId(const QJsonValue &v, bool allowZero = false) {
     bool ok = false;
@@ -284,7 +286,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
 }
 std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
     auto records = array(value);
-    if (records.size() > 10000)
+    if (records.size() > qsizetype(DocumentLimits::bodies))
         throw std::runtime_error("Too many bodies");
     std::map<Id, BodyPtr> bodies;
     size_t totalVertices = 0, totalFaces = 0, totalGuides = 0;
@@ -423,7 +425,8 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
         auto vertices = array(o["vertices"]), faces = array(o["faces"]), wires = array(o["wires"]);
         totalVertices += vertices.size();
         totalFaces += faces.size();
-        if (totalVertices > 100000 || totalFaces > 100000 || wires.size() > 100000)
+        if (totalVertices > DocumentLimits::vertices || totalFaces > DocumentLimits::faces ||
+            wires.size() > qsizetype(DocumentLimits::wires))
             throw std::runtime_error("Document complexity exceeds editing limits");
         for (auto vertex : vertices) {
             auto a = array(vertex);
@@ -521,7 +524,7 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
         if (version >= 5) {
             const auto guides = array(o["guides"]);
             totalGuides += guides.size();
-            if (guides.size() > 1024 || totalGuides > 10000)
+            if (guides.size() > 1024 || totalGuides > DocumentLimits::guides)
                 throw std::runtime_error("Guide count exceeds editing limits");
             auto vector = [&](const QJsonValue &value) {
                 const auto values = array(value);
@@ -576,7 +579,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         rootFields += {"materials", "nextMaterialId"};
     if (root["version"].toInt() >= 11)
         rootFields += {"assets", "nextAssetId", "assetStorage"};
-    else if (bytes.size() > modelLimit || !payloads.empty())
+    else if (bytes.size() > qsizetype(NativeLimits::legacyModelBytes) || !payloads.empty())
         throw std::runtime_error("Legacy document exceeds model limit or has unexpected assets");
     if (root["version"].toInt() >= 12)
         rootFields.append("displayUnits");

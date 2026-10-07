@@ -1,4 +1,5 @@
 #include "core/components.hpp"
+#include "core/document_limits.hpp"
 #include <algorithm>
 #include <set>
 namespace sketchy {
@@ -225,9 +226,10 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
         total.edges += size.edges;
         total.curves += size.curves;
         total.guides += size.guides;
-        if (total.records > 10000 || total.vertices > 100000 || total.faces > 100000 ||
-            total.wires > 100000 || total.edges > Topology::edgeLimit || total.curves > 10000 ||
-            total.guides > 10000)
+        if (total.records > DocumentLimits::bodies || total.vertices > DocumentLimits::vertices ||
+            total.faces > DocumentLimits::faces || total.wires > DocumentLimits::wires ||
+            total.edges > DocumentLimits::edges || total.curves > DocumentLimits::curves ||
+            total.guides > DocumentLimits::guides)
             throw std::runtime_error("Component placement exceeds document editing limits");
     };
     for (const auto &[id, body] : projection.scene)
