@@ -1,7 +1,9 @@
 #include "core/annotations.hpp"
 #include "io/measured_export.hpp"
 #include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
+#include <QJsonDocument>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QTemporaryDir>
@@ -107,8 +109,48 @@ int main(int argc, char **argv) {
             check(std::abs(left - 1270) <= 2 && std::abs(right - 1670) <= 2 &&
                       std::abs(top - 816) <= 2 && std::abs(bottom - 1016) <= 2,
                   "Independent PDF raster measures 2 by 1 metres as 40 by 20 millimetres at 1:50");
-            std::cout << "Poppler independently verified PDF page size, print scale and rectangle "
-                         "placement\n";
+            QProcess attachments;
+            attachments.start(QFileInfo(executable).dir().filePath("pdfdetach"),
+                              {"-saveall", "-o", scratch.path(), file});
+            check(attachments.waitForStarted(10000) && attachments.waitForFinished(10000) &&
+                      attachments.exitCode() == 0,
+                  "Independent PDF attachment extraction");
+            QFile reportFile(scratch.filePath("drawing-report.json"));
+            check(reportFile.open(QIODevice::ReadOnly),
+                  "PDF drawing report is independently recoverable");
+            const auto report = QJsonDocument::fromJson(reportFile.readAll()).object();
+            check(report["scaleDenominator"] == 50 && report["rasterized"] == false &&
+                      report["units"] == "mm",
+                  "PDF embedded report preserves scale and vector disclosure");
+            Document wire;
+            wire.addWire(0, {0, 0, 0}, {2, 0, 0});
+            const auto wireFile = scratch.filePath("wire.pdf");
+            writeMeasuredExport(exportMeasuredDrawing(drawing(wire), MeasuredFormat::Pdf),
+                                wireFile);
+            const auto wirePrefix = scratch.filePath("wire");
+            consumer.start(executable, {"-singlefile", "-r", "254", "-png", wireFile, wirePrefix});
+            check(consumer.waitForStarted(10000) && consumer.waitForFinished(60000) &&
+                      consumer.exitCode() == 0,
+                  "Independent wire PDF consumer");
+            const QImage wireImage(wirePrefix + ".png");
+            check(!wireImage.isNull() && wireImage.pixelColor(1470, 1016).red() < 100,
+                  "Horizontal standalone line survives zero-height path bounding box");
+            QImage red(1000, 800, QImage::Format_RGB32);
+            red.fill(Qt::red);
+            const auto rasterFile = scratch.filePath("raster.pdf");
+            writeMeasuredExport(exportMeasuredDrawing(page, MeasuredFormat::Pdf, red), rasterFile);
+            const auto rasterPrefix = scratch.filePath("raster");
+            consumer.start(executable,
+                           {"-singlefile", "-r", "254", "-png", rasterFile, rasterPrefix});
+            check(consumer.waitForStarted(10000) && consumer.waitForFinished(60000) &&
+                      consumer.exitCode() == 0,
+                  "Independent raster PDF consumer");
+            const QImage rasterImage(rasterPrefix + ".png");
+            check(!rasterImage.isNull() && rasterImage.pixelColor(1270, 1016) == QColor(Qt::red) &&
+                      rasterImage.pixelColor(50, 50) == QColor(Qt::white),
+                  "Embedded appearance raster and paper margins render correctly");
+            std::cout << "Poppler independently verified page size, print scale, placement, wire, "
+                         "raster and report\n";
             return 0;
         }
         rejects([&] { writeMeasuredExport(pdf, file); });
