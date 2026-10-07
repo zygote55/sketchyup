@@ -1,7 +1,7 @@
+#include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "io/document_io.hpp"
 #include <QApplication>
-#include <QSurfaceFormat>
 #include <QTest>
 #include <QVBoxLayout>
 #include <iostream>
@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
     try {
         Document doc;

@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/components.hpp"
 #include "core/face_orientation.hpp"
@@ -12,7 +13,6 @@
 #include <QDir>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTreeWidget>
@@ -36,7 +36,8 @@ QPushButton *button(QDialog *report, const char *name) {
 }
 void click(QDialog *report, const char *name) {
     auto *target = button(report, name);
-    check(target->isEnabled(), "Diagnostic button enabled");
+    if (!target->isEnabled())
+        throw std::runtime_error(std::string("Diagnostic button disabled: ") + name);
     auto *window = qobject_cast<Window *>(report->parentWidget());
     QTest::mouseClick(target, Qt::LeftButton);
     events();
@@ -123,7 +124,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setSamples(0);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir files;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     QApplication app(argc, argv);
@@ -193,7 +194,9 @@ int main(int argc, char **argv) {
                   !button(report, "diagnosticsRepair")->isEnabled() && encodeContainer(doc) == base,
               "Diagnostic repair cannot replace an active assistant preview");
         view.setAssistantPreview({});
-        QTest::qWait(250);
+        check(
+            QTest::qWaitFor([&] { return button(report, "diagnosticsRepair")->isEnabled(); }, 5000),
+            "Clearing the assistant preview restores diagnostic repair availability");
         click(report, "diagnosticsRepair");
         focus(window);
         check(view.tool() == Viewport::Tool::Orientation && view.previewValid() &&

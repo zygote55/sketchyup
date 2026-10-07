@@ -1,0 +1,15 @@
+{
+  "source": "b0613dbf9500dd6227490d876217cc227149097f",
+  "manifestSha256": "014105ffbd2f1e3aaca3182d4592d8ae765cf82f72362006c3eeb972004073d7",
+  "binarySha256": "a64ed40afa0b67c86262be95fd69a5d431f5820a411ed2e8ddd64ad823489ca2",
+  "startedAt": "2026-10-07T10:57:25Z",
+  "profile": "chatgpt-astra",
+  "liveProviderTested": true,
+  "liveTasks": 21,
+  "offlineControls": 3,
+  "reviewer": "Codex receipt and semantic review; not independent human release sign-off",
+  "releaseAccepted": false,
+  "elapsedMs": 1039576,
+  "reportedTokens": 2091327,
+  "monetaryCost": null
+}

@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
@@ -8,7 +9,6 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -29,7 +29,7 @@ void focus(QWidget *widget) {
 int main(int argc, char **argv) {
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir files;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);

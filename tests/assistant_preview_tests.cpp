@@ -1,8 +1,8 @@
+#include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "automation/commands.hpp"
 #include "io/document_io.hpp"
 #include <QApplication>
-#include <QSurfaceFormat>
 #include <QTest>
 #include <iostream>
 using namespace sketchy;
@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setSamples(0);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
     try {
         Document doc;

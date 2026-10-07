@@ -1,0 +1,321 @@
+{
+  "corpusVersion": 1,
+  "profile": "chatgpt-astra",
+  "model": "gpt-6-astra",
+  "profileStatus": "candidate",
+  "corpusPassed": true,
+  "releaseAccepted": false,
+  "monetaryCost": null,
+  "costPolicy": "Record reported tokens and wall time. Monetary cost is unreported; subscription usage is not assumed free.",
+  "thresholds": {
+    "measure": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    },
+    "room": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 2
+    },
+    "resize": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 2
+    },
+    "advanced": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 2
+    },
+    "site": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 2
+    },
+    "unsupported": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    },
+    "metadata": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    },
+    "unavailable": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    }
+  },
+  "blockers": [],
+  "runs": [
+    {
+      "trial": "measure",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "47ac566fc2be6bc980e89a2c015738ee490ba5331378008315104739bd9b2a08",
+      "phase": "completed",
+      "elapsedMs": 11397,
+      "reportedTokens": 10972,
+      "providerTurns": 2,
+      "toolCalls": 1
+    },
+    {
+      "trial": "room",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "810bdc035678ecbb4ead445b4ee723e219154be0cf1170c09f35c95236f234b4",
+      "phase": "completed",
+      "elapsedMs": 48922,
+      "reportedTokens": 103063,
+      "providerTurns": 8,
+      "toolCalls": 8
+    },
+    {
+      "trial": "resize",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "0bdbd1bec3d93fd9e715b3185abbc171c41042a45973c84038db079d9dc54c64",
+      "phase": "completed",
+      "elapsedMs": 86367,
+      "reportedTokens": 173337,
+      "providerTurns": 13,
+      "toolCalls": 13
+    },
+    {
+      "trial": "advanced",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "0778ebc42613c5d88e678e7278181ac1b69b1362825b418ebca0f66b4a24895e",
+      "phase": "completed",
+      "elapsedMs": 100614,
+      "reportedTokens": 252687,
+      "providerTurns": 12,
+      "toolCalls": 12
+    },
+    {
+      "trial": "site",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "f696491611e91014f7c973b81436daaf8070e4b275af984d407fade44f6cd03c",
+      "phase": "completed",
+      "elapsedMs": 72427,
+      "reportedTokens": 126048,
+      "providerTurns": 8,
+      "toolCalls": 8
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "0eb8241141365040b77caff4eb9e3fae3a2bcccd89a89c58762dd91478b5606f",
+      "phase": "completed",
+      "elapsedMs": 4927,
+      "reportedTokens": 10386,
+      "providerTurns": 1,
+      "toolCalls": 0
+    },
+    {
+      "trial": "metadata",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "22a99582f5fb35ac09a897b24fb2794c3046008263acdcd361ef5eae2fee1cbd",
+      "phase": "completed",
+      "elapsedMs": 27789,
+      "reportedTokens": 17170,
+      "providerTurns": 3,
+      "toolCalls": 2
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "a05fbed86c90ddaf8106100936f2e0950d9c7d5941b98c4d047aaff51773bf1b",
+      "phase": "failed",
+      "elapsedMs": 818,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "measure",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "233225ab9d0ce3fc360723d164c8e2927a3a1d298c8dfa0a7bfbd8439b88880e",
+      "phase": "completed",
+      "elapsedMs": 12643,
+      "reportedTokens": 10969,
+      "providerTurns": 2,
+      "toolCalls": 1
+    },
+    {
+      "trial": "room",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "0dbd752070b2b9d2b9b80744194ab29b0091256abc2dc40c029d65b234c22ce2",
+      "phase": "completed",
+      "elapsedMs": 52000,
+      "reportedTokens": 103063,
+      "providerTurns": 8,
+      "toolCalls": 8
+    },
+    {
+      "trial": "resize",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "5367b755e10999062a1d0cefb26fbbbe4a87b7e9b56a2030b6b9d5eaef9bd2d0",
+      "phase": "completed",
+      "elapsedMs": 87873,
+      "reportedTokens": 155776,
+      "providerTurns": 12,
+      "toolCalls": 12
+    },
+    {
+      "trial": "advanced",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "1eed7affe5b933e47fc6f44e7f9ae18ca22ba7a5f42ab33c3bb2fc62b7b2523b",
+      "phase": "completed",
+      "elapsedMs": 101996,
+      "reportedTokens": 253753,
+      "providerTurns": 12,
+      "toolCalls": 12
+    },
+    {
+      "trial": "site",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "000ab1cf0c6de20d1c578cc6c8b0e9ff8d1e6fb5990b20a6483c06bff839da6f",
+      "phase": "completed",
+      "elapsedMs": 65638,
+      "reportedTokens": 126070,
+      "providerTurns": 8,
+      "toolCalls": 8
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "a1cf21695e74d19917a8463271f2a1b914ace4bd76b0e094dd5a372e2c3a5e27",
+      "phase": "completed",
+      "elapsedMs": 7451,
+      "reportedTokens": 10389,
+      "providerTurns": 1,
+      "toolCalls": 0
+    },
+    {
+      "trial": "metadata",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "c102e9b0d79e970a0861e61c3281a2a8a044a482d3e651d4960d7dd7f4411c69",
+      "phase": "completed",
+      "elapsedMs": 21879,
+      "reportedTokens": 17173,
+      "providerTurns": 3,
+      "toolCalls": 2
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "fcd914a0690ee0a03bfee07c90fa299ec43e2dcad2ece85d73a3766a2a7e8e8f",
+      "phase": "failed",
+      "elapsedMs": 808,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    },
+    {
+      "trial": "measure",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "7923669f64b125be954a95cb5cbcf1e5ec30a65e2873200b8db3aaf4858a0604",
+      "phase": "completed",
+      "elapsedMs": 7643,
+      "reportedTokens": 10970,
+      "providerTurns": 2,
+      "toolCalls": 1
+    },
+    {
+      "trial": "room",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "d4ed18746311849fffd07aebc7d3e809246e63a1258830b32fe523a210d00de7",
+      "phase": "completed",
+      "elapsedMs": 51320,
+      "reportedTokens": 102895,
+      "providerTurns": 8,
+      "toolCalls": 8
+    },
+    {
+      "trial": "resize",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "2d85fe77222f5615d7d7bcecdcef81e420628b8209654e1c0f7ca44e043dcdb3",
+      "phase": "completed",
+      "elapsedMs": 87269,
+      "reportedTokens": 188720,
+      "providerTurns": 14,
+      "toolCalls": 14
+    },
+    {
+      "trial": "advanced",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "45fb86bf477ee19b511980b113ceaa79e4650c003d8b9d9d766e419e33dde7dc",
+      "phase": "completed",
+      "elapsedMs": 98552,
+      "reportedTokens": 253561,
+      "providerTurns": 12,
+      "toolCalls": 12
+    },
+    {
+      "trial": "site",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "8720e2d64ec39ac6e21e465e9a83c29dfa5724eaf9d645b31dd316e395309b7b",
+      "phase": "completed",
+      "elapsedMs": 59078,
+      "reportedTokens": 125928,
+      "providerTurns": 8,
+      "toolCalls": 8
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "2bed8146cbfc01a9dfae326c10cfd585fb7ddb243522642094c3010b2897ec6c",
+      "phase": "completed",
+      "elapsedMs": 12158,
+      "reportedTokens": 21220,
+      "providerTurns": 2,
+      "toolCalls": 1
+    },
+    {
+      "trial": "metadata",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "61175aaa0d6e81b9274b8d3f590a93e565d283c71150499b0e10025abb0fc582",
+      "phase": "completed",
+      "elapsedMs": 19190,
+      "reportedTokens": 17177,
+      "providerTurns": 3,
+      "toolCalls": 2
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "04b41bfcb8ae8ff89a4aab7916bacfd10554db3d35c9d529a426b18e126f290a",
+      "phase": "failed",
+      "elapsedMs": 817,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0
+    }
+  ],
+  "manifestSha256": "014105ffbd2f1e3aaca3182d4592d8ae765cf82f72362006c3eeb972004073d7",
+  "reviewBundleSha256": "a0f77320b72fe78c356d4b29e8ce8538cf294f0f8efcc8d54994b842bff996ce"
+}
