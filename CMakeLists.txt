@@ -860,3 +860,5 @@ install(FILES docs/decisions/0112-bounded-obj-mtl-parsing.md DESTINATION share/d
 install(FILES docs/decisions/0113-native-obj-conversion.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0114-contained-obj-export-packages.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0115-native-obj-interchange-workflow.md DESTINATION share/doc/sketchyup/decisions)

@@ -820,3 +820,16 @@ The output must be a new path. Relative buffers/images must stay inside the sour
 folder. Skinning, morph targets, required unsupported extensions and unsupported
 material modes reject explicitly. See the [import contract](docs/decisions/0111-native-gltf-import-workflow.md)
 for limits and exchange guarantees.
+
+OBJ/MTL interchange supports editable polygons, wires, groups, diffuse colors, opacity
+and contained PNG/JPEG textures. File → Import OBJ/MTL and Export OBJ package ask
+for units and up axis. Export includes hidden model geometry without section clipping;
+reports enumerate unsupported metadata and missing assets. Headless equivalents:
+
+```sh
+sketchyup-cli --import-obj source.obj --obj-unit mm --obj-up z --output converted.sketchyup
+sketchyup-cli --export-obj new-package --input converted.sketchyup --obj-unit mm --obj-up z
+```
+
+Import output and export folders must be new. Keep exported OBJ, MTL and image files
+together. See the [native OBJ workflow contract](docs/decisions/0115-native-obj-interchange-workflow.md).
