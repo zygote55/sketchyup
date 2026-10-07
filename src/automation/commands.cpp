@@ -1,3 +1,4 @@
+#include "automation/reference_image_commands.hpp"
 #include "automation/commands.hpp"
 #include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
@@ -681,6 +682,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             for (const auto &step : recipe.steps)
                 compose(decodedChanges(step.toObject()["changes"].toObject()));
             recipeOperations.append(recipe.report);
+        } else if (isReferenceImageCommand(name)) {
+            compose(executeReferenceImageCommand(staged, command));
         } else if (isTextCommand(name)) {
             compose(executeTextCommand(staged, command));
         } else if (isAnnotationCommand(name)) {
@@ -1393,7 +1396,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                         const auto nested = value.toObject();
                         const auto operation = nested.value("command").toString();
                         if (nested.contains("commands") ||
-                            !(operation.startsWith("geometry.") || isTextCommand(operation) || operation == "entity.position" ||
+                            !(operation.startsWith("geometry.") || isTextCommand(operation) || isReferenceImageCommand(operation) || operation == "entity.position" ||
                               operation == "entity.dimensions" ||
                               operation == "entity.properties" || operation == "material.assign" ||
                               operation == "material.map_texture" ||

@@ -1018,7 +1018,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R068 — Import reference images and export raster views
 
-**Status:** In progress. R068.a–b provides calibrated image dimensions, typed image entities, managed-asset persistence, schema-24 migration, atomic history/recovery and explicit surface-export losses ([contracts](decisions/0092-reference-image-records.md), [130-suite acceptance evidence](verification/R068ab-reference-records.md)). Shared workflows, native display and raster export are the next layers. **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** In progress. R068.a–b ([PR #157](https://github.com/zygote55/sketchyup/pull/157)) provides calibrated image dimensions, typed image entities, managed-asset persistence, schema-24 migration, atomic history/recovery and explicit surface-export losses ([contracts](decisions/0092-reference-image-records.md), [130-suite acceptance evidence](verification/R068ab-reference-records.md)). R068.c adds shared authoring, bounded inspection, strict catalogs and a relocatable calibration example ([131-suite acceptance evidence](verification/R068c-reference-workflows.md)). Native display and raster export are the next layer. **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R061](#r061), [R062](#r062); milestone gate rule above.
 

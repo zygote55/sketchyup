@@ -1,3 +1,4 @@
+#include "automation/reference_image_commands.hpp"
 #include "automation/commands.hpp"
 #include "automation/solar_commands.hpp"
 #include "automation/text_commands.hpp"
@@ -83,6 +84,26 @@ QJsonObject textSpec(bool creating) {
         alternatives.append(QJsonObject{{"required", QJsonArray{"regenerate"}}, {"properties", QJsonObject{{"regenerate", QJsonObject{{"const", true}}}}}});
         parameters["anyOf"] = alternatives;
         entry["parameters"] = parameters;
+    }
+    return entry;
+}
+QJsonObject referenceImageSpec(bool creating) {
+    auto properties = referenceImageProperties();
+    if (creating) {
+        properties["parent"] = stableId(true);
+        properties["position"] = list(number(), 3, 3);
+    } else properties["body"] = stableId();
+    auto entry = spec(creating ? "reference_image.create" : "reference_image.update",
+                      creating ? "Place a managed reference image" : "Edit reference image properties",
+                      "Reference images", properties,
+                      creating ? QJsonArray{"name", "asset", "width", "height"} : QJsonArray{"body"});
+    if (!creating) {
+        auto schema = entry["parameters"].toObject();
+        QJsonArray choices;
+        for (const auto &key : referenceImageProperties().keys())
+            choices.append(QJsonObject{{"required", QJsonArray{key}}});
+        schema["anyOf"] = choices;
+        entry["parameters"] = schema;
     }
     return entry;
 }
@@ -189,6 +210,13 @@ QJsonArray commandCatalog() {
               {"tolerance", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1},
                   {"description", "Explicit absolute tolerance in m, m2 or m3; bounds compare each axis"}}}},
              {"body", "space", "metric", "expected", "tolerance"}),
+        referenceImageSpec(true), referenceImageSpec(false),
+        spec("reference_image.calibrate", "Calibrate an image to a known world length", "Reference images",
+             {{"body", stableId()},
+              {"first", list(QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1}}, 2, 2)},
+              {"second", list(QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1}}, 2, 2)},
+              {"knownLength", QJsonObject{{"type", "number"}, {"minimum", 1e-6}, {"maximum", 1e6}}}},
+             {"body", "first", "second", "knownLength"}),
         textSpec(true), textSpec(false),
         spec("text.bake", "Keep text geometry and remove editable source", "Text", {{"body", stableId()}}, {"body"}),
         annotationCreateSpec(),

@@ -1,0 +1,68 @@
+[
+  {
+    "command": "asset.import",
+    "name": "Calibration grid",
+    "mediaType": "image/png",
+    "data": "iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAA10lEQVR42u3csQkAIRBFQRuyg0uu/z4M5CoQ4cQqRP4Eb1NZmE0t9Xl/5Vb2GHMca7/fvn6s5P0BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgOsAKPx/ABeYuT8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADcCUG4LckfOe3IE6msAAAAASUVORK5CYII="
+  },
+  {
+    "command": "reference_image.create",
+    "name": "Reference grid: 8 by 4 meters",
+    "asset": "1",
+    "width": 4,
+    "height": 2,
+    "opacity": 0.7,
+    "position": [
+      0,
+      0,
+      -0.01
+    ]
+  },
+  {
+    "command": "reference_image.calibrate",
+    "body": "1",
+    "first": [
+      0,
+      1
+    ],
+    "second": [
+      1,
+      1
+    ],
+    "knownLength": 8
+  },
+  {
+    "command": "geometry.face",
+    "name": "Modeled block",
+    "loops": [
+      [
+        [
+          1,
+          1,
+          0
+        ],
+        [
+          3,
+          1,
+          0
+        ],
+        [
+          3,
+          2,
+          0
+        ],
+        [
+          1,
+          2,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "2",
+    "face": "5",
+    "distance": 1
+  }
+]
