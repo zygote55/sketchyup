@@ -22,7 +22,7 @@ template <class F> void rejects(F f) {
     }
     throw std::runtime_error("Expected drawing rejection");
 }
-RenderSnapshot capture(const Document &doc) {
+RenderSnapshot capture(const Document &doc, SelectionSet hidden = {}) {
     RenderCamera camera;
     camera.orthographic = true;
     camera.position = {0, 0, 10};
@@ -30,7 +30,7 @@ RenderSnapshot capture(const Document &doc) {
     camera.up = {0, 1, 0};
     RenderOptions options;
     options.camera = camera;
-    return RenderSnapshot::capture(doc, options);
+    return RenderSnapshot::capture(doc, options, std::move(hidden));
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -71,6 +71,23 @@ int main(int argc, char **argv) {
         for (const auto &line : cut.geometry.lines)
             check(line.a.x >= 168.5 - 1e-7 && line.b.x >= 168.5 - 1e-7,
                   "Section clips edges at exact printed millimetres");
+        setActiveSection(doc, 0, {});
+        const auto edgeId = doc.bodies().at(face)->topology.edges.begin()->first;
+        const auto hiddenEdge =
+            captureMeasuredDrawing(capture(doc, {{face, SelectionKind::Edge, edgeId}}), page);
+        check(hiddenEdge.sources.size() == 3,
+              "Temporarily hidden edges do not enter print drawing");
+        AnnotationRecord attached = dimension;
+        attached.name = "Attached";
+        const auto &vertices = doc.bodies().at(face)->surface.vertices;
+        attached.anchors = {vertexAnchor(doc, face, vertices.begin()->first),
+                            vertexAnchor(doc, face, std::next(vertices.begin())->first)};
+        createAnnotation(doc, attached);
+        check(captureMeasuredDrawing(capture(doc), page).annotations.size() == 2,
+              "Visible bound dimension retained");
+        setActiveSection(doc, 0, plane);
+        check(captureMeasuredDrawing(capture(doc), page).annotations.size() == 1,
+              "Section suppresses bound dimension with clipped anchor");
         setActiveSection(doc, 0, {});
         const auto cover =
             doc.addFace({{{.5, -.5, 1}, {1.5, -.5, 1}, {1.5, 1.5, 1}, {.5, 1.5, 1}}});

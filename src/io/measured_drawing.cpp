@@ -110,7 +110,7 @@ MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredP
         }
         for (const auto &[edge, record] : body.topology.edges) {
             const auto appearance = edgeAppearance(body, edge);
-            if (appearance.hidden) {
+            if (appearance.hidden || !snapshot.edgeVisible(id, edge)) {
                 loss("hiddenEdgesOmitted");
                 continue;
             }
@@ -163,18 +163,28 @@ MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredP
         require(++annotationCount <= annotationRecordLimit,
                 "Measured drawing annotation budget exceeded");
         const auto &record = *ptr;
-        bool visible = true;
-        for (const auto &anchor : record.anchors)
-            if (anchor.kind != AnchorKind::Point && doc.bodies().contains(anchor.body) &&
-                !snapshot.visible(anchor.body))
-                visible = false;
-        if (!visible) {
-            loss("hiddenAnnotationsOmitted");
-            continue;
-        }
         MeasuredAnnotation annotation;
         annotation.record = record;
         annotation.measurement = measureAnnotation(doc, record);
+        bool visible = true;
+        for (size_t i = 0; i < record.anchors.size(); ++i) {
+            const auto &anchor = record.anchors[i];
+            const auto &resolved = annotation.measurement.anchors[i];
+            if (anchor.kind == AnchorKind::Point || resolved.state != AnchorState::Resolved)
+                continue;
+            if (!snapshot.visible(anchor.body,
+                                  anchor.kind == AnchorKind::Face ? anchor.entity : 0) ||
+                !sectionContains(resolved.point, effectiveSectionCuts(doc, anchor.body)))
+                visible = false;
+            if (anchor.kind == AnchorKind::Edge &&
+                (!snapshot.edgeVisible(anchor.body, anchor.entity) ||
+                 edgeAppearance(*doc.bodies().at(anchor.body), anchor.entity).hidden))
+                visible = false;
+        }
+        if (!visible) {
+            loss("hiddenOrClippedAnnotationsOmitted");
+            continue;
+        }
         annotation.textPoint = page.project(annotation.measurement.textPoint);
         for (const auto &anchor : annotation.measurement.anchors)
             annotation.anchors.push_back(page.project(anchor.point));
