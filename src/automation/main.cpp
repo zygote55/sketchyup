@@ -9,6 +9,7 @@
 #include "io/dxf_export.hpp"
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
+#include "io/measured_request.hpp"
 #include "io/native_format.hpp"
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
@@ -18,12 +19,37 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <iostream>
 int main(int argc, char **argv) {
-    QCoreApplication app(argc, argv);
+    bool measuredExport = false;
+    for (int i = 1; i < argc; ++i) {
+        const auto argument = QByteArray(argv[i]);
+        measuredExport =
+            measuredExport || argument == "--export-view" || argument.startsWith("--export-view=");
+    }
+    QStringList originalArguments;
+    for (int i = 0; i < argc; ++i)
+        originalArguments.append(QString::fromLocal8Bit(argv[i]));
+    int guiArgc = 1;
+    char *guiArgv[]{argv[0], nullptr};
+    std::unique_ptr<QCoreApplication> application;
+    if (measuredExport) {
+        // Explicit font-using export runs without a display or user desktop plugins.
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+        qputenv("QT_QPA_PLATFORMTHEME", "generic");
+        qputenv("QT_IM_MODULE", "compose");
+        application = std::make_unique<QGuiApplication>(guiArgc, guiArgv);
+    } else
+        application = std::make_unique<QCoreApplication>(argc, argv);
+    auto &app = *application;
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption(
+        {"export-view", "Export a measured orthographic PDF or SVG to a new file", "path"});
+    parser.addOption(
+        {"view-settings", "Read explicit measured page, scale, mode and camera settings", "path"});
     parser.addOption({"format-capabilities", "Describe supported native storage and migration"});
     parser.addOption({"inspect-native", "Validate and describe an explicit native file", "path"});
     parser.addOption({"validate-native", "Fully validate an explicit native file", "path"});
@@ -92,10 +118,48 @@ int main(int argc, char **argv) {
     parser.addOption({"script", "Read a command array from a local JSON file", "path"});
     try {
         // Parse without QCommandLineParser's unstructured error exit.
-        if (!parser.parse(app.arguments()))
+        if (!parser.parse(measuredExport ? originalArguments : app.arguments()))
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("export-view")) {
+            const QStringList allowed{"export-view", "view-settings", "input"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "Measured export is a standalone operation");
+            if (!parser.positionalArguments().isEmpty() || !parser.isSet("input") ||
+                !parser.isSet("view-settings"))
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST", "Measured export requires --input and --view-settings");
+            QFile settings(parser.value("view-settings"));
+            if (!settings.open(QIODevice::ReadOnly) || settings.size() > 32768)
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST",
+                    "Measured settings must be a readable file no larger than 32 KiB");
+            const auto bytes = settings.read(32769);
+            QJsonParseError parse;
+            const auto json = QJsonDocument::fromJson(bytes, &parse);
+            if (bytes.size() > 32768 || settings.error() != QFileDevice::NoError ||
+                parse.error != QJsonParseError::NoError || !json.isObject())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Invalid measured export settings JSON");
+            const auto request = sketchy::parseMeasuredRequest(json.object());
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            const auto drawing = sketchy::captureMeasuredDrawing(
+                sketchy::RenderSnapshot::capture(document, request.render), request.page);
+            const auto output = sketchy::exportMeasuredDrawing(drawing, request.format);
+            sketchy::writeMeasuredExport(output, parser.value("export-view"));
+            std::cout << QJsonDocument(
+                             QJsonObject{{"status", "exported"}, {"exportReport", output.report}})
+                             .toJson(QJsonDocument::Compact)
+                             .toStdString()
+                      << '\n';
+            return 0;
+        }
+        if (parser.isSet("view-settings"))
+            throw sketchy::InspectionError("INVALID_REQUEST",
+                                           "--view-settings requires --export-view");
         if (parser.isSet("import-dxf") || parser.isSet("export-dxf")) {
             auto invalid = [](const char *message) {
                 throw sketchy::InspectionError("INVALID_REQUEST", message);

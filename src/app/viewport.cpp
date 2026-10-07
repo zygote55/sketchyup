@@ -243,6 +243,8 @@ void main() {
     gridDirty_ = true;
 }
 QMatrix4x4 Viewport::matrix() const {
+    if (measuredRasterMatrix_)
+        return *measuredRasterMatrix_;
     QMatrix4x4 projection, view;
     float aspect = float(renderWidth()) / std::max(1, renderHeight());
     if (ortho_)

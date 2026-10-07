@@ -844,3 +844,23 @@ sketchyup-cli --export-stl new.stl --input new.sketchyup --stl-unit mm --stl-up 
 ```
 
 See [STL workflow and limits](docs/decisions/0119-native-stl-interchange-workflow.md).
+
+The documented 2D DXF subset imports lines, supported polylines, arcs, circles and
+layers as editable edges. File → Import 2D DXF lets you use declared units or an
+explicit override; File → Export 2D DXF writes all world-XY edges to a new drawing.
+Unsupported entities and metadata losses are reported.
+
+```sh
+sketchyup-cli --import-dxf source.dxf --dxf-unit header --output new.sketchyup
+sketchyup-cli --export-dxf new.dxf --input new.sketchyup --dxf-unit mm
+```
+
+See [DXF workflow and limits](docs/decisions/0123-native-dxf-interchange-workflow.md).
+
+Export a measured orthographic drawing with explicit page, scale and camera settings:
+
+```sh
+build/dev/sketchyup-cli --export-view NewDrawing.pdf --input Model.sketchyup --view-settings examples/measured-view.json
+```
+
+This technical-line mode reports omitted appearance, preserves the native source, and requires a new output file. Set `format` to `svg` for millimetre-based SVG. Print at actual size to retain the requested scale. See [the measured export contract](docs/decisions/0127-measured-export-cli.md).
