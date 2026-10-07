@@ -52,7 +52,10 @@ void Window::layoutAssistant() {
             assistantSheet_->setObjectName("assistantSheet");
             assistantSheet_->setWindowTitle("Assistant");
             new QVBoxLayout(assistantSheet_);
-            auto *toggle = new QShortcut(QKeySequence("Ctrl+J"), assistantSheet_);
+            auto *action = findChild<QAction *>("view.assistant");
+            auto *toggle = new QShortcut(action->shortcut(), assistantSheet_);
+            connect(action, &QAction::changed, toggle,
+                    [action, toggle] { toggle->setKey(action->shortcut()); });
             connect(toggle, &QShortcut::activated, this, &Window::toggleAssistant);
             connect(assistantSheet_, &QDialog::rejected, this, [this] {
                 assistantShown_ = false;
