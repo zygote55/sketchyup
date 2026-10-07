@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "core/entity_measure.hpp"
+#include "io/document_io.hpp"
 #include <QApplication>
 #include <QDialog>
 #include <QLineEdit>
@@ -15,6 +16,17 @@ namespace {
 void check(bool value, const char *message) {
     if (!value)
         throw std::runtime_error(message);
+}
+QJsonArray records(const Document &doc) {
+    auto result = encodeBodies(doc.bodies());
+    for (int i = 0; i < result.size(); ++i) {
+        auto body = result[i].toObject();
+        // Undo restores content while allocation floors remain monotonic.
+        body.remove("nextId");
+        body.remove("nextEdgeId");
+        result[i] = body;
+    }
+    return result;
 }
 void key(Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
     auto *focused = QApplication::focusWidget();
@@ -106,7 +118,8 @@ int main(int argc, char **argv) {
         const auto face = doc.bodies().begin()->second->surface.faces.begin()->first;
         check(std::abs(doc.worldArea(body, face) - 6) < 1e-9,
               "Typed rectangle measures six square metres");
-        const auto planar = doc.bodies();
+        const auto planar = records(doc);
+        const auto planarPosition = doc.history(0, 1).position;
         palette(window, QString("face %1/%2").arg(body).arg(face));
         key(Qt::Key_P);
         check(view->tool() == Viewport::Tool::Extrude, "Push/pull shortcut selects the tool");
@@ -116,11 +129,14 @@ int main(int argc, char **argv) {
                   length(result.world.bounds->dimensions() - Vec3{2, 3, 4}) < 1e-9 &&
                   std::abs(*result.world.volume - 24) < 1e-9,
               "Keyboard-only construction produces a two by three by four metre solid");
-        const auto solid = doc.bodies();
+        const auto solid = records(doc);
+        check(doc.history(0, 1).position == planarPosition + 1, "Typed extrusion is one edit");
         key(Qt::Key_Z, Qt::ControlModifier);
-        check(doc.bodies() == planar, "Keyboard undo restores the rectangle");
+        check(records(doc) == planar && doc.history(0, 1).position == planarPosition,
+              "Keyboard undo restores the rectangle");
         key(Qt::Key_Z, Qt::ControlModifier | Qt::ShiftModifier);
-        check(doc.bodies() == solid, "Keyboard redo restores the exact solid");
+        check(records(doc) == solid && doc.history(0, 1).position == planarPosition + 1,
+              "Keyboard redo restores the exact solid");
         doc.markSaved();
         std::cout << "Keyboard modeling: rectangle, F6 Measurements, unit suffix typing, palette "
                      "face selection, push/pull, measured solid and undo/redo passed\n";
