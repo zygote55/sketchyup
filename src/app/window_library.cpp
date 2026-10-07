@@ -31,8 +31,8 @@ QByteArray thumbnail(Viewport &view) {
     return bytes;
 }
 } // namespace
-void Window::openTemplatePath(const QString &path) {
-    const auto bundle = loadTemplateBundle(path);
+void Window::openTemplatePath(const QString &path) { openTemplateBundle(loadTemplateBundle(path)); }
+void Window::openTemplateBundle(const TemplateBundle &bundle) {
     auto fresh = instantiateTemplate(bundle);
     if (!canReplace())
         return;
@@ -40,8 +40,8 @@ void Window::openTemplatePath(const QString &path) {
     resetRecoveryContext();
     path_.clear();
     viewport_->cancel();
-    viewport_->setSelection(0);
     viewport_->refresh();
+    viewport_->setSelection(0);
     viewport_->fit();
     if (bundle.metadata.defaultScene)
         viewport_->recallSavedScene(bundle.metadata.defaultScene, false);
@@ -167,21 +167,26 @@ void Window::libraryDialog(bool templates) {
     });
     connect(search, &QLineEdit::textChanged, &dialog, filter);
     connect(list, &QListWidget::currentRowChanged, &dialog, selected);
+    connect(list, &QListWidget::itemActivated, &dialog, [accept] {
+        if (accept->isEnabled())
+            QMetaObject::invokeMethod(accept, "click", Qt::QueuedConnection);
+    });
     connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(&buttons, &QDialogButtonBox::accepted, &dialog, [&] {
         try {
             const auto *entry = selection();
             if (!entry || !entry->error.isEmpty())
                 return;
-            // Reload and validate; the catalog deliberately does not retain decoded models.
+            // Verify the selected bytes still match the validated catalog entry.
+            const auto bytes = readLibraryEntry(*entry);
             if (templates)
-                openTemplatePath(entry->path);
+                openTemplateBundle(decodeTemplateBundle(bytes));
             else {
                 const auto values =
                     parseMeasurements(position->text(), inputUnit(doc_.displayUnits()), QLocale());
                 if (values.kind != MeasurementKind::Values || values.values.size() != 3)
                     throw std::runtime_error("Enter three world position values in document units");
-                const auto bundle = loadComponentBundle(entry->path);
+                const auto bundle = decodeComponentBundle(bytes);
                 viewport_->insertLibrary(bundle,
                                          {values.values[0], values.values[1], values.values[2]});
             }

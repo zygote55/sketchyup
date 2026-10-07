@@ -767,6 +767,8 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_link_libraries(m7_presentation_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(formline_input_tests tests/formline_input_tests.cpp)
     target_link_libraries(formline_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    add_executable(library_input_tests tests/library_input_tests.cpp)
+    target_link_libraries(library_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(measured_input_tests tests/measured_input_tests.cpp)
     target_link_libraries(measured_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(raster_export_input_tests tests/raster_export_input_tests.cpp)
@@ -959,3 +961,5 @@ install(FILES docs/decisions/0130-contained-component-bundles.md DESTINATION sha
 install(FILES docs/decisions/0131-atomic-library-insertion.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0132-bounded-local-library-catalog.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0133-native-template-and-library-workflows.md DESTINATION share/doc/sketchyup/decisions)

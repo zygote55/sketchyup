@@ -53,6 +53,7 @@ class Window : public QMainWindow {
     void libraryDialog(bool templates);
     void saveLibraryDialog(bool component);
     void openTemplatePath(const QString &path);
+    void openTemplateBundle(const struct TemplateBundle &bundle);
 
   protected:
     bool eventFilter(QObject *, QEvent *) override;
