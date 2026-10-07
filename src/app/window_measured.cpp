@@ -118,8 +118,8 @@ void Window::exportMeasuredDialog() {
                         .arg(output.report["rasterHeight"].toInt())
                         .arg(output.report["rasterDpi"].toDouble(), 0, 'f', 1);
             } else {
-                explanation = QString("Vector technical lines: %1 segments and %2 "
-                                      "annotations.\nSurface colors, textures, images and lighting "
+                explanation = QString("Vector technical lines\nLine segments: %1\nAnnotations: %2"
+                                      "\nSurface colors, textures, images and lighting "
                                       "are omitted. Annotation text uses portable outlines.\n")
                                   .arg(output.report["lineSegments"].toInt())
                                   .arg(output.report["annotations"].toInt());
@@ -127,6 +127,9 @@ void Window::exportMeasuredDialog() {
                 for (auto it = losses.begin(); it != losses.end(); ++it) {
                     auto label = it.key();
                     label.replace(QRegularExpression("([a-z])([A-Z])"), "\\1 \\2");
+                    label = label.toLower();
+                    if (!label.isEmpty())
+                        label[0] = label[0].toUpper();
                     explanation += QString("%1: %2\n").arg(label).arg(it.value().toInt());
                 }
                 if (output.report["missingFontGlyphs"].toInt())
