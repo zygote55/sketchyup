@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/extension.hpp"
 #include "automation/inspection.hpp"
 #include "automation/local_mcp.hpp"
 #include "automation/mcp.hpp"
@@ -46,6 +47,8 @@ int main(int argc, char **argv) {
     auto &app = *application;
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption(
+        {"extension-capabilities", "Describe versioned declarative extension capabilities"});
     parser.addOption(
         {"export-view", "Export a measured orthographic PDF or SVG to a new file", "path"});
     parser.addOption(
@@ -122,6 +125,16 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("extension-capabilities")) {
+            if (parser.optionNames().size() != 1 || !parser.positionalArguments().isEmpty())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Extension discovery is a standalone operation");
+            std::cout << QJsonDocument(sketchy::extensionCapabilities())
+                             .toJson(QJsonDocument::Compact)
+                             .toStdString()
+                      << '\n';
+            return 0;
+        }
         if (parser.isSet("export-view")) {
             const QStringList allowed{"export-view", "view-settings", "input"};
             for (const auto &option : parser.optionNames())
