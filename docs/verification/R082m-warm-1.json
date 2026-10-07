@@ -1,0 +1,46 @@
+{
+  "cache": {
+    "policy": "warm"
+  },
+  "fileBytes": 100671415,
+  "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+  "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Compatibility Profile) Mesa 26.2.2-arch1.1",
+  "passed": true,
+  "platform": "wayland",
+  "releaseAcceptance": false,
+  "scale": 1.6,
+  "timings": [
+    {
+      "heartbeatCallbacks": 52,
+      "heartbeatIntervalMs": 5,
+      "includesFirstFrameReadback": true,
+      "maximumHeartbeatGapMs": 282.170258,
+      "operation": "open",
+      "operationAndFirstFrameMs": 703.280704,
+      "operationMs": 657.619664,
+      "p95HeartbeatGapMs": 39.267293
+    },
+    {
+      "heartbeatCallbacks": 231,
+      "heartbeatIntervalMs": 5,
+      "includesFirstFrameReadback": false,
+      "maximumHeartbeatGapMs": 34.908685,
+      "operation": "save-with-newer-edit",
+      "operationAndFirstFrameMs": 1253.431779,
+      "operationMs": 1253.431703,
+      "p95HeartbeatGapMs": 5.722329
+    },
+    {
+      "heartbeatCallbacks": 195,
+      "heartbeatIntervalMs": 5,
+      "includesFirstFrameReadback": false,
+      "maximumHeartbeatGapMs": 41.657937,
+      "operation": "save-current",
+      "operationAndFirstFrameMs": 1112.836266,
+      "operationMs": 1112.836172,
+      "p95HeartbeatGapMs": 5.592856
+    }
+  ],
+  "viewportLogicalHeight": 1164,
+  "viewportLogicalWidth": 851
+}

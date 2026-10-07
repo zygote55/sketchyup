@@ -1,0 +1,510 @@
+resolving dependencies...
+looking for conflicting packages...
+
+Package (2)        New Version  Net Change  Download Size
+
+extra/python-tqdm  4.70.1-1       0.64 MiB       0.13 MiB
+extra/meson        1.12.1-1      16.88 MiB       2.52 MiB
+
+Total Download Size:    2.65 MiB
+Total Installed Size:  17.52 MiB
+
+:: Proceed with installation? [Y/n] 
+:: Retrieving packages...
+ meson-1.12.1-1-any downloading...
+ python-tqdm-4.70.1-1-any downloading...
+checking keyring...
+checking package integrity...
+loading package files...
+checking for file conflicts...
+:: Processing package changes...
+installing python-tqdm...
+Optional dependencies for python-tqdm
+    python-requests: telegram
+installing meson...
+:: Running post-transaction hooks...
+(1/1) Arming ConditionNeedsUpdate...
+/capture/ci-wayland-client/wayland-1.26.0.tar.xz: OK
+patching file src/wayland-client.c
+The Meson build system
+Version: 1.12.1
+Source dir: /capture/ci-wayland-client/wayland-1.26.0
+Build dir: /capture/ci-wayland-client/build
+Build type: native build
+Project name: wayland
+Project version: 1.26.0
+C compiler for the host machine: cc (gcc 16.2.1 "cc (GCC) 16.2.1 20260810")
+C linker for the host machine: cc ld.bfd 2.47
+Host machine cpu family: x86_64
+Host machine cpu: x86_64
+Compiler for C supports arguments -Wno-unused-parameter: YES 
+Compiler for C supports arguments -Wstrict-prototypes: YES 
+Compiler for C supports arguments -Wmissing-prototypes: YES 
+Compiler for C supports arguments -fvisibility=hidden: YES 
+Has header "sys/prctl.h" : YES 
+Has header "sys/procctl.h" : NO 
+Has header "sys/ucred.h" : NO 
+Checking for function "accept4" : YES 
+Checking for function "mkostemp" : YES 
+Checking for function "posix_fallocate" : YES 
+Checking for function "prctl" : YES 
+Checking for function "memfd_create" : YES 
+Checking for function "mremap" : YES 
+Checking for function "strndup" : YES 
+Checking for function "gettid" : YES 
+Checking whether type "struct xucred" has member "cr_pid" : NO 
+Found pkg-config: YES (/usr/sbin/pkg-config) 3.0.7
+Run-time dependency libffi found: YES 3.8.0
+Header "sys/signalfd.h" has symbol "SFD_CLOEXEC" : YES 
+Header "sys/timerfd.h" has symbol "TFD_CLOEXEC" : YES 
+Header "time.h" has symbol "CLOCK_MONOTONIC" : YES 
+Checking for function "clock_gettime" : NO 
+Library rt found: YES
+Checking for function "clock_gettime" with dependency -lrt: YES 
+Configuring config.h using configuration
+Configuring wayland-version.h using configuration
+Run-time dependency expat found: YES 2.8.5
+Program embed.py found: YES (/usr/bin/python /capture/ci-wayland-client/wayland-1.26.0/src/embed.py)
+Found pkg-config: YES (/usr/sbin/pkg-config) 3.0.7
+Library m found: YES
+Run-time dependency threads found: YES
+../capture/ci-wayland-client/wayland-1.26.0/src/meson.build:221: WARNING: Conditional on version '>= 0.54.0' always evaluates to true
+../capture/ci-wayland-client/wayland-1.26.0/src/meson.build:270: WARNING: Conditional on version '>= 0.54.0' always evaluates to true
+../capture/ci-wayland-client/wayland-1.26.0/cursor/meson.build:45: WARNING: Conditional on version '>= 0.54.0' always evaluates to true
+Program nm found: YES (/usr/sbin/nm)
+Program wayland-egl-symbols-check found: YES (/capture/ci-wayland-client/wayland-1.26.0/egl/wayland-egl-symbols-check)
+../capture/ci-wayland-client/wayland-1.26.0/egl/meson.build:59: WARNING: Conditional on version '>= 0.54.0' always evaluates to true
+Library dl found: YES
+Dependency threads for host machine found: YES unknown (cached)
+Dependency threads for host machine found: YES unknown (cached)
+Library dl found: YES
+C++ compiler for the host machine: c++ (gcc 16.2.1 "c++ (GCC) 16.2.1 20260810")
+C++ linker for the host machine: c++ ld.bfd 2.47
+Program sed found: YES (/usr/sbin/sed)
+Program scanner-test.sh found: YES (/capture/ci-wayland-client/wayland-1.26.0/tests/scanner-test.sh)
+Program scanner-test-gen.sh found: YES (/capture/ci-wayland-client/wayland-1.26.0/tests/scanner-test-gen.sh)
+Build targets in project: 43
+
+wayland 1.26.0
+
+  User defined options
+    documentation : false
+    dtd_validation: false
+
+Found ninja-1.13.2 at /usr/sbin/ninja
+ninja: Entering directory `/capture/ci-wayland-client/build'
+[1/90] Generating src/wayland.dtd.h with a custom command (wrapped by meson to capture output)
+[2/90] Compiling C object src/libwayland-util.a.p/wayland-util.c.o
+[3/90] Linking static target src/libwayland-util.a
+[4/90] Compiling C object src/wayland-scanner.p/scanner.c.o
+[5/90] Compiling C object src/libwayland-private.a.p/connection.c.o
+[6/90] Linking target src/wayland-scanner
+[7/90] Generating src/wayland_server_protocol_h with a custom command
+[8/90] Generating src/wayland_server_protocol_core_h with a custom command
+[9/90] Generating src/wayland_client_protocol_h with a custom command
+[10/90] Generating src/wayland_client_protocol_core_h with a custom command
+[11/90] Generating src/protocol source with a custom command
+[12/90] Compiling C object src/libwayland-server.so.0.26.0.p/meson-generated_.._wayland-protocol.c.o
+[13/90] Compiling C object src/libwayland-private.a.p/wayland-os.c.o
+[14/90] Linking static target src/libwayland-private.a
+[15/90] Compiling C object src/libwayland-server.so.0.26.0.p/wayland-shm.c.o
+[16/90] Compiling C object src/libwayland-server.so.0.26.0.p/event-loop.c.o
+[17/90] Compiling C object src/libwayland-client.so.0.26.0.p/meson-generated_.._wayland-protocol.c.o
+[18/90] Compiling C object src/libwayland-server.so.0.26.0.p/wayland-server.c.o
+[19/90] Linking target src/libwayland-server.so.0.26.0
+[20/90] Compiling C object tests/libtest-runner.a.p/test-runner.c.o
+[21/90] Compiling C object tests/libtest-runner.a.p/test-helpers.c.o
+[22/90] Compiling C object tests/libtest-runner.a.p/test-compositor.c.o
+[23/90] Generating tests/test server protocol header with a custom command
+[24/90] Generating tests/test client protocol header with a custom command
+[25/90] Generating tests/test protocol source with a custom command
+[26/90] Compiling C object src/libwayland-client.so.0.26.0.p/wayland-client.c.o
+[27/90] Linking target src/libwayland-client.so.0.26.0
+[28/90] Generating symbol file src/libwayland-server.so.0.26.0.p/libwayland-server.so.0.26.0.symbols
+[29/90] Generating symbol file src/libwayland-client.so.0.26.0.p/libwayland-client.so.0.26.0.symbols
+[30/90] Compiling C object cursor/libwayland-cursor.so.0.26.0.p/os-compatibility.c.o
+[31/90] Compiling C object cursor/libwayland-cursor.so.0.26.0.p/wayland-cursor.c.o
+[32/90] Compiling C object egl/libwayland-egl.so.1.26.0.p/wayland-egl.c.o
+[33/90] Compiling C object egl/wayland-egl-abi-check.p/wayland-egl-abi-check.c.o
+[34/90] Linking static target tests/libtest-runner.a
+[35/90] Compiling C object cursor/libwayland-cursor.so.0.26.0.p/xcursor.c.o
+[36/90] Compiling C object tests/exec-fd-leak-checker.p/exec-fd-leak-checker.c.o
+[37/90] Compiling C object tests/array-test.p/array-test.c.o
+[38/90] Compiling C object tests/client-test.p/client-test.c.o
+[39/90] Compiling C object tests/display-test.p/meson-generated_.._tests-protocol.c.o
+[40/90] Compiling C++ object tests/cpp-compile-test.p/cpp-compile-test.cpp.o
+[41/90] Compiling C object tests/connection-test.p/connection-test.c.o
+[42/90] Compiling C object tests/display-test.p/display-test.c.o
+[43/90] Compiling C object tests/event-loop-test.p/event-loop-test.c.o
+[44/90] Compiling C object tests/fixed-test.p/fixed-test.c.o
+[45/90] Compiling C object tests/interface-test.p/interface-test.c.o
+[46/90] Compiling C object tests/map-test.p/map-test.c.o
+[47/90] Compiling C object tests/list-test.p/list-test.c.o
+[48/90] Compiling C object tests/sanity-test.p/sanity-test.c.o
+[49/90] Compiling C object tests/socket-test.p/socket-test.c.o
+[50/90] Compiling C object tests/signal-test.p/signal-test.c.o
+[51/90] Compiling C object tests/queue-test.p/queue-test.c.o
+[52/90] Compiling C object tests/newsignal-test.p/newsignal-test.c.o
+[53/90] Compiling C object tests/resources-test.p/resources-test.c.o
+[54/90] Compiling C object tests/message-test.p/message-test.c.o
+[55/90] Compiling C object tests/compositor-introspection-test.p/compositor-introspection-test.c.o
+[56/90] Compiling C object tests/protocol-logger-test.p/protocol-logger-test.c.o
+[57/90] Compiling C object tests/headers-test.p/headers-test.c.o
+[58/90] Compiling C object tests/headers-test.p/headers-protocol-test.c.o
+[59/90] Compiling C object tests/headers-test.p/headers-protocol-core-test.c.o
+[60/90] Compiling C object tests/newsignal-test.p/.._src_wayland-server.c.o
+[61/90] Compiling C object tests/os-wrappers-test.p/os-wrappers-test.c.o
+[62/90] Compiling C object tests/proxy-test.p/proxy-test.c.o
+[63/90] Compiling C object tests/enum-validator-test.p/enum-validator-test.c.o
+[64/90] Linking target egl/libwayland-egl.so.1.26.0
+[65/90] Linking target cursor/libwayland-cursor.so.0.26.0
+[66/90] Linking target egl/wayland-egl-abi-check
+[67/90] Linking target tests/exec-fd-leak-checker
+[68/90] Linking target tests/cpp-compile-test
+[69/90] Linking target tests/array-test
+[70/90] Linking target tests/display-test
+[71/90] Linking target tests/client-test
+[72/90] Linking target tests/connection-test
+[73/90] Linking target tests/event-loop-test
+[74/90] Linking target tests/fixed-test
+[75/90] Linking target tests/interface-test
+[76/90] Linking target tests/list-test
+[77/90] Linking target tests/map-test
+[78/90] Linking target tests/sanity-test
+[79/90] Linking target tests/socket-test
+[80/90] Linking target tests/queue-test
+[81/90] Linking target tests/signal-test
+[82/90] Linking target tests/newsignal-test
+[83/90] Linking target tests/resources-test
+[84/90] Linking target tests/message-test
+[85/90] Linking target tests/compositor-introspection-test
+[86/90] Linking target tests/headers-test
+[87/90] Linking target tests/protocol-logger-test
+[88/90] Linking target tests/proxy-test
+[89/90] Linking target tests/os-wrappers-test
+[90/90] Linking target tests/enum-validator-test
+ninja: Entering directory `/capture/ci-wayland-client/build'
+ninja: no work to do.
+ 1/26 wayland:wayland-egl abi check         OK              0.09s
+ 2/26 wayland:wayland-egl symbols check     OK              0.08s
+ 3/26 wayland:cpp-compile-test              OK              0.08s
+ 4/26 wayland:array-test                    OK              0.08s
+ 5/26 wayland:client-test                   OK              0.08s
+ 6/26 wayland:event-loop-test               OK              0.07s
+ 7/26 wayland:fixed-test                    OK              0.07s
+ 8/26 wayland:interface-test                OK              0.06s
+ 9/26 wayland:list-test                     OK              0.06s
+10/26 wayland:map-test                      OK              0.06s
+11/26 wayland:socket-test                   OK              0.05s
+12/26 wayland:signal-test                   OK              0.05s
+13/26 wayland:newsignal-test                OK              0.04s
+14/26 wayland:resources-test                OK              0.04s
+15/26 wayland:message-test                  OK              0.04s
+16/26 wayland:compositor-introspection-test OK              0.03s
+17/26 wayland:protocol-logger-test          OK              0.03s
+18/26 wayland:connection-test               OK              0.08s
+19/26 wayland:headers-test                  OK              0.02s
+20/26 wayland:os-wrappers-test              OK              0.02s
+21/26 wayland:proxy-test                    OK              0.02s
+22/26 wayland:enum-validator-test           OK              0.01s
+23/26 wayland:scanner-test                  OK              0.12s
+24/26 wayland:queue-test                    OK              0.23s
+25/26 wayland:display-test                  OK              0.54s
+26/26 wayland:sanity-test                   OK              4.43s
+
+Ok:                26  
+Fail:              0   
+
+Full log written to /capture/ci-wayland-client/build/meson-logs/testlog.txt
+Generating targets:   0%|          | 0/43 eta ?                                               Writing build.ninja:   0%|          | 0/121 eta ?                                                 Queued keyboard.enter surface: null after destruction
+Client/server and every owned proxy destroyed
+Queued keyboard.enter surface: live
+Client/server and every owned proxy destroyed
+Sanitized CI-client Wayland scale=1 policy=warm file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 327.902 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 125.01 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 111.301 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"5bcf603a356cbdaeb62cb3b6fff47b9456f06c0353e73ffecb0e6384210df6b8","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":1,"timings":[{"heartbeatCallbacks":2,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":206.082153,"operation":"open","operationAndFirstFrameMs":327.901632,"operationMs":144.077859,"p95HeartbeatGapMs":206.082153},{"heartbeatCallbacks":12,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":38.898898,"operation":"save-with-newer-edit","operationAndFirstFrameMs":125.010284,"operationMs":125.00943,"p95HeartbeatGapMs":38.898898},{"heartbeatCallbacks":7,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":37.039611,"operation":"save-current","operationAndFirstFrameMs":111.300783,"operationMs":111.299991,"p95HeartbeatGapMs":37.039611}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 policy=warm file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 397.427 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 99.9674 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 79.4284 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"5cc7e310bdbe0b0742d019d673adfb3abdce1aa7d813ef17694372a35da9ca7e","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":237.103366,"operation":"open","operationAndFirstFrameMs":397.427381,"operationMs":187.188816,"p95HeartbeatGapMs":237.103366},{"heartbeatCallbacks":18,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":9.756475,"operation":"save-with-newer-edit","operationAndFirstFrameMs":99.967426,"operationMs":99.966688,"p95HeartbeatGapMs":9.756475},{"heartbeatCallbacks":14,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":8.531773,"operation":"save-current","operationAndFirstFrameMs":79.428367,"operationMs":79.427836,"p95HeartbeatGapMs":8.531773}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=1 policy=verified-cold file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 134.846 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 92.2239 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 99.3598 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"pages":513,"policy":"verified-cold","residentPagesBeforeOpen":0},"fileBytes":2100399,"fixtureSha256":"19dfec85142b9cc3472f67936e7b74ceb935fac8d8c92f52e6bb1f23f7567874","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":1,"timings":[{"heartbeatCallbacks":2,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":50.337161,"operation":"open","operationAndFirstFrameMs":134.845958,"operationMs":109.861466,"p95HeartbeatGapMs":50.337161},{"heartbeatCallbacks":8,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":27.436347,"operation":"save-with-newer-edit","operationAndFirstFrameMs":92.223932,"operationMs":92.223194,"p95HeartbeatGapMs":27.436347},{"heartbeatCallbacks":3,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":39.00772,"operation":"save-current","operationAndFirstFrameMs":99.359808,"operationMs":99.359097,"p95HeartbeatGapMs":39.00772}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 policy=verified-cold file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 226.233 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 89.9494 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 79.2704 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"pages":513,"policy":"verified-cold","residentPagesBeforeOpen":0},"fileBytes":2100399,"fixtureSha256":"383199abe039fafe8c191f3ea2cc0c3de6c7635d73d2c99af6689cb1bd457f5b","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":150.677142,"operation":"open","operationAndFirstFrameMs":226.23259,"operationMs":169.893507,"p95HeartbeatGapMs":150.677142},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":9.049374,"operation":"save-with-newer-edit","operationAndFirstFrameMs":89.949388,"operationMs":89.94863,"p95HeartbeatGapMs":9.049374},{"heartbeatCallbacks":14,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":8.568403,"operation":"save-current","operationAndFirstFrameMs":79.270422,"operationMs":79.269774,"p95HeartbeatGapMs":8.568403}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 repeat=1 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 209.04 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 90.7582 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 79.4196 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"294786c8730ed7cc2ebb4bc9dc3658427c23616c4a057dfd252cf3b842a678fe","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":147.482827,"operation":"open","operationAndFirstFrameMs":209.039828,"operationMs":168.262285,"p95HeartbeatGapMs":147.482827},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":10.577086,"operation":"save-with-newer-edit","operationAndFirstFrameMs":90.758177,"operationMs":90.75745,"p95HeartbeatGapMs":10.577086},{"heartbeatCallbacks":14,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":9.074651,"operation":"save-current","operationAndFirstFrameMs":79.419599,"operationMs":79.418476,"p95HeartbeatGapMs":9.074651}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 repeat=2 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 215.639 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 89.024 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 79.094 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"6bb2fd12065157c8647bbb0e75b3d503c1df7a845ef925788e1679ea1c6e40a8","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":145.94,"operation":"open","operationAndFirstFrameMs":215.638814,"operationMs":168.770224,"p95HeartbeatGapMs":145.94},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":8.931372,"operation":"save-with-newer-edit","operationAndFirstFrameMs":89.024046,"operationMs":89.023358,"p95HeartbeatGapMs":8.931372},{"heartbeatCallbacks":14,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":8.621531,"operation":"save-current","operationAndFirstFrameMs":79.094045,"operationMs":79.0934,"p95HeartbeatGapMs":8.621531}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 repeat=3 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 214.102 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 101.573 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 88.8966 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"65166d84913d09e626e2c3e94f78e9b2c59bbfdd7c76e5f3b7f26ee0956b3720","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":148.265931,"operation":"open","operationAndFirstFrameMs":214.101794,"operationMs":171.480669,"p95HeartbeatGapMs":148.265931},{"heartbeatCallbacks":18,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":11.130591,"operation":"save-with-newer-edit","operationAndFirstFrameMs":101.572836,"operationMs":101.572092,"p95HeartbeatGapMs":11.130591},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":7.98361,"operation":"save-current","operationAndFirstFrameMs":88.896584,"operationMs":88.895656,"p95HeartbeatGapMs":7.98361}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 repeat=4 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 209.41 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 91.5151 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 89.7418 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"c88a81ef7875004806a7c08cfcdae6662ced66b8ad9673aa82542a036e37d736","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":146.974166,"operation":"open","operationAndFirstFrameMs":209.409665,"operationMs":159.228707,"p95HeartbeatGapMs":146.974166},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":11.365647,"operation":"save-with-newer-edit","operationAndFirstFrameMs":91.515068,"operationMs":91.514505,"p95HeartbeatGapMs":11.365647},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":9.321316,"operation":"save-current","operationAndFirstFrameMs":89.741816,"operationMs":89.741174,"p95HeartbeatGapMs":9.321316}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 repeat=5 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 220.987 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 90.202 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 80.9283 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"aae3694160d94f9773c59a5fb9c5abb62d2173b2c7a79e3104684ac38be1a962","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":151.255909,"operation":"open","operationAndFirstFrameMs":220.98685,"operationMs":175.614317,"p95HeartbeatGapMs":151.255909},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":9.663163,"operation":"save-with-newer-edit","operationAndFirstFrameMs":90.20202,"operationMs":90.201225,"p95HeartbeatGapMs":9.663163},{"heartbeatCallbacks":14,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":10.71168,"operation":"save-current","operationAndFirstFrameMs":80.928349,"operationMs":80.927646,"p95HeartbeatGapMs":10.71168}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 repeat=6 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 206.505 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 88.4814 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 67.8507 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"2fbdc2761bce2b9665fbd043677d6f930be1fee47c80e00b8875eb13d7190311","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":147.494678,"operation":"open","operationAndFirstFrameMs":206.50486,"operationMs":160.552318,"p95HeartbeatGapMs":147.494678},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":7.739214,"operation":"save-with-newer-edit","operationAndFirstFrameMs":88.481357,"operationMs":88.480671,"p95HeartbeatGapMs":7.739214},{"heartbeatCallbacks":12,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":7.278996,"operation":"save-current","operationAndFirstFrameMs":67.850742,"operationMs":67.849954,"p95HeartbeatGapMs":7.278996}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 repeat=7 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 214.452 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 88.9776 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 78.9437 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"9779dcde7dce8220cbb0d6bb1a578f57b54266691a65a4d2f780fc91a1b094f9","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":150.869604,"operation":"open","operationAndFirstFrameMs":214.452249,"operationMs":173.371649,"p95HeartbeatGapMs":150.869604},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":8.220892,"operation":"save-with-newer-edit","operationAndFirstFrameMs":88.977598,"operationMs":88.976683,"p95HeartbeatGapMs":8.220892},{"heartbeatCallbacks":14,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":8.674886,"operation":"save-current","operationAndFirstFrameMs":78.94371,"operationMs":78.943063,"p95HeartbeatGapMs":8.674886}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Sanitized CI-client Wayland scale=2 repeat=8 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 215.556 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 101.237 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 90.874 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"542386cdcb3245e3a54a222c7ecb1827c652c03bf2c3b208027562dfbee0a98c","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":149.140809,"operation":"open","operationAndFirstFrameMs":215.556394,"operationMs":165.99551,"p95HeartbeatGapMs":149.140809},{"heartbeatCallbacks":18,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":10.534856,"operation":"save-with-newer-edit","operationAndFirstFrameMs":101.236595,"operationMs":101.235808,"p95HeartbeatGapMs":10.534856},{"heartbeatCallbacks":16,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":10.080835,"operation":"save-current","operationAndFirstFrameMs":90.873952,"operationMs":90.873135,"p95HeartbeatGapMs":10.080835}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
