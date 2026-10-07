@@ -1,5 +1,6 @@
 #include "app/annotation_display.hpp"
 #include "app/annotations_panel.hpp"
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/annotations.hpp"
 #include "io/document_io.hpp"
@@ -13,7 +14,6 @@
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir isolated;
     qputenv("XDG_CONFIG_HOME", isolated.path().toUtf8());
     QApplication app(argc, argv);

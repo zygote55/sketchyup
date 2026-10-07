@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/components.hpp"
 #include "core/face_textures.hpp"
@@ -11,7 +12,6 @@
 #include <QJsonDocument>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -70,7 +70,7 @@ void near(Vec3 actual, Vec3 expected, const char *message) {
 int main(int argc, char **argv) {
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir isolated;
     qputenv("XDG_CONFIG_HOME", isolated.path().toUtf8());
     QApplication app(argc, argv);
