@@ -1,0 +1,7 @@
+{
+  "expectedFailure": true,
+  "exitCode": 1,
+  "seconds": 12.042,
+  "diagnostic": "Selected entity is absent from accessible description",
+  "binary": "installed R084h"
+}

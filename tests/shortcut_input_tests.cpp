@@ -88,6 +88,101 @@ template <class F> void editor(Window &window, F exercise) {
               QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),
           "Shortcut editor restores parent activation and modeling focus");
 }
+void focusedKey(Qt::Key code, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    auto *focused = QApplication::focusWidget();
+    check(focused, "Shortcut keyboard task has a focus owner");
+    QTest::keyClick(focused, code, modifiers);
+    QCoreApplication::processEvents();
+}
+void tabTo(QWidget *target) {
+    check(target && target->isVisible() && target->isEnabled(), "Keyboard destination available");
+    auto reached = [&] {
+        return target->hasFocus() || target->isAncestorOf(QApplication::focusWidget());
+    };
+    for (int i = 0; !reached() && i < 24; ++i)
+        focusedKey(Qt::Key_Tab);
+    check(reached(), "Tab reaches shortcut control without assigning focus");
+}
+void keyboardShortcutTask(Window &window) {
+    window.activateWindow();
+    check(QTest::qWaitForWindowActive(&window), "Keyboard shortcut window activated");
+    // Only initial focus is setup. Dialog discovery, navigation and changes use keys.
+    window.viewport()->setFocus();
+    check(QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }), "Initial keyboard focus");
+    const auto content = encodeContainer(window.document());
+    for (bool reset : {false, true}) {
+        bool searched{}, edited{};
+        std::exception_ptr failure;
+        QTimer timer;
+        QObject::connect(&timer, &QTimer::timeout, &window, [&] {
+            auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+            if (!dialog || failure)
+                return;
+            try {
+                if (!searched && dialog->objectName() == "commandPalette") {
+                    searched = true;
+                    auto *query = dialog->findChild<QLineEdit *>("paletteQuery");
+                    check(query && query->hasFocus(), "Palette search initially focused");
+                    QTest::keyClicks(query, "Keyboard shortcuts");
+                    auto *results = dialog->findChild<QListWidget *>("paletteResults");
+                    check(results && results->count() == 1, "Shortcut command is discoverable");
+                    focusedKey(Qt::Key_Return);
+                } else if (!edited && dialog->objectName() == "shortcutDialog") {
+                    edited = true;
+                    if (reset) {
+                        tabTo(dialog->findChild<QPushButton *>("shortcutReset"));
+                        focusedKey(Qt::Key_Space);
+                    } else {
+                        auto *search = dialog->findChild<QLineEdit *>("shortcutSearch");
+                        check(search && search->hasFocus(), "Editor search initially focused");
+                        QTest::keyClicks(search, "Rectangle");
+                        auto *list = dialog->findChild<QListWidget *>("shortcutActions");
+                        tabTo(list);
+                        focusedKey(Qt::Key_Home);
+                        check(list->currentItem() &&
+                                  list->currentItem()->data(Qt::UserRole).toString() == "tool.1",
+                              "Keys select the filtered Rectangle command");
+                        auto *sequence = dialog->findChild<QKeySequenceEdit *>("shortcutSequence");
+                        tabTo(sequence);
+                        focusedKey(Qt::Key_R, Qt::ControlModifier | Qt::AltModifier);
+                        focusedKey(Qt::Key_Tab);
+                        check(sequence->keySequence() == QKeySequence("Ctrl+Alt+R"),
+                              "Actual key press records the replacement shortcut");
+                        tabTo(dialog->findChild<QPushButton *>("shortcutAssign"));
+                        focusedKey(Qt::Key_Space);
+                        check(error(*dialog).isEmpty(), "Keyboard assignment succeeds");
+                    }
+                    QPushButton *saveButton{};
+                    for (auto *box : dialog->findChildren<QDialogButtonBox *>())
+                        if (auto *button = box->button(QDialogButtonBox::Save))
+                            saveButton = button;
+                    tabTo(saveButton);
+                    focusedKey(Qt::Key_Space);
+                    check(!dialog->isVisible(), "Keyboard Save closes the editor");
+                }
+            } catch (...) {
+                failure = std::current_exception();
+                dialog->reject();
+            }
+        });
+        timer.start(10);
+        focusedKey(Qt::Key_K, Qt::ControlModifier);
+        timer.stop();
+        if (failure)
+            std::rethrow_exception(failure);
+        check(searched && edited && QTest::qWaitForWindowActive(&window) &&
+                  QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),
+              "Keyboard shortcut workflow returns modeling focus");
+        check(action(window, "tool.1")->shortcut() == QKeySequence(reset ? "R" : "Ctrl+Alt+R"),
+              "Keyboard Save applies assignment or reset");
+        if (!reset) {
+            focusedKey(Qt::Key_R, Qt::ControlModifier | Qt::AltModifier);
+            check(window.viewport()->tool() == Viewport::Tool::Rectangle,
+                  "Keyboard-configured shortcut activates Rectangle");
+        }
+    }
+    check(encodeContainer(window.document()) == content, "Shortcut task preserves the model");
+}
 } // namespace
 int main(int argc, char **argv) {
     QTemporaryDir files;
@@ -128,6 +223,8 @@ int main(int argc, char **argv) {
             check(action(window, "view.tray")->shortcut() == QKeySequence("Ctrl+Shift+T") &&
                       action(window, "textCreate")->shortcut() == QKeySequence("Ctrl+Alt+Shift+T"),
                   "Model-panel toggle and local text creation have separate defaults");
+            keyboardShortcutTask(window);
+            settings.sync();
             const auto before = settings.value("shortcuts/v1").toByteArray();
             editor(window, [&](QDialog &dialog) {
                 check(dialog.findChild<QLabel *>("shortcutNotices")->text().isEmpty(),
