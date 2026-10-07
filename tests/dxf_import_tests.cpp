@@ -64,7 +64,8 @@ int main(int argc, char **argv) {
         const auto encoded = encodeDocument(doc);
         check(encodeDocument(decodeDocument(encoded)) == encoded,
               "Native geometry, tags and analytic curves persist");
-        const auto bodies = doc.bodies(), tags = doc.tags();
+        const auto bodies = doc.bodies();
+        const auto tags = doc.tags();
         doc.undo();
         check(doc.bodies().empty() && doc.tags().empty(), "One undo removes all imported data");
         doc.redo();
