@@ -1175,6 +1175,7 @@ void Viewport::paintScene() {
     frameMs_ = timer.nsecsElapsed() / 1e6;
     p.endNativePainting();
     p.setRenderHint(QPainter::Antialiasing);
+    paintAnnotations(p);
     paintGuides(p);
     paintSelection(p);
     paintAssistantPreview(p);
