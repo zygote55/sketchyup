@@ -35,8 +35,8 @@ void ShortcutBindings::validate(const QKeySequence &sequence) {
                 key != Qt::Key_Meta && key != Qt::Key_AltGr,
             "This key is reserved for focus, tool completion or inference");
 }
-ShortcutBindings::ShortcutBindings(ShortcutMap defaults, const QByteArray &saved)
-    : defaults_(std::move(defaults)) {
+ShortcutBindings::ShortcutBindings(ShortcutMap defaults, const QByteArray &saved, Guard guard)
+    : defaults_(std::move(defaults)), guard_(std::move(guard)) {
     require(defaults_.size() <= 1024, "Too many shortcut actions");
     for (auto it = defaults_.cbegin(); it != defaults_.cend(); ++it) {
         require(validId(it.key()), "Invalid shortcut action identity");
@@ -112,10 +112,25 @@ void ShortcutBindings::resolve() {
                 owners[portable] = it.key();
         }
     }
+    if (guard_)
+        for (auto it = effective_.begin(); it != effective_.end(); ++it) {
+            if (it.value().isEmpty())
+                continue;
+            const auto error = guard_(it.key(), it.value());
+            if (!error.isEmpty()) {
+                notices_ << QString("Shortcut for %1 is inactive. %2").arg(it.key(), error);
+                it.value() = {};
+            }
+        }
 }
 QStringList ShortcutBindings::conflicts(const QString &id, const QKeySequence &sequence) const {
     require(defaults_.contains(id), "Unknown shortcut action");
     validate(sequence);
+    if (guard_ && !sequence.isEmpty()) {
+        const auto error = guard_(id, sequence);
+        if (!error.isEmpty())
+            throw std::runtime_error(error.toStdString());
+    }
     QStringList result;
     if (!sequence.isEmpty())
         for (auto it = effective_.cbegin(); it != effective_.cend(); ++it) {
