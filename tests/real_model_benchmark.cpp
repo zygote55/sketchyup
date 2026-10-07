@@ -59,8 +59,8 @@ AssetPayloadPtr largeTexture(int variant) {
     check(file.open(QIODevice::ReadOnly), "Open embedded maximum-size texture fixture");
     const auto bytes = file.readAll();
     const auto expected = variant == 0
-                              ? "f54b21aa7880121dedf98bfc6ef153c204c36732fafb9bb762d415138d4e5b40"
-                              : "29ce13972c226f1de25e70dacfe38f7299ca4eb6d5faf2ed6de4b3474d144747";
+                              ? "bef19ea75d4f1b1a636d6db100f1f0b32c89cc0f6f5301af159f8b27b31e940b"
+                              : "dc7164dbfa82e0992f6d75fd5287e3fd17226fdbb30cb2142244d0c3a6b9c268";
     check(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex() == expected,
           "Frozen texture bytes agree across platforms");
     return std::make_shared<const AssetPayload>(
