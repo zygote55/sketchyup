@@ -1,0 +1,91 @@
+{
+  "waylandPhysicalOutputsQualified": true,
+  "x11PhysicalOutputsQualified": false,
+  "releaseAcceptance": false,
+  "attempts": [
+    {
+      "source": "ed7fbec7c7d0a6f67b4409636a78ecf877d5532c",
+      "report": "R085h-r085h-physical-attempt.json",
+      "sha256": "269a3724ede5b6d52dae4f8f58bb6468658483a72f2bb216d9f8ff863adc95bf",
+      "failedAssertion": "Compositor used the requested output",
+      "waylandLimits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      },
+      "x11Limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      },
+      "waylandLog": "R085h-r085h-wayland.txt",
+      "waylandLogSha256": "df6abc32d2337d1bae4d4a76bbae4aadadb75fc3c19b463a00c9fbea72aaba4f",
+      "xcbLog": "R085h-r085h-xcb.txt",
+      "xcbLogSha256": "ec0498f54524532fa1a08dc61c778c94d9bc484d48526b4d52912bd98ff50bcd"
+    },
+    {
+      "source": "d7085e88be6f84f8b0e455985fb8d4433cd603f8",
+      "report": "R085h-r085i-physical-attempt.json",
+      "sha256": "59094f195e4e951c8cf447afdf6094ee0d61a7c9e8313d90da96a366f9cc60bc",
+      "failedAssertion": "Compositor used the requested output",
+      "waylandLimits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      },
+      "x11Limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      },
+      "waylandLog": "R085h-r085i-wayland.txt",
+      "waylandLogSha256": "55a5e241b436a27dc54f8d5dc222082c15fc22ce7c976f65f6ff9a8d663f3f31",
+      "xcbLog": "R085h-r085i-xcb.txt",
+      "xcbLogSha256": "22ff3b845b7964969d7f8930c01e5c91ca3fd446e56ee2aafc603a07964c7735"
+    }
+  ]
+}

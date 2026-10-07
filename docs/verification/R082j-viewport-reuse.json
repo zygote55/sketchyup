@@ -1,0 +1,1192 @@
+{
+  "qualified": true,
+  "releaseAcceptance": false,
+  "source": "cd1950ecfd2f5b29f7585605e0f397e5e8d7a007",
+  "platforms": {
+    "AMD": {
+      "passed": true,
+      "source": "cd1950ecfd2f5b29f7585605e0f397e5e8d7a007",
+      "releaseAcceptance": false,
+      "binarySha256": "38c6574a949bc3039f28ddf5ea5032cfae33d0b265d1423fe603ad37109bf3f6",
+      "binaryBytes": 4753104,
+      "fixtureHashes": {
+        "repeated": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+        "unique": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+        "deep": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+        "far": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+        "textures": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c"
+      },
+      "measurements": [
+        {
+          "label": "unique-smoke",
+          "fixtureSha256": "231d89f28bd86b304e1ba0365551f85879e7fa1306b79adde0f6a8a6dfa3cefa",
+          "viewportP95Ms": 0.546418,
+          "sceneP95Ms": 0.264062,
+          "pickP95Ms": 0.009448,
+          "editP95Ms": 16.798155,
+          "peakRssBytes": 152854528,
+          "inferenceTruncatedQueries": 0,
+          "inferenceInitialBuildMs": 3.473181,
+          "inferenceQueryP95Ms": 0.023935,
+          "inferenceUpdateP95Ms": 0.164582,
+          "report": "R082j-amd-unique-smoke.json",
+          "reportSha256": "af9c12a64f4e3b3a25c195e6e19d794f823ed61b8732e2c0081d70276b51ab2a",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "repeated-smoke",
+          "fixtureSha256": "97aadcff18317af573a28a7b03129f3f59f926c3ef36de255ae9832f0e36c405",
+          "viewportP95Ms": 0.528615,
+          "sceneP95Ms": 0.261427,
+          "pickP95Ms": 0.011572,
+          "editP95Ms": 17.014387,
+          "peakRssBytes": 148791296,
+          "inferenceTruncatedQueries": 0,
+          "inferenceInitialBuildMs": 2.395102,
+          "inferenceQueryP95Ms": 0.018595,
+          "inferenceUpdateP95Ms": 0.185703,
+          "report": "R082j-amd-repeated-smoke.json",
+          "reportSha256": "e912833fb8cec26a52e44e3ef2ddfc332d41f9930469b020925b641242d03286",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "repeated-1000-1",
+          "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+          "viewportP95Ms": 2.33103,
+          "sceneP95Ms": 2.005171,
+          "pickP95Ms": 0.06344,
+          "editP95Ms": 16.75831,
+          "peakRssBytes": 444669952,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 79.953065,
+          "inferenceQueryP95Ms": 0.225018,
+          "inferenceUpdateP95Ms": 0.942912,
+          "report": "R082j-amd-repeated-1000-1.json",
+          "reportSha256": "acda00b8a9ef64888dfd44b7697096fd4feecc78031ef230b3f78b37c13ad3f7",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "repeated-1000-2",
+          "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+          "viewportP95Ms": 2.13616,
+          "sceneP95Ms": 1.833124,
+          "pickP95Ms": 0.060255,
+          "editP95Ms": 16.239324,
+          "peakRssBytes": 444534784,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 79.01861,
+          "inferenceQueryP95Ms": 0.234475,
+          "inferenceUpdateP95Ms": 0.879391,
+          "report": "R082j-amd-repeated-1000-2.json",
+          "reportSha256": "ff04d80cc549e97a71d01a2e4a0d44450440ace285a41864ab4ffd7ca07e2eb7",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "repeated-1000-3",
+          "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+          "viewportP95Ms": 2.20983,
+          "sceneP95Ms": 1.908727,
+          "pickP95Ms": 0.063361,
+          "editP95Ms": 16.16331,
+          "peakRssBytes": 444383232,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 79.100455,
+          "inferenceQueryP95Ms": 0.23664,
+          "inferenceUpdateP95Ms": 0.860285,
+          "report": "R082j-amd-repeated-1000-3.json",
+          "reportSha256": "7afc3b7a489282d8609a5bb101c673119665269b987abcc6b627dd959071d118",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "unique-1000-1",
+          "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+          "viewportP95Ms": 2.104821,
+          "sceneP95Ms": 1.803337,
+          "pickP95Ms": 0.042872,
+          "editP95Ms": 17.214677,
+          "peakRssBytes": 443674624,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 95.189844,
+          "inferenceQueryP95Ms": 0.284741,
+          "inferenceUpdateP95Ms": 0.520409,
+          "report": "R082j-amd-unique-1000-1.json",
+          "reportSha256": "973ebb1e72d919ba807627c7235441fff0c3c7f069e00903a63f193e0e65fa49",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "unique-1000-2",
+          "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+          "viewportP95Ms": 2.15196,
+          "sceneP95Ms": 1.861288,
+          "pickP95Ms": 0.043543,
+          "editP95Ms": 16.375493,
+          "peakRssBytes": 445071360,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 94.659657,
+          "inferenceQueryP95Ms": 0.287847,
+          "inferenceUpdateP95Ms": 0.508847,
+          "report": "R082j-amd-unique-1000-2.json",
+          "reportSha256": "1cc924a8e369eef909a2786db65cacc9ebec8edab7443809e567885dd9d3a90c",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "unique-1000-3",
+          "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+          "viewportP95Ms": 2.237131,
+          "sceneP95Ms": 1.932633,
+          "pickP95Ms": 0.040877,
+          "editP95Ms": 17.511522,
+          "peakRssBytes": 444166144,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 95.725593,
+          "inferenceQueryP95Ms": 0.279291,
+          "inferenceUpdateP95Ms": 0.538022,
+          "report": "R082j-amd-unique-1000-3.json",
+          "reportSha256": "50f3553f0eb3a75acab5c17dd7d3f80ab5f09764a320d7ee22cec2cff1509b08",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "deep-smoke",
+          "fixtureSha256": "078fd5a262581a8d23b02e7e3c0527b6d661eb77c625050fda944dbe73ca55ef",
+          "viewportP95Ms": 0.532011,
+          "sceneP95Ms": 0.257429,
+          "pickP95Ms": 0.048011,
+          "editP95Ms": 16.991033,
+          "peakRssBytes": 149221376,
+          "inferenceTruncatedQueries": 0,
+          "inferenceInitialBuildMs": 2.492167,
+          "inferenceQueryP95Ms": 0.018685,
+          "inferenceUpdateP95Ms": 0.265615,
+          "report": "R082j-amd-deep-smoke.json",
+          "reportSha256": "a2c6f6ce8df27fa0a88c42dc72a6e6feb9f45b616ebbb75a42a731f71ce13994",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "deep-1000-1",
+          "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+          "viewportP95Ms": 2.347412,
+          "sceneP95Ms": 2.054986,
+          "pickP95Ms": 0.196304,
+          "editP95Ms": 19.556899,
+          "peakRssBytes": 445177856,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 83.373938,
+          "inferenceQueryP95Ms": 0.237661,
+          "inferenceUpdateP95Ms": 3.637212,
+          "report": "R082j-amd-deep-1000-1.json",
+          "reportSha256": "e968309a213d481661ae4b8b3eb23f38ebe9de7d031e4b47a9d1aa074b5cb3d3",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "deep-1000-2",
+          "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+          "viewportP95Ms": 2.153272,
+          "sceneP95Ms": 1.843684,
+          "pickP95Ms": 0.169883,
+          "editP95Ms": 18.825489,
+          "peakRssBytes": 445153280,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 82.404485,
+          "inferenceQueryP95Ms": 0.240387,
+          "inferenceUpdateP95Ms": 3.558573,
+          "report": "R082j-amd-deep-1000-2.json",
+          "reportSha256": "afaa1d65b4bfafaf0a90c60c45a8ced21a1367fb95a3352eabb4f813c17764da",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "deep-1000-3",
+          "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+          "viewportP95Ms": 2.186665,
+          "sceneP95Ms": 1.880765,
+          "pickP95Ms": 0.160536,
+          "editP95Ms": 19.477689,
+          "peakRssBytes": 444903424,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 83.425876,
+          "inferenceQueryP95Ms": 0.231971,
+          "inferenceUpdateP95Ms": 3.65692,
+          "report": "R082j-amd-deep-1000-3.json",
+          "reportSha256": "b0874a43b30594a42b9acd9d3cb5e916640d03cde0bab98224047c69ec7bfeec",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "far-smoke",
+          "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+          "viewportP95Ms": 0.524196,
+          "sceneP95Ms": 0.2418,
+          "pickP95Ms": 0.01551,
+          "editP95Ms": 17.013666,
+          "peakRssBytes": 148672512,
+          "inferenceTruncatedQueries": 0,
+          "inferenceInitialBuildMs": 2.418797,
+          "inferenceQueryP95Ms": 0.017934,
+          "inferenceUpdateP95Ms": 0.174452,
+          "report": "R082j-amd-far-smoke.json",
+          "reportSha256": "b27d7f27d4547b54b623a8eac4fb338f7bef5527345b57228bf872e47e0a1e54",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "far-1000-1",
+          "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+          "viewportP95Ms": 2.211473,
+          "sceneP95Ms": 1.886385,
+          "pickP95Ms": 0.063711,
+          "editP95Ms": 32.18535,
+          "peakRssBytes": 444833792,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 78.706718,
+          "inferenceQueryP95Ms": 0.234395,
+          "inferenceUpdateP95Ms": 1.005591,
+          "report": "R082j-amd-far-1000-1.json",
+          "reportSha256": "e4939761bd9772faebf647b6a2cb9f9a66f01fb748ad079a43dcc2097bb75855",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "far-1000-2",
+          "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+          "viewportP95Ms": 2.190984,
+          "sceneP95Ms": 1.87853,
+          "pickP95Ms": 0.067007,
+          "editP95Ms": 31.774429,
+          "peakRssBytes": 445038592,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 79.409243,
+          "inferenceQueryP95Ms": 0.22621,
+          "inferenceUpdateP95Ms": 0.931651,
+          "report": "R082j-amd-far-1000-2.json",
+          "reportSha256": "1b99639a0e0d6c26efd0b4518d9223c376f673171ded438143a69e3ffcbc03c5",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "far-1000-3",
+          "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+          "viewportP95Ms": 2.161278,
+          "sceneP95Ms": 1.839305,
+          "pickP95Ms": 0.067168,
+          "editP95Ms": 31.426078,
+          "peakRssBytes": 444751872,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 78.606246,
+          "inferenceQueryP95Ms": 0.220328,
+          "inferenceUpdateP95Ms": 0.975724,
+          "report": "R082j-amd-far-1000-3.json",
+          "reportSha256": "59afe893a72da24463804579c4d51214649b12c68717b55e61c0511e011584cf",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "textures-smoke",
+          "fixtureSha256": "171096beb61bd5290e70faa4d0988894ac514d86764e6517eabf0ddcd6e06e8b",
+          "viewportP95Ms": 0.558722,
+          "sceneP95Ms": 0.288117,
+          "pickP95Ms": 0.012113,
+          "editP95Ms": 16.873188,
+          "peakRssBytes": 337666048,
+          "inferenceTruncatedQueries": 0,
+          "inferenceInitialBuildMs": 2.360586,
+          "inferenceQueryP95Ms": 0.018626,
+          "inferenceUpdateP95Ms": 0.167648,
+          "report": "R082j-amd-textures-smoke.json",
+          "reportSha256": "92228e5ba6a9da647a9bcab52cbb86a4274a288812bd911a11a92858522112ca",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "textures-1000-1",
+          "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+          "viewportP95Ms": 2.146189,
+          "sceneP95Ms": 1.812044,
+          "pickP95Ms": 0.0735,
+          "editP95Ms": 17.209478,
+          "peakRssBytes": 578400256,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 86.217643,
+          "inferenceQueryP95Ms": 0.237461,
+          "inferenceUpdateP95Ms": 0.933684,
+          "report": "R082j-amd-textures-1000-1.json",
+          "reportSha256": "494ae4ae596f1f99a80cd0a30e7528f31c89eceb5879f25de62094d1ad6aba4d",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "textures-1000-2",
+          "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+          "viewportP95Ms": 2.618396,
+          "sceneP95Ms": 2.234296,
+          "pickP95Ms": 0.070975,
+          "editP95Ms": 16.077165,
+          "peakRssBytes": 578772992,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 83.493615,
+          "inferenceQueryP95Ms": 0.238363,
+          "inferenceUpdateP95Ms": 0.880433,
+          "report": "R082j-amd-textures-1000-2.json",
+          "reportSha256": "58a65b9b163bccccdca74d04737d0bc694b5c3796b58fbeeffff7fe057d18ca7",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        },
+        {
+          "label": "textures-1000-3",
+          "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+          "viewportP95Ms": 2.179272,
+          "sceneP95Ms": 1.843755,
+          "pickP95Ms": 0.093158,
+          "editP95Ms": 15.962628,
+          "peakRssBytes": 578461696,
+          "inferenceTruncatedQueries": 61,
+          "inferenceInitialBuildMs": 84.075801,
+          "inferenceQueryP95Ms": 0.240186,
+          "inferenceUpdateP95Ms": 0.946699,
+          "report": "R082j-amd-textures-1000-3.json",
+          "reportSha256": "a6f416d39fb9b1716d7aa1dcdb48a6a89927bb7238751d61e33a15c88ead8561",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "100000 100000",
+            "pids.max": "128",
+            "cpuAffinity": [
+              11
+            ],
+            "tmpdir": "/home/keith/sketchyup-verification/r082k-reuse-20261007/tmp"
+          }
+        }
+      ],
+      "preflight": {
+        "availableMemoryKiB": 21840004,
+        "loadAverage": "0.00 0.00 0.00 1/526 55786",
+        "kernel": "7.2.7-1-cachyos",
+        "dpmsPower": 0,
+        "dpmsEnabled": 0,
+        "glxinfo": "name of display: :0\ndisplay: :0  screen: 0\ndirect rendering: Yes\nExtended renderer info (GLX_MESA_query_renderer):\n    Vendor: AMD (0x1002)\n    Device: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) (0x73bf)\n    Version: 26.3.0\n    Accelerated: yes\n    Video memory: 16384MB\n    Unified memory: no\n    Preferred profile: core (0x1)\n    Max core profile version: 4.6\n    Max compat profile version: 4.6\n    Max GLES1 profile version: 1.1\n    Max GLES[23] profile version: 3.2\nMemory info (GL_ATI_meminfo):\n    VBO free memory - total: 16235 MB, largest block: 16235 MB\n    VBO free aux. memory - total: 11667 MB, largest block: 11667 MB\n    Texture free memory - total: 16235 MB, largest block: 16235 MB\n    Texture free aux. memory - total: 11667 MB, largest block: 11667 MB\n    Renderbuffer free memory - total: 16235 MB, largest block: 16235 MB\n    Renderbuffer free aux. memory - total: 11667 MB, largest block: 11667 MB\nMemory info (GL_NVX_gpu_memory_info):\n    Dedicated video memory: 16384 MB\n    Total available memory: 28077 MB\n    Currently available dedicated video memory: 16235 MB\nOpenGL vendor string: AMD\nOpenGL renderer string: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos)\nOpenGL core profile version string: 4.6 (Core Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL core profile shading language version string: 4.60\nOpenGL core profile context flags: (none)\nOpenGL core profile profile mask: core profile\n\nOpenGL version string: 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL shading language version string: 4.60\nOpenGL context flags: (none)\nOpenGL profile mask: compatibility profile\n\nOpenGL ES profile version string: OpenGL ES 3.2 Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL ES profile shading language version string: OpenGL ES GLSL ES 3.20\n\n"
+      },
+      "allFullRunsWithinInitialFrameTarget": true,
+      "allFullRunsWithinInitialEditTarget": true
+    },
+    "Intel": {
+      "passed": true,
+      "releaseAcceptance": false,
+      "source": "cd1950ecfd2f5b29f7585605e0f397e5e8d7a007",
+      "binarySha256": "38c6574a949bc3039f28ddf5ea5032cfae33d0b265d1423fe603ad37109bf3f6",
+      "preflight": {
+        "monitors": [
+          {
+            "name": "eDP-1",
+            "width": 2880,
+            "height": 1800,
+            "scale": 2,
+            "dpmsStatus": true
+          },
+          {
+            "name": "DP-7",
+            "width": 3840,
+            "height": 2160,
+            "scale": 1.6,
+            "dpmsStatus": true
+          }
+        ],
+        "availableMemoryKiB": 14884056,
+        "loadAverage": [
+          "5.82",
+          "6.65",
+          "6.61"
+        ],
+        "kernel": "7.2.5-3-omarchy",
+        "compositor": "Hyprland 0.56.2 built from branch v0.56.2 at commit efb50993780079460b0cbed1363e2166a2de1d9f clean ([gha] Nix: update inputs).",
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H"
+      },
+      "measurements": [
+        {
+          "label": "unique-smoke",
+          "fixtureSha256": "231d89f28bd86b304e1ba0365551f85879e7fa1306b79adde0f6a8a6dfa3cefa",
+          "viewportP95Ms": 5.072094,
+          "sceneP95Ms": 1.609749,
+          "inferenceP95Ms": 0.147646,
+          "editP95Ms": 17.260285,
+          "peakRssBytes": 235048960,
+          "report": "R082j-intel-unique-smoke.json",
+          "reportSha256": "d3f4cc99693f0c13645af414d698802a9e2402cffd7d150687feeec4d7a4863d",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "repeated-smoke",
+          "fixtureSha256": "97aadcff18317af573a28a7b03129f3f59f926c3ef36de255ae9832f0e36c405",
+          "viewportP95Ms": 3.043388,
+          "sceneP95Ms": 2.083376,
+          "inferenceP95Ms": 0.113212,
+          "editP95Ms": 17.312775,
+          "peakRssBytes": 229257216,
+          "report": "R082j-intel-repeated-smoke.json",
+          "reportSha256": "c259a5f3aa49130a5cacabcf5341943295a434f0d51d11ea6e7bbf0b1bc2df23",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "repeated-1000-1",
+          "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+          "viewportP95Ms": 14.754464,
+          "sceneP95Ms": 12.269186,
+          "inferenceP95Ms": 1.119422,
+          "editP95Ms": 47.962881,
+          "peakRssBytes": 490373120,
+          "report": "R082j-intel-repeated-1000-1.json",
+          "reportSha256": "6b995dc688c01d5d50ae35f5085a8105486eacd4236e0a817ef57e9253dc4521",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "repeated-1000-2",
+          "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+          "viewportP95Ms": 13.065333,
+          "sceneP95Ms": 11.008291,
+          "inferenceP95Ms": 1.06661,
+          "editP95Ms": 47.486713,
+          "peakRssBytes": 490913792,
+          "report": "R082j-intel-repeated-1000-2.json",
+          "reportSha256": "5778d1a31a36c9503e2b802c0a633cb62164404597565e6eac44a7d0401992a7",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "repeated-1000-3",
+          "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+          "viewportP95Ms": 12.906065,
+          "sceneP95Ms": 11.382155,
+          "inferenceP95Ms": 1.470855,
+          "editP95Ms": 45.219436,
+          "peakRssBytes": 490729472,
+          "report": "R082j-intel-repeated-1000-3.json",
+          "reportSha256": "356a282ed16f7dd5cc66d4a97c97afc707ba47d38509b04913004a3a37b45858",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "unique-1000-1",
+          "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+          "viewportP95Ms": 11.705973,
+          "sceneP95Ms": 10.563956,
+          "inferenceP95Ms": 1.082245,
+          "editP95Ms": 36.47226,
+          "peakRssBytes": 489295872,
+          "report": "R082j-intel-unique-1000-1.json",
+          "reportSha256": "3a70cc9fe44d81cf502379d5444165b78014e26ff2face7430c0811c2cd7dd32",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "unique-1000-2",
+          "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+          "viewportP95Ms": 12.910243,
+          "sceneP95Ms": 11.223918,
+          "inferenceP95Ms": 1.084165,
+          "editP95Ms": 36.575165,
+          "peakRssBytes": 489218048,
+          "report": "R082j-intel-unique-1000-2.json",
+          "reportSha256": "a5eb783f5e3af55c569319ba3cc4c25be83dd461a94c318019bbf741324d9a0a",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "unique-1000-3",
+          "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+          "viewportP95Ms": 11.991761,
+          "sceneP95Ms": 10.884584,
+          "inferenceP95Ms": 1.081102,
+          "editP95Ms": 35.95597,
+          "peakRssBytes": 490274816,
+          "report": "R082j-intel-unique-1000-3.json",
+          "reportSha256": "9ee8bd5bd1786a583aeb0c94276cb928b338c82d3bf5605b953853fdd5f0789b",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "deep-smoke",
+          "fixtureSha256": "078fd5a262581a8d23b02e7e3c0527b6d661eb77c625050fda944dbe73ca55ef",
+          "viewportP95Ms": 4.430894,
+          "sceneP95Ms": 1.84755,
+          "inferenceP95Ms": 0.193934,
+          "editP95Ms": 16.968976,
+          "peakRssBytes": 228327424,
+          "report": "R082j-intel-deep-smoke.json",
+          "reportSha256": "0e00916d68d30355f5eec7b01ddfe2a0a421ee940b5dd940163f899296617227",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "deep-1000-1",
+          "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+          "viewportP95Ms": 12.231827,
+          "sceneP95Ms": 10.512432,
+          "inferenceP95Ms": 1.081108,
+          "editP95Ms": 70.04718,
+          "peakRssBytes": 490909696,
+          "report": "R082j-intel-deep-1000-1.json",
+          "reportSha256": "7c70bb77f02928baf81d48b74fe18bcac4e6befd60fbd967de47d936b23a43ca",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "deep-1000-2",
+          "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+          "viewportP95Ms": 12.81357,
+          "sceneP95Ms": 10.816114,
+          "inferenceP95Ms": 1.076387,
+          "editP95Ms": 67.358104,
+          "peakRssBytes": 490577920,
+          "report": "R082j-intel-deep-1000-2.json",
+          "reportSha256": "96d188345745546c2da3cd34ee67946eea3aa4ceb05e5536286f3ab73cadd15e",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "deep-1000-3",
+          "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+          "viewportP95Ms": 14.056597,
+          "sceneP95Ms": 12.536005,
+          "inferenceP95Ms": 1.042912,
+          "editP95Ms": 68.73065,
+          "peakRssBytes": 490700800,
+          "report": "R082j-intel-deep-1000-3.json",
+          "reportSha256": "7056a31121a2314d52960f2afe7afc838c56faf10693f0ef58e7b4be887f265e",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "far-smoke",
+          "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+          "viewportP95Ms": 4.810819,
+          "sceneP95Ms": 3.616021,
+          "inferenceP95Ms": 0.1088,
+          "editP95Ms": 16.871935,
+          "peakRssBytes": 228634624,
+          "report": "R082j-intel-far-smoke.json",
+          "reportSha256": "86f8e25f7bce36a14264d006df62d24a151854bdab30b66eb6a725ce2f0f5c42",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "far-1000-1",
+          "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+          "viewportP95Ms": 14.310612,
+          "sceneP95Ms": 12.73719,
+          "inferenceP95Ms": 1.077105,
+          "editP95Ms": 48.017186,
+          "peakRssBytes": 490479616,
+          "report": "R082j-intel-far-1000-1.json",
+          "reportSha256": "fce919fab48d66a52f2cac1a9307d3d6deb1204ec40cdc15a15891d941599356",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "far-1000-2",
+          "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+          "viewportP95Ms": 13.462145,
+          "sceneP95Ms": 11.939873,
+          "inferenceP95Ms": 1.080357,
+          "editP95Ms": 48.223943,
+          "peakRssBytes": 491311104,
+          "report": "R082j-intel-far-1000-2.json",
+          "reportSha256": "4b463a5081c6a3fd6a903d5f29740fc67e128d64bab1182ac11a345188c4a83c",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "far-1000-3",
+          "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+          "viewportP95Ms": 14.921177,
+          "sceneP95Ms": 13.237691,
+          "inferenceP95Ms": 1.098781,
+          "editP95Ms": 49.386098,
+          "peakRssBytes": 490725376,
+          "report": "R082j-intel-far-1000-3.json",
+          "reportSha256": "1e0e3c9743c03bf6c90841265584d9078d69d4002cbe8760ed18d2898e792c55",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "textures-smoke",
+          "fixtureSha256": "171096beb61bd5290e70faa4d0988894ac514d86764e6517eabf0ddcd6e06e8b",
+          "viewportP95Ms": 7.841021,
+          "sceneP95Ms": 6.476853,
+          "inferenceP95Ms": 0.108957,
+          "editP95Ms": 20.198186,
+          "peakRssBytes": 416444416,
+          "report": "R082j-intel-textures-smoke.json",
+          "reportSha256": "7c43eda18d3e66ea6d473ba76aee712398471c6e089e58a52ad821b10437ec44",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "textures-1000-1",
+          "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+          "viewportP95Ms": 15.533582,
+          "sceneP95Ms": 13.611901,
+          "inferenceP95Ms": 1.102524,
+          "editP95Ms": 58.660051,
+          "peakRssBytes": 636153856,
+          "report": "R082j-intel-textures-1000-1.json",
+          "reportSha256": "bddf98e945a7514a4f5a6488331402ef46e52cf5fbf6f47f5d98aa52f94c1fae",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "textures-1000-2",
+          "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+          "viewportP95Ms": 15.685598,
+          "sceneP95Ms": 14.57675,
+          "inferenceP95Ms": 1.096742,
+          "editP95Ms": 63.3902,
+          "peakRssBytes": 635777024,
+          "report": "R082j-intel-textures-1000-2.json",
+          "reportSha256": "ea8a23263a5881d1d1e2f63421bc0789ccd556e2f4768852df9246fd54850ad7",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        },
+        {
+          "label": "textures-1000-3",
+          "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+          "viewportP95Ms": 16.527343,
+          "sceneP95Ms": 15.030982,
+          "inferenceP95Ms": 1.598348,
+          "editP95Ms": 64.815004,
+          "peakRssBytes": 635809792,
+          "report": "R082j-intel-textures-1000-3.json",
+          "reportSha256": "7ac801377343a35e050438401d334ef67cd3a911c45fbf5459cd17183ad04521",
+          "limits": {
+            "memory.max": "4294967296",
+            "memory.swap.max": "0",
+            "cpu.max": "800000 100000",
+            "pids.max": "256",
+            "cpuAffinity": [
+              0,
+              1,
+              3,
+              6,
+              8,
+              10,
+              12,
+              13
+            ]
+          }
+        }
+      ],
+      "allFullRunsWithinInitialFrameTarget": true,
+      "allFullRunsWithinInitialEditTarget": true
+    }
+  },
+  "r082j2-viewport-reuse": {
+    "count": 18,
+    "log": "R082j-r082j2-viewport-reuse.txt",
+    "sha256": "7dee0c449ec04fbb382b3f0d45c01721680e3eb58010e68af8e7cb7e7db280e4"
+  },
+  "r082k-guide-pass": {
+    "count": 4,
+    "log": "R082j-r082k-guide-pass.txt",
+    "sha256": "8280d2073b0648e9d3960381cfaed071c1f193661aea4d6f6e882087c82dc661"
+  },
+  "r082j-sanitize-native": {
+    "count": 20,
+    "log": "R082j-r082j-sanitize-native.txt",
+    "sha256": "1c3133c09b5a4bc24fb79690033bb02c6bb7172361ebe72af5f4e78a5ab447d0"
+  },
+  "build": {
+    "baseRuntime": "29fb31b",
+    "additionalInferenceFix": "88f0a75",
+    "changedRuntime": [
+      "src/app/viewport.cpp",
+      "src/app/viewport_selection.cpp",
+      "src/app/viewport_textures.cpp",
+      "src/app/viewport_guides.cpp"
+    ],
+    "maximumLocalCpuQuota": 8,
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0,
+    "compilerJobs": 2,
+    "ltoWorkersPerLink": 2,
+    "temporaryStorage": "persistent disk",
+    "sanitizerLeakDetection": false,
+    "compiledInputs": [
+      {
+        "path": "src/app/viewport_guides.cpp",
+        "sha256": "14c5ebf63476cd52e4d5b25e5ffe54e2069e78a717ea36fc0b3d11c55b10446d"
+      },
+      {
+        "path": "src/app/viewport.cpp",
+        "sha256": "1ff885d8b9285c86ea468ad95f1ad58c9eb0031ea66f9a771b0474f5bc6f3ce1"
+      },
+      {
+        "path": "src/app/viewport_selection.cpp",
+        "sha256": "67de88a17770c71d1a7c3cca0abb652bf6f9c3abf4d886297fb4dce08b75245f"
+      },
+      {
+        "path": "src/app/viewport_textures.cpp",
+        "sha256": "676e80b99af0b4c0937a6c5da2e3d85570f2291db715db7f38e8c05d97506863"
+      },
+      {
+        "path": "CMakeLists.txt",
+        "sha256": "7b2d31af076e4f061203897db469e2fe1556c532009837ae4dda9d3eb68bff93"
+      },
+      {
+        "path": "tests/real_model_benchmark.cpp",
+        "sha256": "b11fbc260ec8ff984a7844d2a971df9be836a63c55d06da6d6477374ed261179"
+      },
+      {
+        "path": "src/geometry/inference.cpp",
+        "sha256": "beebc65c2e0c727431d8040d63e9c6199d68c3b4a8ce09c9ea45ef18e2b4cb1f"
+      },
+      {
+        "path": "tests/fixtures/performance/front.png",
+        "sha256": "bef19ea75d4f1b1a636d6db100f1f0b32c89cc0f6f5301af159f8b27b31e940b"
+      },
+      {
+        "path": "tests/fixtures/performance/back.png",
+        "sha256": "dc7164dbfa82e0992f6d75fd5287e3fd17226fdbb30cb2142244d0c3a6b9c268"
+      }
+    ],
+    "nativeNormalSource": "a8c24a899b9b281594737dd950f888e4d30a5d84",
+    "nativeFinalSource": "cd1950ecfd2f5b29f7585605e0f397e5e8d7a007",
+    "initialNormalLtoWorkersPerLink": 1,
+    "sanitizerWorkerObservedLimits": {
+      "observedAt": "2026-10-07T21:40:21Z",
+      "method": "systemctl --user show sketchyup-r082j-sanitize-compiler while SubState=running; values retained from tool output",
+      "MemoryMax": 4294967296,
+      "MemorySwapMax": 0,
+      "CPUQuotaPerSecUSec": "8s",
+      "TasksMax": 256,
+      "note": "The later text snapshot queried an already-collected transient unit and contains manager defaults; it is not worker evidence."
+    }
+  }
+}

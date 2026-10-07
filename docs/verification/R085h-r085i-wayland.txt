@@ -1,0 +1,6 @@
+Running as unit: sketchyup-r085i-wayland.service
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.963s
+             CPU time consumed: 2.061s
+                   Memory peak: 1004.3M (swap: 0B)
