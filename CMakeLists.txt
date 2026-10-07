@@ -1037,3 +1037,5 @@ install(FILES docs/decisions/0145-native-accessibility-inventory.md DESTINATION 
 install(FILES docs/decisions/0146-legacy-preference-compatibility.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0147-keyboard-measured-modeling.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0148-versioned-shortcut-bindings.md DESTINATION share/doc/sketchyup/decisions)
