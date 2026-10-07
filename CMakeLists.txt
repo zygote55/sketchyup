@@ -977,3 +977,5 @@ install(FILES docs/decisions/0134-versioned-extension-manifests.md DESTINATION s
 install(FILES examples/extensions/panel.sketchyext DESTINATION share/doc/sketchyup/examples/extensions)
 
 install(FILES docs/decisions/0135-persistent-extension-lifecycle.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0136-bounded-extension-worker.md DESTINATION share/doc/sketchyup/decisions)
