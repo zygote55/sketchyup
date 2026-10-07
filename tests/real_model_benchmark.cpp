@@ -236,8 +236,27 @@ int main(int argc, char **argv) {
             timer.restart();
             const auto result = inference.query(query);
             const auto elapsed = timer.nsecsElapsed() / 1e6;
-            check(!result.candidates.empty() && result.candidates.size() <= 32,
-                  "Inference probe returns a bounded candidate list");
+            if (result.candidates.empty() || result.candidates.size() > 32) {
+                QJsonArray clip, inverse;
+                for (auto value : query.camera.clipFromWorld)
+                    clip.append(value);
+                for (auto value : query.camera.worldFromClip)
+                    inverse.append(value);
+                const QJsonObject diagnostic{{"scenario", scenario},
+                                             {"placement", qint64(placement)},
+                                             {"x", point.x()},
+                                             {"y", point.y()},
+                                             {"width", query.camera.width},
+                                             {"height", query.camera.height},
+                                             {"clipFromWorld", clip},
+                                             {"worldFromClip", inverse},
+                                             {"candidateCount", qint64(result.candidates.size())},
+                                             {"truncated", result.truncated},
+                                             {"visited", qint64(result.visitedPrimitives)}};
+                std::cerr << QJsonDocument(diagnostic).toJson(QJsonDocument::Compact).toStdString()
+                          << '\n';
+                throw std::runtime_error("Inference probe returns a bounded candidate list");
+            }
             inferenceTruncatedQueries += result.truncated;
             check(std::any_of(result.candidates.begin(), result.candidates.end(),
                               [&](const auto &candidate) { return candidate.body == hit.first; }),
