@@ -1273,6 +1273,8 @@ void Viewport::paintScene(QPaintDevice *device) {
         if (!rasterSize_.isEmpty())
             throw std::runtime_error("Graphics error while rendering export");
     }
+    if (synchronousFrameTiming_)
+        gl_->glFinish();
     ++stats_.frames;
     frameMs_ = timer.nsecsElapsed() / 1e6;
     p.endNativePainting();
