@@ -8,8 +8,8 @@ set -euo pipefail
 run_name=$1
 image=$2
 shift 2
-source_root=$(git rev-parse --show-toplevel)
-common_git=$(git rev-parse --path-format=absolute --git-common-dir)
+source_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+common_git=$(git -C "$source_root" rev-parse --path-format=absolute --git-common-dir)
 state_root=$(dirname "$common_git")/build/local-checks
 mkdir -p "$state_root"
 state_root=$(realpath "$state_root")
