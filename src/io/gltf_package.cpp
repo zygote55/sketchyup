@@ -252,6 +252,12 @@ struct GltfPackage::Impl {
                              s.indices_component_type == cgltf_component_type_r_16u ||
                              s.indices_component_type == cgltf_component_type_r_32u),
                         "Invalid sparse glTF accessor");
+                // cgltf's scalar sparse readers advance values by accessor.stride.
+                // Sparse payloads are tightly packed even when base data is interleaved;
+                // reject that combination instead of reading beyond the captured values.
+                require(a.stride == element && s.indices_buffer_view->stride == 0 &&
+                            s.values_buffer_view->stride == 0,
+                        "Sparse glTF accessors require tightly packed base and sparse views");
                 require(s.indices_byte_offset % size == 0 &&
                             s.indices_buffer_view->offset % size == 0 &&
                             s.values_byte_offset % component == 0 &&

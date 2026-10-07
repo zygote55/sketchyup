@@ -162,6 +162,24 @@ int main(int argc, char **argv) {
         check(cgltf_accessor_read_float(&sparse.data().accessors[0], 1, position, 3) &&
                   position[0] == 4 && position[2] == 6,
               "Sparse accessor overlays captured base geometry");
+        auto interleaved = sparseTree;
+        auto paddedViews = views;
+        auto baseView = paddedViews[0].toObject();
+        baseView["byteStride"] = 16;
+        baseView["byteLength"] = 48;
+        paddedViews[0] = baseView;
+        // All views remain in the buffer; only the sparse/base stride combination is unsupported.
+        interleaved["bufferViews"] = paddedViews;
+        write(source, QJsonDocument(interleaved).toJson());
+        bool strideRejected = false;
+        try {
+            GltfPackage::read(source);
+        } catch (const std::exception &error) {
+            strideRejected = QString::fromUtf8(error.what()).contains("tightly packed");
+        }
+        check(strideRejected,
+              "Sparse readers never advance tight values by an interleaved base stride");
+        write(source, QJsonDocument(sparseTree).toJson());
         sparseBytes[36] = char(3);
         write(sidecar, sparseBytes);
         rejects([&] { GltfPackage::read(source); });
