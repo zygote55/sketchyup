@@ -21,6 +21,7 @@
 #include <QKeyEvent>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSettings>
@@ -37,6 +38,39 @@
 #include <wayland-client.h>
 namespace sketchy {
 namespace {
+class ElidedLabel final : public QLabel {
+  public:
+    explicit ElidedLabel(const QString &text = {}) : QLabel(text) {
+        setTextFormat(Qt::PlainText);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    }
+
+  protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setPen(palette().color(foregroundRole()));
+        painter.drawText(contentsRect(), alignment(),
+                         fontMetrics().elidedText(text(), Qt::ElideRight, contentsRect().width()));
+    }
+};
+void resizeContextLabels(QWidget *window) {
+    auto *breadcrumb = window->findChild<QLabel *>("contextBreadcrumb");
+    auto *banner = window->findChild<QLabel *>("componentScopeBanner");
+    if (breadcrumb && banner) {
+        breadcrumb->ensurePolished();
+        breadcrumb->setMaximumWidth(std::max(100, breadcrumb->parentWidget()->width() - 32));
+        breadcrumb->adjustSize();
+        banner->ensurePolished();
+        banner->setFixedWidth(
+            std::max(100, std::min(640, breadcrumb->parentWidget()->width() - 32)));
+        banner->move(16, breadcrumb->geometry().bottom() + 8);
+        banner->adjustSize();
+    }
+    if (auto *hint = window->findChild<QLabel *>("hint")) {
+        hint->ensurePolished();
+        hint->setMinimumHeight(hint->heightForWidth(hint->width()));
+    }
+}
 class WindowUnmapBarrier final : public QObject {
     wl_callback *callback_{};
     std::function<void()> finish_;
@@ -112,9 +146,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     auto *brand = new QLabel("SKETCHYUP");
     brand->setObjectName("brand");
     headerLayout->addWidget(brand);
-    title_ = new QLabel;
-    headerLayout->addWidget(title_);
-    headerLayout->addStretch();
+    title_ = new ElidedLabel;
+    headerLayout->addWidget(title_, 1);
     auto *search = new QPushButton("Commands  Ctrl+K");
     search->setObjectName("commandSearch");
     headerLayout->addWidget(search);
@@ -222,7 +255,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     auto *bottom = new QWidget;
     bottom->setObjectName("footer");
     auto *bottomLayout = new QHBoxLayout(bottom);
-    status_ = new QLabel("Select a tool to begin");
+    status_ = new ElidedLabel("Select a tool to begin");
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     bottomLayout->addWidget(status_, 1);
@@ -906,7 +939,12 @@ QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} Q
     setStyleSheet(style);
     findChild<QToolBar *>("toolRail")->setFixedWidth(interfaceExtent(78, textPercent));
     measurements_->setFixedWidth(interfaceExtent(150, textPercent));
-    layoutAssistant();
+    if (property("interfaceTextPercent").toInt() != textPercent) {
+        setProperty("interfaceTextPercent", textPercent);
+        layoutAssistant();
+    }
+    updateCommandSearchLabel(this);
+    QTimer::singleShot(0, this, [this] { resizeContextLabels(this); });
     viewport_->setTheme(colors);
     auto linkPalette = breadcrumb_->palette();
     linkPalette.setColor(QPalette::Link, colors.accent);
@@ -1195,6 +1233,8 @@ void Window::closeEvent(QCloseEvent *e) {
 }
 void Window::resizeEvent(QResizeEvent *e) {
     QMainWindow::resizeEvent(e);
+    updateCommandSearchLabel(this);
+    QTimer::singleShot(0, this, [this] { resizeContextLabels(this); });
     if (sideTabs_)
         layoutAssistant();
     if (auto *panel = findChild<QAction *>("view.tray"))
