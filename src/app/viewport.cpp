@@ -868,7 +868,8 @@ void Viewport::rebuild() {
         if (body->referenceImage && textureImages_.contains(body->referenceImage->asset))
             images.emplace(body->referenceImage->asset,
                            textureImages_.at(body->referenceImage->asset));
-        const auto cuts = effectiveSectionCuts(doc_, id);
+        const auto cuts = doc_.activeSections().empty() ? std::vector<SectionCut>{}
+                                                        : effectiveSectionCuts(doc_, id);
         SectionRecords sections;
         for (const auto &cut : cuts)
             sections.emplace(cut.id, doc_.sections().at(cut.id));
