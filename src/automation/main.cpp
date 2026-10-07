@@ -7,6 +7,7 @@
 #include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
 #include "io/formline.hpp"
+#include "io/gltf_import.hpp"
 #include "io/native_format.hpp"
 #include "io/recovery.hpp"
 #include <QCommandLineParser>
@@ -49,6 +50,8 @@ int main(int argc, char **argv) {
     parser.addOption({"inspect-file", "Run a versioned bounded inspection request", "path"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
+    parser.addOption(
+        {"import-gltf", "Import GLB/glTF into a new native model; optional new --output", "path"});
     parser.addOption({"import-formline", "Import Formline v1 into a new native model", "path"});
     parser.addOption(
         {"recovery-list", "List verified inactive recovery sessions in a directory", "directory"});
@@ -93,6 +96,22 @@ int main(int argc, char **argv) {
                     ? sketchy::migrateNativeFile(parser.value(formatMode), parser.value("output"))
                     : sketchy::inspectNativeFile(parser.value(formatMode));
             std::cout << QJsonDocument(report).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        if (parser.isSet("import-gltf")) {
+            if (!parser.positionalArguments().isEmpty())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "glTF import requires named paths");
+            for (const auto &option : parser.optionNames())
+                if (option != "import-gltf" && option != "output")
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "glTF import is a standalone operation");
+            const auto imported = sketchy::loadGltf(parser.value("import-gltf"));
+            QJsonObject result{{"status", "imported"}, {"importReport", imported.report}};
+            if (parser.isSet("output"))
+                result["nativeFile"] =
+                    sketchy::createNativeFile(imported.document, parser.value("output"));
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
             return 0;
         }
         if (parser.isSet("export-glb")) {

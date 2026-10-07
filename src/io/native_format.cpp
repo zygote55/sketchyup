@@ -76,33 +76,33 @@ void syncFile(int descriptor, bool published) {
     } while (status < 0 && errno == EINTR);
     if (status != 0)
         throw std::runtime_error(
-            published ? "Migrated file published, but directory durability is uncertain"
-                      : "Could not synchronize migrated file");
+            published ? "Native file published, but directory durability is uncertain"
+                      : "Could not synchronize native file");
 }
 void publishNew(const QString &path, const QByteArray &bytes) {
     const QFileInfo info(path);
     if (path.isEmpty() || info.exists() || info.isSymLink() || info.fileName().isEmpty())
         throw std::runtime_error(
-            "Migration requires a new output path; existing files are never replaced");
+            "A new output path is required; existing files are never replaced");
     const auto parent = info.dir().canonicalPath();
     if (parent.isEmpty())
-        throw std::runtime_error("Migration output parent must already exist");
+        throw std::runtime_error("Native output parent must already exist");
     const auto target = QDir(parent).filePath(info.fileName());
-    QTemporaryFile temporary(QDir(parent).filePath(".sketchyup-migrate-XXXXXX"));
+    QTemporaryFile temporary(QDir(parent).filePath(".sketchyup-new-XXXXXX"));
     if (!temporary.open() || temporary.write(bytes) != bytes.size() || !temporary.flush())
-        throw std::runtime_error("Could not write migration copy");
+        throw std::runtime_error("Could not write native copy");
     syncFile(temporary.handle(), false);
     // Hard-link publication is atomic and fails on every pre-existing destination,
     // including a racing writer or dangling symbolic link. Both paths share a parent.
     const auto directory =
         ::open(QFile::encodeName(parent).constData(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (directory < 0)
-        throw std::runtime_error("Could not open migration output directory");
+        throw std::runtime_error("Could not open native output directory");
     if (::link(QFile::encodeName(temporary.fileName()).constData(),
                QFile::encodeName(target).constData()) != 0) {
         const auto error = errno;
         ::close(directory);
-        throw std::runtime_error(std::string("Could not publish migration copy: ") +
+        throw std::runtime_error(std::string("Could not publish native copy: ") +
                                  std::strerror(error));
     }
     try {
@@ -118,6 +118,15 @@ QJsonObject inspectNativeFile(const QString &path) {
     const auto bytes = read(path);
     const auto document = decodeContainer(bytes);
     return describe(bytes, document);
+}
+QJsonObject createNativeFile(const Document &document, const QString &output) {
+    const auto encoded = encodeContainer(document);
+    if (encodeDocument(decodeContainer(encoded)) != encodeDocument(document))
+        throw std::runtime_error("Native round-trip verification failed");
+    auto result = describe(encoded, document);
+    publishNew(output, encoded);
+    result["status"] = "created";
+    return result;
 }
 QJsonObject migrateNativeFile(const QString &input, const QString &output) {
     const auto original = read(input);

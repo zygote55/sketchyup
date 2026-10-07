@@ -203,6 +203,41 @@ int main(int argc, char **argv) {
         check(source.open(QIODevice::ReadOnly) && source.readAll() == bytes,
               "Source bytes unchanged");
         source.close();
+        const auto cli = QCoreApplication::applicationDirPath() + "/sketchyup-cli";
+        auto invoke = [&](QStringList arguments, bool success = true) {
+            QProcess process;
+            process.start(cli, arguments);
+            check(process.waitForStarted(10000) && process.waitForFinished(30000) &&
+                      process.exitStatus() == QProcess::NormalExit &&
+                      (process.exitCode() == 0) == success,
+                  "glTF CLI operation result");
+            const auto output =
+                success ? process.readAllStandardOutput() : process.readAllStandardError();
+            const auto report = QJsonDocument::fromJson(output);
+            check(report.isObject(), "glTF CLI returns structured JSON");
+            return report.object();
+        };
+        const auto destination = dir.filePath("converted.sketchyup");
+        check(invoke({"--import-gltf", path})["importReport"].toObject()["triangles"] == 2,
+              "CLI conversion report without output");
+        const auto saved = invoke({"--import-gltf", path, "--output", destination});
+        check(saved["nativeFile"].toObject()["status"] == "created" &&
+                  loadDocument(destination).instances().size() == 2,
+              "CLI creates a complete native copy");
+        const auto copy = encodeDocument(loadDocument(destination));
+        invoke({"--import-gltf", path, "--output", destination}, false);
+        invoke({"--import-gltf", path, "--output", path}, false);
+        const auto link = dir.filePath("existing-link");
+        check(QFile::link(path, link), "CLI output symlink fixture");
+        invoke({"--import-gltf", path, "--output", link}, false);
+        invoke({"--import-gltf", path, "--input", destination}, false);
+        invoke({"--import-gltf", path, "--format-capabilities"}, false);
+        invoke({"--import-gltf", path, "extra"}, false);
+        check(encodeDocument(loadDocument(destination)) == copy,
+              "Rejected output replacement preserves native copy");
+        check(source.open(QIODevice::ReadOnly) && source.readAll() == bytes,
+              "CLI source remains byte exact");
+        source.close();
         // Embedded image and KHR_texture_transform use glTF top-left UVs directly.
         const auto png = encodeTexturePng(TextureImage(2, 1, {255, 0, 0, 128, 0, 255, 0, 255}));
         f.tree["images"] = QJsonArray{
