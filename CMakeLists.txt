@@ -865,3 +865,5 @@ install(FILES docs/decisions/0113-native-obj-conversion.md DESTINATION share/doc
 install(FILES docs/decisions/0114-contained-obj-export-packages.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0115-native-obj-interchange-workflow.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0116-bounded-stl-source-parsing.md DESTINATION share/doc/sketchyup/decisions)
