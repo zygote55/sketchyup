@@ -77,7 +77,20 @@ void modal(Window &window, const char *button, const std::function<void(QDialog 
             dialog->reject();
     });
     timer.start();
-    click(window, button);
+    if (button) {
+        click(window, button);
+    } else {
+        window.activateWindow();
+        check(QTest::qWaitForWindowActive(&window), "Text shortcut parent activates");
+        auto *panel = window.findChild<QWidget *>("textPanel");
+        panel->setFocus();
+        check(QTest::qWaitFor([&] {
+                  return panel->hasFocus() || panel->isAncestorOf(QApplication::focusWidget());
+              }),
+              "Text panel owns shortcut focus");
+        QTest::keyClick(QApplication::focusWidget(), Qt::Key_T,
+                        Qt::ControlModifier | Qt::AltModifier | Qt::ShiftModifier);
+    }
     check(opened, "Native text editor opens");
     if (failure)
         std::rethrow_exception(failure);
@@ -111,7 +124,7 @@ int main(int argc, char **argv) {
         pulse.setInterval(5);
         QObject::connect(&pulse, &QTimer::timeout, [&] { ++heartbeat; });
         pulse.start();
-        modal(window, "textCreateButton", [&](QDialog *dialog) {
+        modal(window, nullptr, [&](QDialog *dialog) {
             type(dialog, "textName", "Native sign");
             type(dialog, "textHeight", "invalid");
             save(dialog);
