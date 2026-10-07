@@ -42,7 +42,7 @@ MeasuredExport Viewport::renderMeasuredView(MeasuredPage page, MeasuredFormat fo
                 depth(p);
             }
             if (body->referenceImage)
-                for (auto p : referenceImageCorners(*body->referenceImage))
+                for (auto p : referenceImageCorners(*body->referenceImage, Transform{}))
                     depth(p);
         }
     for (const auto &[id, annotation] : doc_.annotations()) {
