@@ -119,8 +119,19 @@ int main(int argc, char **argv) {
             window.show();
             check(QTest::qWaitForWindowExposed(&window), "Window exposed");
             const auto content = encodeContainer(window.document());
+            for (auto *entry : window.findChildren<QAction *>()) {
+                const auto declared = entry->property("defaultShortcut");
+                if (declared.isValid())
+                    check(entry->shortcut() == declared.value<QKeySequence>(),
+                          "Fresh preferences retain every default public shortcut");
+            }
+            check(action(window, "view.tray")->shortcut() == QKeySequence("Ctrl+Shift+T") &&
+                      action(window, "textCreate")->shortcut() == QKeySequence("Ctrl+Alt+Shift+T"),
+                  "Model-panel toggle and local text creation have separate defaults");
             const auto before = settings.value("shortcuts/v1").toByteArray();
             editor(window, [&](QDialog &dialog) {
+                check(dialog.findChild<QLabel *>("shortcutNotices")->text().isEmpty(),
+                      "Fresh preferences have no inactive-default notice");
                 choose(dialog, "view.commands", "Ctrl+Shift+M");
                 click(dialog, "shortcutAssign");
                 check(error(dialog).contains("panel"),
