@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
@@ -678,6 +679,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             for (const auto &step : recipe.steps)
                 compose(decodedChanges(step.toObject()["changes"].toObject()));
             recipeOperations.append(recipe.report);
+        } else if (isTextCommand(name)) {
+            compose(executeTextCommand(staged, command));
         } else if (isAnnotationCommand(name)) {
             executeAnnotationCommand(staged, command);
         } else if (isSectionCommand(name)) {
@@ -1386,7 +1389,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                         const auto nested = value.toObject();
                         const auto operation = nested.value("command").toString();
                         if (nested.contains("commands") ||
-                            !(operation.startsWith("geometry.") || operation == "entity.position" ||
+                            !(operation.startsWith("geometry.") || isTextCommand(operation) || operation == "entity.position" ||
                               operation == "entity.dimensions" ||
                               operation == "entity.properties" || operation == "material.assign" ||
                               operation == "material.map_texture" ||

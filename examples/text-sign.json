@@ -1,0 +1,6 @@
+[
+  {"command":"text.create","name":"Editable sign","text":"SketchyUp","family":"DejaVu Sans","height":0.15,"depth":0.015,"allowSubstitution":true,"position":[0,0,0]},
+  {"command":"text.update","body":"1","text":"SketchyUp\nO B café"},
+  {"command":"text.create","name":"Baked marker","text":"O","family":"DejaVu Sans","height":0.3,"depth":0,"allowSubstitution":true,"position":[-0.4,0,0]},
+  {"command":"text.bake","body":"2"}
+]

@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/text_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
@@ -58,6 +59,31 @@ QJsonObject spec(QString name, QString label, QString category, QJsonObject prop
                                        {"additionalProperties", false}}},
             {"validation", "Schema plus authoritative geometry, document and resource validation"},
             {"undo", "one batch history item"}};
+}
+QJsonObject textSpec(bool creating) {
+    auto properties = textSettingsProperties();
+    if (creating) {
+        properties["parent"] = stableId(true);
+        properties["position"] = list(number(), 3, 3);
+    } else {
+        properties["body"] = stableId();
+        properties["acceptFontChange"] = QJsonObject{{"type", "boolean"}};
+        properties["regenerate"] = QJsonObject{{"type", "boolean"}};
+    }
+    auto entry = spec(creating ? "text.create" : "text.update",
+                      creating ? "Create editable local-font geometry" : "Regenerate editable 3D text",
+                      "Text", properties,
+                      creating ? QJsonArray{"name", "text", "family", "height"} : QJsonArray{"body"});
+    if (!creating) {
+        auto parameters = entry["parameters"].toObject();
+        QJsonArray alternatives;
+        for (const auto &key : textSettingsProperties().keys())
+            alternatives.append(QJsonObject{{"required", QJsonArray{key}}});
+        alternatives.append(QJsonObject{{"required", QJsonArray{"regenerate"}}, {"properties", QJsonObject{{"regenerate", QJsonObject{{"const", true}}}}}});
+        parameters["anyOf"] = alternatives;
+        entry["parameters"] = parameters;
+    }
+    return entry;
 }
 QJsonObject annotationCreateSpec() {
     auto entry = spec("annotation.create", "Create an associative distance dimension or label", "Annotations",
@@ -162,6 +188,8 @@ QJsonArray commandCatalog() {
               {"tolerance", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1},
                   {"description", "Explicit absolute tolerance in m, m2 or m3; bounds compare each axis"}}}},
              {"body", "space", "metric", "expected", "tolerance"}),
+        textSpec(true), textSpec(false),
+        spec("text.bake", "Keep text geometry and remove editable source", "Text", {{"body", stableId()}}, {"body"}),
         annotationCreateSpec(),
         annotationUpdateSpec(),
         spec("annotation.delete", "Delete a dimension or label", "Annotations",

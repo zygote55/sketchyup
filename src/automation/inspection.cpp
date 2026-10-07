@@ -1,5 +1,6 @@
 #include "automation/texture_commands.hpp"
 #include "automation/inspection.hpp"
+#include "automation/text_commands.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
@@ -46,6 +47,8 @@ QJsonObject refSchema() {
 }
 enum class Operation {
     Document,
+    Texts,
+    Text,
     Annotations,
     Annotation,
     Sections,
@@ -99,6 +102,8 @@ const std::vector<Spec> &registry() {
         };
         return std::vector<Spec>{
             spec("document.describe", Operation::Document, {}, {}),
+            spec("texts.query", Operation::Texts, {}, {}, true),
+            spec("text.describe", Operation::Text, {{"body", idSchema()}}, {"body"}),
             spec("annotations.query", Operation::Annotations,
                  {{"kind", choices({"distance", "label"})}}, {}, true),
             spec("annotation.describe", Operation::Annotation, {{"annotation", idSchema()}}, {"annotation"}),
@@ -517,6 +522,18 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                                         ? QJsonValue(inspectionReference(doc, editor->context()))
                                         : QJsonValue();
         break;
+    case Operation::Texts:
+        for (const auto &[id, body] : doc.bodies())
+            if (body->textSource) page.append([&] { return textDescription(doc, id); });
+        data = page.finish();
+        break;
+    case Operation::Text: {
+        const auto id = decimal(request["body"]);
+        if (!doc.bodies().contains(id) || !doc.bodies().at(id)->textSource)
+            fail("NOT_FOUND", "Editable text body does not exist");
+        data = textDescription(doc, id);
+        break;
+    }
     case Operation::Annotations: {
         const auto kind = request["kind"].toString();
         for (const auto &[id, record] : doc.annotations()) {
