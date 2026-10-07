@@ -807,3 +807,6 @@ install(FILES docs/decisions/0106-immutable-animation-capture.md DESTINATION sha
 
 install(FILES docs/decisions/0107-native-animation-frame-export.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0105-native-walk-and-scene-timing.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES examples/m7-building-study.sketchyup DESTINATION share/doc/sketchyup/examples)
+install(FILES docs/M7_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
