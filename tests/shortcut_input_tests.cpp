@@ -89,9 +89,9 @@ template <class F> void editor(Window &window, F exercise) {
           "Shortcut editor restores parent activation and modeling focus");
 }
 void focusedKey(Qt::Key code, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
-    auto *focused = QApplication::focusWidget();
-    check(focused, "Shortcut keyboard task has a focus owner");
-    QTest::keyClick(focused, code, modifiers);
+    check(QTest::qWaitFor([] { return QApplication::focusWidget() != nullptr; }),
+          "Shortcut keyboard task has a focus owner");
+    QTest::keyClick(QApplication::focusWidget(), code, modifiers);
     QCoreApplication::processEvents();
 }
 void tabTo(QWidget *target) {
