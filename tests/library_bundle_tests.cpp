@@ -8,6 +8,7 @@
 #include "core/tags.hpp"
 #include "io/component_library.hpp"
 #include "io/library_bundle.hpp"
+#include "io/library_catalog.hpp"
 #include "io/texture_image.hpp"
 #include <QCoreApplication>
 #include <QFile>
@@ -248,6 +249,37 @@ int main(int argc, char **argv) {
         check(encodeContainer(destination) == rejectedBefore &&
                   destination.history().total == rejectedHistory,
               "Rejected placements leave document, resources and history unchanged");
+        const auto invalidFile = files.filePath("Broken.sketchylib");
+        QFile brokenFile(invalidFile);
+        check(brokenFile.open(QIODevice::WriteOnly) && brokenFile.write("bad") == 3,
+              "Invalid catalog fixture");
+        brokenFile.close();
+        check(QFile::link(componentMoved, files.filePath("Link.sketchylib")),
+              "Library link fixture");
+        const auto catalog = scanLibraryDirectory(files.path());
+        check(catalog.entries.size() == 4,
+              "Catalog includes templates, components and bounded invalid entries");
+        size_t templates{}, components{}, errors{}, matches{};
+        for (const auto &entry : catalog.entries) {
+            if (!entry.error.isEmpty()) {
+                ++errors;
+                check(entry.thumbnailPng.isEmpty(), "Invalid entries retain no thumbnail");
+                continue;
+            }
+            if (entry.kind == LibraryKind::Template)
+                ++templates;
+            else
+                ++components;
+            if (matchesLibrarySearch(entry, "NESTED furniture"))
+                ++matches;
+            check(matchesLibrarySearch(entry, "  "), "Empty search includes every entry");
+            check(!matchesLibrarySearch(entry, "absent-keyword"),
+                  "Unmatched search excludes entry");
+        }
+        check(
+            templates == 1 && components == 1 && errors == 2 && matches == 1,
+            "Catalog fully validates kinds, searches all terms and rejects malformed/link entries");
+        rejects([&] { scanLibraryDirectory(files.filePath("missing")); });
         std::cout << "Template bundles: embedded resources, relocation, fresh documents, "
                      "immutability and malformed bounds passed\n";
     } catch (const std::exception &e) {
