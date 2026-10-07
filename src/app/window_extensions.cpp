@@ -16,6 +16,22 @@
 #include <QThread>
 #include <QVBoxLayout>
 namespace sketchy {
+namespace {
+class ExtensionNumber final : public QDoubleSpinBox {
+    QString textFromValue(double value) const override {
+        auto text = QDoubleSpinBox::textFromValue(value);
+        const auto point = locale().decimalPoint();
+        const auto zero = locale().zeroDigit();
+        if (text.contains(point)) {
+            while (text.endsWith(zero))
+                text.chop(zero.size());
+            if (text.endsWith(point))
+                text.chop(point.size());
+        }
+        return text;
+    }
+};
+} // namespace
 void Window::extensionsDialog() {
     const auto directory =
         QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/extensions";
@@ -111,7 +127,7 @@ void Window::extensionsDialog() {
                 const auto name = spec["name"].toString();
                 QWidget *editor{};
                 if (spec["type"] == "number") {
-                    auto *number = new QDoubleSpinBox;
+                    auto *number = new ExtensionNumber;
                     number->setDecimals(9);
                     number->setRange(spec["minimum"].toDouble(), spec["maximum"].toDouble());
                     number->setValue(spec["default"].toDouble());
@@ -130,6 +146,7 @@ void Window::extensionsDialog() {
                 auto *label = new QLabel(spec["label"].toString());
                 label->setTextFormat(Qt::PlainText);
                 label->setWordWrap(true);
+                label->setMinimumWidth(140);
                 label->setMaximumWidth(220);
                 label->setBuddy(editor);
                 parameters->addRow(label, editor);
