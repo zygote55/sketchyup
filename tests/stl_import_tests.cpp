@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <iostream>
 using namespace sketchy;
@@ -42,6 +43,48 @@ StlSource cube() {
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
+        if (app.arguments().contains("--blender-real")) {
+            const auto blender = qEnvironmentVariable("SKETCHYUP_BLENDER_TEST");
+            if (blender.isEmpty())
+                return 77;
+            QTemporaryDir folder;
+            check(folder.isValid(), "Blender STL scratch");
+            QProcess producer;
+            producer.start(blender, {"--background", "--factory-startup", "--disable-autoexec",
+                                     "--python-exit-code", "1", "--python",
+                                     QStringLiteral(SOURCE_DIR "/tests/stl_blender_fixture.py"),
+                                     "--", folder.path()});
+            check(producer.waitForStarted(10000) && producer.waitForFinished(90000) &&
+                      producer.exitStatus() == QProcess::NormalExit && producer.exitCode() == 0,
+                  "Actual Blender STL producer");
+            for (const auto name : {"binary.stl", "ascii.stl"}) {
+                const auto imported =
+                    loadStl(folder.filePath(name), {.001, StlUpAxis::Z}, {StlWeld::Exact});
+                check(imported.report["facets"].toInt() == 12 &&
+                          imported.report["vertices"].toInt() == 8 &&
+                          geometry(imported)["solidStatus"] == "solid",
+                      "Both Blender encodings preserve closed reflected box");
+                near(geometry(imported)["materialVolume"].toDouble(), 24);
+                Vec3 low{1e6, 1e6, 1e6}, high{-1e6, -1e6, -1e6};
+                for (const auto &[id, body] : imported.document.bodies())
+                    for (const auto &[vertex, p] : body->surface.vertices) {
+                        (void)id;
+                        (void)vertex;
+                        low = {std::min(low.x, p.x), std::min(low.y, p.y), std::min(low.z, p.z)};
+                        high = {std::max(high.x, p.x), std::max(high.y, p.y),
+                                std::max(high.z, p.z)};
+                    }
+                near(low.x, 9);
+                near(high.x, 11);
+                near(low.y, 18.5);
+                near(high.y, 21.5);
+                near(low.z, 28);
+                near(high.z, 32);
+            }
+            std::cout << "Blender binary/ASCII STL units, placement, reflection, topology and "
+                         "volume passed\n";
+            return 0;
+        }
         const auto source = cube();
         auto result = importStl(source, {StlWeld::Exact});
         check(result.report["vertices"].toInt() == 8 && result.report["facets"].toInt() == 12,
