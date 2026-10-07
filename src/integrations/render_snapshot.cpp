@@ -191,6 +191,9 @@ RenderSnapshot::RenderSnapshot(Document document, RenderSettings settings, Rende
     : document_(std::move(document)), sourceIdentity_(document_.identity()),
       sourceRevision_(document_.revision()), settings_(settings), camera_(camera),
       hidden_(std::move(hidden)) {}
+bool RenderSnapshot::edgeVisible(Id body, Id edge) const {
+    return visible(body) && !hidden_.contains({body, SelectionKind::Edge, edge});
+}
 bool RenderSnapshot::visible(Id body, Id face) const {
     if (face && hidden_.contains({body, SelectionKind::Face, face}))
         return false;
@@ -214,6 +217,10 @@ RenderSnapshot RenderSnapshot::capture(const Document &document, RenderOptions o
             require(document.bodies().at(entity.body)->surface.faces.contains(entity.entity),
                     "Hidden render face no longer exists");
     }
+    for (auto entity : hidden)
+        if (entity.kind == SelectionKind::Edge)
+            require(document.bodies().at(entity.body)->topology.edges.contains(entity.entity),
+                    "Hidden render edge no longer exists");
     RenderSnapshot result(document.readSnapshot(), options.settings,
                           options.camera.value_or(RenderCamera{}), std::move(hidden));
     if (options.environment)
