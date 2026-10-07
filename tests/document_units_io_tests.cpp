@@ -101,6 +101,7 @@ int main(int argc, char **argv) {
         root.remove("style");
         root.remove("scenes");
         root.remove("sections");
+        root.remove("solar");
         root.remove("annotations");
         root.remove("nextAnnotationId");
         root.remove("nextSectionId");

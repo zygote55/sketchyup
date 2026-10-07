@@ -12,6 +12,7 @@ namespace sketchy {
 Document Document::readSnapshot() const {
     Document result(displayUnits_);
     result.style_ = style_;
+    result.solar_ = solar_;
     result.identity_ = identity_;
     result.bodies_ = bodies_;
     result.nextId_ = nextId_;
@@ -224,6 +225,13 @@ void Document::setDisplayUnits(DisplayUnit units) {
         return;
     Edit edit{"Change document units", {}};
     edit.displayUnits = std::pair{displayUnits_, units};
+    apply(std::move(edit), revision_);
+}
+void Document::setSolar(const SolarSettings &solar) {
+    solar.validate();
+    if (solar == solar_) return;
+    Edit edit{"Change sun study", {}};
+    edit.solar = std::pair{solar_, solar};
     apply(std::move(edit), revision_);
 }
 void Document::setStyle(const ModelStyle &style) {
@@ -614,6 +622,8 @@ void Document::update(Edit edit, bool forward) {
         displayUnits_ = forward ? edit.displayUnits->second : edit.displayUnits->first;
     if (edit.style)
         style_ = forward ? edit.style->second : edit.style->first;
+    if (edit.solar)
+        solar_ = forward ? edit.solar->second : edit.solar->first;
 }
 ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     auto boundedText = [](const std::string &text, size_t limit) {
@@ -630,8 +640,14 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.hosted && !edit.style && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
+        !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
         throw std::runtime_error("Empty edit");
+    if (edit.solar) {
+        edit.solar->first.validate();
+        edit.solar->second.validate();
+        if (edit.solar->first != solar_ || edit.solar->first == edit.solar->second)
+            throw std::runtime_error("Invalid or stale sun study change");
+    }
     if (edit.style) {
         edit.style->first.validate();
         edit.style->second.validate();
@@ -1174,6 +1190,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         displayUnits_ = h.edit.displayUnits->second;
     if (h.edit.style)
         style_ = h.edit.style->second;
+    if (h.edit.solar)
+        solar_ = h.edit.solar->second;
     state_ = h.after;
     ++revision_;
     while ((historyBytes_ > historyLimit || undo_.size() > historyEntryLimit) && undo_.size() > 1) {
@@ -1270,6 +1288,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineActiveSections = staged.activeSections_;
     const auto baselineUnits = staged.displayUnits_;
     const auto baselineStyle = staged.style_;
+    const auto baselineSolar = staged.solar_;
     const auto baselineHosted = staged.hosted_;
     // Rewind only the private candidate. A replacement publishes one revision,
     // and retains the pre-operation history entry and monotonic allocator floors.
@@ -1280,6 +1299,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("Replacement must commit exactly one atomic operation");
     if (!undo_.back().edit.displayUnits && staged.displayUnits_ != baselineUnits)
         throw std::runtime_error("Replacement cannot change document units outside its scope");
+    if (!undo_.back().edit.solar && staged.solar_ != baselineSolar)
+        throw std::runtime_error("Replacement cannot change sun study outside its scope");
     if (!undo_.back().edit.style && staged.style_ != baselineStyle)
         throw std::runtime_error("Replacement cannot change model style outside its scope");
     if (!undo_.back().edit.activeSections && staged.activeSections_ != baselineActiveSections)
@@ -1483,9 +1504,10 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        AssetRecords assets, Id nextAssetId, DisplayUnit units, HostedPtr hosted,
                        ModelStyle style, SceneRecords scenes, Id nextSceneId, SectionRecords sections,
                        Id nextSectionId, ActiveSections activeSections,
-                       AnnotationRecords annotations, Id nextAnnotationId) {
+                       AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar) {
     unitCode(units);
     style.validate();
+    solar.validate();
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
@@ -1554,6 +1576,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
     identity_ = std::move(identity);
     displayUnits_ = units;
     style_ = style;
+    solar_ = solar;
     nextId_ = next;
     bodies_ = std::move(bodies);
     definitions_ = std::move(definitions);

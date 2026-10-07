@@ -1,3 +1,4 @@
+#include "io/solar_io.hpp"
 #include "core/scenes.hpp"
 #include "core/tags.hpp"
 #include "io/document_io.hpp"
@@ -91,7 +92,7 @@ int main(int argc, char **argv) {
         std::reverse(order.begin(), order.end());
         reorderScenes(doc, order);
         auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
-        check(QJsonDocument::fromJson(raw).object()["version"] == 22, "Current schema explicit");
+        check(QJsonDocument::fromJson(raw).object()["version"] == 23, "Current schema explicit");
         auto reopened = decodeContainer(bytes);
         check(encodeContainer(reopened) == bytes && encodeDocument(decodeDocument(raw)) == raw &&
                   orderedScenes(reopened) == order && reopened.nextSceneId() > offId &&
@@ -219,7 +220,8 @@ int main(int argc, char **argv) {
         const auto oldBytes = source.readAll();
         const auto oldLength = qFromLittleEndian<quint32>(oldBytes.constData() + 12);
         auto old = QJsonDocument::fromJson(oldBytes.mid(16 + oldLength)).object();
-        old["version"] = 22;
+        old["version"] = 23;
+        old["solar"] = encodeSolarSettings(SolarSettings{});
         old["annotations"] = QJsonArray{};
         old["nextAnnotationId"] = "1";
         old["sections"] = QJsonArray{};
