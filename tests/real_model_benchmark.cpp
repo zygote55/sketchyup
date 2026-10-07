@@ -78,19 +78,23 @@ int main(int argc, char **argv) {
         const auto fixtureMs = timer.nsecsElapsed() / 1e6;
         const auto fixtureRss = peakRss();
         Viewport view(doc);
-        view.resize(1920, 1080);
+        view.setFixedSize(1920, 1080);
         view.setSynchronousFrameTiming(true);
         view.show();
         check(QTest::qWaitForWindowExposed(&view), "Benchmark viewport exposed");
-        view.resize(qRound(1920 / view.devicePixelRatioF()),
-                    qRound(1080 / view.devicePixelRatioF()));
+        view.setFixedSize(qRound(1920 / view.devicePixelRatioF()),
+                          qRound(1080 / view.devicePixelRatioF()));
+        QTest::qWait(100);
         view.fit();
         QCoreApplication::processEvents();
         std::vector<double> frames, picks, edits;
         auto frame = [&] {
+            QCoreApplication::processEvents();
             const auto before = view.renderStats().frames;
             const auto image = view.grabFramebuffer();
             check(!image.isNull() && view.renderStats().frames > before, "Fresh benchmark frame");
+            check(image.size() == QSize(1920, 1080),
+                  "Benchmark requires an exact 1920 by 1080 framebuffer");
             return image.size();
         };
         for (int i = 0; i < 10; ++i)
