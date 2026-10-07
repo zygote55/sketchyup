@@ -41,7 +41,7 @@ void bodyDifference(Edit &edit, const Document &doc, const std::map<Id, BodyPtr>
     for (auto id : ids) {
         const auto before = doc.bodies().contains(id) ? doc.bodies().at(id) : nullptr;
         const auto after = scene.contains(id) ? scene.at(id) : nullptr;
-        if ((!before != !after) || (before && after && *before != *after))
+        if (before != after && (!before || !after || *before != *after))
             edit.changes.push_back({id, before, after, {}, {}, {}, true});
     }
 }
@@ -135,6 +135,7 @@ struct Projection {
     const Document &before;
     const ComponentDefinitions &definitions;
     const ComponentInstances &bindings;
+    const std::map<Id, BodyPtr> &seed;
     std::map<Id, BodyPtr> scene;
     ComponentInstances instances;
     Id next;
@@ -143,6 +144,23 @@ struct Projection {
         const auto reuse = bindings.contains(root) && bindings.at(root)->definition == definitionId
                                ? bindings.at(root)
                                : nullptr;
+        // A leaf has no transitive definition dependencies. Reuse its validated,
+        // immutable projection only when its definition, binding, placement and
+        // every seeded member are unchanged. Nested assemblies still resolve.
+        if (definition.references.empty() && reuse && before.instances().contains(root) &&
+            before.instances().at(root) == reuse && before.definitions().contains(definitionId) &&
+            before.definitions().at(definitionId) == definitions.at(definitionId) &&
+            before.bodies().contains(root) && before.bodies().at(root).get() == &placement &&
+            std::all_of(reuse->members.begin(), reuse->members.end(), [&](const auto &member) {
+                const auto id = member.second;
+                return seed.contains(id) && before.bodies().contains(id) &&
+                       seed.at(id) == before.bodies().at(id);
+            })) {
+            instances[root] = reuse;
+            for (const auto &[member, id] : reuse->members)
+                scene[id] = before.bodies().at(id);
+            return;
+        }
         auto binding = std::make_shared<ComponentInstance>();
         binding->definition = definitionId;
         binding->members[definition.root] = root;
@@ -195,7 +213,7 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
             if (id != root)
                 nestedRoots.insert(id);
         }
-    Projection projection{doc, definitions, bindings, seed, {}, next};
+    Projection projection{doc, definitions, bindings, seed, seed, {}, next};
     for (auto id : owned)
         projection.scene.erase(id);
     ComponentSize total;
