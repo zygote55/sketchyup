@@ -1,0 +1,44 @@
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.8s)
+-- Generating done (0.7s)
+-- Build files have been written to: /work/package/src/build
+[1/23] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/inference.cpp.o
+[2/23] Linking CXX static library libsketchyup_core.a
+[3/23] Automatic MOC for target sketchyup_render
+[4/21] Automatic MOC for target sketchyup_providers
+[5/19] Linking CXX executable sketchyup-text-worker
+[6/19] Linking CXX executable sketchyup-extension-worker
+[7/19] Automatic MOC for target sketchyup_desktop
+[8/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_textures.cpp.o
+[9/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/organization_panel.cpp.o
+[10/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_guides.cpp.o
+[11/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport.cpp.o
+[12/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_selection.cpp.o
+[13/18] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window.cpp.o
+[14/18] Linking CXX static library libsketchyup_desktop.a
+[15/18] Automatic MOC for target viewport_tests
+[16/17] Building CXX object CMakeFiles/viewport_tests.dir/tests/viewport_tests.cpp.o
+[17/17] Linking CXX executable viewport_tests
+926846425fcefe7a2d0a9292d1b406e48940acb84cd7b5a0a72aeb6f4bd8be86  /capture/viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+{"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom","colorBits":[8,8,8,8],"contextGenerations":2,"graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2","outputTransitions":[],"passed":true,"platform":"wayland","scale":1,"screens":[{"name":"headless","scale":1}]}
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+{"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom","colorBits":[8,8,8,8],"contextGenerations":2,"graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2","outputTransitions":[],"passed":true,"platform":"wayland","scale":2,"screens":[{"name":"headless","scale":2}]}
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.7s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build

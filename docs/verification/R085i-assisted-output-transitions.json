@@ -1,0 +1,444 @@
+{
+  "recordedAt": "2026-10-07T23:03:31.846221+00:00",
+  "scope": "Physical output transitions with explicit owned-window placement on X11; no full R085/release acceptance",
+  "releaseAccepted": false,
+  "finalPassed": true,
+  "normalWaylandChecks": 4,
+  "attempts": [
+    {
+      "run": "r085j",
+      "passed": false,
+      "error": "xcb failed; diagnostic files retained",
+      "qualifiedPlatforms": [
+        "wayland"
+      ],
+      "source": "1451d55c0188f74cec4d7ea2e169221331140d39",
+      "report": {
+        "file": "R085i-r085j-attempt.json",
+        "sha256": "6b98542039319109b05bfd3f4ae921eae12e8998a4f3b30c186fbf49f8636764"
+      },
+      "stderr": [
+        {
+          "file": "R085i-r085j-wayland.txt",
+          "sha256": "532d74fb84051a856fe0bbff833f67b4d86154b57a988e27a60679b97ee0baca"
+        },
+        {
+          "file": "R085i-r085j-xcb.txt",
+          "sha256": "e966b3f18352f6ce82f8a9c7780dfde88f6e795e9b63c9abc91ee55b8ddc32ff"
+        }
+      ],
+      "limits": {
+        "wayland": {
+          "memory.max": "4294967296",
+          "memory.swap.max": "0",
+          "cpu.max": "800000 100000",
+          "pids.max": "256",
+          "cpuAffinity": [
+            0,
+            1,
+            3,
+            6,
+            8,
+            10,
+            12,
+            13
+          ]
+        },
+        "xcb": {
+          "memory.max": "4294967296",
+          "memory.swap.max": "0",
+          "cpu.max": "800000 100000",
+          "pids.max": "256",
+          "cpuAffinity": [
+            0,
+            1,
+            3,
+            6,
+            8,
+            10,
+            12,
+            13
+          ]
+        }
+      }
+    },
+    {
+      "run": "r085k",
+      "passed": false,
+      "error": "xcb failed; diagnostic files retained",
+      "qualifiedPlatforms": [
+        "wayland"
+      ],
+      "source": "ea9b220c8da304d82c6e7567e728de079d98148b",
+      "report": {
+        "file": "R085i-r085k-attempt.json",
+        "sha256": "17878fd52b9b3080c67e4750be56ddfb3e0a0d4fa63e0702e57ff20858d1e453"
+      },
+      "stderr": [
+        {
+          "file": "R085i-r085k-wayland.txt",
+          "sha256": "81cb96931622435f808c90555419fb2fc02ed7c10cc7cd7f87dc23a51e23dfdf"
+        },
+        {
+          "file": "R085i-r085k-xcb.txt",
+          "sha256": "03467867908ab4ec0fef6bb69e188ca549c3e9c087bed95a33302b1dbdc27d8d"
+        }
+      ],
+      "limits": {
+        "wayland": {
+          "memory.max": "4294967296",
+          "memory.swap.max": "0",
+          "cpu.max": "800000 100000",
+          "pids.max": "256",
+          "cpuAffinity": [
+            0,
+            1,
+            3,
+            6,
+            8,
+            10,
+            12,
+            13
+          ]
+        },
+        "xcb": {
+          "memory.max": "4294967296",
+          "memory.swap.max": "0",
+          "cpu.max": "800000 100000",
+          "pids.max": "256",
+          "cpuAffinity": [
+            0,
+            1,
+            3,
+            6,
+            8,
+            10,
+            12,
+            13
+          ]
+        }
+      }
+    },
+    {
+      "run": "r085l",
+      "passed": false,
+      "error": "xcb failed; diagnostic files retained",
+      "qualifiedPlatforms": [
+        "wayland"
+      ],
+      "source": "ea9b220c8da304d82c6e7567e728de079d98148b",
+      "report": {
+        "file": "R085i-r085l-attempt.json",
+        "sha256": "972ad3d366b7a7985a9f18ffbe236d45a07140d090f3b267091aa8e3492fa2ea"
+      },
+      "stderr": [
+        {
+          "file": "R085i-r085l-wayland.txt",
+          "sha256": "f4ea0d454a215fb0f9b6b85a79e8657e311052e714a862b8e8bfba6c366f955f"
+        },
+        {
+          "file": "R085i-r085l-xcb.txt",
+          "sha256": "ad18951db7a3c0b680f5456e8498236bee1ae402b4786e169226998771ac0baa"
+        }
+      ],
+      "limits": {
+        "wayland": {
+          "memory.max": "4294967296",
+          "memory.swap.max": "0",
+          "cpu.max": "800000 100000",
+          "pids.max": "256",
+          "cpuAffinity": [
+            0,
+            1,
+            3,
+            6,
+            8,
+            10,
+            12,
+            13
+          ]
+        },
+        "xcb": {
+          "memory.max": "4294967296",
+          "memory.swap.max": "0",
+          "cpu.max": "800000 100000",
+          "pids.max": "256",
+          "cpuAffinity": [
+            0,
+            1,
+            3,
+            6,
+            8,
+            10,
+            12,
+            13
+          ]
+        }
+      }
+    },
+    {
+      "run": "r085m",
+      "passed": true,
+      "error": null,
+      "qualifiedPlatforms": [
+        "wayland",
+        "xcb"
+      ],
+      "source": "ea9b220c8da304d82c6e7567e728de079d98148b",
+      "report": {
+        "file": "R085i-r085m-attempt.json",
+        "sha256": "f0546446465dba0c290669dfed6e63f085877d028d478fbf93a7e41e3520b5cf"
+      },
+      "stderr": [
+        {
+          "file": "R085i-r085m-wayland.txt",
+          "sha256": "c9dfc56a418dc47155e3a7f2bce4ee3c540fc2ea01e64b84d74713ec74c91c7c"
+        },
+        {
+          "file": "R085i-r085m-xcb.txt",
+          "sha256": "8ccc3684cc5177f9d025c41d1fc6c77d29e49a1d8b75de3a5e1f544a72784042"
+        }
+      ],
+      "limits": {
+        "wayland": {
+          "memory.max": "4294967296",
+          "memory.swap.max": "0",
+          "cpu.max": "800000 100000",
+          "pids.max": "256",
+          "cpuAffinity": [
+            0,
+            1,
+            3,
+            6,
+            8,
+            10,
+            12,
+            13
+          ]
+        },
+        "xcb": {
+          "memory.max": "4294967296",
+          "memory.swap.max": "0",
+          "cpu.max": "800000 100000",
+          "pids.max": "256",
+          "cpuAffinity": [
+            0,
+            1,
+            3,
+            6,
+            8,
+            10,
+            12,
+            13
+          ]
+        }
+      }
+    }
+  ],
+  "builds": [
+    {
+      "run": "r085j",
+      "source": "1451d55c0188f74cec4d7ea2e169221331140d39",
+      "exitCode": 0,
+      "normalWaylandCases": 2,
+      "binarySha256": "926846425fcefe7a2d0a9292d1b406e48940acb84cd7b5a0a72aeb6f4bd8be86",
+      "compiledOverlayFiles": {
+        "tests/viewport_tests.cpp": "4f9b536663e51e175a021d84555efe214f5bc8a88e4363ddd21d732fef1c1611",
+        "tests/file_operation_input_tests.cpp": "b4c733a5cb0e6b7c62705a7fa836997469551c6c6787442207835b18fb89825d",
+        "src/app/viewport_guides.cpp": "14c5ebf63476cd52e4d5b25e5ffe54e2069e78a717ea36fc0b3d11c55b10446d",
+        "src/app/viewport.cpp": "1ff885d8b9285c86ea468ad95f1ad58c9eb0031ea66f9a771b0474f5bc6f3ce1",
+        "src/app/viewport_selection.cpp": "67de88a17770c71d1a7c3cca0abb652bf6f9c3abf4d886297fb4dce08b75245f",
+        "src/app/viewport_textures.cpp": "676e80b99af0b4c0937a6c5da2e3d85570f2291db715db7f38e8c05d97506863",
+        "CMakeLists.txt": "7b2d31af076e4f061203897db469e2fe1556c532009837ae4dda9d3eb68bff93",
+        "tests/real_model_benchmark.cpp": "b11fbc260ec8ff984a7844d2a971df9be836a63c55d06da6d6477374ed261179",
+        "src/geometry/inference.cpp": "beebc65c2e0c727431d8040d63e9c6199d68c3b4a8ce09c9ea45ef18e2b4cb1f",
+        "tests/fixtures/performance/front.png": "bef19ea75d4f1b1a636d6db100f1f0b32c89cc0f6f5301af159f8b27b31e940b",
+        "tests/fixtures/performance/back.png": "dc7164dbfa82e0992f6d75fd5287e3fd17226fdbb30cb2142244d0c3a6b9c268"
+      },
+      "buildLog": {
+        "file": "R085i-r085j-build.txt",
+        "sha256": "7fbfd4c36ac4c3b2c0f9f680dc28c0f4023e1fd39ce49a959f921664abc1e077"
+      },
+      "limits": {
+        "Memory": 4294967296,
+        "MemorySwap": 4294967296,
+        "NanoCpus": 8000000000,
+        "CpusetCpus": "0,1,3,6,8,10,12,13",
+        "PidsLimit": 256
+      },
+      "packageCacheBase": "29fb31b",
+      "outerBuildJobs": 2,
+      "ltoWorkersPerLink": 2
+    },
+    {
+      "run": "r085k",
+      "source": "ea9b220c8da304d82c6e7567e728de079d98148b",
+      "exitCode": 0,
+      "normalWaylandCases": 2,
+      "binarySha256": "73d4392e1ebaa9b4a8a99e617600b1fde74198cb171cc80e7eb03b67692257f1",
+      "compiledOverlayFiles": {
+        "tests/viewport_tests.cpp": "655f40c4cc03d7ceb28af17a65afb58bd5425d15820176f65fec90d174e4eca2",
+        "tests/file_operation_input_tests.cpp": "b4c733a5cb0e6b7c62705a7fa836997469551c6c6787442207835b18fb89825d",
+        "src/app/viewport_guides.cpp": "14c5ebf63476cd52e4d5b25e5ffe54e2069e78a717ea36fc0b3d11c55b10446d",
+        "src/app/viewport.cpp": "1ff885d8b9285c86ea468ad95f1ad58c9eb0031ea66f9a771b0474f5bc6f3ce1",
+        "src/app/viewport_selection.cpp": "67de88a17770c71d1a7c3cca0abb652bf6f9c3abf4d886297fb4dce08b75245f",
+        "src/app/viewport_textures.cpp": "676e80b99af0b4c0937a6c5da2e3d85570f2291db715db7f38e8c05d97506863",
+        "CMakeLists.txt": "7b2d31af076e4f061203897db469e2fe1556c532009837ae4dda9d3eb68bff93",
+        "tests/real_model_benchmark.cpp": "b11fbc260ec8ff984a7844d2a971df9be836a63c55d06da6d6477374ed261179",
+        "src/geometry/inference.cpp": "beebc65c2e0c727431d8040d63e9c6199d68c3b4a8ce09c9ea45ef18e2b4cb1f",
+        "tests/fixtures/performance/front.png": "bef19ea75d4f1b1a636d6db100f1f0b32c89cc0f6f5301af159f8b27b31e940b",
+        "tests/fixtures/performance/back.png": "dc7164dbfa82e0992f6d75fd5287e3fd17226fdbb30cb2142244d0c3a6b9c268"
+      },
+      "buildLog": {
+        "file": "R085i-r085k-build.txt",
+        "sha256": "befd0e42cc26263279f7b8b3c415bc4b1a21805a9be7f190bbd17d67cbce7973"
+      },
+      "limits": {
+        "Memory": 4294967296,
+        "MemorySwap": 4294967296,
+        "NanoCpus": 8000000000,
+        "CpusetCpus": "0,1,3,6,8,10,12,13",
+        "PidsLimit": 256
+      },
+      "packageCacheBase": "29fb31b",
+      "outerBuildJobs": 2,
+      "ltoWorkersPerLink": 2
+    }
+  ],
+  "helperSource": "8792a6b10f358f2ca7e726821d7e17c1dcea365a",
+  "helperSha256": "abcd556ae7f85b7ebe9f6f0bc81231921f71c745516c6f77286a9636428df4cd",
+  "finalCases": [
+    {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 37,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "colorBits": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "contextGenerations": 6,
+      "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+      "outputTransitions": [
+        {
+          "colorBits": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "contextGeneration": 3,
+          "effectiveScale": 2,
+          "framebufferHeight": 1756,
+          "framebufferWidth": 2836,
+          "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+          "logicalHeight": 878,
+          "logicalWidth": 1418,
+          "placement": "Qt fullscreen request",
+          "screen": "eDP-1"
+        },
+        {
+          "colorBits": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "contextGeneration": 5,
+          "effectiveScale": 1.6,
+          "framebufferHeight": 2125,
+          "framebufferWidth": 3805,
+          "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+          "logicalHeight": 1328,
+          "logicalWidth": 2378,
+          "placement": "Qt fullscreen request",
+          "screen": "DP-7"
+        }
+      ],
+      "passed": true,
+      "platform": "wayland",
+      "scale": 1.6,
+      "screens": [
+        {
+          "name": "eDP-1",
+          "scale": 2
+        },
+        {
+          "name": "DP-7",
+          "scale": 2
+        }
+      ]
+    },
+    {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 37,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "colorBits": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "contextGenerations": 6,
+      "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+      "outputTransitions": [
+        {
+          "colorBits": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "contextGeneration": 3,
+          "effectiveScale": 1,
+          "framebufferHeight": 1778,
+          "framebufferWidth": 2858,
+          "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+          "logicalHeight": 1778,
+          "logicalWidth": 2858,
+          "placement": "external test helper",
+          "screen": "eDP-1"
+        },
+        {
+          "colorBits": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "contextGeneration": 5,
+          "effectiveScale": 1,
+          "framebufferHeight": 2138,
+          "framebufferWidth": 3818,
+          "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+          "logicalHeight": 2138,
+          "logicalWidth": 3818,
+          "placement": "external test helper",
+          "screen": "DP-7"
+        }
+      ],
+      "passed": true,
+      "platform": "xcb",
+      "scale": 1,
+      "screens": [
+        {
+          "name": "eDP-1",
+          "scale": 1
+        },
+        {
+          "name": "DP-7",
+          "scale": 1
+        }
+      ]
+    }
+  ],
+  "retainedFindings": [
+    "Original Qt-only X11 output requests failed in R085h evidence.",
+    "R085j and R085l old dispatcher helper failed; current Lua dispatcher fixes this test helper.",
+    "R085k X11 failed an earlier camera/transparency cache assertion before placement; retained, not explained by the helper fix.",
+    "X11 Qt effective DPR is1 on both physical displays; this is not native fractional-DPR qualification."
+  ]
+}
