@@ -176,7 +176,10 @@ int main(int argc, char **argv) {
         view.setSynchronousFrameTiming(true);
         QElapsedTimer textureReady;
         textureReady.start();
-        host.show();
+        if (qEnvironmentVariable("SKETCHYUP_BENCHMARK_FULLSCREEN") == "1")
+            host.showFullScreen();
+        else
+            host.show();
         check(QTest::qWaitForWindowExposed(&host), "Benchmark viewport exposed");
         // Native Wayland may deliver the final output scale after first exposure.
         // Keep the child framebuffer independent of both tiling and that late scale.
@@ -354,6 +357,7 @@ int main(int argc, char **argv) {
             {"pixelHeight", pixels.height()},
             {"hostLogicalWidth", host.width()},
             {"hostLogicalHeight", host.height()},
+            {"hostFullScreen", host.isFullScreen()},
             {"viewportClippedByHost", view.width() > host.width() || view.height() > host.height()},
             {"scale", view.devicePixelRatioF()},
             {"style", encodeModelStyle(doc.style())},
