@@ -13,7 +13,7 @@ jobs:
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema nodejs npm blender ffmpeg poppler
+          pacman -Syyuu --noconfirm --needed cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema nodejs npm blender ffmpeg poppler at-spi2-core
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Configure desktop tests without the optional CLI
@@ -105,6 +105,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/preference_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_modeling_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_outliner_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/shortcut_input_tests
@@ -124,6 +125,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/preference_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_modeling_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_outliner_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/shortcut_input_tests
@@ -258,6 +260,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/preference_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_modeling_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_outliner_input_tests
+          SKETCHYUP_TEST_SCALE=1 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-1.json
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/theme_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/text_size_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/shortcut_input_tests
@@ -278,6 +281,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/preference_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_modeling_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_outliner_input_tests
+          SKETCHYUP_TEST_SCALE=2 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-2.json
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/theme_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/text_size_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/shortcut_input_tests
