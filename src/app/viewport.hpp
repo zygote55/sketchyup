@@ -154,6 +154,7 @@ class Viewport : public QOpenGLWidget {
     QJsonObject editSavedScenes(const QJsonArray &commands);
     QJsonObject editSections(const QJsonArray &commands);
     QJsonObject editAnnotations(const QJsonArray &commands);
+    void applyTextEdit(const Document::PreparedEdit &edit);
     void recallSavedScene(Id scene);
     void setReducedMotion(bool enabled);
     void setAssistantPreview(std::shared_ptr<const Document::PreparedEdit> edit);
