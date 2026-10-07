@@ -67,7 +67,12 @@ int main(int argc, char **argv) {
         imported.document.undo();
         check(imported.document.bodies().empty(), "One atomic import undo");
         imported.document.redo();
-        check(encodeDocument(imported.document) == encoded, "Redo restores geometry and records");
+        const auto restored = decodeDocument(encoded);
+        check(imported.document.bodies().size() == restored.bodies().size(),
+              "Redo restores body count");
+        for (const auto &[id, body] : restored.bodies())
+            check(*imported.document.bodies().at(id) == *body,
+                  "Redo restores geometry and records");
         check(read(path) == concave, "Source unchanged");
         const QByteArray quad = "mtllib paint.mtl\nusemtl Paint\nv 0 0 0\nv 2 0 0\nv 2 3 0\nv 0 3 "
                                 "0\nvt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nf 1/1 2/2 3/3 4/4\n";

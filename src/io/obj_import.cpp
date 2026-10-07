@@ -394,6 +394,6 @@ struct Importer {
 };
 } // namespace
 ObjImport loadObj(const QString &path, ObjImportOptions options) {
-    return Importer{}.run(path, options);
+    return Importer().run(path, options);
 }
 } // namespace sketchy
