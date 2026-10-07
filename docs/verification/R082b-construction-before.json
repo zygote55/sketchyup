@@ -1,0 +1,15 @@
+{
+  "bodies": 2000,
+  "constructionMs": 240110.499278,
+  "constructionPeakRssBytes": 55824384,
+  "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+  "fixtureVersion": 1,
+  "instances": 1000,
+  "nativeBytes": 7021923,
+  "releaseAcceptance": false,
+  "timingScope": "Public face/extrude/component creation and placement; excludes serialization, viewport and presentation",
+  "triangles": 100000,
+  "source": "df3f658792f10ab919e0002adfee0bdd682e84a1",
+  "buildType": "Debug",
+  "concurrentLoad": "Other worktrees compiling and CPU-only local-provider evaluation; exploratory, not controlled reference acceptance"
+}

@@ -1,0 +1,7 @@
+Test project $SOURCE/build/native-text-sanitize
+    Start 34: components
+1/1 Test #34: components .......................   Passed    0.61 sec
+
+100% tests passed out of 1
+
+Total Test time (real) =   0.62 sec
