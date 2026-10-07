@@ -49,7 +49,7 @@ struct Importer {
     std::map<const cgltf_material *, Id> materials;
     std::map<std::pair<const cgltf_image *, int>, Id> images;
     Id nextBody{1}, nextDefinition{1}, nextMaterial{1}, nextAsset{1}, nextScene{1};
-    size_t vertices{}, faces{}, records{}, assetSize{};
+    size_t vertices{}, faces{}, records{}, assetSize{}, decodedBytes{};
     std::set<const cgltf_node *> visited;
     explicit Importer(const GltfPackage &p) : package(p), data(p.data()) {}
     void loss(const char *key, int count = 1) { losses[key] = losses[key].toInt() + count; }
@@ -133,6 +133,10 @@ struct Importer {
         const auto decoded = decodeTextureImage(*a);
         if (decoded.status != TextureImageStatus::Ready)
             throw std::runtime_error("glTF texture is not a supported bounded PNG/JPEG image");
+        decodedBytes += decoded.image->rgba().size();
+        if (decodedBytes > 256 * 1024 * 1024)
+            throw std::runtime_error(
+                "glTF textures exceed the 256 MiB aggregate decoded-image budget");
         if (alpha == cgltf_alpha_mode_opaque && decoded.image->hasTransparency()) {
             auto rgba = decoded.image->rgba();
             for (size_t i = 3; i < rgba.size(); i += 4)
@@ -445,6 +449,7 @@ struct Importer {
                          {"instances", qint64(result.document.instances().size())},
                          {"materials", qint64(materials.size())},
                          {"images", qint64(images.size())},
+                         {"decodedTextureBytes", qint64(decodedBytes)},
                          {"cameras", qint64(result.document.scenes().size())},
                          {"losses", losses},
                          {"package", package.report()}};
