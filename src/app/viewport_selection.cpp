@@ -326,6 +326,12 @@ Viewport::PickPixels Viewport::selectionPixels(QRectF region) {
         1 - 2 * (result.deviceRect.left() + result.deviceRect.width() * .5) / pixels.width(),
         2 * (result.deviceRect.top() + result.deviceRect.height() * .5) / pixels.height() - 1, 0);
     shader_->bind();
+    shader_->setUniformValue("rasterExport", rasterSize_.isEmpty() ? 0 : 1);
+    shader_->setUniformValue("wireframe", doc_.style().mode == ModelStyleMode::Wireframe ? 1 : 0);
+    shader_->setUniformValue("frontImage", 0);
+    shader_->setUniformValue("backImage", 1);
+    shader_->setUniformValue("canvas", QVector3D(colors_.canvas.redF(), colors_.canvas.greenF(),
+                                                 colors_.canvas.blueF()));
     shader_->setUniformValue("mvp", crop * matrix());
     shader_->setUniformValue("instanced", 0);
     shader_->setUniformValue("stipple", 0);
