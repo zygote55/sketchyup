@@ -21,7 +21,10 @@ void Viewport::syncTextures() {
         }
     }
     textureCache_.request(assets);
-    textureSnapshot_ = textureCache_.snapshot();
+    const auto published = textureCache_.snapshot();
+    if (published != textureSnapshot_)
+        cacheDirty_ = pickDirty_ = true;
+    textureSnapshot_ = published;
     std::map<Id, std::shared_ptr<const TextureImage>> images;
     for (const auto &[id, asset] : assets)
         if (const auto *entry = TextureCache::find(*textureSnapshot_, asset); entry && entry->image)
