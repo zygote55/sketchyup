@@ -255,6 +255,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (!p.isEmpty())
             openPath(p);
     }));
+    file->addAction(
+        action("file.newFromTemplate", "New from template…", {}, [this] { libraryDialog(true); }));
+    file->addAction(action("file.saveTemplate", "Save template to library…", {},
+                           [this] { saveLibraryDialog(false); }));
     file->addAction(action("file.importDxf", "Import 2D DXF…", {}, [this] { importDxfDialog(); }));
     file->addAction(action("file.exportMeasured", "Export measured PDF/SVG…", {},
                            [this] { exportMeasuredDialog(); }));

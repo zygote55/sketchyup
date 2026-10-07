@@ -1,5 +1,6 @@
 #include "app/viewport.hpp"
 #include "automation/component_scope.hpp"
+#include "io/component_library.hpp"
 namespace sketchy {
 Id Viewport::componentScope() const {
     for (auto context = selection_.context(); context && doc_.bodies().contains(context);
@@ -175,5 +176,20 @@ void Viewport::paintSelection(std::array<float, 3> color) {
                                 {"color", QJsonArray{color[0], color[1], color[2]}}}});
     refresh();
     emit changed();
+}
+void Viewport::insertLibrary(const ComponentBundle &bundle, Vec3 worldPosition) {
+    if (componentScope())
+        throw std::runtime_error("Close component editing before inserting a library component");
+    const auto parent = selection_.context();
+    const auto local =
+        parent ? doc_.worldTransform(parent).inverse().point(worldPosition) : worldPosition;
+    cancel();
+    const auto result = insertLibraryComponent(doc_, bundle, Transform::translation(local), parent);
+    refresh();
+    selectEntities({{result.component.instance, SelectionKind::Body, 0}});
+    emit changed();
+    emit message(QString("Inserted independent component · %1 resources reused · %2 names adjusted")
+                     .arg(result.reusedAssets + result.reusedMaterials)
+                     .arg(result.renamedResources));
 }
 } // namespace sketchy

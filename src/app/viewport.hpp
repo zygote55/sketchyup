@@ -159,7 +159,8 @@ class Viewport : public QOpenGLWidget {
                               double width, double height);
     void editReferenceImages(const QJsonArray &commands);
     void applyTextEdit(const Document::PreparedEdit &edit);
-    void recallSavedScene(Id scene);
+    void recallSavedScene(Id scene, bool animate = true);
+    void insertLibrary(const struct ComponentBundle &bundle, Vec3 worldPosition);
     void setReducedMotion(bool enabled);
     void setAssistantPreview(std::shared_ptr<const Document::PreparedEdit> edit);
     bool hasAssistantPreview() const;
