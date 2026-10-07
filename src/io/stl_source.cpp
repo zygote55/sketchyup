@@ -37,9 +37,10 @@ struct Parser {
             ++zeroNormals;
         const auto geometric =
             cross(facet.vertices[1] - facet.vertices[0], facet.vertices[2] - facet.vertices[0]);
-        if (length(geometric) <= tolerance * tolerance)
+        const auto geometricMagnitude = length(geometric);
+        if (geometricMagnitude < 2 * tolerance * tolerance)
             ++degenerate;
-        else if (magnitude && dot(normalized(geometric), facet.normal) < .9999)
+        else if (magnitude && dot(geometric * (1 / geometricMagnitude), facet.normal) < .9999)
             ++opposedNormals;
         attributes += facet.attribute != 0;
         result.facets.push_back(facet);

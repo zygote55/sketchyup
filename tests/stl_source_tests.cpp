@@ -57,6 +57,11 @@ int main(int argc, char **argv) {
         QByteArray tooMany(84 + 50 * 100001, 0);
         qToLittleEndian<quint32>(100001, tooMany.data() + 80);
         rejects([&] { parseStl(tooMany, {1, StlUpAxis::Z}); });
+        auto small = ascii;
+        small.replace("2000", "0.0001");
+        small.replace("3000", "0.0002");
+        check(parseStl(small, {1, StlUpAxis::Z}).report["degenerateFacets"].toInt() == 0,
+              "Small valid triangle uses area-dimensional tolerance");
         auto wrong = ascii;
         wrong.replace("normal 0 0 1", "normal 0 0 -1");
         check(parseStl(wrong, {1, StlUpAxis::Z}).report["normalsDisagreeWithWinding"].toInt() == 1,
