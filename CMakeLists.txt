@@ -829,3 +829,5 @@ install(FILES docs/api/native-format-v1.json DESTINATION share/doc/sketchyup/api
 install(FILES docs/decisions/0108-public-native-format.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES third_party/cgltf/LICENSE DESTINATION share/licenses/sketchyup RENAME cgltf-LICENSE)
+
+install(FILES docs/decisions/0109-bounded-gltf-packages.md DESTINATION share/doc/sketchyup/decisions)
