@@ -1,74 +1,74 @@
 [
   {
-    "implementation": "b27415cec9615309e38d2d3c4022dcf92080e0d6",
+    "implementation": "2c1b2638d4497e3a0cc8d5d6e2d9c2183abd041d",
     "platform": "wayland",
     "scale": 1,
     "target": "shortcut_input_tests",
     "sanitized": false,
     "exitCode": 0,
-    "seconds": 1.865
+    "seconds": 2.03
   },
   {
-    "implementation": "b27415cec9615309e38d2d3c4022dcf92080e0d6",
+    "implementation": "2c1b2638d4497e3a0cc8d5d6e2d9c2183abd041d",
     "platform": "wayland",
     "scale": 2,
     "target": "shortcut_input_tests",
     "sanitized": false,
     "exitCode": 0,
-    "seconds": 5.647
+    "seconds": 5.417
   },
   {
-    "implementation": "b27415cec9615309e38d2d3c4022dcf92080e0d6",
+    "implementation": "2c1b2638d4497e3a0cc8d5d6e2d9c2183abd041d",
     "platform": "xcb",
     "scale": 1,
     "target": "shortcut_input_tests",
     "sanitized": false,
     "exitCode": 0,
-    "seconds": 4.334
+    "seconds": 4.432
   },
   {
-    "implementation": "b27415cec9615309e38d2d3c4022dcf92080e0d6",
+    "implementation": "2c1b2638d4497e3a0cc8d5d6e2d9c2183abd041d",
     "platform": "xcb",
     "scale": 2,
     "target": "shortcut_input_tests",
     "sanitized": false,
     "exitCode": 0,
-    "seconds": 5.017
+    "seconds": 4.996
   },
   {
-    "implementation": "e36006cd68d1bf4393fefc1045e2189dbde6324c",
+    "implementation": "29312d87f938487f74aa82a6d08e90bed081eb8a",
     "platform": "wayland",
     "scale": 1,
     "target": "shortcut_input_tests",
     "sanitized": true,
     "exitCode": 0,
-    "seconds": 3.787
+    "seconds": 3.974
   },
   {
-    "implementation": "e36006cd68d1bf4393fefc1045e2189dbde6324c",
+    "implementation": "29312d87f938487f74aa82a6d08e90bed081eb8a",
     "platform": "wayland",
     "scale": 2,
     "target": "shortcut_input_tests",
     "sanitized": true,
     "exitCode": 0,
-    "seconds": 7.164
+    "seconds": 7.08
   },
   {
-    "implementation": "e36006cd68d1bf4393fefc1045e2189dbde6324c",
+    "implementation": "29312d87f938487f74aa82a6d08e90bed081eb8a",
     "platform": "xcb",
     "scale": 1,
     "target": "shortcut_input_tests",
     "sanitized": true,
     "exitCode": 0,
-    "seconds": 6.152
+    "seconds": 6.148
   },
   {
-    "implementation": "e36006cd68d1bf4393fefc1045e2189dbde6324c",
+    "implementation": "29312d87f938487f74aa82a6d08e90bed081eb8a",
     "platform": "xcb",
     "scale": 2,
     "target": "shortcut_input_tests",
     "sanitized": true,
     "exitCode": 0,
-    "seconds": 7.101
+    "seconds": 7.376
   }
 ]
