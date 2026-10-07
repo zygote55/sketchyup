@@ -1,5 +1,44 @@
 [
   {
+    "command": "document.style",
+    "style": {
+      "axesVisible": false,
+      "back": [
+        0.550000011920929,
+        0.6200000047683716,
+        0.6800000071525574
+      ],
+      "background": [
+        0.9411764740943909,
+        0.9450980424880981,
+        0.9254902005195618
+      ],
+      "edge": [
+        0.18000000715255737,
+        0.2199999988079071,
+        0.20000000298023224
+      ],
+      "edgesVisible": true,
+      "front": [
+        0.8199999928474426,
+        0.8399999737739563,
+        0.800000011920929
+      ],
+      "gridVisible": false,
+      "ground": [
+        0.8600000143051147,
+        0.8700000047683716,
+        0.8199999928474426
+      ],
+      "groundHeight": 0,
+      "groundVisible": true,
+      "mode": "textured",
+      "profileWidth": 2,
+      "profiles": false,
+      "xrayOpacity": 0.25
+    }
+  },
+  {
     "command": "geometry.face",
     "name": "Sun study block",
     "loops": [

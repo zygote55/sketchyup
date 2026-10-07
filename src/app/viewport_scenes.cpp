@@ -108,8 +108,9 @@ void Viewport::syncSceneTabs() {
     layoutSceneTabs();
 }
 SceneSnapshot Viewport::captureSceneSnapshot(bool camera, bool visibility, bool style,
-                                             bool section) const {
+                                             bool section, bool solar) const {
     SceneSnapshot snapshot;
+    if (solar) snapshot.solar = doc_.solar();
     if (camera)
         snapshot.camera = SceneCamera{target_, yaw_, pitch_, distance_, fov_, ortho_};
     if (style)

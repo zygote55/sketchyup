@@ -83,6 +83,7 @@ void Viewport::cleanupGL() {
             }
         for (const auto &[id, name] : textureGpu_)
             gl_->glDeleteTextures(1, &name);
+        cleanupSolarShadowMap();
         textureGpu_.clear();
         textureImages_.clear();
         vao_.destroy();
@@ -114,9 +115,9 @@ layout(location=0) in vec3 position;
 layout(location=1) in vec4 color;
 layout(location=2) in vec4 backColor;
 layout(location=3) in vec4 coordinates;
-layout(location=4) in vec2 shading;
+layout(location=4) in vec3 shading;
 out vec4 uv;
-out vec2 previewShading;
+out vec3 previewShading;
 uniform mat4 mvp;
 uniform int instanced;
 uniform vec2 pixelOffset;
@@ -137,9 +138,14 @@ void main() {
 in vec4 tint;
 in vec4 backTint;
 in vec4 uv;
-in vec2 previewShading;
+in vec3 previewShading;
 uniform sampler2D frontImage;
 uniform sampler2D backImage;
+uniform sampler2D solarShadowMap;
+uniform mat4 solarShadowMatrix;
+uniform float solarShadowBias;
+uniform int solarShadowEnabled;
+uniform int groundPass;
 uniform vec2 textured;
 uniform vec3 canvas;
 flat in vec2 faceOpacity;
@@ -170,6 +176,15 @@ vec4 sampleImage(sampler2D source, vec2 coordinates) {
   return mix(mix(texelFetch(source,a,0),texelFetch(source,ivec2(b.x,a.y),0),f.x),
              mix(texelFetch(source,ivec2(a.x,b.y),0),texelFetch(source,b,0),f.x),f.y);
 }
+float sunlightVisibility() {
+  vec3 p=(solarShadowMatrix*vec4(worldPosition,1.0)).xyz*0.5+0.5;
+  if(any(lessThan(p,vec3(0.0))) || any(greaterThan(p,vec3(1.0)))) return 1.0;
+  vec2 pixel=1.0/vec2(textureSize(solarShadowMap,0));
+  float visible=0.0;
+  for(int x=-1;x<=1;++x) for(int y=-1;y<=1;++y)
+    visible += p.z-solarShadowBias <= texture(solarShadowMap,p.xy+vec2(x,y)*pixel).r ? 1.0 : 0.0;
+  return visible/9.0;
+}
 void main() {
   if(clipEnabled!=0 && dot(clipPlane,vec4(worldPosition,1.0))<0.0) discard;
   if(stipple==1 && (mod(floor(gl_FragCoord.x/pixelRatio),4.0)>0.0 || mod(floor(gl_FragCoord.y/pixelRatio),4.0)>0.0)) discard;
@@ -184,7 +199,11 @@ void main() {
     if(surfacePass!=3 && styleTextureColor!=0) color.rgb=toSrgb(toLinear(color.rgb)*imageColor.rgb);
   }
   if(surfacePass==0 && strokeColor.a>0.0) color.rgb=strokeColor.rgb;
-  if(surfacePass!=3) color.rgb=mix(canvas,color.rgb,previewShading.y)*previewShading.x;
+  float lighting=gl_FrontFacing ? previewShading.x : previewShading.z;
+  if(solarShadowEnabled!=0 && (surfacePass==1 || surfacePass==2 || groundPass!=0))
+    lighting=0.3+max(0.0,lighting-0.3)*sunlightVisibility();
+  if(surfacePass!=3) color.rgb=mix(canvas,color.rgb,previewShading.y)*lighting;
+  if(surfacePass==4 && color.a<0.5) discard;
   if(surfacePass==1 && color.a<1.0) discard;
   if(surfacePass==2 && (color.a<=0.0 || color.a>=1.0)) discard;
   if(surfacePass==3 && color.a<=0.0) discard;
@@ -885,7 +904,11 @@ void Viewport::rebuild() {
                         v.bg = back.color[1];
                         v.bb = back.color[2];
                         v.ba = back.opacity;
-                        v.light = light;
+                        if (doc_.solar().enabled) {
+                            const auto normal = worldNormal(normals[index - 1]) * (world.determinant() < 0 ? -1 : 1);
+                            v.light = solarLight(normal);
+                            v.backLight = solarLight(normal * -1);
+                        } else v.light = v.backLight = light;
                         v.dim = !selection_.inActiveHierarchy(doc_, id) || selection_.locked(doc_, id)
                                     ? .35f : 1.f;
                     }
@@ -991,7 +1014,7 @@ void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool
         ++batch.runs.back().count;
         packed.push_back({float(v.x - renderOrigin_.x), float(v.y - renderOrigin_.y),
                           float(v.z - renderOrigin_.z), v.r, v.g, v.b, v.a,
-                          v.br, v.bg, v.bb, v.ba, v.u, v.v, v.bu, v.bv, v.light, v.dim});
+                          v.br, v.bg, v.bb, v.ba, v.u, v.v, v.bu, v.bv, v.light, v.dim, v.backLight});
     }
     batch.buffer.bind();
     batch.buffer.allocate(packed.data(), int(packed.size() * sizeof(PackedVertex)));
@@ -1021,7 +1044,7 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count) {
     gl_->glEnableVertexAttribArray(4);
     gl_->glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                           reinterpret_cast<void *>(11 * sizeof(float)));
-    gl_->glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
+    gl_->glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                           reinterpret_cast<void *>(15 * sizeof(float)));
     shader_->setUniformValue("frontImage", 0);
     shader_->setUniformValue("backImage", 1);
@@ -1089,6 +1112,7 @@ void Viewport::paintScene() {
     if (!ready_)
         return;
     syncModelStyle();
+    syncSolar();
     QPainter p(this);
     p.beginNativePainting();
     QElapsedTimer timer;
@@ -1106,6 +1130,8 @@ void Viewport::paintScene() {
     shader_->setUniformValue("stipple", 0);
     shader_->setUniformValue("pixelRatio", float(devicePixelRatioF()));
     shader_->setUniformValue("surfacePass", 0);
+    shader_->setUniformValue("solarShadowEnabled", 0);
+    shader_->setUniformValue("groundPass", 0);
     shader_->setUniformValue("styleTextureColor", 1);
     shader_->setUniformValue("screenStroke", 0);
     shader_->setUniformValue("strokeColor", QVector4D{});
@@ -1126,6 +1152,8 @@ void Viewport::paintScene() {
     } else {
         if (cacheDirty_ || cachedRevision_ != doc_.revision() || cachedDocument_ != doc_.identity())
             rebuild();
+        sortTransparent(transform);
+        drawSolarShadowMap(transform);
         drawStyleGround(transform);
         // Reference grid does not write depth or shine through coplanar opaque faces.
         gl_->glDepthMask(GL_FALSE);

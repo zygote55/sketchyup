@@ -43,13 +43,21 @@ void Viewport::drawStyleGround(const QMatrix4x4 &transform) {
         const Vec3 a{x - extent, y - extent, z}, b{x + extent, y - extent, z},
             c{x + extent, y + extent, z}, d{x - extent, y + extent, z};
         std::vector<Vertex> vertices;
-        for (const auto p : {a, b, c, a, c, d})
-            vertices.push_back({p.x, p.y, p.z, style.ground[0], style.ground[1], style.ground[2]});
+        for (const auto p : {a, b, c, a, c, d}) {
+            Vertex v{p.x, p.y, p.z, style.ground[0], style.ground[1], style.ground[2]};
+            if (doc_.solar().enabled) {
+                v.light = solarLight({0,0,1});
+                v.backLight = solarLight({0,0,-1});
+            }
+            vertices.push_back(v);
+        }
         upload(groundGpu_, vertices);
         groundMatrix_ = transform;
     }
     gl_->glDepthMask(GL_FALSE);
+    shader_->setUniformValue("groundPass", 1);
     draw(groundGpu_, GL_TRIANGLES);
+    shader_->setUniformValue("groundPass", 0);
     gl_->glDepthMask(GL_TRUE);
 }
 void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
