@@ -4,9 +4,12 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <QtEndian>
+#include <functional>
 #include <future>
 #include <iostream>
 using namespace sketchy;
@@ -61,9 +64,65 @@ int main(int argc, char **argv) {
                   "Existing migration destination is not replaced");
             ++migrated;
         }
+        // Exercise every accepted raw schema version, including versions with no
+        // surviving feature-rich binary fixture in the repository.
+        for (int version = 1; version <= 24; ++version) {
+            auto tree = QJsonDocument::fromJson(encodeDocument(Document{})).object();
+            tree["version"] = version;
+            for (const auto &[introduced, fields] : std::vector<std::pair<int, QStringList>>{
+                     {8, {"definitions", "instances", "nextDefinitionId"}},
+                     {9, {"tags", "nextTagId"}},
+                     {10, {"materials", "nextMaterialId"}},
+                     {11, {"assets", "nextAssetId", "assetStorage"}},
+                     {12, {"displayUnits"}},
+                     {15, {"hosted"}},
+                     {17, {"style"}},
+                     {18, {"scenes", "nextSceneId"}},
+                     {19, {"sections", "nextSectionId", "activeSections"}},
+                     {21, {"annotations", "nextAnnotationId"}},
+                     {23, {"solar"}}})
+                if (version < introduced)
+                    for (const auto &field : fields)
+                        tree.remove(field);
+            if (version == 1)
+                tree.remove("revision");
+            const auto source = files.filePath(QString("raw-v%1.json").arg(version));
+            const auto destination = source + ".sketchyup";
+            const auto original = QJsonDocument(tree).toJson();
+            write(source, original);
+            const auto report = migrateNativeFile(source, destination);
+            check(report["documentVersion"] == version && read(source) == original &&
+                      encodeDocument(loadDocument(source)) ==
+                          encodeDocument(loadDocument(destination)),
+                  "Every supported raw document version migrates on a copy");
+        }
         const auto valid = fixtures.filePath("m4-complete-v11.sketchyup"),
                    bad = files.filePath("bad.sketchyup"),
                    out = files.filePath("rejected.sketchyup");
+        auto mutateManifest = [&](const std::function<void(QJsonObject &)> &mutate) {
+            auto bytes = read(valid);
+            const auto length = qFromLittleEndian<quint32>(bytes.constData() + 12);
+            auto manifest = QJsonDocument::fromJson(bytes.mid(16, length)).object();
+            mutate(manifest);
+            const auto encoded = QJsonDocument(manifest).toJson(QJsonDocument::Compact);
+            auto header = bytes.first(16);
+            qToLittleEndian<quint32>(encoded.size(), header.data() + 12);
+            write(bad, header + encoded + bytes.mid(16 + length));
+            rejects([&] { migrateNativeFile(bad, out); });
+            check(!QFileInfo::exists(out), "Unknown required records cannot publish output");
+        };
+        mutateManifest([](QJsonObject &manifest) {
+            auto features = manifest["requiredFeatures"].toArray();
+            features.append("unknown-required-v1");
+            manifest["requiredFeatures"] = features;
+        });
+        mutateManifest([](QJsonObject &manifest) {
+            auto chunks = manifest["chunks"].toArray();
+            auto chunk = chunks[0].toObject();
+            chunk["kind"] = "unknown";
+            chunks[0] = chunk;
+            manifest["chunks"] = chunks;
+        });
         auto bytes = read(valid);
         qToLittleEndian<quint32>(999, bytes.data() + 8);
         write(bad, bytes);
@@ -104,6 +163,35 @@ int main(int argc, char **argv) {
               "Concurrent publication admits exactly one writer without replacement");
         check(encodeDocument(loadDocument(racing)) == encodeDocument(loadDocument(valid)),
               "Racing publication is a complete verified container");
+#ifdef CLI_PATH
+        auto cli = [&](const QStringList &arguments, bool success = true) {
+            QProcess process;
+            process.start(CLI_PATH, arguments);
+            check(process.waitForFinished(15000) && process.exitStatus() == QProcess::NormalExit &&
+                      (process.exitCode() == 0) == success,
+                  "Native format CLI exit status");
+            const auto bytes =
+                success ? process.readAllStandardOutput() : process.readAllStandardError();
+            const auto object = QJsonDocument::fromJson(bytes).object();
+            check(!object.empty(), "Native CLI reports structured JSON");
+            return object;
+        };
+        check(cli({"--format-capabilities"}) == nativeFormatCapabilities(),
+              "CLI describes exact format contract");
+        check(cli({"--inspect-native", valid})["documentVersion"] == 11 &&
+                  cli({"--validate-native", valid})["valid"] == true,
+              "CLI validates historical input");
+        const auto cliOutput = files.filePath("cli.sketchyup");
+        check(cli({"--migrate-native", valid, "--output", cliOutput})["status"] == "migrated",
+              "CLI publishes migration copy");
+        cli({"--migrate-native", valid, "--output", cliOutput}, false);
+        cli({"--migrate-native", valid, "--output", valid}, false);
+        cli({"--inspect-native", valid, "--output", cliOutput}, false);
+        cli({"--format-capabilities", "--input", valid}, false);
+        cli({"--inspect-native", valid, "--validate-native", valid}, false);
+        cli({"--migrate-native", valid}, false);
+        check(read(valid) == original, "CLI never overwrites its input");
+#endif
         std::cout << migrated
                   << " historical native fixtures validate and migrate without source mutation\n";
         return 0;
