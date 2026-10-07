@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
+#include <QSaveFile>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
@@ -81,10 +82,16 @@ int main(int argc, char **argv) {
                     return;
                 if (!read(files.next()).contains("Retained worker log"))
                     return;
-                write(root + "/proof.json",
-                      QJsonDocument(
-                          QJsonObject{{"job", id}, {"workerPid", queue.workerProcessId(id)}})
-                          .toJson());
+                // Existence is the parent's readiness signal, so publish complete bytes
+                // atomically rather than exposing an opened but not yet written file.
+                QSaveFile proof(root + "/proof.json");
+                const auto bytes =
+                    QJsonDocument(
+                        QJsonObject{{"job", id}, {"workerPid", queue.workerProcessId(id)}})
+                        .toJson();
+                check(proof.open(QIODevice::WriteOnly) && proof.write(bytes) == bytes.size() &&
+                          proof.commit(),
+                      "Publish complete worker proof");
                 timer.stop();
             });
             timer.start(20);
