@@ -1,0 +1,26 @@
+[
+  {
+    "platform": "wayland",
+    "scaleRequested": 1,
+    "exitCode": 0,
+    "seconds": 2.474
+  },
+  {
+    "platform": "wayland",
+    "scaleRequested": 2,
+    "exitCode": 0,
+    "seconds": 4.348
+  },
+  {
+    "platform": "xcb",
+    "scaleRequested": 1,
+    "exitCode": 0,
+    "seconds": 4.799
+  },
+  {
+    "platform": "xcb",
+    "scaleRequested": 2,
+    "exitCode": 0,
+    "seconds": 5.066
+  }
+]
