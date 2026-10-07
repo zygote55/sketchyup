@@ -18,7 +18,7 @@ build() {
   cmake -S "$srcdir/$pkgname-$pkgver" -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
     -DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF
-  cmake --build build --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-4}"
+  cmake --build build --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-1}"
 }
 
 check() {
