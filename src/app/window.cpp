@@ -1,4 +1,5 @@
 #include "app/window.hpp"
+#include "app/context_label.hpp"
 #include "app/inspection_service.hpp"
 #include "app/interface_preferences.hpp"
 #include "app/render_panel.hpp"
@@ -946,9 +947,8 @@ QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} Q
     updateCommandSearchLabel(this);
     QTimer::singleShot(0, this, [this] { resizeContextLabels(this); });
     viewport_->setTheme(colors);
-    auto linkPalette = breadcrumb_->palette();
-    linkPalette.setColor(QPalette::Link, colors.accent);
-    breadcrumb_->setPalette(linkPalette);
+    setContextLabelColor(breadcrumb_, colors.accent);
+    setContextLabelColor(componentBanner_, colors.accent);
 }
 void Window::run(const std::function<void()> &fn, bool viewOnly) {
     if (!viewOnly && assistant_ && assistant_->uncertain()) {
@@ -1073,7 +1073,7 @@ void Window::sync() {
         breadcrumb += QString(" &rsaquo; <a href=\"%1\">%2</a>")
                           .arg(*it)
                           .arg(QString::fromStdString(doc_.bodies().at(*it)->name).toHtmlEscaped());
-    breadcrumb_->setText(breadcrumb);
+    setContextLabelText(breadcrumb_, breadcrumb);
     breadcrumb_->setToolTip(path.empty() ? "Editing the model"
                                          : "Click an ancestor to close nested contexts");
     breadcrumb_->setMaximumWidth(std::max(100, viewport_->width() - 32));
