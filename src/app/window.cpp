@@ -146,6 +146,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     content->setSpacing(0);
     auto *tools = new QToolBar;
     tools->setObjectName("toolRail");
+    tools->setAccessibleName("Modeling tools");
     tools->setFocusPolicy(Qt::StrongFocus);
     tools->setOrientation(Qt::Vertical);
     tools->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -155,6 +156,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     inspection_ = std::make_unique<DesktopInspection>(*viewport_);
     auto *modelTabs = new QTabWidget;
     modelTabs->setObjectName("modelTabs");
+    modelTabs->setAccessibleName("Model and render views");
     modelTabs->setTabBarAutoHide(true);
     modelTabs->setTabsClosable(true);
     modelTabs->addTab(viewport_, "Model");
@@ -207,6 +209,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     trayLayout->addWidget(hint);
     sideTabs_ = new QTabWidget;
     sideTabs_->setObjectName("assistantSideTabs");
+    sideTabs_->setAccessibleName("Model panels and assistant");
     sideTabs_->setTabBarAutoHide(true);
     sideTabs_->addTab(tray_, "Model");
     sideTabs_->setFixedWidth(248);

@@ -1,6 +1,6 @@
 # R084.a — Local native accessibility inventory
 
-2026-10-07. Fixture `91b2d54`; [contract](../decisions/0145-native-accessibility-inventory.md).
+2026-10-07. Fixture `3504bab`; [contract](../decisions/0145-native-accessibility-inventory.md).
 Native Wayland [1×](R084a-wayland-1x.json) and [2×](R084a-wayland-2x.json) runs both
 complete, using Qt 6.11.2, Fusion and the isolated software-rendered compositor.
 Each inventories **150 public actions**, **12 model-panel tabs in two themes** and
@@ -29,3 +29,11 @@ fixtures must verify their preservation. Contrast, independent UI text scaling,
 visible focus, all-dialog access and representative mouse-free modeling still need
 explicit checks. Current interaction tests include pointer steps and cannot substitute
 for that final workflow.
+
+The initial actual-host keyboard attempt exited before inventory because the
+compositor did not grant window activation. The explicit [host inventory](R084a-host-inventory.json)
+subsequently completed on native Hyprland 0.56.2 at **1.6×** fractional scale, using
+`--inventory-only`: 150 actions and 24 contexts, `keyboardRoutingExercised=false`,
+with no F6 observations or keyboard-pass claim. The normal isolated 1×/2× runs were
+repeated after adding this mode and still complete all twelve F6 transitions.
+No compositor settings or user preferences were changed for the audit.
