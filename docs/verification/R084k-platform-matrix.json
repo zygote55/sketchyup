@@ -1,74 +1,74 @@
 [
   {
-    "implementation": "2c1b2638d4497e3a0cc8d5d6e2d9c2183abd041d",
+    "implementation": "0b76aa821af5cf07c88abc847e04313c35bdf883",
     "platform": "wayland",
     "scale": 1,
-    "target": "shortcut_input_tests",
+    "target": "keyboard_outliner_input_tests",
     "sanitized": false,
     "exitCode": 0,
-    "seconds": 2.03
+    "seconds": 1.267
   },
   {
-    "implementation": "2c1b2638d4497e3a0cc8d5d6e2d9c2183abd041d",
+    "implementation": "0b76aa821af5cf07c88abc847e04313c35bdf883",
     "platform": "wayland",
     "scale": 2,
-    "target": "shortcut_input_tests",
+    "target": "keyboard_outliner_input_tests",
     "sanitized": false,
     "exitCode": 0,
-    "seconds": 5.417
+    "seconds": 4.667
   },
   {
-    "implementation": "2c1b2638d4497e3a0cc8d5d6e2d9c2183abd041d",
+    "implementation": "0b76aa821af5cf07c88abc847e04313c35bdf883",
     "platform": "xcb",
     "scale": 1,
-    "target": "shortcut_input_tests",
+    "target": "keyboard_outliner_input_tests",
     "sanitized": false,
     "exitCode": 0,
-    "seconds": 4.432
+    "seconds": 3.973
   },
   {
-    "implementation": "2c1b2638d4497e3a0cc8d5d6e2d9c2183abd041d",
+    "implementation": "0b76aa821af5cf07c88abc847e04313c35bdf883",
     "platform": "xcb",
     "scale": 2,
-    "target": "shortcut_input_tests",
+    "target": "keyboard_outliner_input_tests",
     "sanitized": false,
     "exitCode": 0,
-    "seconds": 4.996
+    "seconds": 4.638
   },
   {
     "implementation": "29312d87f938487f74aa82a6d08e90bed081eb8a",
     "platform": "wayland",
     "scale": 1,
-    "target": "shortcut_input_tests",
+    "target": "keyboard_outliner_input_tests",
     "sanitized": true,
     "exitCode": 0,
-    "seconds": 3.974
+    "seconds": 3.196
   },
   {
     "implementation": "29312d87f938487f74aa82a6d08e90bed081eb8a",
     "platform": "wayland",
     "scale": 2,
-    "target": "shortcut_input_tests",
+    "target": "keyboard_outliner_input_tests",
     "sanitized": true,
     "exitCode": 0,
-    "seconds": 7.08
+    "seconds": 5.893
   },
   {
     "implementation": "29312d87f938487f74aa82a6d08e90bed081eb8a",
     "platform": "xcb",
     "scale": 1,
-    "target": "shortcut_input_tests",
+    "target": "keyboard_outliner_input_tests",
     "sanitized": true,
     "exitCode": 0,
-    "seconds": 6.148
+    "seconds": 5.956
   },
   {
     "implementation": "29312d87f938487f74aa82a6d08e90bed081eb8a",
     "platform": "xcb",
     "scale": 2,
-    "target": "shortcut_input_tests",
+    "target": "keyboard_outliner_input_tests",
     "sanitized": true,
     "exitCode": 0,
-    "seconds": 7.376
+    "seconds": 7.067
   }
 ]
