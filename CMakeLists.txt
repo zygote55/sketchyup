@@ -778,3 +778,5 @@ install(FILES docs/decisions/0100-render-queue-lifecycle.md DESTINATION share/do
 install(FILES docs/decisions/0101-native-render-jobs.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0104-camera-motion-and-timelines.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES examples/reference-grid.json examples/reference-grid.sketchyup DESTINATION share/doc/sketchyup/examples)
+
+install(FILES docs/decisions/0105-native-walk-and-scene-timing.md DESTINATION share/doc/sketchyup/decisions)
