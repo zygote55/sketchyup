@@ -939,3 +939,5 @@ install(FILES docs/decisions/0126-measured-pdf-svg-output.md DESTINATION share/d
 install(FILES docs/decisions/0127-measured-export-cli.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES examples/measured-view.json DESTINATION share/doc/sketchyup/examples)
+
+install(FILES docs/decisions/0128-native-measured-export.md DESTINATION share/doc/sketchyup/decisions)

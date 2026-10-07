@@ -864,3 +864,5 @@ build/dev/sketchyup-cli --export-view NewDrawing.pdf --input Model.sketchyup --v
 ```
 
 This technical-line mode reports omitted appearance, preserves the native source, and requires a new output file. Set `format` to `svg` for millimetre-based SVG. Print at actual size to retain the requested scale. See [the measured export contract](docs/decisions/0127-measured-export-cli.md).
+
+File → **Export measured PDF/SVG** offers the same physical page and scale controls in the desktop. Choose technical lines for vector geometry or current appearance for an explicitly identified raster drawing with embedded images and shading. The editing camera and model remain unchanged.
