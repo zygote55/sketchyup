@@ -1,8 +1,12 @@
 #include "app/render_panel.hpp"
 #include "app/render_jobs.hpp"
+#include "core/scenes.hpp"
+#include "integrations/animation_export.hpp"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
+#include <QDir>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QFileDialog>
@@ -12,6 +16,7 @@
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPointer>
@@ -98,13 +103,14 @@ struct RenderPanel::Impl {
     QComboBox *camera{}, *engine{}, *backend{}, *device{};
     QSpinBox *width{}, *height{}, *samples{};
     QCheckBox *fallback{};
-    QPushButton *probeButton{}, *renderButton{}, *cancelButton{};
+    QPushButton *probeButton{}, *renderButton{}, *cancelButton{}, *animationButton{};
     QLabel *setupStatus{}, *jobStatus{};
     QPlainTextEdit *logs{};
     QPointer<BlenderJob> probe, handoff;
     std::unique_ptr<RenderQueue> queue;
     QPointer<RenderJobsDialog> jobsDialog;
-    QPointer<QProgressDialog> handoffProgress;
+    QPointer<QProgressDialog> handoffProgress, animationProgress;
+    QPointer<AnimationExport> animation;
     std::map<QString, Document::SaveStamp> sessions;
     QString recentJob;
     QTimer poll;
@@ -129,7 +135,10 @@ struct RenderPanel::Impl {
         chip.hide();
         chip.setObjectName("renderStatusChip");
         QObject::connect(&chip, &QPushButton::clicked, &owner, [this] {
-            if (handoffProgress) {
+            if (animationProgress) {
+                animationProgress->show();
+                animationProgress->raise();
+            } else if (handoffProgress) {
                 handoffProgress->show();
                 handoffProgress->raise();
             } else
@@ -161,6 +170,10 @@ struct RenderPanel::Impl {
         });
     }
     ~Impl() {
+        if (animation)
+            delete animation;
+        if (animationProgress)
+            delete animationProgress;
         if (probe)
             delete probe;
         if (handoff)
@@ -178,7 +191,7 @@ struct RenderPanel::Impl {
             throw std::runtime_error("Render panel requires owner thread");
     }
     bool active() const {
-        if (preparing.valid() || (handoff && !handoff->done()))
+        if (preparing.valid() || (handoff && !handoff->done()) || (animation && !animation->done()))
             return true;
         if (queue)
             for (const auto &record : queue->jobs())
@@ -274,8 +287,8 @@ struct RenderPanel::Impl {
             const auto seconds = elapsed.isValid() ? elapsed.elapsed() / 1000 : 0;
             jobStatus->setText(status + (active() ? " · " + QString::number(seconds) + " s" : "") +
                                (details.isEmpty() ? QString{} : "\n" + details));
-            const bool busy =
-                preparing.valid() || (probe && !probe->done()) || (handoff && !handoff->done());
+            const bool busy = preparing.valid() || (probe && !probe->done()) ||
+                              (handoff && !handoff->done()) || (animation && !animation->done());
             for (QWidget *control : std::initializer_list<QWidget *>{
                      path, camera, engine, width, height, samples, environmentPath,
                      environmentStrength, environmentRotation, backend, device, fallback,
@@ -284,6 +297,8 @@ struct RenderPanel::Impl {
             fallback->setEnabled(!busy && engine->currentIndex() == 0);
             renderButton->setEnabled(!busy && verified && device->currentIndex() >= 0);
             probeButton->setEnabled(!busy && !active());
+            animationButton->setEnabled(!busy && !active() && verified &&
+                                        device->currentIndex() >= 0);
             cancelButton->setEnabled(busy || active());
         }
         emit owner.changed();
@@ -332,7 +347,8 @@ struct RenderPanel::Impl {
         browse->setObjectName("chooseBlender");
         form->addRow({}, browse);
         QObject::connect(browse, &QPushButton::clicked, &owner, [this] {
-            if (preparing.valid() || (probe && !probe->done()) || (handoff && !handoff->done()))
+            if (preparing.valid() || (probe && !probe->done()) || (handoff && !handoff->done()) ||
+                (animation && !animation->done()))
                 return;
             const auto selected = QFileDialog::getOpenFileName(dialog, "Choose Blender 5.2 LTS");
             if (!selected.isEmpty())
@@ -433,6 +449,11 @@ struct RenderPanel::Impl {
         logs->setMaximumHeight(130);
         logs->setPlaceholderText("Worker diagnostics appear here after an attempt finishes.");
         layout->addWidget(logs);
+        animationButton = new QPushButton("Export scene animation…");
+        animationButton->setObjectName("exportSceneAnimation");
+        layout->addWidget(animationButton);
+        QObject::connect(animationButton, &QPushButton::clicked, &owner,
+                         [this] { chooseAnimation(); });
         auto *buttons = new QHBoxLayout;
         renderButton = new QPushButton("Render");
         renderButton->setObjectName("startRender");
@@ -542,7 +563,8 @@ struct RenderPanel::Impl {
     }
     void start(RenderOptions settings, BlenderJob::Options worker, bool currentView) {
         checkOwner();
-        if (preparing.valid() || (probe && !probe->done()) || (handoff && !handoff->done()))
+        if (preparing.valid() || (probe && !probe->done()) || (handoff && !handoff->done()) ||
+            (animation && !animation->done()))
             throw std::runtime_error("A render capture or Blender check is already running");
         ensureQueue();
         if (view.inspectionBusy())
@@ -646,6 +668,8 @@ struct RenderPanel::Impl {
     }
     void cancel() {
         checkOwner();
+        if (animation && !animation->done())
+            animation->cancel();
         if (probe && !probe->done())
             probe->cancel();
         if (handoff && !handoff->done())
@@ -756,6 +780,154 @@ struct RenderPanel::Impl {
             throw;
         }
         publish();
+    }
+    void startAnimation(std::vector<Id> scenes, CameraPathTiming timing, RenderOptions settings,
+                        BlenderJob::Options worker, const QString &directory) {
+        checkOwner();
+        if (active() || (probe && !probe->done()))
+            throw std::runtime_error(
+                "Wait for pending renders or checks before exporting animation");
+        if (view.inspectionBusy())
+            throw std::runtime_error(
+                "Finish the current modeling gesture before capturing animation");
+        auto capture =
+            AnimationCapture::capture(document, std::move(scenes), timing, std::move(settings));
+        if (animation)
+            delete animation;
+        if (animationProgress)
+            delete animationProgress;
+        animation = new AnimationExport(&owner);
+        animationProgress = new QProgressDialog("Preparing animation", "Cancel", 0,
+                                                int(capture.frames().size()), &window);
+        animationProgress->setObjectName("animationExportProgress");
+        animationProgress->setWindowTitle("Export scene animation");
+        animationProgress->setWindowModality(Qt::NonModal);
+        animationProgress->setMinimumDuration(0);
+        animationProgress->setAutoClose(false);
+        animationProgress->setAutoReset(false);
+        QObject::connect(animationProgress, &QProgressDialog::canceled, &owner, [this] {
+            if (animation && !animation->done())
+                animation->cancel();
+        });
+        QObject::connect(animation, &AnimationExport::changed, &owner, [this] {
+            status = animation->message();
+            details = animation->directory();
+            if (animationProgress) {
+                animationProgress->setLabelText(status + "\n" + details);
+                animationProgress->setValue(animation->completedFrames());
+                if (animation->done())
+                    animationProgress->setCancelButtonText("Close");
+            }
+            publish();
+        });
+        elapsed.restart();
+        try {
+            animation->start(std::move(capture), directory, std::move(worker));
+            animationProgress->show();
+        } catch (...) {
+            delete animation;
+            animation = nullptr;
+            delete animationProgress;
+            animationProgress = nullptr;
+            throw;
+        }
+    }
+    void chooseAnimation() {
+        QDialog sheet(&window);
+        sheet.setObjectName("animationSetup");
+        sheet.setWindowTitle("Export saved scenes as PNG frames");
+        sheet.resize(480, 560);
+        auto *layout = new QVBoxLayout(&sheet);
+        auto *note =
+            new QLabel("Choose 2–32 camera scenes in presentation order. Export uses the current "
+                       "render size, engine, lighting and device settings. Up to 240 PNG frames "
+                       "and a timing manifest are saved in a new folder. Cancel keeps finished "
+                       "frames. Transfer limitations are recorded with each frame.");
+        note->setWordWrap(true);
+        layout->addWidget(note);
+        auto *scenes = new QListWidget;
+        scenes->setObjectName("animationScenes");
+        scenes->setAccessibleName("Camera scenes in presentation order");
+        for (const auto id : orderedScenes(document)) {
+            const auto &scene = *document.scenes().at(id);
+            if (!scene.snapshot.camera)
+                continue;
+            auto *item = new QListWidgetItem(QString::fromStdString(scene.name), scenes);
+            item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(id));
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setCheckState(Qt::Checked);
+        }
+        layout->addWidget(scenes, 1);
+        auto *form = new QFormLayout;
+        layout->addLayout(form);
+        auto *fps = new QSpinBox;
+        fps->setRange(1, 60);
+        fps->setValue(24);
+        fps->setObjectName("animationFps");
+        form->addRow("Frames per second", fps);
+        auto *transition = new QDoubleSpinBox;
+        transition->setRange(.05, 10);
+        transition->setValue(1);
+        transition->setSuffix(" s");
+        transition->setObjectName("animationTransition");
+        form->addRow("Transition", transition);
+        auto *hold = new QDoubleSpinBox;
+        hold->setRange(0, 5);
+        hold->setValue(.5);
+        hold->setSuffix(" s");
+        hold->setObjectName("animationHold");
+        form->addRow("Hold each scene", hold);
+        auto *destination = new QLineEdit;
+        destination->setObjectName("animationDestination");
+        form->addRow("New output folder", destination);
+        auto *browse = new QPushButton("Choose parent folder…");
+        form->addRow({}, browse);
+        QObject::connect(browse, &QPushButton::clicked, &sheet, [&, destination] {
+            const auto parent =
+                QFileDialog::getExistingDirectory(&sheet, "Choose animation parent folder");
+            if (!parent.isEmpty())
+                destination->setText(QDir(parent).filePath("animation"));
+        });
+        auto *error = new QLabel;
+        error->setWordWrap(true);
+        error->setTextFormat(Qt::PlainText);
+        error->setObjectName("animationSetupError");
+        layout->addWidget(error);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
+        buttons->button(QDialogButtonBox::Save)->setText("Export frames");
+        layout->addWidget(buttons);
+        QObject::connect(buttons, &QDialogButtonBox::rejected, &sheet, &QDialog::reject);
+        QObject::connect(buttons, &QDialogButtonBox::accepted, &sheet, [&] {
+            try {
+                std::vector<Id> ids;
+                for (int i = 0; i < scenes->count(); ++i)
+                    if (scenes->item(i)->checkState() == Qt::Checked)
+                        ids.push_back(scenes->item(i)->data(Qt::UserRole).toULongLong());
+                RenderOptions settings;
+                settings.settings = {width->value(), height->value(), samples->value(), 0};
+                settings.settings.engine =
+                    engine->currentIndex() == 1 ? RenderEngine::Eevee : RenderEngine::Cycles;
+                if (!environmentPath->text().trimmed().isEmpty())
+                    settings.environment = readRenderEnvironment(environmentPath->text().trimmed(),
+                                                                 environmentStrength->value(),
+                                                                 environmentRotation->value());
+                BlenderJob::Options worker;
+                worker.executable = path->text().trimmed();
+                worker.backend = backend->currentText();
+                worker.deviceId = device->currentData().toString();
+                worker.allowCpuFallback = fallback->isChecked();
+                CameraPathTiming timing{
+                    fps->value(), std::max(1, int(std::lround(transition->value() * fps->value()))),
+                    int(std::lround(hold->value() * fps->value()))};
+                startAnimation(std::move(ids), timing, std::move(settings), std::move(worker),
+                               destination->text().trimmed());
+                sheet.accept();
+                dialog->hide();
+            } catch (const std::exception &failure) {
+                error->setText(QString::fromUtf8(failure.what()));
+            }
+        });
+        sheet.exec();
     }
     void chooseHandoff(const QString &id) {
         QFileDialog chooser(&window, "Save and open Blender scene — one-way handoff", "scene.blend",
@@ -900,6 +1072,12 @@ void RenderPanel::refreshProvenance() {
 }
 void RenderPanel::start(RenderOptions settings, BlenderJob::Options worker, bool currentView) {
     impl_->start(settings, std::move(worker), currentView);
+}
+void RenderPanel::exportAnimation(std::vector<Id> scenes, CameraPathTiming timing,
+                                  RenderOptions settings, BlenderJob::Options worker,
+                                  const QString &directory) {
+    impl_->startAnimation(std::move(scenes), timing, std::move(settings), std::move(worker),
+                          directory);
 }
 void RenderPanel::cancel() { impl_->cancel(); }
 bool RenderPanel::active() const {
