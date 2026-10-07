@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <iostream>
 using namespace sketchy;
@@ -47,6 +48,27 @@ int main(int argc, char **argv) {
         QTemporaryDir dir;
         check(dir.isValid(), "Scratch folder");
         auto doc = fixture();
+        if (app.arguments().contains("--blender-real")) {
+            const auto blender = qEnvironmentVariable("SKETCHYUP_BLENDER_TEST");
+            if (blender.isEmpty())
+                return 77;
+            writeStlExport(exportStl(doc, {.001, StlUpAxis::Z}, StlEncoding::Binary),
+                           dir.filePath("binary.stl"));
+            writeStlExport(exportStl(doc, {.001, StlUpAxis::Z}, StlEncoding::Ascii),
+                           dir.filePath("ascii.stl"));
+            QProcess consumer;
+            consumer.start(blender, {"--background", "--factory-startup", "--disable-autoexec",
+                                     "--python-exit-code", "1", "--python",
+                                     QStringLiteral(SOURCE_DIR "/tests/stl_blender_consumer.py"),
+                                     "--", dir.path()});
+            check(consumer.waitForStarted(10000) && consumer.waitForFinished(90000) &&
+                      consumer.exitStatus() == QProcess::NormalExit && consumer.exitCode() == 0,
+                  "Actual Blender STL consumer");
+            check(consumer.readAllStandardOutput().contains("SKETCHYUP_STL_CONSUMER_VERIFIED"),
+                  "Independent Blender assertions completed");
+            std::cout << "Blender verified both STL encodings, dimensions, winding and volume\n";
+            return 0;
+        }
         const auto before = encodeDocument(doc);
         const auto history = doc.history().total;
         for (auto encoding : {StlEncoding::Binary, StlEncoding::Ascii})
@@ -93,6 +115,38 @@ int main(int argc, char **argv) {
               "Export leaves source/history unchanged");
         rejects([&] { exportStl(Document{}, {1, StlUpAxis::Z}, StlEncoding::Binary); });
         rejects([&] { exportStl(doc, {0, StlUpAxis::Z}, StlEncoding::Binary); });
+        auto distant = doc;
+        auto parent = std::make_shared<Body>(*doc.bodies().at(1));
+        parent->transform = Transform::translation({1000.123456, 20, 30});
+        Edit move{"Precision fixture", {{1, doc.bodies().at(1), parent}}};
+        distant.apply(std::move(move), distant.revision());
+        rejects([&] { exportStl(distant, {1, StlUpAxis::Z}, StlEncoding::Binary); });
+        check(exportStl(distant, {1, StlUpAxis::Z}, StlEncoding::Ascii).report["facets"].toInt() ==
+                  12,
+              "ASCII retains coordinates that exceed binary precision budget");
+        Document holes;
+        auto body = std::make_shared<Body>();
+        body->id = 1;
+        body->surface.addFace({{{0, 0, 0}, {4, 0, 0}, {4, 4, 0}, {0, 4, 0}},
+                               {{1, 1, 0}, {1, 3, 0}, {3, 3, 0}, {3, 1, 0}}});
+        body->topology = Topology::rebuild(body->surface, {});
+        Edit h{"Holed face", {{1, nullptr, body}}};
+        h.nextIdFloor = 2;
+        holes.apply(std::move(h), holes.revision());
+        const auto source = parseStl(exportStl(holes, {1, StlUpAxis::Z}, StlEncoding::Ascii).bytes,
+                                     {1, StlUpAxis::Z});
+        double area{};
+        for (const auto &f : source.facets) {
+            area += length(cross(f.vertices[1] - f.vertices[0], f.vertices[2] - f.vertices[0])) / 2;
+            near(f.normal.z, 1);
+        }
+        near(area, 12);
+        check(QFile::link(dir.filePath("absent"), dir.filePath("dangling.stl")),
+              "Dangling output link");
+        rejects([&] {
+            writeStlExport(exportStl(doc, {1, StlUpAxis::Z}, StlEncoding::Ascii),
+                           dir.filePath("dangling.stl"));
+        });
         std::cout << "STL binary/ASCII geometry, explicit units/axis, reflected normals and safe "
                      "publication passed\n";
     } catch (const std::exception &e) {
