@@ -746,8 +746,8 @@ are captured so moving or deleting the original file cannot change queued work.
 
 Keep modeling while captured snapshots render. The status chip opens **Jobs**, with
 progress, elapsed time, logs, cancellation and retries. Up to two workers run at
-once. Eight pending captures and sixteen retained jobs fit within a conservative
-2 GiB storage budget; remove finished jobs when the store is full. **Retry capture**
+once. The store permits at most eight pending captures and sixteen retained jobs,
+subject to a conservative 2 GiB storage budget; remove finished jobs when it is full. **Retry capture**
 uses the original model/settings. Use Render again for a fresh capture.
 
 Verified images open beside the Model tab, with the original revision and a label
@@ -756,6 +756,12 @@ model Save. Two result tabs stay open at most; closing one keeps its image in Jo
 Retained results survive restart and can be reopened there. Interrupted work is
 available for explicit retry, while queued work resumes. **Remove** and **Remove all
 finished jobs** delete their stored captures, images and logs; pending jobs remain.
+
+**Open scene in Blender…** saves a packed `.blend` from that result's captured model
+and then launches Blender. The file includes supported textures, HDR lighting,
+camera/settings and a transfer manifest. This is one way: edits made in Blender do
+not return to the native model. Any later import is a separate, potentially lossy
+conversion. Scene creation can be canceled without changing the model or result.
 
 See the [GLB material/geometry limitations](docs/decisions/0032-glb-snapshots.md)
 and each result's transfer report for unsupported scene details.
