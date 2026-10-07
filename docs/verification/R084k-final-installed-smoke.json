@@ -1,0 +1,9 @@
+{
+  "date": "2026-10-07",
+  "installedApplicationAndHelpersMatchBuild": true,
+  "installedCatalogsAndContractsByteExact": true,
+  "installedFileCounts": {
+    "decisions": 135,
+    "api": 11
+  }
+}
