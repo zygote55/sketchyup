@@ -63,7 +63,7 @@ export XDG_CACHE_HOME=/work/acceptance/cache
 export XDG_RUNTIME_DIR=/work/acceptance/runtime
 mkdir -p "$XDG_CONFIG_HOME/SketchyUp" "$XDG_DATA_HOME/SketchyUp" "$XDG_CACHE_HOME/SketchyUp" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
-printf '[General]\npackageSentinel=retain\ntheme=light\ninterfaceTextPercent=150\nreducedMotion=true\nrecoverySeconds=0\nfieldOfView=67\n' > "$XDG_CONFIG_HOME/SketchyUp/SketchyUp.conf"
+printf '[General]\npackageSentinel=retain\ntheme=1\ninterfaceTextPercent=150\nreducedMotion=true\nrecoverySeconds=0\nfieldOfView=67\n' > "$XDG_CONFIG_HOME/SketchyUp/SketchyUp.conf"
 printf 'retain-data\n' > "$XDG_DATA_HOME/SketchyUp/sentinel"
 printf 'retain-cache\n' > "$XDG_CACHE_HOME/SketchyUp/sentinel"
 sketchyup-cli --script /work/package/src/sketchyup-0.1.0/examples/room-shell.json --output '/work/acceptance/Room model.sketchyup' > /work/acceptance/created.json
