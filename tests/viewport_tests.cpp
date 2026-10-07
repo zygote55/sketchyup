@@ -178,6 +178,8 @@ int main(int argc, char **argv) {
         // No monitor settings or window rules are modified.
         QJsonArray transitions;
         if (app.arguments().contains("--screens")) {
+            check(QGuiApplication::screens().size() >= 2,
+                  "Output transition checks require at least two connected outputs");
             view->setMinimumSize(160, 160);
             view->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
             for (auto *screen : QGuiApplication::screens()) {
@@ -188,19 +190,37 @@ int main(int argc, char **argv) {
                 layout.addWidget(view);
                 output.winId();
                 output.windowHandle()->setScreen(screen);
+                // X11 outputs share a virtual desktop. setScreen alone does not
+                // move a window's coordinates into the requested output.
+                if (QGuiApplication::platformName() == "xcb")
+                    output.setGeometry(screen->geometry());
                 output.showFullScreen();
                 view->show();
                 check(QTest::qWaitForWindowExposed(&output), "Output test window exposed");
                 QTest::qWait(300);
-                frame(view);
+                const auto outputFrame = frame(view);
+                const auto outputFormat = view->context()->format();
+                check(outputFormat.redBufferSize() >= 8 && outputFormat.greenBufferSize() >= 8 &&
+                          outputFormat.blueBufferSize() >= 8,
+                      "Each output context preserves eight-bit RGB channels");
                 check(output.windowHandle()->screen() == screen,
                       "Compositor used the requested output");
                 nearColor(sample(view, probe), opaque, "Pixels preserved across output transition");
                 check(view->pick(view->project(probe)).first == front,
                       "Picking aligned on target output");
                 check(view->renderStats().glError == 0, "No GL error across output transition");
-                transitions.append(QJsonObject{{"screen", screen->name()},
-                                               {"effectiveScale", view->devicePixelRatioF()}});
+                transitions.append(QJsonObject{
+                    {"screen", screen->name()},
+                    {"effectiveScale", view->devicePixelRatioF()},
+                    {"logicalWidth", view->width()},
+                    {"logicalHeight", view->height()},
+                    {"framebufferWidth", outputFrame.width()},
+                    {"framebufferHeight", outputFrame.height()},
+                    {"graphics", view->graphicsDescription()},
+                    {"contextGeneration", qint64(view->renderStats().contextGeneration)},
+                    {"colorBits",
+                     QJsonArray{outputFormat.redBufferSize(), outputFormat.greenBufferSize(),
+                                outputFormat.blueBufferSize(), outputFormat.alphaBufferSize()}}});
                 layout.removeWidget(view);
                 view->setParent(&second);
                 secondLayout.addWidget(view);
@@ -287,6 +307,7 @@ int main(int argc, char **argv) {
         QJsonObject result{
             {"passed", true},
             {"platform", QGuiApplication::platformName()},
+            {"graphics", view->graphicsDescription()},
             {"scale", view->devicePixelRatioF()},
             {"colorBits", QJsonArray{colorFormat.redBufferSize(), colorFormat.greenBufferSize(),
                                      colorFormat.blueBufferSize(), colorFormat.alphaBufferSize()}},
