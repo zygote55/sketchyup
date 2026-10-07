@@ -1,6 +1,7 @@
 #include "app/report_sheet.hpp"
 #include "app/window.hpp"
 #include "io/formline.hpp"
+#include "io/gltf_import.hpp"
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -8,6 +9,51 @@
 #include <QPlainTextEdit>
 #include <QVBoxLayout>
 namespace sketchy {
+void Window::importGltfPath(const QString &path) {
+    auto imported = loadGltf(path);
+    if (!canReplace())
+        return;
+    doc_ = std::move(imported.document);
+    resetRecoveryContext();
+    path_.clear();
+    viewport_->cancel();
+    viewport_->setSelection(0);
+    viewport_->fit();
+    sync();
+    status_->setText("Imported an unsaved native model · Source files unchanged");
+    ReportSheet report("gltfImportReport", "GLB/glTF import report", this);
+    report.resize(600, 440);
+    report.summary->setObjectName("gltfImportSummary");
+    report.summary->setText(
+        QString("Imported model\nTriangles: %1 · Mesh instances: %2 · Camera views: %3\n"
+                "Meters; Y-up converted to Z-up. Save to a new .sketchyup file.")
+            .arg(imported.report["triangles"].toInteger())
+            .arg(imported.report["instances"].toInteger())
+            .arg(imported.report["cameras"].toInteger()));
+    report.summary->setTextFormat(Qt::PlainText);
+    report.summary->setWordWrap(true);
+    auto *details = new QPlainTextEdit;
+    details->setObjectName("gltfImportDetails");
+    details->setReadOnly(true);
+    QString text =
+        "Preserved: mesh instances, hierarchy, placement, base colors and supported image "
+        "mappings.\n"
+        "Open a mesh instance to edit its component. Imported cameras appear in Scenes.\n\n"
+        "Conversion notices:";
+    const auto notices = imported.report["notices"].toArray();
+    if (notices.isEmpty())
+        text += "\nNone for this supported subset.";
+    for (const auto &value : notices) {
+        const auto notice = value.toObject();
+        text += QString("\n• %1 Count: %2.")
+                    .arg(notice["message"].toString())
+                    .arg(notice["count"].toInt());
+    }
+    text += "\n\nThis is a separate conversion. External edits will not update this native model.";
+    details->setPlainText(text);
+    report.body->addWidget(details, 1);
+    report.exec();
+}
 void Window::importFormlinePath(const QString &path) {
     // Parse and validate privately before asking to replace the current document.
     auto imported = loadFormline(path);
