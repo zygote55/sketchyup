@@ -91,7 +91,7 @@ void leafEditsBesideUnchangedInstances() {
     const auto unrelatedMember = unrelated.movedGeometry.at(unrelated.instance);
     const auto preserved = *doc.bodies().at(unrelatedMember);
     editComponentDefinition(doc, leaf.definition, [&](Document &draft) {
-        draft.transform(member, Transform::scaling({2, 1, 1}));
+        draft.transform(member, Transform::scaling({2, 1, 1}), draft.bodies().at(member)->parent);
         return ChangeReport{};
     });
     check(doc.worldArea(member, 5) == 2 && doc.worldArea(peerMember, 5) == 2 &&
