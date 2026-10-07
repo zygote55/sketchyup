@@ -3,6 +3,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <iostream>
 using namespace sketchy;
@@ -42,6 +44,49 @@ int main(int argc, char **argv) {
         QTemporaryDir directory;
         check(directory.isValid(), "Scratch directory");
         const auto root = directory.path(), path = root + "/study.obj";
+        if (app.arguments().contains("--blender-real")) {
+            const auto blender = qEnvironmentVariable("SKETCHYUP_BLENDER_TEST");
+            if (blender.isEmpty())
+                return 77;
+            QProcess producer;
+            producer.start(blender, {"--background", "--factory-startup", "--disable-autoexec",
+                                     "--python-exit-code", "1", "--python",
+                                     QStringLiteral(SOURCE_DIR "/tests/obj_blender_fixture.py"),
+                                     "--", root});
+            check(producer.waitForStarted(10000) && producer.waitForFinished(90000) &&
+                      producer.exitStatus() == QProcess::NormalExit && producer.exitCode() == 0,
+                  "Actual Blender OBJ fixture export");
+            const auto imported = loadObj(root + "/blender.obj", {1, ObjUpAxis::Y});
+            check(imported.report["faces"].toInt() == 2 && imported.report["images"].toInt() == 1,
+                  "Blender triangle objects and managed material import");
+            bool origin = false, left = false, right = false, top = false;
+            size_t meshes = 0;
+            for (const auto &[id, body] : imported.document.bodies()) {
+                (void)id;
+                if (body->kind != BodyKind::Geometry)
+                    continue;
+                ++meshes;
+                check(body->surface.faces.size() == 1 && body->faceTextureMappings.size() == 1,
+                      "Each Blender object remains editable with UV mapping");
+                for (const auto &[vertex, p] : body->surface.vertices) {
+                    (void)vertex;
+                    origin |= length(p - Vec3{10, 20, 30}) < 1e-5;
+                    left |= length(p - Vec3{8, 20, 30}) < 1e-5;
+                    right |= length(p - Vec3{12, 20, 30}) < 1e-5;
+                    top |= length(p - Vec3{10, 23, 30}) < 1e-5;
+                }
+                near(body->surface.area(body->surface.faces.begin()->first), 3);
+                near(body->surface.normal(body->surface.faces.begin()->first).z, 1);
+            }
+            check(meshes == 2 && origin && left && right && top,
+                  "Blender world placement, Y-up conversion, reflection and winding");
+            check(decodeTextureImage(*imported.document.assets().begin()->second).status ==
+                      TextureImageStatus::Ready,
+                  "Blender relative PNG remains usable after capture");
+            std::cout << QJsonDocument(imported.report).toJson().constData();
+            return 0;
+        }
+
         const QByteArray concave =
             "o Building\ng Walls Exterior\nv 0 0 0\nv 2000 0 0\nv 2000 1000 0\nv 1000 1000 0\nv "
             "1000 2000 0\nv 0 2000 0\nf -6 -5 -4 -3 -2 -1\nl 1 3\n";
