@@ -49,6 +49,12 @@ QJsonObject fakeRasterDevice() {
 int fake(QCoreApplication &app, const QStringList &args) {
     const auto mode = args[2];
     const auto requestPath = args.last();
+    if (requestPath.endsWith(".blend") && args.contains("--disable-autoexec")) {
+        const auto proof = qEnvironmentVariable("SKETCHYUP_HANDOFF_LAUNCH_PROOF");
+        if (!proof.isEmpty())
+            write(proof, requestPath.toUtf8());
+        return 0;
+    }
     const auto root = QFileInfo(requestPath).absolutePath();
     const auto request = QJsonDocument::fromJson(read(requestPath)).object();
     if (mode == "hang") {
@@ -181,6 +187,18 @@ int fake(QCoreApplication &app, const QStringList &args) {
         result["image"] = description;
         if (mode == "missing")
             QFile::remove(root + "/image.png");
+        if (request.value("operation") == "handoff") {
+            QByteArray scene =
+                mode == "invalid-scene" ? "invalid scene" : "BLENDER17-01v0502fixture";
+            write(root + "/scene.blend", scene);
+            result.remove("image");
+            result["sceneFile"] =
+                QJsonObject{{"file", mode == "scene-path" ? "../scene.blend" : "scene.blend"},
+                            {"bytes", scene.size()},
+                            {"sha256", mode == "scene-hash" ? QString("wrong") : hash(scene)},
+                            {"assetsPacked", mode != "unpacked-scene"},
+                            {"oneWay", true}};
+        }
         if (mode == "fractional-version")
             result["blenderVersion"] = QJsonArray{5, 2, .5};
     }

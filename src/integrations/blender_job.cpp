@@ -101,10 +101,8 @@ QJsonObject lightingReport(const QJsonObject &source) {
     }
     return report;
 }
-std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const QString &directory,
-                                            const QJsonObject &result,
-                                            const QString &requestedBackend,
-                                            const QString &requestedDevice) {
+void verifyMetadata(const PreparedRender &input, const QJsonObject &result,
+                    const QString &requestedBackend, const QString &requestedDevice) {
     version(result);
     const auto &source = input.manifest();
     require(result.value("status") == "succeeded" &&
@@ -142,6 +140,31 @@ std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const Q
         losses["environmentLightingOmitted"] = 0;
     require(result.value("lighting") == expectedLighting && result.value("losses") == losses,
             "Worker lighting or transfer report does not match the captured source");
+}
+std::shared_ptr<const BlenderSceneResult>
+verifyScene(const PreparedRender &input, const QString &directory, const QJsonObject &result,
+            const QString &requestedBackend, const QString &requestedDevice) {
+    verifyMetadata(input, result, requestedBackend, requestedDevice);
+    const auto file = result.value("sceneFile").toObject();
+    require(file.value("file") == "scene.blend" && file.value("assetsPacked") == true &&
+                file.value("oneWay") == true,
+            "Worker scene transfer descriptor mismatch");
+    const auto bytes = read(directory + "/scene.blend", 512 * 1024 * 1024);
+    require(bytes.size() > 17 && bytes.startsWith("BLENDER17-01v0502") &&
+                file.value("bytes").toInteger(-1) == bytes.size() &&
+                file.value("sha256") == hash(bytes),
+            "Worker scene header, size or hash mismatch");
+    auto verified = std::make_shared<BlenderSceneResult>();
+    verified->manifest = result;
+    verified->blend = bytes;
+    return verified;
+}
+std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const QString &directory,
+                                            const QJsonObject &result,
+                                            const QString &requestedBackend,
+                                            const QString &requestedDevice) {
+    verifyMetadata(input, result, requestedBackend, requestedDevice);
+    const auto settings = input.manifest().value("settings").toObject();
     const auto image = result.value("image").toObject();
     require(image.value("file") == "image.png" && image.value("width") == settings.value("width") &&
                 image.value("height") == settings.value("height"),
@@ -235,7 +258,7 @@ struct BlenderJob::Impl {
     QTimer deadline, killTimer, poll;
     Phase phase{Phase::Idle}, stopPhase{Phase::Failed};
     Options options;
-    bool probing{}, slot{}, stopping{};
+    bool probing{}, sceneOnly{}, slot{}, stopping{};
     int attempt{}, outputBytes{};
     QString executable, currentBackend, currentDevice, progressText, attemptDirectory, errorCode,
         errorMessage;
@@ -246,6 +269,8 @@ struct BlenderJob::Impl {
     std::shared_ptr<QTemporaryDir> jobRoot;
     std::shared_ptr<const BlenderResult> result;
     std::future<std::shared_ptr<const BlenderResult>> verification;
+    std::future<std::shared_ptr<const BlenderSceneResult>> sceneVerification;
+    std::shared_ptr<const BlenderSceneResult> sceneResult;
     explicit Impl(BlenderJob &owner)
         : owner(owner), process(&owner), deadline(&owner), killTimer(&owner), poll(&owner) {
         deadline.setSingleShot(true);
@@ -268,11 +293,28 @@ struct BlenderJob::Impl {
                          &owner,
                          [this](int code, QProcess::ExitStatus status) { finished(code, status); });
         QObject::connect(&poll, &QTimer::timeout, &owner, [this] {
-            if (!verification.valid() ||
-                verification.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+            if (sceneOnly) {
+                if (!sceneVerification.valid() || sceneVerification.wait_for(std::chrono::seconds(
+                                                      0)) != std::future_status::ready)
+                    return;
+            } else if (!verification.valid() ||
+                       verification.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
                 return;
             poll.stop();
             try {
+                if (sceneOnly) {
+                    auto candidate = sceneVerification.get();
+                    if (stopping) {
+                        finish(stopPhase, errorCode, errorMessage);
+                        return;
+                    }
+                    auto published = std::make_shared<BlenderSceneResult>(*candidate);
+                    published->manifest["attempts"] = attempts;
+                    published->manifest["cpuFallbackUsed"] = attempt > 1;
+                    sceneResult = std::move(published);
+                    finish(Phase::Succeeded);
+                    return;
+                }
                 auto candidate = verification.get();
                 if (stopping) {
                     finish(stopPhase, errorCode, errorMessage);
@@ -322,7 +364,8 @@ struct BlenderJob::Impl {
         changed(next);
     }
     QString root() const { return jobRoot->path(); }
-    void begin(bool probe, std::shared_ptr<const PreparedRender> prepared, Options requested) {
+    void begin(bool probe, std::shared_ptr<const PreparedRender> prepared, Options requested,
+               bool scene = false) {
         checkOwner();
         require(phase == Phase::Idle, "A Blender job can start only once");
         require(backend(requested.backend) && requested.deviceId.size() <= 512 &&
@@ -331,6 +374,7 @@ struct BlenderJob::Impl {
         require(requested.backend == "CPU" || !requested.deviceId.isEmpty(),
                 "Select an explicit GPU device");
         probing = probe;
+        sceneOnly = scene;
         input = std::move(prepared);
         options = std::move(requested);
         if (!probing)
@@ -390,10 +434,11 @@ struct BlenderJob::Impl {
             QFile script(":/sketchyup/blender_worker.py");
             require(script.open(QIODevice::ReadOnly), "Embedded Blender adapter is unavailable");
             write(attemptDirectory + "/worker.py", script.readAll());
-            QJsonObject request{{"apiVersion", 1},
-                                {"operation", probing ? "probe" : "render"},
-                                {"backend", currentBackend},
-                                {"deviceId", currentDevice}};
+            QJsonObject request{
+                {"apiVersion", 1},
+                {"operation", probing ? "probe" : (sceneOnly ? "handoff" : "render")},
+                {"backend", currentBackend},
+                {"deviceId", currentDevice}};
             if (input) {
                 request["sourceDirectory"] = input->sourceDirectory();
                 request["manifestSha256"] = input->manifestHash();
@@ -450,7 +495,7 @@ struct BlenderJob::Impl {
         if (process.state() != QProcess::NotRunning) {
             process.terminate();
             killTimer.start(1000);
-        } else if (!verification.valid())
+        } else if (!verification.valid() && !sceneVerification.valid())
             finish(stopPhase, errorCode, errorMessage);
     }
     void drain() {
@@ -479,7 +524,8 @@ struct BlenderJob::Impl {
             if (row.startsWith("SKETCHYUP_PROGRESS ") && row.size() < 1024 && !stopping) {
                 const auto phase =
                     QJsonDocument::fromJson(row.mid(19)).object().value("phase").toString();
-                if (QStringList{"loading", "rendering", "verifying-output"}.contains(phase)) {
+                if (QStringList{"loading", "rendering", "verifying-output", "saving-scene"}
+                        .contains(phase)) {
                     progressText = phase;
                     emit owner.changed();
                 }
@@ -560,13 +606,21 @@ struct BlenderJob::Impl {
                 finish(Phase::Succeeded);
                 return;
             }
-            progressText = "Verifying image";
-            verification =
-                std::async(std::launch::async,
-                           [captured = input, directory = attemptDirectory, report = workerReport,
-                            kind = currentBackend, device = currentDevice] {
-                               return verify(*captured, directory, report, kind, device);
-                           });
+            progressText = sceneOnly ? "Verifying scene" : "Verifying image";
+            if (sceneOnly)
+                sceneVerification =
+                    std::async(std::launch::async, [captured = input, directory = attemptDirectory,
+                                                    report = workerReport, kind = currentBackend,
+                                                    device = currentDevice] {
+                        return verifyScene(*captured, directory, report, kind, device);
+                    });
+            else
+                verification =
+                    std::async(std::launch::async, [captured = input, directory = attemptDirectory,
+                                                    report = workerReport, kind = currentBackend,
+                                                    device = currentDevice] {
+                        return verify(*captured, directory, report, kind, device);
+                    });
             poll.start();
             changed(Phase::Verifying);
         } catch (const std::exception &error) {
@@ -574,11 +628,34 @@ struct BlenderJob::Impl {
         }
     }
 };
+void saveBlenderScene(const BlenderSceneResult &scene, const QString &path) {
+    const QFileInfo destination(path);
+    require(!path.isEmpty() && destination.suffix().compare("blend", Qt::CaseInsensitive) == 0 &&
+                !destination.isSymLink(),
+            "Choose a regular .blend destination for the one-way scene");
+    const auto file = scene.manifest.value("sceneFile").toObject();
+    require(scene.blend.size() > 17 && scene.blend.size() <= 512 * 1024 * 1024 &&
+                scene.blend.startsWith("BLENDER17-01v0502") &&
+                file.value("sha256") == hash(scene.blend) &&
+                file.value("bytes").toInteger(-1) == scene.blend.size(),
+            "Scene integrity changed before saving");
+    QSaveFile output(path);
+    require(output.open(QIODevice::WriteOnly) && output.write(scene.blend) == scene.blend.size() &&
+                output.commit(),
+            "Could not save the Blender scene");
+}
 BlenderJob::BlenderJob(QObject *parent) : QObject(parent), impl_(std::make_unique<Impl>(*this)) {}
 BlenderJob::~BlenderJob() = default;
 void BlenderJob::probe(Options options) { impl_->begin(true, {}, std::move(options)); }
 void BlenderJob::start(std::shared_ptr<const PreparedRender> input, Options options) {
     impl_->begin(false, std::move(input), std::move(options));
+}
+void BlenderJob::handoff(std::shared_ptr<const PreparedRender> input, Options options) {
+    impl_->begin(false, std::move(input), std::move(options), true);
+}
+std::shared_ptr<const BlenderSceneResult> BlenderJob::sceneResult() const {
+    impl_->checkOwner();
+    return impl_->sceneResult;
 }
 void BlenderJob::cancel() {
     impl_->checkOwner();
