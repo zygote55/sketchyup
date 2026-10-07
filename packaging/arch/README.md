@@ -1,7 +1,8 @@
 # Arch development package
 
 The app links the system Qt libraries dynamically. Own code is MIT; the static
-Clipper2 library retains BSL-1.0. Both notices ship in `/usr/share/licenses/sketchyup`.
+Clipper2 retains BSL-1.0, Manifold Apache-2.0 and cgltf MIT. Third-party notices
+ship in `/usr/share/licenses/sketchyup`.
 Build inputs are pinned by `Dockerfile.build` and the dated Arch archive mirror.
 The resulting experimental package is not a stable-format or release promise.
 
@@ -48,8 +49,15 @@ The capture report must match the installed CLI's document metadata.
 
 Qt's QSettings stores theme/recent-file preferences at
 `$XDG_CONFIG_HOME/SketchyUp/SketchyUp.conf` (default
-`~/.config/SketchyUp/SketchyUp.conf`). The app currently writes no automatic recovery,
-data or cache files. Future app data/cache belong under Qt's standard XDG paths;
+`~/.config/SketchyUp/SketchyUp.conf`). Recovery copies and other application data
+use Qt's standard XDG paths;
 the package never manages files under user homes. Removal deletes only package-owned
 binaries, launchers, MIME definition, icon and license notices. User models, backups,
 settings, data and cache sentinels survive acceptance uninstall.
+
+The lifecycle harness retains theme, interface text size, reduced motion,
+recovery interval and field-of-view preferences through upgrade, and checks
+removal against the package manager's complete owned-file list. Its isolated
+build defaults to two jobs; override `CMAKE_BUILD_PARALLEL_LEVEL` when needed.
+Blender and Secret Service credential support are optional; core modeling and
+file operations do not require either service.
