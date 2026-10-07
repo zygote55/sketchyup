@@ -133,8 +133,9 @@ int main(int argc, char **argv) {
             editor(window, [&](QDialog &dialog) {
                 choose(dialog, "tool.3", "Ctrl+Alt+R");
                 click(dialog, "shortcutAssign");
-                check(error(dialog).contains("already assigned"),
-                      "Conflict rejects ordinary assignment");
+                if (!error(dialog).contains("already assigned"))
+                    throw std::runtime_error(
+                        ("Conflict rejects ordinary assignment: " + error(dialog)).toStdString());
                 click(dialog, "shortcutReassign");
                 save(dialog);
             });
