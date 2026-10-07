@@ -52,6 +52,7 @@ int main(int argc, char **argv) {
         SceneSnapshot scene;
         scene.camera = SceneCamera{};
         scene.style = style;
+        scene.style->axesVisible = true;
         const auto defaultScene = createScene(source, "Starting view", scene);
         TemplateMetadata metadata{
             "Metric room", "Embedded starting model", {"Metric", "Room"}, defaultScene};
@@ -69,7 +70,7 @@ int main(int argc, char **argv) {
         check(first.identity() != source.identity() && first.identity() != second.identity() &&
                   first.dirty() && !first.canUndo() && first.revision() == 0,
               "Every template instance has fresh unsaved identity and empty history");
-        check(first.displayUnits() == DisplayUnit::Millimeters && first.style() == style &&
+        check(first.displayUnits() == DisplayUnit::Millimeters && first.style() == *scene.style &&
                   first.activeSections() == source.activeSections() &&
                   first.annotations().size() == 1 && first.definitions().size() == 1 &&
                   first.instances().size() == 1 && first.scenes().contains(defaultScene) &&

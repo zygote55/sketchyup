@@ -40,8 +40,8 @@ void Window::openTemplatePath(const QString &path) {
     resetRecoveryContext();
     path_.clear();
     viewport_->cancel();
-    viewport_->setSelection(0);
     viewport_->refresh();
+    viewport_->setSelection(0);
     viewport_->fit();
     if (bundle.metadata.defaultScene)
         viewport_->recallSavedScene(bundle.metadata.defaultScene, false);
@@ -167,6 +167,10 @@ void Window::libraryDialog(bool templates) {
     });
     connect(search, &QLineEdit::textChanged, &dialog, filter);
     connect(list, &QListWidget::currentRowChanged, &dialog, selected);
+    connect(list, &QListWidget::itemActivated, &dialog, [accept] {
+        if (accept->isEnabled())
+            QMetaObject::invokeMethod(accept, "click", Qt::QueuedConnection);
+    });
     connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(&buttons, &QDialogButtonBox::accepted, &dialog, [&] {
         try {
