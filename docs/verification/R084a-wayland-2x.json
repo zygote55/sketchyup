@@ -1051,6 +1051,7 @@
             "text": "Previous region"
         }
     ],
+    "activeWindowAtCapture": true,
     "auditVersion": 1,
     "contexts": [
         {
@@ -4940,6 +4941,7 @@
         "sketchy::Viewport:",
         "QPushButton:referenceImageImport"
     ],
+    "keyboardRoutingExercised": true,
     "limitations": "Does not prove screen-reader operation, contrast, focus visibility, all dialogs, independent text scaling or complete mouse-free modeling. The fixture uses isolated application settings and does not open provider preferences or request credentials.",
     "logicalHeight": 900,
     "logicalWidth": 1200,
@@ -4947,5 +4949,5 @@
     "qtVersion": "6.11.2",
     "releaseAcceptance": false,
     "scale": 2,
-    "scope": "Visible enabled tab-focusable widgets in all model-panel tabs and two themes; public QAction inventory and F6 routing. Names come from Qt accessibility interfaces."
+    "scope": "Visible enabled tab-focusable widgets in all model-panel tabs and two themes; public QAction inventory and optional F6 routing. Names come from Qt accessibility interfaces."
 }
