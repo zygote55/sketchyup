@@ -509,6 +509,7 @@ struct RenderPanel::Impl {
                  {std::pair{"wiresOmitted", "standalone edges omitted"},
                   {"sectionCutEdgesOmitted", "section cut edges omitted"},
                   {"annotationsOmitted", "dimensions and labels omitted"},
+                  {"editableTextSourcesOmitted", "editable text sources omitted; geometry retained"},
                   {"guidesOmitted", "guides omitted"},
                   {"analyticCurvesTessellatedOrOmitted", "curves approximated or omitted"},
                   {"differentBackAppearancesUseFront", "back faces use front appearance"},

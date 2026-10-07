@@ -1,5 +1,6 @@
 #pragma once
 #include "core/texture_mapping.hpp"
+#include "core/text_source.hpp"
 #include "core/transform.hpp"
 #include "geometry/cleanup.hpp"
 #include "geometry/curves.hpp"
@@ -45,6 +46,7 @@ struct Body {
     bool hidden{}, locked{};
     Id tag{}; // Zero is Untagged; organizational visibility never owns geometry.
     std::map<std::string, std::variant<bool, double, std::string>> properties;
+    std::optional<TextSource> textSource;
     bool operator==(const Body &) const = default;
 };
 using BodyPtr = std::shared_ptr<const Body>;

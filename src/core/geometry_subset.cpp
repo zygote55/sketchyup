@@ -9,6 +9,7 @@ void includeGeometryFace(const Body &body, GeometrySubset &part, Id face) {
 }
 std::shared_ptr<Body> extractGeometry(const Body &source, const GeometrySubset &part) {
     auto result = std::make_shared<Body>(source);
+    result->textSource.reset(); // Partial geometry copies are ordinary geometry.
     auto &surface = result->surface;
     std::erase_if(surface.faces,
                   [&](const auto &item) { return !part.faces.contains(item.first); });

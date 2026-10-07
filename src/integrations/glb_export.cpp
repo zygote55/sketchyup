@@ -99,7 +99,7 @@ struct Writer {
     std::map<Id, int> nodeMap;
     std::set<Id> usedAssets, usedMaterials;
     size_t faces{}, triangles{}, references{}, hiddenBodies{}, hiddenFaces{}, wires{}, guides{},
-        curves{}, backDifferences{}, cutEdges{}, capTriangles{};
+        curves{}, backDifferences{}, cutEdges{}, capTriangles{}, textSources{};
     Bounds bounds;
     explicit Writer(const RenderSnapshot &snapshot)
         : snapshot(snapshot), doc(snapshot.document()) {}
@@ -483,6 +483,7 @@ struct Writer {
             wires += record->surface.wires.size();
             guides += record->guides.size();
             curves += record->curves.size();
+            textSources += record->textSource.has_value();
         }
         require(triangles > 0, "No visible surface geometry to export");
         std::map<int, QJsonArray> children;
@@ -534,6 +535,7 @@ struct Writer {
             {"guidesOmitted", double(guides)},
             {"sectionCutEdgesOmitted", double(cutEdges)},
             {"annotationsOmitted", double(doc.annotations().size())},
+            {"editableTextSourcesOmitted", double(textSources)},
             {"analyticCurvesTessellatedOrOmitted", double(curves)},
             {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size()) - textures.size()},
             {"missingAssets", double(missingAssets)}};
