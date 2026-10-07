@@ -59,7 +59,7 @@ ShortcutBindings::ShortcutBindings(ShortcutMap defaults, const QByteArray &saved
         require(envelope_["bindings"].isObject(), "Saved shortcut bindings must be an object");
         overrides_ = envelope_["bindings"].toObject();
         require(overrides_.size() <= 1024, "Too many saved shortcut bindings");
-        for (auto it = overrides_.cbegin(); it != overrides_.cend(); ++it) {
+        for (auto it = overrides_.constBegin(); it != overrides_.constEnd(); ++it) {
             require(validId(it.key()) && it.value().isString(), "Invalid saved shortcut entry");
             const auto text = it.value().toString();
             require(text.size() <= 128, "Saved shortcut is too long");
