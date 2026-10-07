@@ -139,12 +139,14 @@ int main(int argc, char **argv) {
                     QTest::keyClick(list, Qt::Key_Up);
                     const auto buttons = dialog->findChild<QDialogButtonBox *>();
                     if (mode == 2) {
-                        sawInvalid =
-                            !buttons->button(QDialogButtonBox::Ok)->isEnabled() &&
-                            !dialog->findChild<QLabel *>("libraryDetails")->text().isEmpty();
+                        sawInvalid = !buttons->button(QDialogButtonBox::Ok)->isEnabled() &&
+                                     !dialog->findChild<QPlainTextEdit *>("libraryDetails")
+                                          ->toPlainText()
+                                          .isEmpty();
                         dialog->reject();
                     } else {
                         dialog->findChild<QLineEdit *>("libraryPosition")->setText("3000, 0, 0");
+                        QCoreApplication::processEvents();
                         if (const auto evidence =
                                 qEnvironmentVariable("SKETCHYUP_LIBRARY_EVIDENCE");
                             !evidence.isEmpty())

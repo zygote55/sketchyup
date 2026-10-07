@@ -78,7 +78,8 @@ void Window::libraryDialog(bool templates) {
     position->setObjectName("libraryPosition");
     position->setAccessibleName("World placement position");
     if (!templates)
-        form.addRow("&World position (x, y, z)", position);
+        form.addRow(QString("&World position (x, y, z; %1)").arg(inputUnit(doc_.displayUnits())),
+                    position);
     else {
         position->setParent(&dialog);
         position->hide();
@@ -89,10 +90,12 @@ void Window::libraryDialog(bool templates) {
     list->setAccessibleName(templates ? "Template library" : "Component library");
     list->setIconSize({120, 90});
     layout.addWidget(list, 1);
-    auto *details = new QLabel;
+    auto *details = new QPlainTextEdit;
     details->setObjectName("libraryDetails");
-    details->setTextFormat(Qt::PlainText);
-    details->setWordWrap(true);
+    details->setReadOnly(true);
+    details->setAccessibleName("Library description and labels");
+    details->setMinimumHeight(70);
+    details->setMaximumHeight(110);
     layout.addWidget(details);
     auto *error = new QLabel;
     error->setObjectName("libraryError");
@@ -115,10 +118,10 @@ void Window::libraryDialog(bool templates) {
     auto selected = [&] {
         const auto *entry = selection();
         accept->setEnabled(entry && entry->error.isEmpty());
-        details->setText(!entry                    ? QString{}
-                         : !entry->error.isEmpty() ? entry->error
-                                                   : entry->metadata.description + "\n" +
-                                                         entry->metadata.labels.join(", "));
+        details->setPlainText(!entry                    ? QString{}
+                              : !entry->error.isEmpty() ? entry->error
+                                                        : entry->metadata.description + "\n" +
+                                                              entry->metadata.labels.join(", "));
     };
     auto filter = [&] {
         list->clear();
