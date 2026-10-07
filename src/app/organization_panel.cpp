@@ -160,6 +160,7 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     layout->setContentsMargins(0, 0, 0, 0);
     tabs_ = new QTabWidget;
     tabs_->setObjectName("organizationTabs");
+    tabs_->setAccessibleName("Model panels");
     layout->addWidget(tabs_, 1);
     error_ = new QLabel;
     error_->setObjectName("organizationError");

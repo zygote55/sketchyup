@@ -31,6 +31,7 @@ MaterialsPanel::MaterialsPanel(Document &doc, Viewport &view, QWidget *parent)
     outer->setContentsMargins(0, 0, 0, 0);
     auto *scroll = new QScrollArea;
     scroll->setObjectName("materialScroll");
+    scroll->setAccessibleName("Material properties");
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
