@@ -1,5 +1,6 @@
 #include "io/dxf_source.hpp"
 #include <QCoreApplication>
+#include <QFile>
 #include <iostream>
 #include <numbers>
 using namespace sketchy;
@@ -106,6 +107,30 @@ int main(int argc, char **argv) {
         comment.prepend("999\nignored comment\n");
         check(parseDxf(comment).entities.size() == 1, "DXF comment pairs ignored");
         rejects([&] { parseDxf(QByteArray(1000002, '\n')); });
+        for (const auto version : {"r12", "r2018"}) {
+            QFile fixture(QStringLiteral(SOURCE_DIR "/tests/fixtures/dxf/ezdxf-") + version +
+                          ".dxf");
+            check(fixture.open(QIODevice::ReadOnly), "Independent reference fixture");
+            const auto drawing = parseDxf(
+                fixture.readAll(), QString(version) == "r12" ? DxfOptions{.001} : DxfOptions{});
+            check(drawing.entities.size() == 4 && drawing.layers.at("Walls").hidden &&
+                      drawing.layers.at("Walls").locked,
+                  "Independent DXF layer state and supported entity counts");
+            near(drawing.entities[0].segments[0].end.x, 6);
+            near(drawing.entities[0].segments[0].end.y, 4);
+            near(drawing.entities[1].segments[0].sweep, 20 * std::numbers::pi / 180);
+            near(length(drawing.entities[2].segments[0].start -
+                        drawing.entities[2].segments[0].center),
+                 .5);
+            check(drawing.entities[3].closed && drawing.entities[3].segments.size() == 3,
+                  "Both DXF polyline forms retain closure");
+            if (QString(version) == "r2018")
+                near(drawing.entities[3].segments[0].sweep, std::numbers::pi);
+            check(drawing.report["omittedEntities"].toObject()["TEXT:unsupportedType"].toInt() ==
+                          1 &&
+                      drawing.report["omittedEntities"].toObject()["LINE:paperSpace"].toInt() == 1,
+                  "Independent unsupported text and paper-space geometry reported");
+        }
         std::cout << "DXF lines, arcs, bulges, circles, layers, units and bounded malformed-input "
                      "checks passed\n";
     } catch (const std::exception &e) {
