@@ -1,0 +1,9 @@
+{
+  "date": "2026-10-06",
+  "installInputs": 164,
+  "byteExact": true,
+  "excludesBuildAndGit": true,
+  "archiveSha256": "f5a76a152795c900493bc45139de6ef48aed46250fb607052393fdd6cef03635",
+  "sourceCommit": "e6fe6438b9a2bafecf6a866a6e1a999114d7d2f1",
+  "pullRequest": 173
+}
