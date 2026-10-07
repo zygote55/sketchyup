@@ -203,7 +203,8 @@ int main(int argc, char **argv) {
         check(source.open(QIODevice::ReadOnly) && source.readAll() == bytes,
               "Source bytes unchanged");
         source.close();
-        const auto cli = QCoreApplication::applicationDirPath() + "/sketchyup-cli";
+#ifdef CLI_PATH
+        const auto cli = QString::fromUtf8(CLI_PATH);
         auto invoke = [&](QStringList arguments, bool success = true) {
             QProcess process;
             process.start(cli, arguments);
@@ -238,6 +239,7 @@ int main(int argc, char **argv) {
         check(source.open(QIODevice::ReadOnly) && source.readAll() == bytes,
               "CLI source remains byte exact");
         source.close();
+#endif
         // Embedded image and KHR_texture_transform use glTF top-left UVs directly.
         const auto png = encodeTexturePng(TextureImage(2, 1, {255, 0, 0, 128, 0, 255, 0, 255}));
         f.tree["images"] = QJsonArray{

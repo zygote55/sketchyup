@@ -163,7 +163,8 @@ int main(int argc, char **argv) {
         check(loaded.report["source"].toObject()["zeroNormals"].toInt() == 1,
               "Source normal findings survive conversion");
         check(file.open(QIODevice::ReadOnly) && file.readAll() == bytes, "Source bytes unchanged");
-        const auto cli = QCoreApplication::applicationDirPath() + "/sketchyup-cli";
+#ifdef CLI_PATH
+        const auto cli = QString::fromUtf8(CLI_PATH);
         auto invoke = [&](QStringList args, bool success) {
             QProcess p;
             p.start(cli, args);
@@ -202,6 +203,7 @@ int main(int argc, char **argv) {
                 "--stl-up", "z"},
                false);
         check(file.seek(0) && file.readAll() == bytes, "CLI leaves original STL unchanged");
+#endif
         std::cout << "STL exact/none/tolerance welding, explicit repair, topology diagnostics, "
                      "units and undo passed\n";
     } catch (const std::exception &e) {

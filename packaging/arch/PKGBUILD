@@ -8,7 +8,8 @@ url='https://github.com/zygote55/sketchyup'
 license=('MIT' 'BSL-1.0' 'Apache-2.0')
 depends=('openssl' 'qt6-base' 'qt6-wayland' 'wayland' 'shared-mime-info' 'ttf-dejavu')
 optdepends=('libsecret: OpenAI credential storage through the desktop Secret Service')
-makedepends=('cmake' 'ninja' 'gcc' 'pkgconf')
+# CMake configures Python-based recipe/reference checks when BUILD_TESTING is on.
+makedepends=('cmake' 'ninja' 'gcc' 'pkgconf' 'python')
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('REPLACE_WITH_SOURCE_SHA256') # Filled by package-source.sh.
 
