@@ -1,0 +1,74 @@
+[
+  {
+    "implementation": "02457f0ece115bcb0e6f487d9d4d401c29077e24",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "theme_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 0.778
+  },
+  {
+    "implementation": "02457f0ece115bcb0e6f487d9d4d401c29077e24",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "theme_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 3.083
+  },
+  {
+    "implementation": "02457f0ece115bcb0e6f487d9d4d401c29077e24",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "theme_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 3.684
+  },
+  {
+    "implementation": "02457f0ece115bcb0e6f487d9d4d401c29077e24",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "theme_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 3.806
+  },
+  {
+    "implementation": "585e4728f56a827f15fb63c573874bf1a2d642f4",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "theme_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 1.707
+  },
+  {
+    "implementation": "585e4728f56a827f15fb63c573874bf1a2d642f4",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "theme_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 3.969
+  },
+  {
+    "implementation": "585e4728f56a827f15fb63c573874bf1a2d642f4",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "theme_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 4.62
+  },
+  {
+    "implementation": "585e4728f56a827f15fb63c573874bf1a2d642f4",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "theme_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 4.827
+  }
+]
