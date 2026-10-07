@@ -28,3 +28,11 @@ excludes painter overlays and compositor presentation, and edit timing includes
 readback. Consequently even numbers below the initial budgets are not release
 acceptance. Repeated controlled-load reference runs, discrete hardware, the larger
 fixture and the remaining performance scenarios are still required.
+
+The unchanged benchmark was also invoked with 10,000 instances (source `b4652b9`).
+It exited 1 during public component placement with `Component placement exceeds
+document editing limits`, before a viewport or timing report existed. The requested
+1,000,000-triangle fixture is therefore currently unsupported. Existing aggregate
+materialized-vertex and body limits prevent that fixture; the benchmark did not
+raise limits, reduce the count or publish substitute timings. This is a concrete
+R082 gap requiring document/instancing work before the larger acceptance run.
