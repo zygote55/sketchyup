@@ -1,0 +1,88 @@
+{
+  "qtClientScaleFactor": 1.75,
+  "scope": "Isolated software Wayland protocol diagnostic; no physical output acceptance",
+  "phases": [
+    {
+      "phase": "before",
+      "privateLogSha256": "63b9c658559a7d4afe669a79155b3bc35e28f8026c5fbc33014ad64137c8e527",
+      "eglBuffers": [
+        {
+          "width": 1260,
+          "height": 1120,
+          "stride": 2520,
+          "format": 909199186,
+          "strideAlignedToFourBytes": true
+        },
+        {
+          "width": 1575,
+          "height": 1225,
+          "stride": 3150,
+          "format": 909199186,
+          "strideAlignedToFourBytes": false
+        },
+        {
+          "width": 1614,
+          "height": 1120,
+          "stride": 3228,
+          "format": 909199186,
+          "strideAlignedToFourBytes": true
+        },
+        {
+          "width": 2139,
+          "height": 1120,
+          "stride": 4278,
+          "format": 909199186,
+          "strideAlignedToFourBytes": false
+        },
+        {
+          "width": 2839,
+          "height": 1120,
+          "stride": 5678,
+          "format": 909199186,
+          "strideAlignedToFourBytes": false
+        }
+      ]
+    },
+    {
+      "phase": "globalEightBitFormat",
+      "privateLogSha256": "700a35a6b005ebf86a46834c92f20cc726c201286997692503cba47746f6f652",
+      "eglBuffers": [
+        {
+          "width": 1260,
+          "height": 1120,
+          "stride": 5040,
+          "format": 1,
+          "strideAlignedToFourBytes": true
+        },
+        {
+          "width": 1575,
+          "height": 1225,
+          "stride": 6300,
+          "format": 1,
+          "strideAlignedToFourBytes": true
+        },
+        {
+          "width": 1614,
+          "height": 1120,
+          "stride": 6456,
+          "format": 1,
+          "strideAlignedToFourBytes": true
+        },
+        {
+          "width": 2139,
+          "height": 1120,
+          "stride": 8556,
+          "format": 1,
+          "strideAlignedToFourBytes": true
+        },
+        {
+          "width": 2839,
+          "height": 1120,
+          "stride": 11356,
+          "format": 1,
+          "strideAlignedToFourBytes": true
+        }
+      ]
+    }
+  ]
+}

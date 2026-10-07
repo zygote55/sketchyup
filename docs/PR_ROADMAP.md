@@ -1226,7 +1226,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R085 — Validate native Wayland and supported hardware
 
-**Status:** In progress. Overlapping [current integration and fractional client-scale evidence](verification/R085a-current-platform-validation.md) records 179 passing regression checks and 17/20 passing native scale cases. Three Wayland 1.75 cases expose an unresolved isolated compositor crash; diagnostic renderer changes do not waive it. Physical output transitions, suspend/resume, input methods, supported hardware and final acceptance remain open. **Track:** Quality. **Scope:** N01, N03, N04. **UX:** §2–§3, §10.
+**Status:** In progress. The [initial platform evidence](verification/R085a-current-platform-validation.md) retains three failed Wayland 1.75 cases. [Eight-bit compositor surfaces](verification/R085b-native-surface-color.md) avoid the observed RGB565 selection: 20/20 fractional cases, 12/12 sanitizer cases, the actual application smoke and all 181 integration checks pass. A separate diagnostic-readiness fixture passes eight native cases. Physical output transitions, suspend/resume, input methods, supported hardware, remote CI, ordered merges and final acceptance remain open. **Track:** Quality. **Scope:** N01, N03, N04. **UX:** §2–§3, §10.
 
 **Requires:** [R082](#r082), [R084](#r084); milestone gate rule above.
 

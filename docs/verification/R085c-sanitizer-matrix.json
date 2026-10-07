@@ -1,0 +1,34 @@
+[
+  {
+    "target": "diagnostics_input_tests",
+    "platform": "wayland",
+    "scale": 1,
+    "exitCode": 0,
+    "seconds": 16.254,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "diagnostics_input_tests",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 25.04,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "diagnostics_input_tests",
+    "platform": "xcb",
+    "scale": 1,
+    "exitCode": 0,
+    "seconds": 20.181,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "diagnostics_input_tests",
+    "platform": "xcb",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 23.568,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  }
+]
