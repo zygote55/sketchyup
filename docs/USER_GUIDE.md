@@ -7,7 +7,7 @@ before choosing an exchange format or relying on a platform configuration.
 ## Build a measured solid
 
 Start a new model and focus the viewport. The following keyboard workflow is
-covered by the [measured construction fixture](https://github.com/zygote55/sketchyup/blob/a4bf6e9505a8cd50c171ec2b1dcf42f002e2fbec/docs/verification/R084d-keyboard-modeling.md).
+covered by the [measured construction fixture](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R084d-keyboard-modeling.md).
 These are default shortcuts; saved custom bindings take precedence.
 
 1. Press **R** for Rectangle. Use **F6** to reach Measurements, type `[0,0,0]`,
@@ -36,7 +36,7 @@ Use **View → Interface text size** for 75–200% text independently of display
 scaling. Light, Dark and System themes are under View. Navigation preferences
 include trackpad gestures, field of view and reduced motion. The
 [text-size](decisions/0151-interface-text-size.md) and
-[keyboard Outliner](https://github.com/zygote55/sketchyup/blob/a4bf6e9505a8cd50c171ec2b1dcf42f002e2fbec/docs/verification/R084k-keyboard-outliner.md) records identify
+[keyboard Outliner](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R084k-keyboard-outliner.md) records identify
 the exact checked workflows and their limits.
 
 Find **Keyboard shortcuts** with Ctrl+K. Filter the command list, select an action,
@@ -82,7 +82,7 @@ makes an older proposal stale. An unknown commit outcome must be reconciled
 before further editing or saving.
 
 Model prose is not the measurement oracle. The [agent guide](AI_MODELING.md),
-[tool reference](TOOL_REFERENCE.md) and [frozen provider corpus](https://github.com/zygote55/sketchyup/blob/a4bf6e9505a8cd50c171ec2b1dcf42f002e2fbec/docs/verification/R086a-frozen-provider-corpus.md)
+[tool reference](TOOL_REFERENCE.md) and [frozen provider corpus](https://github.com/zygote55/sketchyup/blob/7e54cbbf5b90783045f511b68bd57bdea3fa7146/docs/verification/R086a-frozen-provider-corpus.md)
 describe the supported commands and evaluation boundary. The retained local
 CPU profile is experimental, with no automatic model download or cloud fallback.
 
