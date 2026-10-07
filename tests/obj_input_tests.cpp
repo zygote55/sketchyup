@@ -161,8 +161,19 @@ int main(int argc, char **argv) {
         exportTimer.setInterval(10);
         bool exportSeen = false;
         QObject::connect(&exportTimer, &QTimer::timeout, &window, [&] {
-            if (auto *dialog = window.findChild<QDialog *>("objReport");
+            if (auto *dialog = window.findChild<QDialog *>("objOptionsDialog");
                 dialog && dialog->isVisible()) {
+                dialog->findChild<QComboBox *>("objUnits")->setCurrentIndex(0);
+                dialog->findChild<QComboBox *>("objUpAxis")->setCurrentIndex(1);
+                dialog->accept();
+            } else if (auto *file = window.findChild<QFileDialog *>("objExportFileDialog");
+                       file && file->isVisible()) {
+                auto *name = file->findChild<QLineEdit *>("fileNameEdit");
+                check(name, "OBJ package folder field available");
+                name->setText(files.filePath("obj-package"));
+                QMetaObject::invokeMethod(file, "accept");
+            } else if (auto *dialog = window.findChild<QDialog *>("objReport");
+                       dialog && dialog->isVisible()) {
                 exportSeen = true;
                 check(dialog->findChild<QPlainTextEdit *>("objDetails")
                           ->toPlainText()
@@ -174,7 +185,7 @@ int main(int argc, char **argv) {
         });
         std::cerr << "OBJ stage: export report\n";
         exportTimer.start();
-        window.exportObjPath(files.filePath("obj-package"), {.001, ObjUpAxis::Z});
+        window.findChild<QAction *>("file.exportObj")->trigger();
         exportTimer.stop();
         check(exportSeen && QFile::exists(files.filePath("obj-package/model.obj")) &&
                   encodeDocument(doc) == beforeExport && doc.history().total == beforeHistory,
