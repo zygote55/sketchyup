@@ -116,11 +116,6 @@ void Window::shortcutSettings() {
     list->setObjectName("shortcutActions");
     list->setAccessibleName("Command shortcuts");
     layout.addWidget(list);
-    for (auto *action : publicActions_) {
-        auto *item = new QListWidgetItem(list);
-        item->setData(Qt::UserRole, action->objectName());
-        item->setData(Qt::UserRole + 1, action->text().remove('&'));
-    }
     auto *editor = new QKeySequenceEdit;
     editor->setObjectName("shortcutSequence");
     editor->setAccessibleName("New key combination");
@@ -188,22 +183,26 @@ void Window::shortcutSettings() {
         editor->setKeySequence(draft.effective().value(selectedId()));
         showConflict();
     });
-    connect(search, &QLineEdit::textChanged, &dialog, [&](const QString &text) {
-        for (int i = 0; i < list->count(); ++i) {
-            auto *item = list->item(i);
-            item->setHidden(!item->text().contains(text, Qt::CaseInsensitive));
+    auto filterCommands = [&](const QString &text) {
+        const auto previous = selectedId();
+        list->clear();
+        int selected = 0;
+        for (auto *action : publicActions_) {
+            const auto name = action->text().remove('&');
+            const auto key =
+                draft.effective().value(action->objectName()).toString(QKeySequence::NativeText);
+            const auto label = name + "  —  " + (key.isEmpty() ? "Unassigned" : key);
+            if (!label.contains(text, Qt::CaseInsensitive))
+                continue;
+            auto *item = new QListWidgetItem(label, list);
+            item->setData(Qt::UserRole, action->objectName());
+            item->setData(Qt::UserRole + 1, name);
+            if (action->objectName() == previous)
+                selected = list->count() - 1;
         }
-        // Commit hidden-row layout before keyboard focus/navigation can enter the list.
-        list->doItemsLayout();
-        if (!list->currentItem() || list->currentItem()->isHidden()) {
-            list->setCurrentRow(-1);
-            for (int i = 0; i < list->count(); ++i)
-                if (!list->item(i)->isHidden()) {
-                    list->setCurrentRow(i);
-                    break;
-                }
-        }
-    });
+        list->setCurrentRow(list->count() ? selected : -1);
+    };
+    connect(search, &QLineEdit::textChanged, &dialog, filterCommands);
     connect(editor, &QKeySequenceEdit::keySequenceChanged, &dialog, showConflict);
     auto change = [&](bool reassign) {
         try {
@@ -257,8 +256,8 @@ void Window::shortcutSettings() {
             error->setText(QString::fromUtf8(failure.what()));
         }
     });
+    filterCommands({});
     refresh();
-    list->setCurrentRow(0);
     dialog.exec();
     activateWindow();
     viewport_->setFocus();
