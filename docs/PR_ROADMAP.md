@@ -1152,7 +1152,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R079 — Ship templates and the local component library
 
-**Status:** In progress. R079.a–d [bounded searchable library catalogs](verification/R079d-library-catalog.md) pass recursive closure, atomic insertion, resource conflicts, search/error handling, sanitizer, installed and source-package checks. Native workflows follow in R079.e. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
+**Status:** In progress. R079.a–e [native template and library workflows](verification/R079e-native-library.md) are locally implemented and verified, including keyboard search/insertion, resource closure, atomic edits, default scenes, source preservation and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
 
 **Requires:** [R033](#r033), [R036](#r036), [R073](#r073); milestone gate rule above.
 
