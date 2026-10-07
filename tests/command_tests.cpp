@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
+#include "io/solar_io.hpp"
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
@@ -755,7 +756,9 @@ int main(int argc, char **argv) {
         SceneSnapshot savedCamera;
         savedCamera.camera = SceneCamera{};
         const auto cameraJson = encodeSceneSnapshot(savedCamera);
+        SolarSettings solarStudy; solarStudy.enabled = true;
         QJsonArray cases{
+            QJsonObject{{"command", "document.solar"}, {"solar", encodeSolarSettings(solarStudy)}},
             QJsonObject{{"command", "text.create"}, {"name", "Text"}, {"text", "O"},
                         {"family", "DejaVu Sans"}, {"height", .2}, {"allowSubstitution", true}},
             QJsonObject{{"command", "text.update"}, {"body", "2"}, {"text", "B"}},

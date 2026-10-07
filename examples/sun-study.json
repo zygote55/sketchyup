@@ -1,0 +1,157 @@
+[
+  {
+    "command": "geometry.face",
+    "name": "Sun study block",
+    "loops": [
+      [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          3,
+          0
+        ],
+        [
+          0,
+          3,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "command": "geometry.extrude_isolated",
+    "body": "1",
+    "face": "5",
+    "distance": 3
+  },
+  {
+    "command": "document.solar",
+    "solar": {
+      "algorithm": "noaa-meeus-geometric-v1",
+      "enabled": true,
+      "shadows": true,
+      "latitude": 40,
+      "longitude": -105,
+      "northDegrees": 0,
+      "year": 2010,
+      "month": 6,
+      "day": 21,
+      "hour": 8,
+      "minute": 0,
+      "second": 0,
+      "utcOffsetMinutes": -420
+    }
+  },
+  {
+    "command": "saved_scene.create",
+    "name": "Morning",
+    "snapshot": {
+      "solar": {
+        "algorithm": "noaa-meeus-geometric-v1",
+        "enabled": true,
+        "shadows": true,
+        "latitude": 40,
+        "longitude": -105,
+        "northDegrees": 0,
+        "year": 2010,
+        "month": 6,
+        "day": 21,
+        "hour": 8,
+        "minute": 0,
+        "second": 0,
+        "utcOffsetMinutes": -420
+      }
+    }
+  },
+  {
+    "command": "document.solar",
+    "solar": {
+      "algorithm": "noaa-meeus-geometric-v1",
+      "enabled": true,
+      "shadows": true,
+      "latitude": 40,
+      "longitude": -105,
+      "northDegrees": 0,
+      "year": 2010,
+      "month": 6,
+      "day": 21,
+      "hour": 12,
+      "minute": 0,
+      "second": 0,
+      "utcOffsetMinutes": -420
+    }
+  },
+  {
+    "command": "saved_scene.create",
+    "name": "Noon",
+    "snapshot": {
+      "solar": {
+        "algorithm": "noaa-meeus-geometric-v1",
+        "enabled": true,
+        "shadows": true,
+        "latitude": 40,
+        "longitude": -105,
+        "northDegrees": 0,
+        "year": 2010,
+        "month": 6,
+        "day": 21,
+        "hour": 12,
+        "minute": 0,
+        "second": 0,
+        "utcOffsetMinutes": -420
+      }
+    }
+  },
+  {
+    "command": "document.solar",
+    "solar": {
+      "algorithm": "noaa-meeus-geometric-v1",
+      "enabled": true,
+      "shadows": true,
+      "latitude": 40,
+      "longitude": -105,
+      "northDegrees": 0,
+      "year": 2010,
+      "month": 6,
+      "day": 21,
+      "hour": 18,
+      "minute": 0,
+      "second": 0,
+      "utcOffsetMinutes": -420
+    }
+  },
+  {
+    "command": "saved_scene.create",
+    "name": "Evening",
+    "snapshot": {
+      "solar": {
+        "algorithm": "noaa-meeus-geometric-v1",
+        "enabled": true,
+        "shadows": true,
+        "latitude": 40,
+        "longitude": -105,
+        "northDegrees": 0,
+        "year": 2010,
+        "month": 6,
+        "day": 21,
+        "hour": 18,
+        "minute": 0,
+        "second": 0,
+        "utcOffsetMinutes": -420
+      }
+    }
+  },
+  {
+    "command": "saved_scene.recall",
+    "scene": "2"
+  }
+]

@@ -328,6 +328,8 @@ int main(int argc, char **argv) {
         check(guideMeasures["infiniteLength"] == true && guideMeasures["length"].isNull(),
               "Infinite guides must not return fabricated finite lengths");
         Document sceneDocument;
+        check(run(sceneDocument, "solar.describe")["position"].toObject().contains("direction"),
+              "Solar inspection computes bounded offline direction");
         SceneSnapshot savedView;
         savedView.camera = SceneCamera{};
         savedView.visibility = SceneVisibility{};

@@ -5,6 +5,8 @@
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "io/model_style_io.hpp"
+#include "io/solar_io.hpp"
+#include "automation/solar_commands.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
@@ -47,6 +49,7 @@ QJsonObject refSchema() {
 }
 enum class Operation {
     Document,
+    Solar,
     Texts,
     Text,
     Annotations,
@@ -102,6 +105,7 @@ const std::vector<Spec> &registry() {
         };
         return std::vector<Spec>{
             spec("document.describe", Operation::Document, {}, {}),
+            spec("solar.describe", Operation::Solar, {}, {}),
             spec("texts.query", Operation::Texts, {}, {}, true),
             spec("text.describe", Operation::Text, {{"body", idSchema()}}, {"body"}),
             spec("annotations.query", Operation::Annotations,
@@ -505,6 +509,7 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
     case Operation::Document:
         data = {{"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
                 {"style", encodeModelStyle(doc.style())},
+                {"solar", encodeSolarSettings(doc.solar())},
                 {"dirty", doc.dirty()},
                 {"counts", QJsonObject{{"bodies", int(doc.bodies().size())},
                                        {"definitions", int(doc.definitions().size())},
@@ -521,6 +526,9 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
             data["activeContext"] = editor->context()
                                         ? QJsonValue(inspectionReference(doc, editor->context()))
                                         : QJsonValue();
+        break;
+    case Operation::Solar:
+        data = solarDescription(doc);
         break;
     case Operation::Texts:
         for (const auto &[id, body] : doc.bodies())
