@@ -75,6 +75,28 @@ int main(int argc, char **argv) {
         check(resolved.notices().isEmpty() &&
                   resolved.effective()["view.extra"] == QKeySequence("X"),
               "One explicit reassignment resolves all conflicting saved owners");
+        const auto reserved = [](const QString &id, const QKeySequence &key) -> QString {
+            return id == "file.save" && key == QKeySequence("Ctrl+Shift+M")
+                       ? "Shortcut belongs to a model panel"
+                       : QString{};
+        };
+        auto protectedSaved = saved;
+        protectedSaved["bindings"] =
+            QJsonObject{{"file.save", "Ctrl+Shift+M"}, {"future.action", "opaque"}};
+        ShortcutBindings guarded(defaults, QJsonDocument(protectedSaved).toJson(), reserved);
+        check(guarded.effective()["file.save"].isEmpty() && !guarded.notices().isEmpty() &&
+                  QJsonDocument::fromJson(guarded.encode()).object() == protectedSaved,
+              "New panel reservation disables old global binding without destroying preferences");
+        const auto guardedBefore = guarded.encode();
+        rejected([&] { guarded.assign("file.save", QKeySequence("Ctrl+Shift+M"), true); });
+        check(guarded.encode() == guardedBefore,
+              "Explicit reassignment cannot remove panel binding");
+        ShortcutBindings disjoint(defaults, {}, reserved);
+        disjoint.assign("tool.rectangle", QKeySequence("Ctrl+Shift+M"));
+        check(disjoint.effective()["tool.rectangle"] == QKeySequence("Ctrl+Shift+M"),
+              "Guard allows disjoint viewport scope");
+        guarded.assign("file.save", QKeySequence("Ctrl+Alt+S"));
+        check(guarded.notices().isEmpty(), "A different global key resolves panel reservation");
         for (const auto bytes :
              {QByteArray("invalid"), QByteArray("[]"),
               QByteArray("{\"apiVersion\":2,\"bindings\":{}}"),
