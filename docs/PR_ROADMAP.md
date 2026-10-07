@@ -1116,7 +1116,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R076 — Implement binary and text STL interchange
 
-**Status:** In progress. R076.a–c parsing, conversion and export pass [158-suite, independent Blender, sanitizer, native, installed and source-package checks](verification/R076c-bounded-stl-export.md). Native and CLI workflows follow in R076.d; remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** In progress. R076.a–d parsing, conversion, export and native/CLI workflows are locally complete with [158-suite, independent Blender, sanitizer, eight-platform, installed and source-package checks](verification/R076d-native-stl-workflow.md). Remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R058](#r058); milestone gate rule above.
 
