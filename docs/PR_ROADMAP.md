@@ -1128,7 +1128,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R077 — Implement the documented 2D DXF subset
 
-**Status:** In progress. R077.a–c parsing, native conversion and planar export pass [162-suite, independent ezdxf, sanitizer, native, installed and source-package checks](verification/R077c-planar-dxf-export.md). Native/CLI workflows follow in R077.d; remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X04. **UX:** —.
+**Status:** In progress. R077.a–d implementation and [local DXF workflow verification](verification/R077d-native-dxf-workflow.md) are complete, including independent ezdxf, sanitizer, eight platform cases, final native integration, installed workflows and source packaging. Remote CI, ordered merges and milestone acceptance remain open. **Track:** Interchange. **Scope:** X04. **UX:** —.
 
 **Requires:** [R024](#r024), [R073](#r073); milestone gate rule above.
 
