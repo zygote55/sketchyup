@@ -989,3 +989,7 @@ install(FILES examples/extensions/panel.sketchyext DESTINATION share/doc/sketchy
 install(FILES docs/decisions/0135-persistent-extension-lifecycle.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0136-bounded-extension-worker.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/api/extensions-v1.json DESTINATION share/doc/sketchyup/api)
+
+install(FILES docs/decisions/0137-native-extension-management.md DESTINATION share/doc/sketchyup/decisions)

@@ -1,0 +1,20 @@
+{
+    "actions": 32,
+    "atomicEdits": true,
+    "commandApiVersion": 1,
+    "commandsPerAction": 100,
+    "depth": 32,
+    "execution": "command-batch-v1",
+    "expandedBytes": 65536,
+    "externalCode": false,
+    "fileAccess": false,
+    "manifestBytes": 262144,
+    "manifestVersion": 1,
+    "networkAccess": false,
+    "parameterTypes": [
+        "number",
+        "boolean",
+        "string"
+    ],
+    "parameters": 32
+}
