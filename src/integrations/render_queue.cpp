@@ -211,6 +211,13 @@ std::shared_ptr<const PreparedRender> RenderQueue::input(const QString &id) cons
     checkOwner();
     return store_.input(id);
 }
+QJsonObject RenderQueue::diagnostics(const QString &id) const {
+    checkOwner();
+    const auto found = active_.find(id);
+    return found != active_.end() && found->second
+               ? history(store_.jobs().at(id), found->second->report())
+               : store_.jobs().at(id).report;
+}
 QString RenderQueue::progress(const QString &id) const {
     checkOwner();
     const auto found = active_.find(id);
