@@ -7,9 +7,9 @@
 #include "io/document_io.hpp"
 #include "io/model_style_io.hpp"
 #include <QApplication>
-#include <QBuffer>
 #include <QCryptographicHash>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -55,24 +55,14 @@ class TimedViewport final : public Viewport {
     double completeFrameMs_{};
 };
 AssetPayloadPtr largeTexture(int variant) {
-    QImage image(4096, 4096, QImage::Format_RGBA8888);
-    check(!image.isNull(), "Allocate full-resolution texture fixture");
-    image.setDotsPerMeterX(0);
-    image.setDotsPerMeterY(0);
-    for (int y = 0; y < image.height(); ++y) {
-        auto *row = image.scanLine(y);
-        for (int x = 0; x < image.width(); ++x) {
-            const bool bright = ((x / 64 + y / 64) % 2) != 0;
-            row[4 * x] = variant == 0 ? 220 : 30;
-            row[4 * x + 1] = bright ? 180 : 40;
-            row[4 * x + 2] = variant == 1 ? 220 : 30;
-            row[4 * x + 3] = 255;
-        }
-    }
-    QByteArray bytes;
-    QBuffer buffer(&bytes);
-    check(buffer.open(QIODevice::WriteOnly) && image.save(&buffer, "PNG"),
-          "Encode complete large texture fixture");
+    QFile file(variant == 0 ? ":/benchmark/front.png" : ":/benchmark/back.png");
+    check(file.open(QIODevice::ReadOnly), "Open embedded maximum-size texture fixture");
+    const auto bytes = file.readAll();
+    const auto expected = variant == 0
+                              ? "f54b21aa7880121dedf98bfc6ef153c204c36732fafb9bb762d415138d4e5b40"
+                              : "29ce13972c226f1de25e70dacfe38f7299ca4eb6d5faf2ed6de4b3474d144747";
+    check(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex() == expected,
+          "Frozen texture bytes agree across platforms");
     return std::make_shared<const AssetPayload>(
         std::vector<std::uint8_t>(bytes.begin(), bytes.end()));
 }
