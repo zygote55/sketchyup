@@ -1,0 +1,20 @@
+{
+  "attempts": [
+    {
+      "source": "6436f6e3c903abf33135734ffd8a81289be667a4",
+      "parallel": 2,
+      "exitCode": 1,
+      "privateLog": "r085b-full-build.log",
+      "sha256": "8ef9d00c6450eaee750b72dc56f3c386994005b9427ae3cfa2eba21c1d0b8fec"
+    },
+    {
+      "source": "c09035b81f1c9e484a183214960b7063613e44e2",
+      "parallel": 1,
+      "exitCode": 0,
+      "privateLog": "r085b-full-build-retry.log",
+      "sha256": "23d783348fdd46694b439ad24cd474956491c69c2f43e9805b785317dc2d1bc7"
+    }
+  ],
+  "initialFailure": "ld received SIGKILL while linking m7_presentation_input_tests; cause unconfirmed. Available kernel/oom-daemon logs and session cgroup counters showed no OOM kill.",
+  "retry": "Serial continuation completed all targets. The only additional source change was the diagnostic readiness fixture c09035b, validated separately in normal and sanitizer native matrices."
+}

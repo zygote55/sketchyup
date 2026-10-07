@@ -1,0 +1,30 @@
+[
+  {
+    "target": "diagnostics_input_tests",
+    "platform": "wayland",
+    "scale": 1,
+    "exitCode": 0,
+    "seconds": 11.27
+  },
+  {
+    "target": "diagnostics_input_tests",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 25.452
+  },
+  {
+    "target": "diagnostics_input_tests",
+    "platform": "xcb",
+    "scale": 1,
+    "exitCode": 0,
+    "seconds": 12.051
+  },
+  {
+    "target": "diagnostics_input_tests",
+    "platform": "xcb",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 12.674
+  }
+]
