@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Move only the viewport fixture's named window to an already-awake output.
+"""Move the viewport fixture's own window on Hyprland 0.55+ to an awake output.
 
 Opt in with SKETCHYUP_TEST_OUTPUT_HELPER pointing to this executable when
 running viewport_tests --screens. This changes no compositor configuration.
@@ -40,13 +40,21 @@ def main():
     if not re.fullmatch(r"0x[0-9a-fA-F]+", address) or not isinstance(workspace, int) or workspace <= 0:
         raise ValueError("Invalid window address or ordinary workspace")
     # Explicit address: never act on whichever user window happens to have focus.
-    result = subprocess.check_output(
-        ["hyprctl", "dispatch", "movetoworkspacesilent", f"{workspace},address:{address}"],
+    dispatcher = (
+        'hl.dsp.window.move({workspace="'
+        + str(workspace)
+        + '",follow=false,window="address:'
+        + address
+        + '"})'
+    )
+    result = subprocess.run(
+        ["hyprctl", "dispatch", dispatcher],
         text=True,
+        capture_output=True,
         timeout=2,
     )
-    if result.strip() != "ok":
-        raise RuntimeError("Compositor rejected the test-window move")
+    if result.returncode:
+        raise RuntimeError("Compositor rejected test-window move: " + (result.stdout + result.stderr)[:512])
 
 
 if __name__ == "__main__":
