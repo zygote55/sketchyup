@@ -97,6 +97,9 @@ live provider evaluation of natural-language tasks.
 
 ## Optional operations and alternatives
 
+`sketchyup-cli --optional-capabilities` reports optional helper presence without
+executing them, loading extension packages, reading credentials or using the network.
+It describes the headless process; desktop executable overrides are not read.
 A schema describes compiled API support. Dependency discovery must be followed by
 operation-level checks: a helper on disk is not proof of compatible execution, a
 provider choice is not proof of authentication, and an asset ID is not proof its

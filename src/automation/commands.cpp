@@ -178,6 +178,7 @@ QJsonObject capabilities() {
     return {
         {"apiVersion", 1},
         {"status", "experimental"},
+        {"optionalDiscovery", "sketchyup-cli --optional-capabilities"},
         {"extensions", extensionCapabilities()},
         {"inspection", inspectionCapabilities()},
         {"inspectionSession", inspectionSessionCapabilities()},
@@ -241,8 +242,8 @@ QJsonObject capabilities() {
              "sweeps; solid booleans require validated material solids, with disconnected "
              "results returned separately",
              "Local JSON-lines sessions are available; remote MCP transport is not yet implemented",
-             "Component geometry is materialized per instance; instanced "
-             "rendering and component libraries are not yet implemented",
+             "Component geometry is materialized per instance; native component libraries "
+             "are available, while instanced rendering is not yet implemented",
              "External provider and render work is outside document command batches"}}};
 }
 QJsonObject describe(const Document &doc) {
