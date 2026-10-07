@@ -192,27 +192,27 @@ int main(int argc, char **argv) {
         invalid["name"] = "Invalid geometry sample";
         auto actions = invalid["actions"].toArray();
         auto action = actions[0].toObject();
-        action["commands"] = QJsonArray {
-            QJsonObject{{"command", "geometry.face"},
-                        {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{0, 0, 0},
-                                                        QJsonArray{0, 0, 0}}}}};
-            actions[0] = action;
-            invalid["actions"] = actions;
-            ExtensionStore store(directory);
-            store.install(QJsonDocument(invalid).toJson());
-            store.setEnabled("org.sketchyup.invalid", true);
-            mode = 3;
-            stage = 0;
-            open();
-            check(failed && removed && encodeContainer(doc) == beforeCancel &&
-                      doc.history().total == history,
-                  "Invalid geometry disables extension atomically and removal preserves the model");
-            timer.stop();
-            check(read(samplePath) == source, "Original extension package remains unchanged");
-            doc.markSaved();
-            window.close();
-            std::cout << "Native extensions: install, explicit enable, asynchronous sample, "
-                         "undo/redo, stale/canceled/invalid actions and removal passed\n";
+        const QJsonArray repeatedPoint{0, 0, 0};
+        const QJsonArray degenerateLoop{repeatedPoint, repeatedPoint, repeatedPoint};
+        action["commands"] = QJsonArray{
+            QJsonObject{{"command", "geometry.face"}, {"loops", QJsonArray{degenerateLoop}}}};
+        actions[0] = action;
+        invalid["actions"] = actions;
+        ExtensionStore store(directory);
+        store.install(QJsonDocument(invalid).toJson());
+        store.setEnabled("org.sketchyup.invalid", true);
+        mode = 3;
+        stage = 0;
+        open();
+        check(failed && removed && encodeContainer(doc) == beforeCancel &&
+                  doc.history().total == history,
+              "Invalid geometry disables extension atomically and removal preserves the model");
+        timer.stop();
+        check(read(samplePath) == source, "Original extension package remains unchanged");
+        doc.markSaved();
+        window.close();
+        std::cout << "Native extensions: install, explicit enable, asynchronous sample, "
+                     "undo/redo, stale/canceled/invalid actions and removal passed\n";
         }
         catch (const std::exception &error) {
             std::cerr << error.what() << '\n';
