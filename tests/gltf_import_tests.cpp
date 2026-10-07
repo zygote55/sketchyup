@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <QtEndian>
 #include <bit>
@@ -101,6 +102,49 @@ int main(int argc, char **argv) {
         QTemporaryDir dir;
         check(dir.isValid(), "Import scratch");
         const auto path = dir.filePath("model.gltf");
+        if (app.arguments().contains("--blender-real")) {
+            const auto blender = qEnvironmentVariable("SKETCHYUP_BLENDER_TEST");
+            if (blender.isEmpty())
+                return 77;
+            QProcess producer;
+            producer.start(blender,
+                           {"--background", "--factory-startup", "--disable-autoexec", "--python",
+                            QStringLiteral(SOURCE_DIR "/tests/gltf_blender_fixture.py"), "--",
+                            dir.path()});
+            check(producer.waitForStarted(10000) && producer.waitForFinished(90000) &&
+                      producer.exitStatus() == QProcess::NormalExit && producer.exitCode() == 0,
+                  "Actual Blender fixture export");
+            const auto result = loadGltf(dir.filePath("blender.gltf"));
+            check(result.report["triangles"] == 2 && result.report["instances"] == 2 &&
+                      result.report["cameras"] == 1 && result.report["images"].toInt() >= 1,
+                  "Blender hierarchy, cameras, shared textures and triangles import");
+            int mirrored = 0, ordinary = 0;
+            for (const auto &[id, body] : result.document.bodies())
+                if (body->kind == BodyKind::Geometry) {
+                    const auto world = result.document.worldTransform(id);
+                    const auto origin = world.point({});
+                    near(origin.x, 10);
+                    near(origin.y, 20);
+                    near(origin.z, 30);
+                    bool expectedTip = false, expectedHeight = false;
+                    for (const auto &[vertex, point] : body->surface.vertices) {
+                        (void)vertex;
+                        const auto p = world.point(point);
+                        expectedTip |=
+                            length(p - Vec3{world.determinant() < 0 ? 8. : 12., 20, 30}) < 1e-5;
+                        expectedHeight |= length(p - Vec3{10, 23, 30}) < 1e-5;
+                    }
+                    check(expectedTip && expectedHeight && !body->faceTextureMappings.empty(),
+                          "Blender metre dimensions, reflection and UVs match independent source");
+                    if (world.determinant() < 0)
+                        ++mirrored;
+                    else
+                        ++ordinary;
+                }
+            check(mirrored == 1 && ordinary == 1, "Blender mirrored instance retained");
+            std::cout << QJsonDocument(result.report).toJson().constData();
+            return 0;
+        }
         Fixture f;
         f.save(path);
         QFile original(path);
