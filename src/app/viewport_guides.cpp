@@ -201,6 +201,8 @@ void Viewport::paintGuides(QPainter &p) const {
     p.setBrush(Qt::NoBrush);
     if (guidesVisible_) {
         for (const auto &[id, body] : doc_.bodies()) {
+            if (body->guides.empty())
+                continue;
             const auto world = doc_.worldTransform(id);
             bool selected = false;
             for (auto ancestor = id; ancestor; ancestor = doc_.bodies().at(ancestor)->parent)
