@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "releaseAcceptance": false,
+  "source": "38a9ee0e6a38aa30402598757120289eeb28da78",
+  "numericLimitsChanged": false,
+  "normalSuites": 18,
+  "asanUbsanSuites": 18,
+  "leakDetection": true,
+  "generatedReferencesMatched": 2,
+  "workerLimits": {
+    "SubState": "running",
+    "CPUQuotaPerSecUSec": "8s",
+    "MemoryMax": "4294967296",
+    "MemorySwapMax": "0",
+    "TasksMax": "256",
+    "observedAt": "2026-10-07T21:50:25.233135+00:00",
+    "method": "systemctl show active worker"
+  },
+  "peakMemoryBytes": 4294967296,
+  "swapBytes": 0,
+  "compilerJobs": 2,
+  "temporaryStorage": "persistent disk",
+  "log": "R082l-resource-limits-check.txt",
+  "logSha256": "2e08649fd10116c8a3fa32463b455f5d0db572450be879d40ea672c361d43ad3"
+}

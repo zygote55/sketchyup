@@ -201,3 +201,13 @@ geometry and texture-heavy fixtures before choosing compression defaults. M1/M4
 must test truncated headers/chunks, every journal tail boundary, failed fsync,
 rename interruption, post-commit response loss and duplicate retry. Any revised
 limit or durability guarantee requires an ADR update and measured rationale.
+
+## Shared admission limits
+
+`core/document_limits.hpp` owns aggregate materialized-record bounds;
+`io/native_limits.hpp` owns native file/model/manifest bounds. Readers, writers,
+recovery, library loading and capability output share these values. Aggregate
+edge admission is independent of per-body topology limits. Legacy raw JSON keeps
+an explicit separate model-byte bound. The initial consolidation changes no
+numbers, schema or accepted files; [normal/sanitized validation](../verification/R082l-resource-limits.md)
+records the unchanged profile. Private sizing experiments do not redefine it.
