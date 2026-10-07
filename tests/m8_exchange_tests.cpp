@@ -8,6 +8,7 @@
 #include "io/dxf_export.hpp"
 #include "io/gltf_import.hpp"
 #include "io/measured_export.hpp"
+#include "io/native_format.hpp"
 #include "io/obj_export.hpp"
 #include "io/stl_export.hpp"
 #include "io/texture_image.hpp"
@@ -81,6 +82,7 @@ int main(int argc, char **argv) {
         const auto source = encodeContainer(document);
         const auto history = document.history().total;
         shape(document);
+        createNativeFile(document, path("study.sketchyup"));
         const auto thumb = encodeTexturePng(TextureImage(1, 1, {51, 102, 204, 255}));
         const auto templateBytes =
             encodeTemplateBundle(document, {"Exchange study", "2 × 3 × 4 m", {"M8"}, 0}, thumb);
@@ -153,7 +155,8 @@ int main(int argc, char **argv) {
             read(QStringLiteral(SOURCE_DIR "/examples/extensions/panel.sketchyext")));
         const auto commands = runExtensionWorker(
             manifest, "create-panel", {{"width", 2}, {"height", 3}, {"name", "Study panel"}});
-        const auto beforeExtension = encodeContainer(fromTemplate);
+        auto beforeExtension = QJsonDocument::fromJson(encodeDocument(fromTemplate)).object();
+        const auto beforeRevision = fromTemplate.revision(), beforeId = fromTemplate.nextId();
         executeBatch(fromTemplate, {{"apiVersion", 1},
                                     {"documentId", QString::fromStdString(fromTemplate.identity())},
                                     {"expectedRevision", QString::number(fromTemplate.revision())},
@@ -167,8 +170,15 @@ int main(int argc, char **argv) {
         near(extendedArea, 52 + 6);
         check(fromTemplate.canUndo(), "Extension produces an ordinary undoable edit");
         fromTemplate.undo();
-        check(encodeContainer(fromTemplate) == beforeExtension,
-              "Extension undo restores the template model exactly");
+        auto afterUndo = QJsonDocument::fromJson(encodeDocument(fromTemplate)).object();
+        // Undo restores content, while identity allocation and revisions remain monotonic.
+        check(fromTemplate.revision() > beforeRevision && fromTemplate.nextId() > beforeId,
+              "Undo retains monotonic revision and body ID allocation");
+        for (const auto *key : {"revision", "nextId"}) {
+            beforeExtension.remove(key);
+            afterUndo.remove(key);
+        }
+        check(afterUndo == beforeExtension, "Extension undo restores all template content");
         check(encodeContainer(document) == source && document.history().total == history,
               "All exchange paths preserve the original native model and history");
         std::cout << "M8 exchange study: libraries, glTF, OBJ, both STL encodings, DXF, 1:50 "

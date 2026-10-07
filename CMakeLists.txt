@@ -1015,3 +1015,5 @@ install(FILES examples/material-recipe-v1.json DESTINATION share/doc/sketchyup/e
 install(FILES docs/decisions/0139-executable-agent-recipes.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0140-optional-capability-discovery.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/M8_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
