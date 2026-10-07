@@ -1176,7 +1176,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R081 — Ship generated tool reference and executable AI recipes
 
-**Status:** Planned. **Track:** Automation. **Scope:** A07, A08, A06. **UX:** —.
+**Status:** In progress. Generated reference, executable agent guide, all ten recipes, optional discovery and the combined exchange study pass [local normal/sanitizer and installed checks](verification/R081-local-agent-distribution.md). Complete integration, remote CI, ordered merges and milestone prerequisites remain open. **Track:** Automation. **Scope:** A07, A08, A06. **UX:** —.
 
 **Requires:** [R060](#r060), [R080](#r080); milestone gate rule above.
 
