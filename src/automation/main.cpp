@@ -3,6 +3,7 @@
 #include "automation/inspection.hpp"
 #include "automation/local_mcp.hpp"
 #include "automation/mcp.hpp"
+#include "automation/optional_capabilities.hpp"
 #include "automation/recipe.hpp"
 #include "automation/session.hpp"
 #include "integrations/glb_export.hpp"
@@ -47,6 +48,8 @@ int main(int argc, char **argv) {
     auto &app = *application;
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption({"optional-capabilities",
+                      "Inspect optional dependency presence without executing helpers"});
     parser.addOption(
         {"extension-capabilities", "Describe versioned declarative extension capabilities"});
     parser.addOption(
@@ -125,6 +128,13 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("optional-capabilities")) {
+            if (parser.optionNames().size() != 1 || !parser.positionalArguments().isEmpty())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Optional discovery is a standalone operation");
+            std::cout << QJsonDocument(sketchy::optionalCapabilities()).toJson().toStdString();
+            return 0;
+        }
         if (parser.isSet("extension-capabilities")) {
             if (parser.optionNames().size() != 1 || !parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",
