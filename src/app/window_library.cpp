@@ -31,8 +31,8 @@ QByteArray thumbnail(Viewport &view) {
     return bytes;
 }
 } // namespace
-void Window::openTemplatePath(const QString &path) {
-    const auto bundle = loadTemplateBundle(path);
+void Window::openTemplatePath(const QString &path) { openTemplateBundle(loadTemplateBundle(path)); }
+void Window::openTemplateBundle(const TemplateBundle &bundle) {
     auto fresh = instantiateTemplate(bundle);
     if (!canReplace())
         return;
@@ -177,15 +177,16 @@ void Window::libraryDialog(bool templates) {
             const auto *entry = selection();
             if (!entry || !entry->error.isEmpty())
                 return;
-            // Reload and validate; the catalog deliberately does not retain decoded models.
+            // Verify the selected bytes still match the validated catalog entry.
+            const auto bytes = readLibraryEntry(*entry);
             if (templates)
-                openTemplatePath(entry->path);
+                openTemplateBundle(decodeTemplateBundle(bytes));
             else {
                 const auto values =
                     parseMeasurements(position->text(), inputUnit(doc_.displayUnits()), QLocale());
                 if (values.kind != MeasurementKind::Values || values.values.size() != 3)
                     throw std::runtime_error("Enter three world position values in document units");
-                const auto bundle = loadComponentBundle(entry->path);
+                const auto bundle = decodeComponentBundle(bytes);
                 viewport_->insertLibrary(bundle,
                                          {values.values[0], values.values[1], values.values[2]});
             }

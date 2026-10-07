@@ -1,4 +1,5 @@
 #include "io/library_catalog.hpp"
+#include <QCryptographicHash>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
@@ -67,6 +68,7 @@ LibraryCatalog scanLibraryDirectory(const QString &directory) {
             readBytes += bytes.size();
             if (file.error() != QFileDevice::NoError || bytes.size() > budget || !file.atEnd())
                 throw std::runtime_error("Library file changed or exceeded the read budget");
+            entry.contentSha256 = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);
             entry.kind = bundleKind(bytes);
             if (entry.kind == LibraryKind::Template) {
                 auto bundle = decodeTemplateBundle(bytes);
@@ -93,6 +95,20 @@ LibraryCatalog scanLibraryDirectory(const QString &directory) {
         return comparison ? comparison < 0 : a.path < b.path;
     });
     return result;
+}
+QByteArray readLibraryEntry(const LibraryEntry &entry) {
+    const QFileInfo info(entry.path);
+    if (!entry.error.isEmpty() || entry.contentSha256.size() != 32 || info.isSymLink() ||
+        !info.isFile() || info.size() > libraryBundleLimit)
+        throw std::runtime_error("Library entry changed or is unavailable. Refresh the library.");
+    QFile file(entry.path);
+    if (!file.open(QIODevice::ReadOnly))
+        throw std::runtime_error("Cannot read library entry");
+    const auto bytes = file.read(libraryBundleLimit + 1);
+    if (file.error() != QFileDevice::NoError || bytes.size() > libraryBundleLimit ||
+        QCryptographicHash::hash(bytes, QCryptographicHash::Sha256) != entry.contentSha256)
+        throw std::runtime_error("Library entry changed. Refresh the library before selecting it.");
+    return bytes;
 }
 bool matchesLibrarySearch(const LibraryEntry &entry, const QString &query) {
     const auto haystack = (entry.metadata.name + " " + entry.metadata.description + " " +
