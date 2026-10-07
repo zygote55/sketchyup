@@ -190,6 +190,10 @@ int main(int argc, char **argv) {
                 layout.addWidget(view);
                 output.winId();
                 output.windowHandle()->setScreen(screen);
+                // X11 outputs share a virtual desktop. setScreen alone does not
+                // move a window's coordinates into the requested output.
+                if (QGuiApplication::platformName() == "xcb")
+                    output.setGeometry(screen->geometry());
                 output.showFullScreen();
                 view->show();
                 check(QTest::qWaitForWindowExposed(&output), "Output test window exposed");
