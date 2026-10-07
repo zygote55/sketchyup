@@ -1,3 +1,4 @@
+#include "app/interface_preferences.hpp"
 #include "app/shortcut_bindings.hpp"
 #include "app/window.hpp"
 #include <QAction>
@@ -42,11 +43,7 @@ void Window::applyShortcuts(const ShortcutBindings &bindings) {
                                ? base
                                : base + " (" + sequence.toString(QKeySequence::NativeText) + ")");
     }
-    const auto commandKey = bindings.effective().value("view.commands");
-    findChild<QPushButton *>("commandSearch")
-        ->setText(commandKey.isEmpty()
-                      ? "Commands"
-                      : "Commands  " + commandKey.toString(QKeySequence::NativeText));
+    updateCommandSearchLabel(this);
 }
 void Window::initializeShortcuts() {
     for (auto *action : publicActions_) {

@@ -1,0 +1,37 @@
+[
+  {
+    "target": "shortcut_input_tests",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 4.522
+  },
+  {
+    "target": "keyboard_modeling_input_tests",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 4.093
+  },
+  {
+    "target": "preference_input_tests",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 3.416
+  },
+  {
+    "target": "theme_input_tests",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 2.949
+  },
+  {
+    "target": "organization_input_tests",
+    "platform": "wayland",
+    "scale": 2,
+    "exitCode": 0,
+    "seconds": 4.548
+  }
+]
