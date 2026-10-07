@@ -37,3 +37,16 @@ The updated guides again install byte for byte in a docs-only configuration;
 the [updated source archive](R088b-source-package.json) verifies all 218 installed
 inputs. The earlier archive and source remain recorded above. These updates
 do not close the local-provider, physical-platform or final release gates.
+
+
+## Completed local corpus and package follow-up
+
+The installed support matrix now links to published source `6a5a7d1` and records
+the failed frozen local profile alongside the passing remote profile. It also
+links to the corrected development package lifecycle. The Core evidence index
+keeps its passing test baseline and adds these explicit limitations/results.
+A fresh documentation-only configure/install copies both guides byte for byte;
+[the final guide source archive](R088c-source-package.json) again verifies all
+218 installed inputs. Package lifecycle evidence precedes these guide changes;
+it does not claim that a release-candidate package or full guide walkthrough
+has been accepted.
