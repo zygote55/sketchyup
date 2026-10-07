@@ -954,3 +954,5 @@ install(FILES docs/decisions/0130-contained-component-bundles.md DESTINATION sha
 install(FILES docs/decisions/0131-atomic-library-insertion.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0132-bounded-local-library-catalog.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0133-native-template-and-library-workflows.md DESTINATION share/doc/sketchyup/decisions)
