@@ -29,7 +29,24 @@ cleanup of the owned container. No stress-to-OOM test was run. Host `/tmp` remai
 at 21 MiB through these lightweight checks. After an uncatchable interruption,
 a still-running labeled job blocks a second invocation until inspected/stopped.
 
-Package defaults also become one build job. The lifecycle procedure uses this
+The first bounded package retry exposed a separate nested-worker issue: Ninja ran
+with `-j1`, but GCC's inherited `-flto=auto` invoked `make -j22` despite one-CPU
+affinity. The cgroup CPU/memory ceilings remained in force (observed 1.3 GiB of
+4 GiB), and host `/tmp` was 22 MiB. That attempt was stopped deliberately before
+testing; exit 143 is not a package pass or a product crash. Its persistent logs
+remain under `build/local-checks/r087d-package-retry`.
+
+PKGBUILD now explicitly appends `-flto=1` to executable/shared link flags when LTO
+is enabled, preserving compile flags, optimization, and reusable build objects.
+This follows [GCC's documented explicit link worker count](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#index-flto).
+CPU affinity alone is not evidence that every tool will create one worker.
+A [13-translation-unit compiler probe](R087c-serial-lto.json) executes the actual
+PKGBUILD build function with forced maximum partitioning and inherited automatic
+compile LTO. GCC explicitly reports serial compilation of 13 LTRANS jobs; the
+linked program runs successfully. This lightweight probe passed under the same
+container ceilings and does not substitute for the package lifecycle check.
+
+Package defaults also become one outer build job. The lifecycle procedure uses this
 bounded runner. These are local safety constraints, not reference-performance
 measurements or release acceptance. The next package attempt must retain its
 actual source, cache/interruption provenance and test results separately.

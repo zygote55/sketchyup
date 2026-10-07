@@ -48,8 +48,9 @@ storage under the main checkout's `build/local-checks/RUN_NAME`. Host `/tmp` and
 memory-backed filesystems are refused. The shared worktree lock and running-container
 check permit one local acceptance job at a time.
 
-The runner enforces one CPU (including affinity so automatic compiler workers see
-one CPU), 4 GiB RAM, no additional swap and a 256-process limit. It sets build
+The runner enforces one CPU (including affinity), 4 GiB RAM, no additional swap
+and a 256-process limit. PKGBUILD also passes `-flto=1` at link time when LTO is
+enabled: GCC's automatic worker count can still see the host's CPUs. It sets build
 parallelism to one and requires at least 6 GiB available host memory before starting.
 Interruptions stop the owned container when the shell can handle the signal; after
 an abrupt harness/host failure, a still-running labeled container blocks another
