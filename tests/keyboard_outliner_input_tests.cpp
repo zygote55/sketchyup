@@ -1,10 +1,10 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/groups.hpp"
 #include <QApplication>
 #include <QDialog>
 #include <QLineEdit>
 #include <QSettings>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTreeWidget>
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");

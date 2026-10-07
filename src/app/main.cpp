@@ -1,5 +1,6 @@
 #include "app/inspection_service.hpp"
 #include "app/native_mcp.hpp"
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "io/model_style_io.hpp"
 #include <QApplication>
@@ -7,7 +8,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRawFont>
-#include <QSurfaceFormat>
 #include <QTimer>
 #include <iostream>
 int main(int argc, char **argv) {
@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setSamples(4);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
     QApplication::setApplicationName("SketchyUp");
     QGuiApplication::setDesktopFileName("io.sketchyup.SketchyUp");

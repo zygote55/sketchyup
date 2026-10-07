@@ -1,5 +1,6 @@
 // Explicit opt-in live acceptance; synthetic documents only, never a user's open model.
 #include "app/render_panel.hpp"
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "core/entity_measure.hpp"
@@ -20,7 +21,6 @@
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <iostream>
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("SketchyUp");
     QCoreApplication::setOrganizationName("SketchyUp");
