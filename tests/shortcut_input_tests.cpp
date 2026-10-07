@@ -141,9 +141,15 @@ void keyboardShortcutTask(Window &window) {
                         auto *list = dialog->findChild<QListWidget *>("shortcutActions");
                         tabTo(list);
                         focusedKey(Qt::Key_Home);
-                        check(list->currentItem() &&
-                                  list->currentItem()->data(Qt::UserRole).toString() == "tool.1",
-                              "Keys select the filtered Rectangle command");
+                        if (!list->currentItem() ||
+                            list->currentItem()->data(Qt::UserRole).toString() != "tool.1")
+                            throw std::runtime_error(
+                                QString(
+                                    "Keyboard Rectangle selection: query=%1 current=%2 focus=%3")
+                                    .arg(search->text(),
+                                         list->currentItem() ? list->currentItem()->text() : "none",
+                                         QApplication::focusWidget()->objectName())
+                                    .toStdString());
                         auto *sequence = dialog->findChild<QKeySequenceEdit *>("shortcutSequence");
                         tabTo(sequence);
                         focusedKey(Qt::Key_R, Qt::ControlModifier | Qt::AltModifier);
