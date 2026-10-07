@@ -145,6 +145,7 @@ void EntityInfoPanel::refresh() {
                           : entity.kind == SelectionKind::Edge     ? "Edge"
                           : entity.kind == SelectionKind::Guide    ? "Guide"
                           : doc_.instances().contains(entity.body) ? "Component"
+                          : body.referenceImage                    ? "Reference image"
                           : body.kind == BodyKind::Group           ? "Group"
                                                                    : "Geometry";
         type_->setText(

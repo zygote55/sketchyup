@@ -32,6 +32,7 @@ class Window : public QMainWindow {
     void demo();
     void openPath(const QString &path);
     void importFormlinePath(const QString &path);
+    void exportRasterDialog();
 
   protected:
     bool eventFilter(QObject *, QEvent *) override;

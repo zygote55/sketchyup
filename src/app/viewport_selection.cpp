@@ -193,10 +193,28 @@ void Viewport::rebuildPickGeometry() {
             continue;
         auto appendTriangle = [&](size_t triangleIndex, const SectionTriangle *cut) {
             const auto &triangle = cache->worldTriangles[triangleIndex];
-            const SelectedEntity entity{id, SelectionKind::Face, triangle.face};
+            const SelectedEntity entity{
+                id, cache->record->referenceImage ? SelectionKind::Body : SelectionKind::Face,
+                triangle.face};
             if (!visible(entity))
                 return;
             const auto c = color(entity);
+            if (cache->record->referenceImage) {
+                std::array<Vertex, 3> vertices;
+                size_t corner = 0;
+                for (auto point : {triangle.a, triangle.b, triangle.c})
+                    vertices[corner++] = vertex(point, c);
+                referenceVertices(*cache->record, cache->localTriangles[triangleIndex], vertices);
+                for (auto &v : vertices) {
+                    v.r = v.br = c[0];
+                    v.g = v.bg = c[1];
+                    v.b = v.bb = c[2];
+                }
+                if (cut)
+                    vertices = clippedVertices(vertices, *cut);
+                faces.insert(faces.end(), vertices.begin(), vertices.end());
+                return;
+            }
             auto front = surfaceAppearance(doc_.materials(), *cache->record, triangle.face);
             auto back = surfaceAppearance(doc_.materials(), *cache->record, triangle.face, true);
             if (cache->world.determinant() < 0)
@@ -467,6 +485,11 @@ SelectionSet Viewport::windowSelection(QRectF bounds, bool crossing) {
                     if (!cache.sectionError.isEmpty())
                         continue;
                     if (cache.sectionCuts.empty()) {
+                        if (member->referenceImage)
+                            for (const auto point :
+                                 referenceImageCorners(*member->referenceImage, world))
+                                if (!inside(point, id))
+                                    return true;
                         for (const auto &[vertex, point] : member->surface.vertices)
                             if (!inside(world.point(point), id))
                                 return true;

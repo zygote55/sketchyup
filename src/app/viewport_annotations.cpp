@@ -28,7 +28,7 @@ void Viewport::paintAnnotations(QPainter &painter) {
         return v.w() > 1e-9 && v.z() >= -v.w() && v.z() <= v.w();
     };
     painter.save();
-    painter.setClipRect(rect());
+    painter.setClipRect(QRect(0, 0, renderWidth(), renderHeight()));
     for (const auto &[id, record] : doc_.annotations()) {
         const auto &m = annotationMeasurements_.at(id);
         if (!inFront(m.textPoint))

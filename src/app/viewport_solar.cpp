@@ -49,8 +49,8 @@ void Viewport::drawSolarShadowMap(const QMatrix4x4 &viewMatrix) {
     std::array<double, 3> low{infinity, infinity, infinity}, high{-infinity, -infinity, -infinity};
     // Focus shadow resolution around the camera target. Casters outside the camera view
     // can still contribute when their sun-space projection overlaps this neighborhood.
-    const double extent =
-        std::max(.1, double(distance_) * std::max(2., 2. * width() / std::max(1, height())));
+    const double extent = std::max(
+        .1, double(distance_) * std::max(2., 2. * renderWidth() / std::max(1, renderHeight())));
     std::array<double, 2> focusLow{infinity, infinity}, focusHigh{-infinity, -infinity};
     for (double dx : {-extent, extent})
         for (double dy : {-extent, extent})
@@ -88,6 +88,8 @@ void Viewport::drawSolarShadowMap(const QMatrix4x4 &viewMatrix) {
         hasCaster = true;
     };
     for (const auto &[id, cache] : bodyCaches_) {
+        if (cache->record->referenceImage)
+            continue;
         for (size_t i = 0; i + 2 < cache->opaque.size(); i += 3)
             include(cache->opaque[i], cache->opaque[i + 1], cache->opaque[i + 2]);
         for (const auto &triangle : cache->transparent)

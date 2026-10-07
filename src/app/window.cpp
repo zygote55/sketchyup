@@ -264,6 +264,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.save", "Save", QKeySequence::Save, [this] { save(); }));
     file->addAction(
         action("file.saveAs", "Save as…", QKeySequence::SaveAs, [this] { save(true); }));
+    file->addAction(
+        action("file.exportRaster", "Export view as PNG…", {}, [this] { exportRasterDialog(); }));
     file->addSeparator();
     file->addAction(action("file.recovery", "Recover work…", {}, [this] { showRecovery(); }));
     file->addAction(action("file.recoveryNow", "Save recovery now", {}, [this] {
@@ -694,6 +696,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         tray_->show();
         findChild<QAction *>("view.tray")->setChecked(true);
         organization_->showSolar();
+    }));
+    view->addAction(action("view.reference_images", "Reference images", {}, [this] {
+        sideTabs_->show();
+        sideTabs_->setCurrentWidget(tray_);
+        tray_->show();
+        findChild<QAction *>("view.tray")->setChecked(true);
+        organization_->showReferenceImages();
     }));
     auto *reducedMotion = action("view.reduced_motion", "Reduced camera motion", {}, [this] {
         const auto enabled = findChild<QAction *>("view.reduced_motion")->isChecked();
