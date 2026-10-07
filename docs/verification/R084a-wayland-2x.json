@@ -1,0 +1,4951 @@
+{
+    "actions": [
+        {
+            "enabled": true,
+            "id": "file.new",
+            "shortcut": "Ctrl+N",
+            "shortcutContext": 1,
+            "text": "New"
+        },
+        {
+            "enabled": true,
+            "id": "file.open",
+            "shortcut": "Ctrl+O",
+            "shortcutContext": 1,
+            "text": "Open…"
+        },
+        {
+            "enabled": true,
+            "id": "file.newFromTemplate",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "New from template…"
+        },
+        {
+            "enabled": true,
+            "id": "file.saveTemplate",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Save template to library…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importDxf",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import 2D DXF…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportMeasured",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export measured PDF/SVG…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportDxf",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export 2D DXF…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importStl",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import STL…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportStl",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export STL…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importObj",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import OBJ/MTL…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importGltf",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import GLB/glTF…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importFormline",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import Formline…"
+        },
+        {
+            "enabled": true,
+            "id": "file.save",
+            "shortcut": "Ctrl+S",
+            "shortcutContext": 1,
+            "text": "Save"
+        },
+        {
+            "enabled": true,
+            "id": "file.saveAs",
+            "shortcut": "Ctrl+Shift+S",
+            "shortcutContext": 1,
+            "text": "Save as…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportRaster",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export view as PNG…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportObj",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export OBJ package…"
+        },
+        {
+            "enabled": true,
+            "id": "file.recovery",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Recover work…"
+        },
+        {
+            "enabled": true,
+            "id": "file.recoveryNow",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Save recovery now"
+        },
+        {
+            "enabled": true,
+            "id": "file.recoverySettings",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Recovery settings…"
+        },
+        {
+            "enabled": true,
+            "id": "file.example",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Example courtyard"
+        },
+        {
+            "enabled": true,
+            "id": "file.units",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Document units…"
+        },
+        {
+            "enabled": true,
+            "id": "file.quit",
+            "shortcut": "Ctrl+Q",
+            "shortcutContext": 1,
+            "text": "Quit"
+        },
+        {
+            "enabled": true,
+            "id": "edit.undo",
+            "shortcut": "Ctrl+Z",
+            "shortcutContext": 1,
+            "text": "Undo Paint"
+        },
+        {
+            "enabled": false,
+            "id": "edit.redo",
+            "shortcut": "Ctrl+Shift+Z",
+            "shortcutContext": 1,
+            "text": "Redo"
+        },
+        {
+            "enabled": false,
+            "id": "edit.delete",
+            "shortcut": "Del",
+            "shortcutContext": 0,
+            "text": "Delete selection"
+        },
+        {
+            "enabled": true,
+            "id": "edit.selectAll",
+            "shortcut": "Ctrl+A",
+            "shortcutContext": 0,
+            "text": "Select all eligible geometry"
+        },
+        {
+            "enabled": false,
+            "id": "selection.hide",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Hide selection in this view"
+        },
+        {
+            "enabled": true,
+            "id": "selection.reveal",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reveal hidden geometry in this view"
+        },
+        {
+            "enabled": false,
+            "id": "geometry.diagnose",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Geometry diagnostics…"
+        },
+        {
+            "enabled": false,
+            "id": "edge.hide",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Hide selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.reveal",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reveal selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.soften",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Soften selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.harden",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Harden selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.smooth",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Smooth across selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.flat",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Use flat shading across selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "selection.lock",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Lock selected contexts in this view"
+        },
+        {
+            "enabled": true,
+            "id": "selection.unlock",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Unlock all contexts in this view"
+        },
+        {
+            "enabled": false,
+            "id": "group.selection",
+            "shortcut": "Ctrl+G",
+            "shortcutContext": 0,
+            "text": "Make group"
+        },
+        {
+            "enabled": false,
+            "id": "group.explode",
+            "shortcut": "Ctrl+Shift+G",
+            "shortcutContext": 0,
+            "text": "Explode selected groups"
+        },
+        {
+            "enabled": true,
+            "id": "geometry.merge_context",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Merge raw geometry in current context"
+        },
+        {
+            "enabled": false,
+            "id": "component.create",
+            "shortcut": "G",
+            "shortcutContext": 0,
+            "text": "Make component…"
+        },
+        {
+            "enabled": false,
+            "id": "component.instance",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Place component…"
+        },
+        {
+            "enabled": false,
+            "id": "component.replace",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Replace component…"
+        },
+        {
+            "enabled": false,
+            "id": "component.axes",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Change component axes…"
+        },
+        {
+            "enabled": false,
+            "id": "component.make_unique",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Make component unique"
+        },
+        {
+            "enabled": true,
+            "id": "component.browseLibrary",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Browse component library…"
+        },
+        {
+            "enabled": true,
+            "id": "component.saveLibrary",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Save component to library…"
+        },
+        {
+            "enabled": false,
+            "id": "component.glue",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Set glue face…"
+        },
+        {
+            "enabled": false,
+            "id": "component.clear_glue",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Clear shared glue behavior"
+        },
+        {
+            "enabled": false,
+            "id": "component.attach",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Attach component to selected face"
+        },
+        {
+            "enabled": false,
+            "id": "component.bind",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Bind component at current pose"
+        },
+        {
+            "enabled": true,
+            "id": "component.placement_options",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Attachment placement options…"
+        },
+        {
+            "enabled": false,
+            "id": "component.detach",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Detach component and restore opening"
+        },
+        {
+            "enabled": false,
+            "id": "component.bake_host",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Bake host openings and release attachments"
+        },
+        {
+            "enabled": false,
+            "id": "assembly.room.adopt_hosted",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Adopt recipe window attachments"
+        },
+        {
+            "enabled": false,
+            "id": "group.hide",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Hide selected groups in document"
+        },
+        {
+            "enabled": false,
+            "id": "group.lock",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Lock selected groups in document"
+        },
+        {
+            "enabled": true,
+            "id": "group.reveal",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reveal all document groups and contexts"
+        },
+        {
+            "enabled": true,
+            "id": "group.unlock",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Unlock all document groups and contexts"
+        },
+        {
+            "enabled": false,
+            "id": "context.enter",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Edit selected context"
+        },
+        {
+            "enabled": false,
+            "id": "context.leave",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Close editing context"
+        },
+        {
+            "enabled": false,
+            "id": "edit.repeatPushPull",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Repeat push/pull distance"
+        },
+        {
+            "enabled": true,
+            "id": "guides.clear",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Delete all guides"
+        },
+        {
+            "enabled": false,
+            "id": "edit.move",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Move selection"
+        },
+        {
+            "enabled": false,
+            "id": "edit.paint",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Set original face color…"
+        },
+        {
+            "enabled": true,
+            "id": "tool.0",
+            "shortcut": "Space",
+            "shortcutContext": 0,
+            "text": "Select"
+        },
+        {
+            "enabled": true,
+            "id": "tool.20",
+            "shortcut": "B",
+            "shortcutContext": 0,
+            "text": "Paint"
+        },
+        {
+            "enabled": true,
+            "id": "tool.6",
+            "shortcut": "L",
+            "shortcutContext": 0,
+            "text": "Line"
+        },
+        {
+            "enabled": true,
+            "id": "tool.1",
+            "shortcut": "R",
+            "shortcutContext": 0,
+            "text": "Rectangle"
+        },
+        {
+            "enabled": true,
+            "id": "tool.2",
+            "shortcut": "C",
+            "shortcutContext": 0,
+            "text": "Circle"
+        },
+        {
+            "enabled": true,
+            "id": "tool.3",
+            "shortcut": "P",
+            "shortcutContext": 0,
+            "text": "Push/pull"
+        },
+        {
+            "enabled": true,
+            "id": "tool.21",
+            "shortcut": "F",
+            "shortcutContext": 0,
+            "text": "Offset"
+        },
+        {
+            "enabled": true,
+            "id": "tool.22",
+            "shortcut": "Shift+F",
+            "shortcutContext": 1,
+            "text": "Follow Me"
+        },
+        {
+            "enabled": true,
+            "id": "tool.23",
+            "shortcut": "I",
+            "shortcutContext": 0,
+            "text": "Intersect"
+        },
+        {
+            "enabled": true,
+            "id": "tool.24",
+            "shortcut": "Shift+B",
+            "shortcutContext": 1,
+            "text": "Solid tools"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.union",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Union"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.subtract",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Subtract tool from target"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.intersection",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Intersection"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.trim",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Trim target (retain tool)"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.split",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Split into target, tool and overlap"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.outer_shell",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Outer shell (fill enclosed cavities)"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.keep",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Keep originals"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.swap",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Swap target and tool"
+        },
+        {
+            "enabled": true,
+            "id": "tool.25",
+            "shortcut": "Shift+O",
+            "shortcutContext": 1,
+            "text": "Face orientation"
+        },
+        {
+            "enabled": true,
+            "id": "tool.26",
+            "shortcut": "Shift+H",
+            "shortcutContext": 1,
+            "text": "Attach component to face"
+        },
+        {
+            "enabled": true,
+            "id": "orientation.reverse",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reverse selected faces"
+        },
+        {
+            "enabled": true,
+            "id": "orientation.connected",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Orient connected faces to selected reference"
+        },
+        {
+            "enabled": true,
+            "id": "intersection.mode.selected",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Selected faces"
+        },
+        {
+            "enabled": true,
+            "id": "intersection.mode.context",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Active context"
+        },
+        {
+            "enabled": true,
+            "id": "intersection.mode.model",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Model"
+        },
+        {
+            "enabled": true,
+            "id": "tool.17",
+            "shortcut": "M",
+            "shortcutContext": 0,
+            "text": "Move"
+        },
+        {
+            "enabled": true,
+            "id": "tool.18",
+            "shortcut": "Q",
+            "shortcutContext": 0,
+            "text": "Rotate"
+        },
+        {
+            "enabled": true,
+            "id": "tool.19",
+            "shortcut": "S",
+            "shortcutContext": 0,
+            "text": "Scale"
+        },
+        {
+            "enabled": true,
+            "id": "transform.copy",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Copy when transforming"
+        },
+        {
+            "enabled": true,
+            "id": "transform.local",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Use local transform axes"
+        },
+        {
+            "enabled": true,
+            "id": "transform.flip.0",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "X axis"
+        },
+        {
+            "enabled": true,
+            "id": "transform.flip.1",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Y axis"
+        },
+        {
+            "enabled": true,
+            "id": "transform.flip.2",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Z axis"
+        },
+        {
+            "enabled": true,
+            "id": "tool.7",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Regular polygon"
+        },
+        {
+            "enabled": true,
+            "id": "tool.8",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Freehand"
+        },
+        {
+            "enabled": true,
+            "id": "tool.9",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Rotated rectangle"
+        },
+        {
+            "enabled": true,
+            "id": "tool.10",
+            "shortcut": "A",
+            "shortcutContext": 0,
+            "text": "Center arc"
+        },
+        {
+            "enabled": true,
+            "id": "tool.11",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Two-point arc"
+        },
+        {
+            "enabled": true,
+            "id": "tool.12",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Three-point arc"
+        },
+        {
+            "enabled": true,
+            "id": "tool.13",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Pie"
+        },
+        {
+            "enabled": true,
+            "id": "tool.14",
+            "shortcut": "T",
+            "shortcutContext": 0,
+            "text": "Tape measure"
+        },
+        {
+            "enabled": true,
+            "id": "tool.15",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Protractor"
+        },
+        {
+            "enabled": true,
+            "id": "guides.create",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Create guides when measuring"
+        },
+        {
+            "enabled": true,
+            "id": "drawing.plane.auto",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Automatic from hovered face"
+        },
+        {
+            "enabled": true,
+            "id": "drawing.plane.ground",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Ground (Z=0)"
+        },
+        {
+            "enabled": true,
+            "id": "drawing.plane.selected",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Use selected face"
+        },
+        {
+            "enabled": true,
+            "id": "drawing.plane.custom",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Custom plane…"
+        },
+        {
+            "enabled": true,
+            "id": "draw.pushPullNewFace",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Create new face when pushing/pulling"
+        },
+        {
+            "enabled": true,
+            "id": "tool.4",
+            "shortcut": "O",
+            "shortcutContext": 0,
+            "text": "Orbit"
+        },
+        {
+            "enabled": true,
+            "id": "tool.5",
+            "shortcut": "H",
+            "shortcutContext": 0,
+            "text": "Pan"
+        },
+        {
+            "enabled": true,
+            "id": "tool.16",
+            "shortcut": "Z",
+            "shortcutContext": 0,
+            "text": "Zoom"
+        },
+        {
+            "enabled": true,
+            "id": "camera.render",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Render…"
+        },
+        {
+            "enabled": true,
+            "id": "extensions.manage",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Manage extensions…"
+        },
+        {
+            "enabled": true,
+            "id": "selection.showHidden",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Show hidden geometry"
+        },
+        {
+            "enabled": true,
+            "id": "guides.visible",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Show guides"
+        },
+        {
+            "enabled": true,
+            "id": "view.fit",
+            "shortcut": "Shift+Z",
+            "shortcutContext": 1,
+            "text": "Fit model"
+        },
+        {
+            "enabled": true,
+            "id": "view.perspective",
+            "shortcut": "1",
+            "shortcutContext": 0,
+            "text": "Perspective"
+        },
+        {
+            "enabled": true,
+            "id": "view.top",
+            "shortcut": "2",
+            "shortcutContext": 0,
+            "text": "Top"
+        },
+        {
+            "enabled": true,
+            "id": "view.front",
+            "shortcut": "3",
+            "shortcutContext": 0,
+            "text": "Front"
+        },
+        {
+            "enabled": true,
+            "id": "view.orthographic",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Orthographic"
+        },
+        {
+            "enabled": true,
+            "id": "view.right",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Right"
+        },
+        {
+            "enabled": true,
+            "id": "view.back",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Back"
+        },
+        {
+            "enabled": true,
+            "id": "view.left",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Left"
+        },
+        {
+            "enabled": true,
+            "id": "view.bottom",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Bottom"
+        },
+        {
+            "enabled": true,
+            "id": "view.isometric",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Isometric"
+        },
+        {
+            "enabled": true,
+            "id": "view.fov",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Field of view…"
+        },
+        {
+            "enabled": true,
+            "id": "view.mouse",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Mouse"
+        },
+        {
+            "enabled": true,
+            "id": "view.trackpad",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Trackpad"
+        },
+        {
+            "enabled": true,
+            "id": "view.history",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "History"
+        },
+        {
+            "enabled": true,
+            "id": "view.scenes",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Saved scenes"
+        },
+        {
+            "enabled": true,
+            "id": "view.sections",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Section planes"
+        },
+        {
+            "enabled": true,
+            "id": "view.annotations",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Dimensions and labels"
+        },
+        {
+            "enabled": true,
+            "id": "view.text",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "3D text"
+        },
+        {
+            "enabled": true,
+            "id": "view.solar",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Sun and shadows"
+        },
+        {
+            "enabled": true,
+            "id": "view.reference_images",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reference images"
+        },
+        {
+            "enabled": true,
+            "id": "view.reduced_motion",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reduced camera motion"
+        },
+        {
+            "enabled": true,
+            "id": "view.styles",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Model styles"
+        },
+        {
+            "enabled": true,
+            "id": "view.assistant",
+            "shortcut": "Ctrl+J",
+            "shortcutContext": 1,
+            "text": "Assistant"
+        },
+        {
+            "enabled": true,
+            "id": "view.tray",
+            "shortcut": "Ctrl+Shift+T",
+            "shortcutContext": 1,
+            "text": "Model panel"
+        },
+        {
+            "enabled": true,
+            "id": "view.theme.0",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "System theme"
+        },
+        {
+            "enabled": true,
+            "id": "view.theme.1",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Light theme"
+        },
+        {
+            "enabled": true,
+            "id": "view.theme.2",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Dark theme"
+        },
+        {
+            "enabled": true,
+            "id": "view.commands",
+            "shortcut": "Ctrl+K",
+            "shortcutContext": 1,
+            "text": "Commands…"
+        },
+        {
+            "enabled": true,
+            "id": "view.nextRegion",
+            "shortcut": "F6",
+            "shortcutContext": 1,
+            "text": "Next region"
+        },
+        {
+            "enabled": true,
+            "id": "view.previousRegion",
+            "shortcut": "Shift+F6",
+            "shortcutContext": 1,
+            "text": "Previous region"
+        }
+    ],
+    "auditVersion": 1,
+    "contexts": [
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Find entities…",
+                    "accessibleInterface": true,
+                    "accessibleName": "Search model hierarchy",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:outlinerSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Model hierarchy",
+                    "focusPolicy": 11,
+                    "identity": "QTreeWidget:outlinerTree",
+                    "logicalFontPointSize": -1,
+                    "role": 35,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Rename (F2)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Rename",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.renameButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Rename (F2)"
+                },
+                {
+                    "accessibleDescription": "Move to (Ctrl+Shift+M)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Move to",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.moveButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Move to (Ctrl+Shift+M)"
+                },
+                {
+                    "accessibleDescription": "Tag (Ctrl+Alt+T)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Tag",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.tagButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Tag (Ctrl+Alt+T)"
+                },
+                {
+                    "accessibleDescription": "Hide/show (Space)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Hide/show",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.hideButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Hide/show (Space)"
+                },
+                {
+                    "accessibleDescription": "Lock (Ctrl+Shift+L)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Lock",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.lockButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Lock (Ctrl+Shift+L)"
+                },
+                {
+                    "accessibleDescription": "Open",
+                    "accessibleInterface": true,
+                    "accessibleName": "Open",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.openButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Open"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Outliner",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 18,
+            "page": "Outliner",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Tags and folders",
+                    "focusPolicy": 11,
+                    "identity": "QTreeWidget:tagTree",
+                    "logicalFontPointSize": -1,
+                    "role": 35,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "New tag (Ctrl+Alt+N)",
+                    "accessibleInterface": true,
+                    "accessibleName": "New tag",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.newButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "New tag (Ctrl+Alt+N)"
+                },
+                {
+                    "accessibleDescription": "Folder (Ctrl+Alt+F)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Folder",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.folderButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Folder (Ctrl+Alt+F)"
+                },
+                {
+                    "accessibleDescription": "Rename (F2)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Rename",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.renameButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Rename (F2)"
+                },
+                {
+                    "accessibleDescription": "Move to (Ctrl+Shift+M)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Move to",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.moveButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Move to (Ctrl+Shift+M)"
+                },
+                {
+                    "accessibleDescription": "Assign (Ctrl+Alt+T)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assign",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.assignButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Assign (Ctrl+Alt+T)"
+                },
+                {
+                    "accessibleDescription": "Delete (Del)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Delete",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.deleteButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Delete (Del)"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Tags",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 17,
+            "page": "Tags",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "World coordinates",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:entityInfoFrame",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Info",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 12,
+            "page": "Info",
+            "theme": "Dark theme",
+            "unnamedControls": 5
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:materialScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "In-model material swatches",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:materialSwatches",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Both sides",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:materialSide",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "New…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialNew",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Edit…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialEdit",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Paint (B)",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialPaint",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Apply",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialApply",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Store a file in the model; PNG/JPEG images appear on painted faces",
+                    "accessibleInterface": true,
+                    "accessibleName": "Attach file…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialAttach",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Store a file in the model; PNG/JPEG images appear on painted faces"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Replace file…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialResolve",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Detach file",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialDetach",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Delete",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialDelete",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Remove files that no material uses; undo restores them",
+                    "accessibleInterface": true,
+                    "accessibleName": "Clean files",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialPurgeAssets",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Remove files that no material uses; undo restores them"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Texture mapping…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialTexture",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Reset mapping",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialResetTexture",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Materials",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 25,
+            "page": "Materials",
+            "theme": "Dark theme",
+            "unnamedControls": 5
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Undo",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:historyUndo",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QTreeWidget:historySteps",
+                    "logicalFontPointSize": -1,
+                    "role": 35,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QPlainTextEdit:historyDetails",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "History",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 14,
+            "page": "History",
+            "theme": "Dark theme",
+            "unnamedControls": 6
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Textured",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:styleMode",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Edges",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleEdges",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Profiles",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleProfiles",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Grid",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleGrid",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Axes",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleAxes",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Ground",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleGround",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Colors and details…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:styleCustomize",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Reset model style",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:styleReset",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Styles",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 19,
+            "page": "Styles",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Saved scenes in presentation order",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:savedScenesList",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "New… (Ctrl+Shift+N)",
+                    "accessibleInterface": true,
+                    "accessibleName": "New…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:sceneNewButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "New… (Ctrl+Shift+N)"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scenes",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 13,
+            "page": "Scenes",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Section planes and editing contexts",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:sectionPlanesList",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "New…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:sectionNewButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Sections",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 13,
+            "page": "Sections",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Dimensions, labels and reference status",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:annotationsList",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Dimension…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:annotationDistanceButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Label…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:annotationLabelButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Annotations",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 14,
+            "page": "Annotations",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editable text objects",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:textList",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Create 3D text…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:textCreateButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Edit text…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:textEditButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Bake geometry",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:textBakeButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Frame",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:textFrameButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D Text",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 16,
+            "page": "3D Text",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Edit sun study…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:solarEditButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Sun",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 12,
+            "page": "Sun",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Import reference image…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:referenceImageImport",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Images",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 11,
+            "page": "Images",
+            "theme": "Dark theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Find entities…",
+                    "accessibleInterface": true,
+                    "accessibleName": "Search model hierarchy",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:outlinerSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Model hierarchy",
+                    "focusPolicy": 11,
+                    "identity": "QTreeWidget:outlinerTree",
+                    "logicalFontPointSize": -1,
+                    "role": 35,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Rename (F2)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Rename",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.renameButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Rename (F2)"
+                },
+                {
+                    "accessibleDescription": "Move to (Ctrl+Shift+M)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Move to",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.moveButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Move to (Ctrl+Shift+M)"
+                },
+                {
+                    "accessibleDescription": "Tag (Ctrl+Alt+T)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Tag",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.tagButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Tag (Ctrl+Alt+T)"
+                },
+                {
+                    "accessibleDescription": "Hide/show (Space)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Hide/show",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.hideButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Hide/show (Space)"
+                },
+                {
+                    "accessibleDescription": "Lock (Ctrl+Shift+L)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Lock",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.lockButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Lock (Ctrl+Shift+L)"
+                },
+                {
+                    "accessibleDescription": "Open",
+                    "accessibleInterface": true,
+                    "accessibleName": "Open",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:outliner.openButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Open"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Outliner",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 18,
+            "page": "Outliner",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Tags and folders",
+                    "focusPolicy": 11,
+                    "identity": "QTreeWidget:tagTree",
+                    "logicalFontPointSize": -1,
+                    "role": 35,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "New tag (Ctrl+Alt+N)",
+                    "accessibleInterface": true,
+                    "accessibleName": "New tag",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.newButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "New tag (Ctrl+Alt+N)"
+                },
+                {
+                    "accessibleDescription": "Folder (Ctrl+Alt+F)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Folder",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.folderButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Folder (Ctrl+Alt+F)"
+                },
+                {
+                    "accessibleDescription": "Rename (F2)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Rename",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.renameButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Rename (F2)"
+                },
+                {
+                    "accessibleDescription": "Move to (Ctrl+Shift+M)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Move to",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.moveButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Move to (Ctrl+Shift+M)"
+                },
+                {
+                    "accessibleDescription": "Assign (Ctrl+Alt+T)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assign",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.assignButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Assign (Ctrl+Alt+T)"
+                },
+                {
+                    "accessibleDescription": "Delete (Del)",
+                    "accessibleInterface": true,
+                    "accessibleName": "Delete",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:tags.deleteButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Delete (Del)"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Tags",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 17,
+            "page": "Tags",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "World coordinates",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:entityInfoFrame",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Info",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 12,
+            "page": "Info",
+            "theme": "Light theme",
+            "unnamedControls": 5
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:materialScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "In-model material swatches",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:materialSwatches",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Both sides",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:materialSide",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "New…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialNew",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Edit…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialEdit",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Paint (B)",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialPaint",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Apply",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialApply",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Store a file in the model; PNG/JPEG images appear on painted faces",
+                    "accessibleInterface": true,
+                    "accessibleName": "Attach file…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialAttach",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Store a file in the model; PNG/JPEG images appear on painted faces"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Replace file…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialResolve",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Detach file",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialDetach",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Delete",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialDelete",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Remove files that no material uses; undo restores them",
+                    "accessibleInterface": true,
+                    "accessibleName": "Clean files",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialPurgeAssets",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "Remove files that no material uses; undo restores them"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Texture mapping…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialTexture",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Reset mapping",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:materialResetTexture",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Materials",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 25,
+            "page": "Materials",
+            "theme": "Light theme",
+            "unnamedControls": 5
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Undo",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:historyUndo",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QTreeWidget:historySteps",
+                    "logicalFontPointSize": -1,
+                    "role": 35,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QPlainTextEdit:historyDetails",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "History",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 14,
+            "page": "History",
+            "theme": "Light theme",
+            "unnamedControls": 6
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Textured",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:styleMode",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Edges",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleEdges",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Profiles",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleProfiles",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Grid",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleGrid",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Axes",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleAxes",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Ground",
+                    "focusPolicy": 11,
+                    "identity": "QCheckBox:styleGround",
+                    "logicalFontPointSize": -1,
+                    "role": 44,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Colors and details…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:styleCustomize",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Reset model style",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:styleReset",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Styles",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 19,
+            "page": "Styles",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Saved scenes in presentation order",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:savedScenesList",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "New… (Ctrl+Shift+N)",
+                    "accessibleInterface": true,
+                    "accessibleName": "New…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:sceneNewButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": "New… (Ctrl+Shift+N)"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scenes",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 13,
+            "page": "Scenes",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Section planes and editing contexts",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:sectionPlanesList",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "New…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:sectionNewButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Sections",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 13,
+            "page": "Sections",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Dimensions, labels and reference status",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:annotationsList",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Dimension…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:annotationDistanceButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Label…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:annotationLabelButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Annotations",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 14,
+            "page": "Annotations",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editable text objects",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:textList",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Create 3D text…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:textCreateButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Edit text…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:textEditButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Bake geometry",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:textBakeButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Frame",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:textFrameButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D Text",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 16,
+            "page": "3D Text",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Edit sun study…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:solarEditButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Sun",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Right",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollRightButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 12,
+            "page": "Sun",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Commands  Ctrl+K",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:commandSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 11,
+                    "identity": "QToolBar:toolRail",
+                    "logicalFontPointSize": -1,
+                    "role": 22,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:modelTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "No selection",
+                    "accessibleInterface": true,
+                    "accessibleName": "3D model viewport",
+                    "focusPolicy": 11,
+                    "identity": "sketchy::Viewport:",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Editing the model",
+                    "accessibleInterface": true,
+                    "accessibleName": "Editing context breadcrumb",
+                    "focusPolicy": 11,
+                    "identity": "QLabel:contextBreadcrumb",
+                    "logicalFontPointSize": -1,
+                    "role": 41,
+                    "toolTip": "Editing the model"
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:assistantSideTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "",
+                    "focusPolicy": 1,
+                    "identity": "QTabWidget:organizationTabs",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Import reference image…",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:referenceImageImport",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Images",
+                    "focusPolicy": 1,
+                    "identity": "QTabBar:qt_tabwidget_tabbar",
+                    "logicalFontPointSize": -1,
+                    "role": 60,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Scroll Left",
+                    "focusPolicy": 1,
+                    "identity": "QToolButton:ScrollLeftButton",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "width, depth",
+                    "accessibleInterface": true,
+                    "accessibleName": "Measurements in meters",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:measurements",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 11,
+            "page": "Images",
+            "theme": "Light theme",
+            "unnamedControls": 4
+        }
+    ],
+    "f6FocusOwners": [
+        "sketchy::Viewport:",
+        "QPushButton:referenceImageImport",
+        "QLineEdit:measurements",
+        "QPushButton:commandSearch",
+        "QToolBar:toolRail",
+        "sketchy::Viewport:",
+        "QPushButton:referenceImageImport",
+        "QLineEdit:measurements",
+        "QPushButton:commandSearch",
+        "QToolBar:toolRail",
+        "sketchy::Viewport:",
+        "QPushButton:referenceImageImport"
+    ],
+    "limitations": "Does not prove screen-reader operation, contrast, focus visibility, all dialogs, independent text scaling or complete mouse-free modeling. The fixture uses isolated application settings and does not open provider preferences or request credentials.",
+    "logicalHeight": 900,
+    "logicalWidth": 1200,
+    "platform": "wayland",
+    "qtVersion": "6.11.2",
+    "releaseAcceptance": false,
+    "scale": 2,
+    "scope": "Visible enabled tab-focusable widgets in all model-panel tabs and two themes; public QAction inventory and F6 routing. Names come from Qt accessibility interfaces."
+}
