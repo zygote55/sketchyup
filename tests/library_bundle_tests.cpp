@@ -1,6 +1,8 @@
 #include "core/annotations.hpp"
 #include "core/assets.hpp"
+#include "core/components.hpp"
 #include "core/materials.hpp"
+#include "core/scenes.hpp"
 #include "core/sections.hpp"
 #include "io/library_bundle.hpp"
 #include "io/texture_image.hpp"
@@ -42,7 +44,13 @@ int main(int argc, char **argv) {
         auto style = source.style();
         style.axesVisible = false;
         source.setStyle(style);
-        TemplateMetadata metadata{"Metric room", "Embedded starting model", {"Metric", "Room"}, 0};
+        createComponent(source, body, "Starting component");
+        SceneSnapshot scene;
+        scene.camera = SceneCamera{};
+        scene.style = style;
+        const auto defaultScene = createScene(source, "Starting view", scene);
+        TemplateMetadata metadata{
+            "Metric room", "Embedded starting model", {"Metric", "Room"}, defaultScene};
         const auto before = encodeContainer(source);
         const auto history = source.history().total;
         const auto bundle = encodeTemplateBundle(source, metadata, image);
@@ -59,7 +67,9 @@ int main(int argc, char **argv) {
               "Every template instance has fresh unsaved identity and empty history");
         check(first.displayUnits() == DisplayUnit::Millimeters && first.style() == style &&
                   first.activeSections() == source.activeSections() &&
-                  first.annotations().size() == 1 && first.materials().size() == 1 &&
+                  first.annotations().size() == 1 && first.definitions().size() == 1 &&
+                  first.instances().size() == 1 && first.scenes().contains(defaultScene) &&
+                  first.materials().size() == 1 &&
                   first.assets().at(asset)->payload->bytes() ==
                       source.assets().at(asset)->payload->bytes(),
               "Template defaults, sections, dimensions and embedded resources retained");
