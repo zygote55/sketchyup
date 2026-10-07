@@ -856,3 +856,11 @@ sketchyup-cli --export-dxf new.dxf --input new.sketchyup --dxf-unit mm
 ```
 
 See [DXF workflow and limits](docs/decisions/0123-native-dxf-interchange-workflow.md).
+
+Export a measured orthographic drawing with explicit page, scale and camera settings:
+
+```sh
+build/dev/sketchyup-cli --export-view NewDrawing.pdf --input Model.sketchyup --view-settings examples/measured-view.json
+```
+
+This technical-line mode reports omitted appearance, preserves the native source, and requires a new output file. Set `format` to `svg` for millimetre-based SVG. Print at actual size to retain the requested scale. See [the measured export contract](docs/decisions/0127-measured-export-cli.md).
