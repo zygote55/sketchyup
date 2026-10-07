@@ -8,6 +8,7 @@
 #include <QKeySequenceEdit>
 #include <QPushButton>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
@@ -27,7 +28,11 @@ void click(QDialog &dialog, const char *name) {
     auto *button = dialog.findChild<QPushButton *>(name);
     check(button && button->isEnabled(), "Shortcut operation available");
     button->setFocus();
+    check(QTest::qWaitFor([&] { return button->hasFocus(); }), "Shortcut button has focus");
+    QSignalSpy clicked(button, &QPushButton::clicked);
     QTest::keyClick(button, Qt::Key_Space);
+    check(QTest::qWaitFor([&] { return !clicked.isEmpty(); }),
+          "Keyboard activates shortcut operation");
 }
 void choose(QDialog &dialog, const char *id, const char *sequence) {
     auto *list = dialog.findChild<QListWidget *>("shortcutActions");
@@ -45,7 +50,10 @@ void save(QDialog &dialog) {
     for (auto *box : dialog.findChildren<QDialogButtonBox *>())
         if (auto *button = box->button(QDialogButtonBox::Save)) {
             button->setFocus();
+            check(QTest::qWaitFor([&] { return button->hasFocus(); }), "Save button has focus");
+            QSignalSpy clicked(button, &QPushButton::clicked);
             QTest::keyClick(button, Qt::Key_Space);
+            check(QTest::qWaitFor([&] { return !clicked.isEmpty(); }), "Keyboard activates Save");
             return;
         }
     check(false, "Save button exists");
@@ -117,8 +125,8 @@ int main(int argc, char **argv) {
             editor(window, [&](QDialog &dialog) {
                 choose(dialog, "tool.1", "Ctrl+Alt+R");
                 save(dialog);
-                check(dialog.isVisible() && error(dialog).contains("Assign"),
-                      "Unassigned key cannot be silently discarded on Save");
+                if (!(dialog.isVisible() && error(dialog).contains("Assign")))
+                    throw std::runtime_error(("Unassigned Save: " + error(dialog)).toStdString());
                 click(dialog, "shortcutAssign");
                 save(dialog);
                 check(!dialog.isVisible(), "Assigned shortcut saves");
