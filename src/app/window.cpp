@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "app/inspection_service.hpp"
+#include "app/interface_preferences.hpp"
 #include "app/render_panel.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
@@ -756,6 +757,23 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     panel->setCheckable(true);
     panel->setChecked(true);
     view->addAction(panel);
+    view->addAction(action("view.textSize", "Interface text size…", {}, [this] {
+        const QStringList sizes{"75%", "100%", "125%", "150%", "175%", "200%"};
+        bool accepted = false;
+        const auto choice =
+            QInputDialog::getItem(this, "Interface text size", "Text size", sizes,
+                                  (interfaceTextPercent() - 75) / 25, false, &accepted);
+        if (accepted) {
+            QSettings preferences("SketchyUp", "SketchyUp");
+            preferences.setValue("interfaceTextPercent", 75 + 25 * sizes.indexOf(choice));
+            preferences.sync();
+            if (preferences.status() != QSettings::NoError)
+                throw std::runtime_error("Could not save interface text size");
+            applyTheme();
+        }
+        activateWindow();
+        viewport_->setFocus();
+    }));
     auto *themes = view->addMenu("Theme");
     auto *themeGroup = new QActionGroup(this);
     const QStringList themeNames{"System theme", "Light theme", "Dark theme"};
@@ -848,18 +866,19 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     sync();
 }
 void Window::applyTheme() {
+    const auto textPercent = interfaceTextPercent();
     const bool dark =
         themeMode_ == 2 ||
         (themeMode_ == 0 && QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark);
     const auto colors = themeColors(dark);
     auto style = QStringLiteral(R"(
-QMainWindow,QWidget {background:$surface;color:$ink;font-family:'DejaVu Sans';font-size:12px;}
+QMainWindow,QWidget {background:$surface;color:$ink;font-family:'DejaVu Sans';font-size:$textPx;}
 QMenuBar {padding:5px;background:$surface;border-bottom:1px solid $border;}
 QMenuBar::item {padding:5px 10px;} QMenuBar::item:selected,QMenu::item:selected {background:$selected;}
 QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #header {border-bottom:1px solid $border;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
-#tray {border-left:1px solid $border;} #section {font-size:10px;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
-#hint {color:$muted;font-size:11px;padding:12px 0;} #footer {border-top:1px solid $border;}
+#tray {border-left:1px solid $border;} #section {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
+#hint {color:$muted;font-size:$hintPx;padding:12px 0;} #footer {border-top:1px solid $border;}
 QToolBar {border:0;border-right:1px solid $border;spacing:6px;padding:10px 5px;}
 QToolButton {padding:12px 5px;border-radius:4px;} QToolButton:checked {background:$selected;color:$ink;}
 QToolButton:hover,QPushButton:hover {background:$hover;}
@@ -872,6 +891,9 @@ QTreeWidget:focus {border:1px solid $accent;} QTreeWidget::item {padding:3px 1px
 QTreeWidget::item:selected {background:$selected;color:$ink;}
 QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
 )");
+    style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
+    style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
+    style.replace("$hintPx", QString::number(interfaceExtent(11, textPercent)) + "px");
     style.replace("$selectionInk", dark ? colors.surface.name() : colors.input.name());
     style.replace("$surface", colors.surface.name());
     style.replace("$ink", colors.ink.name());
@@ -882,6 +904,9 @@ QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} Q
     style.replace("$input", colors.input.name());
     style.replace("$accent", colors.accent.name());
     setStyleSheet(style);
+    findChild<QToolBar *>("toolRail")->setFixedWidth(interfaceExtent(78, textPercent));
+    measurements_->setFixedWidth(interfaceExtent(150, textPercent));
+    layoutAssistant();
     viewport_->setTheme(colors);
     auto linkPalette = breadcrumb_->palette();
     linkPalette.setColor(QPalette::Link, colors.accent);
