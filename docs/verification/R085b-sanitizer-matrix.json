@@ -1,0 +1,98 @@
+[
+  {
+    "target": "viewport_tests",
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "exitCode": 0,
+    "seconds": 3.432,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "viewport_tests",
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "exitCode": 0,
+    "seconds": 3.471,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "viewport_tests",
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "exitCode": 0,
+    "seconds": 5.868,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "viewport_tests",
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "exitCode": 0,
+    "seconds": 6.252,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "text_size_input_tests",
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "exitCode": 0,
+    "seconds": 4.951,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "text_size_input_tests",
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "exitCode": 0,
+    "seconds": 5.851,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "text_size_input_tests",
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "exitCode": 0,
+    "seconds": 7.6,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "text_size_input_tests",
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "exitCode": 0,
+    "seconds": 8.065,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "shortcut_input_tests",
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "exitCode": 0,
+    "seconds": 5.296,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "shortcut_input_tests",
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "exitCode": 0,
+    "seconds": 5.858,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "shortcut_input_tests",
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "exitCode": 0,
+    "seconds": 7.228,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  },
+  {
+    "target": "shortcut_input_tests",
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "exitCode": 0,
+    "seconds": 7.879,
+    "sanitizers": "ASan/UBSan, leak detection, halt on error"
+  }
+]
