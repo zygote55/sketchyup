@@ -216,7 +216,8 @@ ComponentBundle decodeComponentBundle(const QByteArray &bytes) {
                 d.assets().size() == captured.assets().size() &&
                 d.bodies().size() == captured.bodies().size() &&
                 d.instances().size() == captured.instances().size() && d.scenes().empty() &&
-                d.sections().empty() && d.annotations().empty(),
+                d.sections().empty() && d.annotations().empty() &&
+                d.hostedComponents().hosts.empty() && d.hostedComponents().attachments.empty(),
             "Component bundle contains unrelated records");
     size_t roots{};
     for (const auto &[id, body] : d.bodies()) {

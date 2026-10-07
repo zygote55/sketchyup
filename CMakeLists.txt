@@ -946,3 +946,5 @@ install(FILES examples/measured-view.json DESTINATION share/doc/sketchyup/exampl
 install(FILES docs/decisions/0128-native-measured-export.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0129-self-contained-template-bundles.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0130-contained-component-bundles.md DESTINATION share/doc/sketchyup/decisions)
