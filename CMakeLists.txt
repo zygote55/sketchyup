@@ -1020,3 +1020,5 @@ install(FILES docs/decisions/0139-executable-agent-recipes.md DESTINATION share/
 install(FILES docs/decisions/0140-optional-capability-discovery.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/M8_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
+
+install(FILES docs/decisions/0141-real-model-performance-fixtures.md DESTINATION share/doc/sketchyup/decisions)
