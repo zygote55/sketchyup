@@ -1,0 +1,97 @@
+{
+    "passes": false,
+    "releaseAcceptance": false,
+    "rows": [
+        {
+            "background": "#ffffff",
+            "contrast": 12.11286349362796,
+            "control": "measurements",
+            "foreground": "#263a32",
+            "passes": true,
+            "state": "text",
+            "theme": "light"
+        },
+        {
+            "background": "#547858",
+            "contrast": 4.994686530705623,
+            "control": "measurements",
+            "foreground": "#ffffff",
+            "passes": true,
+            "state": "selected text",
+            "theme": "light"
+        },
+        {
+            "background": "#f7f7f2",
+            "contrast": 11.271479859163835,
+            "control": "commandSearch",
+            "foreground": "#263a32",
+            "passes": true,
+            "state": "button",
+            "theme": "light"
+        },
+        {
+            "background": "#f7f7f2",
+            "contrast": 4.757971699157079,
+            "control": "hint",
+            "foreground": "#617266",
+            "passes": true,
+            "state": "secondary text",
+            "theme": "light"
+        },
+        {
+            "background": "#f7f7f2",
+            "contrast": 7.995621176439477,
+            "control": "contextBreadcrumb",
+            "foreground": "#0000ff",
+            "passes": true,
+            "state": "painted rich-text link",
+            "theme": "light"
+        },
+        {
+            "background": "#172019",
+            "contrast": 14.7086503756522,
+            "control": "measurements",
+            "foreground": "#edf2ea",
+            "passes": true,
+            "state": "text",
+            "theme": "dark"
+        },
+        {
+            "background": "#9ec99d",
+            "contrast": 8.05165143755566,
+            "control": "measurements",
+            "foreground": "#202923",
+            "passes": true,
+            "state": "selected text",
+            "theme": "dark"
+        },
+        {
+            "background": "#202923",
+            "contrast": 13.180114507682875,
+            "control": "commandSearch",
+            "foreground": "#edf2ea",
+            "passes": true,
+            "state": "button",
+            "theme": "dark"
+        },
+        {
+            "background": "#202923",
+            "contrast": 7.720250357209527,
+            "control": "hint",
+            "foreground": "#b0beaf",
+            "passes": true,
+            "state": "secondary text",
+            "theme": "dark"
+        },
+        {
+            "background": "#202923",
+            "contrast": 1.7421548785070087,
+            "control": "contextBreadcrumb",
+            "foreground": "#0000ff",
+            "passes": false,
+            "state": "painted rich-text link",
+            "theme": "dark"
+        }
+    ],
+    "scope": "Effective active Qt palette for measurements, selection, command button, secondary text and painted context link"
+}
