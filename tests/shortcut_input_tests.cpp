@@ -6,8 +6,10 @@
 #include <QDialogButtonBox>
 #include <QJsonDocument>
 #include <QKeySequenceEdit>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSettings>
+#include <QShortcut>
 #include <QSignalSpy>
 #include <QSurfaceFormat>
 #include <QTemporaryDir>
@@ -167,6 +169,34 @@ int main(int argc, char **argv) {
             field->clear();
             QTest::keyClicks(field, "j");
             check(field->text() == "j", "Plain key preserves text typing");
+            window.resize(900, 800);
+            editor(window, [&](QDialog &dialog) {
+                choose(dialog, "view.assistant", "Ctrl+Alt+J");
+                click(dialog, "shortcutAssign");
+                save(dialog);
+            });
+            action(window, "view.assistant")->trigger();
+            auto *sheet = window.findChild<QDialog *>("assistantSheet");
+            auto *composer = window.findChild<QPlainTextEdit *>("assistantComposer");
+            check(sheet && sheet->isVisible() && composer &&
+                      QTest::qWaitFor([&] { return composer->hasFocus(); }),
+                  "Floating assistant composer focused");
+            QTest::keyClick(composer, Qt::Key_J, Qt::ControlModifier | Qt::AltModifier);
+            check(QTest::qWaitFor([&] { return !sheet->isVisible(); }),
+                  "Rebound modifier shortcut closes floating assistant");
+            editor(window, [&](QDialog &dialog) {
+                choose(dialog, "view.assistant", "Y");
+                click(dialog, "shortcutAssign");
+                save(dialog);
+            });
+            action(window, "view.assistant")->trigger();
+            check(QTest::qWaitFor([&] { return composer->hasFocus(); }), "Composer focus restored");
+            composer->clear();
+            QTest::keyClicks(composer, "y");
+            check(sheet->isVisible() && composer->toPlainText() == "y" &&
+                      !sheet->findChild<QShortcut *>("assistantSheetToggle")->isEnabled(),
+                  "Plain assistant binding cannot intercept composer typing");
+            sheet->reject();
             check(encodeContainer(window.document()) == content && !window.document().canUndo(),
                   "Shortcut edits preserve model/history");
         }

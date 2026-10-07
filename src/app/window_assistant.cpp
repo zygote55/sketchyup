@@ -54,8 +54,14 @@ void Window::layoutAssistant() {
             new QVBoxLayout(assistantSheet_);
             auto *action = findChild<QAction *>("view.assistant");
             auto *toggle = new QShortcut(action->shortcut(), assistantSheet_);
-            connect(action, &QAction::changed, toggle,
-                    [action, toggle] { toggle->setKey(action->shortcut()); });
+            toggle->setObjectName("assistantSheetToggle");
+            const auto updateToggle = [action, toggle] {
+                toggle->setKey(action->shortcut());
+                // Plain keys remain viewport-only, including while the composer is in a sheet.
+                toggle->setEnabled(action->shortcutContext() == Qt::WindowShortcut);
+            };
+            connect(action, &QAction::changed, toggle, updateToggle);
+            updateToggle();
             connect(toggle, &QShortcut::activated, this, &Window::toggleAssistant);
             connect(assistantSheet_, &QDialog::rejected, this, [this] {
                 assistantShown_ = false;
