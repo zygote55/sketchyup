@@ -53,7 +53,7 @@ No variable-host timings become CTest gates or release acceptance automatically.
 ## Additional scene scenarios
 
 R082.e extends the manual executable to
-`real_model_benchmark [placement-count] [repeated|unique|deep|far]`. Omitting the
+`real_model_benchmark [placement-count] [repeated|unique|deep|far|textures]`. Omitting the
 scenario retains the original repeated fixture, allocation/revision order and
 canonical bytes. The repeated control must retain its frozen hash before new
 scenarios are measured. No accepted instance count, public document limit or
@@ -78,3 +78,15 @@ one unchanged repeated control followed by a 25-placement smoke and three
 separate unsupported 10,000-instance requirement. These remain exploratory
 scene/pick/edit measurements; inference timing, large textures, complete frame
 feedback and full memory accounting remain separate work.
+
+## Large textures
+
+R082.f adds `textures`: the original repeated geometry with two deterministic
+4096 × 4096 RGBA PNGs assigned to front/back materials before component capture.
+Their combined 128 MiB decoded input fits the existing cache budget exactly.
+The fixture waits up to 15 seconds from window show for decoding, consumes the
+published generation, and rejects any texture fallback before sampling and at
+completion. Reports retain input dimensions/bytes and show-to-ready duration;
+these are not total cache or observed GPU-memory measurements. Qualification
+uses an unchanged repeated control, a 25-instance smoke and three 1,000-instance
+runs. This scenario does not change the separate 10,000-instance requirement.
