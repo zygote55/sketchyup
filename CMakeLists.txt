@@ -948,3 +948,5 @@ install(FILES docs/decisions/0128-native-measured-export.md DESTINATION share/do
 install(FILES docs/decisions/0129-self-contained-template-bundles.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES docs/decisions/0130-contained-component-bundles.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0131-atomic-library-insertion.md DESTINATION share/doc/sketchyup/decisions)
