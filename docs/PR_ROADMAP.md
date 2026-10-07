@@ -1262,7 +1262,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R088 — Publish user workflows, support matrix and parity report
 
-**Status:** In progress. Overlapping [installed development guides and support boundaries](verification/R088a-development-guides.md) document implemented workflows and known gaps, with byte-exact install and source-archive checks. The complete Core parity report, release-candidate walkthrough and preceding acceptance gates remain open. **Track:** Planning. **Scope:** A07, X05, N05. **UX:** —.
+**Status:** In progress. Overlapping [installed development guides and support boundaries](verification/R088a-development-guides.md) document implemented workflows and known gaps, with byte-exact install and source-archive checks. A [59-row Core evidence index](verification/R088b-core-evidence-index.md) maps retained passing fixtures and explicit limitations without claiming full row acceptance. The complete Core parity report, release-candidate walkthrough and preceding acceptance gates remain open. **Track:** Planning. **Scope:** A07, X05, N05. **UX:** —.
 
 **Requires:** [R086](#r086), [R087](#r087), [R078](#r078); milestone gate rule above.
 
