@@ -11,6 +11,7 @@
 #include <QTest>
 #include <cmath>
 #include <iostream>
+#include <map>
 using namespace sketchy;
 namespace {
 double luminance(const QColor &color) {
@@ -80,13 +81,43 @@ int main(int argc, char **argv) {
                    QPalette::Button);
             record(window.findChild<QLabel *>("hint"), "secondary text", QPalette::WindowText,
                    QPalette::Window);
+            // QLabel rich-text links may ignore the palette under a stylesheet.
+            // Measure the dominant painted non-background color, including solid
+            // glyph interiors/underline, rather than trusting QPalette::Link.
+            auto *breadcrumb = window.findChild<QLabel *>("contextBreadcrumb");
+            check(breadcrumb, "Context breadcrumb exists");
+            const auto background = breadcrumb->palette().color(QPalette::Window);
+            const auto pixels = breadcrumb->grab().toImage().convertToFormat(QImage::Format_RGB32);
+            std::map<QRgb, int> histogram;
+            for (int y = 0; y < pixels.height(); ++y)
+                for (int x = 0; x < pixels.width(); ++x) {
+                    const auto rgb = pixels.pixel(x, y);
+                    if (rgb != background.rgb())
+                        ++histogram[rgb];
+                }
+            check(!histogram.empty(), "Context link has painted foreground pixels");
+            const auto dominant =
+                std::max_element(histogram.begin(), histogram.end(),
+                                 [](const auto &a, const auto &b) { return a.second < b.second; });
+            const QColor foreground(dominant->first);
+            const auto ratio = contrast(foreground, background);
+            passed &= ratio >= 4.5;
+            rows.append(QJsonObject{{"theme", mode == 1 ? "light" : "dark"},
+                                    {"control", breadcrumb->objectName()},
+                                    {"state", "painted rich-text link"},
+                                    {"foreground", foreground.name()},
+                                    {"background", background.name()},
+                                    {"contrast", ratio},
+                                    {"passes", ratio >= 4.5}});
         }
         const auto bytes =
-            QJsonDocument(QJsonObject{{"rows", rows},
-                                      {"passes", passed},
-                                      {"scope", "Effective active Qt palette for measurements, "
-                                                "selection, command button and secondary text"},
-                                      {"releaseAcceptance", false}})
+            QJsonDocument(
+                QJsonObject{{"rows", rows},
+                            {"passes", passed},
+                            {"scope",
+                             "Effective active Qt palette for measurements, "
+                             "selection, command button, secondary text and painted context link"},
+                            {"releaseAcceptance", false}})
                 .toJson();
         if (argc == 2) {
             QFile report(QString::fromLocal8Bit(argv[1]));
