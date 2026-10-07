@@ -1054,7 +1054,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R071 — Add Blender scene handoff
 
-**Status:** Planned. **Track:** Rendering. **Scope:** P09. **UX:** §9.
+**Status:** Locally complete; remote CI and ordered merge pending. Packed one-way scene handoff and native launch pass [137-suite, sanitizer, installed and Blender 5.2.1/5.2.2 reopening acceptance](verification/R071ab-blender-handoff.md). **Track:** Rendering. **Scope:** P09. **UX:** §9.
 
 **Requires:** [R069](#r069), [R070](#r070); milestone gate rule above.
 
