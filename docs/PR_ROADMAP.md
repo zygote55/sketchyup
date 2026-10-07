@@ -1152,7 +1152,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R079 — Ship templates and the local component library
 
-**Status:** In progress. R079.a–b [template and component bundles](verification/R079b-component-bundles.md) pass recursive resource closure, source preservation, bounded decoding, sanitizer, installed and source-package checks. Insertion, catalog search and native workflows follow in R079.c–e. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
+**Status:** In progress. R079.a–c [atomic library insertion](verification/R079c-library-insertion.md) pass recursive closure, resource conflict/reuse, independent placements, undo/redo, sanitizer, installed and source-package checks. Catalog search and native workflows follow in R079.d–e. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
 
 **Requires:** [R033](#r033), [R036](#r036), [R073](#r073); milestone gate rule above.
 
