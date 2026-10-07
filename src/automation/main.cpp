@@ -11,6 +11,7 @@
 #include "io/native_format.hpp"
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
+#include "io/stl_export.hpp"
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
@@ -53,6 +54,19 @@ int main(int argc, char **argv) {
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption(
         {"import-gltf", "Import GLB/glTF into a new native model; optional new --output", "path"});
+    parser.addOption(
+        {"import-stl", "Import binary/ASCII STL; optional new native --output", "path"});
+    parser.addOption(
+        {"export-stl", "Export all model surface triangles to a new STL file", "path"});
+    parser.addOption({"stl-unit", "Explicit STL coordinate unit: mm, cm, m, in or ft", "unit"});
+    parser.addOption({"stl-up", "Explicit STL up axis: y or z", "axis"});
+    parser.addOption(
+        {"stl-weld", "Required import welding choice: none, exact or tolerance", "mode"});
+    parser.addOption(
+        {"stl-tolerance", "Metres, required only with tolerance welding: 1e-9..1e-3", "metres"});
+    parser.addOption(
+        {"stl-discard-degenerate", "Explicitly remove collapsed facets during import"});
+    parser.addOption({"stl-encoding", "Required export encoding: binary or ascii", "encoding"});
     parser.addOption({"import-obj", "Import OBJ/MTL; optional new native --output", "path"});
     parser.addOption(
         {"export-obj", "Export all model geometry to a new OBJ package directory", "directory"});
@@ -75,6 +89,77 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("import-stl") || parser.isSet("export-stl")) {
+            auto invalid = [](const char *message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            const bool importing = parser.isSet("import-stl");
+            if (importing == parser.isSet("export-stl") ||
+                !parser.positionalArguments().isEmpty() || !parser.isSet("stl-unit") ||
+                !parser.isSet("stl-up"))
+                invalid("Choose one STL operation with explicit --stl-unit and --stl-up");
+            const QStringList allowed = importing ? QStringList{"import-stl",
+                                                                "output",
+                                                                "stl-unit",
+                                                                "stl-up",
+                                                                "stl-weld",
+                                                                "stl-tolerance",
+                                                                "stl-discard-degenerate"}
+                                                  : QStringList{"export-stl", "input", "stl-unit",
+                                                                "stl-up", "stl-encoding"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("STL commands are standalone operations");
+            const std::map<QString, double> units{
+                {"mm", .001}, {"cm", .01}, {"m", 1}, {"in", .0254}, {"ft", .3048}};
+            const auto unit = parser.value("stl-unit"), up = parser.value("stl-up");
+            if (!units.contains(unit) || (up != "y" && up != "z"))
+                invalid("STL units are mm, cm, m, in or ft; up axis is y or z");
+            const sketchy::StlCoordinateOptions coordinates{
+                units.at(unit), up == "y" ? sketchy::StlUpAxis::Y : sketchy::StlUpAxis::Z};
+            QJsonObject result;
+            if (importing) {
+                const auto weld = parser.value("stl-weld");
+                if (weld != "none" && weld != "exact" && weld != "tolerance")
+                    invalid("Import requires --stl-weld none, exact or tolerance");
+                if ((weld == "tolerance") != parser.isSet("stl-tolerance"))
+                    invalid("--stl-tolerance is required only for tolerance welding");
+                sketchy::StlRepairOptions repairs{weld == "none"    ? sketchy::StlWeld::None
+                                                  : weld == "exact" ? sketchy::StlWeld::Exact
+                                                                    : sketchy::StlWeld::Tolerance,
+                                                  1e-7, parser.isSet("stl-discard-degenerate")};
+                if (weld == "tolerance") {
+                    bool ok{};
+                    repairs.toleranceMetres = parser.value("stl-tolerance").toDouble(&ok);
+                    if (!ok)
+                        invalid("Invalid STL weld tolerance");
+                }
+                repairs.validate();
+                const auto imported =
+                    sketchy::loadStl(parser.value("import-stl"), coordinates, repairs);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } else {
+                const auto encoding = parser.value("stl-encoding");
+                if (!parser.isSet("input") || (encoding != "binary" && encoding != "ascii"))
+                    invalid("STL export requires --input and --stl-encoding binary or ascii");
+                const auto document = sketchy::loadDocument(parser.value("input"));
+                const auto exported =
+                    sketchy::exportStl(document, coordinates,
+                                       encoding == "binary" ? sketchy::StlEncoding::Binary
+                                                            : sketchy::StlEncoding::Ascii);
+                sketchy::writeStlExport(exported, parser.value("export-stl"));
+                result = {{"status", "exported"}, {"exportReport", exported.report}};
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        for (const auto &option : parser.optionNames())
+            if (option.startsWith("stl-"))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "STL options require --import-stl or --export-stl");
         if (parser.isSet("import-obj") || parser.isSet("export-obj")) {
             const bool importing = parser.isSet("import-obj");
             if (importing == parser.isSet("export-obj") ||
