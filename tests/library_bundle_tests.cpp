@@ -6,6 +6,7 @@
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
 #include "core/tags.hpp"
+#include "io/component_library.hpp"
 #include "io/library_bundle.hpp"
 #include "io/texture_image.hpp"
 #include <QCoreApplication>
@@ -179,6 +180,74 @@ int main(int argc, char **argv) {
         auto brokenComponent = componentBytes;
         brokenComponent[brokenComponent.size() - 1] ^= 1;
         rejects([&] { decodeComponentBundle(brokenComponent); });
+        Document destination(DisplayUnit::Feet);
+        const auto retainedBody = destination.addFace({{{-3, 0, 0}, {-2, 0, 0}, {-3, 1, 0}}});
+        const auto oldBody = destination.bodies().at(retainedBody);
+        const auto reusedAsset = createAsset(
+            destination, "Already here", "image/png",
+            std::make_shared<AssetPayload>(std::vector<std::uint8_t>(image.begin(), image.end())));
+        const auto conflictingMaterial = createMaterial(destination, "Finish", {0, 0, 1});
+        createTag(destination, "Furniture", 0, true);
+        const auto baselineHistory = destination.history().total;
+        const auto baselineBodies = destination.bodies();
+        const auto baselineDefinitions = destination.definitions();
+        const auto baselineMaterials = destination.materials();
+        const auto baselineTags = destination.tags();
+        const auto placement = Transform::translation({4, 2, 1}) * Transform::scaling({-2, 1, 1});
+        const auto inserted = insertLibraryComponent(destination, component, placement);
+        check(destination.history().total == baselineHistory + 1 &&
+                  destination.worldTransform(inserted.component.instance) == placement &&
+                  destination.displayUnits() == DisplayUnit::Feet &&
+                  destination.bodies().at(retainedBody) == oldBody,
+              "Library insertion is one edit preserving units and existing geometry");
+        check(
+            inserted.reusedAssets == 1 && destination.assets().size() == 1 &&
+                destination.materials().at(conflictingMaterial)->color ==
+                    std::array<float, 3>{0, 0, 1} &&
+                inserted.renamedResources >= 2 && destination.materials().size() == 2,
+            "Identical image reused and conflicting resources renamed without modifying originals");
+        bool remappedMaterial{};
+        for (const auto &[id, material] : destination.materials())
+            if (id != conflictingMaterial)
+                remappedMaterial = material->asset == reusedAsset;
+        check(remappedMaterial, "Imported material refers to destination asset identity");
+        destination.undo();
+        check(destination.bodies() == baselineBodies &&
+                  destination.definitions() == baselineDefinitions &&
+                  destination.materials() == baselineMaterials &&
+                  destination.tags() == baselineTags && destination.assets().size() == 1,
+              "One undo removes placement and every newly imported dependency");
+        destination.redo();
+        const auto firstDefinition = destination.definitions().at(inserted.component.definition);
+        const auto secondInsertion = insertLibraryComponent(destination, component);
+        check(secondInsertion.component.definition != inserted.component.definition &&
+                  secondInsertion.reusedAssets == 1 &&
+                  destination.definitions().at(inserted.component.definition) == firstDefinition,
+              "Repeated library insertions have independent definitions");
+        const auto stored = decodeContainer(encodeContainer(destination));
+        check(stored.definitions().size() == 4 && stored.instances().size() == 4 &&
+                  stored.assets().size() == 1 && encodeContainer(library) == libraryBefore,
+              "Inserted nested bindings persist and source library remains unchanged");
+        Document reuse;
+        const auto sameAsset = createAsset(
+            reuse, "Image", "image/png",
+            std::make_shared<AssetPayload>(std::vector<std::uint8_t>(image.begin(), image.end())));
+        createMaterial(reuse, "Finish", {1, 1, 1}, 1, sameAsset);
+        const auto matching = insertLibraryComponent(reuse, component);
+        check(matching.reusedMaterials == 1 && matching.reusedAssets == 1 &&
+                  reuse.materials().size() == 1,
+              "Exactly matching named appearance is reused");
+        const auto lockedParent = createGroup(destination, {retainedBody}, "Locked");
+        setEntityState(destination, lockedParent, {}, true);
+        const auto rejectedBefore = encodeContainer(destination);
+        const auto rejectedHistory = destination.history().total;
+        rejects([&] { insertLibraryComponent(destination, component, {}, lockedParent); });
+        rejects(
+            [&] { insertLibraryComponent(destination, component, Transform::scaling({0, 1, 1})); });
+        rejects([&] { insertLibraryComponent(destination, component, {}, 999999); });
+        check(encodeContainer(destination) == rejectedBefore &&
+                  destination.history().total == rejectedHistory,
+              "Rejected placements leave document, resources and history unchanged");
         std::cout << "Template bundles: embedded resources, relocation, fresh documents, "
                      "immutability and malformed bounds passed\n";
     } catch (const std::exception &e) {
