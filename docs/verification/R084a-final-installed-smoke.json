@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-07",
+  "installedApplicationAndHelpersMatchPriorVerifiedBuild": true,
+  "installedCatalogsAndContractsByteExact": true,
+  "installedFileCounts": {
+    "decisions": 126,
+    "api": 11
+  },
+  "newContract": "0145-native-accessibility-inventory.md"
+}
