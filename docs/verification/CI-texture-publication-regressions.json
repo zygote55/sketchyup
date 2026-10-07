@@ -1,0 +1,42 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.328
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "raster_export_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.385
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "viewport_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 3.92
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "texture_viewport_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 4.41
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "raster_export_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 4.252
+  }
+]
