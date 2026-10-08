@@ -1128,7 +1128,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R077 — Implement the documented 2D DXF subset
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X04. **UX:** —.
+**Status:** In progress. R077.a bounded planar parsing passes [159-suite, independent source-fixture, sanitizer, native, installed and source-package checks](verification/R077a-bounded-planar-dxf.md). Native conversion, export and workflows follow in R077.b–d; remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X04. **UX:** —.
 
 **Requires:** [R024](#r024), [R073](#r073); milestone gate rule above.
 
