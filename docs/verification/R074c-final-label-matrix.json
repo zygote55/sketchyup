@@ -1,0 +1,20 @@
+[
+  {
+    "implementation": "7ef88e86b4f2da786359c8ef85c354c97c999516",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "gltf_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.152
+  },
+  {
+    "implementation": "1d69c3a03fb951fbffa59f575429f69444eb158b",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "gltf_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 4.359
+  }
+]

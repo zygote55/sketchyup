@@ -811,3 +811,21 @@ sketchyup-cli --migrate-native old.sketchyup --output migrated.sketchyup
 Migration verifies the complete model and embedded assets before publishing the
 copy. Existing destinations and in-place migration are rejected. See the
 [public storage contract](docs/decisions/0108-public-native-format.md).
+
+### Import GLB or glTF
+
+Use **File → Import GLB/glTF** to create an unsaved native model. Mesh instances,
+hierarchy, placement, supported base colors/textures and cameras are converted;
+the report explains omitted or approximated features. Save chooses a native file.
+
+The CLI can inspect the conversion or publish a new native copy:
+
+```sh
+sketchyup-cli --import-gltf model.gltf
+sketchyup-cli --import-gltf model.glb --output converted.sketchyup
+```
+
+The output must be a new path. Relative buffers/images must stay inside the source
+folder. Skinning, morph targets, required unsupported extensions and unsupported
+material modes reject explicitly. See the [import contract](docs/decisions/0111-native-gltf-import-workflow.md)
+for limits and exchange guarantees.
