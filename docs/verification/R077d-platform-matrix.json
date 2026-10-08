@@ -1,0 +1,74 @@
+[
+  {
+    "implementation": "95370ccde8901692c01128c20cb5cc78e5f733e5",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "dxf_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 1.022
+  },
+  {
+    "implementation": "95370ccde8901692c01128c20cb5cc78e5f733e5",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "dxf_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 4.153
+  },
+  {
+    "implementation": "95370ccde8901692c01128c20cb5cc78e5f733e5",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "dxf_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 3.778
+  },
+  {
+    "implementation": "95370ccde8901692c01128c20cb5cc78e5f733e5",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "dxf_input_tests",
+    "sanitized": false,
+    "exitCode": 0,
+    "seconds": 3.964
+  },
+  {
+    "implementation": "58c1b66f18e67f584d04c55a0f4707d99751a33a",
+    "platform": "wayland",
+    "scale": 1,
+    "target": "dxf_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 2.43
+  },
+  {
+    "implementation": "58c1b66f18e67f584d04c55a0f4707d99751a33a",
+    "platform": "wayland",
+    "scale": 2,
+    "target": "dxf_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 4.184
+  },
+  {
+    "implementation": "58c1b66f18e67f584d04c55a0f4707d99751a33a",
+    "platform": "xcb",
+    "scale": 1,
+    "target": "dxf_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 5.124
+  },
+  {
+    "implementation": "58c1b66f18e67f584d04c55a0f4707d99751a33a",
+    "platform": "xcb",
+    "scale": 2,
+    "target": "dxf_input_tests",
+    "sanitized": true,
+    "exitCode": 0,
+    "seconds": 5.365
+  }
+]

@@ -3,6 +3,7 @@
 #include "app/organization_panel.hpp"
 #include "app/recovery_controller.hpp"
 #include "app/viewport.hpp"
+#include "io/dxf_export.hpp"
 #include "io/obj_source.hpp"
 #include "io/stl_export.hpp"
 #include <QLabel>
@@ -39,6 +40,10 @@ class Window : public QMainWindow {
     void exportObjPath(const QString &path, ObjImportOptions options);
     void importStlPath(const QString &path, StlCoordinateOptions options, StlRepairOptions repairs);
     void exportStlPath(const QString &path, StlCoordinateOptions options, StlEncoding encoding);
+    void importDxfPath(const QString &path, DxfOptions options = {}, unsigned segments = 96);
+    void exportDxfPath(const QString &path, double metresPerUnit);
+    void importDxfDialog();
+    void exportDxfDialog();
     void importStlDialog();
     void exportStlDialog();
     void importObjDialog();

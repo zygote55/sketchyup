@@ -853,3 +853,15 @@ sketchyup-cli --export-stl new.stl --input new.sketchyup --stl-unit mm --stl-up 
 ```
 
 See [STL workflow and limits](docs/decisions/0119-native-stl-interchange-workflow.md).
+
+The documented 2D DXF subset imports lines, supported polylines, arcs, circles and
+layers as editable edges. File → Import 2D DXF lets you use declared units or an
+explicit override; File → Export 2D DXF writes all world-XY edges to a new drawing.
+Unsupported entities and metadata losses are reported.
+
+```sh
+sketchyup-cli --import-dxf source.dxf --dxf-unit header --output new.sketchyup
+sketchyup-cli --export-dxf new.dxf --input new.sketchyup --dxf-unit mm
+```
+
+See [DXF workflow and limits](docs/decisions/0123-native-dxf-interchange-workflow.md).
