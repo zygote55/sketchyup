@@ -193,7 +193,9 @@ int main(int argc, char **argv) {
                   !button(report, "diagnosticsRepair")->isEnabled() && encodeContainer(doc) == base,
               "Diagnostic repair cannot replace an active assistant preview");
         view.setAssistantPreview({});
-        QTest::qWait(250);
+        check(
+            QTest::qWaitFor([&] { return button(report, "diagnosticsRepair")->isEnabled(); }, 5000),
+            "Clearing the assistant preview restores diagnostic repair availability");
         click(report, "diagnosticsRepair");
         focus(window);
         check(view.tool() == Viewport::Tool::Orientation && view.previewValid() &&
