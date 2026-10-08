@@ -1,0 +1,9 @@
+{
+  "originalHead": "a26ca6bf548296d2fcad97bce9366632520e57af",
+  "qualifiedPackagePatch": "41e38367ca5f142fd37a594a5474de3059d28adb",
+  "cmakeExactPatchApplication": true,
+  "workflowOnlyAddsMainBranchFilter": true,
+  "pkgbuildExactQualified200": true,
+  "configureControllerSha256": "69451f1730315bfe163cee26de7a26d0a7adc94a43b02867a19b1ed7c994b246",
+  "releaseAcceptance": false
+}

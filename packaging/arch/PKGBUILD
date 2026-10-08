@@ -14,9 +14,18 @@ source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('REPLACE_WITH_SOURCE_SHA256') # Filled by package-source.sh.
 
 build() {
+  # GCC's -flto=auto can count host CPUs despite container CPU affinity. Keep
+  # link-time compiler workers serial as well as Ninja's outer build jobs.
+  local link_flags=$LDFLAGS
+  if [[ "$CFLAGS $CXXFLAGS $LDFLAGS" == *-flto* ]]; then
+    link_flags+=' -flto=1'
+  fi
   cmake -S "$srcdir/$pkgname-$pkgver" -B build -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-  cmake --build build --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-4}"
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_EXE_LINKER_FLAGS="$link_flags" \
+    -DCMAKE_SHARED_LINKER_FLAGS="$link_flags" \
+    -DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF
+  cmake --build build --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-1}"
 }
 
 check() {
