@@ -1,0 +1,11 @@
+Test project /work/package/sanitize
+    Start  93: model_recipes
+1/3 Test  #93: model_recipes ....................   Passed    8.89 sec
+    Start 109: recipes
+2/3 Test #109: recipes ..........................   Passed   39.14 sec
+    Start 133: commands
+3/3 Test #133: commands .........................   Passed    7.99 sec
+
+100% tests passed out of 3
+
+Total Test time (real) =  56.02 sec

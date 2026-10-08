@@ -1104,7 +1104,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R075 — Implement OBJ and MTL interchange
 
-**Status:** In progress. R075.a–c parsing, native conversion and OBJ export pass [153-suite, independent Blender, sanitizer, native, installed and source-package checks](verification/R075c-obj-export-packages.md). Native/CLI workflow follows in R075.d; remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** In progress. R075.a–c parsing, native conversion and OBJ export pass [153-suite, independent Blender, sanitizer, native, installed and source-package checks](verification/R075c-obj-export-packages.md). Native/CLI workflow follows in R075.d; remote CI and ordered merges remain delivery gates. [Immutable catalog caching](verification/CI-PR172-schema-cache.md) retains the merged PR172 correction, with twelve passing normal/sanitizer checks at unchanged deadlines. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R061](#r061); milestone gate rule above.
 

@@ -1,0 +1,31 @@
+Test project /work/package/sanitize
+    Start  93: model_recipes
+1/3 Test  #93: model_recipes ....................Subprocess killed***Exception: 273.28 sec
+
+    Start 109: recipes
+2/3 Test #109: recipes ..........................***Failed   70.58 sec
+Recipe CLI timed out after 30000 ms: --recipe /work/package/source/examples/hosted-room-recipe-v1.json --new --output /tmp/recipe_tests-CPRNUa/hosted-room-recipe-v1.json.sketchyup --outcomes /tmp/recipe_tests-CPRNUa/hosted-room-recipe-v1.json-outcomes
+stderr:
+
+last output:
+lated","distance":0.1,"face":"9"},{"body":"4","command":"entity.properties","values":{"recipe.role":"frame"}},{"body":"4","command":"material.assign","material":"2","side":"both"},{"command":"geometry.face","loops":[[[-0.52,0.1,0.08],[0.52,0.1,0.08],[0.52,0.1,0.92],[-0.52,0.1,0.92]]],"name":"Glass panel"},{"body":"5","command":"entity.properties","values":{"recipe.role":"glass"}},{"body":"5","command":"material.assign","material":"3","side":"both"},{"command":"group.create","members":["4","5"],"name":"Window A"},{"body":"6","command":"component.create","name":"Recipe window"},{"body":"6","command":"scene.transform","matrix":[1,0,0,0,0,1,0,0,0,0,1,0,1.5,0,0.9,1],"parent":"3"},{"command":"component.instance","definition":"1","matrix":[1,0,0,0,0,1,0,0,0,0,1,0,4.5,0,0.9,1],"name":"Window B","parent":"3"},{"body":"6","command":"entity.properties","values":{"recipe.centerX":1.5,"recipe.dimensionConvention":"outer-frame","recipe.frameDepth":0.1,"recipe.height":1,"recipe.kind":"window","recipe.memberThickness":0.08,"recipe.room":"3","recipe.sill":0.9,"recipe.slot":0,"recipe.version":1,"recipe.wall":"1","recipe.width":1.2}},{"body":"7","command":"entity.properties","values":{"recipe.centerX":4.5,"recipe.dimensionConvention":"outer-frame","recipe.frameDepth":0.1,"recipe.height":1,"recipe.kind":"window","recipe.memberThickness":0.08,"recipe.room":"3","recipe.sill":0.9,"recipe.slot":1,"recipe.version":1,"recipe.wall":"1","recipe.width":1.2}},{"body":"3","command":"entity.properties","values":{"recipe.depth":4,"recipe.floor":"2","recipe.height":2.7,"recipe.kind":"room","recipe.version":1,"recipe.wall":"1","recipe.wallThickness":0.2,"recipe.width":6}},{"body":"1","command":"entity.properties","values":{"recipe.role":"host-wall","recipe.room":"3","recipe.window.0":"6","recipe.window.1":"7"}}],"floor":"2","recipe":"room-v1","room":"3","wall":"1","wallVolume":9.888000000000021,"windows":[{"body":"6","centerX":1.5,"clearWidth":1.04,"outerWidth":1.2},{"body":"7","centerX":4.5,"clearWidth":1.04,"outerWidth":1.2}]},{"adoptedAttachments":["6","7"],"expandedCommands":[{"command":"component.glue","definition":"1","glue":{"anchor":[0,0.15000000000000002,0.5],"cutsOpening":true,"face":"9","member":"4","tangent":[1,0,0]}}],"preservedFaces":18,"preservedVertices":32,"recipe":"room-hosted-adoption-v1","room":"3","wall":"1"}],"revision":"1","solidOperations":[],"sweeps":[],"transactionApiVersion":1,"undo":{"assistant":false,"commitRevision":"1","label":"Create room with general hosted windows","request":"","taskId":"hosted-room-v1"}},"status":"committed"}}
+{"id":"save","ok":true,"result":{"apiVersion":1,"dirty":false,"documentId":"3bf1861445422cb7d4fb72ac34e643fa","outcomeUncertain":false,"recoveryRequested":false,"revision":"1","saveAvailable":true,"saveState":"ready","selectionAvailable":false,"sha256":"d0129d940c5d11239f0c1694b7ba92fa749ecf44a6e64191fd6ab85b544056ca","status":"saved","viewAvailable":false}}
+{"id":"measurement","ok":true,"result":{"apiVersion":1,"data":{"area":133.16480000000007,"bounds":{"dimensions":[6,4,2.7],"maximum":[6,4,2.7],"minimum":[0,0,0]},"includesHidden":true,"infiniteLength":false,"length":177.7599999999998,"solidStatus":"multiple_records","space":"world","target":{"body":"3","contextPath":[],"documentId":"3bf1861445422cb7d4fb72ac34e643fa","id":"3","kind":"body"},"units":{"area":"m2","length":"m","volume":"m3"},"volume":null},"documentId":"3bf1861445422cb7d4fb72ac34e643fa","query":"measure.entity","revision":"1","tolerance":1e-07,"units":"m","up":"Z"}}
+{"id":"resize_info","ok":true,"result":{"apiVersion":1,"dirty":false,"documentId":"3bf1861445422cb7d4fb72ac34e643fa","outcomeUncertain":false,"recoveryRequested":false,"revision":"1","saveAvailable":true,"saveState":"ready","selectionAvailable":false,"viewAvailable":false}}
+{"id":"resize_begin","ok":true,"result":{"apiVersion":1,"baseRevision":"1","commandCount":0,"currentVersion":0,"documentId":"3bf1861445422cb7d4fb72ac34e643fa","expiresInMs":59999,"operation":"transaction.begin","stageVersion":0,"status":"draft","transactionId":"f8fcbb09-1c65-42f0-a727-d5677ea827d7"}}
+
+
+    Start 133: commands
+3/3 Test #133: commands .........................***Failed   15.57 sec
+Text geometry worker crashed
+
+
+0% tests passed, 3 tests failed out of 3
+
+Total Test time (real) = 359.43 sec
+
+The following tests FAILED:
+	 93 - model_recipes (Subprocess killed)
+	109 - recipes (Failed)
+	133 - commands (Failed)
+Errors while running CTest
