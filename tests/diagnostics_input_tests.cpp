@@ -36,7 +36,8 @@ QPushButton *button(QDialog *report, const char *name) {
 }
 void click(QDialog *report, const char *name) {
     auto *target = button(report, name);
-    check(target->isEnabled(), "Diagnostic button enabled");
+    if (!target->isEnabled())
+        throw std::runtime_error(std::string("Diagnostic button disabled: ") + name);
     auto *window = qobject_cast<Window *>(report->parentWidget());
     QTest::mouseClick(target, Qt::LeftButton);
     events();
