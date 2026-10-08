@@ -1,0 +1,18 @@
+arch	UNKNOWN STEP	2026-10-08T04:14:41.8561265Z could not load cursor 'dnd-none'
+arch	UNKNOWN STEP	2026-10-08T04:14:41.8564463Z could not load cursor 'dnd-copy'
+arch	UNKNOWN STEP	2026-10-08T04:14:41.8567274Z could not load cursor 'dnd-none'
+arch	UNKNOWN STEP	2026-10-08T04:14:46.5585458Z Native site rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 2
+arch	UNKNOWN STEP	2026-10-08T04:14:47.9108202Z could not load cursor 'dnd-copy'
+arch	UNKNOWN STEP	2026-10-08T04:14:47.9110992Z could not load cursor 'dnd-none'
+arch	UNKNOWN STEP	2026-10-08T04:14:47.9164026Z could not load cursor 'dnd-copy'
+arch	UNKNOWN STEP	2026-10-08T04:14:47.9167564Z could not load cursor 'dnd-none'
+arch	UNKNOWN STEP	2026-10-08T04:14:50.9050310Z Diagnostic button enabled
+arch	UNKNOWN STEP	2026-10-08T04:14:50.9054073Z tool=0 preview=0 phase=0 revision=5
+arch	UNKNOWN STEP	2026-10-08T04:14:50.9056251Z report visible=1 notice=Finish the active preview or operation before using this report.
+arch	UNKNOWN STEP	2026-10-08T04:14:53.1760314Z                surfaceless context: yes
+arch	UNKNOWN STEP	2026-10-08T04:14:53.1765346Z                dmabuf support: modifiers
+arch	UNKNOWN STEP	2026-10-08T04:14:53.1769625Z                fence sync: yes (wait)
+arch	UNKNOWN STEP	2026-10-08T04:14:53.1774270Z [04:14:47.855] GL version: OpenGL ES 3.2 Mesa 26.2.3-arch1.2
+arch	UNKNOWN STEP	2026-10-08T04:14:53.1778258Z [04:14:47.856] GLSL version: OpenGL ES GLSL ES 3.20
+arch	UNKNOWN STEP	2026-10-08T04:14:53.1780981Z [04:14:47.856] GL vendor: Mesa
+arch	UNKNOWN STEP	2026-10-08T04:14:53.1786262Z [04:14:47.856] GL renderer: llvmpipe (LLVM 23.1.1, 256 bits)
