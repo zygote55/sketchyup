@@ -1441,6 +1441,22 @@ int main(int argc, char **argv) {
         });
         check(color.revision() == source.revision(),
               "Out-of-range double color cannot round into range");
+        {
+            const auto expected = commandDescription("geometry.face");
+            auto description = expected;
+            auto parameters = description["parameters"].toObject();
+            parameters["additionalProperties"] = true;
+            parameters.remove("required");
+            description["parameters"] = parameters;
+            description["label"] = "Caller-owned replacement";
+            check(commandDescription("geometry.face") == expected,
+                  "Caller mutation cannot change cached authoritative schema");
+            for (const auto &entry : commandCatalog()) {
+                const auto original = entry.toObject();
+                check(commandDescription(original["name"].toString()) == original,
+                      "Cached descriptions preserve every advertised command schema");
+            }
+        }
         rejects([] { commandDescription("internal.commit"); });
         std::cout << "Command catalog, required/unknown fields, handlers, single-step undo and "
                      "color bounds passed\n";
