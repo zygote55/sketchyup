@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0–M6 gates passed; M7 presentation and rendering is in progress. Updated: 2026-10-06.
+Status: M0–M6 gates passed; the M7 presentation checkpoint is accepted; M8 exchange and extensibility is in progress. Updated: 2026-10-08.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -83,7 +83,7 @@ native scheduling/selection is merged in [PR #51](https://github.com/zygote55/sk
 The labeled history API merged in [PR #52](https://github.com/zygote55/sketchyup/pull/52);
 native History controls merged in [PR #53](https://github.com/zygote55/sketchyup/pull/53).
 Document unit data/API/persistence merged in [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences merged in [PR #55](https://github.com/zygote55/sketchyup/pull/55).
-The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4 and M5 are complete; the [M5 gate](verification/M5.md) records provider, assistant, MCP and room/window acceptance. The [M6 gate](verification/M6.md) is complete; M7 presentation and rendering is in progress.
+The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4 and M5 are complete; the [M5 gate](verification/M5.md) records provider, assistant, MCP and room/window acceptance. The [M6 gate](verification/M6.md) is complete, and the [M7 presentation checkpoint](verification/M7-accepted.md) is accepted; M8 exchange and extensibility is in progress.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
