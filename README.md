@@ -829,3 +829,39 @@ The output must be a new path. Relative buffers/images must stay inside the sour
 folder. Skinning, morph targets, required unsupported extensions and unsupported
 material modes reject explicitly. See the [import contract](docs/decisions/0111-native-gltf-import-workflow.md)
 for limits and exchange guarantees.
+
+OBJ/MTL interchange supports editable polygons, wires, groups, diffuse colors, opacity
+and contained PNG/JPEG textures. File → Import OBJ/MTL and Export OBJ package ask
+for units and up axis. Export includes hidden model geometry without section clipping;
+reports enumerate unsupported metadata and missing assets. Headless equivalents:
+
+```sh
+sketchyup-cli --import-obj source.obj --obj-unit mm --obj-up z --output converted.sketchyup
+sketchyup-cli --export-obj new-package --input converted.sketchyup --obj-unit mm --obj-up z
+```
+
+Import output and export folders must be new. Keep exported OBJ, MTL and image files
+together. See the [native OBJ workflow contract](docs/decisions/0115-native-obj-interchange-workflow.md).
+
+STL interchange uses explicit units and axes. File → Import STL offers per-copy
+welding and opt-in degenerate-facet removal; File → Export STL writes a new binary
+or ASCII file. Materials and hierarchy are not carried. For headless use:
+
+```sh
+sketchyup-cli --import-stl source.stl --stl-unit mm --stl-up z --stl-weld exact --output new.sketchyup
+sketchyup-cli --export-stl new.stl --input new.sketchyup --stl-unit mm --stl-up z --stl-encoding binary
+```
+
+See [STL workflow and limits](docs/decisions/0119-native-stl-interchange-workflow.md).
+
+The documented 2D DXF subset imports lines, supported polylines, arcs, circles and
+layers as editable edges. File → Import 2D DXF lets you use declared units or an
+explicit override; File → Export 2D DXF writes all world-XY edges to a new drawing.
+Unsupported entities and metadata losses are reported.
+
+```sh
+sketchyup-cli --import-dxf source.dxf --dxf-unit header --output new.sketchyup
+sketchyup-cli --export-dxf new.dxf --input new.sketchyup --dxf-unit mm
+```
+
+See [DXF workflow and limits](docs/decisions/0123-native-dxf-interchange-workflow.md).

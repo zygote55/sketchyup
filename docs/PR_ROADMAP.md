@@ -1104,7 +1104,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R075 — Implement OBJ and MTL interchange
 
-**Status:** In progress. R075.a–b bounded parsing and native conversion pass [151-suite, independent Blender, sanitizer, native, installed and source-package checks](verification/R075b-native-obj-conversion.md). Export and native/CLI workflow follow in R075.c–d; remote CI and ordered merges remain delivery gates. [Immutable catalog caching](verification/CI-PR172-schema-cache.md) resolves repeated schema construction in recipe CLI runs, with retained failing controls and twelve passing normal/sanitizer checks at unchanged deadlines. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** Locally complete. R075.a–d pass [153-suite, independent Blender, sanitizer, eight-platform native, CLI, installed and source-package acceptance](verification/R075d-native-obj-workflow.md). Remote CI and ordered merges remain delivery gates. [Immutable catalog caching](verification/CI-PR172-schema-cache.md) retains the merged PR172 correction, with twelve passing normal/sanitizer checks at unchanged deadlines. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R061](#r061); milestone gate rule above.
 
@@ -1116,7 +1116,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R076 — Implement binary and text STL interchange
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** In progress. R076.a–d parsing, conversion, export and native/CLI workflows are locally complete with [158-suite, independent Blender, sanitizer, eight-platform, installed and source-package checks](verification/R076d-native-stl-workflow.md). Remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R058](#r058); milestone gate rule above.
 
@@ -1128,7 +1128,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R077 — Implement the documented 2D DXF subset
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X04. **UX:** —.
+**Status:** In progress. R077.a–d implementation and [local DXF workflow verification](verification/R077d-native-dxf-workflow.md) are complete, including independent ezdxf, sanitizer, eight platform cases, final native integration, installed workflows and source packaging. Remote CI, ordered merges and milestone acceptance remain open. **Track:** Interchange. **Scope:** X04. **UX:** —.
 
 **Requires:** [R024](#r024), [R073](#r073); milestone gate rule above.
 
@@ -1140,7 +1140,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R078 — Export scaled orthographic PDF and SVG views
 
-**Status:** Planned. **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** In progress. R078.a [bounded physical-page and hidden-line geometry](verification/R078a-measured-hidden-lines.md) passes independent geometric oracles, sanitizer, desktop/CLI build, installed and source-package checks. Document capture, PDF/SVG and native/CLI workflows follow in R078.b–e. **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R064](#r064), [R065](#r065), [R068](#r068); milestone gate rule above.
 

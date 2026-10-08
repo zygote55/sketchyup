@@ -9,6 +9,9 @@ license=('MIT' 'BSL-1.0' 'Apache-2.0')
 depends=('openssl' 'qt6-base' 'qt6-wayland' 'wayland' 'shared-mime-info' 'ttf-dejavu')
 optdepends=('libsecret: OpenAI credential storage through the desktop Secret Service')
 makedepends=('cmake' 'ninja' 'gcc' 'pkgconf')
+# makepkg's default LTO re-optimizes the static core for each of ~200 linked
+# executables, turning a 15-minute build into hours. No debug split package ships.
+options=('!lto' '!debug')
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('REPLACE_WITH_SOURCE_SHA256') # Filled by package-source.sh.
 

@@ -87,6 +87,49 @@ int main(int argc, char **argv) {
             return 0;
         }
 
+        auto cli = [&](const QStringList &arguments, bool success = true) {
+            QProcess process;
+            process.start(QCoreApplication::applicationDirPath() + "/sketchyup-cli", arguments);
+            check(process.waitForStarted(10000) && process.waitForFinished(30000) &&
+                      process.exitStatus() == QProcess::NormalExit &&
+                      (process.exitCode() == 0) == success,
+                  "OBJ CLI status");
+            const auto out = process.readAllStandardOutput(),
+                       error = process.readAllStandardError();
+            const auto json = QJsonDocument::fromJson(out.isEmpty() ? error : out);
+            check(json.isObject(), "OBJ CLI structured response");
+            return json.object();
+        };
+        const auto cliSource = root + "/cli.obj", native = root + "/converted.sketchyup";
+        write(cliSource, "v 0 0 0\nv 2000 0 0\nv 0 3000 0\nf 1 2 3\n");
+        const auto originalCli = read(cliSource);
+        const QStringList importArgs{"--import-obj", cliSource,  "--obj-unit",
+                                     "mm",           "--obj-up", "z"};
+        const auto cliReport = cli(importArgs + QStringList{"--output", native});
+        check(cliReport["status"] == "imported" && QFile::exists(native),
+              "CLI publishes new native file");
+        near(mesh(loadDocument(native))
+                 .surface.area(mesh(loadDocument(native)).surface.faces.begin()->first),
+             3);
+        const auto package = root + "/cli-package";
+        const QStringList exportArgs{"--export-obj", package, "--input",  native,
+                                     "--obj-unit",   "mm",    "--obj-up", "z"};
+        check(cli(exportArgs)["status"] == "exported" && QFile::exists(package + "/manifest.json"),
+              "CLI exports packaged OBJ");
+        check(loadObj(package + "/model.obj", {.001, ObjUpAxis::Z}).report["faces"].toInt() == 1,
+              "CLI round trip");
+        cli(exportArgs, false);
+        cli(importArgs + QStringList{"--output", native}, false);
+        cli(importArgs + QStringList{"--output", cliSource}, false);
+        cli({"--import-obj", cliSource}, false);
+        cli({"--import-obj", cliSource, "--obj-unit", "parsecs", "--obj-up", "z"}, false);
+        cli({"--import-obj", cliSource, "--obj-unit", "m", "--obj-up", "x"}, false);
+        cli(importArgs + QStringList{"--input", native}, false);
+        cli(importArgs + QStringList{"--script", "examples/room.json"}, false);
+        cli(importArgs + QStringList{"--export-obj", root + "/mixed"}, false);
+        cli({"--obj-unit", "m", "--input", native}, false);
+        check(read(cliSource) == originalCli && !QFile::exists(root + "/mixed"),
+              "CLI errors preserve inputs and leave no output");
         const QByteArray concave =
             "o Building\ng Walls Exterior\nv 0 0 0\nv 2000 0 0\nv 2000 1000 0\nv 1000 1000 0\nv "
             "1000 2000 0\nv 0 2000 0\nf -6 -5 -4 -3 -2 -1\nl 1 3\n";

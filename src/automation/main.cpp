@@ -6,10 +6,13 @@
 #include "automation/session.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
+#include "io/dxf_export.hpp"
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
 #include "io/native_format.hpp"
+#include "io/obj_export.hpp"
 #include "io/recovery.hpp"
+#include "io/stl_export.hpp"
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
@@ -48,10 +51,34 @@ int main(int argc, char **argv) {
     parser.addOption({"query-file", "Run a read-only query object from a JSON file", "path"});
     parser.addOption({"inspect", "Run a bounded query using the explicit input document", "name"});
     parser.addOption({"inspect-file", "Run a versioned bounded inspection request", "path"});
+    parser.addOption(
+        {"import-dxf", "Import the supported 2D DXF subset; optional new native --output", "path"});
+    parser.addOption({"export-dxf", "Export world-XY model edges to a new DXF file", "path"});
+    parser.addOption(
+        {"dxf-unit", "Explicit unit: mm, cm, m, in, ft, or header for import", "unit"});
+    parser.addOption({"dxf-segments", "Import chord segments per full circle: 12..256", "count"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption(
         {"import-gltf", "Import GLB/glTF into a new native model; optional new --output", "path"});
+    parser.addOption(
+        {"import-stl", "Import binary/ASCII STL; optional new native --output", "path"});
+    parser.addOption(
+        {"export-stl", "Export all model surface triangles to a new STL file", "path"});
+    parser.addOption({"stl-unit", "Explicit STL coordinate unit: mm, cm, m, in or ft", "unit"});
+    parser.addOption({"stl-up", "Explicit STL up axis: y or z", "axis"});
+    parser.addOption(
+        {"stl-weld", "Required import welding choice: none, exact or tolerance", "mode"});
+    parser.addOption(
+        {"stl-tolerance", "Metres, required only with tolerance welding: 1e-9..1e-3", "metres"});
+    parser.addOption(
+        {"stl-discard-degenerate", "Explicitly remove collapsed facets during import"});
+    parser.addOption({"stl-encoding", "Required export encoding: binary or ascii", "encoding"});
+    parser.addOption({"import-obj", "Import OBJ/MTL; optional new native --output", "path"});
+    parser.addOption(
+        {"export-obj", "Export all model geometry to a new OBJ package directory", "directory"});
+    parser.addOption({"obj-unit", "Explicit OBJ coordinate unit: mm, cm, m, in or ft", "unit"});
+    parser.addOption({"obj-up", "Explicit OBJ up axis: y or z", "axis"});
     parser.addOption({"import-formline", "Import Formline v1 into a new native model", "path"});
     parser.addOption(
         {"recovery-list", "List verified inactive recovery sessions in a directory", "directory"});
@@ -69,6 +96,174 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("import-dxf") || parser.isSet("export-dxf")) {
+            auto invalid = [](const char *message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            const bool importing = parser.isSet("import-dxf");
+            if (importing == parser.isSet("export-dxf") ||
+                !parser.positionalArguments().isEmpty() || !parser.isSet("dxf-unit"))
+                invalid("Choose one DXF operation and explicit --dxf-unit");
+            const QStringList allowed =
+                importing ? QStringList{"import-dxf", "output", "dxf-unit", "dxf-segments"}
+                          : QStringList{"export-dxf", "input", "dxf-unit"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("DXF commands are standalone operations");
+            const std::map<QString, double> units{
+                {"mm", .001}, {"cm", .01}, {"m", 1}, {"in", .0254}, {"ft", .3048}};
+            const auto unit = parser.value("dxf-unit");
+            sketchy::DxfOptions options;
+            if (units.contains(unit))
+                options.metresPerUnit = units.at(unit);
+            else if (!importing || unit != "header")
+                invalid("DXF units are mm, cm, m, in, ft, or header for import");
+            QJsonObject result;
+            if (importing) {
+                unsigned segments = 96;
+                if (parser.isSet("dxf-segments")) {
+                    bool ok{};
+                    segments = parser.value("dxf-segments").toUInt(&ok);
+                    if (!ok || segments < 12 || segments > 256)
+                        invalid("DXF segments per full circle must be 12..256");
+                }
+                const auto imported =
+                    sketchy::loadDxf(parser.value("import-dxf"), options, segments);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } else {
+                if (!parser.isSet("input"))
+                    invalid("DXF export requires native --input");
+                const auto document = sketchy::loadDocument(parser.value("input"));
+                const auto exported = sketchy::exportDxf(document, *options.metresPerUnit);
+                sketchy::writeDxfExport(exported, parser.value("export-dxf"));
+                result = {{"status", "exported"}, {"exportReport", exported.report}};
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        for (const auto &option : parser.optionNames())
+            if (option.startsWith("dxf-"))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "DXF options require --import-dxf or --export-dxf");
+        if (parser.isSet("import-stl") || parser.isSet("export-stl")) {
+            auto invalid = [](const char *message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            const bool importing = parser.isSet("import-stl");
+            if (importing == parser.isSet("export-stl") ||
+                !parser.positionalArguments().isEmpty() || !parser.isSet("stl-unit") ||
+                !parser.isSet("stl-up"))
+                invalid("Choose one STL operation with explicit --stl-unit and --stl-up");
+            const QStringList allowed = importing ? QStringList{"import-stl",
+                                                                "output",
+                                                                "stl-unit",
+                                                                "stl-up",
+                                                                "stl-weld",
+                                                                "stl-tolerance",
+                                                                "stl-discard-degenerate"}
+                                                  : QStringList{"export-stl", "input", "stl-unit",
+                                                                "stl-up", "stl-encoding"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("STL commands are standalone operations");
+            const std::map<QString, double> units{
+                {"mm", .001}, {"cm", .01}, {"m", 1}, {"in", .0254}, {"ft", .3048}};
+            const auto unit = parser.value("stl-unit"), up = parser.value("stl-up");
+            if (!units.contains(unit) || (up != "y" && up != "z"))
+                invalid("STL units are mm, cm, m, in or ft; up axis is y or z");
+            const sketchy::StlCoordinateOptions coordinates{
+                units.at(unit), up == "y" ? sketchy::StlUpAxis::Y : sketchy::StlUpAxis::Z};
+            QJsonObject result;
+            if (importing) {
+                const auto weld = parser.value("stl-weld");
+                if (weld != "none" && weld != "exact" && weld != "tolerance")
+                    invalid("Import requires --stl-weld none, exact or tolerance");
+                if ((weld == "tolerance") != parser.isSet("stl-tolerance"))
+                    invalid("--stl-tolerance is required only for tolerance welding");
+                sketchy::StlRepairOptions repairs{weld == "none"    ? sketchy::StlWeld::None
+                                                  : weld == "exact" ? sketchy::StlWeld::Exact
+                                                                    : sketchy::StlWeld::Tolerance,
+                                                  1e-7, parser.isSet("stl-discard-degenerate")};
+                if (weld == "tolerance") {
+                    bool ok{};
+                    repairs.toleranceMetres = parser.value("stl-tolerance").toDouble(&ok);
+                    if (!ok)
+                        invalid("Invalid STL weld tolerance");
+                }
+                repairs.validate();
+                const auto imported =
+                    sketchy::loadStl(parser.value("import-stl"), coordinates, repairs);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } else {
+                const auto encoding = parser.value("stl-encoding");
+                if (!parser.isSet("input") || (encoding != "binary" && encoding != "ascii"))
+                    invalid("STL export requires --input and --stl-encoding binary or ascii");
+                const auto document = sketchy::loadDocument(parser.value("input"));
+                const auto exported =
+                    sketchy::exportStl(document, coordinates,
+                                       encoding == "binary" ? sketchy::StlEncoding::Binary
+                                                            : sketchy::StlEncoding::Ascii);
+                sketchy::writeStlExport(exported, parser.value("export-stl"));
+                result = {{"status", "exported"}, {"exportReport", exported.report}};
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        for (const auto &option : parser.optionNames())
+            if (option.startsWith("stl-"))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "STL options require --import-stl or --export-stl");
+        if (parser.isSet("import-obj") || parser.isSet("export-obj")) {
+            const bool importing = parser.isSet("import-obj");
+            if (importing == parser.isSet("export-obj") ||
+                !parser.positionalArguments().isEmpty() || !parser.isSet("obj-unit") ||
+                !parser.isSet("obj-up"))
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST",
+                    "Choose one OBJ operation with explicit --obj-unit and --obj-up");
+            const QStringList allowed =
+                importing ? QStringList{"import-obj", "output", "obj-unit", "obj-up"}
+                          : QStringList{"export-obj", "input", "obj-unit", "obj-up"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "OBJ commands are standalone operations");
+            const std::map<QString, double> units{
+                {"mm", .001}, {"cm", .01}, {"m", 1}, {"in", .0254}, {"ft", .3048}};
+            const auto unit = parser.value("obj-unit"), up = parser.value("obj-up");
+            if (!units.contains(unit) || (up != "y" && up != "z"))
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST", "OBJ units are mm, cm, m, in or ft; up axis is y or z");
+            const sketchy::ObjImportOptions options{
+                units.at(unit), up == "y" ? sketchy::ObjUpAxis::Y : sketchy::ObjUpAxis::Z};
+            QJsonObject result;
+            if (importing) {
+                const auto imported = sketchy::loadObj(parser.value("import-obj"), options);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } else {
+                if (!parser.isSet("input"))
+                    throw sketchy::InspectionError(
+                        "INVALID_REQUEST", "OBJ export requires an explicit native --input");
+                const auto document = sketchy::loadDocument(parser.value("input"));
+                const auto package = sketchy::exportObj(document, options);
+                sketchy::writeObjExport(package, parser.value("export-obj"));
+                result = {{"status", "exported"}, {"manifest", package.manifest}};
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        if (parser.isSet("obj-unit") || parser.isSet("obj-up"))
+            throw sketchy::InspectionError("INVALID_REQUEST",
+                                           "OBJ options require --import-obj or --export-obj");
         const QStringList formatModes{"format-capabilities", "inspect-native", "validate-native",
                                       "migrate-native"};
         QString formatMode;
