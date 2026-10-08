@@ -3,6 +3,7 @@
 #include "app/organization_panel.hpp"
 #include "app/recovery_controller.hpp"
 #include "app/viewport.hpp"
+#include "io/obj_source.hpp"
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -33,6 +34,10 @@ class Window : public QMainWindow {
     void openPath(const QString &path);
     void importFormlinePath(const QString &path);
     void importGltfPath(const QString &path);
+    void importObjPath(const QString &path, ObjImportOptions options);
+    void exportObjPath(const QString &path, ObjImportOptions options);
+    void importObjDialog();
+    void exportObjDialog();
     void exportRasterDialog();
 
   protected:
