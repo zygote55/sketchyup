@@ -1,0 +1,3 @@
+Qt=6.11.2 platform=offscreen families=3 matched= pixel=16
+valid=1
+bash: line 1:    12 Segmentation fault         (core dumped) /diagnostic/font-probe 16
