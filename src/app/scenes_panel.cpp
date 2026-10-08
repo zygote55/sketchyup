@@ -9,8 +9,11 @@
 #include <QGridLayout>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QSettings>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QVBoxLayout>
+#include <algorithm>
 namespace sketchy {
 ScenesPanel::ScenesPanel(Document &doc, Viewport &view, QWidget *parent)
     : QWidget(parent), doc_(doc), view_(view) {
@@ -20,6 +23,19 @@ ScenesPanel::ScenesPanel(Document &doc, Viewport &view, QWidget *parent)
                             "viewport tabs to recall it.");
     note->setWordWrap(true);
     layout->addWidget(note);
+    auto *timing = new QFormLayout;
+    auto *duration = new QSpinBox;
+    duration->setObjectName("sceneTransitionDuration");
+    duration->setRange(0, 10000);
+    duration->setSuffix(" ms");
+    duration->setValue(std::clamp(QSettings().value("sceneTransitionMs", 160).toInt(), 0, 10000));
+    view_.setSceneTransitionDuration(duration->value());
+    timing->addRow("Camera transition", duration);
+    layout->addLayout(timing);
+    connect(duration, qOverload<int>(&QSpinBox::valueChanged), this, [this](int value) {
+        view_.setSceneTransitionDuration(value);
+        QSettings().setValue("sceneTransitionMs", value);
+    });
     list_ = new QListWidget;
     list_->setObjectName("savedScenesList");
     list_->setAccessibleName("Saved scenes in presentation order");
