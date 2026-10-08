@@ -1,0 +1,123 @@
+{
+  "adapter": "sketchyup-blender-v1",
+  "apiVersion": 1,
+  "blenderBuildHash": "d13f752e3b9c",
+  "blenderVersion": [
+    5,
+    2,
+    2
+  ],
+  "blenderVersionString": "5.2.2 LTS",
+  "cpuFallbackUsed": false,
+  "device": {
+    "backend": "CPU",
+    "id": "CPU",
+    "name": "CPU"
+  },
+  "documentId": "e8da72966f1327b61362e930331acce4",
+  "lighting": {
+    "angle": 0.00935,
+    "energy": 3,
+    "environment": {
+      "bytes": 53,
+      "colorSpace": "Linear Rec.709",
+      "file": "environment.hdr",
+      "height": 1,
+      "mediaType": "image/vnd.radiance",
+      "projection": "equirectangular",
+      "rotationDegrees": 90,
+      "sha256": "48b8a6dd064481658ce00b8b0cf4e3f24131b66242f198b5edf09c03bcab75b4",
+      "strength": 0.5,
+      "width": 2
+    },
+    "mode": "solar-hdri-v1",
+    "position": {
+      "aboveHorizon": true,
+      "algorithm": "noaa-meeus-geometric-v1",
+      "azimuthDegrees": 89.00796488324336,
+      "declinationDegrees": 23.43841192233662,
+      "directLightActive": true,
+      "direction": [
+        0.7981206376711644,
+        0.013820264522581782,
+        0.6023391470026666
+      ],
+      "elevationDegrees": 37.03761104477196,
+      "equationOfTimeMinutes": -1.786909948113519,
+      "refraction": "none; geometric solar center",
+      "shadowsActive": true,
+      "utcSeconds": "1277132400"
+    },
+    "settings": {
+      "algorithm": "noaa-meeus-geometric-v1",
+      "day": 21,
+      "enabled": true,
+      "hour": 8,
+      "latitude": 40,
+      "longitude": -105,
+      "minute": 0,
+      "month": 6,
+      "northDegrees": 0,
+      "second": 0,
+      "shadows": true,
+      "utcOffsetMinutes": -420,
+      "year": 2010
+    },
+    "shadows": true,
+    "worldStrength": 0.5
+  },
+  "losses": {
+    "analyticCurvesTessellatedOrOmitted": 0,
+    "annotationsOmitted": 0,
+    "editableTextSourcesOmitted": 0,
+    "environmentLightingOmitted": 0,
+    "guidesOmitted": 0,
+    "missingAssets": 0,
+    "referenceImagesOmitted": 0,
+    "sectionCutEdgesOmitted": 0,
+    "solarLightingOmitted": 0,
+    "textureAssetsPreservedWithoutUVMapping": 0,
+    "wiresOmitted": 0
+  },
+  "manifestSha256": "d9c9ce261968af2aec437d0a484c55bd092739aec2c482a10e4da9e392519304",
+  "preset": {
+    "adaptiveSampling": false,
+    "denoising": false,
+    "engine": "CYCLES",
+    "exposure": 0,
+    "gamma": 1,
+    "look": "None",
+    "maxBounces": 8,
+    "name": "solar-hdri-v1",
+    "samples": 4,
+    "samplingPolicy": "cycles-fixed-v1",
+    "seed": 0,
+    "threads": 4,
+    "viewTransform": "Standard",
+    "worldStrength": 0.5
+  },
+  "revision": "6",
+  "sceneFile": {
+    "assetsPacked": true,
+    "bytes": 573047,
+    "file": "scene.blend",
+    "oneWay": true,
+    "sha256": "2d9ddcc3c3fd6e5834dd9de5d518f0d6068b9e88f760f0a294566a2d043a1a8e"
+  },
+  "sceneSha256": "1c1d80dd99b71564f8d835f101da64bd8ae9f408fa766a3e4c4c394b44e3df17",
+  "settings": {
+    "engine": "cycles",
+    "height": 96,
+    "samples": 4,
+    "seed": 0,
+    "width": 128
+  },
+  "status": "succeeded",
+  "reopened": {
+    "packedImages": 2,
+    "camera": "PERSP",
+    "engine": "CYCLES",
+    "revision": "6",
+    "oneWay": true
+  }
+}

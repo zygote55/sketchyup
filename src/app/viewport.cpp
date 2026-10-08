@@ -1180,6 +1180,10 @@ void Viewport::paintScene(QPaintDevice *device) {
         return;
     syncModelStyle();
     syncSolar();
+    // Decoding can publish between the polling timer and an explicit fresh frame.
+    // Consume that generation before rendering surfaces, shadows or captures.
+    if (textureCache_.snapshot() != textureSnapshot_)
+        cacheDirty_ = pickDirty_ = true;
     QPainter p(device ? device : this);
     p.beginNativePainting();
     QElapsedTimer timer;
