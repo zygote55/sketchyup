@@ -255,6 +255,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (!p.isEmpty())
             openPath(p);
     }));
+    file->addAction(action("file.importStl", "Import STL…", {}, [this] { importStlDialog(); }));
+    file->addAction(action("file.exportStl", "Export STL…", {}, [this] { exportStlDialog(); }));
     file->addAction(action("file.importObj", "Import OBJ/MTL…", {}, [this] { importObjDialog(); }));
     file->addAction(action("file.importGltf", "Import GLB/glTF…", {}, [this] {
         const auto path =
