@@ -402,6 +402,8 @@ jobs:
           build/dev/sketchyup-cli --input /tmp/profile-sweep.sketchyup
           build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
           build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1
+      - name: Reclaim completed development artifacts
+        run: scripts/ci-reclaim-development-build.sh
       - name: Sanitized core without Qt
         run: |
           cmake --preset sanitize
