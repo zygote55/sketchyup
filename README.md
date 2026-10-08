@@ -794,3 +794,20 @@ be disabled in saved scenes. The first exporter has no movie encoding or crash
 resume; an unfinished manifest and any completed frames remain for inspection.
 See [capture semantics](docs/decisions/0106-immutable-animation-capture.md) and
 [frame export](docs/decisions/0107-native-animation-frame-export.md).
+
+### Inspect and migrate native documents
+
+The first public format is document schema 24 in a version-2 `.sketchyup` container.
+The CLI validates older files without rewriting them and migrates only to a new
+path:
+
+```sh
+sketchyup-cli --format-capabilities
+sketchyup-cli --inspect-native model.sketchyup
+sketchyup-cli --validate-native model.sketchyup
+sketchyup-cli --migrate-native old.sketchyup --output migrated.sketchyup
+```
+
+Migration verifies the complete model and embedded assets before publishing the
+copy. Existing destinations and in-place migration are rejected. See the
+[public storage contract](docs/decisions/0108-public-native-format.md).

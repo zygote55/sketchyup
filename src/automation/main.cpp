@@ -7,6 +7,7 @@
 #include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
 #include "io/formline.hpp"
+#include "io/native_format.hpp"
 #include "io/recovery.hpp"
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -19,6 +20,11 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addOption({"format-capabilities", "Describe supported native storage and migration"});
+    parser.addOption({"inspect-native", "Validate and describe an explicit native file", "path"});
+    parser.addOption({"validate-native", "Fully validate an explicit native file", "path"});
+    parser.addOption(
+        {"migrate-native", "Migrate an explicit native file to a new --output path", "path"});
     parser.addOption({"mcp-connect",
                       "Bridge stdio to an explicitly launched native inspection socket", "socket"});
     parser.addOption({"mcp", "Run the explicitly scoped local MCP stdio server"});
@@ -60,6 +66,35 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        const QStringList formatModes{"format-capabilities", "inspect-native", "validate-native",
+                                      "migrate-native"};
+        QString formatMode;
+        for (const auto &name : formatModes)
+            if (parser.isSet(name)) {
+                if (!formatMode.isEmpty())
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "Choose one native format operation");
+                formatMode = name;
+            }
+        if (!formatMode.isEmpty()) {
+            if (!parser.positionalArguments().isEmpty())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Native format commands require named paths");
+            for (const auto &name : parser.optionNames())
+                if (name != formatMode && !(formatMode == "migrate-native" && name == "output"))
+                    throw sketchy::InspectionError(
+                        "INVALID_REQUEST", "Native format commands are standalone operations");
+            if (formatMode == "migrate-native" && !parser.isSet("output"))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Migration requires a new --output path");
+            const auto report =
+                formatMode == "format-capabilities" ? sketchy::nativeFormatCapabilities()
+                : formatMode == "migrate-native"
+                    ? sketchy::migrateNativeFile(parser.value(formatMode), parser.value("output"))
+                    : sketchy::inspectNativeFile(parser.value(formatMode));
+            std::cout << QJsonDocument(report).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
         if (parser.isSet("export-glb")) {
             if (!parser.isSet("input") || !parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",

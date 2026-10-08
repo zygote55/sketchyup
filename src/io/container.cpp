@@ -1,5 +1,6 @@
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
+#include "io/native_format.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -72,7 +73,7 @@ QByteArray encodeContainer(const Document &doc) {
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
-                                  {"encoding", "json-v24"},
+                                  {"encoding", QString("json-v%1").arg(nativeDocumentVersion)},
                                   {"offset", "0"},
                                   {"bytes", QString::number(document.size())},
                                   {"sha256", hash(document)}}};
@@ -113,7 +114,7 @@ QByteArray encodeContainer(const Document &doc) {
         throw std::runtime_error("Container manifest exceeds 1 MiB");
     QByteArray header(16, '\0');
     header.replace(0, magic.size(), magic);
-    qToLittleEndian<quint32>(2, header.data() + 8);
+    qToLittleEndian<quint32>(nativeContainerVersion, header.data() + 8);
     qToLittleEndian<quint32>(manifest.size(), header.data() + 12);
     return header + manifest + payload;
 }

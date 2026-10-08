@@ -1,13 +1,14 @@
 #include "io/document_io.hpp"
-#include "io/reference_image_io.hpp"
-#include "io/text_source_io.hpp"
+#include "io/annotations_io.hpp"
 #include "io/assets.hpp"
 #include "io/hosted_components_io.hpp"
 #include "io/model_style_io.hpp"
-#include "io/solar_io.hpp"
+#include "io/native_format.hpp"
+#include "io/reference_image_io.hpp"
 #include "io/scenes_io.hpp"
 #include "io/sections_io.hpp"
-#include "io/annotations_io.hpp"
+#include "io/solar_io.hpp"
+#include "io/text_source_io.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -248,7 +249,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonDocument(
             QJsonObject{
                 {"format", "sketchyup"},
-                {"version", 24},
+                {"version", nativeDocumentVersion},
                 {"solar", encodeSolarSettings(doc.solar())},
                 {"annotations", encodeAnnotations(doc.annotations())},
                 {"nextAnnotationId", sid(doc.nextAnnotationId())},
@@ -560,15 +561,8 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         throw std::runtime_error("Invalid JSON document");
     auto root = json.object();
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
-        (root["version"].toDouble() != 1 && root["version"].toDouble() != 2 &&
-         root["version"].toDouble() != 3 && root["version"].toDouble() != 4 &&
-         root["version"].toDouble() != 5 && root["version"].toDouble() != 6 &&
-         root["version"].toDouble() != 7 && root["version"].toDouble() != 8 &&
-         root["version"].toDouble() != 9 && root["version"].toDouble() != 10 &&
-         root["version"].toDouble() != 11 && root["version"].toDouble() != 12 &&
-         root["version"].toDouble() != 13 && root["version"].toDouble() != 14 &&
-         root["version"].toDouble() != 15 && root["version"].toDouble() != 16 &&
-         root["version"].toDouble() != 17 && root["version"].toDouble() != 18 && root["version"].toDouble() != 19 && root["version"].toDouble() != 20 && root["version"].toDouble() != 21 && root["version"].toDouble() != 22 && root["version"].toDouble() != 23 && root["version"].toDouble() != 24) ||
+        (root["version"].toDouble() < 1 || root["version"].toDouble() > nativeDocumentVersion ||
+         root["version"].toDouble() != std::floor(root["version"].toDouble())) ||
         root["units"] != "m" || root["up"] != "Z")
         throw std::runtime_error(
             "Unsupported document format, version, units or coordinate system");

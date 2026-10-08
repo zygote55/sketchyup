@@ -1080,7 +1080,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R073 — Stabilize the native format and migration tooling
 
-**Status:** Planned. **Track:** Interchange. **Scope:** X06, D02. **UX:** —.
+**Status:** In progress. Public v24/container-v2 contract, strict inspection and safe migration pass [144-suite, native, sanitizer, installed and source-package acceptance](verification/R073-public-native-format.md). Local implementation is complete; remote CI and ordered merge remain. **Track:** Interchange. **Scope:** X06, D02. **UX:** —.
 
 **Requires:** [R037](#r037), [R065](#r065), [R063](#r063); milestone gate rule above.
 
