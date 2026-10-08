@@ -1,0 +1,20 @@
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==9==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x778be91f91f6 bp 0x7ffece541750 sp 0x7ffece540838 T0)
+==9==The signal is caused by a READ memory access.
+==9==Hint: address points to the zero page.
+    #0 0x778be91f91f6 in QRawFont::familyName() const (/usr/lib/libQt6Gui.so.6+0x4c51f6) (BuildId: 71d66e3af1eef3315a518f6968b3124e18443c61)
+    #1 0x5a71290fcae0 in sketchy::shapeTextGeometry(sketchy::TextGeometrySettings const&) /work/package/source/src/text/text_geometry.cpp:151
+    #2 0x5a71290e96ab in main /work/package/source/src/text/worker_main.cpp:35
+    #3 0x778be79f9780  (/usr/lib/libc.so.6+0x27780) (BuildId: d320029ad1a23be2f4bce117fd321cbd23a2014b)
+    #4 0x778be79f98b8 in __libc_start_main (/usr/lib/libc.so.6+0x278b8) (BuildId: d320029ad1a23be2f4bce117fd321cbd23a2014b)
+    #5 0x5a71290e8434 in _start (/work/package/sanitize/sketchyup-text-worker+0x20c1434) (BuildId: 8b83c15ae81a0dd5591a366d678868ae60dccf05)
+
+==9==Register values:
+rax = 0x0000738be22f14d0  rbx = 0x0000738be22f1e60  rcx = 0x0000000000000000  rdx = 0x0000749be31e5400  
+rdi = 0x0000738be22f14d0  rsi = 0x0000738be22f10f0  rbp = 0x00007ffece541750  rsp = 0x00007ffece540838  
+ r8 = 0x000073ebe31f1fb0   r9 = 0x00000000000277a9  r10 = 0x0000000000000000  r11 = 0x0000778be91f91e0  
+r12 = 0x00000e717c45e200  r13 = 0x0000738be22f1000  r14 = 0x0000738be22f05e8  r15 = 0x0000743be31f1b28  
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV (/usr/lib/libQt6Gui.so.6+0x4c51f6) (BuildId: 71d66e3af1eef3315a518f6968b3124e18443c61) in QRawFont::familyName() const
+==9==ABORTING
