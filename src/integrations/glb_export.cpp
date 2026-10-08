@@ -557,13 +557,14 @@ struct Writer {
             {"cameras", QJsonArray{QJsonObject{
                             {"type", camera.orthographic ? "orthographic" : "perspective"},
                             {camera.orthographic ? "orthographic" : "perspective", projection}}}},
-            {"extras", QJsonObject{{"sketchyupDocument", QString::fromStdString(doc.identity())},
-                                   {"sketchyupRevision", id(doc.revision())},
-                                   {"managedAssets", assetMap},
-                                   {"sketchyupSidedMaterials",
-                                    QJsonObject{{"version", textures.isEmpty() ? 1 : 2},
-                                                {"pairs", sidePairs}}},
-                                   {"losses", losses}}}};
+            {"extras",
+             QJsonObject{
+                 {"sketchyupDocument", QString::fromStdString(snapshot.sourceIdentity())},
+                 {"sketchyupRevision", id(snapshot.sourceRevision())},
+                 {"managedAssets", assetMap},
+                 {"sketchyupSidedMaterials",
+                  QJsonObject{{"version", textures.isEmpty() ? 1 : 2}, {"pairs", sidePairs}}},
+                 {"losses", losses}}}};
         if (!textures.isEmpty()) {
             gltf["images"] = images;
             gltf["textures"] = textures;
@@ -589,8 +590,8 @@ struct Writer {
         QJsonObject manifest{
             {"apiVersion", 1},
             {"adapter", "sketchyup-glb-v1"},
-            {"documentId", QString::fromStdString(doc.identity())},
-            {"revision", id(doc.revision())},
+            {"documentId", QString::fromStdString(snapshot.sourceIdentity())},
+            {"revision", id(snapshot.sourceRevision())},
             {"scene",
              QJsonObject{{"file", "scene.glb"}, {"bytes", glb.size()}, {"sha256", digest(glb)}}},
             {"nativeUp", "Z"},
@@ -616,6 +617,8 @@ struct Writer {
             {"facesWithDistinctSides", double(backDifferences)},
             {"uniqueMeshes", meshes.size()},
             {"colorPolicy", "Linear PBR swatch factor times normalized sRGB straight-alpha image"}};
+        if (snapshot.sourceScene())
+            manifest["sceneView"] = id(*snapshot.sourceScene());
         QByteArray environment;
         if (snapshot.environment()) {
             manifest["environment"] = describeRenderEnvironment(*snapshot.environment());

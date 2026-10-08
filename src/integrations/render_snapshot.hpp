@@ -19,6 +19,7 @@ struct RenderOptions {
     std::optional<RenderEnvironment> environment;
 };
 void validateRenderSettings(const RenderSettings &settings);
+RenderCamera renderSceneCamera(const SceneCamera &camera);
 Transform renderCameraTransform(const RenderCamera &camera);
 QJsonObject describeRenderSettings(const RenderSettings &settings);
 QJsonObject describeRenderCamera(const RenderCamera &camera);
@@ -29,6 +30,11 @@ class RenderSnapshot {
     // only this immutable value; no live document or editor references are held.
     static RenderSnapshot capture(const Document &document, RenderOptions options = {},
                                   SelectionSet hidden = {});
+    static RenderSnapshot captureSavedScene(const Document &document, Id scene,
+                                            RenderOptions options = {});
+    const std::string &sourceIdentity() const { return sourceIdentity_; }
+    std::uint64_t sourceRevision() const { return sourceRevision_; }
+    std::optional<Id> sourceScene() const { return sourceScene_; }
     const Document &document() const { return document_; }
     const RenderSettings &settings() const { return settings_; }
     const RenderCamera &camera() const { return camera_; }
@@ -39,6 +45,9 @@ class RenderSnapshot {
     RenderSnapshot(Document document, RenderSettings settings, RenderCamera camera,
                    SelectionSet hidden);
     Document document_;
+    std::string sourceIdentity_;
+    std::uint64_t sourceRevision_{};
+    std::optional<Id> sourceScene_;
     RenderSettings settings_;
     RenderCamera camera_;
     std::optional<RenderEnvironment> environment_;

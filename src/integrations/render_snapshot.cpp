@@ -1,4 +1,6 @@
 #include "integrations/render_snapshot.hpp"
+#include "core/camera_motion.hpp"
+#include "core/scenes.hpp"
 #include <QJsonArray>
 #include <algorithm>
 #include <limits>
@@ -139,9 +141,55 @@ RenderOptions parseRenderOptions(const QJsonObject &json) {
     }
     return result;
 }
+RenderCamera renderSceneCamera(const SceneCamera &pose) {
+    pose.validate();
+    RenderCamera camera;
+    camera.target = pose.target;
+    camera.position = sceneCameraEye(pose);
+    camera.up =
+        std::abs(pose.pitch) > 89.999 ? Vec3{0, pose.pitch > 0 ? 1. : -1., 0} : Vec3{0, 0, 1};
+    camera.orthographic = pose.orthographic;
+    camera.verticalFov = pose.fieldOfView * std::numbers::pi / 180;
+    camera.yMag = pose.distance * .45;
+    camera.nearClip = pose.orthographic ? .01 : std::max(.001, pose.distance / 10000);
+    camera.farClip = std::max(1000., pose.distance * 10);
+    return camera;
+}
+RenderSnapshot RenderSnapshot::captureSavedScene(const Document &document, Id scene,
+                                                 RenderOptions options) {
+    require(document.scenes().contains(scene), "Saved render scene no longer exists");
+    const auto &saved = document.scenes().at(scene)->snapshot;
+    require(missingSceneReferences(document, saved).empty(),
+            "Saved render scene has missing references");
+    require(!saved.section || !saved.section->plane,
+            "Animation requires named sections, not temporary clipping planes");
+    require(!saved.visibility || !saved.visibility->showHidden,
+            "Animation cannot render the show-hidden editor overlay");
+    if (!options.camera) {
+        require(saved.camera.has_value(), "Saved render scene requires a camera");
+        options.camera = renderSceneCamera(*saved.camera);
+    }
+    auto view = document.readSnapshot();
+    recallSceneModel(view, scene);
+    SelectionSet hidden;
+    if (saved.visibility)
+        for (const auto &entity : saved.visibility->hiddenEntities) {
+            // Only bodies and faces contribute to the surface render.
+            if (entity.kind == SceneEntityKind::Body)
+                hidden.insert({entity.body, SelectionKind::Body, 0});
+            else if (entity.kind == SceneEntityKind::Face)
+                hidden.insert({entity.body, SelectionKind::Face, entity.entity});
+        }
+    auto result = capture(view, std::move(options), std::move(hidden));
+    result.sourceIdentity_ = document.identity();
+    result.sourceRevision_ = document.revision();
+    result.sourceScene_ = scene;
+    return result;
+}
 RenderSnapshot::RenderSnapshot(Document document, RenderSettings settings, RenderCamera camera,
                                SelectionSet hidden)
-    : document_(std::move(document)), settings_(settings), camera_(camera),
+    : document_(std::move(document)), sourceIdentity_(document_.identity()),
+      sourceRevision_(document_.revision()), settings_(settings), camera_(camera),
       hidden_(std::move(hidden)) {}
 bool RenderSnapshot::visible(Id body, Id face) const {
     if (face && hidden_.contains({body, SelectionKind::Face, face}))
