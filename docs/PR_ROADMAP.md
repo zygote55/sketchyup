@@ -1140,7 +1140,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R078 — Export scaled orthographic PDF and SVG views
 
-**Status:** Planned. **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** In progress. R078.a [bounded physical-page and hidden-line geometry](verification/R078a-measured-hidden-lines.md) passes independent geometric oracles, sanitizer, desktop/CLI build, installed and source-package checks. Document capture, PDF/SVG and native/CLI workflows follow in R078.b–e. **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R064](#r064), [R065](#r065), [R068](#r068); milestone gate rule above.
 
