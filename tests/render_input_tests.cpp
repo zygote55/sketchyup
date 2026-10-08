@@ -2,17 +2,20 @@
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "core/entity_measure.hpp"
+#include "core/scenes.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -20,6 +23,7 @@
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 #include <QTreeWidget>
 #include <iostream>
 #include <numbers>
@@ -415,6 +419,77 @@ int main(int argc, char **argv) {
             panel.start(settings, worker, false);
             check(QTest::qWaitFor([&] { return !panel.active(); }),
                   "Leave verified image for window restart");
+            SceneSnapshot animationScene;
+            animationScene.camera = SceneCamera{};
+            const auto sceneA = createScene(doc, "Animation A", animationScene);
+            animationScene.camera->yaw = 90;
+            const auto sceneB = createScene(doc, "Animation B", animationScene);
+            const auto animationBefore = encodeDocument(doc);
+            const auto animationHistory = doc.history().total;
+            auto animationSettings = settings;
+            animationSettings.camera.reset();
+            check(setup->findChild<QPushButton *>("exportSceneAnimation"),
+                  "Render setup exposes saved-scene animation export");
+            panel.exportAnimation({sceneA, sceneB}, {24, 2, 0}, animationSettings, worker,
+                                  files.filePath("native-animation"));
+            auto *animationProgress =
+                window.findChild<QProgressDialog *>("animationExportProgress");
+            check(animationProgress && animationProgress->isVisible(),
+                  "Animation progress is native and modeless");
+            check(QTest::qWaitFor([&] { return !panel.active(); }, 15000),
+                  "Native frame batch completes");
+            check(panel.status().contains("completed") &&
+                      QFileInfo::exists(files.filePath("native-animation/frame-0003.png")),
+                  "Native export publishes complete frame sequence");
+            panel.showSetup();
+            path->setText(executable("success"));
+            backend->setCurrentText("CPU");
+            probe->click();
+            check(QTest::qWaitFor([&] { return start->isEnabled(); }),
+                  "Animation setup verifies selected worker");
+            setup->findChild<QSpinBox *>("renderWidth")->setValue(64);
+            setup->findChild<QSpinBox *>("renderHeight")->setValue(64);
+            bool choseAnimation{};
+            QTimer::singleShot(0, &window, [&] {
+                auto *sheet = window.findChild<QDialog *>("animationSetup");
+                if (!sheet)
+                    return;
+                auto *fps = sheet->findChild<QSpinBox *>("animationFps");
+                auto *transition = sheet->findChild<QDoubleSpinBox *>("animationTransition");
+                auto *hold = sheet->findChild<QDoubleSpinBox *>("animationHold");
+                auto *destination = sheet->findChild<QLineEdit *>("animationDestination");
+                auto *buttons = sheet->findChild<QDialogButtonBox *>();
+                if (!fps || !transition || !hold || !destination || !buttons) {
+                    sheet->reject();
+                    return;
+                }
+                fps->setValue(1);
+                transition->setValue(1);
+                hold->setValue(0);
+                destination->setText(files.filePath("native-animation-dialog"));
+                if (const auto evidence = qEnvironmentVariable("SKETCHYUP_ANIMATION_EVIDENCE");
+                    !evidence.isEmpty())
+                    sheet->grab().save(evidence + "-setup.png");
+                choseAnimation = true;
+                buttons->button(QDialogButtonBox::Save)->click();
+                if (sheet->isVisible())
+                    sheet->reject();
+            });
+            setup->findChild<QPushButton *>("exportSceneAnimation")->click();
+            check(choseAnimation && QTest::qWaitFor([&] { return !panel.active(); }, 15000) &&
+                      QFileInfo::exists(files.filePath("native-animation-dialog/frame-0002.png")),
+                  "Native animation dialog chooses scenes, timing and destination and exports "
+                  "frames");
+            worker.executable = executable("hang");
+            panel.exportAnimation({sceneA, sceneB}, {24, 2, 0}, animationSettings, worker,
+                                  files.filePath("native-animation-canceled"));
+            check(panel.active(), "Animation contributes to render busy state");
+            panel.cancel();
+            check(QTest::qWaitFor([&] { return !panel.active(); }, 15000) &&
+                      panel.status().contains("canceled"),
+                  "Native animation cancel reaches terminal status");
+            check(encodeDocument(doc) == animationBefore && doc.history().total == animationHistory,
+                  "Native animation leaves model and history unchanged");
             check(doc.markSaved(doc.saveStamp()), "Mark disposable fixture saved before closing");
             window.close();
         }

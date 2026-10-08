@@ -1,0 +1,20 @@
+{
+  "installedExampleMatches": true,
+  "installedProcedureMatches": true,
+  "dimensionsMetres": {
+    "Building width": 6,
+    "Building depth": 4,
+    "Wall height": 2.7
+  },
+  "savedViews": 3,
+  "cameraProjections": [
+    "perspective",
+    "orthographic",
+    "perspective"
+  ],
+  "sectionHeightMetres": 1.4,
+  "resolvedAnnotations": 4,
+  "saveReopenEquivalent": true,
+  "sourceUnchanged": true,
+  "blenderAnnotationOmissions": 4
+}

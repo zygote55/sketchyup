@@ -1066,7 +1066,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R072 — Complete walk navigation and scene animation
 
-**Status:** In progress. Walk navigation and scene timing pass [138-suite, sanitizer and installed acceptance](verification/R072ab-walk-navigation.md). Immutable saved-scene capture passes [139-suite, sanitizer and installed acceptance](verification/R072c-immutable-animation.md). Frame export and integrated presentation acceptance remain; remote CI and ordered merge pending. **Track:** Desktop. **Scope:** G09, P03. **UX:** —.
+**Status:** In progress. Walk navigation, immutable capture and native frame export pass [143-suite, native, sanitizer, installed and integrated presentation acceptance](verification/R072d-animation-presentation.md). Local implementation is complete; remote CI and ordered merges remain. M7 acceptance is not yet claimed. **Track:** Desktop. **Scope:** G09, P03. **UX:** —.
 
 **Requires:** [R063](#r063), [R070](#r070); milestone gate rule above.
 
