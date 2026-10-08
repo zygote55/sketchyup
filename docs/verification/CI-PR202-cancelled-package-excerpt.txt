@@ -1,0 +1,30 @@
+arch	Disposable Arch package acceptance	2026-10-08T08:33:49.6409501Z [865/886] Linking CXX executable extension_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:35:16.1230908Z [866/886] Linking CXX executable library_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:37:25.6472625Z [867/886] Linking CXX executable measured_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:41:05.9029524Z [868/886] Linking CXX executable raster_export_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:41:45.6086003Z [869/886] Linking CXX executable reference_image_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:43:12.8015776Z [870/886] Linking CXX executable solar_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:45:20.8875754Z [871/886] Linking CXX executable text_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:46:50.4279308Z [872/886] Linking CXX executable annotation_viewport_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:48:48.9102061Z [873/886] Linking CXX executable annotation_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:50:33.7283295Z [874/886] Linking CXX executable section_viewport_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:50:57.3620910Z [875/886] Linking CXX executable section_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:54:50.6715425Z [876/886] Linking CXX executable scene_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:55:38.9660074Z [877/886] Linking CXX executable style_viewport_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:56:31.4222892Z [878/886] Linking CXX executable style_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:58:51.0423969Z [879/886] Linking CXX executable texture_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T08:59:02.8979408Z [880/886] Linking CXX executable texture_cache_tests
+arch	Disposable Arch package acceptance	2026-10-08T09:01:49.5339019Z [881/886] Linking CXX executable smooth_viewport_tests
+arch	Disposable Arch package acceptance	2026-10-08T09:02:33.1689536Z [882/886] Linking CXX executable material_input_tests
+arch	Disposable Arch package acceptance	2026-10-08T09:02:34.2297797Z context canceled
+arch	Disposable Arch package acceptance	2026-10-08T09:02:34.2472569Z ##[error]The operation was canceled.
+arch	Post Run actions/checkout@v4	﻿2026-10-08T09:02:34.2830828Z Post job cleanup.
+arch	Post Run actions/checkout@v4	2026-10-08T09:02:34.2845485Z ##[command]/usr/bin/docker exec  d50c702386809b1e2e21e390c926657b60b509410c9ac26fbd671d3ae39f8edb sh -c "cat /etc/*release | grep ^ID"
+arch	Stop containers	﻿2026-10-08T09:02:35.5101512Z Stop and remove container: 588c9b0685ac4ec194a7cfe24a114684_archlinuxbasedevelsha25651dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3_5e3a1b
+arch	Stop containers	2026-10-08T09:02:35.5112039Z ##[command]/usr/bin/docker rm --force d50c702386809b1e2e21e390c926657b60b509410c9ac26fbd671d3ae39f8edb
+arch	Stop containers	2026-10-08T09:02:44.2201244Z d50c702386809b1e2e21e390c926657b60b509410c9ac26fbd671d3ae39f8edb
+arch	Stop containers	2026-10-08T09:02:44.2237619Z Remove container network: github_network_859c74380f7c4aafaf707c29c52a6aa2
+arch	Stop containers	2026-10-08T09:02:44.2243842Z ##[command]/usr/bin/docker network rm github_network_859c74380f7c4aafaf707c29c52a6aa2
+arch	Stop containers	2026-10-08T09:02:44.3373468Z github_network_859c74380f7c4aafaf707c29c52a6aa2
+arch	Complete job	﻿2026-10-08T09:02:44.3459751Z Cleaning up orphan processes
+arch	Complete job	2026-10-08T09:02:44.3785627Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

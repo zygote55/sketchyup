@@ -1,0 +1,9 @@
+# PR202 package build budget
+
+The old checkpoint head `4bd3c48cee37dbf24c455a50d8abdecbfc6aff13` completed its normal, sanitizer, native interaction and independent consumer steps, then its [full workflow](https://github.com/zygote55/sketchyup/actions/runs/37607686580) was canceled six hours after the job began. The package step had spent nearly four hours rebuilding all optional native display programs and reached link882of886. This run is not a passing package or milestone result; its original metadata and exact log hash remain recorded.
+
+Backport `41e38367ca5f142fd37a594a5474de3059d28adb` from PR200, whose own full workflow passed, to checkpoint source `76fdd1268f3b8fa551a76f6926b54b166478c459`. Package ALL excludes only the70opt-in display programs; normal development and the explicit native CI matrices retain them. All175registered CTests keep identical names and properties, and all four installed executables remain in ALL. Package outer jobs default to one; inherited LTO uses one worker per link. The package check still runs the full registered suite. No application/test code or deadline changes.
+
+Two isolated CMake/Ninja configurations passed under512MiB/oneCPU/noSwap, without compilation or linking: default ALL has251targets, package ALL181, and the exact70-target difference matches the existing display fixtures. Every other non-documentation input matches the old checkpoint byte for byte. The workflow retains all jobs/steps and uses pull_request for branch checks, plus main pushes. This configuration qualification does not replace a fresh full CI build or ordered M8 acceptance.
+
+[Configuration, source and artifact identities](CI-PR202-package-budget.json). The original PR200 configuration report remains separately identified and is not relabeled as the new175-test checkpoint.

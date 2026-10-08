@@ -1,0 +1,19 @@
+{
+  "frozenAt": "2026-10-08T09:37:11.873958+00:00",
+  "candidate": "76fdd1268f3b8fa551a76f6926b54b166478c459",
+  "original": "4bd3c48cee37dbf24c455a50d8abdecbfc6aff13",
+  "backportOrigin": "41e38367ca5f142fd37a594a5474de3059d28adb",
+  "files": {
+    "CMakeLists.txt": "fa3d1aec141b22101f1bf3293979fb3d88cfe16be3503f72f48faebf20bdd8e0",
+    ".github/workflows/native.yml": "5aa094c7355b73504142b20bed50eb77b78e41c3a0704031e125cf273d4f3a37",
+    "packaging/arch/PKGBUILD": "fd952b49cec851f2ada690d32d55e1faf1c21e78f09c5abdf19a72eb2f4e2446"
+  },
+  "lightConfigurationOnly": true,
+  "memoryMaxBytes": 536870912,
+  "noSwap": true,
+  "affinity": [
+    0
+  ],
+  "noCompilationOrLinking": true,
+  "releaseAcceptance": false
+}
