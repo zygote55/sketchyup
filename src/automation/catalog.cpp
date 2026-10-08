@@ -786,7 +786,8 @@ QJsonArray commandCatalog() {
              {"body", "matrix"})};
 }
 QJsonObject commandDescription(const QString &name) {
-    for (const auto &item : commandCatalog()) {
+    static const auto entries = commandCatalog();
+    for (const auto &item : entries) {
         const auto command = item.toObject();
         if (command["name"] == name)
             return command;
