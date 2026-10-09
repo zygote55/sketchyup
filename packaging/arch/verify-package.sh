@@ -17,7 +17,7 @@ done
 chown -R builder:builder /work/package
 cp PKGBUILD PKGBUILD.current
 sed -i 's/^pkgrel=2$/pkgrel=1/' PKGBUILD
-runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}" makepkg --noconfirm --force
+runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" makepkg --noconfirm --force
 pacman -U --noconfirm sketchyup-0.1.0-1-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
 test -s /usr/share/doc/sketchyup/decisions/0029-native-mcp.md
@@ -128,7 +128,7 @@ PYGLB
 mv PKGBUILD.current PKGBUILD
 chown builder:builder PKGBUILD
 cp /work/acceptance/config/SketchyUp/SketchyUp.conf /work/acceptance/preferences-before-upgrade.conf
-runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}" makepkg --noconfirm --force --nocheck
+runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" makepkg --noconfirm --force --nocheck
 pacman -U --noconfirm sketchyup-0.1.0-2-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
 runuser -u builder -- sketchyup-cli --input '/work/acceptance/Room model.sketchyup' > /work/acceptance/reopened.json

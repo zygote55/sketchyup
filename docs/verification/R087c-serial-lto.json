@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-07",
+  "image": "sketchyup-build:20261002",
+  "exitCode": 0,
+  "translationUnits": 13,
+  "forcedPartitions": "max",
+  "compilerDiagnostic": "using serial compilation of 13 LTRANS jobs",
+  "binaryExecutedSuccessfully": true,
+  "compileLto": "auto",
+  "finalLinkLto": 1,
+  "logSha256": "059c708f2f4454b77e31de1231145218f248a58ce003bea5c16738072d02c463",
+  "pkgbuildSha256": "450be862ada185488196621f3ec34e7ce52d45ed092c79bd10d6e00d4a6fe48b",
+  "limits": {
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0,
+    "cpus": 1,
+    "pids": 256
+  },
+  "releaseAcceptance": false
+}
