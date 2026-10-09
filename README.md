@@ -47,7 +47,8 @@ conversion details; the original file stays unchanged. See the
 ## Build and run
 
 Requires CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ base/Wayland development
-packages, OpenSSL 3 development headers and OpenGL 3.3. Verified locally with Qt 6.11.2 on Wayland and X11.
+packages, OpenSSL 3 development headers and OpenGL 3.3. Python 3 is required
+when building the default CLI verification targets (`BUILD_TESTING=ON`). Verified locally with Qt 6.11.2 on Wayland and X11.
 The pinned geometry dependency is included in `third_party/`; CMake does not
 download code. See [measured evidence and limitations](docs/verification/native-spike.md).
 
@@ -58,7 +59,7 @@ ctest --preset dev
 ./build/dev/sketchyup --demo
 ```
 
-On Arch, build dependencies are `cmake ninja gcc pkgconf qt6-base qt6-wayland wayland openssl`.
+On Arch, build dependencies are `cmake ninja gcc pkgconf python qt6-base qt6-wayland wayland openssl`.
 For the core alone, with no Qt or graphical session:
 
 ```sh
