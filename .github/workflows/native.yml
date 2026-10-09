@@ -10,6 +10,8 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Containers come from Google's Docker Hub mirror: the same pinned digest
+# without Docker Hub's anonymous pull rate limit, which parallel jobs exceed.
 env:
   CI_PACKAGES: >-
     cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa
@@ -19,7 +21,7 @@ jobs:
   arch:
     name: Development build and native tests
     runs-on: ubuntu-latest
-    container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v6
@@ -426,7 +428,7 @@ jobs:
   sanitize:
     name: Sanitized builds
     runs-on: ubuntu-latest
-    container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
@@ -511,7 +513,7 @@ jobs:
   package:
     name: Arch package acceptance
     runs-on: ubuntu-latest
-    container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
