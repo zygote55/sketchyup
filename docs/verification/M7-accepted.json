@@ -1,0 +1,1161 @@
+{
+  "recordedAt": "2026-10-08T07:53:03.007341+00:00",
+  "milestone": "M7",
+  "accepted": true,
+  "releaseAccepted": false,
+  "featureSource": "7c33f23d8751e9705a1183631da090cfd7f81847",
+  "mergedM7Main": "0dad2d017cf7842c7ee055afed8b15c19a5fb348",
+  "recordBase": "1ea3f7111c90b1c0f7b2511063d4437e30183313",
+  "historicalLocalIntegratedSource": "9ee2a39bea4f2059c97ce5173d53f4b4188e64b8",
+  "finalWorkflow": "https://github.com/zygote55/sketchyup/actions/runs/37607720102",
+  "finalJob": "https://github.com/zygote55/sketchyup/actions/runs/37607720102/job/112747208323",
+  "finalWorkflowLog": {
+    "rawLogSha256": "6d9e7f137f464af1e3bafa00569e0472dc12e982f739c72a28cd0be426384d1e",
+    "rawLogBytes": 1802956,
+    "excerptSha256": "7e644ac2f003be4d1d60057c3cd248ffbf07d95d35c43f67cb0894f4f4f18cd6"
+  },
+  "jobSteps": [
+    {
+      "name": "Set up job",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T00:57:48Z",
+      "completedAt": "2026-10-08T00:57:50Z"
+    },
+    {
+      "name": "Initialize containers",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T00:57:50Z",
+      "completedAt": "2026-10-08T00:58:07Z"
+    },
+    {
+      "name": "Run actions/checkout@v4",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T00:58:07Z",
+      "completedAt": "2026-10-08T00:58:08Z"
+    },
+    {
+      "name": "Install build and software-rendering dependencies",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T00:58:08Z",
+      "completedAt": "2026-10-08T00:59:40Z"
+    },
+    {
+      "name": "Record toolchain",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T00:59:40Z",
+      "completedAt": "2026-10-08T00:59:40Z"
+    },
+    {
+      "name": "Configure and build",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T00:59:40Z",
+      "completedAt": "2026-10-08T01:14:41Z"
+    },
+    {
+      "name": "Geometry, document and persistence tests",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T01:14:41Z",
+      "completedAt": "2026-10-08T01:16:20Z"
+    },
+    {
+      "name": "Pinned MCP protocol schema validation",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T01:16:20Z",
+      "completedAt": "2026-10-08T01:16:20Z"
+    },
+    {
+      "name": "GLB validator and Blender interoperability",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T01:16:20Z",
+      "completedAt": "2026-10-08T01:50:17Z"
+    },
+    {
+      "name": "Actual Blender worker lifecycle",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T01:50:17Z",
+      "completedAt": "2026-10-08T01:50:36Z"
+    },
+    {
+      "name": "Native interaction and OpenGL tests",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T01:50:36Z",
+      "completedAt": "2026-10-08T01:58:27Z"
+    },
+    {
+      "name": "Isolated Wayland interaction and rendering",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T01:58:27Z",
+      "completedAt": "2026-10-08T02:01:58Z"
+    },
+    {
+      "name": "Reproducible M5 offline acceptance and recordings",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:01:58Z",
+      "completedAt": "2026-10-08T02:02:40Z"
+    },
+    {
+      "name": "Run actions/upload-artifact@v4",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:02:40Z",
+      "completedAt": "2026-10-08T02:02:42Z"
+    },
+    {
+      "name": "Headless recipe",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:02:42Z",
+      "completedAt": "2026-10-08T02:02:43Z"
+    },
+    {
+      "name": "Sanitized core without Qt",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:02:43Z",
+      "completedAt": "2026-10-08T02:07:44Z"
+    },
+    {
+      "name": "Sanitized bounded inspection and CLI",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:07:44Z",
+      "completedAt": "2026-10-08T02:25:16Z"
+    },
+    {
+      "name": "Verify private Wayland client reference fix",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:25:16Z",
+      "completedAt": "2026-10-08T02:25:30Z"
+    },
+    {
+      "name": "Sanitized native MCP inspection",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:25:30Z",
+      "completedAt": "2026-10-08T02:35:58Z"
+    },
+    {
+      "name": "Release completed build artifacts before package rebuild",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:35:58Z",
+      "completedAt": "2026-10-08T02:36:00Z"
+    },
+    {
+      "name": "Disposable Arch package acceptance",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T02:36:00Z",
+      "completedAt": "2026-10-08T05:07:27Z"
+    },
+    {
+      "name": "Post Run actions/checkout@v4",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T05:07:27Z",
+      "completedAt": "2026-10-08T05:07:27Z"
+    },
+    {
+      "name": "Stop containers",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T05:07:27Z",
+      "completedAt": "2026-10-08T05:07:45Z"
+    },
+    {
+      "name": "Complete job",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T05:07:45Z",
+      "completedAt": "2026-10-08T05:07:45Z"
+    }
+  ],
+  "orderedLayers": [
+    {
+      "number": 127,
+      "url": "https://github.com/zygote55/sketchyup/pull/127",
+      "head": "e78b40b55e6ad7a4f4da7b72d317d09a506dc4d7",
+      "merge": "9d24bb23f5b8e8ff2b2ca51b5ef6bc65cd2555a3",
+      "mergedAt": "2026-10-06T15:44:28Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463454513/job/112268507461",
+          "completedAt": "2026-10-06T14:41:35Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463449089/job/112268488706",
+          "completedAt": "2026-10-06T15:42:09Z"
+        }
+      ]
+    },
+    {
+      "number": 128,
+      "url": "https://github.com/zygote55/sketchyup/pull/128",
+      "head": "0db8b9185def96a1c22f1fcbe3443c7c7cf36fba",
+      "merge": "38c2ebf9cbd603af991c9727019566e3941cb0e6",
+      "mergedAt": "2026-10-06T15:45:16Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463480808/job/112277329167",
+          "completedAt": "2026-10-06T14:59:00Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463472473/job/112268567516",
+          "completedAt": "2026-10-06T15:23:46Z"
+        }
+      ]
+    },
+    {
+      "number": 129,
+      "url": "https://github.com/zygote55/sketchyup/pull/129",
+      "head": "a6b6d121138d37faf47a7902e754a694b971dbab",
+      "merge": "98de5099a0e28f33759ee42ff5da1ab5642f3fa2",
+      "mergedAt": "2026-10-06T15:52:00Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463481727/job/112268597891",
+          "completedAt": "2026-10-06T14:43:28Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463476474/job/112277335832",
+          "completedAt": "2026-10-06T15:48:16Z"
+        }
+      ]
+    },
+    {
+      "number": 130,
+      "url": "https://github.com/zygote55/sketchyup/pull/130",
+      "head": "1739e913fc7ce333d276db4194612d8208de5dbc",
+      "merge": "97c84b46354431c7cbd3ebb886f42a4a737700e1",
+      "mergedAt": "2026-10-06T15:52:29Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463485916/job/112268611945",
+          "completedAt": "2026-10-06T14:43:42Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463479783/job/112268592085",
+          "completedAt": "2026-10-06T14:41:26Z"
+        }
+      ]
+    },
+    {
+      "number": 131,
+      "url": "https://github.com/zygote55/sketchyup/pull/131",
+      "head": "12e2217a71509fe9161fdfd867486b6d0313797a",
+      "merge": "ea72d02d0db304a2ec76218bc6b8d9f13cd8f368",
+      "mergedAt": "2026-10-06T15:56:13Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463489073/job/112268621396",
+          "completedAt": "2026-10-06T15:27:09Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463483490/job/112268603998",
+          "completedAt": "2026-10-06T15:29:59Z"
+        }
+      ]
+    },
+    {
+      "number": 132,
+      "url": "https://github.com/zygote55/sketchyup/pull/132",
+      "head": "e247c68109f435801e300fc585b18bcd5ee6d52b",
+      "merge": "42d4a7856f2a70e16b9e674ab99a80fffb9fedb1",
+      "mergedAt": "2026-10-06T15:56:49Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463492018/job/112268631500",
+          "completedAt": "2026-10-06T14:59:16Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37463487605/job/112268616577",
+          "completedAt": "2026-10-06T15:45:45Z"
+        }
+      ]
+    },
+    {
+      "number": 133,
+      "url": "https://github.com/zygote55/sketchyup/pull/133",
+      "head": "eb070c4a6423c98d5191d3b91a31e954564548d2",
+      "merge": "1d36c9657b0e0b850ae70503d0155d362dd6aff0",
+      "mergedAt": "2026-10-06T15:58:41Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37464919381/job/112273434384",
+          "completedAt": "2026-10-06T15:44:47Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37464904049/job/112273384580",
+          "completedAt": "2026-10-06T14:38:50Z"
+        }
+      ]
+    },
+    {
+      "number": 134,
+      "url": "https://github.com/zygote55/sketchyup/pull/134",
+      "head": "daaa9ec77547fa7b359cfc816ef4582286c7cdb4",
+      "merge": "660ef008e4387b839c1e15f86d9913c6ffea7043",
+      "mergedAt": "2026-10-06T16:36:53Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37469259949/job/112288146833",
+          "completedAt": "2026-10-06T16:20:14Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37469253479/job/112288123572",
+          "completedAt": "2026-10-06T16:30:20Z"
+        }
+      ]
+    },
+    {
+      "number": 135,
+      "url": "https://github.com/zygote55/sketchyup/pull/135",
+      "head": "a510c863faa52b1af039baa779d8f96646e680dc",
+      "merge": "f14079f2e8ec0fa93577e48f766fa4c56ab2f3e8",
+      "mergedAt": "2026-10-06T19:45:24Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37495985509/job/112380527986",
+          "completedAt": "2026-10-06T19:42:58Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37495975710/job/112380494519",
+          "completedAt": "2026-10-06T19:40:49Z"
+        }
+      ]
+    },
+    {
+      "number": 136,
+      "url": "https://github.com/zygote55/sketchyup/pull/136",
+      "head": "5b811a55c0494f60fc418077cf0e37aadc8fcbd6",
+      "merge": "b5140ee243ac47563fd6d25ac815b0f5dc0248fc",
+      "mergedAt": "2026-10-06T19:50:35Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37496144617/job/112381074411",
+          "completedAt": "2026-10-06T19:11:11Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37496138552/job/112381054549",
+          "completedAt": "2026-10-06T19:07:12Z"
+        }
+      ]
+    },
+    {
+      "number": 137,
+      "url": "https://github.com/zygote55/sketchyup/pull/137",
+      "head": "d0293481aa5ab6b8c0db198c219faecd864c6c12",
+      "merge": "4d976f62a3ce960a6420f043f1bc4a7cb59fa200",
+      "mergedAt": "2026-10-06T23:19:45Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37521905862/job/112469176873",
+          "completedAt": "2026-10-06T23:12:05Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37521897718/job/112469150817",
+          "completedAt": "2026-10-06T23:16:09Z"
+        }
+      ]
+    },
+    {
+      "number": 138,
+      "url": "https://github.com/zygote55/sketchyup/pull/138",
+      "head": "5c599b5c732b3875a44c3f4b7433f5b82e7f13fe",
+      "merge": "e2e83672df6e66596d6d2a2a56057b915c163900",
+      "mergedAt": "2026-10-06T23:28:34Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522636231/job/112471639694",
+          "completedAt": "2026-10-06T23:25:35Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522626864/job/112471609119",
+          "completedAt": "2026-10-06T22:31:05Z"
+        }
+      ]
+    },
+    {
+      "number": 139,
+      "url": "https://github.com/zygote55/sketchyup/pull/139",
+      "head": "b1058a7ddd28703bf502cf8e0f7e03b2ffeaf6b7",
+      "merge": "1969580cabd8383e1e39955e9c0280548f85ab2d",
+      "mergedAt": "2026-10-06T23:28:51Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522636587/job/112471640405",
+          "completedAt": "2026-10-06T22:22:15Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522630401/job/112471634366",
+          "completedAt": "2026-10-06T23:28:31Z"
+        }
+      ]
+    },
+    {
+      "number": 140,
+      "url": "https://github.com/zygote55/sketchyup/pull/140",
+      "head": "acb3787c539b015c3b0469e3803288b10dac2d1e",
+      "merge": "d68a65ebca3b6cd95567442be150add7eb8ba1b1",
+      "mergedAt": "2026-10-06T23:34:26Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522640350/job/112471653242",
+          "completedAt": "2026-10-06T22:32:47Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522635109/job/112471636000",
+          "completedAt": "2026-10-06T23:31:19Z"
+        }
+      ]
+    },
+    {
+      "number": 141,
+      "url": "https://github.com/zygote55/sketchyup/pull/141",
+      "head": "5b59abe87c74213db8b0c7a474fcbc8b9f706e14",
+      "merge": "1533c1646701c3f363fa496a7681e356afc94be4",
+      "mergedAt": "2026-10-06T23:38:37Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522645056/job/112471671118",
+          "completedAt": "2026-10-06T22:30:38Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522636786/job/112471640853",
+          "completedAt": "2026-10-06T23:34:47Z"
+        }
+      ]
+    },
+    {
+      "number": 142,
+      "url": "https://github.com/zygote55/sketchyup/pull/142",
+      "head": "2fee3d7fb7ae8f0ed093195f93ec9e3c3a6cc3e0",
+      "merge": "6dfdb841ef2692c75a60ce377b016dcd9fccc4d9",
+      "mergedAt": "2026-10-06T23:48:03Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522646535/job/112471674353",
+          "completedAt": "2026-10-06T23:44:01Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522642304/job/112471663207",
+          "completedAt": "2026-10-06T22:42:38Z"
+        }
+      ]
+    },
+    {
+      "number": 143,
+      "url": "https://github.com/zygote55/sketchyup/pull/143",
+      "head": "d7b9eddc2053aac6aad7204ad519781b00a9eeb4",
+      "merge": "f8c1b972ec2b17346613a7004325d988b68891c6",
+      "mergedAt": "2026-10-06T23:48:57Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522652153/job/112471694743",
+          "completedAt": "2026-10-06T23:37:10Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522643236/job/112471663606",
+          "completedAt": "2026-10-06T23:38:28Z"
+        }
+      ]
+    },
+    {
+      "number": 144,
+      "url": "https://github.com/zygote55/sketchyup/pull/144",
+      "head": "132a9cb3ad9f1075b33df9ec506a9e9880474aec",
+      "merge": "efa9ac9fe568af6a2c3d8617a6b44ed01223c0ef",
+      "mergedAt": "2026-10-06T23:49:03Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522656213/job/112471706500",
+          "completedAt": "2026-10-06T23:38:36Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522646683/job/112471675049",
+          "completedAt": "2026-10-06T23:35:01Z"
+        }
+      ]
+    },
+    {
+      "number": 145,
+      "url": "https://github.com/zygote55/sketchyup/pull/145",
+      "head": "73304e183589649d84214593c6a9ba3e01a63495",
+      "merge": "4caa9cfba4d61fde0f8b9027c3bf851019317c73",
+      "mergedAt": "2026-10-06T23:49:09Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522657476/job/112471714704",
+          "completedAt": "2026-10-06T23:06:18Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522649729/job/112471685803",
+          "completedAt": "2026-10-06T23:43:45Z"
+        }
+      ]
+    },
+    {
+      "number": 146,
+      "url": "https://github.com/zygote55/sketchyup/pull/146",
+      "head": "ef3789e1565c84ef35c8e8ea40116f1e2650af81",
+      "merge": "311c716444eef7732b0ccb34246ee411543564cd",
+      "mergedAt": "2026-10-06T23:55:30Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522663430/job/112471731197",
+          "completedAt": "2026-10-06T23:50:36Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522653692/job/112471697943",
+          "completedAt": "2026-10-06T23:41:35Z"
+        }
+      ]
+    },
+    {
+      "number": 147,
+      "url": "https://github.com/zygote55/sketchyup/pull/147",
+      "head": "5de3b93127045eef86405344bff6f2ebc99e942b",
+      "merge": "7edf388b91965eeeb49ca0fe692d628aee6478e6",
+      "mergedAt": "2026-10-07T00:27:09Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522665701/job/112471737956",
+          "completedAt": "2026-10-07T00:24:28Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522656233/job/112471706818",
+          "completedAt": "2026-10-06T23:44:01Z"
+        }
+      ]
+    },
+    {
+      "number": 148,
+      "url": "https://github.com/zygote55/sketchyup/pull/148",
+      "head": "d47fd58b5231e3274b343c7217da10d40bdf24db",
+      "merge": "d131f58ba3b17826924831532ae8e2486acaab78",
+      "mergedAt": "2026-10-07T00:27:59Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522669301/job/112471752371",
+          "completedAt": "2026-10-07T00:02:05Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522660695/job/112471722590",
+          "completedAt": "2026-10-06T23:56:50Z"
+        }
+      ]
+    },
+    {
+      "number": 149,
+      "url": "https://github.com/zygote55/sketchyup/pull/149",
+      "head": "65d411a25397c692e7b9015550cf2f43458d4722",
+      "merge": "17304a692348ca86902ac42cfc02e2e6f74b78fa",
+      "mergedAt": "2026-10-07T00:43:09Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522670812/job/112471758355",
+          "completedAt": "2026-10-07T00:40:16Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37522664016/job/112471734000",
+          "completedAt": "2026-10-06T23:57:33Z"
+        }
+      ]
+    },
+    {
+      "number": 150,
+      "url": "https://github.com/zygote55/sketchyup/pull/150",
+      "head": "c39b9d10a0da6f70ef7595bd6ccd1aad11208570",
+      "merge": "7b0f6beb88b5a37500afb16e9b33fb8b99406c57",
+      "mergedAt": "2026-10-07T01:21:45Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37523476518/job/112474473521",
+          "completedAt": "2026-10-07T00:22:45Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37523470290/job/112474452992",
+          "completedAt": "2026-10-07T01:19:36Z"
+        }
+      ]
+    },
+    {
+      "number": 151,
+      "url": "https://github.com/zygote55/sketchyup/pull/151",
+      "head": "9df101bada0bee3e877fe0a118fe51b0ccb55f6f",
+      "merge": "b96b9e8f322779d37726c4498d7b74628b213a23",
+      "mergedAt": "2026-10-07T01:53:00Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37524977325/job/112479568864",
+          "completedAt": "2026-10-07T01:50:40Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37524971999/job/112479550583",
+          "completedAt": "2026-10-07T00:37:40Z"
+        }
+      ]
+    },
+    {
+      "number": 152,
+      "url": "https://github.com/zygote55/sketchyup/pull/152",
+      "head": "ce1246c95b1d3d68366a5ea44653af4a196d2a49",
+      "merge": "0f15bacc5588fda63d9537dd6cccbd370ff8d9d6",
+      "mergedAt": "2026-10-07T02:45:49Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37527352807/job/112487615920",
+          "completedAt": "2026-10-07T02:43:28Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37527347795/job/112487598316",
+          "completedAt": "2026-10-07T02:11:57Z"
+        }
+      ]
+    },
+    {
+      "number": 153,
+      "url": "https://github.com/zygote55/sketchyup/pull/153",
+      "head": "27712e8d20269c0809750a222974abeafa4fb905",
+      "merge": "e017e5ef876b1c8bc73b393d5bd49a135e9f9bf6",
+      "mergedAt": "2026-10-07T02:50:40Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37527788127/job/112489086721",
+          "completedAt": "2026-10-07T00:54:09Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37527782106/job/112489067257",
+          "completedAt": "2026-10-07T02:11:40Z"
+        }
+      ]
+    },
+    {
+      "number": 154,
+      "url": "https://github.com/zygote55/sketchyup/pull/154",
+      "head": "178723bf0122676f9eda0946932a0d8ed9071aef",
+      "merge": "45a07b367ab2265dac462cee72dda79ffd14737e",
+      "mergedAt": "2026-10-07T03:15:37Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37531348579/job/112501220322",
+          "completedAt": "2026-10-07T03:13:29Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37531342596/job/112501199512",
+          "completedAt": "2026-10-07T02:25:05Z"
+        }
+      ]
+    },
+    {
+      "number": 155,
+      "url": "https://github.com/zygote55/sketchyup/pull/155",
+      "head": "4af3a28e102d7b14c5928578e650b9dd2101e7a6",
+      "merge": "aef3ad18c1bb54034e8be6ca72a2d26609f9da17",
+      "mergedAt": "2026-10-07T03:15:49Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37532842977/job/112506285433",
+          "completedAt": "2026-10-07T03:15:17Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37532837012/job/112506264946",
+          "completedAt": "2026-10-07T01:52:55Z"
+        }
+      ]
+    },
+    {
+      "number": 156,
+      "url": "https://github.com/zygote55/sketchyup/pull/156",
+      "head": "703cea27f9be57ae959369ba27d282d3661facd4",
+      "merge": "62b4d740887ea2db646c4c7cfbe426cd990ab9bf",
+      "mergedAt": "2026-10-07T07:37:20Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37534745749/job/112613606195",
+          "completedAt": "2026-10-07T07:27:44Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37534741421/job/112512706494",
+          "completedAt": "2026-10-07T01:53:14Z"
+        }
+      ]
+    },
+    {
+      "number": 157,
+      "url": "https://github.com/zygote55/sketchyup/pull/157",
+      "head": "600ca66d32298ee1cddc7fadc3e1e063f1aac3c8",
+      "merge": "9dfe67dd58ab4410b8edae324f19701cb459f599",
+      "mergedAt": "2026-10-07T07:38:06Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37539015735/job/112527147688",
+          "completedAt": "2026-10-07T03:29:50Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37539011016/job/112527133640",
+          "completedAt": "2026-10-07T02:23:38Z"
+        }
+      ]
+    },
+    {
+      "number": 158,
+      "url": "https://github.com/zygote55/sketchyup/pull/158",
+      "head": "a8ccb1b42c41c6782c14a3a844ca8192011a729d",
+      "merge": "f42ed2ecdb73e8f1ece073037ec03aeea9214a43",
+      "mergedAt": "2026-10-07T07:39:02Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37540396099/job/112531713785",
+          "completedAt": "2026-10-07T01:28:53Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37540392193/job/112531701081",
+          "completedAt": "2026-10-07T02:54:14Z"
+        }
+      ]
+    },
+    {
+      "number": 159,
+      "url": "https://github.com/zygote55/sketchyup/pull/159",
+      "head": "05ed6bb6d3d3cb52986c71ec6952757cd8fd484a",
+      "merge": "b5d61228583549d975bffa1877ddeda9d42cb450",
+      "mergedAt": "2026-10-07T07:39:53Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37542287516/job/112537896274",
+          "completedAt": "2026-10-07T03:55:24Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37542283744/job/112537884078",
+          "completedAt": "2026-10-07T02:51:26Z"
+        }
+      ]
+    },
+    {
+      "number": 160,
+      "url": "https://github.com/zygote55/sketchyup/pull/160",
+      "head": "f6862a4ba4128000433dfbc235e582788ad10289",
+      "merge": "cd14ec7c70a08fc2a744c33427a285a04428dca4",
+      "mergedAt": "2026-10-07T07:40:15Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37544669610/job/112545680880",
+          "completedAt": "2026-10-07T02:33:40Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37544666389/job/112545671335",
+          "completedAt": "2026-10-07T03:29:16Z"
+        }
+      ]
+    },
+    {
+      "number": 161,
+      "url": "https://github.com/zygote55/sketchyup/pull/161",
+      "head": "410ab4e6b46a7152e0d377fa6089017f06cac012",
+      "merge": "bc8e0cb8e5fa0fc31e24ceb0485617b514d48531",
+      "mergedAt": "2026-10-07T07:40:47Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37547031164/job/112553387913",
+          "completedAt": "2026-10-07T04:05:25Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37547027475/job/112553376052",
+          "completedAt": "2026-10-07T03:21:13Z"
+        }
+      ]
+    },
+    {
+      "number": 162,
+      "url": "https://github.com/zygote55/sketchyup/pull/162",
+      "head": "f4186984cea09789db3facff9635043fc64dae4f",
+      "merge": "0ab3e50e6474970312650b410899be30bd7f23fd",
+      "mergedAt": "2026-10-07T07:41:37Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37548833456/job/112559219566",
+          "completedAt": "2026-10-07T05:06:45Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37548828584/job/112559203361",
+          "completedAt": "2026-10-07T04:53:03Z"
+        }
+      ]
+    },
+    {
+      "number": 163,
+      "url": "https://github.com/zygote55/sketchyup/pull/163",
+      "head": "27e10b38b5bbc606782696f44e63a340ceec30b6",
+      "merge": "488f7a1382f0d3a4f78f055189828c94ef6dedd9",
+      "mergedAt": "2026-10-07T07:42:03Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37550658584/job/112565067251",
+          "completedAt": "2026-10-07T05:36:11Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37550654610/job/112565053369",
+          "completedAt": "2026-10-07T05:32:38Z"
+        }
+      ]
+    },
+    {
+      "number": 164,
+      "url": "https://github.com/zygote55/sketchyup/pull/164",
+      "head": "01de606002b71d8076c330acd0627e7b4abf1a8a",
+      "merge": "25d6110028e1d5dc25e0dc0614bba47df0adc2d9",
+      "mergedAt": "2026-10-08T05:56:42Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37607717791/job/112869081445",
+          "completedAt": "2026-10-08T05:49:11Z"
+        }
+      ]
+    },
+    {
+      "number": 165,
+      "url": "https://github.com/zygote55/sketchyup/pull/165",
+      "head": "ca1b9a240a3367aa453a9d384c2f5bd860bac33d",
+      "merge": "aa36300260e561b0f17cfc2744f66497fc2d6a17",
+      "mergedAt": "2026-10-08T05:57:38Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37607642334/job/112746948990",
+          "completedAt": "2026-10-07T19:10:05Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37607512802/job/112746515736",
+          "completedAt": "2026-10-07T20:29:17Z"
+        }
+      ]
+    },
+    {
+      "number": 166,
+      "url": "https://github.com/zygote55/sketchyup/pull/166",
+      "head": "ba6ac2ecc2eca9a193aaa783191c83ba84eb1b8a",
+      "merge": "81f516c78ac07115e2cc9a091d22483875843fa4",
+      "mergedAt": "2026-10-08T05:57:44Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37607671562/job/112747047105",
+          "completedAt": "2026-10-08T04:28:01Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37607514585/job/112746521517",
+          "completedAt": "2026-10-07T15:37:04Z"
+        }
+      ]
+    },
+    {
+      "number": 167,
+      "url": "https://github.com/zygote55/sketchyup/pull/167",
+      "head": "7c33f23d8751e9705a1183631da090cfd7f81847",
+      "merge": "0dad2d017cf7842c7ee055afed8b15c19a5fb348",
+      "mergedAt": "2026-10-08T05:57:49Z",
+      "successfulWorkflows": [
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37607720102/job/112747208323",
+          "completedAt": "2026-10-08T05:07:47Z"
+        },
+        {
+          "name": "arch",
+          "conclusion": "SUCCESS",
+          "status": "COMPLETED",
+          "detailsUrl": "https://github.com/zygote55/sketchyup/actions/runs/37607518472/job/112746535798",
+          "completedAt": "2026-10-07T19:45:34Z"
+        }
+      ]
+    }
+  ],
+  "retainedArtifacts": {
+    "R072d-animation-presentation.md": {
+      "sha256": "59f69900c33eacaa141c977286c8cda852b6ddaa18241b8a3daf2144de18120b",
+      "bytes": 3990
+    },
+    "R072d-animation-native-matrix.json": {
+      "sha256": "9a19d583da9946e89cb27013b4f98af8d2046f170f0dec8640a135fb9cb95eb2",
+      "bytes": 1731
+    },
+    "R072d-study-native-matrix.json": {
+      "sha256": "0a03eb2541c68813c8205a3b65bc9c1edaa33c850e0597ba5387dc96491ce926",
+      "bytes": 1800
+    },
+    "R072d-final-native-matrix.json": {
+      "sha256": "ba70ae4a17d79a1e1661132e62bb92844d1d3db4fce43825c37efe2fa9471b96",
+      "bytes": 657
+    },
+    "R072d-study.json": {
+      "sha256": "10b8049dff0d1935c91677684bd6950fd33b97224db9003da9f29d2c84dbec1d",
+      "bytes": 10248
+    },
+    "R072d-installed-smoke.json": {
+      "sha256": "c07f6d2f9242353d93e31ba82fbb6722f988a8288522dc8620108cd0f7a07490",
+      "bytes": 548
+    },
+    "R072d-installed-study.json": {
+      "sha256": "e86e7207cc5300e58ca6d90aa0a1c9049e8a298e018ea6b77dd50abe925d3990",
+      "bytes": 435
+    },
+    "R072d-source-package.json": {
+      "sha256": "76cf92af8f22de1dabe59a400a10742e789e85ebab3ae9c9cf6a903a3cd53001",
+      "bytes": 190
+    },
+    "CI-texture-publication.md": {
+      "sha256": "b5ad88d6ef2a190d528492b0fef61360c762a73c65266127ceefc73357af28bc",
+      "bytes": 2154
+    },
+    "CI-texture-publication-matrix.json": {
+      "sha256": "8076007270b71bcacb9bc5eeed52b814d19ff8916fecb7ae501496caca18a5d4",
+      "bytes": 1718
+    },
+    "CI-texture-publication-regressions.json": {
+      "sha256": "018a86360aaa3e75e2f317abd9938ffc7f09344a71d70c8f9ad5e9a1b040cdad",
+      "bytes": 777
+    }
+  },
+  "visualReview": {
+    "nativePerspective": "Two hosted windows, floor image and6m/4m/2.7m labels present.",
+    "nativePlan": "Orthographic6m by4m footprint, floor pattern andresolved width/depth labels present.",
+    "nativeSection": "Cut wall caps/window sections andfloor pattern visible; clipped height attachment omitted.",
+    "cyclesPerspective": "Same building/camera; intentionally noisy four-sample320x240 output."
+  },
+  "limits": [
+    "M8 and M9 are not accepted by this record.",
+    "Historical artifacts retain their own source identities and are not relabelled as new runs.",
+    "Annotations are native overlays and allfour Blender omissions remain explicit.",
+    "Movie encoding and interrupted-export resumption remain outside the M7 contract.",
+    "Render-specific lighting and noisy acceptance images are not pixel-equivalence or quality benchmarks."
+  ],
+  "qualifiedTree": "2b65c23506042f60bb6721bbabc3db67a756d34a"
+}
