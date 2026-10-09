@@ -1,0 +1,167 @@
+{
+  "passed": true,
+  "source": "b260fe3a42443b3c1755cdd42c6b62233ff9477c",
+  "releaseAcceptance": false,
+  "binarySha256": "ff7349a009ec32e6896a94b27c66a3153cfdf5e0f4388f0210d45065b4110888",
+  "binaryBytes": 4727688,
+  "measurements": [
+    {
+      "label": "repeated-1000-1",
+      "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+      "sceneP95Ms": 2.42643,
+      "pickP95Ms": 0.058421,
+      "editP95Ms": 18.678208,
+      "peakRssBytes": 454746112,
+      "reportSha256": "135fdaa8b03764da909978267fa9edc19d024cf84525447fd02f8741606a0908"
+    },
+    {
+      "label": "unique-smoke",
+      "fixtureSha256": "231d89f28bd86b304e1ba0365551f85879e7fa1306b79adde0f6a8a6dfa3cefa",
+      "sceneP95Ms": 0.292517,
+      "pickP95Ms": 0.009358,
+      "editP95Ms": 16.908075,
+      "peakRssBytes": 148647936,
+      "reportSha256": "bf34aefe8e9520155fe3121bf273874e8d4b9a69da7a9c04f276a5d4f7b80cf9"
+    },
+    {
+      "label": "unique-1000-1",
+      "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+      "sceneP95Ms": 2.288448,
+      "pickP95Ms": 0.045326,
+      "editP95Ms": 18.051202,
+      "peakRssBytes": 444026880,
+      "reportSha256": "f051207be33c66f93df1ea544fd3a925392fb8855494bde4f8546581dc4d1758"
+    },
+    {
+      "label": "unique-1000-2",
+      "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+      "sceneP95Ms": 2.578169,
+      "pickP95Ms": 0.043974,
+      "editP95Ms": 17.144375,
+      "peakRssBytes": 445427712,
+      "reportSha256": "3f99fdba0fa54711782bfa305ee7fd6681abe7754241e81bf0a132b77d928703"
+    },
+    {
+      "label": "unique-1000-3",
+      "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+      "sceneP95Ms": 2.171094,
+      "pickP95Ms": 0.047401,
+      "editP95Ms": 17.10483,
+      "peakRssBytes": 444321792,
+      "reportSha256": "b085ce5571707cfb6536b8915b6bb545f3513368138b826832243ab3b26eff17"
+    },
+    {
+      "label": "deep-smoke",
+      "fixtureSha256": "078fd5a262581a8d23b02e7e3c0527b6d661eb77c625050fda944dbe73ca55ef",
+      "sceneP95Ms": 0.260847,
+      "pickP95Ms": 0.062328,
+      "editP95Ms": 17.074431,
+      "peakRssBytes": 149422080,
+      "reportSha256": "eba61b793640a782c19922c9465cc380ca014d5735dafeb277de8a327ccf2805"
+    },
+    {
+      "label": "deep-1000-1",
+      "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+      "sceneP95Ms": 2.37932,
+      "pickP95Ms": 0.179361,
+      "editP95Ms": 56.038009,
+      "peakRssBytes": 450998272,
+      "reportSha256": "9324bb2211123c914c443040a1da39bbda87ee02a67bc8963c4c6b9c422f804d"
+    },
+    {
+      "label": "deep-1000-2",
+      "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+      "sceneP95Ms": 2.491214,
+      "pickP95Ms": 0.163942,
+      "editP95Ms": 56.437526,
+      "peakRssBytes": 452067328,
+      "reportSha256": "05ba13f3d486929657126e66fe5c39715211cec624ffadd10141c8938d530d8f"
+    },
+    {
+      "label": "deep-1000-3",
+      "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+      "sceneP95Ms": 2.440155,
+      "pickP95Ms": 0.156398,
+      "editP95Ms": 56.66225,
+      "peakRssBytes": 450850816,
+      "reportSha256": "72d60113e141daecafaa531555c0abebf7eded962085faf6c617da6690b9ebd6"
+    },
+    {
+      "label": "far-smoke",
+      "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+      "sceneP95Ms": 0.265715,
+      "pickP95Ms": 0.012484,
+      "editP95Ms": 17.370752,
+      "peakRssBytes": 149098496,
+      "reportSha256": "22ab5e05d7a74010bc0a8ac54d51a7534bf649426b7dd3554188571843d33a61"
+    },
+    {
+      "label": "far-1000-1",
+      "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+      "sceneP95Ms": 2.195189,
+      "pickP95Ms": 0.060936,
+      "editP95Ms": 24.446281,
+      "peakRssBytes": 452448256,
+      "reportSha256": "ed5e7092bf0d40e7dd625f4a95a8573480def43f1cac31ffc78f7561b85ea993"
+    },
+    {
+      "label": "far-1000-2",
+      "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+      "sceneP95Ms": 2.299958,
+      "pickP95Ms": 0.077517,
+      "editP95Ms": 23.281043,
+      "peakRssBytes": 452198400,
+      "reportSha256": "951cb65dfc427dde31546d446002e61ba6441cfd40bd969d15f06aea747e9760"
+    },
+    {
+      "label": "far-1000-3",
+      "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+      "sceneP95Ms": 2.485552,
+      "pickP95Ms": 0.065885,
+      "editP95Ms": 19.719441,
+      "peakRssBytes": 451383296,
+      "reportSha256": "2355de80c5204eff8b29a96792271e2d757ff665a7089069270cf29bd8edf8b2"
+    }
+  ],
+  "fixtureHashes": {
+    "repeated": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+    "unique": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+    "deep": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+    "far": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb"
+  },
+  "buildProvenance": {
+    "runtimeSource": "29fb31bba53e0b6dd2c0d5a73ffbc7fa1b44903e",
+    "benchmarkSource": "b260fe3a42443b3c1755cdd42c6b62233ff9477c",
+    "benchmarkSourceSha256": "1c885ab17e19c4bc659fad50f12454e8c626961979135e1fcb822da2e08cfea3",
+    "runtimeAndCmakeInputsByteUnchanged": true,
+    "cachedBuild": "Single benchmark-source overlay on completed package cache; original source restored and compared after build. Existing package artifacts were not rebuilt or modified.",
+    "cpuCeiling": 8,
+    "buildJobs": 2,
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0
+  },
+  "remoteResources": {
+    "cpuQuota": 1,
+    "cpuAffinity": [
+      11
+    ],
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0,
+    "pids": 128,
+    "deadlineSeconds": 300,
+    "persistentTemporaryFiles": true
+  },
+  "hardwareRecord": "R085f-discrete-hardware.json",
+  "preflight": {
+    "availableMemoryKiB": 21977264,
+    "loadAverage": [
+      "0.01",
+      "0.01",
+      "0.00"
+    ],
+    "kernel": "7.2.7-1-cachyos",
+    "dpmsPower": 0,
+    "dpmsEnabled": 0,
+    "glxinfo": "name of display: :0\ndisplay: :0  screen: 0\ndirect rendering: Yes\nExtended renderer info (GLX_MESA_query_renderer):\n    Vendor: AMD (0x1002)\n    Device: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) (0x73bf)\n    Version: 26.3.0\n    Accelerated: yes\n    Video memory: 16384MB\n    Unified memory: no\n    Preferred profile: core (0x1)\n    Max core profile version: 4.6\n    Max compat profile version: 4.6\n    Max GLES1 profile version: 1.1\n    Max GLES[23] profile version: 3.2\nMemory info (GL_ATI_meminfo):\n    VBO free memory - total: 16235 MB, largest block: 16235 MB\n    VBO free aux. memory - total: 11665 MB, largest block: 11665 MB\n    Texture free memory - total: 16235 MB, largest block: 16235 MB\n    Texture free aux. memory - total: 11665 MB, largest block: 11665 MB\n    Renderbuffer free memory - total: 16235 MB, largest block: 16235 MB\n    Renderbuffer free aux. memory - total: 11665 MB, largest block: 11665 MB\nMemory info (GL_NVX_gpu_memory_info):\n    Dedicated video memory: 16384 MB\n    Total available memory: 28077 MB\n    Currently available dedicated video memory: 16235 MB\nOpenGL vendor string: AMD\nOpenGL renderer string: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos)\nOpenGL core profile version string: 4.6 (Core Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL core profile shading language version string: 4.60\nOpenGL core profile context flags: (none)\nOpenGL core profile profile mask: core profile\n\nOpenGL version string: 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL shading language version string: 4.60\nOpenGL context flags: (none)\nOpenGL profile mask: compatibility profile\n\nOpenGL ES profile version string: OpenGL ES 3.2 Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL ES profile shading language version string: OpenGL ES GLSL ES 3.20\n\n"
+  }
+}

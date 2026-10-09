@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ulimit -c 0
+pacman -Q qt6-base qt6-wayland mesa weston wayland ttf-dejavu > /capture/packages.txt
+export ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose
+export LP_NUM_THREADS=2 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+export SKETCHYUP_WAYLAND_CLIENT_LIBRARY=/work/package/ci-wayland-client
+LD_LIBRARY_PATH="$SKETCHYUP_WAYLAND_CLIENT_LIBRARY" ldd /usr/lib/libQt6WaylandClient.so.6 > /capture/linked-libraries.txt
+if command -v rg >/dev/null; then
+ rg -F '/work/package/ci-wayland-client/libwayland-client.so.0' /capture/linked-libraries.txt
+else
+ grep -F '/work/package/ci-wayland-client/libwayland-client.so.0' /capture/linked-libraries.txt
+fi
+printf '%s\n' 'Exact PR236 sanitizer fixture: scale=1 control'
+SKETCHYUP_TEST_SCALE=1 taskset -c 0,1 bash /source/scripts/test-wayland.sh /work/package/file_operation_input_tests
+for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+ printf '%s\n' "Exact PR236 sanitizer fixture: scale=2 attempt=$attempt"
+ SKETCHYUP_TEST_SCALE=2 taskset -c 0,1 bash /source/scripts/test-wayland.sh /work/package/file_operation_input_tests
+done
+
+for scale in 1 2; do
+ for attempt in 1 2; do
+  printf '%s\n' "Exact PR237 keyboard fixture: scale=$scale attempt=$attempt"
+  SKETCHYUP_TEST_SCALE=$scale taskset -c 0,1 bash /source/scripts/test-wayland.sh /work/package/shortcut_input_tests
+ done
+done

@@ -49,3 +49,32 @@ host settings are untouched. Fixture creation and final hash checks are outside
 the measured interval. This metadata/asset stress fixture does not cover image
 loading, complex geometry, asynchronous UI responsiveness or end-to-end rendering.
 No variable-host timings become CTest gates or release acceptance automatically.
+
+## Additional scene scenarios
+
+R082.e extends the manual executable to
+`real_model_benchmark [placement-count] [repeated|unique|deep|far]`. Omitting the
+scenario retains the original repeated fixture, allocation/revision order and
+canonical bytes. The repeated control must retain its frozen hash before new
+scenarios are measured. No accepted instance count, public document limit or
+performance budget changes.
+
+All scenarios retain exactly 100 triangles per placement, the 1920 × 1080
+framebuffer, ten warmups, fifty frame/pick samples, and one hundred edit/undo/redo
+operations. The new scenarios are explicit version-2 fixture families:
+
+- `unique`: independent authoritative 26-sided prisms whose radius is
+  `1 + 0.2 * placementIndex / placementCount`; there are no component bindings.
+- `deep`: the original repeated placements enclosed by 32 ordinary groups.
+- `far`: the original repeated placements enclosed by one group translated by
+  `(900000, -900000, 900000)` metres, still within existing coordinate limits.
+
+Picking probes use each placement's actual world transform. Reports distinguish
+placement count from actual component-instance count, and include scenario,
+outer-group count and coordinate offset. Canonical hashes are retained per
+scenario and count; consecutive full runs must agree. Initial qualification is
+one unchanged repeated control followed by a 25-placement smoke and three
+1,000-placement runs per added scenario. This does not replace or satisfy the
+separate unsupported 10,000-instance requirement. These remain exploratory
+scene/pick/edit measurements; inference timing, large textures, complete frame
+feedback and full memory accounting remain separate work.
