@@ -1,0 +1,76 @@
+{
+  "passed": true,
+  "source": "29fb31bba53e0b6dd2c0d5a73ffbc7fa1b44903e",
+  "releaseAcceptance": false,
+  "binarySha256": "7a3a73da0e6d71eaf977ea62a391a44cb1f3d3fc28489184d5d5c9492deed5ff",
+  "binaryBytes": 4719912,
+  "measurements": [
+    {
+      "label": "1000-1",
+      "sha256": "38682874a6bdd6f1ec3bd9f64464b75ddfc3634f669eb41167c7818a78bf4828",
+      "sceneP95Ms": 2.386114,
+      "pickP95Ms": 0.063862,
+      "editP95Ms": 19.329055,
+      "peakRssBytes": 451842048
+    },
+    {
+      "label": "1000-2",
+      "sha256": "a8a1ea82c2f9765bb5b107e589e043618497e5ed4ccde0dacd60f231b199ab65",
+      "sceneP95Ms": 2.301854,
+      "pickP95Ms": 0.060265,
+      "editP95Ms": 18.228194,
+      "peakRssBytes": 451776512
+    },
+    {
+      "label": "1000-3",
+      "sha256": "8cf3614343116b3544d00294a11505e5494d299d5f7eb2abaede5cdcf79d2f94",
+      "sceneP95Ms": 2.220209,
+      "pickP95Ms": 0.054213,
+      "editP95Ms": 18.663,
+      "peakRssBytes": 451792896
+    }
+  ],
+  "resources": {
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0,
+    "cpuQuota": 1,
+    "cpuAffinity": [
+      11
+    ],
+    "pids": 128,
+    "deadlineSeconds": 300,
+    "diskBackedTemporaryFiles": true
+  },
+  "buildResources": {
+    "cpuCeiling": 8,
+    "affinity": [
+      0,
+      1,
+      3,
+      6,
+      8,
+      10,
+      12,
+      13
+    ],
+    "outerBuildJobs": 2,
+    "ltoJobsPerLink": 1,
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0,
+    "pids": 256,
+    "diskBackedTemporaryFiles": true
+  },
+  "preflight": {
+    "availableMemoryKiB": 22028464,
+    "loadAverage": [
+      "0.00",
+      "0.00",
+      "0.00"
+    ],
+    "kernel": "7.2.7-1-cachyos",
+    "dpmsPower": 0,
+    "dpmsEnabled": 0,
+    "glxinfo": "name of display: :0\ndisplay: :0  screen: 0\ndirect rendering: Yes\nExtended renderer info (GLX_MESA_query_renderer):\n    Vendor: AMD (0x1002)\n    Device: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) (0x73bf)\n    Version: 26.3.0\n    Accelerated: yes\n    Video memory: 16384MB\n    Unified memory: no\n    Preferred profile: core (0x1)\n    Max core profile version: 4.6\n    Max compat profile version: 4.6\n    Max GLES1 profile version: 1.1\n    Max GLES[23] profile version: 3.2\nMemory info (GL_ATI_meminfo):\n    VBO free memory - total: 16235 MB, largest block: 16235 MB\n    VBO free aux. memory - total: 11667 MB, largest block: 11667 MB\n    Texture free memory - total: 16235 MB, largest block: 16235 MB\n    Texture free aux. memory - total: 11667 MB, largest block: 11667 MB\n    Renderbuffer free memory - total: 16235 MB, largest block: 16235 MB\n    Renderbuffer free aux. memory - total: 11667 MB, largest block: 11667 MB\nMemory info (GL_NVX_gpu_memory_info):\n    Dedicated video memory: 16384 MB\n    Total available memory: 28077 MB\n    Currently available dedicated video memory: 16235 MB\nOpenGL vendor string: AMD\nOpenGL renderer string: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos)\nOpenGL core profile version string: 4.6 (Core Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL core profile shading language version string: 4.60\nOpenGL core profile context flags: (none)\nOpenGL core profile profile mask: core profile\n\nOpenGL version string: 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL shading language version string: 4.60\nOpenGL context flags: (none)\nOpenGL profile mask: compatibility profile\n\nOpenGL ES profile version string: OpenGL ES 3.2 Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL ES profile shading language version string: OpenGL ES GLSL ES 3.20\n\n"
+  },
+  "historicalHardwareRecord": "R085f-discrete-hardware.json"
+}

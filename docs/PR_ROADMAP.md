@@ -1250,7 +1250,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R087 — Validate Arch release packages and upgrades
 
-**Status:** In progress. The [development package lifecycle](verification/R087a-package-lifecycle.md) passes install, launch, MIME, same-source package upgrade, reopen and removal in the pinned disposable Arch environment. [Installed historical migration checks](verification/R087e-installed-migrations.md) additionally pass all 25 retained fixtures with the prior development package. Current/reference clean-machine checks, prior-application package upgrades, final release validation, remote CI and ordered merges remain open. **Track:** Release. **Scope:** N02, D02. **UX:** —.
+**Status:** In progress. The [development package lifecycle](verification/R087a-package-lifecycle.md) passes install, launch, MIME, same-source package upgrade, reopen and removal in the pinned disposable Arch environment. [Installed historical migration checks](verification/R087e-installed-migrations.md) additionally pass all 25 retained fixtures with the prior development package. The [current cached package and prior-application upgrade](verification/R087f-current-package.md) pass 170 tests (11 optional consumers skipped), all 25 historical migrations and the installed lifecycle across two application implementations. Current/reference clean-machine checks, final release validation, remote CI and ordered merges remain open. **Track:** Release. **Scope:** N02, D02. **UX:** —.
 
 **Requires:** [R085](#r085), [R083](#r083), [R071](#r071); milestone gate rule above.
 
