@@ -1,0 +1,64 @@
+	linux-vdso.so.1 (0x000077e38ecee000)
+	libwayland-client.so.0 => /work/package/r084p3-wayland-client/libwayland-client.so.0 (0x000077e38eba9000)
+	libwayland-cursor.so.0 => /usr/lib/libwayland-cursor.so.0 (0x000077e38eba0000)
+	libQt6Gui.so.6 => /usr/lib/libQt6Gui.so.6 (0x000077e38e238000)
+	libQt6Core.so.6 => /usr/lib/libQt6Core.so.6 (0x000077e38dba8000)
+	libxkbcommon.so.0 => /usr/lib/libxkbcommon.so.0 (0x000077e38db47000)
+	libstdc++.so.6 => /usr/lib/libstdc++.so.6 (0x000077e38d874000)
+	libm.so.6 => /usr/lib/libm.so.6 (0x000077e38d73d000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x000077e38d51a000)
+	libffi.so.8 => /usr/lib/libffi.so.8 (0x000077e38d50c000)
+	libEGL.so.1 => /usr/lib/libEGL.so.1 (0x000077e38d4fa000)
+	libfontconfig.so.1 => /usr/lib/libfontconfig.so.1 (0x000077e38d47d000)
+	libX11.so.6 => /usr/lib/libX11.so.6 (0x000077e38d33b000)
+	libglib-2.0.so.0 => /usr/lib/libglib-2.0.so.0 (0x000077e38d1d8000)
+	libQt6DBus.so.6 => /usr/lib/libQt6DBus.so.6 (0x000077e38d10b000)
+	libGLX.so.0 => /usr/lib/libGLX.so.0 (0x000077e38d0da000)
+	libOpenGL.so.0 => /usr/lib/libOpenGL.so.0 (0x000077e38d0b6000)
+	libpng16.so.16 => /usr/lib/libpng16.so.16 (0x000077e38d077000)
+	libharfbuzz.so.0 => /usr/lib/libharfbuzz.so.0 (0x000077e38cf33000)
+	libmd4c.so.0 => /usr/lib/libmd4c.so.0 (0x000077e38cf1d000)
+	libfreetype.so.6 => /usr/lib/libfreetype.so.6 (0x000077e38ce4d000)
+	libz.so.1 => /usr/lib/libz.so.1 (0x000077e38ce32000)
+	libgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x000077e38ce05000)
+	liburing.so.2 => /usr/lib/liburing.so.2 (0x000077e38cdfc000)
+	libicui18n.so.78 => /usr/lib/libicui18n.so.78 (0x000077e38ca6e000)
+	libicuuc.so.78 => /usr/lib/libicuuc.so.78 (0x000077e38c860000)
+	libsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x000077e38c717000)
+	libdouble-conversion.so.3 => /usr/lib/libdouble-conversion.so.3 (0x000077e38c700000)
+	libb2.so.1 => /usr/lib/libb2.so.1 (0x000077e38c6e0000)
+	libpcre2-16.so.0 => /usr/lib/libpcre2-16.so.0 (0x000077e38c63a000)
+	libcrypto.so.3 => /usr/lib/libcrypto.so.3 (0x000077e38c090000)
+	libzstd.so.1 => /usr/lib/libzstd.so.1 (0x000077e38bfaa000)
+	/usr/lib64/ld-linux-x86-64.so.2 (0x000077e38ecf1000)
+	libGLdispatch.so.0 => /usr/lib/libGLdispatch.so.0 (0x000077e38bf31000)
+	libexpat.so.1 => /usr/lib/libexpat.so.1 (0x000077e38bf00000)
+	libxcb.so.1 => /usr/lib/libxcb.so.1 (0x000077e38bed5000)
+	libpcre2-8.so.0 => /usr/lib/libpcre2-8.so.0 (0x000077e38be22000)
+	libdbus-1.so.3 => /usr/lib/libdbus-1.so.3 (0x000077e38bdcf000)
+	libgraphite2.so.3 => /usr/lib/libgraphite2.so.3 (0x000077e38bdac000)
+	libbz2.so.1.0 => /usr/lib/libbz2.so.1.0 (0x000077e38bd97000)
+	libbrotlidec.so.1 => /usr/lib/libbrotlidec.so.1 (0x000077e38bd88000)
+	libicudata.so.78 => /usr/lib/libicudata.so.78 (0x000077e389df3000)
+	libgomp.so.1 => /usr/lib/libgomp.so.1 (0x000077e389d99000)
+	libbrotlienc.so.1 => /usr/lib/libbrotlienc.so.1 (0x000077e389cd9000)
+	libXau.so.6 => /usr/lib/libXau.so.6 (0x000077e389cd2000)
+	libXdmcp.so.6 => /usr/lib/libXdmcp.so.6 (0x000077e389cca000)
+	libbrotlicommon.so.1 => /usr/lib/libbrotlicommon.so.1 (0x000077e389ca7000)
+	libwayland-client.so.0 => /work/package/r084p3-wayland-client/libwayland-client.so.0 (0x000077e38eba9000)
+Sanitized dialogs X11 scale=1
+Sanitized dialogs Wayland scale=1
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Sanitized dialogs X11 scale=2
+Sanitized dialogs Wayland scale=2
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'

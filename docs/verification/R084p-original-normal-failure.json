@@ -1,0 +1,9 @@
+{
+  "passed": false,
+  "releaseAcceptance": false,
+  "source": "41798a5c047d5c399de44546aa9de7aa6ca87bd6",
+  "normalCases": 0,
+  "sanitizerCases": 0,
+  "keyboardTraversalQualified": false,
+  "error": "Command '['/home/keith/projects/sketchyup/build/verification-scripts/run-eight-cpu-check.sh', 'r084p-preferences-normal', 'sketchyup-native-fonts-check:20261008', 'bash', '/work/package/build-dialog-keyboard.sh']' returned non-zero exit status 1."
+}

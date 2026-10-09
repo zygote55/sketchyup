@@ -1,0 +1,71 @@
+{
+  "passed": true,
+  "releaseAcceptance": false,
+  "source": "673525ba678dfd34a9756e8b0c33e587c4a082b6",
+  "normalCases": 4,
+  "sanitizerCases": 4,
+  "keyboardTraversalQualified": true,
+  "normalLogSha256": "e4c246655fcf40cfedad4bfe75fb852f5dfd613273657c5979c4f6bf52cbe892",
+  "sanitizerBinarySha256": "f9d2090bb229f9c09b20cb9fa93148044a570f3831b5746ede12a443bc8bc4ce",
+  "sanitizerSourceRestored": true,
+  "nativeReports": [
+    {
+      "variant": "normal",
+      "platform": "x11",
+      "scale": 1,
+      "contexts": 14,
+      "sha256": "1ce6f4a126269089c6b80c368d015ed4dbb0681b19a8a49baeb6504edb3538df"
+    },
+    {
+      "variant": "normal",
+      "platform": "x11",
+      "scale": 2,
+      "contexts": 14,
+      "sha256": "adf80003cf89167eb06d265e6c7bbf4e33f7b2c359609339fc9fe4253e1a5619"
+    },
+    {
+      "variant": "normal",
+      "platform": "wayland",
+      "scale": 1,
+      "contexts": 14,
+      "sha256": "495b386e0514c48410c7e3ad214babfee199bb7ff0edf3b2e8bd59302909df02"
+    },
+    {
+      "variant": "normal",
+      "platform": "wayland",
+      "scale": 2,
+      "contexts": 14,
+      "sha256": "a9d01efbfd8465963bc528976f0a053c3064958fd00a1ee85c84de86dd3a0a15"
+    },
+    {
+      "variant": "sanitize",
+      "platform": "x11",
+      "scale": 1,
+      "contexts": 14,
+      "sha256": "d208d9a869a1f06eed0759bcbc58ee18741bb63fa8f133d5f48515f3f9ff68b3"
+    },
+    {
+      "variant": "sanitize",
+      "platform": "x11",
+      "scale": 2,
+      "contexts": 14,
+      "sha256": "a0b2aeecccfed4ac5f003b03e8ba95d795168df3ba609134adf5434466000008"
+    },
+    {
+      "variant": "sanitize",
+      "platform": "wayland",
+      "scale": 1,
+      "contexts": 14,
+      "sha256": "0c58d360ceb097f1892255f3adff743dffc6cec8f90128886906a862b26e590d"
+    },
+    {
+      "variant": "sanitize",
+      "platform": "wayland",
+      "scale": 2,
+      "contexts": 14,
+      "sha256": "99da5200401e52edf82b8b1a2e490a74aab0f9657108a274ac52220484639721"
+    }
+  ],
+  "sanitizerLeakDetection": true,
+  "sanitizerLogSha256": "72b069f317a38a86fe7b824bf9e91c9d11bfbda0f4ba2c44e56689c1d9fb65d7"
+}
