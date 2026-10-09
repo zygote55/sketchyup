@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "releaseAcceptance": false,
+  "publicHostCandidate": "8c1bb043d4045297c67e2965e07c14cb6c3b47c1",
+  "normalCases": 6,
+  "sanitizerCases": 6,
+  "trackedSourceRestored": true,
+  "sanitizerLeakDetection": true,
+  "binarySha256": "db8c2afb409960e12d4c452d160055039ce8f1b5cae8b41734bdddd1923be33a",
+  "logSha256": "f940060a6887867d208bd27d0d5902d25abfd36f6d8b7590479dac48eb8491a8"
+}

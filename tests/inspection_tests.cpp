@@ -93,6 +93,17 @@ int main(int argc, char **argv) {
         const auto selected = run(room, "selection.get", {{"limit", 1}}, &editor);
         check(selected["total"] == 1, "Headless selection context failed");
         const auto picked = selected["items"].toArray()[0].toObject()["ref"].toObject();
+        auto incomplete = picked;
+        incomplete.remove("body");
+        try {
+            run(room, "measure.entity", {{"target", incomplete}, {"space", "world"}});
+            throw std::runtime_error("Incomplete entity reference must be rejected");
+        } catch (const InspectionError &error) {
+            check(error.code() == "INVALID_REQUEST" &&
+                      std::string(error.what()) == "Missing required parameter at /target/body" &&
+                      room.isCurrentSnapshot(stamp) && encodeContainer(room) == saved,
+                  "Missing nested field identifies the schema path without document effects");
+        }
         const auto identified = run(room, "entity.describe", {{"target", picked}}, &editor);
         check(identified["name"] == "Window A" && identified["ownerKind"] == "component" &&
                   !identified.contains("vertices") && !identified.contains("faces"),

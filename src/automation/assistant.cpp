@@ -373,10 +373,31 @@ std::optional<QJsonObject> AssistantTask::nextRequest() {
         return {};
     }
     attempt_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QJsonObject binding{{"documentId", documentId_}, {"expectedRevision", revision_}};
+    const QJsonObject budget{
+        {"toolCallsPerReply", 8},
+        {"remainingToolCalls", options_.limits.toolCalls - calls_},
+        {"remainingProviderTurns", options_.limits.turns - turns_},
+        {"remainingReportedTokens", QString::number(options_.limits.totalReportedTokens - tokens_)},
+        {"privateDraftOpen", !draft_.isEmpty()}};
+    const auto system =
+        QString::fromLatin1(instructions) +
+        " Top-level tool arguments must copy the following host-supplied documentId and "
+        "expectedRevision strings verbatim. Private drafts do not advance this bound revision. "
+        "A nested inspection of a private draft uses that draft's proposedRevision instead."
+        " Return at most 8 tool calls in each reply. Further replies may continue using the "
+        "remaining task budget below. For an open edit draft, request transaction.preview "
+        "before ending with final text; final text alone discards the unsealed draft. "
+        "Copy complete entity references from inspection receipts and include every required "
+        "schema field. Correct rejected arguments using the error receipt before retrying."
+        "\nHost task budget: " +
+        QString::fromUtf8(QJsonDocument(budget).toJson(QJsonDocument::Compact)) +
+        "\nHost task binding: " +
+        QString::fromUtf8(QJsonDocument(binding).toJson(QJsonDocument::Compact));
     QJsonObject request{{"attemptId", attempt_},
                         {"provider", options_.provider},
                         {"model", options_.model},
-                        {"system", instructions},
+                        {"system", system},
                         {"messages", messages_},
                         {"tools", tools_},
                         {"maxOutputTokens",
@@ -544,7 +565,21 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
             const auto code = result["code"].toString();
             if (code == "TRANSACTION_EXPIRED" && call.arguments.value("transactionId") == draft_)
                 draft_.clear(); // Dispatcher has retired the expired draft; a retry may begin anew.
-            if (code == "STALE_REVISION" || code == "WRONG_DOCUMENT") {
+            const auto &args = call.arguments;
+            const bool stalePrivateInspection =
+                code == "STALE_REVISION" && call.name == "transaction.inspect" &&
+                args.value("documentId") == documentId_ && !draft_.isEmpty() &&
+                args.value("transactionId") == draft_ &&
+                (!args.contains("expectedRevision") || args["expectedRevision"] == revision_);
+            if (stalePrivateInspection) {
+                // A bad nested revision is retryable only while the public task binding is current.
+                // Keep the supplied arguments unchanged; the provider must inspect and retry.
+                if (!current())
+                    return false;
+                result["revisionScope"] = "private-draft";
+                result["retry"] = "Read transaction.describe and retry the nested inspection with "
+                                  "proposedRevision";
+            } else if (code == "STALE_REVISION" || code == "WRONG_DOCUMENT") {
                 stop(code == "STALE_REVISION" ? Phase::Stale : Phase::Failed, result);
                 return false;
             }
