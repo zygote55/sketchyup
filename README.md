@@ -15,12 +15,12 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. The M7 presentation and rendering checkpoint is [accepted](docs/verification/M7-accepted.md); M8 exchange and extensibility is in progress. Shared components support native editing.
+M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. The M7 presentation and rendering checkpoint is [accepted](docs/verification/M7-accepted.md). All M8 exchange and extensibility entries are merged; [M8 acceptance](docs/M8_ACCEPTANCE.md) is pending. Shared components support native editing.
 OpenAI and experimental loopback Ollama adapters, transactional previews and optional
 Blender rendering are implemented. Live OpenAI acceptance passed the M5 and M6
 workflow gates; the measured local CPU Ollama profile timed out on the initial
-modeling corpus. General
-exchange formats remain planned. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
+modeling corpus. Native
+exchange covers GLB/glTF, OBJ/MTL and STL import/export, a documented 2D DXF subset and measured PDF/SVG views; see [Inspect and migrate native documents](#inspect-and-migrate-native-documents) and the sections after it. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
 Automatic recovery copies are enabled every 30 seconds; File → Recovery settings
 changes the interval (5–3,600 seconds) or disables it. The recovery status shows
 only the last verified copy and identifies newer edits still in memory. A write
@@ -213,7 +213,7 @@ as PNG. Blender is optional. See [render evidence](docs/verification/R050-native
 
 The [M5 acceptance procedure](docs/M5_ACCEPTANCE.md) describes the reproducible
 room/window workflow, retained evidence, live provider corpus and package setup.
-The [M5 gate](docs/verification/M5.md) and [M6 gate](docs/verification/M6.md) are complete, and the [M7 checkpoint](docs/verification/M7-accepted.md) is accepted; M8 exchange and extensibility is in progress.
+The [M5 gate](docs/verification/M5.md) and [M6 gate](docs/verification/M6.md) are complete, and the [M7 checkpoint](docs/verification/M7-accepted.md) is accepted. All M8 entries are merged; [M8 acceptance](docs/M8_ACCEPTANCE.md) is pending.
 The [M6 acceptance procedure](docs/M6_ACCEPTANCE.md) reproduces the integrated
 roof/stair/joinery/furniture study, site placement and live assistant checks.
 

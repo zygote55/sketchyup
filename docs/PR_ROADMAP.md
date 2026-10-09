@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0–M6 gates passed; the M7 presentation checkpoint is accepted; M8 exchange and extensibility is in progress. Updated: 2026-10-08.
+Status: M0–M6 gates passed; the M7 presentation checkpoint is accepted; all M8 entries (R073–R081) are merged and M8 acceptance is pending. Updated: 2026-10-09.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -83,7 +83,7 @@ native scheduling/selection is merged in [PR #51](https://github.com/zygote55/sk
 The labeled history API merged in [PR #52](https://github.com/zygote55/sketchyup/pull/52);
 native History controls merged in [PR #53](https://github.com/zygote55/sketchyup/pull/53).
 Document unit data/API/persistence merged in [PR #54](https://github.com/zygote55/sketchyup/pull/54); native preferences merged in [PR #55](https://github.com/zygote55/sketchyup/pull/55).
-The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4 and M5 are complete; the [M5 gate](verification/M5.md) records provider, assistant, MCP and room/window acceptance. The [M6 gate](verification/M6.md) is complete, and the [M7 presentation checkpoint](verification/M7-accepted.md) is accepted; M8 exchange and extensibility is in progress.
+The integrated [M4 workflow](verification/M4.md) passed local and CI verification and merged in [PR #56](https://github.com/zygote55/sketchyup/pull/56). M4 and M5 are complete; the [M5 gate](verification/M5.md) records provider, assistant, MCP and room/window acceptance. The [M6 gate](verification/M6.md) is complete, and the [M7 presentation checkpoint](verification/M7-accepted.md) is accepted. All M8 entries are merged; M8 acceptance is pending.
 
 Build/CLI/package scaffolding in these spikes is reusable by R007–R014, but does
 not mark all M1 requirements delivered.
@@ -1080,7 +1080,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R073 — Stabilize the native format and migration tooling
 
-**Status:** In progress. Public v24/container-v2 contract, strict inspection and safe migration pass [144-suite, native, sanitizer, installed and source-package acceptance](verification/R073-public-native-format.md). Local implementation is complete; remote CI and ordered merge remain. **Track:** Interchange. **Scope:** X06, D02. **UX:** —.
+**Status:** Delivered; M8 acceptance pending. Public v24/container-v2 contract, strict inspection and safe migration pass [144-suite, native, sanitizer, installed and source-package acceptance](verification/R073-public-native-format.md). Merged in [#168](https://github.com/zygote55/sketchyup/pull/168), each with passing CI and no failed check at its merged head. **Track:** Interchange. **Scope:** X06, D02. **UX:** —.
 
 **Requires:** [R037](#r037), [R065](#r065), [R063](#r063); milestone gate rule above.
 
@@ -1092,7 +1092,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R074 — Complete GLB/glTF import and exchange guarantees
 
-**Status:** Locally complete across R074.a–c. Bounded package capture, native conversion and source-safe File-menu/CLI workflow pass [147-suite, sanitizer, Blender, eight-platform, installed and source-package acceptance](verification/R074c-native-gltf-workflow.md). Required remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X02. **UX:** §6.4.
+**Status:** Delivered across R074.a–c; M8 acceptance pending. Bounded package capture, native conversion and source-safe File-menu/CLI workflow pass [147-suite, sanitizer, Blender, eight-platform, installed and source-package acceptance](verification/R074c-native-gltf-workflow.md). Merged in [#169](https://github.com/zygote55/sketchyup/pull/169), [#170](https://github.com/zygote55/sketchyup/pull/170), [#171](https://github.com/zygote55/sketchyup/pull/171), each with passing CI and no failed check at its merged head. **Track:** Interchange. **Scope:** X02. **UX:** §6.4.
 
 **Requires:** [R048](#r048), [R061](#r061), [R073](#r073); milestone gate rule above.
 
@@ -1104,7 +1104,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R075 — Implement OBJ and MTL interchange
 
-**Status:** Locally complete. R075.a–d pass [153-suite, independent Blender, sanitizer, eight-platform native, CLI, installed and source-package acceptance](verification/R075d-native-obj-workflow.md). Remote CI and ordered merges remain delivery gates. [Immutable catalog caching](verification/CI-PR172-schema-cache.md) retains the merged PR172 correction, with twelve passing normal/sanitizer checks at unchanged deadlines. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** Delivered; M8 acceptance pending. R075.a–d pass [153-suite, independent Blender, sanitizer, eight-platform native, CLI, installed and source-package acceptance](verification/R075d-native-obj-workflow.md). Merged in [#172](https://github.com/zygote55/sketchyup/pull/172), [#173](https://github.com/zygote55/sketchyup/pull/173), [#174](https://github.com/zygote55/sketchyup/pull/174), [#175](https://github.com/zygote55/sketchyup/pull/175), each with passing CI and no failed check at its merged head. [Immutable catalog caching](verification/CI-PR172-schema-cache.md) retains the merged PR172 correction, with twelve passing normal/sanitizer checks at unchanged deadlines. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R061](#r061); milestone gate rule above.
 
@@ -1116,7 +1116,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R076 — Implement binary and text STL interchange
 
-**Status:** In progress. R076.a–d parsing, conversion, export and native/CLI workflows are locally complete with [158-suite, independent Blender, sanitizer, eight-platform, installed and source-package checks](verification/R076d-native-stl-workflow.md). Remote CI and ordered merges remain delivery gates. **Track:** Interchange. **Scope:** X03. **UX:** —.
+**Status:** Delivered; M8 acceptance pending. R076.a–d parsing, conversion, export and native/CLI workflows are locally complete with [158-suite, independent Blender, sanitizer, eight-platform, installed and source-package checks](verification/R076d-native-stl-workflow.md). Merged in [#176](https://github.com/zygote55/sketchyup/pull/176), [#177](https://github.com/zygote55/sketchyup/pull/177), [#178](https://github.com/zygote55/sketchyup/pull/178), [#179](https://github.com/zygote55/sketchyup/pull/179), each with passing CI and no failed check at its merged head. **Track:** Interchange. **Scope:** X03. **UX:** —.
 
 **Requires:** [R073](#r073), [R058](#r058); milestone gate rule above.
 
@@ -1128,7 +1128,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R077 — Implement the documented 2D DXF subset
 
-**Status:** In progress. R077.a–d implementation and [local DXF workflow verification](verification/R077d-native-dxf-workflow.md) are complete, including independent ezdxf, sanitizer, eight platform cases, final native integration, installed workflows and source packaging. Remote CI, ordered merges and milestone acceptance remain open. **Track:** Interchange. **Scope:** X04. **UX:** —.
+**Status:** Delivered; M8 acceptance pending. R077.a–d implementation and [local DXF workflow verification](verification/R077d-native-dxf-workflow.md) are complete, including independent ezdxf, sanitizer, eight platform cases, final native integration, installed workflows and source packaging. Merged in [#180](https://github.com/zygote55/sketchyup/pull/180), [#181](https://github.com/zygote55/sketchyup/pull/181), [#182](https://github.com/zygote55/sketchyup/pull/182), [#183](https://github.com/zygote55/sketchyup/pull/183), each with passing CI and no failed check at its merged head. **Track:** Interchange. **Scope:** X04. **UX:** —.
 
 **Requires:** [R024](#r024), [R073](#r073); milestone gate rule above.
 
@@ -1140,7 +1140,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R078 — Export scaled orthographic PDF and SVG views
 
-**Status:** In progress. R078.a–e [native measured PDF/SVG export](verification/R078e-native-measured-export.md) are locally implemented and verified, including independent physical-scale rendering, vector/raster modes, headless/native workflows, source/view preservation and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Interchange. **Scope:** P07. **UX:** —.
+**Status:** Delivered; M8 acceptance pending. R078.a–e [native measured PDF/SVG export](verification/R078e-native-measured-export.md) are locally implemented and verified, including independent physical-scale rendering, vector/raster modes, headless/native workflows, source/view preservation and eight normal/sanitized platform combinations. Merged in [#184](https://github.com/zygote55/sketchyup/pull/184), [#185](https://github.com/zygote55/sketchyup/pull/185), [#186](https://github.com/zygote55/sketchyup/pull/186), [#187](https://github.com/zygote55/sketchyup/pull/187), [#188](https://github.com/zygote55/sketchyup/pull/188), each with passing CI and no failed check at its merged head. **Track:** Interchange. **Scope:** P07. **UX:** —.
 
 **Requires:** [R064](#r064), [R065](#r065), [R068](#r068); milestone gate rule above.
 
@@ -1152,7 +1152,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R079 — Ship templates and the local component library
 
-**Status:** In progress. R079.a–e [native template and library workflows](verification/R079e-native-library.md) are locally implemented and verified, including keyboard search/insertion, resource closure, atomic edits, default scenes, source preservation and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
+**Status:** Delivered; M8 acceptance pending. R079.a–e [native template and library workflows](verification/R079e-native-library.md) are locally implemented and verified, including keyboard search/insertion, resource closure, atomic edits, default scenes, source preservation and eight normal/sanitized platform combinations. Merged in [#189](https://github.com/zygote55/sketchyup/pull/189), [#190](https://github.com/zygote55/sketchyup/pull/190), [#191](https://github.com/zygote55/sketchyup/pull/191), [#192](https://github.com/zygote55/sketchyup/pull/192), [#193](https://github.com/zygote55/sketchyup/pull/193), each with passing CI and no failed check at its merged head. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
 
 **Requires:** [R033](#r033), [R036](#r036), [R073](#r073); milestone gate rule above.
 
@@ -1164,7 +1164,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R080 — Publish extension capabilities and lifecycle
 
-**Status:** In progress. R080.a–d [native extension management](verification/R080d-native-extensions.md) is locally implemented and verified, including lifecycle, worker failure/cancellation, document/package guards, public atomic edits, discovery and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Automation. **Scope:** X05, A01, A06. **UX:** §11.
+**Status:** Delivered; M8 acceptance pending. R080.a–d [native extension management](verification/R080d-native-extensions.md) is locally implemented and verified, including lifecycle, worker failure/cancellation, document/package guards, public atomic edits, discovery and eight normal/sanitized platform combinations. Merged in [#194](https://github.com/zygote55/sketchyup/pull/194), [#195](https://github.com/zygote55/sketchyup/pull/195), [#196](https://github.com/zygote55/sketchyup/pull/196), [#197](https://github.com/zygote55/sketchyup/pull/197), each with passing CI and no failed check at its merged head. **Track:** Automation. **Scope:** X05, A01, A06. **UX:** §11.
 
 **Requires:** [R043](#r043), [R073](#r073); milestone gate rule above.
 
@@ -1176,7 +1176,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R081 — Ship generated tool reference and executable AI recipes
 
-**Status:** In progress. Generated reference, executable agent guide, all ten recipes, optional discovery and the combined exchange study pass [local normal/sanitizer and installed checks](verification/R081-local-agent-distribution.md). [Final integrated verification](verification/R081f-integrated-regression.md) passes all 175 tests and eight native workflows. Remote CI, ordered merges and milestone prerequisites remain open. **Track:** Automation. **Scope:** A07, A08, A06. **UX:** —.
+**Status:** Delivered; M8 acceptance pending. Generated reference, executable agent guide, all ten recipes, optional discovery and the combined exchange study pass [local normal/sanitizer and installed checks](verification/R081-local-agent-distribution.md). [Final integrated verification](verification/R081f-integrated-regression.md) passes all 175 tests and eight native workflows. Merged in [#198](https://github.com/zygote55/sketchyup/pull/198), [#199](https://github.com/zygote55/sketchyup/pull/199), [#200](https://github.com/zygote55/sketchyup/pull/200), [#201](https://github.com/zygote55/sketchyup/pull/201), [#202](https://github.com/zygote55/sketchyup/pull/202), each with passing CI and no failed check at its merged head. **Track:** Automation. **Scope:** A07, A08, A06. **UX:** —.
 
 **Requires:** [R060](#r060), [R080](#r080); milestone gate rule above.
 
