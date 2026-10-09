@@ -1,0 +1,71 @@
+"""Qualify bounded read-only OpenAI inspection batches under unchanged host guards."""
+import fcntl,hashlib,json,os,re,signal,subprocess,time
+from pathlib import Path
+main=Path('/home/keith/projects/sketchyup');source=Path('/home/keith/projects/sketchyup-openai-inspection-batches-schema');cache=Path('/home/keith/projects/sketchyup-style-ci');stage=main/'build/provider-inspection-batches-r086ap4'
+freeze=json.loads((stage/'source-freeze.json').read_text())
+assert hashlib.sha256(Path(__file__).read_bytes()).hexdigest()==freeze['controllerSha256']
+report={'passed':False,'source':freeze['source'],'releaseAcceptance':False,'normalCases':0,'sanitizerCases':0,'liveProviderRevalidated':False}
+def digest(p):
+ with p.open('rb') as s:return hashlib.file_digest(s,'sha256').hexdigest()
+def save():(stage/'result.json').write_text(json.dumps(report,indent=2)+'\n')
+def interrupt(signum,frame):raise KeyboardInterrupt('Private inspection validation interrupted')
+signal.signal(signal.SIGTERM,interrupt)
+def worker():
+ group=Path('/sys/fs/cgroup')/Path('/proc/self/cgroup').read_text().strip().split(':',2)[2].lstrip('/')
+ limits={n:(group/n).read_text().strip() for n in ('memory.max','memory.swap.max','cpu.max','pids.max')}
+ assert limits=={'memory.max':'4294967296','memory.swap.max':'0','cpu.max':'800000 100000','pids.max':'256'},limits
+ assert os.sched_getaffinity(0)=={0,1,3,6,8,10,12,13}
+ (stage/'limits.json').write_text(json.dumps(limits,indent=2)+'\n')
+ for name,sha in freeze['compiledRuntimeSha256'].items():assert digest(cache/name)==sha,name
+ for name,sha in freeze['testSourceSha256'].items():assert digest(cache/name)==sha,name
+ original=(cache/'src/integrations/openai_provider.cpp').read_bytes()
+ baseline=stage/'baseline-openai-provider.cpp';assert digest(baseline)==freeze['baselineTransportSha256']
+ try:
+  (cache/'src/integrations/openai_provider.cpp').write_bytes(baseline.read_bytes())
+  subprocess.run(['cmake','--build',str(cache/'build/environment'),'--target','openai_provider_tests','--parallel','2'],check=True)
+  with (stage/'baseline.txt').open('x') as out:
+   r=subprocess.run(['ctest','--test-dir',str(cache/'build/environment'),'--output-on-failure','-R','^openai_provider$'],stdout=out,stderr=subprocess.STDOUT)
+  assert r.returncode==8 and 'Remote request advertises bounded parallel inspections' in (stage/'baseline.txt').read_text()
+  (stage/'baseline-exit.json').write_text(json.dumps({'exitCode':r.returncode,'expectedAssertionVerified':True})+'\n')
+ finally:(cache/'src/integrations/openai_provider.cpp').write_bytes(original)
+ definitions=dict(re.findall(r'add_test\(NAME\s+(\w+)\s+COMMAND\s+(\w+)\)',(cache/'CMakeLists.txt').read_text()))
+ for variant in ('environment','sanitize'):
+  data=json.loads(subprocess.check_output(['ctest','--test-dir',str(cache/'build'/variant),'--show-only=json-v1'],text=True))
+  chosen=[t for t in data['tests'] if t['name'] in freeze['cases']]
+  assert {t['name'] for t in chosen}==set(freeze['cases'])
+  targets=[definitions[t['name']] for t in chosen]
+  (stage/(variant+'-test-freeze.json')).write_text(json.dumps(chosen,indent=2)+'\n')
+  subprocess.run(['cmake','--build',str(cache/'build'/variant),'--target',*targets,'--parallel','2'],check=True)
+  subprocess.run(['ctest','--test-dir',str(cache/'build'/variant),'--output-on-failure','-R','^('+'|'.join(freeze['cases'])+')$'],check=True)
+try:
+ if os.sys.argv[1:]==['--worker']:
+  worker();raise SystemExit(0)
+ while subprocess.check_output(['systemctl','--user','show','sketchyup-r086an-provider-build','-p','SubState','--value'],text=True).strip() not in ('dead','exited','failed'):time.sleep(10)
+ assert subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()==freeze['source']
+ assert not subprocess.check_output(['git','-C',str(source),'status','--porcelain'],text=True).strip()
+ with (main/'build/local-checks/active.lock').open('w') as lock:
+  fcntl.flock(lock,fcntl.LOCK_EX)
+  assert not subprocess.check_output(['docker','ps','-q','--filter','label=io.sketchyup.local-check=true'],text=True).strip()
+  assert int(next(l.split()[1] for l in Path('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:')))>=6*1024*1024
+  assert subprocess.check_output(['git','-C',str(cache),'rev-parse','HEAD'],text=True).strip()==freeze['cacheSourceBase']
+  assert not subprocess.check_output(['git','-C',str(cache),'status','--porcelain'],text=True).strip()
+  originals={n:(cache/n).read_bytes() for n in freeze['overlaySha256']}
+  (stage/'tmp').mkdir();unit='sketchyup-r086ap4-provider-inspection-batches-worker'
+  try:
+   for n,sha in freeze['overlaySha256'].items():
+    assert digest(stage/'source'/n)==sha,n;(cache/n).write_bytes((stage/'source'/n).read_bytes())
+   cmd=['systemd-run','--user','--wait','--pipe','--collect','--unit='+unit]
+   for p in ('MemoryMax=4G','MemorySwapMax=0','CPUQuota=800%','TasksMax=256','RuntimeMaxSec=90min','LimitCORE=0'):cmd+=['-p',p]
+   cmd+=['--setenv=TMPDIR='+str(stage/'tmp'),'--setenv=ASAN_OPTIONS=detect_leaks=1:abort_on_error=1','--setenv=UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1','/usr/bin/taskset','-c','0,1,3,6,8,10,12,13','/usr/bin/python3',__file__,'--worker']
+   with (stage/'regressions.log').open('x') as out:subprocess.run(cmd,stdout=out,stderr=subprocess.STDOUT,check=True)
+  finally:
+   subprocess.run(['systemctl','--user','stop',unit],capture_output=True)
+   for n,data in originals.items():(cache/n).write_bytes(data)
+   report['trackedSourceRestored']=not subprocess.check_output(['git','-C',str(cache),'status','--porcelain'],text=True).strip();assert report['trackedSourceRestored'];save()
+  assert (stage/'regressions.log').read_text().count('100% tests passed')==2
+  report.update(passed=True,baselineAssertionFailureVerified=True,normalCases=len(freeze['cases']),sanitizerCases=len(freeze['cases']),sanitizerLeakDetection=True,logSha256=digest(stage/'regressions.log'))
+except BaseException as error:
+ if os.sys.argv[1:]==['--worker']:raise
+ report['error']=str(error);raise
+finally:
+ if os.sys.argv[1:]!=['--worker']:save()

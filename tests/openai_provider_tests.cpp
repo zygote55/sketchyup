@@ -130,8 +130,8 @@ class Network : public QNetworkAccessManager {
         check(!bytes.contains("sk-fixture-only"), "No credential in JSON");
         const auto body = QJsonDocument::fromJson(bytes).object();
         check(body.value("store") == false && body.value("stream") == plan &&
-                  body.value("parallel_tool_calls") == false,
-              "Stateless bounded serial function calling");
+                  body.value("parallel_tool_calls") == true,
+              "Stateless bounded inspection batches with serial host dispatch");
         requests.push_back(body);
         auto response = respond ? respond(body, calls++) : (++calls, Response{});
         if (plan && !rawStream) {
@@ -229,6 +229,55 @@ int main(int argc, char **argv) {
             result.allowedCommands = {"geometry.face"};
             return result;
         };
+        for (bool plan : {false, true}) {
+            auto model = session();
+            AssistantTask task(*model, options());
+            OpenAiConversation conversation(plan);
+            const auto next = task.nextRequest();
+            check(next.has_value(), "Initial remote codec request");
+            const auto wire = conversation.request(*next);
+            check(wire.value("parallel_tool_calls") == true,
+                  "Remote request advertises bounded parallel inspections");
+            const auto state =
+                model->execute({{"apiVersion", 1}, {"operation", "session.describe"}});
+            QJsonObject args{{"apiVersion", 1},
+                             {"query", "document.describe"},
+                             {"documentId", state.value("documentId")},
+                             {"expectedRevision", state.value("revision")}};
+            QJsonArray reads;
+            for (int i = 0; i < 8; ++i)
+                reads.append(call(wire, "document.describe", args, i));
+            auto accepted = conversation.decode(json(
+                QJsonObject{{"status", "completed"},
+                            {"output", reads},
+                            {"usage", QJsonObject{{"input_tokens", 100}, {"output_tokens", 40}}}}));
+            check(accepted.calls.size() == 8,
+                  "Eight advertised inspections fit the existing shared reply bound");
+            auto tooMany = reads;
+            tooMany.append(call(wire, "document.describe", args, 8));
+            rejects([&] {
+                conversation.decode(json(QJsonObject{
+                    {"status", "completed"},
+                    {"output", tooMany},
+                    {"usage", QJsonObject{{"input_tokens", 100}, {"output_tokens", 40}}}}));
+            });
+            auto stateful = reads;
+            stateful[0] = call(wire, "transaction.begin",
+                               QJsonObject{{"apiVersion", 1},
+                                           {"operation", "transaction.begin"},
+                                           {"documentId", state.value("documentId")},
+                                           {"expectedRevision", state.value("revision")}},
+                               20);
+            rejects([&] {
+                conversation.decode(json(QJsonObject{
+                    {"status", "completed"},
+                    {"output", stateful},
+                    {"usage", QJsonObject{{"input_tokens", 100}, {"output_tokens", 40}}}}));
+            });
+            check(model->execute({{"apiVersion", 1}, {"operation", "session.describe"}})
+                          .value("revision") == state.value("revision"),
+                  "Rejected mixed provider batch cannot execute or publish a mutation");
+        }
         {
             auto model = session();
             auto opts = options();
@@ -315,8 +364,11 @@ int main(int argc, char **argv) {
                         draft = receipt.value("data").toObject().value("transactionId").toString();
                     check(!draft.isEmpty(), "Draft created by real engine");
                     args["transactionId"] = draft;
-                    args["expectedVersion"] = turn == 2 ? 0 : 1;
-                    name = turn == 2 ? "transaction.apply" : "transaction.preview";
+                    if (turn != 3)
+                        args["expectedVersion"] = turn == 2 ? 0 : 1;
+                    name = turn == 2   ? "transaction.apply"
+                           : turn == 3 ? "transaction.inspect"
+                                       : "transaction.preview";
                     args["operation"] = name;
                     if (turn == 2) {
                         args["operationId"] = "face";
@@ -327,14 +379,49 @@ int main(int argc, char **argv) {
                                                    QJsonArray{2, 3, 0}, QJsonArray{0, 3, 0}}}}}};
                     }
                 }
-                check(turn < 4, "Provider stops at preview");
+                if (turn == 3) {
+                    const auto input = body.value("input").toArray();
+                    const auto receipt =
+                        QJsonDocument::fromJson(
+                            input.last().toObject().value("output").toString().toUtf8())
+                            .object();
+                    args["request"] =
+                        QJsonObject{{"apiVersion", 1},
+                                    {"query", "document.describe"},
+                                    {"documentId", state.value("documentId")},
+                                    {"expectedRevision",
+                                     receipt.value("data").toObject().value("proposedRevision")}};
+                }
+                if (turn == 4) {
+                    int receipts{};
+                    for (const auto &v : body.value("input").toArray()) {
+                        const auto item = v.toObject();
+                        if (item.value("type") == "function_call_output" &&
+                            QStringList{"call_30", "call_31", "call_32", "call_33"}.contains(
+                                item.value("call_id").toString())) {
+                            check(QJsonDocument::fromJson(item.value("output").toString().toUtf8())
+                                          .object()
+                                          .value("isError") == false,
+                                  "Each private inspection completed against the actual staged "
+                                  "model");
+                            ++receipts;
+                        }
+                    }
+                    check(receipts == 4, "All matching batched receipts replay before preview");
+                }
+                check(turn < 5, "Provider stops at preview");
                 const QJsonObject reasoning{{"type", "reasoning"},
                                             {"id", "rs_" + QString::number(turn)},
                                             {"summary", QJsonArray{}},
                                             {"encrypted_content", "opaque-fixture"}};
                 Response response;
-                response.bytes =
-                    json(completed(QJsonArray{reasoning, call(body, name, args, turn)}));
+                QJsonArray output{reasoning};
+                if (turn == 3)
+                    for (int i = 0; i < 4; ++i)
+                        output.append(call(body, name, args, 30 + i));
+                else
+                    output.append(call(body, name, args, turn));
+                response.bytes = json(completed(output));
                 return response;
             };
             OpenAiProvider provider(std::make_unique<AssistantTask>(*model, options()),
@@ -344,7 +431,7 @@ int main(int argc, char **argv) {
                 return provider.task().phase() == Phase::PreviewReady ||
                        provider.task().phase() == Phase::Failed;
             });
-            check(provider.task().phase() == Phase::PreviewReady && network.calls == 4,
+            check(provider.task().phase() == Phase::PreviewReady && network.calls == 5,
                   "Actual tool loop reaches sealed preview");
             check(provider.task().result().value("applied") == false,
                   "Provider never applies edits");
@@ -353,7 +440,7 @@ int main(int argc, char **argv) {
             for (auto item : input)
                 if (item.toObject().value("type") == "reasoning")
                     ++reasoning;
-            check(reasoning == 3, "All prior opaque reasoning items replayed");
+            check(reasoning == 4, "All prior opaque reasoning items replayed");
             provider.apply();
             check(provider.task().result().value("applied") == true,
                   "Host Apply commits actual staged result");

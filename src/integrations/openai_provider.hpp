@@ -2,6 +2,7 @@
 #include "integrations/provider_transport.hpp"
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QSet>
 #include <memory>
 namespace sketchy {
 // One codec belongs to one task. It retains opaque provider output only in memory.
@@ -15,6 +16,7 @@ class OpenAiConversation {
   private:
     bool chatGptPlan_{};
     QMap<QString, QString> names_;
+    QSet<QString> inspectionNames_;
     std::vector<QJsonArray> outputs_;
     QJsonArray candidate_;
     qsizetype retainedBytes_{};

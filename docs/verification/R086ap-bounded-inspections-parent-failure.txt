@@ -1,0 +1,13 @@
+Test project /home/keith/projects/sketchyup-style-ci/build/environment
+    Start 86: openai_provider
+1/1 Test #86: openai_provider ..................***Failed    0.10 sec
+Remote request advertises bounded parallel inspections
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.10 sec
+
+The following tests FAILED:
+	 86 - openai_provider (Failed)
+Errors while running CTest
