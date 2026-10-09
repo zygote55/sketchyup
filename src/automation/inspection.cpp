@@ -164,12 +164,12 @@ const std::vector<Spec> &registry() {
 }
 // Only the schema vocabulary emitted above is accepted; all document, uint64,
 // context and cross-field constraints are subsequently checked authoritatively.
-void validate(const QJsonValue &value, const QJsonObject &schema) {
+void validate(const QJsonValue &value, const QJsonObject &schema, const QString &path = {}) {
     if (schema.contains("oneOf")) {
         int matched = 0;
         for (const auto &choice : schema["oneOf"].toArray()) {
             try {
-                validate(value, choice.toObject());
+                validate(value, choice.toObject(), path);
                 ++matched;
             } catch (const InspectionError &) {
             }
@@ -182,7 +182,7 @@ void validate(const QJsonValue &value, const QJsonObject &schema) {
             auto choice = schema;
             choice["type"] = type;
             try {
-                validate(value, choice);
+                validate(value, choice, path);
                 return;
             } catch (const InspectionError &) {
             }
@@ -202,18 +202,24 @@ void validate(const QJsonValue &value, const QJsonObject &schema) {
             (schema.contains("maxProperties") && fields.size() > schema["maxProperties"].toInt()))
             fail("LIMIT_EXCEEDED", "Object property count exceeds supported bounds");
         for (const auto &required : schema["required"].toArray())
-            if (!fields.contains(required.toString()))
-                fail("INVALID_REQUEST", "Missing parameter");
+            if (!fields.contains(required.toString())) {
+                // The path contains schema field names, never values supplied by the caller.
+                const auto field = required.toString().replace('~', "~0").replace('/', "~1");
+                throw InspectionError(
+                    "INVALID_REQUEST",
+                    ("Missing required parameter at " + path + '/' + field).toStdString());
+            }
         for (auto it = fields.begin(); it != fields.end(); ++it) {
             if (schema.contains("propertyNames")) {
                 auto names = schema["propertyNames"].toObject();
                 names["type"] = "string";
-                validate(it.key(), names);
+                validate(it.key(), names, path);
             }
             if (properties.contains(it.key()))
-                validate(it.value(), properties[it.key()].toObject());
+                validate(it.value(), properties[it.key()].toObject(),
+                         path + '/' + QString(it.key()).replace('~', "~0").replace('/', "~1"));
             else if (schema["additionalProperties"].isObject())
-                validate(it.value(), schema["additionalProperties"].toObject());
+                validate(it.value(), schema["additionalProperties"].toObject(), path + "/value");
             else if (schema["additionalProperties"] == false)
                 fail("INVALID_REQUEST", "Unknown parameter");
         }
@@ -224,8 +230,9 @@ void validate(const QJsonValue &value, const QJsonObject &schema) {
         if ((schema.contains("minItems") && values.size() < schema["minItems"].toInt()) ||
             (schema.contains("maxItems") && values.size() > schema["maxItems"].toInt()))
             fail("LIMIT_EXCEEDED", "Array length outside supported bounds");
-        for (const auto &item : values)
-            validate(item, schema["items"].toObject());
+        for (qsizetype index = 0; index < values.size(); ++index)
+            validate(values[index], schema["items"].toObject(),
+                     path + '/' + QString::number(index));
     } else if (type == "string") {
         if (!value.isString())
             fail("INVALID_REQUEST", "Expected string");

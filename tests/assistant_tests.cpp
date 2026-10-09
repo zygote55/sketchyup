@@ -92,6 +92,30 @@ struct Driver {
                                               {{"transactionId", draft}, {"expectedVersion", 1}}));
     }
 };
+QJsonObject hostBinding(const QJsonObject &request) {
+    const auto system = request.value("system").toString();
+    const QString marker = "\nHost task binding: ";
+    const auto start = system.lastIndexOf(marker);
+    check(start >= 0, "Provider receives explicit host task binding");
+    QJsonParseError error;
+    const auto parsed = QJsonDocument::fromJson(system.mid(start + marker.size()).toUtf8(), &error);
+    check(error.error == QJsonParseError::NoError && parsed.isObject(),
+          "Host task identifiers are escaped JSON strings");
+    return parsed.object();
+}
+QJsonObject hostBudget(const QJsonObject &request) {
+    const auto system = request.value("system").toString();
+    const QString marker = "\nHost task budget: ";
+    const auto start = system.lastIndexOf(marker);
+    const auto end = system.indexOf("\nHost task binding: ", start);
+    check(start >= 0 && end > start, "Provider receives a separate trusted task budget");
+    QJsonParseError error;
+    const auto parsed = QJsonDocument::fromJson(
+        system.mid(start + marker.size(), end - start - marker.size()).toUtf8(), &error);
+    check(error.error == QJsonParseError::NoError && parsed.isObject(),
+          "Task budget is bounded JSON");
+    return parsed.object();
+}
 struct ActorBackend {
     TransactionCoordinator actor;
     TransactionDispatcher dispatch;
@@ -127,6 +151,10 @@ int main(int argc, char **argv) {
             const auto s = state(*model);
             AssistantTask task(*model, options());
             Driver driver(task);
+            const QJsonObject binding{{"documentId", s["documentId"]},
+                                      {"expectedRevision", s["revision"]}};
+            check(hostBinding(*driver.pending) == binding,
+                  "Advertised task binding matches the document and guarded revision");
             auto description = driver.tool("document.describe", query(s, "document.describe"));
             check(description["documentId"] == s["documentId"], "Live bounded inspection works");
             const auto draft = driver.begin(s);
@@ -134,6 +162,8 @@ int main(int argc, char **argv) {
             const auto body = staged["createdIds"].toObject()["created"].toArray()[0].toString();
             auto proposed = s;
             proposed["revision"] = staged["proposedRevision"];
+            check(proposed["revision"] != s["revision"] && hostBinding(*driver.pending) == binding,
+                  "Private draft revision does not replace the top-level task binding");
             const auto target = QJsonObject{{"documentId", s["documentId"]},
                                             {"contextPath", QJsonArray{}},
                                             {"body", body},
@@ -141,6 +171,22 @@ int main(int argc, char **argv) {
                                             {"id", body}};
             const auto measure =
                 query(proposed, "measure.entity", {{"target", target}, {"space", "world"}});
+            auto staleMeasure = measure;
+            staleMeasure["expectedRevision"] = s["revision"];
+            const auto staleReceipt = driver.tool(
+                "transaction.inspect",
+                op(s, "transaction.inspect", {{"transactionId", draft}, {"request", staleMeasure}}),
+                true);
+            check(staleReceipt["code"] == "STALE_REVISION" &&
+                      staleReceipt["revisionScope"] == "private-draft" &&
+                      !staleReceipt["retry"].toString().isEmpty() &&
+                      state(*model)["revision"] == s["revision"] &&
+                      !task.result()["applied"].toBool(),
+                  "Incorrect private revision is a retryable receipt without public effects");
+            const auto described = driver.tool(
+                "transaction.describe", op(s, "transaction.describe", {{"transactionId", draft}}));
+            check(described["proposedRevision"] == proposed["revision"],
+                  "Provider can inspect the actual private revision before retrying");
             const auto measured = driver.tool(
                 "transaction.inspect",
                 op(s, "transaction.inspect", {{"transactionId", draft}, {"request", measure}}));
@@ -162,6 +208,124 @@ int main(int argc, char **argv) {
                 query(state(*model), "measure.entity", {{"target", target}, {"space", "world"}}));
             check(live["data"].toObject()["area"] == 6,
                   "Committed measurement matches private verification");
+        }
+        {
+            // Incorrect public bindings and foreign nested documents remain terminal errors.
+            for (int kind = 0; kind < 3; ++kind) {
+                auto model = session();
+                auto other = session();
+                const auto s = state(*model);
+                AssistantTask task(*model, options());
+                Driver driver(task);
+                const auto draft = driver.begin(s);
+                driver.stage(s, draft);
+                auto request =
+                    op(s, "transaction.inspect",
+                       {{"transactionId", draft}, {"request", query(s, "document.describe")}});
+                QString name = "transaction.inspect";
+                if (kind == 0)
+                    request["documentId"] = state(*other)["documentId"];
+                else if (kind == 1)
+                    request["request"] = query(
+                        QJsonObject{{"documentId", state(*other)["documentId"]}, {"revision", "1"}},
+                        "document.describe");
+                else {
+                    name = "document.describe";
+                    request = query(s, name);
+                    request["expectedRevision"] = "999";
+                }
+                AssistantReply reply;
+                reply.calls.push_back({"invalid-binding", name, request});
+                check(!task.accept(driver.pending->value("attemptId").toString(), reply) &&
+                          task.phase() == (kind == 2 ? AssistantTask::Phase::Stale
+                                                     : AssistantTask::Phase::Failed) &&
+                          state(*model)["revision"] == s["revision"] &&
+                          !task.result()["applied"].toBool(),
+                      "Retry handling preserves public revision and document identity guards");
+            }
+        }
+        {
+            ActorBackend fixture(files.path() + "/private-inspection-public-edit");
+            const auto original = fixture.backend();
+            auto backend = original;
+            backend.call = [&](const QJsonObject &request) {
+                if (request["operation"] == "transaction.inspect")
+                    fixture.actor.edit(
+                        [](Document &doc) { doc.setDisplayUnits(DisplayUnit::Millimeters); });
+                return original.call(request);
+            };
+            const auto s = fixture.state();
+            AssistantTask task(backend, options());
+            Driver driver(task);
+            const auto draft = driver.begin(s);
+            driver.stage(s, draft);
+            AssistantReply reply;
+            reply.calls.push_back(
+                {"concurrent-edit", "transaction.inspect",
+                 op(s, "transaction.inspect",
+                    {{"transactionId", draft}, {"request", query(s, "document.describe")}})});
+            check(!task.accept(driver.pending->value("attemptId").toString(), reply) &&
+                      task.phase() == AssistantTask::Phase::Stale &&
+                      fixture.actor.document().revision() == 1 &&
+                      fixture.actor.document().history().total == 1 &&
+                      !task.result()["applied"].toBool(),
+                  "Public edit during private inspection invalidates and retires assistant work");
+        }
+        {
+            for (int count : {8, 9}) {
+                ActorBackend fixture(files.path() + "/batch-" + QString::number(count));
+                const auto s = fixture.state();
+                const auto bytes = encodeContainer(fixture.actor.document());
+                AssistantTask task(fixture.backend(), options());
+                const auto pending = task.nextRequest();
+                check(bool(pending), "Provider batch request available");
+                AssistantReply reply;
+                for (int index = 0; index < count; ++index)
+                    reply.calls.push_back({QString::number(index), "document.describe",
+                                           query(s, "document.describe")});
+                const auto accepted = task.accept(pending->value("attemptId").toString(), reply);
+                check(accepted == (count == 8) &&
+                          task.phase() == (count == 8 ? AssistantTask::Phase::Ready
+                                                      : AssistantTask::Phase::Failed) &&
+                          task.result()["toolCalls"] == (count == 8 ? 8 : 0) &&
+                          encodeContainer(fixture.actor.document()) == bytes,
+                      "Eight valid calls fit the batch bound; a ninth executes none");
+            }
+        }
+        {
+            ActorBackend fixture(files.path() + "/long-plan");
+            auto settings = options();
+            settings.limits.toolCalls = 13;
+            const auto initial = encodeContainer(fixture.actor.document());
+            const auto s = fixture.state();
+            AssistantTask task(fixture.backend(), settings);
+            Driver driver(task);
+            for (int index = 0; index < 9; ++index) {
+                const auto budget = hostBudget(*driver.pending);
+                check(budget["toolCallsPerReply"] == 8 &&
+                          budget["remainingToolCalls"] == 13 - index &&
+                          budget["remainingProviderTurns"] == settings.limits.turns - index &&
+                          budget["remainingReportedTokens"] ==
+                              QString::number(settings.limits.totalReportedTokens - index * 15) &&
+                          !budget["privateDraftOpen"].toBool(),
+                      "Whole-task budget remains available beyond eight separate replies");
+                driver.tool("document.describe", query(s, "document.describe"));
+            }
+            const auto draft = driver.begin(s);
+            check(hostBudget(*driver.pending)["privateDraftOpen"].toBool(),
+                  "Trusted task budget identifies an open private draft");
+            driver.stage(s, draft);
+            driver.seal(s, draft);
+            check(task.phase() == AssistantTask::Phase::PreviewReady &&
+                      task.result()["toolCalls"] == 12 &&
+                      encodeContainer(fixture.actor.document()) == initial,
+                  "Long plan seals its private preview without applying public changes");
+            task.apply();
+            check(task.phase() == AssistantTask::Phase::Completed &&
+                      task.result()["applied"].toBool() &&
+                      fixture.actor.document().bodies().size() == 1 &&
+                      fixture.actor.document().history().total == 1,
+                  "Long-plan edits publish only on explicit host Apply");
         }
         {
             ActorBackend fixture(files.path() + "/history");

@@ -1,0 +1,6 @@
+arch	UNKNOWN STEP	2026-10-08T06:16:53.1918700Z could not load cursor 'dnd-none'
+arch	UNKNOWN STEP	2026-10-08T06:16:53.1940612Z could not load cursor 'dnd-copy'
+arch	UNKNOWN STEP	2026-10-08T06:16:53.1940951Z could not load cursor 'dnd-none'
+arch	UNKNOWN STEP	2026-10-08T06:16:53.8629767Z Could not write save: No space left on device
+arch	UNKNOWN STEP	2026-10-08T06:16:53.9821315Z                surfaceless context: yes
+arch	UNKNOWN STEP	2026-10-08T06:16:53.9821701Z                dmabuf support: modifiers

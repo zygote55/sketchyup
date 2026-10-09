@@ -1,0 +1,13 @@
+Test project /home/keith/projects/sketchyup-style-ci/build/environment
+    Start 145: inspection
+1/1 Test #145: inspection .......................***Failed    0.03 sec
+Missing nested field identifies the schema path without document effects
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.04 sec
+
+The following tests FAILED:
+	145 - inspection (Failed)
+Errors while running CTest

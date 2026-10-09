@@ -1,0 +1,29 @@
+{
+  "publicHostCandidate": "8c1bb043d4045297c67e2965e07c14cb6c3b47c1",
+  "binarySha256": "db8c2afb409960e12d4c452d160055039ce8f1b5cae8b41734bdddd1923be33a",
+  "manifestSha256": "014105ffbd2f1e3aaca3182d4592d8ae765cf82f72362006c3eeb972004073d7",
+  "privateLocalProfileFiles": {
+    "src/integrations/ollama_provider.hpp": "48929893c4d33d414b498ef7ce7c4245814902a2719912f0700de7cecb715cc5",
+    "src/integrations/ollama_provider.cpp": "dc5dffe84992f1640bbad37502168be028b1f5b9c354a0d7f974470117921d7a",
+    "tests/ollama_provider_tests.cpp": "0184cd0d15de9abfe3d2b8f76b629a94aa7c64d59f9a4540a8650013ace9644e",
+    "tests/local_provider_trial.cpp": "970362bb4895987e9900c599f60bfed4be618e212ddf691cdea68d9e619ca9d4"
+  },
+  "taskPromptsAndOraclesUnchanged": true,
+  "normalAndSanitizerCasesPerVariant": 6,
+  "sanitizerLeakDetection": true,
+  "profile": "chatgpt-astra",
+  "model": "gpt-6-astra",
+  "startedAt": "2026-10-08T10:32:16Z",
+  "sourceFreezeSha256": "9266ace07431478577e7f1435d8c8496807e08b9e686a5ca3467575f4f359c4c",
+  "promptsAndOraclesUnchanged": true,
+  "limits": {
+    "model": "gpt-6-astra",
+    "connection": "chatgpt-plan",
+    "outputTokens": 8192,
+    "turns": 16,
+    "reportedTokens": 262144,
+    "deadlineSeconds": 300
+  },
+  "rawEvidencePrivate": true,
+  "realSettingsReadOnly": true
+}
