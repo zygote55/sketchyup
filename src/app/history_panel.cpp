@@ -33,6 +33,9 @@ HistoryPanel::HistoryPanel(Document &doc, Viewport &view, QWidget *parent)
     });
     steps_ = new QTreeWidget;
     steps_->setObjectName("historySteps");
+    steps_->setAccessibleName("Edit history");
+    steps_->setAccessibleDescription(
+        "Select a step to read its details. Press Enter to restore that step.");
     steps_->setRootIsDecorated(false);
     steps_->setHeaderLabels({"Action", "State"});
     steps_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -70,6 +73,7 @@ HistoryPanel::HistoryPanel(Document &doc, Viewport &view, QWidget *parent)
     });
     details_ = new QPlainTextEdit;
     details_->setObjectName("historyDetails");
+    details_->setAccessibleName("Selected history step details");
     details_->setReadOnly(true);
     details_->setMaximumHeight(130);
     layout->addWidget(details_);

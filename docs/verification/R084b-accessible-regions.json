@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-07",
+  "implementation": "651ba21",
+  "integration": "7211bd1321f35b89f777a8f930e91a52c194adf8",
+  "checks": [
+    {
+      "target": "native_accessibility_audit",
+      "platform": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 2.353,
+      "contexts": 24,
+      "unnamed": 0,
+      "f6Steps": 12
+    },
+    {
+      "target": "native_accessibility_audit",
+      "platform": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 4.088,
+      "contexts": 24,
+      "unnamed": 0,
+      "f6Steps": 12
+    },
+    {
+      "target": "history_input_tests",
+      "platform": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 3.124
+    }
+  ],
+  "releaseAcceptance": false
+}
