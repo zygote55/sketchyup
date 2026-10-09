@@ -165,8 +165,8 @@ class Network : public QNetworkAccessManager {
         check(!bytes.contains("sk-fixture-only"), "No credential in JSON");
         const auto body = QJsonDocument::fromJson(bytes).object();
         check(body.value("store") == false && body.value("stream") == false &&
-                  body.value("parallel_tool_calls") == false,
-              "Stateless bounded serial function calling");
+                  body.value("parallel_tool_calls") == true,
+              "Stateless requests advertise bounded read-only inspection batching");
         requests.push_back(body);
         const auto response = respond ? respond(body, calls++) : (++calls, Response{});
         return new Reply(request, response, aborts, this);

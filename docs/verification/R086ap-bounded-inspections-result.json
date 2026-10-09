@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "source": "e66dcfd38ce6a13d32c6aa80d6f5809752bb8555",
+  "releaseAcceptance": false,
+  "normalCases": 14,
+  "sanitizerCases": 14,
+  "liveProviderRevalidated": false,
+  "trackedSourceRestored": true,
+  "baselineAssertionFailureVerified": true,
+  "sanitizerLeakDetection": true,
+  "logSha256": "0cfefb84a4354e3cb5b81ee91c64b2f4ecf5b52182f73e13b05cb9a05ddb1337"
+}

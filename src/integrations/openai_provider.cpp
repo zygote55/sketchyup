@@ -37,6 +37,7 @@ QJsonObject OpenAiConversation::request(const QJsonObject &source) {
     require(QRegularExpression("^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$").match(model).hasMatch(),
             "Configure a valid explicit OpenAI model ID");
     names_.clear();
+    inspectionNames_.clear();
     QJsonArray tools;
     for (auto value : source.value("tools").toArray()) {
         const auto entry = value.toObject();
@@ -44,6 +45,11 @@ QJsonObject OpenAiConversation::request(const QJsonObject &source) {
         const auto name = entry.value("name").toString();
         require(!name.isEmpty() && !names_.values().contains(name), "Invalid tool catalog");
         names_[alias] = name;
+        const auto properties =
+            entry.value("inputSchema").toObject().value("properties").toObject();
+        if (properties.value("query").toObject().value("const") == name ||
+            name == "transaction.inspect")
+            inspectionNames_.insert(name);
         tools.append(
             QJsonObject{{"type", "function"},
                         {"name", alias},
@@ -85,7 +91,7 @@ QJsonObject OpenAiConversation::request(const QJsonObject &source) {
                      {"input", input},
                      {"tools", tools},
                      {"tool_choice", "auto"},
-                     {"parallel_tool_calls", false},
+                     {"parallel_tool_calls", true},
                      {"max_output_tokens", maximum},
                      {"store", false},
                      {"stream", false},
@@ -128,7 +134,7 @@ AssistantReply OpenAiConversation::decode(const QByteArray &response) {
             reply.calls.push_back({item.value("call_id").toString(),
                                    names_.value(item.value("name").toString()),
                                    parse(item.value("arguments").toString().toUtf8())});
-            require(reply.calls.size() <= 1, "Parallel tool replies are disabled");
+            require(reply.calls.size() <= 8, "Inspection batch exceeds the shared reply limit");
         } else if (type == "message") {
             require(item.value("role") == "assistant" && item.value("status") == "completed" &&
                         item.value("content").isArray(),
@@ -148,6 +154,13 @@ AssistantReply OpenAiConversation::decode(const QByteArray &response) {
             require(type == "reasoning", "Unrequested provider tool output");
     }
     require(!reply.calls.empty() || !reply.text.isEmpty(), "Provider returned no usable response");
+    // The host still dispatches sequentially under its unchanged task budget,
+    // revision, ownership and preview guards. Batches are restricted to reads;
+    // no state-changing call can be accepted as part of a multi-call reply.
+    if (reply.calls.size() > 1)
+        for (const auto &call : reply.calls)
+            require(inspectionNames_.contains(call.name),
+                    "Multiple provider calls must be read-only inspections");
     candidate_ = output;
     return reply;
 }
