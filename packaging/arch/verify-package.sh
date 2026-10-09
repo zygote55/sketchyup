@@ -12,9 +12,16 @@ sed -i '/^[[:space:]]*NoExtract[[:space:]]*=/s@usr/share/doc/\*@@g' /etc/pacman.
 pacman -S --noconfirm --needed desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu
 chown -R builder:builder /work/package
 cp PKGBUILD PKGBUILD.current
-sed -i 's/^pkgrel=2$/pkgrel=1/' PKGBUILD
+trap 'if [[ -f PKGBUILD.current ]]; then mv PKGBUILD.current PKGBUILD; chown builder:builder PKGBUILD; fi' EXIT
+package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
+[[ $package_release =~ ^[1-9][0-9]*$ && $package_release -ge 2 ]] || {
+  echo 'Package acceptance requires an integer pkgrel of at least two.' >&2
+  exit 1
+}
+prior_release=$((package_release - 1))
+sed -i "s/^pkgrel=$package_release$/pkgrel=$prior_release/" PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" makepkg --noconfirm --force
-pacman -U --noconfirm sketchyup-0.1.0-1-x86_64.pkg.tar.zst
+pacman -U --noconfirm "sketchyup-0.1.0-$prior_release-x86_64.pkg.tar.zst"
 pacman -Qkk sketchyup
 test -s /usr/share/doc/sketchyup/decisions/0029-native-mcp.md
 QT_QPA_PLATFORM=offscreen sketchyup --mcp-inspection-capabilities | jq -S . > /work/package/mcp-native-installed.json
@@ -125,7 +132,7 @@ mv PKGBUILD.current PKGBUILD
 chown builder:builder PKGBUILD
 cp /work/acceptance/config/SketchyUp/SketchyUp.conf /work/acceptance/preferences-before-upgrade.conf
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" makepkg --noconfirm --force --nocheck
-pacman -U --noconfirm sketchyup-0.1.0-2-x86_64.pkg.tar.zst
+pacman -U --noconfirm "sketchyup-0.1.0-$package_release-x86_64.pkg.tar.zst"
 pacman -Qkk sketchyup
 runuser -u builder -- sketchyup-cli --input '/work/acceptance/Room model.sketchyup' > /work/acceptance/reopened.json
 cmp /work/acceptance/expected.json /work/acceptance/reopened.json

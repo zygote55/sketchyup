@@ -1,0 +1,1992 @@
+warning: xdg-utils-1.2.1-2 is up to date -- skipping
+resolving dependencies...
+looking for conflicting packages...
+
+Package (11)                  New Version          Net Change  Download Size
+
+extra/oniguruma               6.9.10-1               0.88 MiB       0.22 MiB
+extra/perl-encode-locale      1.05-15                0.02 MiB       0.01 MiB
+extra/perl-file-basedir       0.09-7                 0.02 MiB       0.01 MiB
+extra/perl-file-desktopentry  0.23-1                 0.03 MiB       0.02 MiB
+extra/perl-ipc-system-simple  1.30-9                 0.04 MiB       0.02 MiB
+extra/perl-mime-base32        1.303-13               0.01 MiB       0.01 MiB
+extra/perl-uri                5.37-1                 0.22 MiB       0.10 MiB
+extra/desktop-file-utils      0.28-1                 0.18 MiB       0.04 MiB
+extra/jq                      1.8.2-1                0.47 MiB       0.20 MiB
+extra/perl-file-mimeinfo      0.37-1                 0.08 MiB       0.04 MiB
+extra/ttf-dejavu              2.37+18+g9b5d1b2f-8    9.79 MiB       2.61 MiB
+
+Total Download Size:    3.27 MiB
+Total Installed Size:  11.72 MiB
+
+:: Proceed with installation? [Y/n] 
+:: Retrieving packages...
+ ttf-dejavu-2.37+18+g9b5d1b2f-8-any downloading...
+ oniguruma-6.9.10-1-x86_64 downloading...
+ jq-1.8.2-1-x86_64 downloading...
+ perl-uri-5.37-1-any downloading...
+ desktop-file-utils-0.28-1-x86_64 downloading...
+ perl-file-mimeinfo-0.37-1-any downloading...
+ perl-ipc-system-simple-1.30-9-any downloading...
+ perl-file-desktopentry-0.23-1-any downloading...
+ perl-file-basedir-0.09-7-any downloading...
+ perl-encode-locale-1.05-15-any downloading...
+ perl-mime-base32-1.303-13-any downloading...
+checking keyring...
+checking package integrity...
+loading package files...
+checking for file conflicts...
+:: Processing package changes...
+installing desktop-file-utils...
+installing perl-encode-locale...
+installing perl-ipc-system-simple...
+installing perl-file-basedir...
+installing perl-mime-base32...
+installing perl-uri...
+installing perl-file-desktopentry...
+installing perl-file-mimeinfo...
+installing oniguruma...
+installing jq...
+installing ttf-dejavu...
+:: Running post-transaction hooks...
+(1/3) Arming ConditionNeedsUpdate...
+(2/3) Updating fontconfig configuration...
+(3/3) Updating fontconfig cache...
+==> Making package: sketchyup 0.1.0-2 (Wed Oct  7 23:29:14 2026)
+==> Checking runtime dependencies...
+==> Checking buildtime dependencies...
+==> Retrieving sources...
+  -> Found sketchyup-0.1.0.tar.gz
+==> Validating source files with sha256sums...
+    sketchyup-0.1.0.tar.gz ... Passed
+==> Extracting sources...
+  -> Extracting sketchyup-0.1.0.tar.gz with bsdtar
+==> Starting build()...
+-- The CXX compiler identification is GNU 16.2.1
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/sbin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Performing Test HAVE_STDATOMIC
+-- Performing Test HAVE_STDATOMIC - Success
+-- Found WrapAtomic: TRUE
+-- Found OpenGL: /usr/lib/libOpenGL.so
+-- Found WrapOpenGL: TRUE
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Found OpenSSL: /usr/lib/libcrypto.so (found suitable version "3.6.5", minimum required is "3") found components: Crypto
+-- Found Python3: /usr/sbin/python3.14 (found version "3.14.7") found components: Interpreter
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Found PkgConfig: /usr/sbin/pkg-config (found version "3.0.7")
+-- Checking for module 'wayland-client'
+--   Found wayland-client, version 1.26.0
+-- Configuring done (1.8s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build
+[1/618] Building CXX object CMakeFiles/clipper2.dir/third_party/clipper2/src/clipper.offset.cpp.o
+[2/618] Building CXX object CMakeFiles/clipper2.dir/third_party/clipper2/src/clipper.engine.cpp.o
+[3/618] Building CXX object CMakeFiles/clipper2.dir/third_party/clipper2/src/clipper.rectclip.cpp.o
+[4/618] Building CXX object CMakeFiles/clipper2.dir/third_party/clipper2/src/clipper.triangulation.cpp.o
+[5/618] Building CXX object CMakeFiles/sketchyup_solar.dir/src/solar/solar.cpp.o
+[6/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/boolean3.cpp.o
+[7/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/boolean_result.cpp.o
+[8/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/constructors.cpp.o
+[9/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/csg_tree.cpp.o
+[10/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/edge_op.cpp.o
+[11/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/face_op.cpp.o
+[12/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/manifold.cpp.o
+[13/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/minkowski.cpp.o
+[14/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/impl.cpp.o
+[15/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/polygon.cpp.o
+[16/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/properties.cpp.o
+[17/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/sdf.cpp.o
+[18/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/quickhull.cpp.o
+[19/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/smoothing.cpp.o
+[20/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/sort.cpp.o
+[21/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/tree2d.cpp.o
+[22/618] Building CXX object CMakeFiles/sketchyup_cgltf.dir/third_party/cgltf/cgltf.cpp.o
+[23/618] Linking CXX static library libclipper2.a
+[24/618] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/subdivision.cpp.o
+[25/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/measured_view.cpp.o
+[26/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/camera_motion.cpp.o
+[27/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/reference_image.cpp.o
+[28/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/text_source.cpp.o
+[29/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/reference_images.cpp.o
+[30/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/annotation_records.cpp.o
+[31/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/annotations.cpp.o
+[32/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/annotation_anchors.cpp.o
+[33/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/section_records.cpp.o
+[34/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/sections.cpp.o
+[35/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/section.cpp.o
+[36/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/scene_records.cpp.o
+[37/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/scenes.cpp.o
+[38/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/texture_mapping.cpp.o
+[39/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/face_textures.cpp.o
+[40/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/host_regeneration.cpp.o
+[41/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/hosted_components.cpp.o
+[42/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_glue.cpp.o
+[43/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_placement.cpp.o
+[44/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/hosted_opening.cpp.o
+[45/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/diagnostics.cpp.o
+[46/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/shading_normals.cpp.o
+[47/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/edge_appearance.cpp.o
+[48/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/face_orientation.cpp.o
+[49/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/orientation.cpp.o
+[50/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/solid_operations.cpp.o
+[51/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/solid_boolean.cpp.o
+[52/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/boolean.cpp.o
+[53/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/intersection_edit.cpp.o
+[54/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/profile_sweep.cpp.o
+[55/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/prepared_edit.cpp.o
+[56/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/history.cpp.o
+[57/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/solid.cpp.o
+[58/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/entity_measure.cpp.o
+[59/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/intersection.cpp.o
+[60/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/tags.cpp.o
+[61/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/asset_records.cpp.o
+[62/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/assets.cpp.o
+[63/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/material_records.cpp.o
+[64/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/tag_records.cpp.o
+[65/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/materials.cpp.o
+[66/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[67/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_records.cpp.o
+[68/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/appearance.cpp.o
+[69/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/consolidation.cpp.o
+[70/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/geometry_subset.cpp.o
+[71/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/groups.cpp.o
+[72/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/transform_selection.cpp.o
+[73/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/copy_array.cpp.o
+[74/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/selection.cpp.o
+[75/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/transform.cpp.o
+[76/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/surface.cpp.o
+[77/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/arrangement.cpp.o
+[78/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/model.cpp.o
+[79/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/topology.cpp.o
+[80/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/planar.cpp.o
+[81/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/offset.cpp.o
+[82/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/sweep.cpp.o
+[83/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/cleanup.cpp.o
+[84/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/drawing.cpp.o
+[85/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/push_pull.cpp.o
+[86/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/curves.cpp.o
+[87/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/inference.cpp.o
+[88/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/constraints.cpp.o
+[89/618] Linking CXX static library libsketchyup_solar.a
+[90/618] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/guides.cpp.o
+[91/618] Linking CXX static library third_party/manifold/libsketchyup_manifold.a
+[92/618] Linking CXX static library libsketchyup_cgltf.a
+[93/618] Linking CXX static library libsketchyup_core.a
+[94/618] Building CXX object CMakeFiles/sketchyup_environment.dir/src/integrations/render_environment.cpp.o
+[95/618] Linking CXX static library libsketchyup_environment.a
+[96/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/optional_capabilities.cpp.o
+[97/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/extension_worker.cpp.o
+[98/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/extension_store.cpp.o
+[99/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/extension.cpp.o
+[100/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/library_catalog.cpp.o
+[101/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/library_bundle.cpp.o
+[102/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/component_library.cpp.o
+[103/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/measured_request.cpp.o
+[104/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/measured_export.cpp.o
+[105/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/measured_drawing.cpp.o
+[106/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/dxf_export.cpp.o
+[107/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/dxf_source.cpp.o
+[108/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/dxf_import.cpp.o
+[109/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/new_file.cpp.o
+[110/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/stl_export.cpp.o
+[111/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/stl_source.cpp.o
+[112/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/stl_import.cpp.o
+[113/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/obj_export.cpp.o
+[114/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/obj_import.cpp.o
+[115/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/obj_material.cpp.o
+[116/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/obj_source.cpp.o
+[117/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/gltf_package.cpp.o
+[118/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/gltf_import.cpp.o
+[119/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/native_format.cpp.o
+[120/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/integrations/animation_capture.cpp.o
+[121/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/reference_image_io.cpp.o
+[122/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/reference_image_commands.cpp.o
+[123/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/solar_commands.cpp.o
+[124/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/solar_io.cpp.o
+[125/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/text_source_io.cpp.o
+[126/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/text_commands.cpp.o
+[127/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/annotation_commands.cpp.o
+[128/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/text/text_worker.cpp.o
+[129/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/section_commands.cpp.o
+[130/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/scene_commands.cpp.o
+[131/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/scenes_io.cpp.o
+[132/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/annotations_io.cpp.o
+[133/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/sections_io.cpp.o
+[134/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/model_style_io.cpp.o
+[135/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/texture_commands.cpp.o
+[136/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/site_recipe.cpp.o
+[137/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/furniture_recipe.cpp.o
+[138/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/stair_recipe.cpp.o
+[139/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/roof_recipe.cpp.o
+[140/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/measurement_assertions.cpp.o
+[141/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/hosted_commands.cpp.o
+[142/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/hosted_components_io.cpp.o
+[143/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/native_assistant_session.cpp.o
+[144/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/integrations/render_snapshot.cpp.o
+[145/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/integrations/glb_export.cpp.o
+[146/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/model_recipes.cpp.o
+[147/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/assistant.cpp.o
+[148/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/local_mcp.cpp.o
+[149/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/mcp.cpp.o
+[150/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/recipe.cpp.o
+[151/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/session.cpp.o
+[152/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/transactions.cpp.o
+[153/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/transaction_catalog.cpp.o
+[154/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/transaction_coordinator.cpp.o
+[155/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/outcome_store.cpp.o
+[156/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/staging.cpp.o
+[157/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/inspection_session.cpp.o
+[158/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/history.cpp.o
+[159/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/inspection.cpp.o
+[160/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/recovery.cpp.o
+[161/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/formline.cpp.o
+[162/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/entity_info.cpp.o
+[163/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/assets.cpp.o
+[164/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/texture_image.cpp.o
+[165/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/document_io.cpp.o
+[166/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/container.cpp.o
+[167/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/save.cpp.o
+[168/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/component_scope.cpp.o
+[169/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/commands.cpp.o
+[170/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/catalog.cpp.o
+[171/618] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/measurements.cpp.o
+[172/618] Linking CXX static library libsketchyup_io.a
+[173/618] Automatic MOC for target sketchyup_render
+[174/618] Automatic MOC for target sketchyup_providers
+[175/618] Running rcc for resource blender_worker
+[176/618] Building CXX object CMakeFiles/sketchyup_text.dir/src/text/text_geometry.cpp.o
+[177/618] Linking CXX static library libsketchyup_text.a
+[178/618] Building CXX object CMakeFiles/sketchyup_shortcuts.dir/src/app/shortcut_bindings.cpp.o
+[179/618] Building CXX object CMakeFiles/sketchyup-extension-worker.dir/src/automation/extension_worker_main.cpp.o
+[180/618] Building CXX object CMakeFiles/sketchyup-text-worker.dir/src/text/worker_main.cpp.o
+[181/618] Building CXX object CMakeFiles/sketchyup_render.dir/sketchyup_render_autogen/mocs_compilation.cpp.o
+[182/618] Building CXX object CMakeFiles/sketchyup_render.dir/src/integrations/animation_export.cpp.o
+[183/618] Building CXX object CMakeFiles/sketchyup_render.dir/src/integrations/render_queue.cpp.o
+[184/618] Building CXX object CMakeFiles/sketchyup_render.dir/src/integrations/render_store.cpp.o
+[185/618] Building CXX object CMakeFiles/sketchyup_render.dir/.qt/rcc/qrc_blender_worker.cpp.o
+[186/618] Building CXX object CMakeFiles/sketchyup_providers.dir/sketchyup_providers_autogen/mocs_compilation.cpp.o
+[187/618] Building CXX object CMakeFiles/sketchyup_render.dir/src/integrations/blender_job.cpp.o
+[188/618] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/chatgpt_auth.cpp.o
+[189/618] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/ollama_provider.cpp.o
+[190/618] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/provider_transport.cpp.o
+[191/618] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/openai_provider.cpp.o
+[192/618] Linking CXX static library libsketchyup_shortcuts.a
+[193/618] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/credential_store.cpp.o
+[194/618] Linking CXX executable sketchyup-extension-worker
+lto-wrapper: warning: using serial compilation of 3 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[195/618] Linking CXX static library libsketchyup_providers.a
+[196/618] Linking CXX static library libsketchyup_render.a
+[197/618] Building CXX object CMakeFiles/sketchyup_render_resources_1.dir/.qt/rcc/qrc_blender_worker_init.cpp.o
+[198/618] Building CXX object CMakeFiles/blender_job_tests.dir/tests/blender_job_tests.cpp.o
+[199/618] Linking CXX executable sketchyup-text-worker
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[200/618] Automatic MOC for target sketchyup_desktop
+[201/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/sketchyup_desktop_autogen/mocs_compilation.cpp.o
+[202/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_shortcuts.cpp.o
+[203/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_extensions.cpp.o
+[204/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_library.cpp.o
+[205/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_measured.cpp.o
+[206/618] Linking CXX executable blender_job_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[207/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_measured.cpp.o
+[208/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_dxf.cpp.o
+[209/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_stl.cpp.o
+[210/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_walk.cpp.o
+[211/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_obj.cpp.o
+[212/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_raster.cpp.o
+[213/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_raster.cpp.o
+[214/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/reference_images_panel.cpp.o
+[215/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_reference_images.cpp.o
+[216/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/solar_panel.cpp.o
+[217/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_solar.cpp.o
+[218/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/text_panel.cpp.o
+[219/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/annotations_panel.cpp.o
+[220/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_annotations.cpp.o
+[221/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/scenes_panel.cpp.o
+[222/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/sections_panel.cpp.o
+[223/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_sections.cpp.o
+[224/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_scenes.cpp.o
+[225/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/styles_panel.cpp.o
+[226/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_styles.cpp.o
+[227/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/texture_editor.cpp.o
+[228/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/texture_cache.cpp.o
+[229/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_textures.cpp.o
+[230/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_hosted.cpp.o
+[231/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_hosted.cpp.o
+[232/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_diagnostics.cpp.o
+[233/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_orientation.cpp.o
+[234/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_assistant.cpp.o
+[235/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_assistant.cpp.o
+[236/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/assistant_panel.cpp.o
+[237/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/render_jobs.cpp.o
+[238/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/render_panel.cpp.o
+[239/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/native_mcp.cpp.o
+[240/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/inspection_service.cpp.o
+[241/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/history_panel.cpp.o
+[242/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/recovery_controller.cpp.o
+[243/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_recovery.cpp.o
+[244/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_import.cpp.o
+[245/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/materials_panel.cpp.o
+[246/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_materials.cpp.o
+[247/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/entity_info_panel.cpp.o
+[248/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/organization_panel.cpp.o
+[249/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_components.cpp.o
+[250/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_groups.cpp.o
+[251/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_inference.cpp.o
+[252/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport.cpp.o
+[253/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_guides.cpp.o
+[254/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_selection.cpp.o
+[255/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_navigation.cpp.o
+[256/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_push_pull.cpp.o
+[257/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_booleans.cpp.o
+[258/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_intersections.cpp.o
+[259/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_sweep.cpp.o
+[260/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_offset.cpp.o
+[261/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_transform.cpp.o
+[262/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_units.cpp.o
+[263/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window.cpp.o
+[264/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/tool_session.cpp.o
+[265/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_components.cpp.o
+[266/618] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/inference_worker.cpp.o
+[267/618] Linking CXX static library libsketchyup_desktop.a
+[268/618] Automatic MOC for target sketchyup
+[269/618] Automatic MOC for target desktop_tests
+[270/618] Automatic MOC for target recovery_controller_tests
+[271/618] Automatic MOC for target texture_cache_tests
+[272/618] Building CXX object CMakeFiles/measured_view_tests.dir/tests/measured_view_tests.cpp.o
+[273/618] Building CXX object CMakeFiles/reference_image_tests.dir/tests/reference_image_tests.cpp.o
+[274/618] Building CXX object CMakeFiles/solar_tests.dir/tests/solar_tests.cpp.o
+[275/618] Building CXX object CMakeFiles/sketchyup-cli.dir/src/automation/main.cpp.o
+[276/618] Building CXX object CMakeFiles/annotation_record_tests.dir/tests/annotation_record_tests.cpp.o
+[277/618] Building CXX object CMakeFiles/annotation_anchor_tests.dir/tests/annotation_anchor_tests.cpp.o
+[278/618] Building CXX object CMakeFiles/section_record_tests.dir/tests/section_record_tests.cpp.o
+[279/618] Building CXX object CMakeFiles/section_geometry_tests.dir/tests/section_geometry_tests.cpp.o
+[280/618] Building CXX object CMakeFiles/texture_mapping_tests.dir/tests/texture_mapping_tests.cpp.o
+[281/618] Building CXX object CMakeFiles/hosted_copy_tests.dir/tests/hosted_copy_tests.cpp.o
+[282/618] Building CXX object CMakeFiles/hosted_components_tests.dir/tests/hosted_components_tests.cpp.o
+[283/618] Building CXX object CMakeFiles/host_regeneration_tests.dir/tests/host_regeneration_tests.cpp.o
+[284/618] Building CXX object CMakeFiles/component_glue_tests.dir/tests/component_glue_tests.cpp.o
+[285/618] Building CXX object CMakeFiles/hosted_opening_tests.dir/tests/hosted_opening_tests.cpp.o
+[286/618] Building CXX object CMakeFiles/component_placement_tests.dir/tests/component_placement_tests.cpp.o
+[287/618] Building CXX object CMakeFiles/diagnostics_tests.dir/tests/diagnostics_tests.cpp.o
+[288/618] Building CXX object CMakeFiles/edge_visibility_tests.dir/tests/edge_visibility_tests.cpp.o
+[289/618] Building CXX object CMakeFiles/shading_normals_tests.dir/tests/shading_normals_tests.cpp.o
+[290/618] Building CXX object CMakeFiles/prepared_edit_tests.dir/tests/prepared_edit_tests.cpp.o
+[291/618] Building CXX object CMakeFiles/document_snapshot_tests.dir/tests/document_snapshot_tests.cpp.o
+[292/618] Building CXX object CMakeFiles/camera_motion_tests.dir/tests/camera_motion_tests.cpp.o
+[293/618] Building CXX object CMakeFiles/saved_scene_tests.dir/tests/saved_scene_tests.cpp.o
+[294/618] Building CXX object CMakeFiles/model_style_tests.dir/tests/model_style_tests.cpp.o
+[295/618] Building CXX object CMakeFiles/document_units_tests.dir/tests/document_units_tests.cpp.o
+[296/618] Building CXX object CMakeFiles/history_tests.dir/tests/history_tests.cpp.o
+[297/618] Building CXX object CMakeFiles/asset_tests.dir/tests/asset_tests.cpp.o
+[298/618] Building CXX object CMakeFiles/material_tests.dir/tests/material_tests.cpp.o
+[299/618] Building CXX object CMakeFiles/entity_measure_tests.dir/tests/entity_measure_tests.cpp.o
+[300/618] Building CXX object CMakeFiles/boolean_tests.dir/tests/boolean_tests.cpp.o
+[301/618] Building CXX object CMakeFiles/orientation_tests.dir/tests/orientation_tests.cpp.o
+[302/618] Building CXX object CMakeFiles/solid_operation_tests.dir/tests/solid_operation_tests.cpp.o
+[303/618] Building CXX object CMakeFiles/solid_shell_tests.dir/tests/solid_shell_tests.cpp.o
+[304/618] Building CXX object CMakeFiles/solid_tests.dir/tests/solid_tests.cpp.o
+[305/618] Building CXX object CMakeFiles/tag_tests.dir/tests/tag_tests.cpp.o
+[306/618] Building CXX object CMakeFiles/component_tests.dir/tests/component_tests.cpp.o
+[307/618] Building CXX object CMakeFiles/component_record_tests.dir/tests/component_record_tests.cpp.o
+[308/618] Building CXX object CMakeFiles/consolidation_tests.dir/tests/consolidation_tests.cpp.o
+[309/618] Building CXX object CMakeFiles/appearance_tests.dir/tests/appearance_tests.cpp.o
+[310/618] Building CXX object CMakeFiles/group_tests.dir/tests/group_tests.cpp.o
+[311/618] Building CXX object CMakeFiles/copy_array_tests.dir/tests/copy_array_tests.cpp.o
+[312/618] Building CXX object CMakeFiles/transform_selection_tests.dir/tests/transform_selection_tests.cpp.o
+[313/618] Building CXX object CMakeFiles/selection_tests.dir/tests/selection_tests.cpp.o
+[314/618] Building CXX object CMakeFiles/guide_tests.dir/tests/guide_tests.cpp.o
+[315/618] Building CXX object CMakeFiles/constraint_tests.dir/tests/constraint_tests.cpp.o
+[316/618] Building CXX object CMakeFiles/inference_tests.dir/tests/inference_tests.cpp.o
+[317/618] Building CXX object CMakeFiles/curve_tests.dir/tests/curve_tests.cpp.o
+[318/618] Building CXX object CMakeFiles/drawing_tests.dir/tests/drawing_tests.cpp.o
+[319/618] Building CXX object CMakeFiles/amend_tests.dir/tests/amend_tests.cpp.o
+[320/618] Building CXX object CMakeFiles/core_tests.dir/tests/core_tests.cpp.o
+[321/618] Building CXX object CMakeFiles/scene_tests.dir/tests/scene_tests.cpp.o
+[322/618] Building CXX object CMakeFiles/tolerance_tests.dir/tests/tolerance_tests.cpp.o
+[323/618] Building CXX object CMakeFiles/geometry_fuzz_tests.dir/tests/geometry_fuzz_tests.cpp.o
+[324/618] Building CXX object CMakeFiles/push_pull_tests.dir/tests/push_pull_tests.cpp.o
+[325/618] Building CXX object CMakeFiles/cleanup_tests.dir/tests/cleanup_tests.cpp.o
+[326/618] Building CXX object CMakeFiles/intersection_tests.dir/tests/intersection_tests.cpp.o
+[327/618] Building CXX object CMakeFiles/sweep_tests.dir/tests/sweep_tests.cpp.o
+[328/618] Building CXX object CMakeFiles/offset_tests.dir/tests/offset_tests.cpp.o
+[329/618] Building CXX object CMakeFiles/planar_tests.dir/tests/planar_tests.cpp.o
+[330/618] Building CXX object CMakeFiles/topology_tests.dir/tests/topology_tests.cpp.o
+[331/618] Building CXX object CMakeFiles/arrangement_tests.dir/tests/arrangement_tests.cpp.o
+[332/618] Building CXX object CMakeFiles/shortcut_bindings_tests.dir/tests/shortcut_bindings_tests.cpp.o
+[333/618] Building CXX object CMakeFiles/render_environment_tests.dir/tests/render_environment_tests.cpp.o
+[334/618] Building CXX object CMakeFiles/text_geometry_tests.dir/tests/text_geometry_tests.cpp.o
+[335/618] Building CXX object CMakeFiles/new_file_fault_tests.dir/tests/new_file_fault_tests.cpp.o
+[336/618] Building CXX object CMakeFiles/parser_fault_corpus_tests.dir/tests/parser_fault_corpus_tests.cpp.o
+[337/618] Building CXX object CMakeFiles/m8_exchange_tests.dir/tests/m8_exchange_tests.cpp.o
+[338/618] Building CXX object CMakeFiles/extension_worker_tests.dir/tests/extension_worker_tests.cpp.o
+[339/618] Building CXX object CMakeFiles/extension_store_tests.dir/tests/extension_store_tests.cpp.o
+[340/618] Building CXX object CMakeFiles/extension_manifest_tests.dir/tests/extension_manifest_tests.cpp.o
+[341/618] Building CXX object CMakeFiles/library_bundle_tests.dir/tests/library_bundle_tests.cpp.o
+[342/618] Building CXX object CMakeFiles/measured_export_tests.dir/tests/measured_export_tests.cpp.o
+[343/618] Building CXX object CMakeFiles/measured_drawing_tests.dir/tests/measured_drawing_tests.cpp.o
+[344/618] Building CXX object CMakeFiles/render_environment_export_tests.dir/tests/render_environment_export_tests.cpp.o
+[345/618] Building CXX object CMakeFiles/text_command_tests.dir/tests/text_command_tests.cpp.o
+[346/618] Building CXX object CMakeFiles/reference_image_command_tests.dir/tests/reference_image_command_tests.cpp.o
+[347/618] Linking CXX executable sketchyup-cli
+lto-wrapper: warning: using serial compilation of 81 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[348/618] Building CXX object CMakeFiles/reference_image_io_tests.dir/tests/reference_image_io_tests.cpp.o
+[349/618] Building CXX object CMakeFiles/measured_cli_tests.dir/tests/measured_cli_tests.cpp.o
+[350/618] Building CXX object CMakeFiles/solar_command_tests.dir/tests/solar_command_tests.cpp.o
+[351/618] Building CXX object CMakeFiles/solar_io_tests.dir/tests/solar_io_tests.cpp.o
+[352/618] Building CXX object CMakeFiles/text_source_io_tests.dir/tests/text_source_io_tests.cpp.o
+[353/618] Building CXX object CMakeFiles/text_worker_tests.dir/tests/text_worker_tests.cpp.o
+[354/618] Building CXX object CMakeFiles/provider_trial.dir/tests/local_provider_trial.cpp.o
+[355/618] Building CXX object CMakeFiles/local_provider_trial.dir/tests/local_provider_trial.cpp.o
+[356/618] Building CXX object CMakeFiles/ollama_provider_tests.dir/tests/ollama_provider_tests.cpp.o
+[357/618] Building CXX object CMakeFiles/chatgpt_auth_tests.dir/tests/chatgpt_auth_tests.cpp.o
+[358/618] Building CXX object CMakeFiles/openai_provider_tests.dir/tests/openai_provider_tests.cpp.o
+[359/618] Building CXX object CMakeFiles/m7_presentation_tests.dir/tests/m7_presentation_tests.cpp.o
+[360/618] Building CXX object CMakeFiles/animation_export_tests.dir/tests/animation_export_tests.cpp.o
+[361/618] Building CXX object CMakeFiles/blender_handoff_tests.dir/tests/blender_handoff_tests.cpp.o
+[362/618] Building CXX object CMakeFiles/render_store_tests.dir/tests/render_store_tests.cpp.o
+[363/618] Building CXX object CMakeFiles/render_queue_tests.dir/tests/render_queue_tests.cpp.o
+[364/618] Building CXX object CMakeFiles/smooth_export_tests.dir/tests/smooth_export_tests.cpp.o
+[365/618] Building CXX object CMakeFiles/edge_command_tests.dir/tests/edge_command_tests.cpp.o
+[366/618] Building CXX object CMakeFiles/edge_appearance_tests.dir/tests/edge_appearance_tests.cpp.o
+[367/618] Building CXX object CMakeFiles/dxf_export_tests.dir/tests/dxf_export_tests.cpp.o
+[368/618] Building CXX object CMakeFiles/dxf_import_tests.dir/tests/dxf_import_tests.cpp.o
+[369/618] Building CXX object CMakeFiles/dxf_source_tests.dir/tests/dxf_source_tests.cpp.o
+[370/618] Building CXX object CMakeFiles/stl_export_tests.dir/tests/stl_export_tests.cpp.o
+[371/618] Building CXX object CMakeFiles/stl_import_tests.dir/tests/stl_import_tests.cpp.o
+[372/618] Building CXX object CMakeFiles/stl_source_tests.dir/tests/stl_source_tests.cpp.o
+[373/618] Building CXX object CMakeFiles/obj_export_tests.dir/tests/obj_export_tests.cpp.o
+[374/618] Building CXX object CMakeFiles/obj_import_tests.dir/tests/obj_import_tests.cpp.o
+[375/618] Building CXX object CMakeFiles/obj_material_tests.dir/tests/obj_material_tests.cpp.o
+[376/618] Building CXX object CMakeFiles/obj_source_tests.dir/tests/obj_source_tests.cpp.o
+[377/618] Building CXX object CMakeFiles/gltf_import_tests.dir/tests/gltf_import_tests.cpp.o
+[378/618] Building CXX object CMakeFiles/gltf_package_tests.dir/tests/gltf_package_tests.cpp.o
+[379/618] Building CXX object CMakeFiles/native_format_tests.dir/tests/native_format_tests.cpp.o
+[380/618] Building CXX object CMakeFiles/component_projection_benchmark.dir/tests/component_projection_benchmark.cpp.o
+[381/618] Building CXX object CMakeFiles/animation_capture_tests.dir/tests/animation_capture_tests.cpp.o
+[382/618] Building CXX object CMakeFiles/glb_export_tests.dir/tests/glb_export_tests.cpp.o
+[383/618] Building CXX object CMakeFiles/model_recipes_tests.dir/tests/model_recipes_tests.cpp.o
+[384/618] Building CXX object CMakeFiles/texture_command_tests.dir/tests/texture_command_tests.cpp.o
+[385/618] Building CXX object CMakeFiles/section_export_tests.dir/tests/section_export_tests.cpp.o
+[386/618] Building CXX object CMakeFiles/texture_export_tests.dir/tests/texture_export_tests.cpp.o
+[387/618] Building CXX object CMakeFiles/texture_image_tests.dir/tests/texture_image_tests.cpp.o
+[388/618] Building CXX object CMakeFiles/face_texture_tests.dir/tests/face_texture_tests.cpp.o
+[389/618] Building CXX object CMakeFiles/m6_workflow_tests.dir/tests/m6_workflow_tests.cpp.o
+[390/618] Building CXX object CMakeFiles/site_recipe_tests.dir/tests/site_recipe_tests.cpp.o
+[391/618] Building CXX object CMakeFiles/furniture_recipe_tests.dir/tests/furniture_recipe_tests.cpp.o
+[392/618] Building CXX object CMakeFiles/stair_recipe_tests.dir/tests/stair_recipe_tests.cpp.o
+[393/618] Building CXX object CMakeFiles/roof_recipe_tests.dir/tests/roof_recipe_tests.cpp.o
+[394/618] Building CXX object CMakeFiles/measurement_assertion_tests.dir/tests/measurement_assertion_tests.cpp.o
+[395/618] Building CXX object CMakeFiles/recipe_hosted_tests.dir/tests/recipe_hosted_tests.cpp.o
+[396/618] Building CXX object CMakeFiles/native_assistant_session_tests.dir/tests/native_assistant_session_tests.cpp.o
+[397/618] Building CXX object CMakeFiles/assistant_tests.dir/tests/assistant_tests.cpp.o
+[398/618] Building CXX object CMakeFiles/mcp_tests.dir/tests/mcp_tests.cpp.o
+[399/618] Building CXX object CMakeFiles/recipe_tests.dir/tests/recipe_tests.cpp.o
+[400/618] Building CXX object CMakeFiles/automation_session_tests.dir/tests/automation_session_tests.cpp.o
+[401/618] Building CXX object CMakeFiles/transaction_dispatch_tests.dir/tests/transaction_dispatch_tests.cpp.o
+[402/618] Building CXX object CMakeFiles/transaction_sequence_tests.dir/tests/transaction_sequence_tests.cpp.o
+[403/618] Building CXX object CMakeFiles/transaction_coordinator_tests.dir/tests/transaction_coordinator_tests.cpp.o
+[404/618] Building CXX object CMakeFiles/outcome_benchmark.dir/tests/outcome_benchmark.cpp.o
+[405/618] Building CXX object CMakeFiles/outcome_store_tests.dir/tests/outcome_store_tests.cpp.o
+[406/618] Building CXX object CMakeFiles/staging_tests.dir/tests/staging_tests.cpp.o
+[407/618] Building CXX object CMakeFiles/inspection_session_tests.dir/tests/inspection_session_tests.cpp.o
+[408/618] Building CXX object CMakeFiles/inspection_tests.dir/tests/inspection_tests.cpp.o
+[409/618] Building CXX object CMakeFiles/component_scope_tests.dir/tests/component_scope_tests.cpp.o
+[410/618] Building CXX object CMakeFiles/hosted_components_io_tests.dir/tests/hosted_components_io_tests.cpp.o
+[411/618] Building CXX object CMakeFiles/component_glue_io_tests.dir/tests/component_glue_io_tests.cpp.o
+[412/618] Building CXX object CMakeFiles/measurement_tests.dir/tests/measurement_tests.cpp.o
+[413/618] Building CXX object CMakeFiles/geometry_sequence_tests.dir/tests/geometry_sequence_tests.cpp.o
+[414/618] Building CXX object CMakeFiles/annotation_command_tests.dir/tests/annotation_command_tests.cpp.o
+[415/618] Building CXX object CMakeFiles/saved_scene_command_tests.dir/tests/saved_scene_command_tests.cpp.o
+[416/618] Building CXX object CMakeFiles/section_command_tests.dir/tests/section_command_tests.cpp.o
+[417/618] Building CXX object CMakeFiles/annotation_io_tests.dir/tests/annotation_io_tests.cpp.o
+[418/618] Building CXX object CMakeFiles/section_io_tests.dir/tests/section_io_tests.cpp.o
+[419/618] Building CXX object CMakeFiles/saved_scene_io_tests.dir/tests/saved_scene_io_tests.cpp.o
+[420/618] Building CXX object CMakeFiles/model_style_command_tests.dir/tests/model_style_command_tests.cpp.o
+[421/618] Building CXX object CMakeFiles/model_style_io_tests.dir/tests/model_style_io_tests.cpp.o
+[422/618] Building CXX object CMakeFiles/document_units_io_tests.dir/tests/document_units_io_tests.cpp.o
+[423/618] Building CXX object CMakeFiles/history_command_tests.dir/tests/history_command_tests.cpp.o
+[424/618] Building CXX object CMakeFiles/hosted_command_tests.dir/tests/hosted_command_tests.cpp.o
+[425/618] Building CXX object CMakeFiles/command_tests.dir/tests/command_tests.cpp.o
+[426/618] Building CXX object CMakeFiles/diagnostic_inspection_tests.dir/tests/diagnostic_inspection_tests.cpp.o
+[427/618] Building CXX object CMakeFiles/orientation_command_tests.dir/tests/orientation_command_tests.cpp.o
+[428/618] Building CXX object CMakeFiles/solid_command_tests.dir/tests/solid_command_tests.cpp.o
+[429/618] Building CXX object CMakeFiles/boolean_command_tests.dir/tests/boolean_command_tests.cpp.o
+[430/618] Building CXX object CMakeFiles/intersection_command_tests.dir/tests/intersection_command_tests.cpp.o
+[431/618] Building CXX object CMakeFiles/sweep_command_tests.dir/tests/sweep_command_tests.cpp.o
+[432/618] Building CXX object CMakeFiles/offset_command_tests.dir/tests/offset_command_tests.cpp.o
+[433/618] Building CXX object CMakeFiles/recovery_cli_tests.dir/tests/recovery_cli_tests.cpp.o
+[434/618] Building CXX object CMakeFiles/recovery_tests.dir/tests/recovery_tests.cpp.o
+[435/618] Building CXX object CMakeFiles/m4_persistence_tests.dir/tests/m4_persistence_tests.cpp.o
+[436/618] Building CXX object CMakeFiles/formline_tests.dir/tests/formline_tests.cpp.o
+[437/618] Building CXX object CMakeFiles/asset_io_tests.dir/tests/asset_io_tests.cpp.o
+[438/618] Building CXX object CMakeFiles/persistence_tests.dir/tests/persistence_tests.cpp.o
+[439/618] Building CXX object CMakeFiles/sketchyup.dir/sketchyup_autogen/mocs_compilation.cpp.o
+[440/618] Building CXX object CMakeFiles/persistence_benchmark.dir/tests/persistence_benchmark.cpp.o
+[441/618] Building CXX object CMakeFiles/desktop_tests.dir/desktop_tests_autogen/mocs_compilation.cpp.o
+[442/618] Building CXX object CMakeFiles/desktop_tests.dir/tests/desktop_tests.cpp.o
+[443/618] Building CXX object CMakeFiles/recovery_controller_tests.dir/recovery_controller_tests_autogen/mocs_compilation.cpp.o
+[444/618] Building CXX object CMakeFiles/sketchyup.dir/src/app/main.cpp.o
+[445/618] Building CXX object CMakeFiles/texture_cache_tests.dir/texture_cache_tests_autogen/mocs_compilation.cpp.o
+[446/618] Building CXX object CMakeFiles/texture_cache_tests.dir/tests/texture_cache_tests.cpp.o
+[447/618] Building CXX object CMakeFiles/recovery_controller_tests.dir/tests/recovery_controller_tests.cpp.o
+[448/618] Building CXX object CMakeFiles/texture_cache_tests.dir/src/app/texture_cache.cpp.o
+[449/618] Linking CXX executable measured_view_tests
+[450/618] Linking CXX executable solar_tests
+[451/618] Linking CXX executable reference_image_tests
+[452/618] Linking CXX executable annotation_anchor_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[453/618] Linking CXX executable annotation_record_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[454/618] Linking CXX executable section_geometry_tests
+lto-wrapper: warning: using serial compilation of 2 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[455/618] Linking CXX executable texture_mapping_tests
+[456/618] Linking CXX executable section_record_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[457/618] Linking CXX executable hosted_copy_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[458/618] Linking CXX executable hosted_components_tests
+lto-wrapper: warning: using serial compilation of 17 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[459/618] Linking CXX executable host_regeneration_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[460/618] Linking CXX executable hosted_opening_tests
+lto-wrapper: warning: using serial compilation of 6 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[461/618] Linking CXX executable component_placement_tests
+lto-wrapper: warning: using serial compilation of 2 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[462/618] Linking CXX executable diagnostics_tests
+lto-wrapper: warning: using serial compilation of 5 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[463/618] Linking CXX executable component_glue_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[464/618] Linking CXX executable shading_normals_tests
+lto-wrapper: warning: using serial compilation of 3 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[465/618] Linking CXX executable edge_visibility_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[466/618] Linking CXX executable prepared_edit_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[467/618] Linking CXX executable camera_motion_tests
+[468/618] Linking CXX executable document_snapshot_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[469/618] Linking CXX executable saved_scene_tests
+lto-wrapper: warning: using serial compilation of 16 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[470/618] Linking CXX executable model_style_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[471/618] Linking CXX executable document_units_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[472/618] Linking CXX executable history_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[473/618] Linking CXX executable asset_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[474/618] Linking CXX executable material_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[475/618] Linking CXX executable entity_measure_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[476/618] Linking CXX executable orientation_tests
+lto-wrapper: warning: using serial compilation of 5 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[477/618] Linking CXX executable boolean_tests
+lto-wrapper: warning: using serial compilation of 12 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[478/618] Linking CXX executable solid_shell_tests
+lto-wrapper: warning: using serial compilation of 4 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[479/618] Linking CXX executable solid_operation_tests
+lto-wrapper: warning: using serial compilation of 12 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[480/618] Linking CXX executable solid_tests
+lto-wrapper: warning: using serial compilation of 4 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[481/618] Linking CXX executable tag_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[482/618] Linking CXX executable component_tests
+lto-wrapper: warning: using serial compilation of 16 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[483/618] Linking CXX executable component_record_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[484/618] Linking CXX executable consolidation_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[485/618] Linking CXX executable appearance_tests
+lto-wrapper: warning: using serial compilation of 16 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[486/618] Linking CXX executable group_tests
+lto-wrapper: warning: using serial compilation of 16 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[487/618] Linking CXX executable copy_array_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[488/618] Linking CXX executable transform_selection_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[489/618] Linking CXX executable selection_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[490/618] Linking CXX executable guide_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[491/618] Linking CXX executable constraint_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[492/618] Linking CXX executable inference_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[493/618] Linking CXX executable curve_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[494/618] Linking CXX executable drawing_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[495/618] Linking CXX executable amend_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[496/618] Linking CXX executable core_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[497/618] Linking CXX executable tolerance_tests
+lto-wrapper: warning: using serial compilation of 4 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[498/618] Linking CXX executable scene_tests
+lto-wrapper: warning: using serial compilation of 13 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[499/618] Linking CXX executable geometry_fuzz_tests
+lto-wrapper: warning: using serial compilation of 16 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[500/618] Linking CXX executable push_pull_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[501/618] Linking CXX executable intersection_tests
+lto-wrapper: warning: using serial compilation of 3 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[502/618] Linking CXX executable sweep_tests
+lto-wrapper: warning: using serial compilation of 5 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[503/618] Linking CXX executable cleanup_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[504/618] Linking CXX executable offset_tests
+lto-wrapper: warning: using serial compilation of 4 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[505/618] Linking CXX executable planar_tests
+lto-wrapper: warning: using serial compilation of 3 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[506/618] Linking CXX executable arrangement_tests
+lto-wrapper: warning: using serial compilation of 3 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[507/618] Linking CXX executable shortcut_bindings_tests
+lto-wrapper: warning: using serial compilation of 2 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[508/618] Linking CXX executable render_environment_tests
+[509/618] Linking CXX executable text_geometry_tests
+lto-wrapper: warning: using serial compilation of 5 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[510/618] Linking CXX executable new_file_fault_tests
+[511/618] Linking CXX executable topology_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[512/618] Linking CXX executable parser_fault_corpus_tests
+lto-wrapper: warning: using serial compilation of 31 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[513/618] Linking CXX executable extension_worker_tests
+lto-wrapper: warning: using serial compilation of 5 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[514/618] Linking CXX executable extension_store_tests
+lto-wrapper: warning: using serial compilation of 5 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[515/618] Linking CXX executable m8_exchange_tests
+lto-wrapper: warning: using serial compilation of 65 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[516/618] Linking CXX executable library_bundle_tests
+lto-wrapper: warning: using serial compilation of 24 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[517/618] Linking CXX executable extension_manifest_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[518/618] Linking CXX executable measured_cli_tests
+lto-wrapper: warning: using serial compilation of 18 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[519/618] Linking CXX executable measured_export_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[520/618] Linking CXX executable measured_drawing_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[521/618] Linking CXX executable render_environment_export_tests
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[522/618] Linking CXX executable text_command_tests
+lto-wrapper: warning: using serial compilation of 51 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[523/618] Linking CXX executable reference_image_command_tests
+lto-wrapper: warning: using serial compilation of 59 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[524/618] Linking CXX executable reference_image_io_tests
+lto-wrapper: warning: using serial compilation of 24 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[525/618] Linking CXX executable solar_io_tests
+lto-wrapper: warning: using serial compilation of 24 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[526/618] Linking CXX executable text_source_io_tests
+lto-wrapper: warning: using serial compilation of 24 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[527/618] Linking CXX executable solar_command_tests
+lto-wrapper: warning: using serial compilation of 59 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[528/618] Linking CXX executable text_worker_tests
+lto-wrapper: warning: using serial compilation of 16 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[529/618] Linking CXX executable provider_trial
+lto-wrapper: warning: using serial compilation of 66 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[530/618] Linking CXX executable local_provider_trial
+lto-wrapper: warning: using serial compilation of 66 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[531/618] Linking CXX executable chatgpt_auth_tests
+lto-wrapper: warning: using serial compilation of 3 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[532/618] Linking CXX executable ollama_provider_tests
+lto-wrapper: warning: using serial compilation of 64 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[533/618] Linking CXX executable openai_provider_tests
+lto-wrapper: warning: using serial compilation of 64 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[534/618] Linking CXX executable animation_export_tests
+lto-wrapper: warning: using serial compilation of 18 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[535/618] Linking CXX executable blender_handoff_tests
+lto-wrapper: warning: using serial compilation of 17 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[536/618] Linking CXX executable m7_presentation_tests
+lto-wrapper: warning: using serial compilation of 58 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[537/618] Linking CXX executable render_store_tests
+lto-wrapper: warning: using serial compilation of 18 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[538/618] Linking CXX executable render_queue_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[539/618] Linking CXX executable smooth_export_tests
+lto-wrapper: warning: using serial compilation of 18 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[540/618] Linking CXX executable edge_appearance_tests
+lto-wrapper: warning: using serial compilation of 23 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[541/618] Linking CXX executable dxf_export_tests
+lto-wrapper: warning: using serial compilation of 20 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[542/618] Linking CXX executable dxf_import_tests
+lto-wrapper: warning: using serial compilation of 18 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[543/618] Linking CXX executable dxf_source_tests
+lto-wrapper: warning: using serial compilation of 2 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[544/618] Linking CXX executable edge_command_tests
+lto-wrapper: warning: using serial compilation of 58 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[545/618] Linking CXX executable stl_export_tests
+lto-wrapper: warning: using serial compilation of 20 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[546/618] Linking CXX executable stl_import_tests
+lto-wrapper: warning: using serial compilation of 18 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[547/618] Linking CXX executable stl_source_tests
+[548/618] Linking CXX executable obj_export_tests
+lto-wrapper: warning: using serial compilation of 21 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[549/618] Linking CXX executable obj_import_tests
+lto-wrapper: warning: using serial compilation of 20 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[550/618] Linking CXX executable obj_material_tests
+[551/618] Linking CXX executable obj_source_tests
+lto-wrapper: warning: using serial compilation of 2 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[552/618] Linking CXX executable gltf_package_tests
+lto-wrapper: warning: using serial compilation of 17 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[553/618] Linking CXX executable gltf_import_tests
+lto-wrapper: warning: using serial compilation of 24 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[554/618] Linking CXX executable native_format_tests
+lto-wrapper: warning: using serial compilation of 14 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[555/618] Linking CXX executable component_projection_benchmark
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[556/618] Linking CXX executable animation_capture_tests
+lto-wrapper: warning: using serial compilation of 16 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[557/618] Linking CXX executable glb_export_tests
+lto-wrapper: warning: using serial compilation of 24 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[558/618] Linking CXX executable model_recipes_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[559/618] Linking CXX executable section_export_tests
+lto-wrapper: warning: using serial compilation of 17 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[560/618] Linking CXX executable texture_command_tests
+lto-wrapper: warning: using serial compilation of 66 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[561/618] Linking CXX executable texture_export_tests
+lto-wrapper: warning: using serial compilation of 24 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[562/618] Linking CXX executable texture_image_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[563/618] Linking CXX executable face_texture_tests
+lto-wrapper: warning: using serial compilation of 33 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[564/618] Linking CXX executable m6_workflow_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[565/618] Linking CXX executable site_recipe_tests
+lto-wrapper: warning: using serial compilation of 54 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[566/618] Linking CXX executable furniture_recipe_tests
+lto-wrapper: warning: using serial compilation of 54 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[567/618] Linking CXX executable stair_recipe_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[568/618] Linking CXX executable roof_recipe_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[569/618] Linking CXX executable measurement_assertion_tests
+lto-wrapper: warning: using serial compilation of 60 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[570/618] Linking CXX executable recipe_hosted_tests
+lto-wrapper: warning: using serial compilation of 52 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[571/618] Linking CXX executable native_assistant_session_tests
+lto-wrapper: warning: using serial compilation of 62 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[572/618] Linking CXX executable assistant_tests
+lto-wrapper: warning: using serial compilation of 64 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[573/618] Linking CXX executable mcp_tests
+lto-wrapper: warning: using serial compilation of 63 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[574/618] Linking CXX executable recipe_tests
+lto-wrapper: warning: using serial compilation of 63 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[575/618] Linking CXX executable automation_session_tests
+lto-wrapper: warning: using serial compilation of 62 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[576/618] Linking CXX executable transaction_dispatch_tests
+lto-wrapper: warning: using serial compilation of 62 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[577/618] Linking CXX executable transaction_sequence_tests
+lto-wrapper: warning: using serial compilation of 57 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[578/618] Linking CXX executable outcome_benchmark
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[579/618] Linking CXX executable transaction_coordinator_tests
+lto-wrapper: warning: using serial compilation of 59 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[580/618] Linking CXX executable outcome_store_tests
+lto-wrapper: warning: using serial compilation of 20 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[581/618] Linking CXX executable inspection_session_tests
+lto-wrapper: warning: using serial compilation of 22 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[582/618] Linking CXX executable inspection_tests
+lto-wrapper: warning: using serial compilation of 28 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[583/618] Linking CXX executable staging_tests
+lto-wrapper: warning: using serial compilation of 58 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[584/618] Linking CXX executable hosted_components_io_tests
+lto-wrapper: warning: using serial compilation of 21 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[585/618] Linking CXX executable component_glue_io_tests
+lto-wrapper: warning: using serial compilation of 22 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[586/618] Linking CXX executable component_scope_tests
+lto-wrapper: warning: using serial compilation of 52 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[587/618] Linking CXX executable geometry_sequence_tests
+lto-wrapper: warning: using serial compilation of 52 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[588/618] Linking CXX executable measurement_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[589/618] Linking CXX executable saved_scene_command_tests
+lto-wrapper: warning: using serial compilation of 55 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[590/618] Linking CXX executable annotation_command_tests
+lto-wrapper: warning: using serial compilation of 57 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[591/618] Linking CXX executable annotation_io_tests
+lto-wrapper: warning: using serial compilation of 21 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[592/618] Linking CXX executable section_io_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[593/618] Linking CXX executable section_command_tests
+lto-wrapper: warning: using serial compilation of 58 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[594/618] Linking CXX executable saved_scene_io_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[595/618] Linking CXX executable model_style_io_tests
+lto-wrapper: warning: using serial compilation of 20 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[596/618] Linking CXX executable model_style_command_tests
+lto-wrapper: warning: using serial compilation of 57 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[597/618] Linking CXX executable document_units_io_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[598/618] Linking CXX executable history_command_tests
+lto-wrapper: warning: using serial compilation of 58 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[599/618] Linking CXX executable hosted_command_tests
+lto-wrapper: warning: using serial compilation of 65 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[600/618] Linking CXX executable command_tests
+lto-wrapper: warning: using serial compilation of 61 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[601/618] Linking CXX executable diagnostic_inspection_tests
+lto-wrapper: warning: using serial compilation of 63 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[602/618] Linking CXX executable orientation_command_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[603/618] Linking CXX executable solid_command_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[604/618] Linking CXX executable boolean_command_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[605/618] Linking CXX executable intersection_command_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[606/618] Linking CXX executable sweep_command_tests
+lto-wrapper: warning: using serial compilation of 52 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[607/618] Linking CXX executable recovery_cli_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[608/618] Linking CXX executable offset_command_tests
+lto-wrapper: warning: using serial compilation of 53 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[609/618] Linking CXX executable recovery_tests
+lto-wrapper: warning: using serial compilation of 20 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[610/618] Linking CXX executable m4_persistence_tests
+lto-wrapper: warning: using serial compilation of 23 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[611/618] Linking CXX executable formline_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[612/618] Linking CXX executable asset_io_tests
+lto-wrapper: warning: using serial compilation of 18 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[613/618] Linking CXX executable persistence_benchmark
+lto-wrapper: warning: using serial compilation of 15 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[614/618] Linking CXX executable persistence_tests
+lto-wrapper: warning: using serial compilation of 21 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[615/618] Linking CXX executable desktop_tests
+lto-wrapper: warning: using serial compilation of 52 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[616/618] Linking CXX executable recovery_controller_tests
+lto-wrapper: warning: using serial compilation of 19 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+[617/618] Linking CXX executable texture_cache_tests
+[618/618] Linking CXX executable sketchyup
+lto-wrapper: warning: using serial compilation of 126 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+==> Starting check()...
+Test project /work/package/src/build
+        Start   1: measured_view
+  1/181 Test   #1: measured_view ....................   Passed    0.02 sec
+        Start   2: reference_image
+  2/181 Test   #2: reference_image ..................   Passed    0.00 sec
+        Start   3: solar
+  3/181 Test   #3: solar ............................   Passed    0.00 sec
+        Start   4: annotation_records
+  4/181 Test   #4: annotation_records ...............   Passed    0.01 sec
+        Start   5: annotation_anchors
+  5/181 Test   #5: annotation_anchors ...............   Passed    0.01 sec
+        Start   6: section_records
+  6/181 Test   #6: section_records ..................   Passed    0.03 sec
+        Start   7: section_geometry
+  7/181 Test   #7: section_geometry .................   Passed    0.02 sec
+        Start   8: texture_mapping
+  8/181 Test   #8: texture_mapping ..................   Passed    0.00 sec
+        Start   9: hosted_copies
+  9/181 Test   #9: hosted_copies ....................   Passed    0.55 sec
+        Start  10: hosted_components
+ 10/181 Test  #10: hosted_components ................   Passed    0.12 sec
+        Start  11: host_regeneration
+ 11/181 Test  #11: host_regeneration ................   Passed    0.03 sec
+        Start  12: component_glue
+ 12/181 Test  #12: component_glue ...................   Passed    0.01 sec
+        Start  13: hosted_openings
+ 13/181 Test  #13: hosted_openings ..................   Passed    0.02 sec
+        Start  14: component_placement
+ 14/181 Test  #14: component_placement ..............   Passed    0.00 sec
+        Start  15: diagnostics
+ 15/181 Test  #15: diagnostics ......................   Passed    0.20 sec
+        Start  16: edge_visibility
+ 16/181 Test  #16: edge_visibility ..................   Passed    0.02 sec
+        Start  17: shading_normals
+ 17/181 Test  #17: shading_normals ..................   Passed    0.01 sec
+        Start  18: prepared_edit
+ 18/181 Test  #18: prepared_edit ....................   Passed    0.01 sec
+        Start  19: document_snapshot
+ 19/181 Test  #19: document_snapshot ................   Passed    0.01 sec
+        Start  20: camera_motion
+ 20/181 Test  #20: camera_motion ....................   Passed    0.00 sec
+        Start  21: saved_scenes
+ 21/181 Test  #21: saved_scenes .....................   Passed    0.04 sec
+        Start  22: model_style
+ 22/181 Test  #22: model_style ......................   Passed    0.01 sec
+        Start  23: document_units
+ 23/181 Test  #23: document_units ...................   Passed    0.01 sec
+        Start  24: history
+ 24/181 Test  #24: history ..........................   Passed    0.54 sec
+        Start  25: assets
+ 25/181 Test  #25: assets ...........................   Passed    0.03 sec
+        Start  26: materials
+ 26/181 Test  #26: materials ........................   Passed    0.01 sec
+        Start  27: entity_measure
+ 27/181 Test  #27: entity_measure ...................   Passed    0.01 sec
+        Start  28: booleans
+ 28/181 Test  #28: booleans .........................   Passed    0.10 sec
+        Start  29: orientation
+ 29/181 Test  #29: orientation ......................   Passed    0.03 sec
+        Start  30: solid_operations
+ 30/181 Test  #30: solid_operations .................   Passed    0.07 sec
+        Start  31: solid_shells
+ 31/181 Test  #31: solid_shells .....................   Passed    0.05 sec
+        Start  32: solids
+ 32/181 Test  #32: solids ...........................   Passed    0.19 sec
+        Start  33: tags
+ 33/181 Test  #33: tags .............................   Passed    0.02 sec
+        Start  34: components
+ 34/181 Test  #34: components .......................   Passed    0.01 sec
+        Start  35: component_records
+ 35/181 Test  #35: component_records ................   Passed    0.01 sec
+        Start  36: consolidation
+ 36/181 Test  #36: consolidation ....................   Passed    0.01 sec
+        Start  37: appearance
+ 37/181 Test  #37: appearance .......................   Passed    0.01 sec
+        Start  38: groups
+ 38/181 Test  #38: groups ...........................   Passed    0.01 sec
+        Start  39: copy_array
+ 39/181 Test  #39: copy_array .......................   Passed    0.01 sec
+        Start  40: transform_selection
+ 40/181 Test  #40: transform_selection ..............   Passed    0.01 sec
+        Start  41: selection
+ 41/181 Test  #41: selection ........................   Passed    0.01 sec
+        Start  42: guides
+ 42/181 Test  #42: guides ...........................   Passed    0.02 sec
+        Start  43: constraints
+ 43/181 Test  #43: constraints ......................   Passed    0.01 sec
+        Start  44: inference
+ 44/181 Test  #44: inference ........................   Passed    0.09 sec
+        Start  45: curves
+ 45/181 Test  #45: curves ...........................   Passed    0.10 sec
+        Start  46: drawing
+ 46/181 Test  #46: drawing ..........................   Passed    0.01 sec
+        Start  47: amend
+ 47/181 Test  #47: amend ............................   Passed    0.01 sec
+        Start  48: core
+ 48/181 Test  #48: core .............................   Passed    0.01 sec
+        Start  49: scene
+ 49/181 Test  #49: scene ............................   Passed    0.05 sec
+        Start  50: tolerance
+ 50/181 Test  #50: tolerance ........................   Passed    0.01 sec
+        Start  51: geometry_fuzz
+ 51/181 Test  #51: geometry_fuzz ....................   Passed    0.33 sec
+        Start  52: push_pull
+ 52/181 Test  #52: push_pull ........................   Passed    0.02 sec
+        Start  53: cleanup
+ 53/181 Test  #53: cleanup ..........................   Passed    0.01 sec
+        Start  54: intersections
+ 54/181 Test  #54: intersections ....................   Passed    0.01 sec
+        Start  55: sweep
+ 55/181 Test  #55: sweep ............................   Passed    0.02 sec
+        Start  56: offset
+ 56/181 Test  #56: offset ...........................   Passed    0.01 sec
+        Start  57: planar
+ 57/181 Test  #57: planar ...........................   Passed    0.01 sec
+        Start  58: topology
+ 58/181 Test  #58: topology .........................   Passed    0.13 sec
+        Start  59: arrangements
+ 59/181 Test  #59: arrangements .....................   Passed    0.02 sec
+        Start  60: shortcut_bindings
+ 60/181 Test  #60: shortcut_bindings ................   Passed    0.06 sec
+        Start  61: render_environment
+ 61/181 Test  #61: render_environment ...............   Passed    0.03 sec
+        Start  62: text_geometry
+ 62/181 Test  #62: text_geometry ....................   Passed    0.12 sec
+        Start  63: new_file_faults
+ 63/181 Test  #63: new_file_faults ..................   Passed    0.03 sec
+        Start  64: parser_fault_corpus
+ 64/181 Test  #64: parser_fault_corpus ..............   Passed    0.89 sec
+        Start  65: m8_exchange
+ 65/181 Test  #65: m8_exchange ......................   Passed    0.17 sec
+        Start  66: extension_worker
+ 66/181 Test  #66: extension_worker .................   Passed    0.25 sec
+        Start  67: extension_store
+ 67/181 Test  #67: extension_store ..................   Passed    0.09 sec
+        Start  68: extension_manifest
+ 68/181 Test  #68: extension_manifest ...............   Passed    0.08 sec
+        Start  69: library_bundle
+ 69/181 Test  #69: library_bundle ...................   Passed    0.07 sec
+        Start  70: measured_cli
+ 70/181 Test  #70: measured_cli .....................   Passed    0.29 sec
+        Start  71: measured_export
+ 71/181 Test  #71: measured_export ..................   Passed    0.11 sec
+        Start  72: measured_export_real
+ 72/181 Test  #72: measured_export_real .............***Skipped   0.04 sec
+        Start  73: measured_drawing
+ 73/181 Test  #73: measured_drawing .................   Passed    0.02 sec
+        Start  74: render_environment_export
+ 74/181 Test  #74: render_environment_export ........   Passed    0.03 sec
+        Start  75: text_commands
+ 75/181 Test  #75: text_commands ....................   Passed    0.80 sec
+        Start  76: reference_image_commands
+ 76/181 Test  #76: reference_image_commands .........   Passed    0.11 sec
+        Start  77: reference_image_io
+ 77/181 Test  #77: reference_image_io ...............   Passed    0.04 sec
+        Start  78: solar_commands
+ 78/181 Test  #78: solar_commands ...................   Passed    0.07 sec
+        Start  79: solar_io
+ 79/181 Test  #79: solar_io .........................   Passed    0.08 sec
+        Start  80: text_source_io
+ 80/181 Test  #80: text_source_io ...................   Passed    0.11 sec
+        Start  81: text_worker
+ 81/181 Test  #81: text_worker ......................   Passed    0.51 sec
+        Start  82: provider_release_score
+ 82/181 Test  #82: provider_release_score ...........   Passed    0.28 sec
+        Start  83: provider_release_corpus
+ 83/181 Test  #83: provider_release_corpus ..........   Passed    2.22 sec
+        Start  84: ollama_provider
+ 84/181 Test  #84: ollama_provider ..................   Passed    1.24 sec
+        Start  85: chatgpt_auth
+ 85/181 Test  #85: chatgpt_auth .....................   Passed    0.78 sec
+        Start  86: openai_provider
+ 86/181 Test  #86: openai_provider ..................   Passed    2.97 sec
+        Start  87: blender_job
+ 87/181 Test  #87: blender_job ......................   Passed    1.64 sec
+        Start  88: m7_presentation
+ 88/181 Test  #88: m7_presentation ..................   Passed    0.25 sec
+        Start  89: m7_presentation_real
+ 89/181 Test  #89: m7_presentation_real .............***Skipped   0.01 sec
+        Start  90: animation_export
+ 90/181 Test  #90: animation_export .................   Passed    0.46 sec
+        Start  91: animation_export_real
+ 91/181 Test  #91: animation_export_real ............***Skipped   0.01 sec
+        Start  92: blender_handoff
+ 92/181 Test  #92: blender_handoff ..................   Passed    0.49 sec
+        Start  93: blender_handoff_real
+ 93/181 Test  #93: blender_handoff_real .............***Skipped   0.03 sec
+        Start  94: render_store
+ 94/181 Test  #94: render_store .....................   Passed    0.27 sec
+        Start  95: render_queue
+ 95/181 Test  #95: render_queue .....................   Passed    0.67 sec
+        Start  96: blender_real
+ 96/181 Test  #96: blender_real .....................***Skipped   0.03 sec
+        Start  97: smooth_export
+ 97/181 Test  #97: smooth_export ....................   Passed    0.05 sec
+        Start  98: edge_commands
+ 98/181 Test  #98: edge_commands ....................   Passed    0.16 sec
+        Start  99: edge_appearance
+ 99/181 Test  #99: edge_appearance ..................   Passed    0.03 sec
+        Start 100: dxf_export
+100/181 Test #100: dxf_export .......................   Passed    0.03 sec
+        Start 101: dxf_export_real
+101/181 Test #101: dxf_export_real ..................***Skipped   0.02 sec
+        Start 102: dxf_import
+102/181 Test #102: dxf_import .......................   Passed    0.28 sec
+        Start 103: dxf_source
+103/181 Test #103: dxf_source .......................   Passed    0.02 sec
+        Start 104: stl_export
+104/181 Test #104: stl_export .......................   Passed    0.03 sec
+        Start 105: stl_export_real
+105/181 Test #105: stl_export_real ..................***Skipped   0.01 sec
+        Start 106: stl_import
+106/181 Test #106: stl_import .......................   Passed    0.22 sec
+        Start 107: stl_import_real
+107/181 Test #107: stl_import_real ..................***Skipped   0.01 sec
+        Start 108: stl_source
+108/181 Test #108: stl_source .......................   Passed    0.03 sec
+        Start 109: obj_export
+109/181 Test #109: obj_export .......................   Passed    0.05 sec
+        Start 110: obj_export_real
+110/181 Test #110: obj_export_real ..................***Skipped   0.03 sec
+        Start 111: obj_import
+111/181 Test #111: obj_import .......................   Passed    0.24 sec
+        Start 112: obj_import_real
+112/181 Test #112: obj_import_real ..................***Skipped   0.02 sec
+        Start 113: obj_material
+113/181 Test #113: obj_material .....................   Passed    0.02 sec
+        Start 114: obj_source
+114/181 Test #114: obj_source .......................   Passed    0.05 sec
+        Start 115: gltf_import
+115/181 Test #115: gltf_import ......................   Passed    2.38 sec
+        Start 116: gltf_import_real
+116/181 Test #116: gltf_import_real .................***Skipped   0.02 sec
+        Start 117: gltf_package
+117/181 Test #117: gltf_package .....................   Passed    0.04 sec
+        Start 118: native_format
+118/181 Test #118: native_format ....................   Passed    1.12 sec
+        Start 119: animation_capture
+119/181 Test #119: animation_capture ................   Passed    0.03 sec
+        Start 120: glb_export
+120/181 Test #120: glb_export .......................   Passed    0.17 sec
+        Start 121: model_recipes
+121/181 Test #121: model_recipes ....................   Passed    3.10 sec
+        Start 122: texture_commands
+122/181 Test #122: texture_commands .................   Passed    0.44 sec
+        Start 123: section_export
+123/181 Test #123: section_export ...................   Passed    0.03 sec
+        Start 124: texture_export
+124/181 Test #124: texture_export ...................   Passed    7.88 sec
+        Start 125: texture_image
+125/181 Test #125: texture_image ....................   Passed    0.96 sec
+        Start 126: face_textures
+126/181 Test #126: face_textures ....................   Passed    0.05 sec
+        Start 127: m6_workflow
+127/181 Test #127: m6_workflow ......................   Passed    0.43 sec
+        Start 128: site_recipe
+128/181 Test #128: site_recipe ......................   Passed    2.47 sec
+        Start 129: furniture_recipe
+129/181 Test #129: furniture_recipe .................   Passed    4.25 sec
+        Start 130: stair_recipe
+130/181 Test #130: stair_recipe .....................   Passed    1.20 sec
+        Start 131: roof_recipe
+131/181 Test #131: roof_recipe ......................   Passed    0.98 sec
+        Start 132: measurement_assertions
+132/181 Test #132: measurement_assertions ...........   Passed    0.47 sec
+        Start 133: recipe_hosted
+133/181 Test #133: recipe_hosted ....................   Passed    1.32 sec
+        Start 134: native_assistant_session
+134/181 Test #134: native_assistant_session .........   Passed    0.43 sec
+        Start 135: assistant
+135/181 Test #135: assistant ........................   Passed    1.60 sec
+        Start 136: mcp
+136/181 Test #136: mcp ..............................   Passed    0.30 sec
+        Start 137: recipes
+137/181 Test #137: recipes ..........................   Passed    9.44 sec
+        Start 138: automation_session
+138/181 Test #138: automation_session ...............   Passed    0.38 sec
+        Start 139: transaction_dispatch
+139/181 Test #139: transaction_dispatch .............   Passed    0.58 sec
+        Start 140: transaction_sequence
+140/181 Test #140: transaction_sequence .............   Passed    5.76 sec
+        Start 141: transaction_coordinator
+141/181 Test #141: transaction_coordinator ..........   Passed    0.84 sec
+        Start 142: outcome_store
+142/181 Test #142: outcome_store ....................   Passed    8.15 sec
+        Start 143: staging
+143/181 Test #143: staging ..........................   Passed    0.97 sec
+        Start 144: inspection_session
+144/181 Test #144: inspection_session ...............   Passed    0.05 sec
+        Start 145: inspection
+145/181 Test #145: inspection .......................   Passed    0.21 sec
+        Start 146: component_scope
+146/181 Test #146: component_scope ..................   Passed    0.21 sec
+        Start 147: hosted_components_io
+147/181 Test #147: hosted_components_io .............   Passed    0.18 sec
+        Start 148: component_glue_io
+148/181 Test #148: component_glue_io ................   Passed    0.09 sec
+        Start 149: geometry_sequence
+149/181 Test #149: geometry_sequence ................   Passed    0.70 sec
+        Start 150: measurements
+150/181 Test #150: measurements .....................   Passed    0.04 sec
+        Start 151: saved_scene_commands
+151/181 Test #151: saved_scene_commands .............   Passed    0.15 sec
+        Start 152: annotation_commands
+152/181 Test #152: annotation_commands ..............   Passed    0.17 sec
+        Start 153: section_commands
+153/181 Test #153: section_commands .................   Passed    0.13 sec
+        Start 154: annotations_io
+154/181 Test #154: annotations_io ...................   Passed    0.06 sec
+        Start 155: sections_io
+155/181 Test #155: sections_io ......................   Passed    0.05 sec
+        Start 156: saved_scenes_io
+156/181 Test #156: saved_scenes_io ..................   Passed    0.06 sec
+        Start 157: model_style_commands
+157/181 Test #157: model_style_commands .............   Passed    0.24 sec
+        Start 158: model_style_io
+158/181 Test #158: model_style_io ...................   Passed    0.17 sec
+        Start 159: document_units_io
+159/181 Test #159: document_units_io ................   Passed    0.13 sec
+        Start 160: history_commands
+160/181 Test #160: history_commands .................   Passed    0.12 sec
+        Start 161: hosted_commands
+161/181 Test #161: hosted_commands ..................   Passed    0.63 sec
+        Start 162: commands
+162/181 Test #162: commands .........................   Passed    5.27 sec
+        Start 163: diagnostic_inspection
+163/181 Test #163: diagnostic_inspection ............   Passed    0.08 sec
+        Start 164: orientation_commands
+164/181 Test #164: orientation_commands .............   Passed    0.19 sec
+        Start 165: solid_commands
+165/181 Test #165: solid_commands ...................   Passed    0.42 sec
+        Start 166: boolean_commands
+166/181 Test #166: boolean_commands .................   Passed    0.19 sec
+        Start 167: intersection_commands
+167/181 Test #167: intersection_commands ............   Passed    0.09 sec
+        Start 168: sweep_commands
+168/181 Test #168: sweep_commands ...................   Passed    0.08 sec
+        Start 169: offset_commands
+169/181 Test #169: offset_commands ..................   Passed    0.08 sec
+        Start 170: recovery_cli
+170/181 Test #170: recovery_cli .....................   Passed    0.23 sec
+        Start 171: recovery
+171/181 Test #171: recovery .........................   Passed    1.90 sec
+        Start 172: m4_persistence
+172/181 Test #172: m4_persistence ...................   Passed    0.05 sec
+        Start 173: formline
+173/181 Test #173: formline .........................   Passed    0.10 sec
+        Start 174: asset_io
+174/181 Test #174: asset_io .........................   Passed    0.11 sec
+        Start 175: persistence
+175/181 Test #175: persistence ......................   Passed    0.23 sec
+        Start 176: optional_capabilities
+176/181 Test #176: optional_capabilities ............   Passed    0.17 sec
+        Start 177: shipped_recipes
+177/181 Test #177: shipped_recipes ..................   Passed    9.71 sec
+        Start 178: tool_reference_drift
+178/181 Test #178: tool_reference_drift .............   Passed    0.25 sec
+        Start 179: recovery_controller
+179/181 Test #179: recovery_controller ..............   Passed   10.32 sec
+        Start 180: texture_cache
+180/181 Test #180: texture_cache ....................   Passed    0.02 sec
+        Start 181: desktop
+181/181 Test #181: desktop ..........................   Passed    0.14 sec
+
+100% tests passed out of 181
+
+Total Test time (real) = 108.62 sec
+
+The following tests did not run:
+	 72 - measured_export_real (Skipped)
+	 89 - m7_presentation_real (Skipped)
+	 91 - animation_export_real (Skipped)
+	 93 - blender_handoff_real (Skipped)
+	 96 - blender_real (Skipped)
+	101 - dxf_export_real (Skipped)
+	105 - stl_export_real (Skipped)
+	107 - stl_import_real (Skipped)
+	110 - obj_export_real (Skipped)
+	112 - obj_import_real (Skipped)
+	116 - gltf_import_real (Skipped)
+==> Entering fakeroot environment...
+==> Starting package()...
+-- Install configuration: "Release"
+-- Installing: /work/package/pkg/sketchyup/usr/lib/sketchyup/sketchyup-extension-worker
+-- Installing: /work/package/pkg/sketchyup/usr/lib/sketchyup/sketchyup-text-worker
+-- Installing: /work/package/pkg/sketchyup/usr/bin/sketchyup-cli
+-- Installing: /work/package/pkg/sketchyup/usr/bin/sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/mcp-native-2026-07-28.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/inspection-desktop-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0029-native-mcp.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0021-desktop-inspection.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/LICENSE
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/mcp-2026-07-28.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/headless-session-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/transactions-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/inspection-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/inspection-session-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0032-glb-snapshots.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0031-room-window-recipes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0030-assistant-orchestration.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0019-bounded-inspection.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0020-inspection-snapshots.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0022-private-staging.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0023-durable-outcomes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0024-transaction-coordinator.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0025-transaction-dispatch.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0026-headless-session.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0027-transaction-recipes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0028-local-mcp.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/Clipper2-LICENSE
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/Manifold-LICENSE
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/Manifold-AUTHORS
+-- Installing: /work/package/pkg/sketchyup/usr/share/applications/io.sketchyup.SketchyUp.desktop
+-- Installing: /work/package/pkg/sketchyup/usr/share/icons/hicolor/scalable/apps/io.sketchyup.SketchyUp.svg
+-- Installing: /work/package/pkg/sketchyup/usr/share/mime/packages/io.sketchyup.SketchyUp.xml
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/site-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/table-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/cabinet-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/stair-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/roof-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/asserted-solid.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/hosted-room-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/render-settings-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/room-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/room-window-resize-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/transaction-face-recipe.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/M6_ACCEPTANCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/M5_ACCEPTANCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0033-blender-worker.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0034-openai-provider.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0035-native-render-ui.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0036-local-provider.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0037-native-assistant-transactions.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0038-assistant-clarification.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0039-assistant-viewport-preview.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0040-native-assistant-panel.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0041-chatgpt-plan.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-joinery-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-joinery-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-study-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-site-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-site-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-furniture-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-table-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-cabinet-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-stairs-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-stairs-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-roof-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-roof-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m5-room-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m5-room-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0043-planar-offset.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0044-profile-sweep.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/planar-offset.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/profile-sweep.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0045-face-intersections.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/saved-scenes.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/model-style.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/texture-mapping.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/hosted-component.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/edge-appearance.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/face-orientation.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/solid-trim.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/solid-split.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/solid-outer-shell.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/enclosed-cavity.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/solid-boolean.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/face-intersection.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0071-scene-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0070-saved-scene-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0069-native-model-styles.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0068-model-styles.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0067-native-texture-editor.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0066-texture-authoring-commands.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0065-viewport-textures.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0064-textured-glb-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0063-texture-image-decoding.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0062-face-texture-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0061-affine-texture-mapping.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0060-camera-relative-rendering.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0059-site-placement-recipe.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0058-furniture-recipes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0057-straight-stair-recipe.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0056-gable-roof-recipe.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0055-geometric-assertions.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0054-hosted-components.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0053-geometry-diagnostics.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0052-smooth-shading.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0051-edge-appearance.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0050-two-sided-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0049-face-orientation.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0048-split-outer-shell.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0047-shell-containment.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0046-solid-booleans.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0072-section-geometry.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0073-section-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0074-section-commands.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/section-planes.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0075-section-scenes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0076-native-sections.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/section-nested.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0077-section-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0078-annotation-anchors.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0079-annotation-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0080-annotation-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/annotations.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0081-native-annotations.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/annotated-panel.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0082-shaped-text-geometry.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0083-headless-text-worker.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0084-editable-text-persistence.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0085-editable-text-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/text-sign.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/text-sign.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0086-native-editable-text.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0087-offline-solar-position.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0088-solar-study-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0089-solar-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/sun-study.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/sun-study.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0090-native-sun-and-shadows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0091-reference-image-calibration.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0092-reference-image-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0093-reference-image-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0094-native-reference-images.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0095-exact-raster-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0096-blender-solar-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0097-render-environments.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0098-eevee-preview.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0099-retained-render-jobs.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0100-render-queue-lifecycle.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0101-native-render-jobs.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0102-packed-blender-scene-handoff.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0103-native-blender-handoff.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0104-camera-motion-and-timelines.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/reference-grid.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/reference-grid.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0106-immutable-animation-capture.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0107-native-animation-frame-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0105-native-walk-and-scene-timing.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m7-building-study.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/M7_ACCEPTANCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/native-format-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0108-public-native-format.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/cgltf-LICENSE
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0109-bounded-gltf-packages.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0110-native-gltf-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0111-native-gltf-import-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0112-bounded-obj-mtl-parsing.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0113-native-obj-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0114-contained-obj-export-packages.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0115-native-obj-interchange-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0124-measured-orthographic-hidden-lines.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0123-native-dxf-interchange-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0122-planar-dxf-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0121-native-dxf-wire-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0120-bounded-planar-dxf-source.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0119-native-stl-interchange-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0118-bounded-stl-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0117-native-stl-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0116-bounded-stl-source-parsing.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0125-measured-document-capture.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0126-measured-pdf-svg-output.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0127-measured-export-cli.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/measured-view.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0128-native-measured-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0129-self-contained-template-bundles.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0130-contained-component-bundles.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0131-atomic-library-insertion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0132-bounded-local-library-catalog.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0133-native-template-and-library-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0134-versioned-extension-manifests.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/extensions/panel.sketchyext
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0135-persistent-extension-lifecycle.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0136-bounded-extension-worker.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/extensions-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0137-native-extension-management.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/TOOL_REFERENCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/tool-reference-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0138-generated-tool-reference.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/AI_MODELING.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/material-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0139-executable-agent-recipes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0140-optional-capability-discovery.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/M8_ACCEPTANCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/USER_GUIDE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/SUPPORT_MATRIX.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0141-real-model-performance-fixtures.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0142-deterministic-parser-corruption.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0143-new-file-publication-faults.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0144-seeded-transaction-sequences.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0145-native-accessibility-inventory.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0146-legacy-preference-compatibility.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0147-keyboard-measured-modeling.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0148-versioned-shortcut-bindings.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0156-filtered-shortcut-keyboard-navigation.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0157-native-surface-color.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0158-responsive-native-file-operations.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0155-linux-accessibility-bridge.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0154-keyboard-outliner-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0153-panel-shortcut-reservations.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0152-context-link-contrast.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0151-interface-text-size.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0150-selected-text-contrast.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0149-native-shortcut-editor.md
+==> Tidying install...
+  -> Removing libtool files...
+  -> Removing static library files...
+  -> Purging unwanted files...
+  -> Stripping unneeded symbols from binaries and libraries...
+  -> Compressing man and info pages...
+==> Checking for packaging issues...
+==> Creating package "sketchyup"...
+  -> Generating .PKGINFO file...
+  -> Generating .BUILDINFO file...
+  -> Generating .MTREE file...
+  -> Compressing package...
+==> Creating package "sketchyup-debug"...
+  -> Generating .PKGINFO file...
+  -> Generating .BUILDINFO file...
+  -> Generating .MTREE file...
+  -> Compressing package...
+==> Leaving fakeroot environment.
+==> Finished making: sketchyup 0.1.0-2 (Thu Oct  8 01:54:36 2026)
+loading packages...
+resolving dependencies...
+looking for conflicting packages...
+
+Package (1)  New Version  Net Change
+
+sketchyup    0.1.0-2       18.13 MiB
+
+Total Installed Size:  18.13 MiB
+
+:: Proceed with installation? [Y/n] 
+checking keyring...
+checking package integrity...
+loading package files...
+checking for file conflicts...
+:: Processing package changes...
+installing sketchyup...
+Optional dependencies for sketchyup
+    libsecret: OpenAI credential storage through the desktop Secret Service [installed]
+    blender: optional rendered images, animation frames and Blender handoff
+:: Running post-transaction hooks...
+(1/3) Updating the MIME type database...
+(2/3) Arming ConditionNeedsUpdate...
+(3/3) Updating the desktop file MIME type cache...
+sketchyup: 243 total files, 0 altered files
+true
+true
+true
+==> Making package: sketchyup 0.1.0-3 (Thu Oct  8 01:54:47 2026)
+==> Checking runtime dependencies...
+==> Checking buildtime dependencies...
+==> Retrieving sources...
+  -> Found sketchyup-0.1.0.tar.gz
+==> Validating source files with sha256sums...
+    sketchyup-0.1.0.tar.gz ... Passed
+==> Extracting sources...
+  -> Extracting sketchyup-0.1.0.tar.gz with bsdtar
+==> Removing existing $pkgdir/ directory...
+==> Starting build()...
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.8s)
+-- Generating done (0.7s)
+-- Build files have been written to: /work/package/src/build
+ninja: no work to do.
+==> Entering fakeroot environment...
+==> Starting package()...
+-- Install configuration: "Release"
+-- Installing: /work/package/pkg/sketchyup/usr/lib/sketchyup/sketchyup-extension-worker
+-- Installing: /work/package/pkg/sketchyup/usr/lib/sketchyup/sketchyup-text-worker
+-- Installing: /work/package/pkg/sketchyup/usr/bin/sketchyup-cli
+-- Installing: /work/package/pkg/sketchyup/usr/bin/sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/mcp-native-2026-07-28.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/inspection-desktop-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0029-native-mcp.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0021-desktop-inspection.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/LICENSE
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/mcp-2026-07-28.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/headless-session-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/transactions-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/inspection-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/inspection-session-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0032-glb-snapshots.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0031-room-window-recipes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0030-assistant-orchestration.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0019-bounded-inspection.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0020-inspection-snapshots.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0022-private-staging.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0023-durable-outcomes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0024-transaction-coordinator.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0025-transaction-dispatch.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0026-headless-session.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0027-transaction-recipes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0028-local-mcp.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/Clipper2-LICENSE
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/Manifold-LICENSE
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/Manifold-AUTHORS
+-- Installing: /work/package/pkg/sketchyup/usr/share/applications/io.sketchyup.SketchyUp.desktop
+-- Installing: /work/package/pkg/sketchyup/usr/share/icons/hicolor/scalable/apps/io.sketchyup.SketchyUp.svg
+-- Installing: /work/package/pkg/sketchyup/usr/share/mime/packages/io.sketchyup.SketchyUp.xml
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/site-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/table-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/cabinet-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/stair-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/roof-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/asserted-solid.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/hosted-room-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/render-settings-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/room-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/room-window-resize-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/transaction-face-recipe.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/M6_ACCEPTANCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/M5_ACCEPTANCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0033-blender-worker.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0034-openai-provider.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0035-native-render-ui.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0036-local-provider.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0037-native-assistant-transactions.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0038-assistant-clarification.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0039-assistant-viewport-preview.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0040-native-assistant-panel.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0041-chatgpt-plan.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-joinery-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-joinery-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-study-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-site-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-site-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-furniture-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-table-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-cabinet-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-stairs-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-stairs-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-roof-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m6-roof-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m5-room-before.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m5-room-after.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0043-planar-offset.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0044-profile-sweep.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/planar-offset.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/profile-sweep.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0045-face-intersections.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/saved-scenes.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/model-style.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/texture-mapping.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/hosted-component.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/edge-appearance.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/face-orientation.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/solid-trim.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/solid-split.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/solid-outer-shell.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/enclosed-cavity.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/solid-boolean.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/face-intersection.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0071-scene-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0070-saved-scene-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0069-native-model-styles.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0068-model-styles.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0067-native-texture-editor.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0066-texture-authoring-commands.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0065-viewport-textures.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0064-textured-glb-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0063-texture-image-decoding.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0062-face-texture-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0061-affine-texture-mapping.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0060-camera-relative-rendering.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0059-site-placement-recipe.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0058-furniture-recipes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0057-straight-stair-recipe.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0056-gable-roof-recipe.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0055-geometric-assertions.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0054-hosted-components.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0053-geometry-diagnostics.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0052-smooth-shading.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0051-edge-appearance.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0050-two-sided-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0049-face-orientation.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0048-split-outer-shell.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0047-shell-containment.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0046-solid-booleans.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0072-section-geometry.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0073-section-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0074-section-commands.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/section-planes.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0075-section-scenes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0076-native-sections.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/section-nested.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0077-section-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0078-annotation-anchors.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0079-annotation-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0080-annotation-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/annotations.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0081-native-annotations.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/annotated-panel.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0082-shaped-text-geometry.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0083-headless-text-worker.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0084-editable-text-persistence.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0085-editable-text-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/text-sign.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/text-sign.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0086-native-editable-text.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0087-offline-solar-position.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0088-solar-study-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0089-solar-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/sun-study.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/sun-study.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0090-native-sun-and-shadows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0091-reference-image-calibration.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0092-reference-image-records.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0093-reference-image-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0094-native-reference-images.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0095-exact-raster-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0096-blender-solar-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0097-render-environments.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0098-eevee-preview.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0099-retained-render-jobs.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0100-render-queue-lifecycle.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0101-native-render-jobs.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0102-packed-blender-scene-handoff.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0103-native-blender-handoff.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0104-camera-motion-and-timelines.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/reference-grid.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/reference-grid.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0106-immutable-animation-capture.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0107-native-animation-frame-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0105-native-walk-and-scene-timing.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/m7-building-study.sketchyup
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/M7_ACCEPTANCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/native-format-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0108-public-native-format.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/licenses/sketchyup/cgltf-LICENSE
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0109-bounded-gltf-packages.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0110-native-gltf-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0111-native-gltf-import-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0112-bounded-obj-mtl-parsing.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0113-native-obj-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0114-contained-obj-export-packages.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0115-native-obj-interchange-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0124-measured-orthographic-hidden-lines.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0123-native-dxf-interchange-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0122-planar-dxf-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0121-native-dxf-wire-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0120-bounded-planar-dxf-source.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0119-native-stl-interchange-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0118-bounded-stl-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0117-native-stl-conversion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0116-bounded-stl-source-parsing.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0125-measured-document-capture.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0126-measured-pdf-svg-output.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0127-measured-export-cli.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/measured-view.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0128-native-measured-export.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0129-self-contained-template-bundles.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0130-contained-component-bundles.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0131-atomic-library-insertion.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0132-bounded-local-library-catalog.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0133-native-template-and-library-workflows.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0134-versioned-extension-manifests.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/extensions/panel.sketchyext
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0135-persistent-extension-lifecycle.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0136-bounded-extension-worker.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/extensions-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0137-native-extension-management.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/TOOL_REFERENCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/api/tool-reference-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0138-generated-tool-reference.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/AI_MODELING.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/examples/material-recipe-v1.json
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0139-executable-agent-recipes.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0140-optional-capability-discovery.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/M8_ACCEPTANCE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/USER_GUIDE.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/SUPPORT_MATRIX.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0141-real-model-performance-fixtures.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0142-deterministic-parser-corruption.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0143-new-file-publication-faults.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0144-seeded-transaction-sequences.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0145-native-accessibility-inventory.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0146-legacy-preference-compatibility.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0147-keyboard-measured-modeling.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0148-versioned-shortcut-bindings.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0156-filtered-shortcut-keyboard-navigation.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0157-native-surface-color.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0158-responsive-native-file-operations.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0155-linux-accessibility-bridge.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0154-keyboard-outliner-workflow.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0153-panel-shortcut-reservations.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0152-context-link-contrast.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0151-interface-text-size.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0150-selected-text-contrast.md
+-- Installing: /work/package/pkg/sketchyup/usr/share/doc/sketchyup/decisions/0149-native-shortcut-editor.md
+==> Tidying install...
+  -> Removing libtool files...
+  -> Removing static library files...
+  -> Purging unwanted files...
+  -> Stripping unneeded symbols from binaries and libraries...
+  -> Compressing man and info pages...
+==> Checking for packaging issues...
+==> Creating package "sketchyup"...
+  -> Generating .PKGINFO file...
+  -> Generating .BUILDINFO file...
+  -> Generating .MTREE file...
+  -> Compressing package...
+==> Creating package "sketchyup-debug"...
+  -> Generating .PKGINFO file...
+  -> Generating .BUILDINFO file...
+  -> Generating .MTREE file...
+  -> Compressing package...
+==> Leaving fakeroot environment.
+==> Finished making: sketchyup 0.1.0-3 (Thu Oct  8 01:55:16 2026)
+loading packages...
+resolving dependencies...
+looking for conflicting packages...
+
+Package (1)  Old Version  New Version  Net Change
+
+sketchyup    0.1.0-2      0.1.0-3        0.00 MiB
+
+Total Installed Size:  18.13 MiB
+Net Upgrade Size:       0.00 MiB
+
+:: Proceed with installation? [Y/n] 
+checking keyring...
+checking package integrity...
+loading package files...
+checking for file conflicts...
+:: Processing package changes...
+upgrading sketchyup...
+:: Running post-transaction hooks...
+(1/3) Updating the MIME type database...
+(2/3) Arming ConditionNeedsUpdate...
+(3/3) Updating the desktop file MIME type cache...
+sketchyup: 243 total files, 0 altered files
+Installed CLI migrated 25 historical fixtures; all preservation checks passed.
+checking dependencies...
+
+Package (1)  Old Version  Net Change
+
+sketchyup    0.1.0-3      -18.13 MiB
+
+Total Removed Size:  18.13 MiB
+
+:: Do you want to remove these packages? [Y/n] 
+:: Processing package changes...
+removing sketchyup...
+:: Running post-transaction hooks...
+(1/3) Updating the MIME type database...
+(2/3) Arming ConditionNeedsUpdate...
+(3/3) Updating the desktop file MIME type cache...
+true
+Install, desktop launch, MIME, upgrade, reopen and removal acceptance passed.
+Prior-application package upgrade, reopen, preferences and removal passed.
