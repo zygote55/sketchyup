@@ -1,0 +1,48 @@
+import hashlib,json,os,subprocess,time
+from pathlib import Path
+m=Path('/home/keith/projects/sketchyup');s=m/'build/ci-diagnostics-r075e';repo=Path('/home/keith/projects/sketchyup-pr173-diagnostics');f=json.loads((s/'source-freeze.json').read_text());report={'passed':False,'candidate':f['candidate'],'productionChanged':False,'normalCases':0,'sanitizerCases':0,'releaseAcceptance':False}
+def sha(p):
+ with p.open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
+try:
+ while subprocess.check_output(['systemctl','--user','show','sketchyup-r086aj-provider-build','-p','SubState','--value'],text=True).strip() not in ('dead','exited','failed'):time.sleep(10)
+ assert json.loads((m/'build/provider-revalidation-r086aj/build-result.json').read_text())['passed']
+ assert subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()==f['candidate']
+ assert not subprocess.check_output(['git','-C',str(repo),'status','--porcelain'],text=True).strip()
+ for n,h in f['sourceSha256'].items():assert sha(s/'source'/n)==h,n
+ assert sha(s/'wayland-client/libwayland-client.so.0')==f['waylandClientSha256']
+ command='''set -euo pipefail
+ulimit -c 0
+export ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose
+export LP_NUM_THREADS=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+export SKETCHYUP_WAYLAND_CLIENT_LIBRARY=/source/wayland-client
+export LD_LIBRARY_PATH="$SKETCHYUP_WAYLAND_CLIENT_LIBRARY"
+ldd /usr/lib/libQt6WaylandClient.so.6 > /capture/linked-libraries.txt
+grep -F '/source/wayland-client/libwayland-client.so.0' /capture/linked-libraries.txt
+for variant in normal sanitize; do
+ sanitizer=OFF
+ if [[ $variant == sanitize ]]; then sanitizer=ON; fi
+ cmake -S /source/source -B /work/package/$variant -G Ninja -DCMAKE_BUILD_TYPE=Debug -DSKETCHYUP_BUILD_DESKTOP=ON -DSKETCHYUP_BUILD_CLI=ON -DBUILD_TESTING=ON -DSKETCHYUP_SANITIZE=$sanitizer
+ cmake --build /work/package/$variant --target diagnostics_input_tests --parallel 2
+ sha256sum /work/package/$variant/diagnostics_input_tests > /capture/$variant-binary.sha256
+ for scale in 1 2; do
+  echo "Qualified diagnostics $variant X11 scale=$scale"
+  xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=$scale LIBGL_ALWAYS_SOFTWARE=1 timeout 90s /work/package/$variant/diagnostics_input_tests > /capture/$variant-x11-$scale.txt 2>&1
+  echo "Qualified diagnostics $variant Wayland scale=$scale"
+  SKETCHYUP_TEST_SCALE=$scale bash /source/source/scripts/test-wayland.sh /work/package/$variant/diagnostics_input_tests > /capture/$variant-wayland-$scale.txt 2>&1
+ done
+done
+'''
+ env=dict(os.environ,SKETCHYUP_CHECK_SOURCE_ROOT=str(s))
+ subprocess.run([str(m/'build/verification-scripts/run-eight-cpu-check.sh'),'r075e-pr173-diagnostics',f['image'],'bash','-c',command],env=env,check=True)
+ root=m/'build/local-checks/r075e-pr173-diagnostics';state=json.loads((root/'state.json').read_text());assert state['ExitCode']==0 and not state['OOMKilled']
+ assert (root/'output.log').read_text().count('Qualified diagnostics ')==8
+ records=[]
+ for variant in ('normal','sanitize'):
+  for platform in ('x11','wayland'):
+   for scale in (1,2):
+    p=root/'capture'/f'{variant}-{platform}-{scale}.txt';text=p.read_text();assert 'Native diagnostic findings, selection/frame, explicit repairs, Undo and ' in text
+    records.append({'variant':variant,'platform':platform,'scale':scale,'sha256':sha(p)})
+ report.update(passed=True,normalCases=4,sanitizerCases=4,sanitizerLeakDetection=True,nativeReports=records,logSha256=sha(root/'output.log'))
+except BaseException as e:report['error']=str(e);raise
+finally:(s/'result.json').write_text(json.dumps(report,indent=2)+'\n')
