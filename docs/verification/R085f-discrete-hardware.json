@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-07",
+  "benchmarkSource": "b4652b96df6bd638a33273384b0602842fb8da02",
+  "binarySha256": "e7d6a6f9fbe20683f62061b4dfa2bdad3ce2db2ef9c25e9e9ee56ea0572a5df5",
+  "binaryBytes": 12779552,
+  "buildType": "Release",
+  "operatingSystem": "CachyOS",
+  "desktop": "XFCE",
+  "displayBackend": "X11",
+  "virtualization": "qemu",
+  "cpu": "AMD Ryzen 9 9900X 12-Core Processor (guest-reported)",
+  "exposedCpus": 12,
+  "threadsPerCore": 1,
+  "memTotalKiB": 23948396,
+  "vramBytes": 17163091968,
+  "kernel": "7.2.7-1-cachyos",
+  "installedPackages": [
+    "qt6-base 6.11.2-3",
+    "mesa-git 26.3.0_devel.230601.8ea6e9dd417-1",
+    "gcc-libs 16.2.1+r23+gd564253eb6c8-1",
+    "glibc 2.44+r50+g1848099f063e-1",
+    "libglvnd 1.7.0-3.1",
+    "linux-cachyos 7.2.9-1"
+  ],
+  "pciGpu": "01:00.0 VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Navi 21 [Radeon RX 6800/6800 XT / 6900 XT] [1002:73bf] (rev c1)\n\tSubsystem: Advanced Micro Devices, Inc. [AMD/ATI] Radeon RX 6900 XT [1002:0e3a]\n\tKernel driver in use: amdgpu",
+  "pciInspectionWarning": "lspci: Unable to load libkmod resources: error -2",
+  "glxInfo": "name of display: :0\ndisplay: :0  screen: 0\ndirect rendering: Yes\nExtended renderer info (GLX_MESA_query_renderer):\n    Vendor: AMD (0x1002)\n    Device: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) (0x73bf)\n    Version: 26.3.0\n    Accelerated: yes\n    Video memory: 16384MB\n    Unified memory: no\n    Preferred profile: core (0x1)\n    Max core profile version: 4.6\n    Max compat profile version: 4.6\n    Max GLES1 profile version: 1.1\n    Max GLES[23] profile version: 3.2\nMemory info (GL_ATI_meminfo):\n    VBO free memory - total: 16235 MB, largest block: 16235 MB\n    VBO free aux. memory - total: 11667 MB, largest block: 11667 MB\n    Texture free memory - total: 16235 MB, largest block: 16235 MB\n    Texture free aux. memory - total: 11667 MB, largest block: 11667 MB\n    Renderbuffer free memory - total: 16235 MB, largest block: 16235 MB\n    Renderbuffer free aux. memory - total: 11667 MB, largest block: 11667 MB\nMemory info (GL_NVX_gpu_memory_info):\n    Dedicated video memory: 16384 MB\n    Total available memory: 28077 MB\n    Currently available dedicated video memory: 16235 MB\nOpenGL vendor string: AMD\nOpenGL renderer string: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos)\nOpenGL core profile version string: 4.6 (Core Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL core profile shading language version string: 4.60\nOpenGL core profile context flags: (none)\nOpenGL core profile profile mask: core profile\n\nOpenGL version string: 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL shading language version string: 4.60\nOpenGL context flags: (none)\nOpenGL profile mask: compatibility profile\n\nOpenGL ES profile version string: OpenGL ES 3.2 Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL ES profile shading language version string: OpenGL ES GLSL ES 3.20",
+  "cpuGovernors": [],
+  "display": {
+    "physicalWidth": 3840,
+    "physicalHeight": 2160,
+    "refreshHz": 60,
+    "outputs": "DP-1 and HDMI-1 mirrored; unchanged",
+    "dpmsEnabledAtPreflight": false,
+    "dpmsPowerLevelAtPreflight": 0
+  },
+  "scratchFilesystem": "btrfs",
+  "limits": {
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0,
+    "cpuQuotaPercent": 100,
+    "cpuAffinity": [
+      11
+    ],
+    "tasks": 128,
+    "runtimeSecondsPerRun": 300
+  },
+  "measurements": [
+    {
+      "report": "R085f-amd-smoke.json",
+      "exitCode": 0,
+      "stdoutSha256": "6a35ead727e86e1e4dcfa212180be5315b154662798e1cea637b617c04fde434",
+      "stderrSha256": "fb64123e0246b024982d1e499d84129058840411db72ea1e0020c6c18ee6c602",
+      "limitsVerified": true
+    },
+    {
+      "report": "R085f-amd-1000-1.json",
+      "exitCode": 0,
+      "stdoutSha256": "43f73024a8703f8b2bcd66cbe6a6ba718c830c0c6a89226a8afce7ae2a7ad63b",
+      "stderrSha256": "014e41e233b162de72e93a6f57199524347caa95a42abee69c5d9e8a9fc86980",
+      "limitsVerified": true
+    },
+    {
+      "report": "R085f-amd-1000-2.json",
+      "exitCode": 0,
+      "stdoutSha256": "d274e8cc77e383ec7be2778dcde7d32a0f2acb6650ad83deabeaf46cb6af426c",
+      "stderrSha256": "407da7d5ebca12d7a535badc097e1a5647964678c76fad2f79559004d6221ab5",
+      "limitsVerified": true
+    },
+    {
+      "report": "R085f-amd-1000-3.json",
+      "exitCode": 0,
+      "stdoutSha256": "d82a5d961ba5a6281fbb8421835e40e03fc6ae591277da362bbd2568c2e2d441",
+      "stderrSha256": "418920a73c00ec1a40551ed776eb1228646c89d715b3b4745d88e243c0dc4fbc",
+      "limitsVerified": true
+    }
+  ],
+  "hardwareAvailabilityBlocked": false,
+  "releaseAcceptance": false
+}
