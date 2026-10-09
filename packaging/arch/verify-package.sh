@@ -13,7 +13,7 @@ pacman -S --noconfirm --needed desktop-file-utils xdg-utils perl-file-mimeinfo j
 chown -R builder:builder /work/package
 cp PKGBUILD PKGBUILD.current
 sed -i 's/^pkgrel=2$/pkgrel=1/' PKGBUILD
-runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force
+runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}" makepkg --noconfirm --force
 pacman -U --noconfirm sketchyup-0.1.0-1-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
 test -s /usr/share/doc/sketchyup/decisions/0029-native-mcp.md
@@ -63,7 +63,7 @@ export XDG_CACHE_HOME=/work/acceptance/cache
 export XDG_RUNTIME_DIR=/work/acceptance/runtime
 mkdir -p "$XDG_CONFIG_HOME/SketchyUp" "$XDG_DATA_HOME/SketchyUp" "$XDG_CACHE_HOME/SketchyUp" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
-printf '[General]\npackageSentinel=retain\n' > "$XDG_CONFIG_HOME/SketchyUp/SketchyUp.conf"
+printf '[General]\npackageSentinel=retain\ntheme=1\ninterfaceTextPercent=150\nreducedMotion=true\nrecoverySeconds=0\nfieldOfView=67\n' > "$XDG_CONFIG_HOME/SketchyUp/SketchyUp.conf"
 printf 'retain-data\n' > "$XDG_DATA_HOME/SketchyUp/sentinel"
 printf 'retain-cache\n' > "$XDG_CACHE_HOME/SketchyUp/sentinel"
 sketchyup-cli --script /work/package/src/sketchyup-0.1.0/examples/room-shell.json --output '/work/acceptance/Room model.sketchyup' > /work/acceptance/created.json
@@ -123,13 +123,29 @@ assert hashlib.sha256((root / 'scene.glb').read_bytes()).hexdigest() == manifest
 PYGLB
 mv PKGBUILD.current PKGBUILD
 chown builder:builder PKGBUILD
-runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg --noconfirm --force --nocheck
+cp /work/acceptance/config/SketchyUp/SketchyUp.conf /work/acceptance/preferences-before-upgrade.conf
+runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}" makepkg --noconfirm --force --nocheck
 pacman -U --noconfirm sketchyup-0.1.0-2-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
 runuser -u builder -- sketchyup-cli --input '/work/acceptance/Room model.sketchyup' > /work/acceptance/reopened.json
 cmp /work/acceptance/expected.json /work/acceptance/reopened.json
-runuser -u builder -- env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a timeout 40s sketchyup --smoke > /work/acceptance/upgraded-smoke.json
+runuser -u builder -- env XDG_CONFIG_HOME=/work/acceptance/config \
+  XDG_DATA_HOME=/work/acceptance/data XDG_CACHE_HOME=/work/acceptance/cache \
+  QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a timeout 40s sketchyup --smoke > /work/acceptance/upgraded-smoke.json
+python - <<'PYPREFS'
+import configparser
+before, after = configparser.ConfigParser(), configparser.ConfigParser()
+before.read('/work/acceptance/preferences-before-upgrade.conf')
+after.read('/work/acceptance/config/SketchyUp/SketchyUp.conf')
+for key in ('packageSentinel', 'theme', 'interfaceTextPercent', 'reducedMotion', 'recoverySeconds', 'fieldOfView'):
+    if before['General'][key] != after['General'][key]:
+        raise SystemExit('Upgrade changed preference: ' + key)
+PYPREFS
+pacman -Qlq sketchyup > /work/acceptance/package-owned-paths.txt
 pacman -R --noconfirm sketchyup
+while IFS= read -r path; do
+  [[ $path == */ ]] || [[ ! -e $path && ! -L $path ]]
+done < /work/acceptance/package-owned-paths.txt
 [[ ! -e /usr/bin/sketchyup && ! -e /usr/bin/sketchyup-cli ]]
 [[ ! -e /usr/share/doc/sketchyup/api/mcp-native-2026-07-28.json ]]
 [[ ! -e /usr/share/doc/sketchyup/decisions/0029-native-mcp.md ]]
