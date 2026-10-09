@@ -90,3 +90,15 @@ completion. Reports retain input dimensions/bytes and show-to-ready duration;
 these are not total cache or observed GPU-memory measurements. Qualification
 uses an unchanged repeated control, a 25-instance smoke and three 1,000-instance
 runs. This scenario does not change the separate 10,000-instance requirement.
+
+## Production inference measurements
+
+R082.g adds a separate production `InferenceIndex` using the actual viewport camera
+and an eight-logical-pixel radius across all editing contexts. It times initial
+sync, fifty queries after ten warmups, and one hundred incremental syncs separately
+from edit/readback. Samples span the placement array. Candidates must include the
+viewport's geometry hit; returned lists retain the existing 32-alternative bound.
+Truncation counts are disclosed, including warmups and the final post-history probe.
+Unchanged sync/query work must reuse all body caches, and each edit rebuilds only
+the changed placement. Worker queueing, editor policy and displayed feedback are
+outside this measurement; the extra benchmark index contributes to process RSS.
