@@ -1,0 +1,10 @@
+arch	UNKNOWN STEP	2026-10-08T01:15:06.4071832Z  73/143 Test  #73: m7_presentation ..................   Passed    0.21 sec
+arch	UNKNOWN STEP	2026-10-08T01:15:06.4157058Z  74/143 Test  #74: m7_presentation_real .............***Skipped   0.01 sec
+arch	UNKNOWN STEP	2026-10-08T01:50:21.7015405Z 1/4 Test #74: m7_presentation_real .............   Passed    3.97 sec
+arch	UNKNOWN STEP	2026-10-08T01:58:27.8032514Z ^[[36;1mSKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m7_presentation_input_tests^[[0m
+arch	UNKNOWN STEP	2026-10-08T01:59:34.0339039Z M7 native views, resolved dimensions, textures, camera recall, section state and exact PNG export pass; DPR=2
+arch	UNKNOWN STEP	2026-10-08T02:15:12.1397183Z 24/75 Test  #73: m7_presentation ..................   Passed    3.75 sec
+arch	UNKNOWN STEP	2026-10-08T02:25:30.3659712Z ^[[36;1mQT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/m7_presentation_input_tests^[[0m
+arch	UNKNOWN STEP	2026-10-08T02:33:23.9461075Z M7 native views, resolved dimensions, textures, camera recall, section state and exact PNG export pass; DPR=2
+arch	UNKNOWN STEP	2026-10-08T05:05:34.0885599Z  73/143 Test  #73: m7_presentation ..................   Passed    0.13 sec
+arch	UNKNOWN STEP	2026-10-08T05:05:34.0971041Z  74/143 Test  #74: m7_presentation_real .............***Skipped   0.01 sec
