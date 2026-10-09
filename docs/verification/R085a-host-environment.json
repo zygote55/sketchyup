@@ -1,0 +1,36 @@
+{
+  "recordedAt": "2026-10-07T10:08:43Z",
+  "kernel": "7.2.5-3-omarchy",
+  "versions": [
+    "qt6-base 6.11.2-3",
+    "qt6-wayland 6.11.2-1",
+    "mesa 1:26.2.2-1",
+    "hyprland 0.56.2-2",
+    "gcc 16.2.1+r23+gd564253eb6c8-1",
+    "blender 17:5.2.1-2",
+    "poppler 26.08.0-1"
+  ],
+  "outputs": [
+    {
+      "name": "eDP-1",
+      "width": 2880,
+      "height": 1800,
+      "refreshRate": 48.001,
+      "scale": 2,
+      "transform": 0,
+      "disabled": false,
+      "dpmsStatus": false
+    },
+    {
+      "name": "DP-7",
+      "width": 3840,
+      "height": 2160,
+      "refreshRate": 60.0,
+      "scale": 1.6,
+      "transform": 0,
+      "disabled": false,
+      "dpmsStatus": false
+    }
+  ],
+  "scope": "Local installed package versions and connected-output configuration only; not hardware acceptance"
+}

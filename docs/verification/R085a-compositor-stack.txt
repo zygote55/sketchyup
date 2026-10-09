@@ -1,0 +1,15 @@
+Isolated Weston 15.0.1, GL renderer, Qt client scale 1.75.
+Debugger reproduced SIGSEGV. Most frames have no symbols.
+Thread 1 (Thread <address> (process ID omitted) "weston"):
+#0  <address> in ?? () from /usr/lib/libc.so.6
+#1  <address> in ?? () from /usr/lib/libgallium-26.2.3-arch1.2.so
+#2  <address> in ?? () from /usr/lib/libgallium-26.2.3-arch1.2.so
+#3  <address> in ?? () from /usr/lib/libgallium-26.2.3-arch1.2.so
+#4  <address> in ?? () from /usr/lib/libgallium-26.2.3-arch1.2.so
+#5  <address> in ?? () from /usr/lib/libgallium-26.2.3-arch1.2.so
+#6  <address> in ?? () from /usr/lib/libgallium-26.2.3-arch1.2.so
+#7  <address> in ?? () from /usr/lib/libgallium-26.2.3-arch1.2.so
+#8  <address> in ?? () from /usr/lib/libweston-15/gl-renderer.so
+#9  <address> in ?? () from /usr/lib/libweston-15.so.0
+#10 <address> in wl_event_loop_dispatch () from /usr/lib/libwayland-server.so.0
+#11 <address> in wl_display_run () from /usr/lib/libwayland-server.so.0

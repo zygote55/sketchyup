@@ -1,0 +1,236 @@
+[
+  {
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.957,
+    "hardwareAcceptance": false,
+    "viewportReport": {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 29,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "contextGenerations": 2,
+      "outputTransitions": [],
+      "passed": true,
+      "platform": "wayland",
+      "scale": 1.5,
+      "screens": [
+        {
+          "name": "headless",
+          "scale": 1.5
+        }
+      ]
+    }
+  },
+  {
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "keyboard_modeling_input_tests",
+    "exitCode": 0,
+    "seconds": 1.206,
+    "hardwareAcceptance": false
+  },
+  {
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "text_size_input_tests",
+    "exitCode": 0,
+    "seconds": 2.691,
+    "hardwareAcceptance": false
+  },
+  {
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "keyboard_outliner_input_tests",
+    "exitCode": 0,
+    "seconds": 1.55,
+    "hardwareAcceptance": false
+  },
+  {
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "shortcut_input_tests",
+    "exitCode": 0,
+    "seconds": 2.95,
+    "hardwareAcceptance": false
+  },
+  {
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "viewport_tests",
+    "exitCode": 1,
+    "seconds": 3.775,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 2,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "viewport_tests",
+    "exitCode": 1,
+    "seconds": 2.459,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "keyboard_modeling_input_tests",
+    "exitCode": 0,
+    "seconds": 1.22,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "text_size_input_tests",
+    "exitCode": 1,
+    "seconds": 3.476,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "keyboard_outliner_input_tests",
+    "exitCode": 0,
+    "seconds": 1.671,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "shortcut_input_tests",
+    "exitCode": 1,
+    "seconds": 3.256,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.532,
+    "hardwareAcceptance": false,
+    "viewportReport": {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 29,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "contextGenerations": 2,
+      "outputTransitions": [],
+      "passed": true,
+      "platform": "xcb",
+      "scale": 1.5,
+      "screens": [
+        {
+          "name": "screen",
+          "scale": 1.5
+        }
+      ]
+    }
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "keyboard_modeling_input_tests",
+    "exitCode": 0,
+    "seconds": 3.96,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "text_size_input_tests",
+    "exitCode": 0,
+    "seconds": 5.227,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "keyboard_outliner_input_tests",
+    "exitCode": 0,
+    "seconds": 4.269,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "shortcut_input_tests",
+    "exitCode": 0,
+    "seconds": 5.046,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.646,
+    "hardwareAcceptance": false,
+    "viewportReport": {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 29,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "contextGenerations": 2,
+      "outputTransitions": [],
+      "passed": true,
+      "platform": "xcb",
+      "scale": 1.75,
+      "screens": [
+        {
+          "name": "screen",
+          "scale": 1.75
+        }
+      ]
+    }
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "keyboard_modeling_input_tests",
+    "exitCode": 0,
+    "seconds": 4.0,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "text_size_input_tests",
+    "exitCode": 0,
+    "seconds": 5.682,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "keyboard_outliner_input_tests",
+    "exitCode": 0,
+    "seconds": 4.406,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "shortcut_input_tests",
+    "exitCode": 0,
+    "seconds": 5.262,
+    "hardwareAcceptance": false
+  }
+]
