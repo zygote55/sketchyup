@@ -1,0 +1,147 @@
+Running as unit: sketchyup-r086ai-provider-local-guidance-worker.service
+[1/9] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/native_assistant_session.cpp.o
+[2/9] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[3/9] Linking CXX static library libsketchyup_core.a
+[4/9] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/assistant.cpp.o
+[5/9] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/inspection.cpp.o
+[6/9] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/catalog.cpp.o
+[7/9] Linking CXX static library libsketchyup_io.a
+[8/9] Building CXX object CMakeFiles/assistant_tests.dir/tests/assistant_tests.cpp.o
+[9/9] Linking CXX executable assistant_tests
+[1/30] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/assistant.cpp.o
+[2/30] Linking CXX static library libsketchyup_io.a
+[3/30] Building CXX object CMakeFiles/native_assistant_session_tests.dir/tests/native_assistant_session_tests.cpp.o
+[4/30] Automatic MOC for target sketchyup_providers
+[5/30] Linking CXX executable sketchyup-text-worker
+[6/30] Building CXX object CMakeFiles/sketchyup_providers.dir/sketchyup_providers_autogen/mocs_compilation.cpp.o
+[7/30] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/ollama_provider.cpp.o
+[8/30] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/provider_transport.cpp.o
+[9/30] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/openai_provider.cpp.o
+[10/30] Building CXX object CMakeFiles/ollama_provider_tests.dir/tests/ollama_provider_tests.cpp.o
+[11/30] Building CXX object CMakeFiles/chatgpt_auth_tests.dir/tests/chatgpt_auth_tests.cpp.o
+[12/30] Building CXX object CMakeFiles/openai_provider_tests.dir/tests/openai_provider_tests.cpp.o
+[13/30] Linking CXX executable native_assistant_session_tests
+[14/30] Building CXX object CMakeFiles/command_tests.dir/tests/command_tests.cpp.o
+[15/30] Linking CXX executable sketchyup-cli
+[16/30] Linking CXX static library libsketchyup_providers.a
+[17/30] Linking CXX executable assistant_tests
+[18/30] Building CXX object CMakeFiles/inspection_tests.dir/tests/inspection_tests.cpp.o
+[19/30] Linking CXX executable ollama_provider_tests
+[20/30] Linking CXX executable chatgpt_auth_tests
+[21/30] Linking CXX executable openai_provider_tests
+[22/30] Linking CXX executable automation_session_tests
+[23/30] Linking CXX executable transaction_dispatch_tests
+[24/30] Linking CXX executable transaction_coordinator_tests
+[25/30] Linking CXX executable staging_tests
+[26/30] Linking CXX executable inspection_session_tests
+[27/30] Linking CXX executable inspection_tests
+[28/30] Linking CXX executable history_command_tests
+[29/30] Linking CXX executable command_tests
+[30/30] Linking CXX executable diagnostic_inspection_tests
+Test project /home/keith/projects/sketchyup-style-ci/build/environment
+      Start  84: ollama_provider
+ 1/14 Test  #84: ollama_provider ..................   Passed    1.26 sec
+      Start  85: chatgpt_auth
+ 2/14 Test  #85: chatgpt_auth .....................   Passed    0.93 sec
+      Start  86: openai_provider
+ 3/14 Test  #86: openai_provider ..................   Passed    3.03 sec
+      Start 134: native_assistant_session
+ 4/14 Test #134: native_assistant_session .........   Passed    0.37 sec
+      Start 135: assistant
+ 5/14 Test #135: assistant ........................   Passed    1.97 sec
+      Start 138: automation_session
+ 6/14 Test #138: automation_session ...............   Passed    0.35 sec
+      Start 139: transaction_dispatch
+ 7/14 Test #139: transaction_dispatch .............   Passed    0.54 sec
+      Start 141: transaction_coordinator
+ 8/14 Test #141: transaction_coordinator ..........   Passed    0.68 sec
+      Start 143: staging
+ 9/14 Test #143: staging ..........................   Passed    0.20 sec
+      Start 144: inspection_session
+10/14 Test #144: inspection_session ...............   Passed    0.04 sec
+      Start 145: inspection
+11/14 Test #145: inspection .......................   Passed    0.47 sec
+      Start 160: history_commands
+12/14 Test #160: history_commands .................   Passed    0.08 sec
+      Start 162: commands
+13/14 Test #162: commands .........................   Passed    1.16 sec
+      Start 163: diagnostic_inspection
+14/14 Test #163: diagnostic_inspection ............   Passed    0.15 sec
+
+100% tests passed out of 14
+
+Total Test time (real) =  11.25 sec
+[1/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/native_assistant_session.cpp.o
+[2/36] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[3/36] Linking CXX static library libsketchyup_core.a
+[4/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/assistant.cpp.o
+[5/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/inspection.cpp.o
+[6/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/catalog.cpp.o
+[7/36] Linking CXX static library libsketchyup_io.a
+[8/36] Linking CXX executable sketchyup-text-worker
+[9/36] Automatic MOC for target sketchyup_providers
+[10/36] Building CXX object CMakeFiles/native_assistant_session_tests.dir/tests/native_assistant_session_tests.cpp.o
+[11/36] Building CXX object CMakeFiles/sketchyup_providers.dir/sketchyup_providers_autogen/mocs_compilation.cpp.o
+[12/36] Linking CXX executable sketchyup-cli
+[13/36] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/ollama_provider.cpp.o
+[14/36] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/provider_transport.cpp.o
+[15/36] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/openai_provider.cpp.o
+[16/36] Linking CXX static library libsketchyup_providers.a
+[17/36] Building CXX object CMakeFiles/ollama_provider_tests.dir/tests/ollama_provider_tests.cpp.o
+[18/36] Building CXX object CMakeFiles/chatgpt_auth_tests.dir/tests/chatgpt_auth_tests.cpp.o
+[19/36] Building CXX object CMakeFiles/openai_provider_tests.dir/tests/openai_provider_tests.cpp.o
+[20/36] Building CXX object CMakeFiles/assistant_tests.dir/tests/assistant_tests.cpp.o
+[21/36] Building CXX object CMakeFiles/inspection_tests.dir/tests/inspection_tests.cpp.o
+[22/36] Linking CXX executable ollama_provider_tests
+[23/36] Linking CXX executable chatgpt_auth_tests
+[24/36] Linking CXX executable openai_provider_tests
+[25/36] Building CXX object CMakeFiles/command_tests.dir/tests/command_tests.cpp.o
+[26/36] Linking CXX executable native_assistant_session_tests
+[27/36] Linking CXX executable assistant_tests
+[28/36] Linking CXX executable automation_session_tests
+[29/36] Linking CXX executable transaction_dispatch_tests
+[30/36] Linking CXX executable transaction_coordinator_tests
+[31/36] Linking CXX executable staging_tests
+[32/36] Linking CXX executable inspection_session_tests
+[33/36] Linking CXX executable inspection_tests
+[34/36] Linking CXX executable history_command_tests
+[35/36] Linking CXX executable command_tests
+[36/36] Linking CXX executable diagnostic_inspection_tests
+Test project /home/keith/projects/sketchyup-style-ci/build/sanitize
+      Start  84: ollama_provider
+ 1/14 Test  #84: ollama_provider ..................   Passed    5.01 sec
+      Start  85: chatgpt_auth
+ 2/14 Test  #85: chatgpt_auth .....................   Passed    4.67 sec
+      Start  86: openai_provider
+ 3/14 Test  #86: openai_provider ..................   Passed   10.34 sec
+      Start 134: native_assistant_session
+ 4/14 Test #134: native_assistant_session .........   Passed    4.17 sec
+      Start 135: assistant
+ 5/14 Test #135: assistant ........................   Passed   35.08 sec
+      Start 138: automation_session
+ 6/14 Test #138: automation_session ...............   Passed    4.09 sec
+      Start 139: transaction_dispatch
+ 7/14 Test #139: transaction_dispatch .............   Passed    7.44 sec
+      Start 141: transaction_coordinator
+ 8/14 Test #141: transaction_coordinator ..........   Passed    3.36 sec
+      Start 143: staging
+ 9/14 Test #143: staging ..........................   Passed    1.45 sec
+      Start 144: inspection_session
+10/14 Test #144: inspection_session ...............   Passed    0.45 sec
+      Start 145: inspection
+11/14 Test #145: inspection .......................   Passed    3.46 sec
+      Start 160: history_commands
+12/14 Test #160: history_commands .................   Passed    1.15 sec
+      Start 162: commands
+13/14 Test #162: commands .........................   Passed    8.26 sec
+      Start 163: diagnostic_inspection
+14/14 Test #163: diagnostic_inspection ............   Passed    0.97 sec
+
+100% tests passed out of 14
+
+Total Test time (real) =  89.92 sec
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 5min 45.672s
+             CPU time consumed: 8min 19.994s
+                   Memory peak: 4G (swap: 0B)

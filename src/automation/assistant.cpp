@@ -375,24 +375,34 @@ std::optional<QJsonObject> AssistantTask::nextRequest() {
     }
     attempt_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QJsonObject binding{{"documentId", documentId_}, {"expectedRevision", revision_}};
-    const QJsonObject budget{
+    QJsonObject budget{
         {"toolCallsPerReply", 8},
         {"remainingToolCalls", options_.limits.toolCalls - calls_},
         {"remainingProviderTurns", options_.limits.turns - turns_},
         {"remainingReportedTokens", QString::number(options_.limits.totalReportedTokens - tokens_)},
-        {"privateDraftOpen", !draft_.isEmpty()},
-        {"privateDraftState", draft_.isEmpty() ? QJsonObject{} : draftState_}};
+        {"privateDraftOpen", !draft_.isEmpty()}};
+    QString localGuidance;
+    if (!options_.remote) {
+        budget["privateDraftState"] = draft_.isEmpty() ? QJsonObject{} : draftState_;
+        localGuidance =
+            " expectedVersion is the integer currentVersion of the owned draft, never the public "
+            "document revision. A new draft has currentVersion 0 and no commands. Use public "
+            "inspection tools to read the original model; transaction.inspect and "
+            "transaction.preview "
+            "require at least one successfully applied command. transaction.apply changes only the "
+            "private draft. Read currentVersion and proposedRevision from the latest successful "
+            "begin/apply/describe receipt or the trusted privateDraftState below. "
+            "For assembly.site_place, position numbers are expressed in positionUnit. Copy the "
+            "requested numbers with their requested unit, or convert the numbers and select the "
+            "converted unit. Never convert millimeters to meters while still selecting "
+            "millimeters.";
+    }
     const auto system =
         QString::fromLatin1(instructions) +
         " Top-level tool arguments must copy the following host-supplied documentId and "
         "expectedRevision strings verbatim. Private drafts do not advance this bound revision. "
-        "A nested inspection of a private draft uses that draft's proposedRevision instead. "
-        "expectedVersion is the integer currentVersion of the owned draft, never the public "
-        "document revision. A new draft has currentVersion 0 and no commands. Use public "
-        "inspection tools to read the original model; transaction.inspect and transaction.preview "
-        "require at least one successfully applied command. transaction.apply changes only the "
-        "private draft. Read currentVersion and proposedRevision from the latest successful "
-        "begin/apply/describe receipt or the trusted privateDraftState below."
+        "A nested inspection of a private draft uses that draft's proposedRevision instead." +
+        localGuidance +
         " Return at most 8 tool calls in each reply. Further replies may continue using the "
         "remaining task budget below. For an open edit draft, request transaction.preview "
         "before ending with final text; final text alone discards the unsealed draft. "
@@ -584,11 +594,11 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
             if (code == "TRANSACTION_EXPIRED" && call.arguments.value("transactionId") == draft_)
                 draft_.clear(); // Dispatcher has retired the expired draft; a retry may begin anew.
             const auto &args = call.arguments;
-            if (code == "EMPTY_TRANSACTION")
+            if (!options_.remote && code == "EMPTY_TRANSACTION")
                 result["retry"] =
                     "This draft has no accepted commands. Inspect the original model with public "
                     "inspection tools, then use transaction.apply before private inspect/preview.";
-            if (code == "STALE_STAGE_VERSION")
+            if (!options_.remote && code == "STALE_STAGE_VERSION")
                 result["retry"] =
                     "Use the owned draft's currentVersion from the trusted privateDraftState or "
                     "transaction.describe receipt as expectedVersion, not the public revision.";

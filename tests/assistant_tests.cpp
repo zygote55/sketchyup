@@ -2,6 +2,7 @@
 #include "automation/commands.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <future>
@@ -336,6 +337,42 @@ int main(int argc, char **argv) {
                       fixture.actor.document().bodies().size() == 1 &&
                       fixture.actor.document().history().total == 1,
                   "Long-plan edits publish only on explicit host Apply");
+        }
+        {
+            ActorBackend fixture(files.path() + "/remote-guidance-compatibility");
+            auto settings = options();
+            settings.remote = true;
+            settings.remoteContextApproved = true;
+            settings.provider = "OpenAI";
+            const auto s = fixture.state();
+            AssistantTask task(fixture.backend(), settings);
+            Driver driver(task);
+            auto unchangedRemoteRequest = [&] {
+                const auto budget = hostBudget(*driver.pending);
+                const auto system = driver.pending->value("system").toString();
+                const auto prefix = system.left(system.indexOf("\nHost task budget: "));
+                check(budget.size() == 5 && !budget.contains("privateDraftState") &&
+                          QCryptographicHash::hash(prefix.toUtf8(), QCryptographicHash::Sha256)
+                                  .toHex() ==
+                              "f097d6827f7a4a9cbef901e8af49af2f66abbd01e0a0a0dbb4c01e407e7d0b4b",
+                      "Remote request preserves the qualified system prefix and five-field budget");
+            };
+            unchangedRemoteRequest();
+            const auto draft = driver.begin(s);
+            unchangedRemoteRequest();
+            const auto empty = driver.tool(
+                "transaction.inspect",
+                op(s, "transaction.inspect",
+                   {{"transactionId", draft}, {"request", query(s, "document.describe")}}),
+                true);
+            check(empty["code"] == "EMPTY_TRANSACTION" && !empty.contains("retry"),
+                  "Remote error receipts retain the qualified behavior");
+            unchangedRemoteRequest();
+            task.cancel();
+            check(task.phase() == AssistantTask::Phase::Canceled &&
+                      fixture.actor.document().revision() == 0 &&
+                      fixture.actor.document().bodies().empty(),
+                  "Remote compatibility preserves cancellation without edits");
         }
         {
             ActorBackend fixture(files.path() + "/draft-state-guidance");
