@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "io/document_io.hpp"
+#include <QAbstractSpinBox>
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -7,6 +8,7 @@
 #include <QDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QKeySequenceEdit>
 #include <QPushButton>
 #include <QSettings>
 #include <QTabWidget>
@@ -14,6 +16,7 @@
 #include <QTest>
 #include <QTimer>
 #include <iostream>
+#include <set>
 using namespace sketchy;
 namespace {
 void check(bool value, const char *message) {
@@ -54,6 +57,60 @@ QJsonObject inspect(QWidget &window, const QString &page, const QString &theme) 
             {"unnamedControls", unnamed},
             {"controls", controls}};
 }
+QWidget *keyboardControl(QWidget *widget, QWidget &dialog) {
+    // Qt exposes internal line edits separately from their composite controls.
+    // A Tab visit to either representation reaches the same public control.
+    for (auto *parent = widget->parentWidget(); parent && parent != &dialog;
+         parent = parent->parentWidget()) {
+        if (qobject_cast<QAbstractSpinBox *>(parent) || qobject_cast<QKeySequenceEdit *>(parent) ||
+            qobject_cast<QComboBox *>(parent))
+            return parent;
+    }
+    return widget;
+}
+QJsonObject inspectKeyboard(QDialog &dialog) {
+    dialog.activateWindow();
+    check(QTest::qWaitForWindowActive(&dialog), "Owned dialog has native keyboard focus");
+    check(QTest::qWaitFor([&] {
+              auto *focused = QApplication::focusWidget();
+              return focused && (focused == &dialog || dialog.isAncestorOf(focused));
+          }),
+          "Owned dialog focus transfer completes before Tab traversal");
+    std::set<QWidget *> expected, visited;
+    for (auto *widget : dialog.findChildren<QWidget *>())
+        if (widget->isVisibleTo(&dialog) && widget->isEnabled() &&
+            (widget->focusPolicy() & Qt::TabFocus))
+            expected.insert(keyboardControl(widget, dialog));
+    check(!expected.empty() && expected.size() <= 128, "Dialog keyboard scope is bounded");
+    QJsonArray owners;
+    const auto steps = expected.size() * 2 + 2;
+    for (size_t step = 0; step < steps; ++step) {
+        auto *focused = QApplication::focusWidget();
+        if (!focused || (focused != &dialog && !dialog.isAncestorOf(focused)))
+            std::cerr << "Native dialog Tab focus lost: dialog="
+                      << dialog.objectName().toStdString() << " step=" << step
+                      << " focused=" << identity(focused).toStdString()
+                      << " activeWindow=" << identity(QApplication::activeWindow()).toStdString()
+                      << " dialogActive=" << dialog.isActiveWindow() << '\n';
+        check(focused && (focused == &dialog || dialog.isAncestorOf(focused)),
+              "Tab focus stays inside the owned dialog");
+        auto *control = keyboardControl(focused, dialog);
+        visited.insert(control);
+        owners.append(identity(control));
+        QTest::keyClick(focused, Qt::Key_Tab);
+        QTest::qWait(5);
+    }
+    QJsonArray missing, declared;
+    for (auto *control : expected) {
+        declared.append(identity(control));
+        if (!visited.contains(control))
+            missing.append(identity(control));
+    }
+    return {{"expectedControls", declared},
+            {"tabFocusOwners", owners},
+            {"unreachableControls", missing},
+            {"steps", qint64(steps)}};
+}
 } // namespace
 int main(int argc, char **argv) {
     QTemporaryDir settings;
@@ -72,15 +129,18 @@ int main(int argc, char **argv) {
     try {
         check(app.arguments().size() == 1 ||
                   (app.arguments().size() == 2 && (app.arguments()[1] == "--inventory-only" ||
-                                                   app.arguments()[1] == "--dialogs-only")),
-              "Usage: native_accessibility_audit [--inventory-only|--dialogs-only]");
-        const bool dialogsOnly = app.arguments().contains("--dialogs-only");
+                                                   app.arguments()[1] == "--dialogs-only" ||
+                                                   app.arguments()[1] == "--dialogs-keyboard")),
+              "Usage: native_accessibility_audit "
+              "[--inventory-only|--dialogs-only|--dialogs-keyboard]");
+        const bool keyboardDialogs = app.arguments().contains("--dialogs-keyboard");
+        const bool dialogsOnly = keyboardDialogs || app.arguments().contains("--dialogs-only");
         const bool keyboard = !dialogsOnly && !app.arguments().contains("--inventory-only");
         window.resize(1200, 900);
         window.demo();
         window.show();
         check(QTest::qWaitForWindowExposed(&window), "Audit window exposed");
-        if (keyboard) {
+        if (keyboard || keyboardDialogs) {
             window.activateWindow();
             check(QTest::qWaitForWindowActive(&window), "Audit window owns keyboard focus");
         }
@@ -108,9 +168,22 @@ int main(int argc, char **argv) {
             check(found, "Audit theme action exists");
             if (dialogsOnly) {
                 auto appendDialog = [&](QDialog &dialog, const QString &page) {
-                    const auto context = inspect(dialog, page, theme);
+                    auto context = inspect(dialog, page, theme);
                     check(context["unnamedControls"].toInt() == 0,
                           "Native dialog controls have descriptive accessible names");
+                    if (keyboardDialogs) {
+                        const auto traversal = inspectKeyboard(dialog);
+                        context["keyboardTraversal"] = traversal;
+                        if (!traversal["unreachableControls"].toArray().isEmpty()) {
+                            std::cerr << "Unreachable native dialog controls: "
+                                      << QJsonDocument(traversal["unreachableControls"].toArray())
+                                             .toJson(QJsonDocument::Compact)
+                                             .toStdString()
+                                      << '\n';
+                            throw std::runtime_error(
+                                "Every scoped native dialog control is reachable by Tab");
+                        }
+                    }
                     contexts.append(context);
                 };
                 const std::pair<const char *, const char *> dialogs[] = {
@@ -202,10 +275,15 @@ int main(int argc, char **argv) {
             {"contexts", contexts},
             {"actions", actions},
             {"f6FocusOwners", regions},
-            {"keyboardRoutingExercised", keyboard},
+            {"keyboardRoutingExercised", keyboard || keyboardDialogs},
+            {"dialogKeyboardRoutingExercised", keyboardDialogs},
             {"activeWindowAtCapture", window.isActiveWindow()},
             {"scope",
-             dialogsOnly
+             keyboardDialogs
+                 ? "Native Tab traversal of all visible enabled public dialog controls in two "
+                   "themes and all synthetic provider modes; composite internal editors count "
+                   "as their public control. No document-changing or credential action activated."
+             : dialogsOnly
                  ? "Visible enabled tab-focusable controls in Drawing plane, Keyboard shortcuts, "
                    "Commands and model search, and all synthetic Assistant preference modes, "
                    "in two themes; Qt accessibility interfaces. No keyboard-routing claim."

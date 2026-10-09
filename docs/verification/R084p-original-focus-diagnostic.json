@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "diagnosticOnly": true,
+  "releaseAcceptance": false,
+  "source": "2d2918d1b787f16b69a524e2093ec8d0f55213a0",
+  "keyboardTraversalQualified": false,
+  "fixtureExitCode": 1,
+  "failureReproduced": true,
+  "focusDiagnostics": [
+    "dialog=drawingPlaneDialog step=0 focused=QPushButton:commandSearch activeWindow=sketchy::Window: dialogActive=1"
+  ],
+  "logSha256": "629a021c9aee6b7fcd3a5af511dbc278d120328862a9a398f05775e5e439ca22"
+}
