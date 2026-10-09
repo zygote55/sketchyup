@@ -1,8 +1,8 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <iomanip>
@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir preferences;
     qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
     QApplication app(argc, argv);

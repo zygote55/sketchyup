@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/components.hpp"
 #include "geometry/solid.hpp"
@@ -6,7 +7,6 @@
 #include <QApplication>
 #include <QDir>
 #include <QMouseEvent>
-#include <QSurfaceFormat>
 #include <QTest>
 #include <QWindow>
 #include <iostream>
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setSamples(0);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
     Window window;
     QString status;

@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/components.hpp"
 #include "core/face_orientation.hpp"
@@ -9,7 +10,6 @@
 #include <QApplication>
 #include <QDir>
 #include <QLineEdit>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <iostream>
@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setSamples(0);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir preferences;
     qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
     QApplication app(argc, argv);

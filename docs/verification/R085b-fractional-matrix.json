@@ -1,0 +1,274 @@
+[
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 1.929,
+    "hardwareAcceptance": false,
+    "viewportReport": {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 29,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "colorBits": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "contextGenerations": 2,
+      "outputTransitions": [],
+      "passed": true,
+      "platform": "wayland",
+      "scale": 1.5,
+      "screens": [
+        {
+          "name": "headless",
+          "scale": 1.5
+        }
+      ]
+    }
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "keyboard_modeling_input_tests",
+    "exitCode": 0,
+    "seconds": 1.195,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "text_size_input_tests",
+    "exitCode": 0,
+    "seconds": 2.876,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "keyboard_outliner_input_tests",
+    "exitCode": 0,
+    "seconds": 1.609,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.5,
+    "target": "shortcut_input_tests",
+    "exitCode": 0,
+    "seconds": 3.144,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 2.026,
+    "hardwareAcceptance": false,
+    "viewportReport": {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 29,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "colorBits": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "contextGenerations": 2,
+      "outputTransitions": [],
+      "passed": true,
+      "platform": "wayland",
+      "scale": 1.75,
+      "screens": [
+        {
+          "name": "headless",
+          "scale": 1.75
+        }
+      ]
+    }
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "keyboard_modeling_input_tests",
+    "exitCode": 0,
+    "seconds": 1.333,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "text_size_input_tests",
+    "exitCode": 0,
+    "seconds": 3.345,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "keyboard_outliner_input_tests",
+    "exitCode": 0,
+    "seconds": 1.867,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "wayland",
+    "qtClientScaleFactor": 1.75,
+    "target": "shortcut_input_tests",
+    "exitCode": 0,
+    "seconds": 3.555,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.499,
+    "hardwareAcceptance": false,
+    "viewportReport": {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 29,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "colorBits": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "contextGenerations": 2,
+      "outputTransitions": [],
+      "passed": true,
+      "platform": "xcb",
+      "scale": 1.5,
+      "screens": [
+        {
+          "name": "screen",
+          "scale": 1.5
+        }
+      ]
+    }
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "keyboard_modeling_input_tests",
+    "exitCode": 0,
+    "seconds": 3.96,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "text_size_input_tests",
+    "exitCode": 0,
+    "seconds": 5.247,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "keyboard_outliner_input_tests",
+    "exitCode": 0,
+    "seconds": 4.371,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.5,
+    "target": "shortcut_input_tests",
+    "exitCode": 0,
+    "seconds": 5.26,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "viewport_tests",
+    "exitCode": 0,
+    "seconds": 4.789,
+    "hardwareAcceptance": false,
+    "viewportReport": {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 29,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "colorBits": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "contextGenerations": 2,
+      "outputTransitions": [],
+      "passed": true,
+      "platform": "xcb",
+      "scale": 1.75,
+      "screens": [
+        {
+          "name": "screen",
+          "scale": 1.75
+        }
+      ]
+    }
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "keyboard_modeling_input_tests",
+    "exitCode": 0,
+    "seconds": 4.062,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "text_size_input_tests",
+    "exitCode": 0,
+    "seconds": 5.641,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "keyboard_outliner_input_tests",
+    "exitCode": 0,
+    "seconds": 4.483,
+    "hardwareAcceptance": false
+  },
+  {
+    "attempt": 1,
+    "platform": "xcb",
+    "qtClientScaleFactor": 1.75,
+    "target": "shortcut_input_tests",
+    "exitCode": 0,
+    "seconds": 5.287,
+    "hardwareAcceptance": false
+  }
+]

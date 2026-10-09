@@ -1,9 +1,9 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
-#include <QSurfaceFormat>
 #include <QTest>
 #include <iostream>
 using namespace sketchy;
@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
     QString lastMessage;
     try {

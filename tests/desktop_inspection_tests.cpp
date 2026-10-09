@@ -1,4 +1,5 @@
 #include "app/inspection_service.hpp"
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "io/document_io.hpp"
 #include <QApplication>
@@ -7,7 +8,6 @@
 #include <QJsonDocument>
 #include <QOpenGLContext>
 #include <QSettings>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QWindow>
@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir files;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     QApplication app(argc, argv);

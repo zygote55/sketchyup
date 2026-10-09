@@ -1,3 +1,4 @@
+#include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "m7_fixture.hpp"
 #include <QApplication>
@@ -5,7 +6,6 @@
 #include <QFile>
 #include <QImage>
 #include <QJsonDocument>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <iostream>
@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setSamples(0);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir temporary;
     qputenv("XDG_CONFIG_HOME", temporary.path().toUtf8());
     qputenv("XDG_DATA_HOME", temporary.path().toUtf8());
