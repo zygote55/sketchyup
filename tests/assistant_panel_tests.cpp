@@ -3,6 +3,7 @@
 #include "integrations/credential_store.hpp"
 #include "integrations/openai_provider.hpp"
 #include "io/document_io.hpp"
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -29,6 +30,7 @@
 #include <deque>
 #include <iostream>
 #include <source_location>
+#include <utility>
 using namespace sketchy;
 using Phase = AssistantTask::Phase;
 void check(bool ok, const char *message) {
@@ -314,6 +316,53 @@ int main(int argc, char **argv) {
                   !setup->findChild<QLineEdit *>("assistantCredential")->isVisible() &&
                   network.calls == 0,
               "Subscription setup offers browser sign-in without API key or background network");
+        for (const auto &[id, name] :
+             {std::pair{"assistantChatGPTAccount", "ChatGPT account"},
+              std::pair{"assistantChatGPTModel", "ChatGPT model"},
+              std::pair{"assistantPreferencesScroll", "Assistant preferences"}}) {
+            auto *control = setup->findChild<QWidget *>(id);
+            check(control && control->isVisibleTo(setup), "Subscription control is visible");
+            auto *accessible = QAccessible::queryAccessibleInterface(control);
+            check(control->accessibleName() == QString::fromLatin1(name) && accessible &&
+                      accessible->isValid(),
+                  "Subscription preferences expose descriptive accessible names");
+            if (auto *combo = qobject_cast<QComboBox *>(control)) {
+                const auto caption = QString::fromLatin1(name);
+#ifdef Q_OS_UNIX
+                // Qt's Unix combo interface names the selected value and exposes the
+                // control's caption through a Label relation.
+                const auto accessibleName =
+                    combo->currentText().isEmpty() ? caption : combo->currentText();
+#else
+                const auto accessibleName = caption;
+#endif
+                check(accessible->role() == QAccessible::ComboBox &&
+                          accessible->text(QAccessible::Name) == accessibleName &&
+                          accessible->text(QAccessible::Value) == combo->currentText(),
+                      "Subscription selector exposes its selected value");
+                bool labeled{};
+                for (const auto &[related, relation] : accessible->relations(QAccessible::Label)) {
+                    if (!related || !related->isValid())
+                        continue;
+                    auto *captionWidget = qobject_cast<QLabel *>(related->object());
+                    labeled |= relation.testFlag(QAccessible::Label) && captionWidget &&
+                               captionWidget->buddy() == combo &&
+                               captionWidget->isVisibleTo(setup) &&
+                               related->text(QAccessible::Name) == caption;
+                }
+                check(labeled, "Subscription selector exposes its associated caption");
+            } else {
+                check(accessible->text(QAccessible::Name) == QString::fromLatin1(name),
+                      "Preferences scroll region exposes its accessible name");
+            }
+        }
+        for (const auto *id : {"assistantChatGPTAccount", "assistantChatGPTModel"}) {
+            auto *control = setup->findChild<QWidget *>(id);
+            bool labeled{};
+            for (auto *caption : setup->findChildren<QLabel *>())
+                labeled |= caption->buddy() == control && caption->isVisibleTo(setup);
+            check(labeled, "Subscription selector has a visible associated label");
+        }
         authChoice->setCurrentIndex(1);
         setup->findChild<QLineEdit *>("assistantOpenAIModel")->setText("fixture-responses-model");
         setup->findChild<QLineEdit *>("assistantCredential")->setText("sk-fixture-only");

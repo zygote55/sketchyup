@@ -1,0 +1,4 @@
+syntheticCaption valid=1 name=ChatGPT account
+relation=2 target=syntheticSelector name=Synthetic account
+syntheticSelector valid=1 name=Synthetic account
+relation=1 target=syntheticCaption name=ChatGPT account

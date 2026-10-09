@@ -1,0 +1,47 @@
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Subscription preferences expose descriptive accessible names
+               dmabuf support: modifiers
+               fence sync: yes (wait)
+[05:28:58.474] GL version: OpenGL ES 3.2 Mesa 26.2.3-arch1.2
+[05:28:58.474] GLSL version: OpenGL ES GLSL ES 3.20
+[05:28:58.474] GL vendor: Mesa
+[05:28:58.474] GL renderer: llvmpipe (LLVM 23.1.1, 256 bits)
+[05:28:58.487] GL ES 3.2 - renderer features:
+               read-back format: ARGB8888
+               glReadPixels supports y-flip: yes
+               glReadPixels supports PBO: yes
+               wl_shm 10 bpc formats: yes
+               wl_shm 16 bpc formats: yes
+               wl_shm half-float formats: yes
+               internal R and RG formats: yes
+               OES_EGL_image_external: yes
+               GPU timeline: no
+               Texture immutability: yes
+               Required precision: yes
+[05:28:58.487] Using GL renderer
+[05:28:58.487] Registered plugin API 'weston_windowed_output_api_headless_v2' of size 16
+[05:28:58.487] Color manager: no-op
+                 protocol support: no
+[05:28:58.487] Output 'headless' attempts EOTF mode SDR and colorimetry mode default.
+[05:28:58.487] Output 'headless' using color profile: stock sRGB color profile
+[05:28:58.489] Output 'headless' enabled with head(s) headless
+[05:28:58.489] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: yes
+               cursor planes: no
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: yes
+               color representation: yes
+               presentation clock: CLOCK_MONOTONIC_RAW, id 4
+               presentation clock resolution: 0.000000001 s
+[05:28:58.490] Loading module '/usr/lib/weston/desktop-shell.so'
+[05:28:58.493] launching '/usr/lib/weston/weston-keyboard'
+[05:28:58.495] launching '/usr/lib/weston/weston-desktop-shell'
+[05:28:59.688] BUG: finalizing a layer with views still on it.

@@ -732,6 +732,8 @@ void AssistantPanel::Impl::showSetup() {
     dialog->setWindowTitle("Assistant preferences");
     auto *outer = new QVBoxLayout(dialog);
     auto *scroll = new QScrollArea;
+    scroll->setObjectName("assistantPreferencesScroll");
+    scroll->setAccessibleName("Assistant preferences");
     scroll->setWidgetResizable(true);
     auto *body = new QWidget;
     auto *form = new QFormLayout(body);
@@ -774,6 +776,9 @@ void AssistantPanel::Impl::showSetup() {
               "session is stored in the OS credential facility."));
     auto *accounts = new QComboBox;
     accounts->setObjectName("assistantChatGPTAccount");
+    accounts->setAccessibleName("ChatGPT account");
+    auto *accountLabel = label("ChatGPT account");
+    accountLabel->setBuddy(accounts);
     auto fillAccounts = [this, accounts](const QString &selected) {
         QSignalBlocker block(accounts);
         accounts->clear();
@@ -788,18 +793,22 @@ void AssistantPanel::Impl::showSetup() {
     fillAccounts(s.value("assistant/chatgptAccount").toString());
     planLayout->addWidget(label("Each task is limited to five minutes, 16 provider turns and "
                                 "262,144 reported tokens, including cached input."));
+    planLayout->addWidget(accountLabel);
     planLayout->addWidget(accounts);
     auto *signIn = button("Continue with ChatGPT", "assistantChatGPTSignIn");
     auto *signOut = button("Sign out", "assistantChatGPTSignOut");
     auto *models = new QComboBox;
     models->setObjectName("assistantChatGPTModel");
+    models->setAccessibleName("ChatGPT model");
+    auto *modelLabel = label("ChatGPT model");
+    modelLabel->setBuddy(models);
     const auto previousModel = s.value("assistant/chatgptModel").toString();
     if (!previousModel.isEmpty())
         models->addItem(previousModel + " (refresh to verify)", previousModel);
     auto *reload = button("Refresh available models", "assistantChatGPTModels");
     auto *cancelSignIn = button("Cancel sign-in / connection", "assistantChatGPTCancel");
     auto *planStatus = label(chatgpt.status(), "assistantChatGPTStatus");
-    for (QWidget *w : std::initializer_list<QWidget *>{signIn, signOut, models, reload,
+    for (QWidget *w : std::initializer_list<QWidget *>{signIn, signOut, modelLabel, models, reload,
                                                        cancelSignIn, planStatus})
         planLayout->addWidget(w);
     auto *usage = button("Manage ChatGPT usage", "assistantChatGPTUsage");
