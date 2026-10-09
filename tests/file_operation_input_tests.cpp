@@ -150,6 +150,10 @@ int main(int argc, char **argv) {
               "Load delivers events and fences reentrant open/close");
         check(encodeContainer(window.document()) == originalBytes && read(path) == originalBytes,
               "Open validates exact native bytes without changing source");
+        auto *progress = window.findChild<QDialog *>("fileOperationDialog");
+        check(progress && !progress->isVisible() &&
+                  !progress->property("fileOperationActive").toBool(),
+              "Completed operation retains a hidden inactive progress window");
         std::cerr << "File worker fixture: missing-file check started\n";
         bool failurePulse = false, failed = false;
         QTimer::singleShot(0, &window, [&] { failurePulse = true; });
@@ -160,6 +164,10 @@ int main(int argc, char **argv) {
         }
         check(failed && failurePulse && encodeContainer(window.document()) == originalBytes,
               "Failed asynchronous load preserves the active document");
+        QTest::qWait(180);
+        check(window.findChild<QDialog *>("fileOperationDialog") == progress &&
+                  !progress->isVisible() && !progress->property("fileOperationActive").toBool(),
+              "A failed short operation cannot leave a delayed progress popup");
         std::cerr << "File worker fixture: missing-file check finished\n";
         auto *save = window.findChild<QAction *>("file.save");
         auto *newFile = window.findChild<QAction *>("file.new");
@@ -168,7 +176,8 @@ int main(int argc, char **argv) {
         const auto captured = encodeContainer(window.document());
         bool savePulse = false;
         QTimer::singleShot(0, &window, [&] {
-            savePulse = window.findChild<QDialog *>("fileOperationDialog") != nullptr;
+            savePulse = window.findChild<QDialog *>("fileOperationDialog") == progress &&
+                        progress->property("fileOperationActive").toBool();
             window.document().move(1, {.25, 0, 0});
             save->trigger(); // Reentrant save must not publish another snapshot.
         });
@@ -179,6 +188,10 @@ int main(int argc, char **argv) {
         timings.append(measureOperation("save-current", window, [&] { save->trigger(); }));
         check(!window.document().dirty() && read(path) == encodeContainer(window.document()),
               "A subsequent save durably records the newer state");
+        check(window.findChildren<QDialog *>("fileOperationDialog").size() == 1 &&
+                  window.findChild<QDialog *>("fileOperationDialog") == progress &&
+                  !progress->isVisible() && !progress->property("fileOperationActive").toBool(),
+              "Repeated saves reuse progress and finish without leaving modal input blocked");
         window.document().move(1, {.125, 0, 0});
         const auto session = window.document().identity();
         bool choiceHandled = false, lateEdit = false;

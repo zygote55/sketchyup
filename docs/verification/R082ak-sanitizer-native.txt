@@ -1,0 +1,5 @@
+	libwayland-client.so.0 => /work/package/ci-wayland-client/libwayland-client.so.0 (0x00007f31d9df0000)
+Public reusable progress sanitizer fixture: policy=warm scale=1
+Public reusable progress sanitizer fixture: policy=warm scale=2
+Public reusable progress sanitizer fixture: policy=verified-cold scale=1
+Public reusable progress sanitizer fixture: policy=verified-cold scale=2

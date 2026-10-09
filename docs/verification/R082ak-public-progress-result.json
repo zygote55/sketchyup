@@ -1,0 +1,185 @@
+{
+  "qualifiedSource": "b3a141f8c1957ae04bdfaacec034daf671dd2b58",
+  "runtimeInputsMatched": 478,
+  "testInputsMatched": 301,
+  "normalRegressionCases": 17,
+  "sanitizerRegressionCases": 17,
+  "normalSoftwareCases": 4,
+  "sanitizerSoftwareCases": 4,
+  "actualAmdCases": 6,
+  "rebuiltParentLifecycleAssertionFailed": true,
+  "sanitizerLeakDetection": true,
+  "sourceAndCacheRestored": true,
+  "productionLimitsUnchanged": true,
+  "originalFiveMsHeartbeatAndTrailingGapRetained": true,
+  "privatePhaseInstrumentation": false,
+  "privateEventInstrumentation": false,
+  "normalBinarySha256": "e17b0dbc84e3b1b9c31b323eb9ed9d9164b711c1156f487e050f8a80fbfb3eb3",
+  "sanitizerBinarySha256": "6be4c390d6e561f766eed9fb5d9108e8ecf58a9b317620d0e92c7dcdb633f7cb",
+  "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+  "fixtureBytes": 100671415,
+  "all18OperationsUnderFiveSeconds": true,
+  "all18MaximumHeartbeatGapsUnder50ms": false,
+  "maximumHeartbeatGapMs": 72.946939,
+  "heartbeatBudgetMisses": 17,
+  "freshFullCiRequired": true,
+  "fullPerformanceGateAccepted": false,
+  "releaseAccepted": false,
+  "timings": [
+    {
+      "case": "warm-1",
+      "operation": "open",
+      "operationMs": 157.007413,
+      "operationAndFirstFrameMs": 164.79282,
+      "maximumHeartbeatGapMs": 17.302663,
+      "p95HeartbeatGapMs": 16.771373
+    },
+    {
+      "case": "warm-1",
+      "operation": "save-with-newer-edit",
+      "operationMs": 382.934166,
+      "operationAndFirstFrameMs": 382.934226,
+      "maximumHeartbeatGapMs": 71.373239,
+      "p95HeartbeatGapMs": 5.625214
+    },
+    {
+      "case": "warm-1",
+      "operation": "save-current",
+      "operationMs": 394.31458,
+      "operationAndFirstFrameMs": 394.31464,
+      "maximumHeartbeatGapMs": 66.951741,
+      "p95HeartbeatGapMs": 29.587155
+    },
+    {
+      "case": "verified-cold-1",
+      "operation": "open",
+      "operationMs": 269.692387,
+      "operationAndFirstFrameMs": 279.274176,
+      "maximumHeartbeatGapMs": 71.703577,
+      "p95HeartbeatGapMs": 56.654844
+    },
+    {
+      "case": "verified-cold-1",
+      "operation": "save-with-newer-edit",
+      "operationMs": 395.443897,
+      "operationAndFirstFrameMs": 395.443957,
+      "maximumHeartbeatGapMs": 66.858184,
+      "p95HeartbeatGapMs": 5.845312
+    },
+    {
+      "case": "verified-cold-1",
+      "operation": "save-current",
+      "operationMs": 392.625805,
+      "operationAndFirstFrameMs": 392.625855,
+      "maximumHeartbeatGapMs": 61.116529,
+      "p95HeartbeatGapMs": 29.164923
+    },
+    {
+      "case": "warm-2",
+      "operation": "open",
+      "operationMs": 271.559155,
+      "operationAndFirstFrameMs": 281.942586,
+      "maximumHeartbeatGapMs": 72.698918,
+      "p95HeartbeatGapMs": 56.559373
+    },
+    {
+      "case": "warm-2",
+      "operation": "save-with-newer-edit",
+      "operationMs": 395.916177,
+      "operationAndFirstFrameMs": 395.916227,
+      "maximumHeartbeatGapMs": 67.08203,
+      "p95HeartbeatGapMs": 5.788735
+    },
+    {
+      "case": "warm-2",
+      "operation": "save-current",
+      "operationMs": 393.320477,
+      "operationAndFirstFrameMs": 393.320527,
+      "maximumHeartbeatGapMs": 57.03161,
+      "p95HeartbeatGapMs": 28.906523
+    },
+    {
+      "case": "verified-cold-2",
+      "operation": "open",
+      "operationMs": 271.680807,
+      "operationAndFirstFrameMs": 280.902281,
+      "maximumHeartbeatGapMs": 72.946939,
+      "p95HeartbeatGapMs": 61.683837
+    },
+    {
+      "case": "verified-cold-2",
+      "operation": "save-with-newer-edit",
+      "operationMs": 411.26427,
+      "operationAndFirstFrameMs": 411.26432,
+      "maximumHeartbeatGapMs": 65.951553,
+      "p95HeartbeatGapMs": 5.689747
+    },
+    {
+      "case": "verified-cold-2",
+      "operation": "save-current",
+      "operationMs": 393.077789,
+      "operationAndFirstFrameMs": 393.077839,
+      "maximumHeartbeatGapMs": 63.356394,
+      "p95HeartbeatGapMs": 29.117463
+    },
+    {
+      "case": "warm-3",
+      "operation": "open",
+      "operationMs": 270.456814,
+      "operationAndFirstFrameMs": 279.321291,
+      "maximumHeartbeatGapMs": 71.381857,
+      "p95HeartbeatGapMs": 56.024288
+    },
+    {
+      "case": "warm-3",
+      "operation": "save-with-newer-edit",
+      "operationMs": 395.772179,
+      "operationAndFirstFrameMs": 395.772239,
+      "maximumHeartbeatGapMs": 69.09838,
+      "p95HeartbeatGapMs": 5.747637
+    },
+    {
+      "case": "warm-3",
+      "operation": "save-current",
+      "operationMs": 392.953415,
+      "operationAndFirstFrameMs": 392.953465,
+      "maximumHeartbeatGapMs": 64.027479,
+      "p95HeartbeatGapMs": 29.295241
+    },
+    {
+      "case": "verified-cold-3",
+      "operation": "open",
+      "operationMs": 269.150034,
+      "operationAndFirstFrameMs": 276.806676,
+      "maximumHeartbeatGapMs": 70.373492,
+      "p95HeartbeatGapMs": 54.257352
+    },
+    {
+      "case": "verified-cold-3",
+      "operation": "save-with-newer-edit",
+      "operationMs": 405.204486,
+      "operationAndFirstFrameMs": 405.204546,
+      "maximumHeartbeatGapMs": 71.005974,
+      "p95HeartbeatGapMs": 5.703232
+    },
+    {
+      "case": "verified-cold-3",
+      "operation": "save-current",
+      "operationMs": 404.312272,
+      "operationAndFirstFrameMs": 404.312332,
+      "maximumHeartbeatGapMs": 56.557161,
+      "p95HeartbeatGapMs": 22.459939
+    }
+  ],
+  "originalEvidenceSha256": {
+    "normalSourceFreeze": "0afaf4aedea50eef34ce3287c120020417ea210b57834ddf84d95f2ce7ed549d",
+    "normalResult": "c8872dbe6410686c042759983eb79a0746f1f30d2499c5e8d5a0a7b605926df7",
+    "gpuFreeze": "f057fad9034568b8b3783e3682190a98378bce24b9edeaaff6351e69c64996c0",
+    "gpuResult": "14dc24b38387ae4cfe1897d0528890c2cbcd96abfcffb259a3b65fbc61da3762",
+    "sanitizerFreeze": "92c6e8bfcc6d0303c561f42f500507566a422fdd14d542def7c0977ab04dca66",
+    "sanitizerResult": "08abea59a0fde1c273d4308de87f42263a143aab19670e8268d71183641757b6",
+    "normalBuildLog": "47c059cd8f77bd2b269400226df12d78bfa751a71dd85bcbb69c2397e8e7e404",
+    "sanitizerBuildLog": "fcf4a4a127d48f9bcc23c1fcd79e52731ee45f87537ca21bcd3a6baec3fd09d5",
+    "sanitizerNativeLog": "38c0b066d5c78d89dd3a6099b91e73c12bc0851785b33683c60f4f863b3e00a6"
+  }
+}

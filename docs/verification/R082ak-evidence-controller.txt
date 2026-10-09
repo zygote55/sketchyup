@@ -1,0 +1,143 @@
+import hashlib
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+main = Path('/home/keith/projects/sketchyup')
+work = Path('/home/keith/projects/sketchyup-file-progress-publication')
+stage = main / 'build/review-notes/r082ak-publication'
+normal = main / 'build/native-file-progress-r082ak'
+gpu = main / 'build/remote-native-file-progress-r082al'
+san = main / 'build/native-file-progress-sanitize-r082am'
+source = 'b3a141f8c1957ae04bdfaacec034daf671dd2b58'
+
+def sha(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+def read(root, name):
+    return json.loads((root / name).read_text())
+
+def git(*args):
+    return subprocess.check_output(['git', '-C', str(work), *args], text=True).strip()
+
+assert git('rev-parse', 'HEAD') == source
+assert not git('status', '--porcelain')
+nf = read(normal, 'source-freeze.json')
+nr = read(normal, 'build-result.json')
+sf = read(san, 'source-freeze.json')
+sr = read(san, 'result.json')
+gf = read(gpu, 'freeze.json')
+gr = read(gpu, 'result.json')
+assert nf['source'] == sf['source'] == nr['source'] == sr['source'] == gf['source'] == gr['source'] == source
+assert nr['passed'] and nr['restorationVerified'] and len(nr['cases']) == 4
+assert sr['passed'] and sr['trackedSourceRestored'] and sr['sanitizerLeakDetection']
+assert sr['regressionCases'] == 17 and len(sr['cases']) == 4
+assert sr['worker']['passed'] and sr['worker']['memorySwapPeakBytes'] == 0
+assert gr['passed'] and len(gr['cases']) == 6 and gr['exactProductionRuntime']
+assert not gr['privatePhaseInstrumentation'] and not gr['privateEventInstrumentation']
+assert gr['productionLimits'] and gr['allMeasuredOperationsUnderFiveSeconds']
+assert not gr['releaseAcceptance']
+assert gr['binarySha256'] == nr['binarySha256'] == gf['artifacts']['bin/file_operation_input_tests']
+assert gr['fixtureSha256'] == nf['fixtureSha256'] == gf['artifacts']['fixture/canonical.sketchyup']
+for name, wanted in nf['productionLimitHeaderSha256'].items():
+    assert sha(work / name) == wanted, name
+assert len(nf['runtimeSha256']) == 478 and len(nf['testSourceSha256']) == 301
+assert sf['runtimeAndTestSha256'] == {**nf['runtimeSha256'], **nf['testSourceSha256']}
+for name, wanted in sf['runtimeAndTestSha256'].items():
+    assert sha(work / name) == wanted, name
+assert sha(san / 'source/check-native.sh') == sf['nativeControllerSha256']
+assert sha(san / 'source/scripts/test-wayland.sh') == sf['waylandScriptSha256']
+assert sha(normal / 'source/scripts/test-wayland.sh') == sha(work / 'scripts/test-wayland.sh')
+assert sha(main / 'build/verification-scripts/build-public-file-progress-r082ak.py') == nf['controllerSha256']
+assert sha(san / 'qualify.py') == sf['controllerSha256']
+assert sha(san / 'worker.py') == sf['workerSha256']
+assert sha(main / 'build/verification-scripts/run-public-file-progress-r082al.py') == gf['controllerSha256']
+capture = main / 'build/local-checks/r082ak-native-file-progress/capture'
+assert sha(capture / 'file_operation_input_tests') == nr['binarySha256']
+assert sha(san / 'artifacts/file_operation_input_tests') == sr['binarySha256']
+assert (capture / 'baseline-failure-verified.txt').exists()
+assert '100% tests passed' in (capture / 'regressions.stdout').read_text()
+
+rows = []
+for case in gr['cases']:
+    result = case['result']
+    assert result['passed'] and result['fileBytes'] == gf['fixtureBytes']
+    assert case['worker']['exitCode'] == 0 and case['worker']['memorySwapPeakBytes'] == 0
+    assert sha(gpu / 'evidence' / (case['label'] + '.stdout')) == case['stdoutSha256']
+    assert sha(gpu / 'evidence' / (case['label'] + '.stderr')) == case['stderrSha256']
+    assert {'open', 'save-with-newer-edit', 'save-current'} == {t['operation'] for t in result['timings']}
+    for timing in result['timings']:
+        assert timing['heartbeatIntervalMs'] == 5
+        assert timing['operationMs'] < 5000
+        rows.append({'case': case['label'], 'operation': timing['operation'],
+                     'operationMs': timing['operationMs'],
+                     'operationAndFirstFrameMs': timing['operationAndFirstFrameMs'],
+                     'maximumHeartbeatGapMs': timing['maximumHeartbeatGapMs'],
+                     'p95HeartbeatGapMs': timing['p95HeartbeatGapMs']})
+assert len(rows) == 18
+under50 = all(row['maximumHeartbeatGapMs'] < 50 for row in rows)
+assert gr['allMaximumHeartbeatGapsUnder50ms'] == under50
+proof = {'qualifiedSource': source, 'runtimeInputsMatched': 478, 'testInputsMatched': 301,
+         'normalRegressionCases': 17, 'sanitizerRegressionCases': 17,
+         'normalSoftwareCases': 4, 'sanitizerSoftwareCases': 4, 'actualAmdCases': 6,
+         'rebuiltParentLifecycleAssertionFailed': True, 'sanitizerLeakDetection': True,
+         'sourceAndCacheRestored': True, 'productionLimitsUnchanged': True,
+         'originalFiveMsHeartbeatAndTrailingGapRetained': True,
+         'privatePhaseInstrumentation': False, 'privateEventInstrumentation': False,
+         'normalBinarySha256': nr['binarySha256'], 'sanitizerBinarySha256': sr['binarySha256'],
+         'fixtureSha256': gr['fixtureSha256'], 'fixtureBytes': gf['fixtureBytes'],
+         'all18OperationsUnderFiveSeconds': True, 'all18MaximumHeartbeatGapsUnder50ms': under50,
+         'maximumHeartbeatGapMs': max(row['maximumHeartbeatGapMs'] for row in rows),
+         'heartbeatBudgetMisses': sum(row['maximumHeartbeatGapMs'] >= 50 for row in rows),
+         'freshFullCiRequired': True, 'fullPerformanceGateAccepted': False,
+         'releaseAccepted': False, 'timings': rows,
+         'originalEvidenceSha256': {name: sha(path) for name, path in {
+             'normalSourceFreeze': normal / 'source-freeze.json', 'normalResult': normal / 'build-result.json',
+             'gpuFreeze': gpu / 'freeze.json', 'gpuResult': gpu / 'result.json',
+             'sanitizerFreeze': san / 'source-freeze.json', 'sanitizerResult': san / 'result.json',
+             'normalBuildLog': main / 'build/local-checks/r082ak-native-file-progress/output.log',
+             'sanitizerBuildLog': san / 'build.log',
+             'sanitizerNativeLog': main / 'build/local-checks/r082am-public-progress-sanitizers/output.log'
+         }.items()}}
+(stage / 'verified-evidence.json').write_text(json.dumps(proof, indent=2) + '\n')
+docs = work / 'docs/verification'
+(docs / 'R082ak-public-progress-result.json').write_text(json.dumps(proof, indent=2) + '\n')
+for name, path in {'normal-regressions': capture / 'regressions.stdout',
+                   'parent-lifecycle-failure': capture / 'baseline-failure-verified.txt',
+                   'normal-build': main / 'build/local-checks/r082ak-native-file-progress/output.log',
+                   'sanitizer-build': san / 'build.log',
+                   'sanitizer-native': main / 'build/local-checks/r082am-public-progress-sanitizers/output.log'}.items():
+    shutil.copyfile(path, docs / ('R082ak-' + name + '.txt'))
+shutil.copyfile(Path(__file__), docs / 'R082ak-evidence-controller.txt')
+summary = ('All 18 measured heartbeat maxima stay below 50 ms.' if under50 else
+           f"{proof['heartbeatBudgetMisses']}/18 measured heartbeat maxima still reach 50 ms; responsiveness remains unaccepted.")
+table = '\n'.join(f"| {r['case']} | {r['operation']} | {r['operationMs']:.3f} | {r['maximumHeartbeatGapMs']:.3f} |" for r in rows)
+(docs / 'R082ak-public-progress.md').write_text(f'''# Reused native file-progress window
+
+The public candidate retains one parent-owned native progress dialog and hides it synchronously when each operation ends. This avoids repeatedly destroying its native window during open/save. A call-owned 150 ms timer keeps short operations quiet and is cancelled when the call returns or throws, so an earlier short or failed operation cannot display the retained window later. The original polling, immutable worker inputs, modal/noncancellable behavior, reentrant-file fences and shutdown join remain in place.
+
+The source {source} combines this change with the previously qualified decoder ownership, single parsed payload and one-time topology validation path, retaining the current public assistant batching and guidance. No private model profile or event/phase instrumentation is compiled into this candidate. All 478 runtime and 301 test inputs match the normal and sanitizer sources.
+
+The rebuilt previous progress implementation fails the new hidden/inactive dialog lifecycle assertion. The candidate passes 17 normal and 17 ASan/UBSan suites with leak detection, plus four normal and four sanitizer Wayland file-worker cases (warm and verified-cold at scales 1 and 2). Lifecycle coverage also verifies a failed short load cannot cause a later popup, subsequent saves reuse the same active dialog, and completion releases modal input. Cache sources are restored after qualification. Sanitizer native checks retain the previously qualified CI Wayland client reference fix and original 60-second deadlines.
+
+Six actual AMD hardware cases retain the original 100 MB fixture bytes, three warm/three verified-OS-cache-cold repetitions, 5 ms heartbeat, trailing gap, first loaded frame, stale-save, history, recovery and reentrancy oracles. All 18 operations stay below five seconds. {summary} The largest measured gap is {proof['maximumHeartbeatGapMs']:.3f} ms. Original instrumented investigations and earlier failing public measurements remain retained; timing differences alone do not establish universal performance or release acceptance.
+
+| Case | Operation | Operation ms | Maximum heartbeat gap ms |
+| --- | --- | ---: | ---: |
+{table}
+
+The [result](R082ak-public-progress-result.json) binds these checks to exact source, fixture, binaries and original evidence hashes. Fresh complete current-head CI, full reference-hardware performance coverage, final integration and release acceptance remain required.
+''')
+body = f'''Native open/save retains and reuses its parent-owned progress window, with a call-owned delayed-show timer and synchronous hide/reset on success or failure. It adds explicit retained-dialog lifecycle coverage; measured responsiveness remains below the acceptance requirement. The change also retains the previously qualified decoder ownership, parsed-payload and topology validation path alongside the current assistant changes.
+
+Validation: rebuilt previous implementation fails the new lifecycle assertion; 17 normal and 17 ASan/UBSan suites with leak detection pass; four normal and four sanitizer Wayland warm/cold scale 1/2 cases pass. All 478 runtime and 301 test inputs match. Six actual AMD 100 MB cases preserve canonical bytes and all original file/history/reentrancy/first-frame/timing oracles; all 18 operations stay below five seconds. {summary} Largest measured heartbeat gap: {proof['maximumHeartbeatGapMs']:.3f} ms. Earlier failures remain retained.
+
+See docs/verification/R082ak-public-progress.md. Fresh complete current-head CI, full performance coverage and release acceptance remain open.
+'''
+(stage / 'pr-body.txt').write_text(body)
+subprocess.run(['git', '-C', str(work), 'diff', '--check', '--', 'src', 'tests',
+                'docs/verification/R082ak-public-progress.md'], check=True)
+print(json.dumps({'evidencePrepared': True, 'all18MaximumHeartbeatGapsUnder50ms': under50,
+                  'maximumHeartbeatGapMs': proof['maximumHeartbeatGapMs'], 'releaseAccepted': False}))
