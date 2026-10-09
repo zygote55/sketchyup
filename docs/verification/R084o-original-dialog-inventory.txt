@@ -1,0 +1,57 @@
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.6s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build
+[1/36] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/scene_records.cpp.o
+[2/36] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[3/36] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_records.cpp.o
+[4/36] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/inference.cpp.o
+[5/36] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/model.cpp.o
+[6/36] Linking CXX static library libsketchyup_core.a
+[7/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/library_bundle.cpp.o
+[8/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/native_format.cpp.o
+[9/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/scene_commands.cpp.o
+[10/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/recovery.cpp.o
+[11/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/document_io.cpp.o
+[12/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/container.cpp.o
+[13/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/save.cpp.o
+[14/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/catalog.cpp.o
+[15/36] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/commands.cpp.o
+[16/36] Linking CXX static library libsketchyup_io.a
+[17/36] Automatic MOC for target sketchyup_render
+[18/34] Automatic MOC for target sketchyup_providers
+[19/32] Linking CXX executable sketchyup-text-worker
+[20/32] Linking CXX executable sketchyup-extension-worker
+[21/32] Automatic MOC for target sketchyup_desktop
+[22/31] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_textures.cpp.o
+[23/31] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/assistant_panel.cpp.o
+[24/31] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_guides.cpp.o
+[25/31] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport.cpp.o
+[26/31] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_selection.cpp.o
+[27/31] Linking CXX static library libsketchyup_desktop.a
+[28/31] Automatic MOC for target native_accessibility_audit
+[29/31] Building CXX object CMakeFiles/native_accessibility_audit.dir/native_accessibility_audit_autogen/mocs_compilation.cpp.o
+[30/31] Building CXX object CMakeFiles/native_accessibility_audit.dir/tests/native_accessibility_audit.cpp.o
+[31/31] Linking CXX executable native_accessibility_audit
+Dialog inventory X11 scale=1
+Dialog inventory Wayland scale=1
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-none'
+Dialog inventory X11 scale=2
+Dialog inventory Wayland scale=2
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.6s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build

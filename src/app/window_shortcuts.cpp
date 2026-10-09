@@ -119,6 +119,8 @@ void Window::shortcutSettings() {
     auto *editor = new QKeySequenceEdit;
     editor->setObjectName("shortcutSequence");
     editor->setAccessibleName("New key combination");
+    if (auto *input = editor->findChild<QLineEdit *>())
+        input->setAccessibleName("New key combination");
     editor->setMaximumSequenceLength(1);
     layout.addWidget(editor);
     auto *error = new QLabel;

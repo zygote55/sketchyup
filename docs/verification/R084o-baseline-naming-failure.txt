@@ -1,0 +1,47 @@
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native dialog controls have descriptive accessible names
+               surfaceless context: yes
+               dmabuf support: modifiers
+               fence sync: yes (wait)
+[06:29:30.657] GL version: OpenGL ES 3.2 Mesa 26.2.3-arch1.2
+[06:29:30.657] GLSL version: OpenGL ES GLSL ES 3.20
+[06:29:30.657] GL vendor: Mesa
+[06:29:30.657] GL renderer: llvmpipe (LLVM 23.1.1, 256 bits)
+[06:29:30.666] GL ES 3.2 - renderer features:
+               read-back format: ARGB8888
+               glReadPixels supports y-flip: yes
+               glReadPixels supports PBO: yes
+               wl_shm 10 bpc formats: yes
+               wl_shm 16 bpc formats: yes
+               wl_shm half-float formats: yes
+               internal R and RG formats: yes
+               OES_EGL_image_external: yes
+               GPU timeline: no
+               Texture immutability: yes
+               Required precision: yes
+[06:29:30.666] Using GL renderer
+[06:29:30.666] Registered plugin API 'weston_windowed_output_api_headless_v2' of size 16
+[06:29:30.666] Color manager: no-op
+                 protocol support: no
+[06:29:30.666] Output 'headless' attempts EOTF mode SDR and colorimetry mode default.
+[06:29:30.666] Output 'headless' using color profile: stock sRGB color profile
+[06:29:30.668] Output 'headless' enabled with head(s) headless
+[06:29:30.668] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: yes
+               cursor planes: no
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: yes
+               color representation: yes
+               presentation clock: CLOCK_MONOTONIC_RAW, id 4
+               presentation clock resolution: 0.000000001 s
+[06:29:30.668] Loading module '/usr/lib/weston/desktop-shell.so'
+[06:29:30.671] launching '/usr/lib/weston/weston-keyboard'
+[06:29:30.673] launching '/usr/lib/weston/weston-desktop-shell'
