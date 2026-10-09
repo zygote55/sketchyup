@@ -196,6 +196,10 @@ void form(QWidget *parent, const QString &title, const std::function<void(QFormL
         }
     });
     dialog.exec();
+    // Modal dismissal can leave the parent inactive on X11. Return subsequent
+    // keyboard operations to the originating panel and its current focus proxy.
+    parent->window()->activateWindow();
+    parent->setFocus(Qt::OtherFocusReason);
 }
 } // namespace
 OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *parent)
