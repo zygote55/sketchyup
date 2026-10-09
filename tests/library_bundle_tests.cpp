@@ -1,9 +1,11 @@
 #include "core/annotations.hpp"
 #include "core/assets.hpp"
 #include "core/components.hpp"
+#include "core/groups.hpp"
 #include "core/materials.hpp"
 #include "core/scenes.hpp"
 #include "core/sections.hpp"
+#include "core/tags.hpp"
 #include "io/library_bundle.hpp"
 #include "io/texture_image.hpp"
 #include <QCoreApplication>
@@ -121,6 +123,62 @@ int main(int argc, char **argv) {
         Document missing;
         createAsset(missing, "Missing", "image/png");
         rejects([&] { encodeTemplateBundle(missing, metadata, image); });
+        Document library;
+        const auto folder = createTag(library, "Furniture", 0, true);
+        const auto tag = createTag(library, "Parts", folder);
+        const auto part = library.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+        const auto texture = createAsset(
+            library, "Texture", "image/png",
+            std::make_shared<AssetPayload>(std::vector<std::uint8_t>(image.begin(), image.end())));
+        const auto finish = createMaterial(library, "Finish", {1, 1, 1}, 1, texture);
+        assignMaterial(library, part, {}, finish);
+        const auto inner = createComponent(library, part, "Part");
+        editComponentDefinition(library, inner.definition, [&](Document &draft) {
+            ChangeReport changes;
+            const auto records = draft.bodies();
+            for (const auto &[id, body] : records)
+                if (body->kind == BodyKind::Geometry)
+                    changes = assignTag(draft, id, tag);
+            return changes;
+        });
+        // A parent definition has a real nested reference, not a baked copy.
+        const auto group = createGroup(library, {part}, "Assembly");
+        const auto outer = createComponent(library, group, "Assembly");
+        library.addFace({{{9, 0, 0}, {10, 0, 0}, {9, 1, 0}}});
+        createAsset(library, "Unrelated missing asset", "image/png");
+        createMaterial(library, "Unrelated material", {0, 0, 0});
+        createTag(library, "Unrelated tag");
+        TemplateMetadata componentMetadata{"Assembly", "Nested reusable component", {"Furniture"}};
+        const auto libraryBefore = encodeContainer(library);
+        const auto componentBytes =
+            encodeComponentBundle(library, outer.definition, componentMetadata, image);
+        const auto component = decodeComponentBundle(componentBytes);
+        check(component.definition == outer.definition &&
+                  component.document.definitions().size() == 2 &&
+                  component.document.instances().size() == 2 &&
+                  component.document.tags().size() == 2 &&
+                  component.document.materials().size() == 1 &&
+                  component.document.assets().size() == 1 &&
+                  component.document.bodies().size() < library.bodies().size(),
+              "Component bundles contain only recursive definitions and used resources");
+        check(component.document.definitions().at(outer.definition)->references.size() == 1 &&
+                  component.document.assets().at(texture)->payload->bytes() ==
+                      library.assets().at(texture)->payload->bytes() &&
+                  encodeContainer(library) == libraryBefore,
+              "Nested bindings and embedded bytes retained without source mutation");
+        rejects([&] { decodeTemplateBundle(componentBytes); });
+        rejects([&] { decodeComponentBundle(bundle); });
+        rejects([&] { encodeComponentBundle(library, 999, componentMetadata, image); });
+        const auto componentPath = files.filePath("Assembly.sketchylib");
+        writeComponentBundle(componentBytes, componentPath);
+        const auto componentMoved = files.filePath("Moved-assembly.sketchylib");
+        check(QFile::rename(componentPath, componentMoved), "Component relocation");
+        check(loadComponentBundle(componentMoved).document.assets().size() == 1,
+              "Relocated component resolves embedded dependencies");
+        rejects([&] { writeComponentBundle(componentBytes, componentMoved); });
+        auto brokenComponent = componentBytes;
+        brokenComponent[brokenComponent.size() - 1] ^= 1;
+        rejects([&] { decodeComponentBundle(brokenComponent); });
         std::cout << "Template bundles: embedded resources, relocation, fresh documents, "
                      "immutability and malformed bounds passed\n";
     } catch (const std::exception &e) {
