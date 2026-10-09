@@ -1,0 +1,19 @@
+{
+  "aborted": 58,
+  "committed": 198,
+  "firstSeed": 33536,
+  "modeCounts": [
+    30,
+    30,
+    28,
+    45,
+    38,
+    25,
+    30,
+    30
+  ],
+  "reconciled": 60,
+  "restarted": 32,
+  "seeds": 8,
+  "stepsPerSeed": 32
+}
