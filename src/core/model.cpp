@@ -1535,6 +1535,23 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        ModelStyle style, SceneRecords scenes, Id nextSceneId, SectionRecords sections,
                        Id nextSectionId, ActiveSections activeSections,
                        AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar) {
+    restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
+                   std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
+                   nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
+                   units, std::move(hosted), style, std::move(scenes), nextSceneId,
+                   std::move(sections), nextSectionId, std::move(activeSections),
+                   std::move(annotations), nextAnnotationId, solar);
+}
+void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
+                              std::map<Id, BodyPtr> bodies, std::uint64_t revision,
+                              ComponentDefinitions definitions, ComponentInstances instances,
+                              Id nextDefinitionId, TagRecords tags, Id nextTagId,
+                              MaterialRecords materials, Id nextMaterialId, AssetRecords assets,
+                              Id nextAssetId, DisplayUnit units, HostedPtr hosted, ModelStyle style,
+                              SceneRecords scenes, Id nextSceneId, SectionRecords sections,
+                              Id nextSectionId, ActiveSections activeSections,
+                              AnnotationRecords annotations, Id nextAnnotationId,
+                              SolarSettings solar) {
     unitCode(units);
     style.validate();
     solar.validate();
@@ -1548,7 +1565,10 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
         if (!b || id != b->id || id >= next)
             throw std::runtime_error("Invalid body ID allocator");
         validate(*b);
-        auto restored = std::make_shared<Body>(*b);
+        // decodeBodies constructs mutable records and transfers their only owning map.
+        // Public restore still freezes caller records, regardless of shared_ptr counts.
+        auto restored =
+            decoderOwnsBodies ? std::const_pointer_cast<Body>(b) : std::make_shared<Body>(*b);
         if (restored->topology.edges.empty() && restored->topology.nextId == 1)
             restored->topology = Topology::rebuild(restored->surface, {});
         restored->topology.validate(restored->surface);

@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "releaseAcceptance": false,
+  "source": "051d1d3e2c623fca025751bf67c4815ce87cf2d1",
+  "normalCases": 38,
+  "sanitizerCases": 38,
+  "productionLimitsChanged": false,
+  "trackedSourceRestored": true,
+  "sanitizerLeakDetection": true,
+  "regressionLogSha256": "fc56d52860a45533bdfbae073c1389734016ebb01aeeed39dcf2b0991764231e"
+}

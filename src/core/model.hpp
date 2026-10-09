@@ -226,6 +226,18 @@ class Document {
                  AnnotationRecords annotations = {}, Id nextAnnotationId = 1, SolarSettings solar = {});
 
   private:
+    // Only the native decoder may adopt fresh, unaliased mutable body records.
+    friend struct DocumentDecodeAccess;
+    void restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
+                        std::map<Id, BodyPtr> bodies, std::uint64_t revision,
+                        ComponentDefinitions definitions, ComponentInstances instances,
+                        Id nextDefinitionId, TagRecords tags, Id nextTagId,
+                        MaterialRecords materials, Id nextMaterialId, AssetRecords assets,
+                        Id nextAssetId, DisplayUnit units, HostedPtr hosted, ModelStyle style,
+                        SceneRecords scenes, Id nextSceneId, SectionRecords sections,
+                        Id nextSectionId, ActiveSections activeSections,
+                        AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar);
+
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};
     ModelStyle style_;

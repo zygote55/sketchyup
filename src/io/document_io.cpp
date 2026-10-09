@@ -16,7 +16,15 @@
 #include <QJsonObject>
 #include <limits>
 #include <set>
+#include <utility>
 namespace sketchy {
+// This access bridge is confined to native decoding. All adopted bodies were allocated
+// by decodeBodies; validation and publication remain inside Document::restoreRecords.
+struct DocumentDecodeAccess {
+    template <class... Args> static void restore(Document &document, Args &&...args) {
+        document.restoreRecords(true, std::forward<Args>(args)...);
+    }
+};
 namespace {
 constexpr qint64 fileLimit = NativeLimits::fileBytes;
 constexpr qint64 modelLimit = NativeLimits::modelBytes;
@@ -759,27 +767,33 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
     if (!root["documentId"].isString())
         throw std::runtime_error("Missing document ID");
     Document doc;
-    doc.restore(root["documentId"].toString().toStdString(), readId(root["nextId"]),
-                std::move(bodies),
-                root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0,
-                std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
-                nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
-                root["version"].toInt() >= 12
-                    ? parseDisplayUnit(root["displayUnits"].toString().toStdString())
-                    : DisplayUnit::Meters,
-                root["version"].toInt() >= 15 ? decodeHostedComponents(root["hosted"])
-                                              : std::make_shared<const HostedComponents>(),
-                root["version"].toInt() >= 17 ? decodeModelStyle(root["style"]) : ModelStyle{},
-                root["version"].toInt() >= 18
-                    ? decodeScenes(root["scenes"], readId(root["nextSceneId"]), root["version"].toInt() >= 20, root["version"].toInt() >= 23) : SceneRecords{},
-                root["version"].toInt() >= 18 ? readId(root["nextSceneId"]) : 1,
-                root["version"].toInt() >= 19
-                    ? decodeSections(root["sections"], readId(root["nextSectionId"])) : SectionRecords{},
-                root["version"].toInt() >= 19 ? readId(root["nextSectionId"]) : 1,
-                root["version"].toInt() >= 19 ? decodeActiveSections(root["activeSections"]) : ActiveSections{},
-                root["version"].toInt() >= 21 ? decodeAnnotations(root["annotations"], readId(root["nextAnnotationId"])) : AnnotationRecords{},
-                root["version"].toInt() >= 21 ? readId(root["nextAnnotationId"]) : 1,
-                root["version"].toInt() >= 23 ? decodeSolarSettings(root["solar"]) : SolarSettings{});
+    DocumentDecodeAccess::restore(
+        doc, root["documentId"].toString().toStdString(), readId(root["nextId"]), std::move(bodies),
+        root["version"].toInt() >= 2 ? readId(root["revision"], true) : 0, std::move(definitions),
+        std::move(instances), nextDefinitionId, std::move(tags), nextTagId, std::move(materials),
+        nextMaterialId, std::move(assets), nextAssetId,
+        root["version"].toInt() >= 12
+            ? parseDisplayUnit(root["displayUnits"].toString().toStdString())
+            : DisplayUnit::Meters,
+        root["version"].toInt() >= 15 ? decodeHostedComponents(root["hosted"])
+                                      : std::make_shared<const HostedComponents>(),
+        root["version"].toInt() >= 17 ? decodeModelStyle(root["style"]) : ModelStyle{},
+        root["version"].toInt() >= 18
+            ? decodeScenes(root["scenes"], readId(root["nextSceneId"]),
+                           root["version"].toInt() >= 20, root["version"].toInt() >= 23)
+            : SceneRecords{},
+        root["version"].toInt() >= 18 ? readId(root["nextSceneId"]) : 1,
+        root["version"].toInt() >= 19
+            ? decodeSections(root["sections"], readId(root["nextSectionId"]))
+            : SectionRecords{},
+        root["version"].toInt() >= 19 ? readId(root["nextSectionId"]) : 1,
+        root["version"].toInt() >= 19 ? decodeActiveSections(root["activeSections"])
+                                      : ActiveSections{},
+        root["version"].toInt() >= 21
+            ? decodeAnnotations(root["annotations"], readId(root["nextAnnotationId"]))
+            : AnnotationRecords{},
+        root["version"].toInt() >= 21 ? readId(root["nextAnnotationId"]) : 1,
+        root["version"].toInt() >= 23 ? decodeSolarSettings(root["solar"]) : SolarSettings{});
     return doc;
 }
 } // namespace sketchy
