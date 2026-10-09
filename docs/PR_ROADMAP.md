@@ -1205,7 +1205,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R083 — Harden files, recovery and transaction failure paths
 
-**Status:** In progress. [Deterministic parser corruption](verification/R083a-integrated-parser-corruption.md) passes 5,120 cases with matching normal/sanitizer results; publication/transaction faults and release hardening remain open. **Track:** Quality. **Scope:** D02, D03, D04, D06, X06. **UX:** —.
+**Status:** In progress. Overlapping hardening fixtures and the [combined local failure matrix](verification/R083d-local-failure-matrix.md) pass normal and sanitizer runs, including parser corruption, publication faults and replayable transaction/geometry sequences. Release-candidate revalidation and final acceptance remain open. **Track:** Quality. **Scope:** D02, D03, D04, D06, X06. **UX:** —.
 
 **Requires:** [R073](#r073), [R038](#r038), [R041](#r041), [R074](#r074), [R075](#r075), [R076](#r076), [R077](#r077); milestone gate rule above.
 
