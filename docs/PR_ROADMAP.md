@@ -1152,7 +1152,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R079 — Ship templates and the local component library
 
-**Status:** Planned. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
+**Status:** In progress. R079.a [self-contained template bundles](verification/R079a-template-bundles.md) pass source/resource preservation, bounded decoding, sanitizer, installed and source-package checks. Components, catalog search and native workflows follow in R079.b–e. **Track:** Desktop. **Scope:** D05, O05. **UX:** §5, §6.3.
 
 **Requires:** [R033](#r033), [R036](#r036), [R073](#r073); milestone gate rule above.
 
