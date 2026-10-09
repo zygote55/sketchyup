@@ -1,0 +1,31 @@
+Test project $SOURCE/build/native-text-sanitize
+      Start   9: hosted_copies
+ 1/10 Test   #9: hosted_copies ....................   Passed   89.91 sec
+      Start  10: hosted_components
+ 2/10 Test  #10: hosted_components ................   Passed   14.42 sec
+      Start  12: component_glue
+ 3/10 Test  #12: component_glue ...................   Passed    0.75 sec
+      Start  14: component_placement
+ 4/10 Test  #14: component_placement ..............   Passed    0.11 sec
+      Start  34: components
+ 5/10 Test  #34: components .......................***Failed    0.70 sec
+A shared edit cannot move a member out of its definition
+
+      Start  35: component_records
+ 6/10 Test  #35: component_records ................   Passed    0.96 sec
+      Start  39: copy_array
+ 7/10 Test  #39: copy_array .......................   Passed    0.43 sec
+      Start 118: native_format
+ 8/10 Test #118: native_format ....................   Passed   33.71 sec
+      Start 146: component_scope
+ 9/10 Test #146: component_scope ..................   Passed    7.51 sec
+      Start 147: hosted_components_io
+10/10 Test #147: hosted_components_io .............   Passed    3.98 sec
+
+90% tests passed, 1 tests failed out of 10
+
+Total Test time (real) = 152.53 sec
+
+The following tests FAILED:
+	 34 - components (Failed)
+Errors while running CTest
