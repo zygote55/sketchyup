@@ -22,11 +22,16 @@ jobs:
     container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed $CI_PACKAGES
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Configure desktop tests without the optional CLI
@@ -326,7 +331,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sketchyup --smoke
       - name: Reproducible M5 offline acceptance and recordings
         run: scripts/verify-m5-offline.sh build/dev "$PWD/build/m5-evidence" /usr/bin/blender
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: m5-offline-evidence
@@ -388,11 +393,16 @@ jobs:
     container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed $CI_PACKAGES
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Sanitized core without Qt
@@ -462,11 +472,16 @@ jobs:
     container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed $CI_PACKAGES
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Disposable Arch package acceptance

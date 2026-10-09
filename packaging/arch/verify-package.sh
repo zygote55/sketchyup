@@ -9,7 +9,11 @@ cd /work/package
 # The minimal Arch image excludes documentation. Include it in this disposable
 # acceptance environment so the installed API contracts are actually verified.
 sed -i '/^[[:space:]]*NoExtract[[:space:]]*=/s@usr/share/doc/\*@@g' /etc/pacman.conf
-pacman -S --noconfirm --needed desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu
+for attempt in 1 2 3; do
+  pacman -S --noconfirm --needed desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu && break
+  (( attempt < 3 )) || exit 1
+  sleep $((attempt * 30))
+done
 chown -R builder:builder /work/package
 cp PKGBUILD PKGBUILD.current
 sed -i 's/^pkgrel=2$/pkgrel=1/' PKGBUILD

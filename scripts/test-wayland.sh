@@ -39,6 +39,11 @@ timeout 60s weston --backend=headless --renderer=gl --fake-seat \
     printf "%s\n" "$test_status" > "$SKETCHYUP_TEST_EXIT_FILE"
     exit "$test_status"
   ' bash "$@" || weston_status=$?
+if (( weston_status == 124 )); then
+  echo "Timed out after 60 s: $*" >&2
+elif [[ ! -f "$SKETCHYUP_TEST_EXIT_FILE" ]]; then
+  echo "Weston exited ($weston_status) without recording a test status: $*" >&2
+fi
 if (( weston_status != 0 )) || [[ ! -f "$SKETCHYUP_TEST_EXIT_FILE" ]]; then
   cat "$test_runtime/weston.log" >&2
   exit 1
