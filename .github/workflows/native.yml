@@ -5,9 +5,10 @@ on:
   pull_request:
 permissions:
   contents: read
-# Superseded pull request heads are canceled; every main merge keeps its own run.
+# Superseded pull request heads are canceled. Each main push gets a unique
+# group: a shared group would still let a newer pending run replace an older one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   CI_PACKAGES: >-
