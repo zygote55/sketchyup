@@ -2,6 +2,7 @@
 #include "core/document_limits.hpp"
 #include "io/annotations_io.hpp"
 #include "io/assets.hpp"
+#include "io/document_decode_p.hpp"
 #include "io/hosted_components_io.hpp"
 #include "io/model_style_io.hpp"
 #include "io/native_format.hpp"
@@ -570,7 +571,12 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
     auto json = QJsonDocument::fromJson(bytes, &error);
     if (error.error != QJsonParseError::NoError || !json.isObject())
         throw std::runtime_error("Invalid JSON document");
-    auto root = json.object();
+    return document_io_detail::decodeParsedDocument(json.object(), bytes.size(), payloads);
+}
+Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsizetype inputBytes,
+                                                  const AssetPayloads &payloads) {
+    if (inputBytes < 0 || inputBytes > fileLimit)
+        throw std::runtime_error("Document exceeds the 128 MiB JSON limit");
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
         (root["version"].toDouble() < 1 || root["version"].toDouble() > nativeDocumentVersion ||
          root["version"].toDouble() != std::floor(root["version"].toDouble())) ||
@@ -587,7 +593,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         rootFields += {"materials", "nextMaterialId"};
     if (root["version"].toInt() >= 11)
         rootFields += {"assets", "nextAssetId", "assetStorage"};
-    else if (bytes.size() > qsizetype(NativeLimits::legacyModelBytes) || !payloads.empty())
+    else if (inputBytes > qsizetype(NativeLimits::legacyModelBytes) || !payloads.empty())
         throw std::runtime_error("Legacy document exceeds model limit or has unexpected assets");
     if (root["version"].toInt() >= 12)
         rootFields.append("displayUnits");
@@ -604,7 +610,7 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
     if (root["version"].toInt() >= 23) rootFields.append("solar");
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
-        bytes.size() > modelLimit)
+        inputBytes > modelLimit)
         throw std::runtime_error("Packaged model exceeds the 32 MiB JSON limit");
     auto bodies = decodeBodies(root["bodies"], root["version"].toInt());
     ComponentDefinitions definitions;

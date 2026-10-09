@@ -43,6 +43,53 @@ int main(int argc, char **argv) {
               "Shipped public format contract matches implementation");
         QTemporaryDir files;
         check(files.isValid(), "Migration fixture directory");
+        {
+            Document model;
+            model.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});
+            const auto container = encodeContainer(model);
+            const auto length = qFromLittleEndian<quint32>(container.constData() + 12);
+            const auto manifest = QJsonDocument::fromJson(container.mid(16, length)).object();
+            const auto payload = container.mid(16 + length);
+            check(encodeDocument(decodeDocument(payload)) ==
+                      encodeDocument(decodeContainer(container)),
+                  "Raw and packaged paths apply the same native record decoder");
+            auto repack = [&](const QByteArray &replacement) {
+                auto updated = manifest;
+                auto chunks = updated["chunks"].toArray();
+                auto chunk = chunks[0].toObject();
+                chunk["bytes"] = QString::number(replacement.size());
+                chunk["sha256"] = QString::fromLatin1(
+                    QCryptographicHash::hash(replacement, QCryptographicHash::Sha256).toHex());
+                chunks[0] = chunk;
+                updated["chunks"] = chunks;
+                const auto encoded = QJsonDocument(updated).toJson(QJsonDocument::Compact);
+                auto header = container.first(16);
+                qToLittleEndian<quint32>(encoded.size(), header.data() + 12);
+                return header + encoded + replacement;
+            };
+            for (int invalid = 0; invalid < 3; ++invalid) {
+                auto root = QJsonDocument::fromJson(payload).object();
+                if (invalid == 0)
+                    root["unknownRequiredRecord"] = true;
+                else if (invalid == 1)
+                    root["nextId"] = "1";
+                else {
+                    auto bodies = root["bodies"].toArray();
+                    auto body = bodies[0].toObject();
+                    auto vertices = body["vertices"].toArray();
+                    auto vertex = vertices[0].toArray();
+                    vertex[1] = "invalid coordinate";
+                    vertices[0] = vertex;
+                    body["vertices"] = vertices;
+                    bodies[0] = body;
+                    root["bodies"] = bodies;
+                }
+                const auto rejected = QJsonDocument(root).toJson(QJsonDocument::Compact);
+                rejects([&] { decodeDocument(rejected); });
+                rejects([&] { decodeContainer(repack(rejected)); });
+            }
+            rejects([&] { decodeContainer(repack("{")); });
+        }
         QDir fixtures(QString(SOURCE_DIR) + "/tests/fixtures");
         const auto names =
             fixtures.entryList({"*.sketchyup", "raw-*.json"}, QDir::Files, QDir::Name);
