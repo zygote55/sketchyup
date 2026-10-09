@@ -1214,7 +1214,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R084 — Complete keyboard access and preference migration
 
-**Status:** In progress. An overlapping [native accessibility inventory](verification/R084a-local-accessibility-inventory.md) records all model-panel tabs, action shortcuts and F6 routing at Wayland 1×/2×. Label triage, preference/shortcut migration and complete keyboard/accessibility acceptance remain open. **Track:** Desktop. **Scope:** N03, N05. **UX:** §3–§4, §10.
+**Status:** In progress. An overlapping [native accessibility inventory](verification/R084a-local-accessibility-inventory.md) records all model-panel tabs, action shortcuts and F6 routing at Wayland 1×/2×. [Named region follow-up](verification/R084b-accessible-regions.md) resolves all eight inventory naming findings at both scales; preference/shortcut migration and complete keyboard/accessibility acceptance remain open. **Track:** Desktop. **Scope:** N03, N05. **UX:** §3–§4, §10.
 
 **Requires:** [R046](#r046), [R079](#r079), [R080](#r080); milestone gate rule above.
 
