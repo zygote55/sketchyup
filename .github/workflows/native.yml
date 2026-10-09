@@ -28,6 +28,9 @@ jobs:
           pacman -Syyuu --noconfirm --needed $CI_PACKAGES
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
+      - name: Configure desktop tests without the optional CLI
+        run: |
+          cmake -S . -B build/configure-desktop-no-cli -G Ninja -DSKETCHYUP_BUILD_DESKTOP=ON -DSKETCHYUP_BUILD_CLI=OFF -DBUILD_TESTING=ON
       - name: Configure and build
         run: |
           cmake --preset dev
