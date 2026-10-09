@@ -1,0 +1,64 @@
+{
+  "fixtureSource": "bf798374baffe8b24770e9b64cfdd19241f3219f",
+  "normalSource": "bf798374baffe8b24770e9b64cfdd19241f3219f",
+  "sanitizerSource": "a10ae34e36d52628564492c19a6be52761f831fb",
+  "releaseAccepted": false,
+  "cases": [
+    {
+      "configuration": "normal",
+      "platform": "wayland",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "dc2de9433499b47706fa8475727c262042125a506d20243710a02485dad0adec"
+    },
+    {
+      "configuration": "normal",
+      "platform": "wayland",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "dc2de9433499b47706fa8475727c262042125a506d20243710a02485dad0adec"
+    },
+    {
+      "configuration": "normal",
+      "platform": "xcb",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "b20efce85f11d74ea2e0d4ddef6c3f51b969c098e6188e844e4bd90ff54b70c4"
+    },
+    {
+      "configuration": "normal",
+      "platform": "xcb",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "b20efce85f11d74ea2e0d4ddef6c3f51b969c098e6188e844e4bd90ff54b70c4"
+    },
+    {
+      "configuration": "sanitize",
+      "platform": "wayland",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "dc2de9433499b47706fa8475727c262042125a506d20243710a02485dad0adec"
+    },
+    {
+      "configuration": "sanitize",
+      "platform": "wayland",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "dc2de9433499b47706fa8475727c262042125a506d20243710a02485dad0adec"
+    },
+    {
+      "configuration": "sanitize",
+      "platform": "xcb",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "b20efce85f11d74ea2e0d4ddef6c3f51b969c098e6188e844e4bd90ff54b70c4"
+    },
+    {
+      "configuration": "sanitize",
+      "platform": "xcb",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "b20efce85f11d74ea2e0d4ddef6c3f51b969c098e6188e844e4bd90ff54b70c4"
+    }
+  ]
+}

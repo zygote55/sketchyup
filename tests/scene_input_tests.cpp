@@ -245,12 +245,19 @@ int main(int argc, char **argv) {
         view->setReducedMotion(false);
         view->standardView(3);
         view->recallSavedScene(second);
-        check(QTest::qWaitFor(
-                  [&] {
-                      return *view->captureSceneSnapshot(true, false, false, false).camera == top;
-                  },
-                  1500),
-              "Animated scene transition reaches exact saved pose");
+        // This checks eventual exact-pose behavior, not a wall-clock performance
+        // budget. Software-rendered CI can delay the animation's event loop.
+        const bool reached = QTest::qWaitFor(
+            [&] { return *view->captureSceneSnapshot(true, false, false, false).camera == top; },
+            5000);
+        if (!reached) {
+            const auto actual = *view->captureSceneSnapshot(true, false, false, false).camera;
+            std::cerr << "Scene transition pose: yaw=" << actual.yaw << "/" << top.yaw
+                      << " pitch=" << actual.pitch << "/" << top.pitch
+                      << " distance=" << actual.distance << "/" << top.distance
+                      << " duration=" << view->sceneTransitionDuration() << "ms\n";
+        }
+        check(reached, "Animated scene transition reaches exact saved pose");
         view->standardView(3);
         view->recallSavedScene(second);
         QTest::qWait(30);
