@@ -106,6 +106,9 @@ class Window : public QMainWindow {
     QAction *undo_{};
     QAction *redo_{};
     std::vector<QAction *> publicActions_;
+    void initializeShortcuts();
+    void applyShortcuts(const class ShortcutBindings &bindings);
+    void shortcutSettings();
     void sync();
     void addHostedActions(QMenu *menu);
     void hostedGlueDialog();
