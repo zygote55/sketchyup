@@ -31,7 +31,6 @@ No application rebuild or provider call was required.
 
 The reusable verifier is now called after package upgrade in the lifecycle
 harness. It refuses an existing evidence directory and writes an incomplete report
-if a later case fails. The new full lifecycle integration still needs execution
-with the next package build. Current/reference clean-machine validation, upgrades
-from a prior application implementation, final release checks, CI and ordered
-merges remain open. No acceptance gate or performance budget is waived.
+if a later case fails. The [current-package follow-up](R087f-current-package.md) now passes this
+integration and a separate prior-application package upgrade. Current/reference
+clean-machine validation, final release checks, CI and ordered merges remain open. No acceptance gate or performance budget is waived.

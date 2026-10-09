@@ -1,0 +1,105 @@
+{
+  "passed": true,
+  "packages": [
+    {
+      "file": "sketchyup-0.1.0-1-x86_64.pkg.tar.zst",
+      "bytes": 6712856,
+      "sha256": "22f0f9d1162e138d54e8cab1eb94420098eddb343d7e8f1685fcc1cef5d4a7ee"
+    },
+    {
+      "file": "sketchyup-0.1.0-2-x86_64.pkg.tar.zst",
+      "bytes": 6730637,
+      "sha256": "6fae27ff966b23f44f10d776b731a2809fa9b42300cd41b8d83c1336b6da9acc"
+    }
+  ],
+  "steps": [
+    {
+      "name": "prior-package-info",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-package-info",
+      "exitCode": 0
+    },
+    {
+      "name": "version-order",
+      "exitCode": 0
+    },
+    {
+      "name": "install-prior",
+      "exitCode": 0
+    },
+    {
+      "name": "prior-owned-files",
+      "exitCode": 0
+    },
+    {
+      "name": "prior-create",
+      "exitCode": 0
+    },
+    {
+      "name": "prior-inspect",
+      "exitCode": 0
+    },
+    {
+      "name": "prior-desktop",
+      "exitCode": 0
+    },
+    {
+      "name": "upgrade-candidate",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-owned-files",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-inspect",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-desktop",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-paths",
+      "exitCode": 0
+    },
+    {
+      "name": "remove-candidate",
+      "exitCode": 0
+    }
+  ],
+  "versions": [
+    "0.1.0-1",
+    "0.1.0-2"
+  ],
+  "priorExecutables": {
+    "sketchyup": "c8ecab1fefbfd11c43575488f8beabffadea929d7c1521aeba66025638eaed79",
+    "sketchyup-cli": "063b212873a70995545e5320a2503e89d6e118c4b2e08bc42804c01d82921cf0"
+  },
+  "documentSha256": "29ed6522c2f1d213db7d4f41dcfc35fc89f95b039004c37f768da91c081e0082",
+  "candidateExecutables": {
+    "sketchyup": "6e4a89250838c5aa27daf13c06584882a3bb58c418c86eaf70bc3e8ddc7882c2",
+    "sketchyup-cli": "535057e89a04cbe8c1209ffe6a983bfd17e5c67c47f94d60f2087531f95436cc"
+  },
+  "retainedPreferences": {
+    "General": {
+      "fieldofview": "67",
+      "interfacetextpercent": "150",
+      "packagesentinel": "retain",
+      "recoveryseconds": "0",
+      "reducedmotion": "true",
+      "theme": "1",
+      "trackpadnavigation": "true"
+    },
+    "futureNamespace": {
+      "data": "opaque-upgrade-sentinel"
+    }
+  },
+  "priorSource": "8f93b4fca51a52a6cfd77e25366dc2c57430b178",
+  "candidateSource": "29fb31bba53e0b6dd2c0d5a73ffbc7fa1b44903e",
+  "harnessSource": "35f4168d5d73c8833537c709de9ebf9d50c788c9",
+  "releaseAcceptance": false,
+  "reportScope": "Command arrays omitted; full execution logs and commands retained privately."
+}
