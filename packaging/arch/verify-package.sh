@@ -133,6 +133,10 @@ pacman -U --noconfirm sketchyup-0.1.0-2-x86_64.pkg.tar.zst
 pacman -Qkk sketchyup
 runuser -u builder -- sketchyup-cli --input '/work/acceptance/Room model.sketchyup' > /work/acceptance/reopened.json
 cmp /work/acceptance/expected.json /work/acceptance/reopened.json
+runuser -u builder -- python /work/package/src/sketchyup-0.1.0/scripts/verify-installed-migrations.py \
+  --cli /usr/bin/sketchyup-cli \
+  --fixtures /work/package/src/sketchyup-0.1.0/tests/fixtures \
+  --output /work/acceptance/migrations
 runuser -u builder -- env XDG_CONFIG_HOME=/work/acceptance/config \
   XDG_DATA_HOME=/work/acceptance/data XDG_CACHE_HOME=/work/acceptance/cache \
   QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a timeout 40s sketchyup --smoke > /work/acceptance/upgraded-smoke.json
@@ -169,6 +173,8 @@ done < /work/acceptance/package-owned-paths.txt
 [[ ! -e /usr/share/icons/hicolor/scalable/apps/io.sketchyup.SketchyUp.svg ]]
 [[ ! -e /usr/share/mime/packages/io.sketchyup.SketchyUp.xml ]]
 [[ -s '/work/acceptance/Room model.sketchyup' ]]
+[[ -s /work/acceptance/migrations/m4-complete-v11.sketchyup/migrated.sketchyup ]]
+jq -e '.passed and (.fixtures | length >= 20)' /work/acceptance/migrations/report.json
 grep -q packageSentinel=retain /work/acceptance/config/SketchyUp/SketchyUp.conf
 grep -q retain-data /work/acceptance/data/SketchyUp/sentinel
 grep -q retain-cache /work/acceptance/cache/SketchyUp/sentinel
