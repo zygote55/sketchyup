@@ -1,9 +1,9 @@
 #include "app/annotation_display.hpp"
+#include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "core/annotations.hpp"
 #include "core/sections.hpp"
 #include <QApplication>
-#include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QVBoxLayout>
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setSamples(0);
-    QSurfaceFormat::setDefaultFormat(format);
+    sketchy::setDefaultViewportFormat(format);
     QTemporaryDir isolated;
     qputenv("XDG_CONFIG_HOME", isolated.path().toUtf8());
     QApplication app(argc, argv);

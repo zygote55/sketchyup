@@ -410,6 +410,14 @@ jobs:
           build/dev/sketchyup-cli --input /tmp/profile-sweep.sketchyup
           build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
           build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1
+      - name: Fractional client scaling on native Wayland and X11
+        run: |
+          for factor in 1.5 1.75; do
+            for target in viewport_tests keyboard_modeling_input_tests text_size_input_tests keyboard_outliner_input_tests shortcut_input_tests; do
+              QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR="$factor" "build/dev/$target"
+              xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR="$factor" LIBGL_ALWAYS_SOFTWARE=1 timeout 90s "build/dev/$target"
+            done
+          done
   sanitize:
     name: Sanitized builds
     runs-on: ubuntu-latest
