@@ -11,16 +11,20 @@
 #include <chrono>
 #include <future>
 namespace sketchy {
-// Retain one native progress window per owner. Recreating and destroying it
-// during each operation can block the GUI thread in platform window teardown.
+// Retain one native progress window per owner across file operations.
 class FileOperationProgress final : public QDialog {
     QLabel *description_;
     QProgressBar *bar_;
 
   public:
-    explicit FileOperationProgress(QWidget *parent) : QDialog(parent) {
+    explicit FileOperationProgress(QWidget *parent) : QDialog(parent, Qt::ToolTip) {
         setObjectName("fileOperationDialog");
         setWindowModality(Qt::ApplicationModal);
+        // Progress has no interactive controls. Use a tooltip surface
+        // and request nonactivation while preserving modal input protection.
+        // Actual activation is controlled by the platform and window manager.
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        setWindowFlag(Qt::WindowDoesNotAcceptFocus);
         auto *layout = new QVBoxLayout(this);
         description_ = new QLabel;
         description_->setTextFormat(Qt::PlainText);

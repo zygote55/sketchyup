@@ -1,0 +1,1151 @@
+{
+  "compiledSource": "626479ba904bfdc542163ec01fe82c3c2e382ebf",
+  "publicationRuntimeCommit": "643ec6cf380e5646fb409355b569a1b329fccd8a",
+  "compiledRuntimeInputs": 478,
+  "testInputs": 301,
+  "allPublishedRuntimeAndTestInputsByteIdentical": true,
+  "productionLimitsUnchanged": true,
+  "privatePhaseInstrumentation": false,
+  "normal": {
+    "passed": true,
+    "productionLimits": true,
+    "releaseAcceptance": false,
+    "source": "626479ba904bfdc542163ec01fe82c3c2e382ebf",
+    "cases": [
+      {
+        "policy": "warm",
+        "scale": 1,
+        "result": {
+          "cache": {
+            "policy": "warm"
+          },
+          "fileBytes": 2100399,
+          "fixtureSha256": "977ba25b02567091f3b577914c28f04b13e7671d45e266e95bc6092514bb0ddb",
+          "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2",
+          "passed": true,
+          "platform": "wayland",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": false,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 126.513622,
+              "operation": "open",
+              "operationAndFirstFrameMs": 198.036117,
+              "operationMs": 76.752878,
+              "p95HeartbeatGapMs": 126.513622
+            },
+            {
+              "heartbeatCallbacks": 8,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 12.091979,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 54.320372,
+              "operationMs": 54.320266,
+              "p95HeartbeatGapMs": 12.091979
+            },
+            {
+              "heartbeatCallbacks": 3,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 18.041213,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 51.639558,
+              "operationMs": 51.639508,
+              "p95HeartbeatGapMs": 18.041213
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        }
+      },
+      {
+        "policy": "warm",
+        "scale": 2,
+        "result": {
+          "cache": {
+            "policy": "warm"
+          },
+          "fileBytes": 2100399,
+          "fixtureSha256": "be55fd116065bea9ade1cf4b87fe389d8721448443ef01821ea38a4a9b8c58f1",
+          "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2",
+          "passed": true,
+          "platform": "wayland",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": false,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 2,
+          "timings": [
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 196.939009,
+              "operation": "open",
+              "operationAndFirstFrameMs": 227.409214,
+              "operationMs": 202.879382,
+              "p95HeartbeatGapMs": 196.939009
+            },
+            {
+              "heartbeatCallbacks": 6,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 5.972723,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 34.401577,
+              "operationMs": 34.401516,
+              "p95HeartbeatGapMs": 5.972723
+            },
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 173.196967,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 179.309953,
+              "operationMs": 179.309886,
+              "p95HeartbeatGapMs": 173.196967
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        }
+      },
+      {
+        "policy": "verified-cold",
+        "scale": 1,
+        "result": {
+          "cache": {
+            "pages": 513,
+            "policy": "verified-cold",
+            "residentPagesBeforeOpen": 0
+          },
+          "fileBytes": 2100399,
+          "fixtureSha256": "c9919ec1960e78ed0047d612c3f2cff6b94198b86bdf51da054df5292b30fd64",
+          "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2",
+          "passed": true,
+          "platform": "wayland",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": false,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 63.082697,
+              "operation": "open",
+              "operationAndFirstFrameMs": 82.160117,
+              "operationMs": 69.363461,
+              "p95HeartbeatGapMs": 63.082697
+            },
+            {
+              "heartbeatCallbacks": 5,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 16.783356,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 46.159405,
+              "operationMs": 46.159297,
+              "p95HeartbeatGapMs": 16.783356
+            },
+            {
+              "heartbeatCallbacks": 2,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 19.787197,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 42.125031,
+              "operationMs": 42.124878,
+              "p95HeartbeatGapMs": 19.787197
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        }
+      },
+      {
+        "policy": "verified-cold",
+        "scale": 2,
+        "result": {
+          "cache": {
+            "pages": 513,
+            "policy": "verified-cold",
+            "residentPagesBeforeOpen": 0
+          },
+          "fileBytes": 2100399,
+          "fixtureSha256": "a367e04666acff8e3a7e344787ddbd8a7f80bcb13af377b4ed05c3bb1bcf2981",
+          "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2",
+          "passed": true,
+          "platform": "wayland",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": false,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 2,
+          "timings": [
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 206.181376,
+              "operation": "open",
+              "operationAndFirstFrameMs": 237.504061,
+              "operationMs": 213.325987,
+              "p95HeartbeatGapMs": 206.181376
+            },
+            {
+              "heartbeatCallbacks": 6,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 5.194004,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 34.985285,
+              "operationMs": 34.985211,
+              "p95HeartbeatGapMs": 5.194004
+            },
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 178.404816,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 184.239855,
+              "operationMs": 184.239717,
+              "p95HeartbeatGapMs": 178.404816
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        }
+      }
+    ],
+    "binarySha256": "fb2636ebbe176bb50b4920c14a623a1c280fea454ebb3246bc546e154f420479",
+    "textWorkerSha256": "de40a2767d0853c6ecc28534f17fcda5ce001b53acb5e5876007bdc57a4dee53",
+    "restorationVerified": true,
+    "normalCases": 3,
+    "nativeCases": 4,
+    "logSha256": "ead46db786c425c65827f9cc29d6d13673fd8837ee153892a926a55225aa8f18"
+  },
+  "sanitizer": {
+    "passed": true,
+    "releaseAccepted": false,
+    "sanitizerLeakDetection": true,
+    "trackedSourceRestored": true,
+    "source": "626479ba904bfdc542163ec01fe82c3c2e382ebf",
+    "regressionCases": 3,
+    "cases": [
+      {
+        "policy": "warm",
+        "scale": 1,
+        "result": {
+          "cache": {
+            "policy": "warm"
+          },
+          "fileBytes": 2100399,
+          "fixtureSha256": "aefdfa224ed423bab889261dce079f6e83559d70ef941dbf9a04c83c3235208d",
+          "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2",
+          "passed": true,
+          "platform": "wayland",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": false,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 2,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 203.418773,
+              "operation": "open",
+              "operationAndFirstFrameMs": 326.810277,
+              "operationMs": 137.811992,
+              "p95HeartbeatGapMs": 203.418773
+            },
+            {
+              "heartbeatCallbacks": 15,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 35.537369,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 115.129291,
+              "operationMs": 115.12872,
+              "p95HeartbeatGapMs": 35.537369
+            },
+            {
+              "heartbeatCallbacks": 3,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 36.034876,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 92.610834,
+              "operationMs": 92.610096,
+              "p95HeartbeatGapMs": 36.034876
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        }
+      },
+      {
+        "policy": "warm",
+        "scale": 2,
+        "result": {
+          "cache": {
+            "policy": "warm"
+          },
+          "fileBytes": 2100399,
+          "fixtureSha256": "15c950d25d70094a7207adc380ef756e9a2dc26e1f483172181bd8077296c8a4",
+          "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2",
+          "passed": true,
+          "platform": "wayland",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": false,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 2,
+          "timings": [
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 428.009101,
+              "operation": "open",
+              "operationAndFirstFrameMs": 581.667976,
+              "operationMs": 186.157173,
+              "p95HeartbeatGapMs": 428.009101
+            },
+            {
+              "heartbeatCallbacks": 13,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 56.376178,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 125.332991,
+              "operationMs": 125.332176,
+              "p95HeartbeatGapMs": 56.376178
+            },
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 83.527279,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 91.001703,
+              "operationMs": 91.001011,
+              "p95HeartbeatGapMs": 83.527279
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        }
+      },
+      {
+        "policy": "verified-cold",
+        "scale": 1,
+        "result": {
+          "cache": {
+            "pages": 513,
+            "policy": "verified-cold",
+            "residentPagesBeforeOpen": 0
+          },
+          "fileBytes": 2100399,
+          "fixtureSha256": "534df5e0e4ea203457b799679172b332b8756a4bd87cb7d08fce5c219edf7f18",
+          "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2",
+          "passed": true,
+          "platform": "wayland",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": false,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 2,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 62.350978,
+              "operation": "open",
+              "operationAndFirstFrameMs": 139.098219,
+              "operationMs": 116.953871,
+              "p95HeartbeatGapMs": 62.350978
+            },
+            {
+              "heartbeatCallbacks": 13,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 27.190703,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 96.033049,
+              "operationMs": 96.032389,
+              "p95HeartbeatGapMs": 27.190703
+            },
+            {
+              "heartbeatCallbacks": 3,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 42.091888,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 100.460156,
+              "operationMs": 100.459352,
+              "p95HeartbeatGapMs": 42.091888
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        }
+      },
+      {
+        "policy": "verified-cold",
+        "scale": 2,
+        "result": {
+          "cache": {
+            "pages": 513,
+            "policy": "verified-cold",
+            "residentPagesBeforeOpen": 0
+          },
+          "fileBytes": 2100399,
+          "fixtureSha256": "cc2bc08d9273b1c354ba83185a11c2b1af70f94ae766a6be9ee8493ea6dd58d9",
+          "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2",
+          "passed": true,
+          "platform": "wayland",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": false,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 2,
+          "timings": [
+            {
+              "heartbeatCallbacks": 3,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 160.991896,
+              "operation": "open",
+              "operationAndFirstFrameMs": 267.011845,
+              "operationMs": 204.109196,
+              "p95HeartbeatGapMs": 160.991896
+            },
+            {
+              "heartbeatCallbacks": 9,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 63.183261,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 113.326918,
+              "operationMs": 113.326361,
+              "p95HeartbeatGapMs": 63.183261
+            },
+            {
+              "heartbeatCallbacks": 1,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 85.014807,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 91.648126,
+              "operationMs": 91.647433,
+              "p95HeartbeatGapMs": 85.014807
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        }
+      }
+    ],
+    "binarySha256": "97f30cfcd76ba85b1b24cd1e7faae6003fad5b69dc84801919761242f3c729d0",
+    "buildLogSha256": "1cce7d9fc5f3077daf152bf3767ff0d66c55e4a0cc0c3e7c3e0dad770c8955a8",
+    "nativeLogSha256": "9f02329ae3870f467b1ebecfb5eebd18af23b13fbe6a3361dfef8d9152351381",
+    "worker": {
+      "limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256"
+      },
+      "memoryPeakBytes": 4241154048,
+      "memorySwapPeakBytes": 0,
+      "cases": 3,
+      "passed": true
+    }
+  },
+  "hardware": {
+    "passed": true,
+    "productionLimits": true,
+    "privatePhaseInstrumentation": false,
+    "privateEventInstrumentation": false,
+    "exactProductionRuntime": true,
+    "releaseAcceptance": false,
+    "cases": [
+      {
+        "label": "warm-1",
+        "result": {
+          "cache": {
+            "policy": "warm"
+          },
+          "fileBytes": 100671415,
+          "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+          "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+          "passed": true,
+          "platform": "xcb",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": true,
+            "qtActiveWindowMatched": true,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 20,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 20.6603,
+              "operation": "open",
+              "operationAndFirstFrameMs": 168.270087,
+              "operationMs": 158.509715,
+              "p95HeartbeatGapMs": 16.866055
+            },
+            {
+              "heartbeatCallbacks": 68,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 6.35191,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 347.216098,
+              "operationMs": 347.216038,
+              "p95HeartbeatGapMs": 5.54239
+            },
+            {
+              "heartbeatCallbacks": 62,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 20.525755,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 334.947366,
+              "operationMs": 334.947316,
+              "p95HeartbeatGapMs": 5.791204
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        },
+        "worker": {
+          "exitCode": 0,
+          "memoryPeakBytes": 1730367488,
+          "memorySwapPeakBytes": 0,
+          "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+        },
+        "stdoutSha256": "0aeac63287b9fadb469c347f0ad699f090c590c105a563359c34223f7b62ff3c",
+        "stderrSha256": "ac36320a0072dc8b1d3b2c9f69137c3e49a4af873007551c829c2d048e076000"
+      },
+      {
+        "label": "verified-cold-1",
+        "result": {
+          "cache": {
+            "pages": 24578,
+            "policy": "verified-cold",
+            "residentPagesBeforeOpen": 0
+          },
+          "fileBytes": 100671415,
+          "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+          "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+          "passed": true,
+          "platform": "xcb",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": true,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 22,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 19.773935,
+              "operation": "open",
+              "operationAndFirstFrameMs": 176.599928,
+              "operationMs": 167.169925,
+              "p95HeartbeatGapMs": 16.659543
+            },
+            {
+              "heartbeatCallbacks": 68,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 7.638957,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 348.004135,
+              "operationMs": 348.004085,
+              "p95HeartbeatGapMs": 5.589279
+            },
+            {
+              "heartbeatCallbacks": 114,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 22.760645,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 601.940036,
+              "operationMs": 601.939976,
+              "p95HeartbeatGapMs": 5.483768
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        },
+        "worker": {
+          "exitCode": 0,
+          "memoryPeakBytes": 1645002752,
+          "memorySwapPeakBytes": 0,
+          "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+        },
+        "stdoutSha256": "7b8e9871d1b3b7c208daa385ce3ed2e6c6452385083ff6337e8948d746a24977",
+        "stderrSha256": "0d632af736f3c541bb69b57c19d1d034cf095a840f60fc9206731d3dfdf5f67d"
+      },
+      {
+        "label": "warm-2",
+        "result": {
+          "cache": {
+            "policy": "warm"
+          },
+          "fileBytes": 100671415,
+          "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+          "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+          "passed": true,
+          "platform": "xcb",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": true,
+            "qtActiveWindowMatched": true,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 20,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 20.361753,
+              "operation": "open",
+              "operationAndFirstFrameMs": 167.346219,
+              "operationMs": 159.346556,
+              "p95HeartbeatGapMs": 16.779991
+            },
+            {
+              "heartbeatCallbacks": 66,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 9.072774,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 339.138032,
+              "operationMs": 339.137972,
+              "p95HeartbeatGapMs": 5.623815
+            },
+            {
+              "heartbeatCallbacks": 64,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 21.617661,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 346.167971,
+              "operationMs": 346.167911,
+              "p95HeartbeatGapMs": 5.620669
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        },
+        "worker": {
+          "exitCode": 0,
+          "memoryPeakBytes": 1636950016,
+          "memorySwapPeakBytes": 0,
+          "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+        },
+        "stdoutSha256": "3666d6fb37d0cbbe2a125b22b911a87146b7bc12cc261daf0d008de55ce1f98f",
+        "stderrSha256": "fbe21e84bea49d3e0bb87225c8cdc7fca2df99e056acd7029ad5cfc483b168c3"
+      },
+      {
+        "label": "verified-cold-2",
+        "result": {
+          "cache": {
+            "pages": 24578,
+            "policy": "verified-cold",
+            "residentPagesBeforeOpen": 0
+          },
+          "fileBytes": 100671415,
+          "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+          "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+          "passed": true,
+          "platform": "xcb",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": true,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 22,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 18.557531,
+              "operation": "open",
+              "operationAndFirstFrameMs": 175.149608,
+              "operationMs": 166.644825,
+              "p95HeartbeatGapMs": 16.608054
+            },
+            {
+              "heartbeatCallbacks": 66,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 8.138848,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 338.547789,
+              "operationMs": 338.547709,
+              "p95HeartbeatGapMs": 5.56362
+            },
+            {
+              "heartbeatCallbacks": 60,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 33.005558,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 337.943159,
+              "operationMs": 337.943109,
+              "p95HeartbeatGapMs": 5.945838
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        },
+        "worker": {
+          "exitCode": 0,
+          "memoryPeakBytes": 1640431616,
+          "memorySwapPeakBytes": 0,
+          "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+        },
+        "stdoutSha256": "b5d5b51351ff7eeb4d6a61fb1aeaf1b9aaefc813a7cd8c3e55b5b64c16c9ef3c",
+        "stderrSha256": "3d84c8844d1d46317cee9e901ec222119caa4a14cef0570150587370e0a87a2d"
+      },
+      {
+        "label": "warm-3",
+        "result": {
+          "cache": {
+            "policy": "warm"
+          },
+          "fileBytes": 100671415,
+          "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+          "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+          "passed": true,
+          "platform": "xcb",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": true,
+            "qtActiveWindowMatched": true,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 20,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 21.092613,
+              "operation": "open",
+              "operationAndFirstFrameMs": 168.36733,
+              "operationMs": 158.05072,
+              "p95HeartbeatGapMs": 16.769692
+            },
+            {
+              "heartbeatCallbacks": 66,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 7.106595,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 337.862364,
+              "operationMs": 337.862314,
+              "p95HeartbeatGapMs": 5.605299
+            },
+            {
+              "heartbeatCallbacks": 64,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 30.670106,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 353.290965,
+              "operationMs": 353.290915,
+              "p95HeartbeatGapMs": 5.554434
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        },
+        "worker": {
+          "exitCode": 0,
+          "memoryPeakBytes": 1722609664,
+          "memorySwapPeakBytes": 0,
+          "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+        },
+        "stdoutSha256": "a42a021981bf0dd8acd3c80003c27935bb5394b671271da03c0041fee69e2be6",
+        "stderrSha256": "c90dab81df0d6cdda4e9909b4192a5a563730c57b371456157aebdbcadb15492"
+      },
+      {
+        "label": "verified-cold-3",
+        "result": {
+          "cache": {
+            "pages": 24578,
+            "policy": "verified-cold",
+            "residentPagesBeforeOpen": 0
+          },
+          "fileBytes": 100671415,
+          "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+          "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+          "passed": true,
+          "platform": "xcb",
+          "progressFocusObservation": {
+            "applicationModalityPreserved": true,
+            "cancellationRejected": true,
+            "nativeFocusWindowMatched": true,
+            "qtActiveWindowMatched": false,
+            "sample": "separate-lifecycle-first-exposure"
+          },
+          "releaseAcceptance": false,
+          "scale": 1,
+          "timings": [
+            {
+              "heartbeatCallbacks": 22,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": true,
+              "maximumHeartbeatGapMs": 19.70854,
+              "operation": "open",
+              "operationAndFirstFrameMs": 176.241714,
+              "operationMs": 168.268642,
+              "p95HeartbeatGapMs": 16.661696
+            },
+            {
+              "heartbeatCallbacks": 66,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 9.081841,
+              "operation": "save-with-newer-edit",
+              "operationAndFirstFrameMs": 339.187372,
+              "operationMs": 339.187252,
+              "p95HeartbeatGapMs": 5.447259
+            },
+            {
+              "heartbeatCallbacks": 66,
+              "heartbeatIntervalMs": 5,
+              "includesFirstFrameReadback": false,
+              "maximumHeartbeatGapMs": 17.239886,
+              "operation": "save-current",
+              "operationAndFirstFrameMs": 351.399446,
+              "operationMs": 351.399396,
+              "p95HeartbeatGapMs": 6.155977
+            }
+          ],
+          "viewportLogicalHeight": 714,
+          "viewportLogicalWidth": 950
+        },
+        "worker": {
+          "exitCode": 0,
+          "memoryPeakBytes": 1647022080,
+          "memorySwapPeakBytes": 0,
+          "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+          "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+        },
+        "stdoutSha256": "a0866a8eedacbbecbde171aaccce9d4a929c6fa94734dfaffea1c08bd6c18486",
+        "stderrSha256": "cb89c6c8921ab66069fd1f3bf6d9056ed133587642b71a9efa00fb45839e5e7b"
+      }
+    ],
+    "source": "626479ba904bfdc542163ec01fe82c3c2e382ebf",
+    "binarySha256": "fb2636ebbe176bb50b4920c14a623a1c280fea454ebb3246bc546e154f420479",
+    "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+    "allMeasuredOperationsUnderFiveSeconds": true,
+    "allMaximumHeartbeatGapsUnder50ms": true
+  },
+  "responsiveness": {
+    "source": "626479ba904bfdc542163ec01fe82c3c2e382ebf",
+    "runtimeInputsSha256": "26da8d0f5b89a1e24422e6992303eccdd6fe5399a698ec55e1ebc6d619c9e223",
+    "binarySha256": "fb2636ebbe176bb50b4920c14a623a1c280fea454ebb3246bc546e154f420479",
+    "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+    "campaignFreezeSha256": "0b98d1effd39777d624c1d957fc286555d54bca75d1f61678d92e4e9acc57e45",
+    "resultSha256": "0ad940169c378b8b82ed224f5bd4a413c9e3917b9d7afe7ddcdd045fa621211c",
+    "cases": 6,
+    "operationSamples": 18,
+    "allOriginalFileOracles": true,
+    "allOperationsUnderFiveSeconds": true,
+    "allMaximumHeartbeatGapsUnder50ms": true,
+    "worstMaximumHeartbeatGapMs": 33.005558,
+    "maximumOperationMs": 601.939976,
+    "maximumOperationAndFirstFrameMs": 601.940036,
+    "platformFocusReportedSeparately": true,
+    "releaseAcceptance": false,
+    "samples": [
+      {
+        "case": "warm-1",
+        "heartbeatCallbacks": 20,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": true,
+        "maximumHeartbeatGapMs": 20.6603,
+        "operation": "open",
+        "operationAndFirstFrameMs": 168.270087,
+        "operationMs": 158.509715,
+        "p95HeartbeatGapMs": 16.866055
+      },
+      {
+        "case": "warm-1",
+        "heartbeatCallbacks": 68,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 6.35191,
+        "operation": "save-with-newer-edit",
+        "operationAndFirstFrameMs": 347.216098,
+        "operationMs": 347.216038,
+        "p95HeartbeatGapMs": 5.54239
+      },
+      {
+        "case": "warm-1",
+        "heartbeatCallbacks": 62,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 20.525755,
+        "operation": "save-current",
+        "operationAndFirstFrameMs": 334.947366,
+        "operationMs": 334.947316,
+        "p95HeartbeatGapMs": 5.791204
+      },
+      {
+        "case": "verified-cold-1",
+        "heartbeatCallbacks": 22,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": true,
+        "maximumHeartbeatGapMs": 19.773935,
+        "operation": "open",
+        "operationAndFirstFrameMs": 176.599928,
+        "operationMs": 167.169925,
+        "p95HeartbeatGapMs": 16.659543
+      },
+      {
+        "case": "verified-cold-1",
+        "heartbeatCallbacks": 68,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 7.638957,
+        "operation": "save-with-newer-edit",
+        "operationAndFirstFrameMs": 348.004135,
+        "operationMs": 348.004085,
+        "p95HeartbeatGapMs": 5.589279
+      },
+      {
+        "case": "verified-cold-1",
+        "heartbeatCallbacks": 114,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 22.760645,
+        "operation": "save-current",
+        "operationAndFirstFrameMs": 601.940036,
+        "operationMs": 601.939976,
+        "p95HeartbeatGapMs": 5.483768
+      },
+      {
+        "case": "warm-2",
+        "heartbeatCallbacks": 20,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": true,
+        "maximumHeartbeatGapMs": 20.361753,
+        "operation": "open",
+        "operationAndFirstFrameMs": 167.346219,
+        "operationMs": 159.346556,
+        "p95HeartbeatGapMs": 16.779991
+      },
+      {
+        "case": "warm-2",
+        "heartbeatCallbacks": 66,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 9.072774,
+        "operation": "save-with-newer-edit",
+        "operationAndFirstFrameMs": 339.138032,
+        "operationMs": 339.137972,
+        "p95HeartbeatGapMs": 5.623815
+      },
+      {
+        "case": "warm-2",
+        "heartbeatCallbacks": 64,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 21.617661,
+        "operation": "save-current",
+        "operationAndFirstFrameMs": 346.167971,
+        "operationMs": 346.167911,
+        "p95HeartbeatGapMs": 5.620669
+      },
+      {
+        "case": "verified-cold-2",
+        "heartbeatCallbacks": 22,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": true,
+        "maximumHeartbeatGapMs": 18.557531,
+        "operation": "open",
+        "operationAndFirstFrameMs": 175.149608,
+        "operationMs": 166.644825,
+        "p95HeartbeatGapMs": 16.608054
+      },
+      {
+        "case": "verified-cold-2",
+        "heartbeatCallbacks": 66,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 8.138848,
+        "operation": "save-with-newer-edit",
+        "operationAndFirstFrameMs": 338.547789,
+        "operationMs": 338.547709,
+        "p95HeartbeatGapMs": 5.56362
+      },
+      {
+        "case": "verified-cold-2",
+        "heartbeatCallbacks": 60,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 33.005558,
+        "operation": "save-current",
+        "operationAndFirstFrameMs": 337.943159,
+        "operationMs": 337.943109,
+        "p95HeartbeatGapMs": 5.945838
+      },
+      {
+        "case": "warm-3",
+        "heartbeatCallbacks": 20,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": true,
+        "maximumHeartbeatGapMs": 21.092613,
+        "operation": "open",
+        "operationAndFirstFrameMs": 168.36733,
+        "operationMs": 158.05072,
+        "p95HeartbeatGapMs": 16.769692
+      },
+      {
+        "case": "warm-3",
+        "heartbeatCallbacks": 66,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 7.106595,
+        "operation": "save-with-newer-edit",
+        "operationAndFirstFrameMs": 337.862364,
+        "operationMs": 337.862314,
+        "p95HeartbeatGapMs": 5.605299
+      },
+      {
+        "case": "warm-3",
+        "heartbeatCallbacks": 64,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 30.670106,
+        "operation": "save-current",
+        "operationAndFirstFrameMs": 353.290965,
+        "operationMs": 353.290915,
+        "p95HeartbeatGapMs": 5.554434
+      },
+      {
+        "case": "verified-cold-3",
+        "heartbeatCallbacks": 22,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": true,
+        "maximumHeartbeatGapMs": 19.70854,
+        "operation": "open",
+        "operationAndFirstFrameMs": 176.241714,
+        "operationMs": 168.268642,
+        "p95HeartbeatGapMs": 16.661696
+      },
+      {
+        "case": "verified-cold-3",
+        "heartbeatCallbacks": 66,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 9.081841,
+        "operation": "save-with-newer-edit",
+        "operationAndFirstFrameMs": 339.187372,
+        "operationMs": 339.187252,
+        "p95HeartbeatGapMs": 5.447259
+      },
+      {
+        "case": "verified-cold-3",
+        "heartbeatCallbacks": 66,
+        "heartbeatIntervalMs": 5,
+        "includesFirstFrameReadback": false,
+        "maximumHeartbeatGapMs": 17.239886,
+        "operation": "save-current",
+        "operationAndFirstFrameMs": 351.399446,
+        "operationMs": 351.399396,
+        "p95HeartbeatGapMs": 6.155977
+      }
+    ]
+  },
+  "sourceFreezeSha256": "26da8d0f5b89a1e24422e6992303eccdd6fe5399a698ec55e1ebc6d619c9e223",
+  "sanitizerFreezeSha256": "9b3c26e4220c36005d64b4977734bd5660b638f43bf53298b21ab4ba7ef4dc39",
+  "hardwareFreezeSha256": "0b98d1effd39777d624c1d957fc286555d54bca75d1f61678d92e4e9acc57e45",
+  "normalControllerSha256": "b28302eb061eabe215c9e8f7124a514c434dfb2c33f7b2c0cfe88cb2da003e6f",
+  "sanitizerControllerSha256": "1839b1aa3c592b0fa6db9c2b5303792288683fd1d04edeb38981ae1d808a30c4",
+  "hardwareControllerSha256": "a5aa98c1a4f49c99e69a45554047adae45221bbc02e1bc670e744e9a2ff6b9a7",
+  "normalResultSha256": "c164bcd60c7b5a50da14b291b5b6ccbcf421ecf86f7424a366380c6c4206548c",
+  "sanitizerResultSha256": "26c6115abb4a886435d8e245013067653dbac71e6a5fb185837b969fca12d232",
+  "hardwareResultSha256": "0ad940169c378b8b82ed224f5bd4a413c9e3917b9d7afe7ddcdd045fa621211c",
+  "releaseAcceptance": false
+}
