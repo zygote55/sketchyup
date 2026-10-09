@@ -221,7 +221,13 @@ class Viewport : public QOpenGLWidget {
         size_t meshTriangles{}, profileEdges{};
     };
     RenderStats renderStats() const { return stats_; }
+    struct GeometryCacheMemory {
+        size_t bodyVectorCapacityBytes{}, bodyGpuPayloadBytes{};
+    };
+    GeometryCacheMemory geometryCacheMemory() const;
     double lastFrameMs() const { return frameMs_; }
+    // Benchmark instrumentation only: include GPU completion in frame timing.
+    void setSynchronousFrameTiming(bool enabled) { synchronousFrameTiming_ = enabled; }
     bool texturesPending() const { return textureCache_.pending(); }
     QString textureSummary() const;
     // Orthographic projection in the current view direction, at physical page scale.
@@ -525,6 +531,7 @@ class Viewport : public QOpenGLWidget {
     bool nativeNavigation(QEvent *event);
     int instances_{0}, benchmarkTriangles_{0};
     double frameMs_{};
+    bool synchronousFrameTiming_{};
     QString graphics_;
     QMatrix4x4 matrix() const;
     std::pair<Vec3, Vec3> ray(QPointF p) const;
