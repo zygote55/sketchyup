@@ -119,7 +119,31 @@ int main(int argc, char **argv) {
             window.show();
             check(QTest::qWaitForWindowExposed(&window), "Window exposed");
             const auto content = encodeContainer(window.document());
+            for (auto *entry : window.findChildren<QAction *>()) {
+                const auto declared = entry->property("defaultShortcut");
+                if (declared.isValid())
+                    check(entry->shortcut() == declared.value<QKeySequence>(),
+                          "Fresh preferences retain every default public shortcut");
+            }
+            check(action(window, "view.tray")->shortcut() == QKeySequence("Ctrl+Shift+T") &&
+                      action(window, "textCreate")->shortcut() == QKeySequence("Ctrl+Alt+Shift+T"),
+                  "Model-panel toggle and local text creation have separate defaults");
             const auto before = settings.value("shortcuts/v1").toByteArray();
+            editor(window, [&](QDialog &dialog) {
+                check(dialog.findChild<QLabel *>("shortcutNotices")->text().isEmpty(),
+                      "Fresh preferences have no inactive-default notice");
+                choose(dialog, "view.commands", "Ctrl+Shift+M");
+                click(dialog, "shortcutAssign");
+                check(error(dialog).contains("panel"),
+                      "Global custom shortcut cannot shadow a panel-local action");
+                check(!dialog.findChild<QPushButton *>("shortcutReassign")->isEnabled(),
+                      "Panel shortcut cannot be cleared by global reassignment");
+                choose(dialog, "tool.1", "Ctrl+Shift+M");
+                click(dialog, "shortcutAssign");
+                check(error(dialog).isEmpty(),
+                      "Viewport-only shortcut can share disjoint panel key");
+                dialog.reject();
+            });
             editor(window, [&](QDialog &dialog) {
                 choose(dialog, "tool.1", "Ctrl+Alt+R");
                 click(dialog, "shortcutAssign");
@@ -246,6 +270,33 @@ int main(int argc, char **argv) {
                       "Stale editor rejects overwrite");
                 dialog.reject();
             });
+        }
+        settings.sync();
+        auto reserved =
+            QJsonDocument::fromJson(settings.value("shortcuts/v1").toByteArray()).object();
+        reserved["bindings"] = QJsonObject{{"view.commands", "Ctrl+Shift+M"}};
+        const auto savedReserved = QJsonDocument(reserved).toJson();
+        settings.setValue("shortcuts/v1", savedReserved);
+        settings.sync();
+        {
+            Window window;
+            window.show();
+            check(QTest::qWaitForWindowExposed(&window), "Reserved binding restart exposed");
+            check(action(window, "view.commands")->shortcut().isEmpty() &&
+                      action(window, "outliner.move")->shortcut() == QKeySequence("Ctrl+Shift+M"),
+                  "Saved collision disables only global binding and preserves panel action");
+            settings.sync();
+            check(settings.value("shortcuts/v1").toByteArray() == savedReserved,
+                  "Reserved saved choice remains byte-exact until explicitly edited");
+            editor(window, [&](QDialog &dialog) {
+                check(dialog.findChild<QLabel *>("shortcutNotices")->text().contains("panel"),
+                      "Inactive saved panel collision has a visible explanation");
+                choose(dialog, "view.commands", "Ctrl+Alt+K");
+                click(dialog, "shortcutAssign");
+                save(dialog);
+            });
+            check(action(window, "view.commands")->shortcut() == QKeySequence("Ctrl+Alt+K"),
+                  "Choosing a nonconflicting key restores global action");
         }
         settings.sync();
         check(settings.value("futureNamespace/data").toByteArray() == unknown,
