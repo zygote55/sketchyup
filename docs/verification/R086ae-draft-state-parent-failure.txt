@@ -1,0 +1,13 @@
+Test project /home/keith/projects/sketchyup-style-ci/build/environment
+    Start 135: assistant
+1/1 Test #135: assistant ........................***Failed    0.05 sec
+Trusted private-draft state distinguishes empty draft version from public revision
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.06 sec
+
+The following tests FAILED:
+	135 - assistant (Failed)
+Errors while running CTest

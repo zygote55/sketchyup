@@ -80,7 +80,7 @@ class AssistantTask {
     Phase phase_{Phase::Ready};
     QString taskId_, documentId_, revision_, draft_, attempt_, modelText_;
     QJsonArray tools_, messages_;
-    QJsonObject sealed_, receipt_, error_, context_, clarification_;
+    QJsonObject sealed_, receipt_, error_, context_, clarification_, draftState_;
     QString clarificationCall_;
     std::set<QString> callIds_;
     int turns_{}, calls_{}, retries_{};

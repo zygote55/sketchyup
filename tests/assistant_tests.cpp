@@ -158,7 +158,17 @@ int main(int argc, char **argv) {
             auto description = driver.tool("document.describe", query(s, "document.describe"));
             check(description["documentId"] == s["documentId"], "Live bounded inspection works");
             const auto draft = driver.begin(s);
+            const auto emptyBudget = hostBudget(*driver.pending);
+            check(emptyBudget["privateDraftState"].isObject() &&
+                      emptyBudget["privateDraftState"].toObject()["currentVersion"] == 0 &&
+                      emptyBudget["privateDraftState"].toObject()["commandCount"] == 0,
+                  "Trusted private-draft state distinguishes empty draft version from public "
+                  "revision");
             const auto staged = driver.stage(s, draft);
+            const auto stagedBudget = hostBudget(*driver.pending)["privateDraftState"].toObject();
+            check(stagedBudget["currentVersion"] == 1 && stagedBudget["commandCount"] == 1 &&
+                      stagedBudget["proposedRevision"] == staged["proposedRevision"],
+                  "Trusted private-draft state follows successful host receipts");
             const auto body = staged["createdIds"].toObject()["created"].toArray()[0].toString();
             auto proposed = s;
             proposed["revision"] = staged["proposedRevision"];
@@ -326,6 +336,75 @@ int main(int argc, char **argv) {
                       fixture.actor.document().bodies().size() == 1 &&
                       fixture.actor.document().history().total == 1,
                   "Long-plan edits publish only on explicit host Apply");
+        }
+        {
+            ActorBackend fixture(files.path() + "/draft-state-guidance");
+            const auto initial = encodeContainer(fixture.actor.document());
+            const auto s = fixture.state();
+            AssistantTask task(fixture.backend(), options());
+            Driver driver(task);
+            check(hostBudget(*driver.pending)["privateDraftState"].toObject().isEmpty(),
+                  "No draft metadata exists before a draft is opened");
+            const auto draft = driver.begin(s);
+            const auto empty = driver.tool(
+                "transaction.inspect",
+                op(s, "transaction.inspect",
+                   {{"transactionId", draft}, {"request", query(s, "document.describe")}}),
+                true);
+            check(
+                empty["code"] == "EMPTY_TRANSACTION" &&
+                    empty["retry"].toString().contains("public inspection tools") &&
+                    hostBudget(*driver.pending)["privateDraftState"].toObject()["currentVersion"] ==
+                        0 &&
+                    encodeContainer(fixture.actor.document()) == initial,
+                "Empty private inspection gives actionable guidance without creating commands");
+            const auto rejected = driver.tool("transaction.apply",
+                                              op(s, "transaction.apply",
+                                                 {{"transactionId", draft},
+                                                  {"expectedVersion", 4},
+                                                  {"operationId", "wrong-version"},
+                                                  {"commands", QJsonArray{face()}}}),
+                                              true);
+            check(rejected["code"] == "STALE_STAGE_VERSION" &&
+                      rejected["retry"].toString().contains("currentVersion") &&
+                      hostBudget(*driver.pending)["privateDraftState"].toObject()["commandCount"] ==
+                          0 &&
+                      encodeContainer(fixture.actor.document()) == initial,
+                  "Rejected stage version preserves trusted state and the public document");
+            driver.stage(s, draft);
+            const auto appended =
+                driver.tool("transaction.apply", op(s, "transaction.apply",
+                                                    {{"transactionId", draft},
+                                                     {"expectedVersion", 1},
+                                                     {"operationId", "append"},
+                                                     {"commands", QJsonArray{face()}}}));
+            const auto current = hostBudget(*driver.pending)["privateDraftState"].toObject();
+            check(current["currentVersion"] == 2 && current["commandCount"] == 2 &&
+                      current["proposedRevision"] == appended["proposedRevision"],
+                  "Accepted commands advance only the private draft state");
+            const auto replayed = driver.stage(s, draft);
+            check(replayed["replayed"].toBool() &&
+                      hostBudget(*driver.pending)["privateDraftState"].toObject() == current &&
+                      encodeContainer(fixture.actor.document()) == initial,
+                  "Replayed earlier apply cannot replace the latest trusted proposal metadata");
+            driver.tool("transaction.abort",
+                        op(s, "transaction.abort", {{"transactionId", draft}}));
+            check(!hostBudget(*driver.pending)["privateDraftOpen"].toBool() &&
+                      hostBudget(*driver.pending)["privateDraftState"].toObject().isEmpty(),
+                  "Aborted draft retires its trusted metadata");
+            const auto replacement = driver.begin(s);
+            check(hostBudget(*driver.pending)["privateDraftState"].toObject()["currentVersion"] ==
+                      0,
+                  "Replacement draft starts at its own version zero");
+            driver.stage(s, replacement);
+            driver.seal(s, replacement);
+            check(encodeContainer(fixture.actor.document()) == initial,
+                  "Error recovery never applies public edits before host approval");
+            task.apply();
+            check(task.result()["applied"].toBool() &&
+                      fixture.actor.document().bodies().size() == 1 &&
+                      fixture.actor.document().history().total == 1,
+                  "Recovered draft publishes exactly once through explicit host Apply");
         }
         {
             ActorBackend fixture(files.path() + "/history");
