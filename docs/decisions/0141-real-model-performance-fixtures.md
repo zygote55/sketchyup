@@ -131,3 +131,29 @@ obsolete images. Batch-invariant uniforms are set at both main shader binding si
 Forty hardware runs preserve the frozen fixture hashes and meet the initial
 frame/edit budgets; forty-two native checks cover normal and sanitized behavior.
 [Detailed comparison and remaining acceptance gaps](../verification/R082j-viewport-reuse.md).
+
+## Rendered history and process memory
+
+The optional fourth argument selects one to twenty complete rendered-history
+cycles. The original three-argument run retains its fixture, timings and one
+hundred edits, undos and redos. A five-cycle run performs five hundred edits and
+renders every undo and redo, with the existing first completed edit-frame metric
+and inference checks. Exact transforms must return to their cycle boundaries;
+the original public model limits and renderer remain unchanged.
+
+The benchmark samples current process RSS, peak RSS, history and fixed geometry
+cache capacities every twenty-five operations. It reports its own DRM buffer
+objects separately at warmup, completion and the history checkpoints. Descriptor
+identity, byte units and resident-counter aliases follow the
+[kernel DRM usage specification](https://www.kernel.org/doc/html/latest/gpu/drm-usage-stats.html).
+Duplicate descriptors count once; missing or corrupt accounting is incomplete,
+never zero. Resident categories are an upper bound across potentially overlapping
+clients or regions and must not be added to process RSS. Other driver allocations
+remain outside this interface.
+
+The retained [forward memory budget](0141-forward-memory-budget.json) is a late
+calibration documented before the new hardware runs. It does not revise public
+editing limits or retrospectively accept earlier experimental measurements.
+Fresh source-bound integrated and discrete hardware reports, original timing
+oracles and the larger public fixture remain required. A finite five-cycle sample
+does not establish bounded growth over an unlimited editing session.

@@ -1,0 +1,171 @@
+Actual public runtime and test inputs verified
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.6s)
+-- Generating done (0.7s)
+-- Build files have been written to: /work/package/src/build
+[1/2] Building CXX object CMakeFiles/drm_memory_tests.dir/tests/drm_memory_tests.cpp.o
+[2/2] Linking CXX executable drm_memory_tests
+[1/106] Building CXX object CMakeFiles/clipper2.dir/third_party/clipper2/src/clipper.offset.cpp.o
+[2/106] Building CXX object CMakeFiles/clipper2.dir/third_party/clipper2/src/clipper.engine.cpp.o
+[3/106] Building CXX object CMakeFiles/clipper2.dir/third_party/clipper2/src/clipper.rectclip.cpp.o
+[4/106] Building CXX object CMakeFiles/clipper2.dir/third_party/clipper2/src/clipper.triangulation.cpp.o
+[5/106] Building CXX object CMakeFiles/sketchyup_solar.dir/src/solar/solar.cpp.o
+[6/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/boolean3.cpp.o
+[7/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/boolean_result.cpp.o
+[8/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/constructors.cpp.o
+[9/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/csg_tree.cpp.o
+[10/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/edge_op.cpp.o
+[11/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/face_op.cpp.o
+[12/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/manifold.cpp.o
+[13/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/minkowski.cpp.o
+[14/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/impl.cpp.o
+[15/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/polygon.cpp.o
+[16/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/properties.cpp.o
+[17/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/quickhull.cpp.o
+[18/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/sdf.cpp.o
+[19/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/smoothing.cpp.o
+[20/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/sort.cpp.o
+[21/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/tree2d.cpp.o
+[22/106] Building CXX object CMakeFiles/sketchyup_cgltf.dir/third_party/cgltf/cgltf.cpp.o
+[23/106] Linking CXX static library libclipper2.a
+[24/106] Building CXX object third_party/manifold/CMakeFiles/sketchyup_manifold.dir/src/subdivision.cpp.o
+[25/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/measured_view.cpp.o
+[26/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/camera_motion.cpp.o
+[27/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/reference_image.cpp.o
+[28/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/text_source.cpp.o
+[29/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/texture_mapping.cpp.o
+[30/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/section.cpp.o
+[31/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_glue.cpp.o
+[32/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_placement.cpp.o
+[33/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/hosted_opening.cpp.o
+[34/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/diagnostics.cpp.o
+[35/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/orientation.cpp.o
+[36/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/solid_operations.cpp.o
+[37/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/boolean.cpp.o
+[38/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/solid.cpp.o
+[39/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/asset_records.cpp.o
+[40/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/intersection.cpp.o
+[41/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/transform.cpp.o
+[42/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/tag_records.cpp.o
+[43/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/surface.cpp.o
+[44/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/arrangement.cpp.o
+[45/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/topology.cpp.o
+[46/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/planar.cpp.o
+[47/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/offset.cpp.o
+[48/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/sweep.cpp.o
+[49/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/cleanup.cpp.o
+[50/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/drawing.cpp.o
+[51/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/push_pull.cpp.o
+[52/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/guides.cpp.o
+[53/106] Linking CXX static library libsketchyup_solar.a
+[54/106] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/curves.cpp.o
+[55/106] Linking CXX static library third_party/manifold/libsketchyup_manifold.a
+[56/106] Linking CXX static library libsketchyup_cgltf.a
+[57/106] Linking CXX static library libsketchyup_core.a
+[58/106] Building CXX object CMakeFiles/sketchyup_environment.dir/src/integrations/render_environment.cpp.o
+[59/106] Linking CXX static library libsketchyup_environment.a
+[60/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/optional_capabilities.cpp.o
+[61/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/dxf_source.cpp.o
+[62/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/new_file.cpp.o
+[63/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/stl_source.cpp.o
+[64/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/obj_material.cpp.o
+[65/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/obj_source.cpp.o
+[66/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/gltf_package.cpp.o
+[67/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/reference_image_io.cpp.o
+[68/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/solar_io.cpp.o
+[69/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/text_source_io.cpp.o
+[70/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/scenes_io.cpp.o
+[71/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/annotations_io.cpp.o
+[72/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/sections_io.cpp.o
+[73/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/model_style_io.cpp.o
+[74/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/hosted_components_io.cpp.o
+[75/106] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/measurements.cpp.o
+[76/106] Linking CXX static library libsketchyup_io.a
+[77/106] Automatic MOC for target sketchyup_render
+[78/105] Automatic MOC for target sketchyup_providers
+[79/105] Running rcc for resource blender_worker
+[80/105] Building CXX object CMakeFiles/sketchyup_text.dir/src/text/text_geometry.cpp.o
+[81/105] Linking CXX static library libsketchyup_text.a
+[82/105] Building CXX object CMakeFiles/sketchyup_shortcuts.dir/src/app/shortcut_bindings.cpp.o
+[83/105] Building CXX object CMakeFiles/sketchyup_render.dir/.qt/rcc/qrc_blender_worker.cpp.o
+[84/105] Building CXX object CMakeFiles/sketchyup-text-worker.dir/src/text/worker_main.cpp.o
+[85/105] Building CXX object CMakeFiles/sketchyup_providers.dir/sketchyup_providers_autogen/mocs_compilation.cpp.o
+[86/105] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/chatgpt_auth.cpp.o
+[87/105] Linking CXX static library libsketchyup_shortcuts.a
+[88/105] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/credential_store.cpp.o
+[89/105] Linking CXX executable sketchyup-text-worker
+[90/105] Linking CXX static library libsketchyup_providers.a
+[91/105] Linking CXX static library libsketchyup_render.a
+[92/105] Linking CXX executable sketchyup-extension-worker
+[93/105] Automatic MOC for target sketchyup_desktop
+[94/104] Building CXX object CMakeFiles/drm_memory_tests.dir/tests/drm_memory_tests.cpp.o
+[95/104] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/texture_cache.cpp.o
+[96/104] Linking CXX executable drm_memory_tests
+[97/104] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window.cpp.o
+[98/104] Linking CXX static library libsketchyup_desktop.a
+[99/104] Automatic MOC for target real_model_benchmark
+[100/103] Running rcc for resource performance_fixture_textures
+[101/103] Building CXX object CMakeFiles/real_model_benchmark.dir/.qt/rcc/qrc_performance_fixture_textures.cpp.o
+[102/103] Building CXX object CMakeFiles/real_model_benchmark.dir/tests/real_model_benchmark.cpp.o
+[103/103] Linking CXX executable real_model_benchmark
+Test project /work/package/src/build
+    Start 60: drm_memory
+1/1 Test #60: drm_memory .......................   Passed    0.01 sec
+
+100% tests passed out of 1
+
+Total Test time (real) =   0.01 sec
+-- The CXX compiler identification is GNU 16.2.1
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/sbin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Performing Test HAVE_STDATOMIC
+-- Performing Test HAVE_STDATOMIC - Success
+-- Found WrapAtomic: TRUE
+-- Configuring done (0.8s)
+-- Generating done (0.0s)
+-- Build files have been written to: /capture/parser-sanitize-build
+[1/2] Building CXX object CMakeFiles/drm_memory.dir/work/package/src/sketchyup-0.1.0/tests/drm_memory_tests.cpp.o
+[2/2] Linking CXX executable drm_memory
+Test project /capture/parser-sanitize-build
+    Start 1: drm_memory
+1/1 Test #1: drm_memory .......................   Passed    0.05 sec
+
+100% tests passed out of 1
+
+Total Test time (real) =   0.05 sec
+History benchmark unchanged smoke repeated
+History benchmark rendered smoke repeated
+History benchmark unchanged smoke unique
+History benchmark rendered smoke unique
+History benchmark unchanged smoke deep
+History benchmark rendered smoke deep
+History benchmark unchanged smoke far
+History benchmark rendered smoke far
+History benchmark unchanged smoke textures
+History benchmark rendered smoke textures
+History benchmark Wayland scale=1
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+History benchmark Wayland scale=2
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.8s)
+-- Generating done (0.7s)
+-- Build files have been written to: /work/package/src/build
