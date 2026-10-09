@@ -1125,7 +1125,6 @@ install(FILES docs/decisions/0150-selected-text-contrast.md DESTINATION share/do
 install(FILES docs/decisions/0149-native-shortcut-editor.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0141-real-model-performance-fixtures.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0142-deterministic-parser-corruption.md DESTINATION share/doc/sketchyup/decisions)
-
 install(FILES docs/decisions/0143-new-file-publication-faults.md DESTINATION share/doc/sketchyup/decisions)
-
 install(FILES docs/decisions/0144-seeded-transaction-sequences.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/USER_GUIDE.md docs/SUPPORT_MATRIX.md DESTINATION share/doc/sketchyup)
