@@ -580,7 +580,8 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
                 triangle.b = world.point(triangle.b);
                 triangle.c = world.point(triangle.c);
             }
-            const auto cuts = effectiveSectionCuts(doc_, id);
+            const auto cuts = doc_.activeSections().empty() ? std::vector<SectionCut>{}
+                                                            : effectiveSectionCuts(doc_, id);
             if (!cuts.empty() && !body->referenceImage) {
                 auto source = transformed;
                 std::erase_if(source, [&](const auto &triangle) {
@@ -838,12 +839,13 @@ void Viewport::rebuild() {
         const auto world = doc_.worldTransform(id);
         const float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
 
+        const bool recordChanged = cache.record != body;
         const bool meshChanged =
             !cache.record ||
-            (cache.record != body && (cache.record->surface != body->surface ||
-                                      cache.record->referenceImage != body->referenceImage));
+            (recordChanged && (cache.record->surface != body->surface ||
+                               cache.record->referenceImage != body->referenceImage));
         const bool topologyChanged =
-            meshChanged || !cache.record || cache.record->topology.edges != body->topology.edges;
+            meshChanged || (recordChanged && cache.record->topology.edges != body->topology.edges);
         const bool worldChanged = meshChanged || !cache.record || cache.world != world;
         MaterialRecords materials;
         auto remember = [&](MaterialSides sides) {
@@ -851,8 +853,14 @@ void Viewport::rebuild() {
                 if (material)
                     materials.emplace(material, doc_.materials().at(material));
         };
-        for (const auto &[face, record] : body->surface.faces)
-            remember(faceMaterials(*body, face));
+        if (recordChanged) {
+            for (const auto &[face, record] : body->surface.faces)
+                remember(faceMaterials(*body, face));
+        } else {
+            // Body records are immutable, but referenced materials can change.
+            for (const auto &[material, record] : cache.materials)
+                materials.emplace(material, doc_.materials().at(material));
+        }
         std::map<Id, std::shared_ptr<const TextureImage>> images;
         for (const auto &[material, record] : materials)
             if (record->asset && textureImages_.contains(record->asset))
@@ -860,20 +868,22 @@ void Viewport::rebuild() {
         if (body->referenceImage && textureImages_.contains(body->referenceImage->asset))
             images.emplace(body->referenceImage->asset,
                            textureImages_.at(body->referenceImage->asset));
-        const auto cuts = effectiveSectionCuts(doc_, id);
+        const auto cuts = doc_.activeSections().empty() ? std::vector<SectionCut>{}
+                                                        : effectiveSectionCuts(doc_, id);
         SectionRecords sections;
         for (const auto &cut : cuts)
             sections.emplace(cut.id, doc_.sections().at(cut.id));
+        const bool bodyAppearanceChanged =
+            recordChanged && (!cache.record || cache.record->color != body->color ||
+                              cache.record->faceColors != body->faceColors ||
+                              cache.record->materials != body->materials ||
+                              cache.record->faceMaterials != body->faceMaterials ||
+                              cache.record->faceTextureMappings != body->faceTextureMappings ||
+                              cache.record->edgeAppearances != body->edgeAppearances);
         const bool appearanceChanged = cache.sectionCuts != cuts || cache.sections != sections ||
-                                       worldChanged || topologyChanged || !cache.record ||
-                                       cache.record->color != body->color ||
-                                       cache.record->faceColors != body->faceColors ||
-                                       cache.record->materials != body->materials ||
-                                       cache.record->faceMaterials != body->faceMaterials ||
-                                       cache.record->faceTextureMappings != body->faceTextureMappings ||
-                                       cache.images != images ||
-                                       cache.record->edgeAppearances != body->edgeAppearances ||
-                                       cache.materials != materials || cache.alpha != alpha ||
+                                       worldChanged || topologyChanged || bodyAppearanceChanged ||
+                                       cache.images != images || cache.materials != materials ||
+                                       cache.alpha != alpha ||
                                        cache.presentationRevision != presentationRevision_;
         if (meshChanged) {
             cache.localTriangles = displayTriangles(*body);
@@ -1134,12 +1144,6 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count) {
                           reinterpret_cast<void *>(11 * sizeof(float)));
     gl_->glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(PackedVertex),
                                reinterpret_cast<void *>(15 * sizeof(float)));
-    shader_->setUniformValue("rasterExport", rasterSize_.isEmpty() ? 0 : 1);
-    shader_->setUniformValue("wireframe", doc_.style().mode == ModelStyleMode::Wireframe ? 1 : 0);
-    shader_->setUniformValue("frontImage", 0);
-    shader_->setUniformValue("backImage", 1);
-    shader_->setUniformValue("canvas", QVector3D(colors_.canvas.redF(), colors_.canvas.greenF(),
-                                               colors_.canvas.blueF()));
     for (const auto &run : batch.runs) {
         const auto front = textureGpu_.contains(run.front) ? textureGpu_.at(run.front) : 0;
         const auto back = textureGpu_.contains(run.back) ? textureGpu_.at(run.back) : 0;
@@ -1218,6 +1222,12 @@ void Viewport::paintScene(QPaintDevice *device) {
     gl_->glDepthFunc(GL_LEQUAL);
     gl_->glDisable(GL_BLEND);
     shader_->bind();
+    shader_->setUniformValue("rasterExport", rasterSize_.isEmpty() ? 0 : 1);
+    shader_->setUniformValue("wireframe", doc_.style().mode == ModelStyleMode::Wireframe ? 1 : 0);
+    shader_->setUniformValue("frontImage", 0);
+    shader_->setUniformValue("backImage", 1);
+    shader_->setUniformValue("canvas", QVector3D(colors_.canvas.redF(), colors_.canvas.greenF(),
+                                                 colors_.canvas.blueF()));
     auto transform = matrix();
     shader_->setUniformValue("mvp", transform);
     shader_->setUniformValue("instanced", instances_ > 0 ? 1 : 0);

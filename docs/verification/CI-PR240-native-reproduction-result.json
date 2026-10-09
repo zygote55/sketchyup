@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "source": "46ff588a8a86be0c3ab1bcffde31d2be7fb3e2da",
+  "releaseAcceptance": false,
+  "originalFailureRetained": true,
+  "originalWaylandDeadlineUnchanged": true,
+  "rootCauseConfirmed": false,
+  "trackedSourceRestored": true,
+  "cases": 13,
+  "sanitizerLeakDetection": true,
+  "caseCpuAffinity": [
+    0,
+    1
+  ],
+  "llvmpipeThreads": 2,
+  "binarySha256": "50826998f765e695d62b120b1af0748f624158da8049aeb5fc3152d53b866168",
+  "buildLogSha256": "3eafcdd4e497e3bbde5cd5e4fc47b344838beec2fd0642c14d5e02ebac02c1c2",
+  "nativeLogSha256": "53e18db1986a0eb5aab12ebd7d9c84d1e45ab870186a871453d7360590667245"
+}

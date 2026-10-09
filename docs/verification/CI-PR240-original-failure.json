@@ -1,0 +1,23 @@
+{
+  "pr": 240,
+  "run": 37695628856,
+  "head": "46ff588a8a86be0c3ab1bcffde31d2be7fb3e2da",
+  "failedSteps": [
+    {
+      "job": 113046531293,
+      "name": "Sanitized native MCP inspection",
+      "conclusion": "failure"
+    }
+  ],
+  "derivedFlags": {
+    "diskFull": false,
+    "compilerKilled": false,
+    "sanitizerFinding": false,
+    "sixHourCancellation": false,
+    "fontAbsent": false,
+    "networkSetup": false,
+    "testFailure": false
+  },
+  "rawLogSha256": "790555801766c34aa62fd42fb7cf4d604364ad102833141df4fb57c80ed9e86e",
+  "rawLines": 19478
+}
