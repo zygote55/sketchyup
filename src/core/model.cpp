@@ -1,8 +1,9 @@
 #include "core/model.hpp"
-#include "core/reference_images.hpp"
 #include "core/appearance.hpp"
-#include "core/face_textures.hpp"
+#include "core/component_validation.hpp"
 #include "core/edge_appearance.hpp"
+#include "core/face_textures.hpp"
+#include "core/reference_images.hpp"
 #include "geometry/offset.hpp"
 #include <algorithm>
 #include <iomanip>
@@ -113,7 +114,8 @@ Transform worldTransformIn(const std::map<Id, BodyPtr> &bodies, Id id) {
     }
     return result;
 }
-void validateDocumentSize(const std::map<Id, BodyPtr> &bodies) {
+void validateDocumentSize(const std::map<Id, BodyPtr> &bodies,
+                          const std::map<Id, BodyPtr> *baseline = nullptr) {
     size_t vertices = 0, faces = 0, wires = 0, edges = 0, curves = 0, guides = 0;
     for (const auto &[id, b] : bodies) {
         vertices += b->surface.vertices.size();
@@ -125,6 +127,14 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies) {
         if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
             throw std::runtime_error("Reference images cannot own child entities");
         const auto world = worldTransformIn(bodies, id);
+        // worldTransformIn still validates every candidate parent chain. World
+        // bounds need another scan only when this record or an ancestor changed.
+        bool unchanged = baseline != nullptr;
+        for (Id ancestor = id; unchanged && ancestor; ancestor = bodies.at(ancestor)->parent)
+            unchanged =
+                baseline->contains(ancestor) && baseline->at(ancestor) == bodies.at(ancestor);
+        if (unchanged)
+            continue;
         if (b->referenceImage)
             referenceImageCorners(*b->referenceImage, world);
         for (const auto &[vertex, point] : b->surface.vertices)
@@ -1021,7 +1031,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         else
             updated.erase(c.id);
     }
-    validateDocumentSize(updated);
+    validateDocumentSize(updated, &bodies_);
     if (!annotations.empty()) {
         auto candidate = readSnapshot();
         candidate.bodies_ = updated;
@@ -1091,7 +1101,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     validateReferenceImageAssets(updated, assets);
     validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
                                  nextMaterial, assets, nextAsset);
-    validateComponentInstances(definitions, instances, updated);
+    validateComponentInstanceEdits(definitions, instances, updated, *this);
     validateHostedComponents(*hosted, updated, definitions, instances);
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.

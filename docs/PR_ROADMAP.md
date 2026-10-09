@@ -1190,7 +1190,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R082 — Meet viewport, inference and memory budgets
 
-**Status:** In progress. An overlapping [real-model benchmark spike](verification/R082a-real-model-baseline.md) records exact-framebuffer integrated-GPU and software results, history and partial cache memory. Full fixture coverage, controlled reference hardware measurements and release acceptance remain open. **Track:** Quality. **Scope:** D06, N01. **UX:** —.
+**Status:** In progress. An overlapping [real-model benchmark spike](verification/R082a-real-model-baseline.md) records exact-framebuffer integrated-GPU and software results, history and partial cache memory. [Unchanged leaf projection reuse](verification/R082b-component-construction.md) reduces construction work with identical canonical output; limits and budgets are unchanged. Full fixture coverage, controlled reference hardware measurements and release acceptance remain open. **Track:** Quality. **Scope:** D06, N01. **UX:** —.
 
 **Requires:** [R081](#r081), [R072](#r072); milestone gate rule above.
 
