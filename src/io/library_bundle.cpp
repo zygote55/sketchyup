@@ -1,6 +1,7 @@
 #include "io/library_bundle.hpp"
 #include "core/components.hpp"
 #include "core/scenes.hpp"
+#include "io/native_limits.hpp"
 #include "io/new_file.hpp"
 #include "io/texture_image.hpp"
 #include <QCryptographicHash>
@@ -11,7 +12,7 @@
 namespace sketchy {
 namespace {
 const QByteArray magic("SKYLIB\0\1", 8);
-constexpr qsizetype headerSize = 24, manifestLimit = 32768, modelLimit = 128 * 1024 * 1024,
+constexpr qsizetype headerSize = 24, manifestLimit = 32768, modelLimit = NativeLimits::fileBytes,
                     thumbnailLimit = 4 * 1024 * 1024;
 void require(bool ok, const char *message) {
     if (!ok)

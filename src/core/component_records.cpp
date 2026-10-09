@@ -1,6 +1,7 @@
 #include "core/component_records.hpp"
 #include "core/component_glue.hpp"
 #include "core/component_validation.hpp"
+#include "core/document_limits.hpp"
 #include "core/model.hpp"
 #include <algorithm>
 #include <set>
@@ -58,9 +59,10 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
 }
 namespace {
 void bounded(const ComponentSize &size) {
-    if (size.records > 10000 || size.vertices > 100000 || size.faces > 100000 ||
-        size.wires > 100000 || size.edges > Topology::edgeLimit || size.curves > 10000 ||
-        size.guides > 10000 || size.depth > 128)
+    if (size.records > DocumentLimits::bodies || size.vertices > DocumentLimits::vertices ||
+        size.faces > DocumentLimits::faces || size.wires > DocumentLimits::wires ||
+        size.edges > DocumentLimits::edges || size.curves > DocumentLimits::curves ||
+        size.guides > DocumentLimits::guides || size.depth > 128)
         throw std::runtime_error("Component expansion exceeds document editing limits");
 }
 void add(ComponentSize &a, const ComponentSize &b) {

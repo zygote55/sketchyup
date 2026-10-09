@@ -1,4 +1,5 @@
 #include "core/scene_records.hpp"
+#include "core/document_limits.hpp"
 #include "core/model.hpp"
 #include <algorithm>
 namespace sketchy {
@@ -27,7 +28,8 @@ void SceneEntity::validate() const {
     throw std::runtime_error("Unknown scene visibility entity kind");
 }
 void SceneVisibility::validate() const {
-    if (bodyVisible.size() > 10000 || tagVisible.size() > 1024 || hiddenEntities.size() > 50000)
+    if (bodyVisible.size() > DocumentLimits::bodies || tagVisible.size() > 1024 ||
+        hiddenEntities.size() > 50000)
         throw std::runtime_error("Scene visibility exceeds its reference budget");
     for (const auto &[id, visible] : bodyVisible)
         if (!id)
