@@ -1,0 +1,170 @@
+{
+  "passed": true,
+  "releaseAcceptance": false,
+  "helperSource": "8792a6b10f358f2ca7e726821d7e17c1dcea365a",
+  "helperSha256": "abcd556ae7f85b7ebe9f6f0bc81231921f71c745516c6f77286a9636428df4cd",
+  "source": "ea9b220c8da304d82c6e7567e728de079d98148b",
+  "cases": [
+    {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 37,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "colorBits": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "contextGenerations": 6,
+      "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+      "outputTransitions": [
+        {
+          "colorBits": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "contextGeneration": 3,
+          "effectiveScale": 2,
+          "framebufferHeight": 1756,
+          "framebufferWidth": 2836,
+          "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+          "logicalHeight": 878,
+          "logicalWidth": 1418,
+          "placement": "Qt fullscreen request",
+          "screen": "eDP-1"
+        },
+        {
+          "colorBits": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "contextGeneration": 5,
+          "effectiveScale": 1.6,
+          "framebufferHeight": 2125,
+          "framebufferWidth": 3805,
+          "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+          "logicalHeight": 1328,
+          "logicalWidth": 2378,
+          "placement": "Qt fullscreen request",
+          "screen": "DP-7"
+        }
+      ],
+      "passed": true,
+      "platform": "wayland",
+      "scale": 1.6,
+      "screens": [
+        {
+          "name": "eDP-1",
+          "scale": 2
+        },
+        {
+          "name": "DP-7",
+          "scale": 2
+        }
+      ]
+    },
+    {
+      "bodyMeshBuilds": 6,
+      "bodyUploads": 37,
+      "cachedBodies": 5,
+      "checks": "depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+      "colorBits": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "contextGenerations": 6,
+      "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+      "outputTransitions": [
+        {
+          "colorBits": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "contextGeneration": 3,
+          "effectiveScale": 1,
+          "framebufferHeight": 1778,
+          "framebufferWidth": 2858,
+          "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+          "logicalHeight": 1778,
+          "logicalWidth": 2858,
+          "placement": "external test helper",
+          "screen": "eDP-1"
+        },
+        {
+          "colorBits": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "contextGeneration": 5,
+          "effectiveScale": 1,
+          "framebufferHeight": 2138,
+          "framebufferWidth": 3818,
+          "graphics": "Mesa Intel(R) Arc(tm) Graphics (MTL) / 4.6 (Core Profile) Mesa 26.2.2-arch1.1",
+          "logicalHeight": 2138,
+          "logicalWidth": 3818,
+          "placement": "external test helper",
+          "screen": "DP-7"
+        }
+      ],
+      "passed": true,
+      "platform": "xcb",
+      "scale": 1,
+      "screens": [
+        {
+          "name": "eDP-1",
+          "scale": 1
+        },
+        {
+          "name": "DP-7",
+          "scale": 1
+        }
+      ]
+    }
+  ],
+  "binarySha256": "73d4392e1ebaa9b4a8a99e617600b1fde74198cb171cc80e7eb03b67692257f1",
+  "monitors": [
+    {
+      "name": "eDP-1",
+      "width": 2880,
+      "height": 1800,
+      "scale": 2,
+      "dpmsStatus": true
+    },
+    {
+      "name": "DP-7",
+      "width": 3840,
+      "height": 2160,
+      "scale": 1.6,
+      "dpmsStatus": true
+    }
+  ],
+  "kernel": "7.2.5-3-omarchy",
+  "compositor": "Hyprland 0.56.2 built from branch v0.56.2 at commit efb50993780079460b0cbed1363e2166a2de1d9f clean ([gha] Nix: update inputs).",
+  "currentMonitors": [
+    {
+      "name": "eDP-1",
+      "width": 2880,
+      "height": 1800,
+      "scale": 2,
+      "dpmsStatus": true
+    },
+    {
+      "name": "DP-7",
+      "width": 3840,
+      "height": 2160,
+      "scale": 1.6,
+      "dpmsStatus": true
+    }
+  ]
+}

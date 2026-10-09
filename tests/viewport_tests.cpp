@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QOpenGLContext>
 #include <QPointer>
+#include <QProcess>
 #include <QScreen>
 #include <QTest>
 #include <QVBoxLayout>
@@ -175,6 +176,8 @@ int main(int argc, char **argv) {
               "No OpenGL errors after lifecycle and render tests");
         // Optional hardware run: ask the compositor to place a fullscreen test
         // window on each output and verify the actual output and effective scale.
+        // An optional helper may move this test's own window on compositors
+        // that ignore Qt's output request. Report that assistance explicitly.
         // No monitor settings or window rules are modified.
         QJsonArray transitions;
         if (app.arguments().contains("--screens")) {
@@ -182,8 +185,10 @@ int main(int argc, char **argv) {
                   "Output transition checks require at least two connected outputs");
             view->setMinimumSize(160, 160);
             view->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+            const auto placementHelper = qEnvironmentVariable("SKETCHYUP_TEST_OUTPUT_HELPER");
             for (auto *screen : QGuiApplication::screens()) {
                 QWidget output;
+                output.setWindowTitle("SketchyUp output test " + screen->name());
                 QVBoxLayout layout(&output);
                 secondLayout.removeWidget(view);
                 view->setParent(&output);
@@ -197,6 +202,20 @@ int main(int argc, char **argv) {
                 output.showFullScreen();
                 view->show();
                 check(QTest::qWaitForWindowExposed(&output), "Output test window exposed");
+                if (!placementHelper.isEmpty()) {
+                    QProcess helper;
+                    helper.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+                    helper.start(
+                        placementHelper,
+                        {QString::number(QCoreApplication::applicationPid()), screen->name()});
+                    if (!helper.waitForFinished(5000)) {
+                        helper.kill();
+                        helper.waitForFinished(1000);
+                        check(false, "Output placement helper timed out or failed to start");
+                    }
+                    check(helper.exitStatus() == QProcess::NormalExit && helper.exitCode() == 0,
+                          "Output placement helper failed");
+                }
                 QTest::qWait(300);
                 const auto outputFrame = frame(view);
                 const auto outputFormat = view->context()->format();
@@ -211,6 +230,8 @@ int main(int argc, char **argv) {
                 check(view->renderStats().glError == 0, "No GL error across output transition");
                 transitions.append(QJsonObject{
                     {"screen", screen->name()},
+                    {"placement",
+                     placementHelper.isEmpty() ? "Qt fullscreen request" : "external test helper"},
                     {"effectiveScale", view->devicePixelRatioF()},
                     {"logicalWidth", view->width()},
                     {"logicalHeight", view->height()},

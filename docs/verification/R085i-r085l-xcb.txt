@@ -1,0 +1,8 @@
+Running as unit: sketchyup-r085l-xcb.service
+Output test helper: Command '['hyprctl', 'dispatch', 'movetoworkspacesilent', '10,address:0x5b43385f4540']' returned non-zero exit status 7.
+Output placement helper failed
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 1.419s
+             CPU time consumed: 1.053s
+                   Memory peak: 620.9M (swap: 0B)
