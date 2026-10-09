@@ -41,6 +41,16 @@ class TimedViewport final : public Viewport {
   public:
     using Viewport::Viewport;
     double completeFrameMs() const { return completeFrameMs_; }
+    void beginEditFrame(const QElapsedTimer &started) {
+        check(!editFramePending_, "Previous edit frame was completed");
+        editStarted_ = started;
+        editFrameMs_ = 0;
+        editFramePending_ = true;
+    }
+    double editFrameMs() const {
+        check(!editFramePending_ && editFrameMs_ > 0, "Edit reached a complete viewport frame");
+        return editFrameMs_;
+    }
 
   protected:
     void paintGL() override {
@@ -49,10 +59,17 @@ class TimedViewport final : public Viewport {
         Viewport::paintGL(); // Returns after QPainter finishes every viewport overlay.
         context()->functions()->glFinish();
         completeFrameMs_ = timer.nsecsElapsed() / 1e6;
+        if (editFramePending_) {
+            editFrameMs_ = editStarted_.nsecsElapsed() / 1e6;
+            editFramePending_ = false; // Keep the first frame, before any readback repaint.
+        }
     }
 
   private:
     double completeFrameMs_{};
+    QElapsedTimer editStarted_;
+    double editFrameMs_{};
+    bool editFramePending_{};
 };
 AssetPayloadPtr largeTexture(int variant) {
     QFile file(variant == 0 ? ":/benchmark/front.png" : ":/benchmark/back.png");
@@ -192,7 +209,7 @@ int main(int argc, char **argv) {
                                          .toStdString());
         view.fit();
         QCoreApplication::processEvents();
-        std::vector<double> frames, completeFrames, picks, edits;
+        std::vector<double> frames, completeFrames, picks, edits, editFrames;
         auto frame = [&] {
             QCoreApplication::processEvents();
             const auto before = view.renderStats().frames;
@@ -296,10 +313,14 @@ int main(int argc, char **argv) {
         const auto baselineBytes = doc.historyBytes();
         for (int i = 0; i < 100; ++i) {
             timer.restart();
+            view.beginEditFrame(timer);
             doc.transform(editing, Transform::translation({0, 0, .01 * (i + 1)}) * base);
             view.refresh();
             frame();
             edits.push_back(timer.nsecsElapsed() / 1e6);
+            editFrames.push_back(view.editFrameMs());
+            check(editFrames.back() <= edits.back(),
+                  "First completed edit frame precedes the enclosing readback completion");
             const auto before = inference.bodyBuilds();
             timer.restart();
             inference.sync(doc);
@@ -363,6 +384,14 @@ int main(int argc, char **argv) {
                                    "viewport construction; fixture RSS still includes their peak."},
             {"pickP95Ms", p95(picks)},
             {"editAndReadbackP95Ms", p95(edits)},
+            {"editToViewportGpuCompleteP95Ms", p95(editFrames)},
+            {"editFrameSamples", qint64(editFrames.size())},
+            {"editFrameTimingScope",
+             "From synchronous document mutation through the first "
+             "complete Viewport::paintGL and glFinish; includes refresh "
+             "and queued events before that frame, excludes subsequent "
+             "readback/repaint, input queueing and compositor presentation. "
+             "The enclosing editAndReadback measurement is retained."},
             {"inferenceInitialBuildMs", inferenceBuildMs},
             {"inferenceQueryP95Ms", p95(inferenceQueries)},
             {"inferenceUpdateP95Ms", p95(inferenceUpdates)},
