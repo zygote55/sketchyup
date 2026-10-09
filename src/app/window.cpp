@@ -256,6 +256,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             openPath(p);
     }));
     file->addAction(action("file.importDxf", "Import 2D DXF…", {}, [this] { importDxfDialog(); }));
+    file->addAction(action("file.exportMeasured", "Export measured PDF/SVG…", {},
+                           [this] { exportMeasuredDialog(); }));
     file->addAction(action("file.exportDxf", "Export 2D DXF…", {}, [this] { exportDxfDialog(); }));
     file->addAction(action("file.importStl", "Import STL…", {}, [this] { importStlDialog(); }));
     file->addAction(action("file.exportStl", "Export STL…", {}, [this] { exportStlDialog(); }));

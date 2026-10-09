@@ -49,6 +49,7 @@ class Window : public QMainWindow {
     void importObjDialog();
     void exportObjDialog();
     void exportRasterDialog();
+    void exportMeasuredDialog();
 
   protected:
     bool eventFilter(QObject *, QEvent *) override;
