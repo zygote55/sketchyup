@@ -1,0 +1,30 @@
+{
+  "source": "b0613dbf9500dd6227490d876217cc227149097f",
+  "manifestSha256": "014105ffbd2f1e3aaca3182d4592d8ae765cf82f72362006c3eeb972004073d7",
+  "binarySha256": "a64ed40afa0b67c86262be95fd69a5d431f5820a411ed2e8ddd64ad823489ca2",
+  "startedAt": "2026-10-07T11:15:26Z",
+  "profile": "ollama-qwen4b",
+  "liveProviderTested": true,
+  "liveTasks": 21,
+  "offlineControls": 3,
+  "corpusPassed": false,
+  "releaseAccepted": false,
+  "reviewer": "Codex receipt and semantic review; not independent human release sign-off",
+  "elapsedMs": 6288933,
+  "reportedTokens": 30965,
+  "monetaryCost": null,
+  "profileConfiguration": {
+    "runtimeVersion": {
+      "version": "0.35.1"
+    },
+    "image": "ollama/ollama@sha256:292ee7945dfc3d5840a181f3ab86fedb1e66703e02c8af98b50f4da56b7e278c",
+    "memoryBytes": 10737418240,
+    "memorySwapBytes": 10737418240,
+    "nanoCpus": 8000000000,
+    "model": "qwen3:4b-instruct",
+    "modelDigest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+    "modelBytes": 2497293803,
+    "cloudDisabled": true
+  },
+  "concurrentBuildLoad": true
+}
