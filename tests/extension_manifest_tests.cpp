@@ -25,6 +25,10 @@ int main(int argc, char **argv) {
     try {
         QFile sample(QStringLiteral(SOURCE_DIR) + "/examples/extensions/panel.sketchyext");
         check(sample.open(QIODevice::ReadOnly), "Installed sample source");
+        QFile catalog(QStringLiteral(SOURCE_DIR) + "/docs/api/extensions-v1.json");
+        check(catalog.open(QIODevice::ReadOnly) &&
+                  QJsonDocument::fromJson(catalog.readAll()).object() == extensionCapabilities(),
+              "Installed extension capability catalog matches the public registry");
         const auto bytes = sample.readAll();
         const auto manifest = parseExtensionManifest(bytes);
         check(manifest.id == "org.sketchyup.panel" &&

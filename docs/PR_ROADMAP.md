@@ -1164,7 +1164,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R080 — Publish extension capabilities and lifecycle
 
-**Status:** In progress. R080.a–c [bounded extension worker](verification/R080c-extension-worker.md) passes manifest/lifecycle, independent response verification, process-failure/cancellation, sanitizer, installed-helper and source-package checks. Native management follows in R080.d. **Track:** Automation. **Scope:** X05, A01, A06. **UX:** §11.
+**Status:** In progress. R080.a–d [native extension management](verification/R080d-native-extensions.md) is locally implemented and verified, including lifecycle, worker failure/cancellation, document/package guards, public atomic edits, discovery and eight normal/sanitized platform combinations. Complete remote CI, ordered merges and milestone acceptance remain required. **Track:** Automation. **Scope:** X05, A01, A06. **UX:** §11.
 
 **Requires:** [R043](#r043), [R073](#r073); milestone gate rule above.
 
