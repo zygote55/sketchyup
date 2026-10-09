@@ -1284,10 +1284,12 @@ void Window::palette() {
     auto *layout = new QVBoxLayout(&dialog);
     auto *query = new QLineEdit;
     query->setObjectName("paletteQuery");
+    query->setAccessibleName("Command and model search");
     query->setPlaceholderText("Commands, objects, recent files, or face BODY/FACE…");
     layout->addWidget(query);
     auto *list = new QListWidget;
     list->setObjectName("paletteResults");
+    list->setAccessibleName("Matching commands and model objects");
     layout->addWidget(list);
     auto populate = [&] {
         list->clear();

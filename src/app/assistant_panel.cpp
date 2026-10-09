@@ -755,6 +755,11 @@ void AssistantPanel::Impl::showSetup() {
     tokens->setRange(4096, 65536);
     auto *threads = new QSpinBox;
     threads->setRange(1, 32);
+    tokens->setAccessibleName("Context tokens");
+    threads->setAccessibleName("CPU threads");
+    for (auto *spin : {tokens, threads})
+        if (auto *input = spin->findChild<QLineEdit *>())
+            input->setAccessibleName(spin->accessibleName());
     QSettings s("SketchyUp", "SketchyUp");
     openaiModel->setText(s.value("assistant/openaiModel").toString());
     localModel->setText(s.value("assistant/localModel", "qwen3:4b-instruct").toString());

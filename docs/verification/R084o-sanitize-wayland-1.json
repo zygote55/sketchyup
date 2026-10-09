@@ -1,0 +1,2730 @@
+{
+    "actions": [
+        {
+            "enabled": true,
+            "id": "file.new",
+            "shortcut": "Ctrl+N",
+            "shortcutContext": 1,
+            "text": "New"
+        },
+        {
+            "enabled": true,
+            "id": "file.open",
+            "shortcut": "Ctrl+O",
+            "shortcutContext": 1,
+            "text": "Open…"
+        },
+        {
+            "enabled": true,
+            "id": "file.newFromTemplate",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "New from template…"
+        },
+        {
+            "enabled": true,
+            "id": "file.saveTemplate",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Save template to library…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importDxf",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import 2D DXF…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportMeasured",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export measured PDF/SVG…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportDxf",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export 2D DXF…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importStl",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import STL…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportStl",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export STL…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importObj",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import OBJ/MTL…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importGltf",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import GLB/glTF…"
+        },
+        {
+            "enabled": true,
+            "id": "file.importFormline",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Import Formline…"
+        },
+        {
+            "enabled": true,
+            "id": "file.save",
+            "shortcut": "Ctrl+S",
+            "shortcutContext": 1,
+            "text": "Save"
+        },
+        {
+            "enabled": true,
+            "id": "file.saveAs",
+            "shortcut": "Ctrl+Shift+S",
+            "shortcutContext": 1,
+            "text": "Save as…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportRaster",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export view as PNG…"
+        },
+        {
+            "enabled": true,
+            "id": "file.exportObj",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Export OBJ package…"
+        },
+        {
+            "enabled": true,
+            "id": "file.recovery",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Recover work…"
+        },
+        {
+            "enabled": true,
+            "id": "file.recoveryNow",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Save recovery now"
+        },
+        {
+            "enabled": true,
+            "id": "file.recoverySettings",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Recovery settings…"
+        },
+        {
+            "enabled": true,
+            "id": "file.example",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Example courtyard"
+        },
+        {
+            "enabled": true,
+            "id": "file.units",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Document units…"
+        },
+        {
+            "enabled": true,
+            "id": "file.quit",
+            "shortcut": "Ctrl+Q",
+            "shortcutContext": 1,
+            "text": "Quit"
+        },
+        {
+            "enabled": true,
+            "id": "edit.shortcuts",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Keyboard shortcuts…"
+        },
+        {
+            "enabled": true,
+            "id": "edit.undo",
+            "shortcut": "Ctrl+Z",
+            "shortcutContext": 1,
+            "text": "Undo Paint"
+        },
+        {
+            "enabled": false,
+            "id": "edit.redo",
+            "shortcut": "Ctrl+Shift+Z",
+            "shortcutContext": 1,
+            "text": "Redo"
+        },
+        {
+            "enabled": false,
+            "id": "edit.delete",
+            "shortcut": "Del",
+            "shortcutContext": 0,
+            "text": "Delete selection"
+        },
+        {
+            "enabled": true,
+            "id": "edit.selectAll",
+            "shortcut": "Ctrl+A",
+            "shortcutContext": 0,
+            "text": "Select all eligible geometry"
+        },
+        {
+            "enabled": false,
+            "id": "selection.hide",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Hide selection in this view"
+        },
+        {
+            "enabled": true,
+            "id": "selection.reveal",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reveal hidden geometry in this view"
+        },
+        {
+            "enabled": false,
+            "id": "geometry.diagnose",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Geometry diagnostics…"
+        },
+        {
+            "enabled": false,
+            "id": "edge.hide",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Hide selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.reveal",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reveal selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.soften",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Soften selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.harden",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Harden selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.smooth",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Smooth across selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "edge.flat",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Use flat shading across selected edges"
+        },
+        {
+            "enabled": false,
+            "id": "selection.lock",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Lock selected contexts in this view"
+        },
+        {
+            "enabled": true,
+            "id": "selection.unlock",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Unlock all contexts in this view"
+        },
+        {
+            "enabled": false,
+            "id": "group.selection",
+            "shortcut": "Ctrl+G",
+            "shortcutContext": 0,
+            "text": "Make group"
+        },
+        {
+            "enabled": false,
+            "id": "group.explode",
+            "shortcut": "Ctrl+Shift+G",
+            "shortcutContext": 0,
+            "text": "Explode selected groups"
+        },
+        {
+            "enabled": true,
+            "id": "geometry.merge_context",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Merge raw geometry in current context"
+        },
+        {
+            "enabled": false,
+            "id": "component.create",
+            "shortcut": "G",
+            "shortcutContext": 0,
+            "text": "Make component…"
+        },
+        {
+            "enabled": false,
+            "id": "component.instance",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Place component…"
+        },
+        {
+            "enabled": false,
+            "id": "component.replace",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Replace component…"
+        },
+        {
+            "enabled": false,
+            "id": "component.axes",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Change component axes…"
+        },
+        {
+            "enabled": false,
+            "id": "component.make_unique",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Make component unique"
+        },
+        {
+            "enabled": true,
+            "id": "component.browseLibrary",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Browse component library…"
+        },
+        {
+            "enabled": true,
+            "id": "component.saveLibrary",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Save component to library…"
+        },
+        {
+            "enabled": false,
+            "id": "component.glue",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Set glue face…"
+        },
+        {
+            "enabled": false,
+            "id": "component.clear_glue",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Clear shared glue behavior"
+        },
+        {
+            "enabled": false,
+            "id": "component.attach",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Attach component to selected face"
+        },
+        {
+            "enabled": false,
+            "id": "component.bind",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Bind component at current pose"
+        },
+        {
+            "enabled": true,
+            "id": "component.placement_options",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Attachment placement options…"
+        },
+        {
+            "enabled": false,
+            "id": "component.detach",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Detach component and restore opening"
+        },
+        {
+            "enabled": false,
+            "id": "component.bake_host",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Bake host openings and release attachments"
+        },
+        {
+            "enabled": false,
+            "id": "assembly.room.adopt_hosted",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Adopt recipe window attachments"
+        },
+        {
+            "enabled": false,
+            "id": "group.hide",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Hide selected groups in document"
+        },
+        {
+            "enabled": false,
+            "id": "group.lock",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Lock selected groups in document"
+        },
+        {
+            "enabled": true,
+            "id": "group.reveal",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reveal all document groups and contexts"
+        },
+        {
+            "enabled": true,
+            "id": "group.unlock",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Unlock all document groups and contexts"
+        },
+        {
+            "enabled": false,
+            "id": "context.enter",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Edit selected context"
+        },
+        {
+            "enabled": false,
+            "id": "context.leave",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Close editing context"
+        },
+        {
+            "enabled": false,
+            "id": "edit.repeatPushPull",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Repeat push/pull distance"
+        },
+        {
+            "enabled": true,
+            "id": "guides.clear",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Delete all guides"
+        },
+        {
+            "enabled": false,
+            "id": "edit.move",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Move selection"
+        },
+        {
+            "enabled": false,
+            "id": "edit.paint",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Set original face color…"
+        },
+        {
+            "enabled": true,
+            "id": "tool.0",
+            "shortcut": "Space",
+            "shortcutContext": 0,
+            "text": "Select"
+        },
+        {
+            "enabled": true,
+            "id": "tool.20",
+            "shortcut": "B",
+            "shortcutContext": 0,
+            "text": "Paint"
+        },
+        {
+            "enabled": true,
+            "id": "tool.6",
+            "shortcut": "L",
+            "shortcutContext": 0,
+            "text": "Line"
+        },
+        {
+            "enabled": true,
+            "id": "tool.1",
+            "shortcut": "R",
+            "shortcutContext": 0,
+            "text": "Rectangle"
+        },
+        {
+            "enabled": true,
+            "id": "tool.2",
+            "shortcut": "C",
+            "shortcutContext": 0,
+            "text": "Circle"
+        },
+        {
+            "enabled": true,
+            "id": "tool.3",
+            "shortcut": "P",
+            "shortcutContext": 0,
+            "text": "Push/pull"
+        },
+        {
+            "enabled": true,
+            "id": "tool.21",
+            "shortcut": "F",
+            "shortcutContext": 0,
+            "text": "Offset"
+        },
+        {
+            "enabled": true,
+            "id": "tool.22",
+            "shortcut": "Shift+F",
+            "shortcutContext": 0,
+            "text": "Follow Me"
+        },
+        {
+            "enabled": true,
+            "id": "tool.23",
+            "shortcut": "I",
+            "shortcutContext": 0,
+            "text": "Intersect"
+        },
+        {
+            "enabled": true,
+            "id": "tool.24",
+            "shortcut": "Shift+B",
+            "shortcutContext": 0,
+            "text": "Solid tools"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.union",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Union"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.subtract",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Subtract tool from target"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.intersection",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Intersection"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.trim",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Trim target (retain tool)"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.split",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Split into target, tool and overlap"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.operation.outer_shell",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Outer shell (fill enclosed cavities)"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.keep",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Keep originals"
+        },
+        {
+            "enabled": true,
+            "id": "boolean.swap",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Swap target and tool"
+        },
+        {
+            "enabled": true,
+            "id": "tool.25",
+            "shortcut": "Shift+O",
+            "shortcutContext": 0,
+            "text": "Face orientation"
+        },
+        {
+            "enabled": true,
+            "id": "tool.26",
+            "shortcut": "Shift+H",
+            "shortcutContext": 0,
+            "text": "Attach component to face"
+        },
+        {
+            "enabled": true,
+            "id": "orientation.reverse",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reverse selected faces"
+        },
+        {
+            "enabled": true,
+            "id": "orientation.connected",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Orient connected faces to selected reference"
+        },
+        {
+            "enabled": true,
+            "id": "intersection.mode.selected",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Selected faces"
+        },
+        {
+            "enabled": true,
+            "id": "intersection.mode.context",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Active context"
+        },
+        {
+            "enabled": true,
+            "id": "intersection.mode.model",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Model"
+        },
+        {
+            "enabled": true,
+            "id": "tool.17",
+            "shortcut": "M",
+            "shortcutContext": 0,
+            "text": "Move"
+        },
+        {
+            "enabled": true,
+            "id": "tool.18",
+            "shortcut": "Q",
+            "shortcutContext": 0,
+            "text": "Rotate"
+        },
+        {
+            "enabled": true,
+            "id": "tool.19",
+            "shortcut": "S",
+            "shortcutContext": 0,
+            "text": "Scale"
+        },
+        {
+            "enabled": true,
+            "id": "transform.copy",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Copy when transforming"
+        },
+        {
+            "enabled": true,
+            "id": "transform.local",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Use local transform axes"
+        },
+        {
+            "enabled": true,
+            "id": "transform.flip.0",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "X axis"
+        },
+        {
+            "enabled": true,
+            "id": "transform.flip.1",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Y axis"
+        },
+        {
+            "enabled": true,
+            "id": "transform.flip.2",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Z axis"
+        },
+        {
+            "enabled": true,
+            "id": "tool.7",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Regular polygon"
+        },
+        {
+            "enabled": true,
+            "id": "tool.8",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Freehand"
+        },
+        {
+            "enabled": true,
+            "id": "tool.9",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Rotated rectangle"
+        },
+        {
+            "enabled": true,
+            "id": "tool.10",
+            "shortcut": "A",
+            "shortcutContext": 0,
+            "text": "Center arc"
+        },
+        {
+            "enabled": true,
+            "id": "tool.11",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Two-point arc"
+        },
+        {
+            "enabled": true,
+            "id": "tool.12",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Three-point arc"
+        },
+        {
+            "enabled": true,
+            "id": "tool.13",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Pie"
+        },
+        {
+            "enabled": true,
+            "id": "tool.14",
+            "shortcut": "T",
+            "shortcutContext": 0,
+            "text": "Tape measure"
+        },
+        {
+            "enabled": true,
+            "id": "tool.15",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Protractor"
+        },
+        {
+            "enabled": true,
+            "id": "guides.create",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Create guides when measuring"
+        },
+        {
+            "enabled": true,
+            "id": "drawing.plane.auto",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Automatic from hovered face"
+        },
+        {
+            "enabled": true,
+            "id": "drawing.plane.ground",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Ground (Z=0)"
+        },
+        {
+            "enabled": true,
+            "id": "drawing.plane.selected",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Use selected face"
+        },
+        {
+            "enabled": true,
+            "id": "drawing.plane.custom",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Custom plane…"
+        },
+        {
+            "enabled": true,
+            "id": "draw.pushPullNewFace",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Create new face when pushing/pulling"
+        },
+        {
+            "enabled": true,
+            "id": "tool.4",
+            "shortcut": "O",
+            "shortcutContext": 0,
+            "text": "Orbit"
+        },
+        {
+            "enabled": true,
+            "id": "tool.5",
+            "shortcut": "H",
+            "shortcutContext": 0,
+            "text": "Pan"
+        },
+        {
+            "enabled": true,
+            "id": "tool.16",
+            "shortcut": "Z",
+            "shortcutContext": 0,
+            "text": "Zoom"
+        },
+        {
+            "enabled": true,
+            "id": "tool.27",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Look around"
+        },
+        {
+            "enabled": true,
+            "id": "tool.28",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Walk"
+        },
+        {
+            "enabled": true,
+            "id": "camera.render",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Render…"
+        },
+        {
+            "enabled": true,
+            "id": "extensions.manage",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Manage extensions…"
+        },
+        {
+            "enabled": true,
+            "id": "selection.showHidden",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Show hidden geometry"
+        },
+        {
+            "enabled": true,
+            "id": "guides.visible",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Show guides"
+        },
+        {
+            "enabled": true,
+            "id": "view.fit",
+            "shortcut": "Shift+Z",
+            "shortcutContext": 0,
+            "text": "Fit model"
+        },
+        {
+            "enabled": true,
+            "id": "view.perspective",
+            "shortcut": "1",
+            "shortcutContext": 0,
+            "text": "Perspective"
+        },
+        {
+            "enabled": true,
+            "id": "view.top",
+            "shortcut": "2",
+            "shortcutContext": 0,
+            "text": "Top"
+        },
+        {
+            "enabled": true,
+            "id": "view.front",
+            "shortcut": "3",
+            "shortcutContext": 0,
+            "text": "Front"
+        },
+        {
+            "enabled": true,
+            "id": "view.orthographic",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Orthographic"
+        },
+        {
+            "enabled": true,
+            "id": "view.right",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Right"
+        },
+        {
+            "enabled": true,
+            "id": "view.back",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Back"
+        },
+        {
+            "enabled": true,
+            "id": "view.left",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Left"
+        },
+        {
+            "enabled": true,
+            "id": "view.bottom",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Bottom"
+        },
+        {
+            "enabled": true,
+            "id": "view.isometric",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Isometric"
+        },
+        {
+            "enabled": true,
+            "id": "view.fov",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Field of view…"
+        },
+        {
+            "enabled": true,
+            "id": "view.mouse",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Mouse"
+        },
+        {
+            "enabled": true,
+            "id": "view.trackpad",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Trackpad"
+        },
+        {
+            "enabled": true,
+            "id": "view.history",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "History"
+        },
+        {
+            "enabled": true,
+            "id": "view.scenes",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Saved scenes"
+        },
+        {
+            "enabled": true,
+            "id": "view.sections",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Section planes"
+        },
+        {
+            "enabled": true,
+            "id": "view.annotations",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Dimensions and labels"
+        },
+        {
+            "enabled": true,
+            "id": "view.text",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "3D text"
+        },
+        {
+            "enabled": true,
+            "id": "view.solar",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Sun and shadows"
+        },
+        {
+            "enabled": true,
+            "id": "view.reference_images",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reference images"
+        },
+        {
+            "enabled": true,
+            "id": "view.reduced_motion",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Reduced camera motion"
+        },
+        {
+            "enabled": true,
+            "id": "view.styles",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Model styles"
+        },
+        {
+            "enabled": true,
+            "id": "view.assistant",
+            "shortcut": "Ctrl+J",
+            "shortcutContext": 1,
+            "text": "Assistant"
+        },
+        {
+            "enabled": true,
+            "id": "view.tray",
+            "shortcut": "Ctrl+Shift+T",
+            "shortcutContext": 1,
+            "text": "Model panel"
+        },
+        {
+            "enabled": true,
+            "id": "view.textSize",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Interface text size…"
+        },
+        {
+            "enabled": true,
+            "id": "view.theme.0",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "System theme"
+        },
+        {
+            "enabled": true,
+            "id": "view.theme.1",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Light theme"
+        },
+        {
+            "enabled": true,
+            "id": "view.theme.2",
+            "shortcut": "",
+            "shortcutContext": 1,
+            "text": "Dark theme"
+        },
+        {
+            "enabled": true,
+            "id": "view.commands",
+            "shortcut": "Ctrl+K",
+            "shortcutContext": 1,
+            "text": "Commands…"
+        },
+        {
+            "enabled": true,
+            "id": "view.nextRegion",
+            "shortcut": "F6",
+            "shortcutContext": 1,
+            "text": "Next region"
+        },
+        {
+            "enabled": true,
+            "id": "view.previousRegion",
+            "shortcut": "Shift+F6",
+            "shortcutContext": 1,
+            "text": "Previous region"
+        }
+    ],
+    "activeWindowAtCapture": false,
+    "auditVersion": 2,
+    "contexts": [
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Plane origin",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Plane normal direction",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Plane horizontal direction",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OK",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 5,
+            "page": "Drawing plane",
+            "theme": "Dark theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "Find a command…",
+                    "accessibleInterface": true,
+                    "accessibleName": "Find a command",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:shortcutSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Command shortcuts",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:shortcutActions",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "New key combination",
+                    "focusPolicy": 11,
+                    "identity": "QKeySequenceEdit:shortcutSequence",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Press shortcut",
+                    "accessibleInterface": true,
+                    "accessibleName": "New key combination",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_keysequenceedit_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assign",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:shortcutAssign",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Clear",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:shortcutClear",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Reset defaults",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:shortcutReset",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 9,
+            "page": "Keyboard shortcuts",
+            "theme": "Dark theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "Commands, objects, recent files, or face BODY/FACE…",
+                    "accessibleInterface": true,
+                    "accessibleName": "Command and model search",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:paletteQuery",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Matching commands and model objects",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:paletteResults",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 2,
+            "page": "Commands and model search",
+            "theme": "Dark theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assistant preferences",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:assistantPreferencesScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "None",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantProviderChoice",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "API key (separate API billing)",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantOpenAIAuth",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI model ID",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantOpenAIModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Enter a new key to store it",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI API key",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Store key in OS credential facility",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantStoreCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Remove stored OpenAI key",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantClearCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local endpoint",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalEndpoint",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local model",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 15,
+            "page": "Assistant: None",
+            "theme": "Dark theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assistant preferences",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:assistantPreferencesScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Ollama",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantProviderChoice",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "API key (separate API billing)",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantOpenAIAuth",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI model ID",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantOpenAIModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Enter a new key to store it",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI API key",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Store key in OS credential facility",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantStoreCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Remove stored OpenAI key",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantClearCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local endpoint",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalEndpoint",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local model",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 15,
+            "page": "Assistant: Ollama",
+            "theme": "Dark theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assistant preferences",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:assistantPreferencesScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantProviderChoice",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "ChatGPT subscription",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantOpenAIAuth",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Add another account or workspace…",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantChatGPTAccount",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Continue with ChatGPT",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantChatGPTSignIn",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "ChatGPT model",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantChatGPTModel",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Manage ChatGPT usage",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantChatGPTUsage",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local endpoint",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalEndpoint",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local model",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 15,
+            "page": "Assistant: ChatGPT subscription",
+            "theme": "Dark theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assistant preferences",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:assistantPreferencesScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantProviderChoice",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "API key (separate API billing)",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantOpenAIAuth",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI model ID",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantOpenAIModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Enter a new key to store it",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI API key",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Store key in OS credential facility",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantStoreCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Remove stored OpenAI key",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantClearCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local endpoint",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalEndpoint",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local model",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 15,
+            "page": "Assistant: API key (separate API billing)",
+            "theme": "Dark theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Plane origin",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Plane normal direction",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Plane horizontal direction",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OK",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 5,
+            "page": "Drawing plane",
+            "theme": "Light theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "Find a command…",
+                    "accessibleInterface": true,
+                    "accessibleName": "Find a command",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:shortcutSearch",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Command shortcuts",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:shortcutActions",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "New key combination",
+                    "focusPolicy": 11,
+                    "identity": "QKeySequenceEdit:shortcutSequence",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Press shortcut",
+                    "accessibleInterface": true,
+                    "accessibleName": "New key combination",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_keysequenceedit_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assign",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:shortcutAssign",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Clear",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:shortcutClear",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Reset defaults",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:shortcutReset",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 9,
+            "page": "Keyboard shortcuts",
+            "theme": "Light theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "Commands, objects, recent files, or face BODY/FACE…",
+                    "accessibleInterface": true,
+                    "accessibleName": "Command and model search",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:paletteQuery",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Matching commands and model objects",
+                    "focusPolicy": 11,
+                    "identity": "QListWidget:paletteResults",
+                    "logicalFontPointSize": -1,
+                    "role": 33,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 2,
+            "page": "Commands and model search",
+            "theme": "Light theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assistant preferences",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:assistantPreferencesScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "None",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantProviderChoice",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "API key (separate API billing)",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantOpenAIAuth",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI model ID",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantOpenAIModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Enter a new key to store it",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI API key",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Store key in OS credential facility",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantStoreCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Remove stored OpenAI key",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantClearCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local endpoint",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalEndpoint",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local model",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 15,
+            "page": "Assistant: None",
+            "theme": "Light theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assistant preferences",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:assistantPreferencesScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Ollama",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantProviderChoice",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "API key (separate API billing)",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantOpenAIAuth",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI model ID",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantOpenAIModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Enter a new key to store it",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI API key",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Store key in OS credential facility",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantStoreCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Remove stored OpenAI key",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantClearCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local endpoint",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalEndpoint",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local model",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 15,
+            "page": "Assistant: Ollama",
+            "theme": "Light theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assistant preferences",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:assistantPreferencesScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantProviderChoice",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "ChatGPT subscription",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantOpenAIAuth",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Add another account or workspace…",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantChatGPTAccount",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Continue with ChatGPT",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantChatGPTSignIn",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "ChatGPT model",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantChatGPTModel",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Manage ChatGPT usage",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantChatGPTUsage",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local endpoint",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalEndpoint",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local model",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 15,
+            "page": "Assistant: ChatGPT subscription",
+            "theme": "Light theme",
+            "unnamedControls": 0
+        },
+        {
+            "controls": [
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Assistant preferences",
+                    "focusPolicy": 11,
+                    "identity": "QScrollArea:assistantPreferencesScroll",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantProviderChoice",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "API key (separate API billing)",
+                    "focusPolicy": 15,
+                    "identity": "QComboBox:assistantOpenAIAuth",
+                    "logicalFontPointSize": -1,
+                    "role": 46,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI model ID",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantOpenAIModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "Enter a new key to store it",
+                    "accessibleInterface": true,
+                    "accessibleName": "OpenAI API key",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Store key in OS credential facility",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantStoreCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Remove stored OpenAI key",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:assistantClearCredential",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local endpoint",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalEndpoint",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Local model",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:assistantLocalModel",
+                    "logicalFontPointSize": -1,
+                    "role": 42,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Context tokens",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 15,
+                    "identity": "QSpinBox:",
+                    "logicalFontPointSize": -1,
+                    "role": 52,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "CPU threads",
+                    "focusPolicy": 11,
+                    "identity": "QLineEdit:qt_spinbox_lineedit",
+                    "logicalFontPointSize": -1,
+                    "role": 10,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Save",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                },
+                {
+                    "accessibleDescription": "",
+                    "accessibleInterface": true,
+                    "accessibleName": "Cancel",
+                    "focusPolicy": 11,
+                    "identity": "QPushButton:",
+                    "logicalFontPointSize": -1,
+                    "role": 43,
+                    "toolTip": ""
+                }
+            ],
+            "focusableControls": 15,
+            "page": "Assistant: API key (separate API billing)",
+            "theme": "Light theme",
+            "unnamedControls": 0
+        }
+    ],
+    "dialogsOnly": true,
+    "f6FocusOwners": [
+    ],
+    "keyboardRoutingExercised": false,
+    "limitations": "Does not prove screen-reader operation, contrast, focus visibility, all dialogs, independent text scaling or complete mouse-free modeling. Provider preference modes use isolated unsaved settings and a failing synthetic credential helper; no sign-in, key operation, provider submission or document-changing button is activated.",
+    "logicalHeight": 900,
+    "logicalWidth": 1200,
+    "platform": "wayland",
+    "qtVersion": "6.11.2",
+    "releaseAcceptance": false,
+    "scale": 1,
+    "scope": "Visible enabled tab-focusable controls in Drawing plane, Keyboard shortcuts, Commands and model search, and all synthetic Assistant preference modes, in two themes; Qt accessibility interfaces. No keyboard-routing claim."
+}
