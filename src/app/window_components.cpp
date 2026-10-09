@@ -1,3 +1,4 @@
+#include "app/context_label.hpp"
 #include "app/unit_display.hpp"
 #include "app/window.hpp"
 #include "automation/measurements.hpp"
@@ -152,7 +153,8 @@ void Window::syncComponentActions() {
         return;
     const auto definition = doc_.instances().at(scope)->definition;
     const auto count = uses(scope);
-    componentBanner_->setText(
+    setContextLabelText(
+        componentBanner_,
         QString("<b>Editing %1</b> &middot; Changes affect %2 instance%3%4")
             .arg(QString::fromStdString(doc_.definitions().at(definition)->name).toHtmlEscaped())
             .arg(count)
