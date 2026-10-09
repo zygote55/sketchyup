@@ -837,6 +837,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_link_libraries(units_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(real_model_benchmark tests/real_model_benchmark.cpp)
     target_link_libraries(real_model_benchmark PRIVATE sketchyup_desktop Qt6::Test)
+    qt_add_resources(real_model_benchmark performance_fixture_textures
+      PREFIX "/benchmark" BASE tests/fixtures/performance
+      FILES tests/fixtures/performance/front.png tests/fixtures/performance/back.png)
     target_compile_definitions(real_model_benchmark PRIVATE SKETCHYUP_BENCHMARK_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
     sketchyup_native_fixture(history_input_tests tests/history_input_tests.cpp)
     target_link_libraries(history_input_tests PRIVATE sketchyup_desktop Qt6::Test)

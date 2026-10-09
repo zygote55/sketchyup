@@ -13,8 +13,10 @@ Viewport. The benchmark requires a 1920 × 1080 framebuffer before warmup and ev
 sample. A fixed child widget and bounded scale-settling wait handle compositor tiling
 and late fractional scaling; the report discloses host dimensions and clipping.
 OpenGL rendering targets the complete child framebuffer even if its host clips the
-visible window. Timings cover the scene through glFinish, excluding painter overlays
-and compositor presentation. They are not end-to-end input/display latency.
+visible window. The original timing covers the scene through glFinish, excluding painter overlays.
+R082.i adds complete Viewport::paintGL timing followed by glFinish, including painter
+overlays but excluding child widgets and compositor presentation. Neither is
+end-to-end input/display latency. The scene retains its intermediate glFinish.
 
 Ten warmup frames precede fifty measured frames and real geometry picks. One hundred
 instance transforms include refresh and framebuffer readback; one hundred undo and
@@ -102,3 +104,20 @@ Truncation counts are disclosed, including warmups and the final post-history pr
 Unchanged sync/query work must reuse all body caches, and each edit rebuilds only
 the changed placement. Worker queueing, editor policy and displayed feedback are
 outside this measurement; the extra benchmark index contributes to process RSS.
+
+## Complete viewport and portable assets
+
+R082.i times the full paint call after its painter scope has ended, then completes
+GPU work. Samples assert positive complete-frame duration at least as large as
+the nested scene duration. `SKETCHYUP_BENCHMARK_FULLSCREEN=1` optionally makes the
+benchmark host fullscreen so desktop tiling does not clip its fixed framebuffer.
+The report records actual fullscreen state; no compositor configuration changes.
+
+Fixed PNG resources replace runtime encoding for the two checker textures. Qt's
+compression and default image density differed between the test environments.
+The resources preserve the original AMD GUI bytes and canonical container hash,
+with byte hashes checked before use. The accompanying asset README records pixel
+hashes and density. No texture dimensions, geometry or cache budgets change.
+Fixture serialization buffers leave scope before viewport construction, matching
+ordinary ownership; peak fixture RSS still includes those transient allocations.
+See [qualification and remaining gaps](../verification/R082i-complete-frame.md).
