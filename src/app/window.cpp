@@ -1101,6 +1101,7 @@ void Window::sync() {
                                                 2, doc_.displayUnits());
     }
     info_->setText(text);
+    info_->setAccessibleDescription(text);
     if (assistantFenced_) {
         for (auto &[action, wasEnabled] : assistantActionStates_)
             action->setEnabled(false);

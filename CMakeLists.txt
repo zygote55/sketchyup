@@ -1088,6 +1088,7 @@ install(FILES docs/decisions/0147-keyboard-measured-modeling.md DESTINATION shar
 
 install(FILES docs/decisions/0148-versioned-shortcut-bindings.md DESTINATION share/doc/sketchyup/decisions)
 
+install(FILES docs/decisions/0155-linux-accessibility-bridge.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0154-keyboard-outliner-workflow.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0153-panel-shortcut-reservations.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0152-context-link-contrast.md DESTINATION share/doc/sketchyup/decisions)
