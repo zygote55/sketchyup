@@ -1,0 +1,11 @@
+{
+  "originalHead": "2b62f6fbee033b74e70b7d4170569f31fd2c4a75",
+  "qualifiedNativeCandidate": "3d68aeaa755b7e7a5f282de0e04d8de5181ad1d2",
+  "fixtureSha256": "38de1aaa1c6ba808a33b8ebe5ad179ee5e7db735a1584a1075fbb1323f11c9fb",
+  "onlyChangedTestFile": "tests/diagnostics_input_tests.cpp",
+  "productionRuntimeAndOriginalFeatureInputsUnchanged": true,
+  "qualification": "CI-PR173-diagnostic-readiness-result.json",
+  "nativeCases": 8,
+  "freshCompleteCurrentHeadCIRequired": true,
+  "releaseAcceptance": false
+}
