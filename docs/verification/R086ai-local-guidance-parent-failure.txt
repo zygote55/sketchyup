@@ -1,0 +1,13 @@
+Test project /home/keith/projects/sketchyup-style-ci/build/environment
+    Start 135: assistant
+1/1 Test #135: assistant ........................***Failed    1.40 sec
+Remote request preserves the qualified system prefix and five-field budget
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   1.40 sec
+
+The following tests FAILED:
+	135 - assistant (Failed)
+Errors while running CTest
