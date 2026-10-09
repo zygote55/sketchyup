@@ -1,7 +1,7 @@
 # Development archive package. Generate the source archive with scripts/package-source.sh.
 pkgname=sketchyup
 pkgver=0.1.0
-pkgrel=2
+pkgrel=3
 pkgdesc='Experimental native Linux face modeler'
 arch=('x86_64')
 url='https://github.com/zygote55/sketchyup'

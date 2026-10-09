@@ -12,7 +12,7 @@ On an Arch workstation with the documented build dependencies installed:
 scripts/package-source.sh /absolute/path/to/package-output
 cd /absolute/path/to/package-output
 makepkg
-sudo pacman -U sketchyup-0.1.0-2-x86_64.pkg.tar.zst
+sudo pacman -U sketchyup-0.1.0-3-x86_64.pkg.tar.zst
 ```
 
 The source archive contains no Git credentials, build outputs or developer config.
@@ -67,7 +67,8 @@ scripts/run-container-check.sh viewport-check sketchyup-build:20261002 \
 
 Do not reuse earlier containers that bind the host's `/tmp` to `/capture`.
 The lifecycle harness refuses execution outside a Docker container with its
-explicit test flag. It builds release 1 then release 2 from the same source
+explicit test flag. It builds the preceding integer package release and then the
+current release from the same source
 to exercise clean install and upgrade hooks; this is a package lifecycle test, not
 proof of a historical format migration. It validates the installed desktop file,
 MIME glob/magic, real desktop `%f` argument expansion (including spaces), renderer

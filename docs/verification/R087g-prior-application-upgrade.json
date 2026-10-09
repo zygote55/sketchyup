@@ -1,0 +1,92 @@
+{
+  "passed": true,
+  "packages": [
+    {
+      "file": "sketchyup-0.1.0-2-x86_64.pkg.tar.zst",
+      "bytes": 6730637,
+      "sha256": "6fae27ff966b23f44f10d776b731a2809fa9b42300cd41b8d83c1336b6da9acc"
+    },
+    {
+      "file": "sketchyup-0.1.0-3-x86_64.pkg.tar.zst",
+      "bytes": 6734051,
+      "sha256": "82b879f3266c65734b829cfc90323189b082843f8b1df26cbd34ea03076877d2"
+    }
+  ],
+  "versions": [
+    "0.1.0-2",
+    "0.1.0-3"
+  ],
+  "priorExecutables": {
+    "sketchyup": "6e4a89250838c5aa27daf13c06584882a3bb58c418c86eaf70bc3e8ddc7882c2",
+    "sketchyup-cli": "535057e89a04cbe8c1209ffe6a983bfd17e5c67c47f94d60f2087531f95436cc"
+  },
+  "candidateExecutables": {
+    "sketchyup": "4f3083215910bace87eee2c22282721ecc2a5d180a29db3a7eeaeca2a96e5925",
+    "sketchyup-cli": "ab3a49430b14031be3fffad8f88896b0449b96abe75ffc10a3e227888080c6f2"
+  },
+  "documentSha256": "1ecfad8c4584fe7f250a080f6adc5b5dcff56fe988ffa849887674090d80c8bb",
+  "steps": [
+    {
+      "name": "prior-package-info",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-package-info",
+      "exitCode": 0
+    },
+    {
+      "name": "version-order",
+      "exitCode": 0
+    },
+    {
+      "name": "install-prior",
+      "exitCode": 0
+    },
+    {
+      "name": "prior-owned-files",
+      "exitCode": 0
+    },
+    {
+      "name": "prior-create",
+      "exitCode": 0
+    },
+    {
+      "name": "prior-inspect",
+      "exitCode": 0
+    },
+    {
+      "name": "prior-desktop",
+      "exitCode": 0
+    },
+    {
+      "name": "upgrade-candidate",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-owned-files",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-inspect",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-desktop",
+      "exitCode": 0
+    },
+    {
+      "name": "candidate-paths",
+      "exitCode": 0
+    },
+    {
+      "name": "remove-candidate",
+      "exitCode": 0
+    }
+  ],
+  "priorSource": "29fb31bba53e0b6dd2c0d5a73ffbc7fa1b44903e",
+  "candidateSource": "64e6e5edbd8d76c8c535fcd6ff76930ff1f3c90c",
+  "harnessSource": "64e6e5edbd8d76c8c535fcd6ff76930ff1f3c90c",
+  "preferencesRetained": true,
+  "releaseAcceptance": false,
+  "reportScope": "Execution commands and seeded settings remain private."
+}

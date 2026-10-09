@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-08T01:46:20.236526+00:00",
+  "imageId": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c",
+  "phase": "Final links, before package acceptance",
+  "completeLifecyclePeak": false,
+  "cgroup": {
+    "memory.current": "1500680192",
+    "memory.max": "4294967296",
+    "memory.peak": "3731030016",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0",
+    "memory.swap.current": "0",
+    "memory.swap.max": "0",
+    "cpu.max": "800000 100000",
+    "cpuset.cpus.effective": "0-1,3,6,8,10,12-13",
+    "pids.current": "22",
+    "pids.max": "256"
+  },
+  "oomKilled": false
+}
