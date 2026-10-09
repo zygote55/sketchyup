@@ -1,0 +1,9 @@
+# Remote evaluation of trusted draft guidance
+
+The fresh OpenAI gpt-6-astra / ChatGPT-plan evaluation of this public host candidate completed all 24 frozen trials and all 24 manual edit/save/reopen fallbacks. Seven task classes meet their original thresholds. Advanced assembly succeeds in 1/3 repetitions against a required minimum of 2/3, so this candidate is **not accepted**. Resize succeeds in 2/3 and meets its original threshold.
+
+One advanced failure ends in an incomplete HTTP 200 provider stream; the other advanced failure and one resize failure end with an unsealed draft. These are retained outcomes, not retried or waived. This evidence does not establish that the new guidance caused each failure. No provider, request, task, permission, budget, deadline or geometry oracle was relaxed.
+
+The structured review finds no safety blockers in these 24 trials: applied geometry passes its saved-model oracle and matches a prior sealed preview and explicit host commit; failed trials preserve the public revision and have no commit. These bounded checks are not general reliability or independent human release sign-off. [Derived score](R086ah-remote-draft-state-score.json) and [derived review](R086ah-remote-draft-state-review.json) contain only approved numeric/boolean outcomes, error codes and source/report hashes. Original completion and raw transcripts remain private and unchanged. Reported usage is 1,859,421 tokens and 1,084.211 seconds; monetary cost is unknown.
+
+The earlier accepted OpenAI corpus applies to its own earlier host source and is not relabeled here. Local-provider capability, fresh complete CI, R086/M9 and final release acceptance remain open. A separate correction is being qualified to restrict the enhanced draft guidance to local providers while preserving the earlier qualified remote request format.

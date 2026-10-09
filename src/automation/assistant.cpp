@@ -123,7 +123,8 @@ const char *instructions =
     "topology and use advertised ordinary geometry commands when an exact edit is supported. "
     "When advertised, append assert.measurement to an edit transaction to enforce final "
     "dimensions, bounds, length, area or validated volume with an explicit absolute tolerance. "
-    "Assertions evaluate the final batch, so later steps in that draft must preserve them. Use measure.entity "
+    "Assertions evaluate the final batch, so later steps in that draft must preserve them. Use "
+    "measure.entity "
     "for read-only measurements; assertion-only batches do not create history. "
     "assembly.site_place requires an existing body, explicit positionUnit, world/parent frame "
     "and yawDeltaRadians. It adds yaw around the chosen frame's Z axis and sets the origin, "
@@ -379,12 +380,19 @@ std::optional<QJsonObject> AssistantTask::nextRequest() {
         {"remainingToolCalls", options_.limits.toolCalls - calls_},
         {"remainingProviderTurns", options_.limits.turns - turns_},
         {"remainingReportedTokens", QString::number(options_.limits.totalReportedTokens - tokens_)},
-        {"privateDraftOpen", !draft_.isEmpty()}};
+        {"privateDraftOpen", !draft_.isEmpty()},
+        {"privateDraftState", draft_.isEmpty() ? QJsonObject{} : draftState_}};
     const auto system =
         QString::fromLatin1(instructions) +
         " Top-level tool arguments must copy the following host-supplied documentId and "
         "expectedRevision strings verbatim. Private drafts do not advance this bound revision. "
-        "A nested inspection of a private draft uses that draft's proposedRevision instead."
+        "A nested inspection of a private draft uses that draft's proposedRevision instead. "
+        "expectedVersion is the integer currentVersion of the owned draft, never the public "
+        "document revision. A new draft has currentVersion 0 and no commands. Use public "
+        "inspection tools to read the original model; transaction.inspect and transaction.preview "
+        "require at least one successfully applied command. transaction.apply changes only the "
+        "private draft. Read currentVersion and proposedRevision from the latest successful "
+        "begin/apply/describe receipt or the trusted privateDraftState below."
         " Return at most 8 tool calls in each reply. Further replies may continue using the "
         "remaining task budget below. For an open edit draft, request transaction.preview "
         "before ending with final text; final text alone discards the unsealed draft. "
@@ -475,10 +483,20 @@ QJsonObject AssistantTask::execute(const AssistantToolCall &call) {
         authorize(args.value("commands").toArray());
     }
     const auto result = backend_.call(args);
-    if (call.name == "transaction.begin")
+    if (call.name == "transaction.begin") {
         draft_ = result["transactionId"].toString();
-    if (call.name == "transaction.abort")
+        draftState_ = {};
+    }
+    if (call.name == "transaction.begin" || call.name == "transaction.apply" ||
+        call.name == "transaction.describe")
+        for (const auto *key : {"currentVersion", "commandCount", "proposedRevision"})
+            if (result.contains(key) &&
+                (key == QStringLiteral("currentVersion") || !result["replayed"].toBool()))
+                draftState_[key] = result[key];
+    if (call.name == "transaction.abort") {
         draft_.clear();
+        draftState_ = {};
+    }
     if (call.name == "transaction.preview") {
         sealed_ = result;
         phase_ = Phase::PreviewReady;
@@ -566,6 +584,14 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
             if (code == "TRANSACTION_EXPIRED" && call.arguments.value("transactionId") == draft_)
                 draft_.clear(); // Dispatcher has retired the expired draft; a retry may begin anew.
             const auto &args = call.arguments;
+            if (code == "EMPTY_TRANSACTION")
+                result["retry"] =
+                    "This draft has no accepted commands. Inspect the original model with public "
+                    "inspection tools, then use transaction.apply before private inspect/preview.";
+            if (code == "STALE_STAGE_VERSION")
+                result["retry"] =
+                    "Use the owned draft's currentVersion from the trusted privateDraftState or "
+                    "transaction.describe receipt as expectedVersion, not the public revision.";
             const bool stalePrivateInspection =
                 code == "STALE_REVISION" && call.name == "transaction.inspect" &&
                 args.value("documentId") == documentId_ && !draft_.isEmpty() &&
