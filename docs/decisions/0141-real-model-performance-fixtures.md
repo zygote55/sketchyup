@@ -32,3 +32,20 @@ textures, deep nesting, distant coordinates and long sessions need separate
 measurements. Reference integrated/discrete reports and frozen memory budgets remain
 acceptance requirements. Exploratory timings under concurrent compilation do not
 freeze a reference budget or establish release performance.
+
+## Native file-size fixture
+
+R082.c adds the opt-in, default-build-excluded `native_persistence_benchmark`.
+`--prepare NEW_FILE` produces a fixed-identity 100–101 decimal MB container with
+1,000 square faces, bounded metadata and four 16 MiB opaque local assets.
+`--measure INPUT NEW_FILE warm|advised-cold` times synchronous core load/validation
+and durable save in a fresh process and verifies byte-exact native round-trip.
+It refuses existing outputs. The deterministic fixture hash and exact byte count
+must accompany every comparison; no document limits are raised to fit it.
+
+Warm reads pre-read the full file. Advised-cold requests only per-file Linux
+`POSIX_FADV_DONTNEED`; success is not proof of cache eviction. Global caches and
+host settings are untouched. Fixture creation and final hash checks are outside
+the measured interval. This metadata/asset stress fixture does not cover image
+loading, complex geometry, asynchronous UI responsiveness or end-to-end rendering.
+No variable-host timings become CTest gates or release acceptance automatically.
