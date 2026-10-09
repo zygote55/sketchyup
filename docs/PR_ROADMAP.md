@@ -1164,7 +1164,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R080 — Publish extension capabilities and lifecycle
 
-**Status:** In progress. R080.a [versioned declarative extension contract](verification/R080a-extension-contract.md) passes public-command sample, strict compatibility/capability, atomic failure, sanitizer, installed and source-package checks. Persistent lifecycle, worker and native management follow in R080.b–d. **Track:** Automation. **Scope:** X05, A01, A06. **UX:** §11.
+**Status:** In progress. R080.a–b [persistent extension lifecycle](verification/R080b-extension-store.md) passes compatibility, disabled-by-default installation, reload/error recovery, stale-write/source preservation, sanitizer, installed and source-package checks. Worker and native management follow in R080.c–d. **Track:** Automation. **Scope:** X05, A01, A06. **UX:** §11.
 
 **Requires:** [R043](#r043), [R073](#r073); milestone gate rule above.
 
