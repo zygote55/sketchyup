@@ -1,0 +1,14 @@
+Running as unit: sketchyup-r082u-regressions.service
+Traceback (most recent call last):
+  File "/home/keith/projects/sketchyup/build/verification-scripts/validate-component-placement.py", line 34, in <module>
+    worker();raise SystemExit(0)
+    ~~~~~~^^
+  File "/home/keith/projects/sketchyup/build/verification-scripts/validate-component-placement.py", line 25, in worker
+    targets=[Path(t['command'][0]).name for t in selected]
+                  ~^^^^^^^^^^^
+KeyError: 'command'
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 287ms
+             CPU time consumed: 264ms
+                   Memory peak: 21.4M (swap: 0B)
