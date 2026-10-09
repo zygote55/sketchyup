@@ -662,6 +662,10 @@ if(SKETCHYUP_BUILD_CLI)
   install(TARGETS sketchyup-cli RUNTIME DESTINATION bin)
   if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME shipped_recipes COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-shipped-recipes.py"
+      --cli $<TARGET_FILE:sketchyup-cli> --examples "${CMAKE_CURRENT_SOURCE_DIR}/examples")
+    set_tests_properties(shipped_recipes PROPERTIES TIMEOUT 900)
     add_test(NAME tool_reference_drift COMMAND "${Python3_EXECUTABLE}"
       "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate-tool-reference.py"
       --cli $<TARGET_FILE:sketchyup-cli> --root "${CMAKE_CURRENT_SOURCE_DIR}" --check)
@@ -1007,3 +1011,7 @@ install(FILES docs/decisions/0137-native-extension-management.md DESTINATION sha
 install(FILES docs/TOOL_REFERENCE.md DESTINATION share/doc/sketchyup)
 install(FILES docs/api/tool-reference-v1.json DESTINATION share/doc/sketchyup/api)
 install(FILES docs/decisions/0138-generated-tool-reference.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/AI_MODELING.md DESTINATION share/doc/sketchyup)
+install(FILES examples/material-recipe-v1.json DESTINATION share/doc/sketchyup/examples)
+install(FILES docs/decisions/0139-executable-agent-recipes.md DESTINATION share/doc/sketchyup/decisions)

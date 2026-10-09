@@ -40,6 +40,8 @@ jobs:
         run: |
           curl -fLsS https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/271ecc9accafdd9b83a3c869fa67c22953b2af80/schema/2026-07-28/schema.json -o build/mcp-schema.json
           python scripts/verify-mcp-schema.py build/mcp-schema.json build/mcp-transcript.jsonl > build/mcp-schema-validation.json
+      - name: Shipped recipes reproduce measured geometry
+        run: python scripts/verify-shipped-recipes.py --cli build/dev/sketchyup-cli --examples examples
       - name: Generated reference matches live registries
         run: python scripts/generate-tool-reference.py --cli build/dev/sketchyup-cli --root . --check
       - name: GLB validator and Blender interoperability

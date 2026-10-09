@@ -1176,7 +1176,7 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 #### R081 — Ship generated tool reference and executable AI recipes
 
-**Status:** In progress. R081.a [generated reference](verification/R081a-generated-reference.md) matches development/installed registries, rejects deliberate drift and passes packaged-document checks; the Python build prerequisite is declared. Executable recipes, optional discovery, build configurations and integrated M8 acceptance follow. **Track:** Automation. **Scope:** A07, A08, A06. **UX:** —.
+**Status:** In progress. R081.a–b [generated reference and executable recipes](verification/R081b-executable-recipes.md) pass live-registry drift checks and all ten geometry/save-reload/source-preservation cases against development and installed CLIs. Optional discovery, build configurations and integrated M8 acceptance follow. **Track:** Automation. **Scope:** A07, A08, A06. **UX:** —.
 
 **Requires:** [R060](#r060), [R080](#r080); milestone gate rule above.
 

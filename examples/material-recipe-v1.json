@@ -1,0 +1,223 @@
+{
+  "apiVersion": 1,
+  "steps": [
+    {
+      "id": "info",
+      "request": {
+        "apiVersion": 1,
+        "operation": "session.describe"
+      }
+    },
+    {
+      "id": "begin",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.begin",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "info#/result/revision"
+        },
+        "history": {
+          "label": "Create and paint a six-square-metre panel",
+          "taskId": "material-recipe-v1",
+          "assistant": false
+        }
+      }
+    },
+    {
+      "id": "draw",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.apply",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": 0,
+        "operationId": "draw-face",
+        "commands": [
+          {
+            "command": "geometry.face",
+            "name": "Recipe rectangle",
+            "loops": [
+              [
+                [
+                  0,
+                  0,
+                  0
+                ],
+                [
+                  2,
+                  0,
+                  0
+                ],
+                [
+                  2,
+                  3,
+                  0
+                ],
+                [
+                  0,
+                  3,
+                  0
+                ]
+              ]
+            ]
+          },
+          {
+            "command": "material.create",
+            "name": "Terracotta",
+            "color": [
+              0.7,
+              0.2,
+              0.1
+            ],
+            "opacity": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "paint",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.apply",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": {
+          "$ref": "draw#/result/stageVersion"
+        },
+        "operationId": "paint-panel",
+        "commands": [
+          {
+            "command": "material.assign",
+            "body": {
+              "$ref": "draw#/result/createdIds/created/0"
+            },
+            "material": {
+              "$ref": "draw#/result/createdIds/createdMaterials/0"
+            },
+            "side": "both"
+          }
+        ]
+      }
+    },
+    {
+      "id": "preview_measurement",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.inspect",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "request": {
+          "apiVersion": 1,
+          "documentId": {
+            "$ref": "info#/result/documentId"
+          },
+          "expectedRevision": {
+            "$ref": "draw#/result/proposedRevision"
+          },
+          "query": "measure.entity",
+          "target": {
+            "documentId": {
+              "$ref": "info#/result/documentId"
+            },
+            "contextPath": [],
+            "body": {
+              "$ref": "draw#/result/createdIds/created/0"
+            },
+            "kind": "body",
+            "id": {
+              "$ref": "draw#/result/createdIds/created/0"
+            }
+          },
+          "space": "world"
+        }
+      }
+    },
+    {
+      "id": "seal",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.preview",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "transactionId": {
+          "$ref": "begin#/result/transactionId"
+        },
+        "expectedVersion": {
+          "$ref": "paint#/result/stageVersion"
+        }
+      }
+    },
+    {
+      "id": "commit",
+      "request": {
+        "apiVersion": 1,
+        "operation": "transaction.commit",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "requestId": {
+          "$ref": "seal#/result/requestId"
+        },
+        "payloadHash": {
+          "$ref": "seal#/result/payloadHash"
+        }
+      }
+    },
+    {
+      "id": "save",
+      "request": {
+        "apiVersion": 1,
+        "operation": "document.save",
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "commit#/result/result/revision"
+        }
+      }
+    },
+    {
+      "id": "measurement",
+      "request": {
+        "apiVersion": 1,
+        "documentId": {
+          "$ref": "info#/result/documentId"
+        },
+        "expectedRevision": {
+          "$ref": "commit#/result/result/revision"
+        },
+        "query": "measure.entity",
+        "target": {
+          "documentId": {
+            "$ref": "info#/result/documentId"
+          },
+          "contextPath": [],
+          "body": {
+            "$ref": "draw#/result/createdIds/created/0"
+          },
+          "kind": "body",
+          "id": {
+            "$ref": "draw#/result/createdIds/created/0"
+          }
+        },
+        "space": "world"
+      }
+    }
+  ]
+}

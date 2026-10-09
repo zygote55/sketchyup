@@ -1,0 +1,10 @@
+transaction-face-recipe.json: geometry, save/reload and source preservation passed
+material-recipe-v1.json: geometry, save/reload and source preservation passed
+room-recipe-v1.json: geometry, save/reload and source preservation passed
+room-window-resize-recipe-v1.json: geometry, save/reload and source preservation passed
+hosted-room-recipe-v1.json: geometry, save/reload and source preservation passed
+roof-recipe-v1.json: geometry, save/reload and source preservation passed
+stair-recipe-v1.json: geometry, save/reload and source preservation passed
+table-recipe-v1.json: geometry, save/reload and source preservation passed
+cabinet-recipe-v1.json: geometry, save/reload and source preservation passed
+site-recipe-v1.json: geometry, save/reload and source preservation passed
