@@ -1,0 +1,175 @@
+{
+  "source": "d7085e88be6f84f8b0e455985fb8d4433cd603f8",
+  "binarySha256": "e4890be5614e5897658678cb71d7809f94411bc46a9dbc3dd494e906bacb3056",
+  "textWorkerSha256": "f39538ee1085ee6f4fdf9f8ea333b389f1710faf223aa1f72b32de3585797b7e",
+  "kernel": "7.2.5-3-omarchy",
+  "monitors": [
+    {
+      "name": "eDP-1",
+      "width": 2880,
+      "height": 1800,
+      "scale": 2,
+      "dpmsStatus": true
+    },
+    {
+      "name": "DP-7",
+      "width": 3840,
+      "height": 2160,
+      "scale": 1.6,
+      "dpmsStatus": true
+    }
+  ],
+  "passed": true,
+  "releaseAcceptance": false,
+  "normalNativeCases": 4,
+  "sanitizedNativeCases": 12,
+  "sanitizerLeakDetection": true,
+  "privateWaylandClient": "Wayland 1.26.0 with repository destroyed-proxy patch",
+  "cases": [
+    {
+      "label": "warm-1",
+      "report": "R082m-warm-1.json",
+      "sha256": "181943e84c60774fb4da2f020ada05923116c0dc65d40f365383ce9e0034256f",
+      "limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      }
+    },
+    {
+      "label": "warm-2",
+      "report": "R082m-warm-2.json",
+      "sha256": "f2aecb759e9cf2c5640da0d6964c2bc1715945b99bc22605c35f65cf32b2cae7",
+      "limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      }
+    },
+    {
+      "label": "warm-3",
+      "report": "R082m-warm-3.json",
+      "sha256": "7abca7de2f305ae339fd6421e863f8a86a4423b71ce79b6b574109452ffb0f10",
+      "limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      }
+    },
+    {
+      "label": "verified-cold-1",
+      "report": "R082m-verified-cold-1.json",
+      "sha256": "b3a309e9388ce9cb0ca94e6dd329dcd15ecb2b9b138d77b69fb02cd050442940",
+      "limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      }
+    },
+    {
+      "label": "verified-cold-2",
+      "report": "R082m-verified-cold-2.json",
+      "sha256": "8359d0e7c130ceb854ba91f5bc0c13a51158411466fb9eb88afc467c68cfd76d",
+      "limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      }
+    },
+    {
+      "label": "verified-cold-3",
+      "report": "R082m-verified-cold-3.json",
+      "sha256": "fa9b2b90b31b77e4a7a13d81ab349cef1b518bd080f71b29f52b1719c7d3bfd9",
+      "limits": {
+        "memory.max": "4294967296",
+        "memory.swap.max": "0",
+        "cpu.max": "800000 100000",
+        "pids.max": "256",
+        "cpuAffinity": [
+          0,
+          1,
+          3,
+          6,
+          8,
+          10,
+          12,
+          13
+        ]
+      }
+    }
+  ],
+  "r082m-native-file-build": {
+    "log": "R082m-r082m-native-file-build.txt",
+    "sha256": "c44158f9cbd03c6c4923666923431ae1c100a9bf2005d163bacbf4d479858de0",
+    "fileWorkerCases": 4
+  },
+  "r082m-sanitize-native": {
+    "log": "R082m-r082m-sanitize-native.txt",
+    "sha256": "aaf2446d59dad1e865fa29ca8a525b0d1d29bb3ad3be6fd193f43df257841974",
+    "fileWorkerCases": 12
+  },
+  "ciTimeout": {
+    "pullRequest": 238,
+    "source": "b71c26eea0a3d914c1b57690cadd73eec9679e77",
+    "run": 37679503237,
+    "stage": "Sanitized native file_operation_input_tests at Wayland scale 2",
+    "deadlineSeconds": 60,
+    "localTimeoutReproduced": false,
+    "failedJobRetries": 1
+  }
+}
