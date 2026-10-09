@@ -1,19 +1,31 @@
 name: Native build
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
+# Superseded pull request heads are canceled; every main merge keeps its own run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  CI_PACKAGES: >-
+    cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa
+    xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema
+    nodejs npm blender ffmpeg poppler
 jobs:
   arch:
+    name: Development build and native tests
     runs-on: ubuntu-latest
     container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - name: Install build and software-rendering dependencies
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm --needed cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema nodejs npm blender ffmpeg poppler
+          pacman -Syyuu --noconfirm --needed $CI_PACKAGES
       - name: Record toolchain
         run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Configure and build
@@ -364,6 +376,19 @@ jobs:
           build/dev/sketchyup-cli --input /tmp/profile-sweep.sketchyup
           build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
           build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1
+  sanitize:
+    name: Sanitized builds
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build and software-rendering dependencies
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          pacman -Syyuu --noconfirm --needed $CI_PACKAGES
+      - name: Record toolchain
+        run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Sanitized core without Qt
         run: |
           cmake --preset sanitize
@@ -421,18 +446,19 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/assistant_preview_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/render_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/native_mcp_tests
-      - name: Release completed build artifacts before package rebuild
+  package:
+    name: Arch package acceptance
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build and software-rendering dependencies
         run: |
-          # All consumers of these binaries have completed. Keep CTest evidence,
-          # then reclaim Debug/ASan objects and executables for the full package gate.
-          mkdir -p build/ci-test-logs
-          for configuration in dev sanitize; do
-            if [ -d "build/$configuration/Testing" ]; then
-              cp -a "build/$configuration/Testing" "build/ci-test-logs/$configuration"
-            fi
-          done
-          rm -rf -- build/dev build/sanitize
-          df -h .
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          pacman -Syyuu --noconfirm --needed $CI_PACKAGES
+      - name: Record toolchain
+        run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
       - name: Disposable Arch package acceptance
         run: |
           useradd --create-home builder
