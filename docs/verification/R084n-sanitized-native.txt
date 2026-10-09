@@ -1,0 +1,84 @@
+	linux-vdso.so.1 (0x0000726328ea8000)
+	libwayland-client.so.0 => /work/package/r084n3-wayland-client/libwayland-client.so.0 (0x0000726328d63000)
+	libwayland-cursor.so.0 => /usr/lib/libwayland-cursor.so.0 (0x0000726328d5a000)
+	libQt6Gui.so.6 => /usr/lib/libQt6Gui.so.6 (0x00007263283f2000)
+	libQt6Core.so.6 => /usr/lib/libQt6Core.so.6 (0x0000726327d62000)
+	libxkbcommon.so.0 => /usr/lib/libxkbcommon.so.0 (0x0000726327d01000)
+	libstdc++.so.6 => /usr/lib/libstdc++.so.6 (0x0000726327a2e000)
+	libm.so.6 => /usr/lib/libm.so.6 (0x00007263278f7000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x00007263276d4000)
+	libffi.so.8 => /usr/lib/libffi.so.8 (0x00007263276c6000)
+	libEGL.so.1 => /usr/lib/libEGL.so.1 (0x00007263276b4000)
+	libfontconfig.so.1 => /usr/lib/libfontconfig.so.1 (0x0000726327637000)
+	libX11.so.6 => /usr/lib/libX11.so.6 (0x00007263274f5000)
+	libglib-2.0.so.0 => /usr/lib/libglib-2.0.so.0 (0x0000726327392000)
+	libQt6DBus.so.6 => /usr/lib/libQt6DBus.so.6 (0x00007263272c5000)
+	libGLX.so.0 => /usr/lib/libGLX.so.0 (0x0000726327294000)
+	libOpenGL.so.0 => /usr/lib/libOpenGL.so.0 (0x0000726327270000)
+	libpng16.so.16 => /usr/lib/libpng16.so.16 (0x0000726327231000)
+	libharfbuzz.so.0 => /usr/lib/libharfbuzz.so.0 (0x00007263270ed000)
+	libmd4c.so.0 => /usr/lib/libmd4c.so.0 (0x00007263270d7000)
+	libfreetype.so.6 => /usr/lib/libfreetype.so.6 (0x0000726327007000)
+	libz.so.1 => /usr/lib/libz.so.1 (0x0000726326fec000)
+	libgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x0000726326fbf000)
+	liburing.so.2 => /usr/lib/liburing.so.2 (0x0000726326fb6000)
+	libicui18n.so.78 => /usr/lib/libicui18n.so.78 (0x0000726326c28000)
+	libicuuc.so.78 => /usr/lib/libicuuc.so.78 (0x0000726326a1a000)
+	libsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x00007263268d1000)
+	libdouble-conversion.so.3 => /usr/lib/libdouble-conversion.so.3 (0x00007263268ba000)
+	libb2.so.1 => /usr/lib/libb2.so.1 (0x000072632689a000)
+	libpcre2-16.so.0 => /usr/lib/libpcre2-16.so.0 (0x00007263267f4000)
+	libcrypto.so.3 => /usr/lib/libcrypto.so.3 (0x000072632624a000)
+	libzstd.so.1 => /usr/lib/libzstd.so.1 (0x0000726326164000)
+	/usr/lib64/ld-linux-x86-64.so.2 (0x0000726328eab000)
+	libGLdispatch.so.0 => /usr/lib/libGLdispatch.so.0 (0x00007263260eb000)
+	libexpat.so.1 => /usr/lib/libexpat.so.1 (0x00007263260ba000)
+	libxcb.so.1 => /usr/lib/libxcb.so.1 (0x000072632608f000)
+	libpcre2-8.so.0 => /usr/lib/libpcre2-8.so.0 (0x0000726325fdc000)
+	libdbus-1.so.3 => /usr/lib/libdbus-1.so.3 (0x0000726325f89000)
+	libgraphite2.so.3 => /usr/lib/libgraphite2.so.3 (0x0000726325f66000)
+	libbz2.so.1.0 => /usr/lib/libbz2.so.1.0 (0x0000726325f51000)
+	libbrotlidec.so.1 => /usr/lib/libbrotlidec.so.1 (0x0000726325f42000)
+	libicudata.so.78 => /usr/lib/libicudata.so.78 (0x0000726323fad000)
+	libgomp.so.1 => /usr/lib/libgomp.so.1 (0x0000726323f53000)
+	libbrotlienc.so.1 => /usr/lib/libbrotlienc.so.1 (0x0000726323e93000)
+	libXau.so.6 => /usr/lib/libXau.so.6 (0x0000726323e8c000)
+	libXdmcp.so.6 => /usr/lib/libXdmcp.so.6 (0x0000726323e84000)
+	libbrotlicommon.so.1 => /usr/lib/libbrotlicommon.so.1 (0x0000726323e61000)
+	libwayland-client.so.0 => /work/package/r084n3-wayland-client/libwayland-client.so.0 (0x0000726328d63000)
+Sanitized preferences X11 scale=1
+Layout requested 640, actual 640 x 480, DPR 1
+Layout requested 900, actual 900 x 850, DPR 1
+Layout requested 1200, actual 1200 x 850, DPR 1
+Layout requested 1600, actual 1600 x 850, DPR 1
+Native assistant setup, consent, preview/direct undo, clarification, staleness, layouts and reconciliation passed
+Sanitized preferences Wayland scale=1
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Layout requested 640, actual 640 x 480, DPR 1
+Layout requested 900, actual 900 x 850, DPR 1
+Layout requested 1200, actual 1200 x 850, DPR 1
+Layout requested 1600, actual 1600 x 850, DPR 1
+Native assistant setup, consent, preview/direct undo, clarification, staleness, layouts and reconciliation passed
+Sanitized preferences X11 scale=2
+Layout requested 640, actual 640 x 480, DPR 2
+Layout requested 900, actual 900 x 850, DPR 2
+Layout requested 1200, actual 1200 x 850, DPR 2
+Layout requested 1600, actual 1600 x 850, DPR 2
+Native assistant setup, consent, preview/direct undo, clarification, staleness, layouts and reconciliation passed
+Sanitized preferences Wayland scale=2
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Layout requested 640, actual 640 x 480, DPR 2
+Layout requested 900, actual 900 x 850, DPR 2
+Layout requested 1200, actual 1200 x 850, DPR 2
+Layout requested 1600, actual 1600 x 850, DPR 2
+Native assistant setup, consent, preview/direct undo, clarification, staleness, layouts and reconciliation passed

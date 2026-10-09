@@ -1,0 +1,41 @@
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.6s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build
+[1/35] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/scene_records.cpp.o
+[2/35] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[3/35] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_records.cpp.o
+[4/35] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/inference.cpp.o
+[5/35] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/model.cpp.o
+[6/35] Linking CXX static library libsketchyup_core.a
+[7/35] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/library_bundle.cpp.o
+[8/35] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/native_format.cpp.o
+[9/35] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/scene_commands.cpp.o
+[10/35] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/recovery.cpp.o
+[11/35] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/document_io.cpp.o
+[12/35] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/container.cpp.o
+[13/35] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/save.cpp.o
+[14/35] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/commands.cpp.o
+[15/35] Linking CXX static library libsketchyup_io.a
+[16/35] Automatic MOC for target sketchyup_providers
+[17/33] Automatic MOC for target sketchyup_render
+[18/31] Linking CXX executable sketchyup-text-worker
+[19/31] Linking CXX executable sketchyup-extension-worker
+[20/31] Automatic MOC for target sketchyup_desktop
+[21/30] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_textures.cpp.o
+[22/30] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/assistant_panel.cpp.o
+[23/30] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport.cpp.o
+[24/30] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_guides.cpp.o
+[25/30] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_selection.cpp.o
+[26/30] Linking CXX static library libsketchyup_desktop.a
+[27/30] Automatic MOC for target assistant_panel_tests
+[28/29] Building CXX object CMakeFiles/assistant_panel_tests.dir/tests/assistant_panel_tests.cpp.o
+[29/29] Linking CXX executable assistant_panel_tests
+Assistant preferences X11 scale=1
+Subscription preferences expose descriptive accessible names
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.7s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build
