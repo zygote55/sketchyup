@@ -1,0 +1,89 @@
+{
+  "passed": true,
+  "originalSource": "296bb8e74224181b5e030fd2cb88c5f28882bd84",
+  "binarySha256": "064cfacacbd3c354e15b585021addb07cce394b071c64b7d3251a82c9b37e84e",
+  "memoryWithinDeclaredScope": true,
+  "samples": 871,
+  "reports": [
+    {
+      "label": "repeated-25-smoke",
+      "sha256": "69881b3a31ec99e7f0589681ba4566bd1cb35e32fec939b60cf9edaae1d4af6c",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "unique-25-smoke",
+      "sha256": "8b5fd0a899f280b5af3a9eb9cd8d0f440f6fef54936b53fbaba8a43901a51d6e",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "deep-25-smoke",
+      "sha256": "7a8970fd39b19ea3a8976fbc2de6d49ec3254256bdc1d94b5106707e948f5d42",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "far-25-smoke",
+      "sha256": "e3ccd45d3f9fdd5455298d2d88cd1bb2352046a9c4a747c82dda27ab4cfaa050",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "textures-25-smoke",
+      "sha256": "b94981ee1cbe8bad30d46c732bb3bc09a3e4899f30f998608aaa6440d92d1209",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "repeated-1000-1",
+      "sha256": "660e8fe1d1a841acca4c02ecef0cb8badaaee77933a4c8710e79e36ff17c5c57",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "unique-1000-1",
+      "sha256": "0f47df126fb1b72d9037e1ef0eb3f33760c5e715b1ecd6d9a2c71b439ea49fcf",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "deep-1000-1",
+      "sha256": "6c006d55f574e548c01be8efb24fd9458c7a5a2aac2661318bf83829f938b1a1",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "far-1000-1",
+      "sha256": "1766d2efa42f0c5e2b7a378c3a29fb069859b4a2c524047197a9ef243d8efd79",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "textures-1000-1",
+      "sha256": "2ee7045be4cad25d59c1ebdc1d6e79c6951bfe8eb43773e941a6dfb4150d2348",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "repeated-10000-1",
+      "sha256": "9f8711e01b5ab2ce59d51e270ed917b03938c538012cff357b27c2100133a001",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "repeated-10000-2",
+      "sha256": "3c6a06a31801dde02a73f2b7aa92f6dfb6a64a2a5a4370edf4ab2079e34daddd",
+      "samples": 67,
+      "missingResidentSamples": 0
+    },
+    {
+      "label": "repeated-10000-3",
+      "sha256": "1598901e460bd330edc0bb85a728b118419b6414adf1a79fb0127e7c7f2bd399",
+      "samples": 67,
+      "missingResidentSamples": 0
+    }
+  ],
+  "releaseAcceptance": false,
+  "scope": "Supplementary completeness audit of kernel-reported resident categories in original frozen hardware reports; not qualification of the later parser correction."
+}

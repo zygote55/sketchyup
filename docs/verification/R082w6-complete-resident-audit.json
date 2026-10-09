@@ -1,0 +1,87 @@
+{
+  "auditedAt": "2026-10-08T09:27:21.857828+00:00",
+  "source": "21e7622254d294c7ae08ee98ce84f19b06dfefd4",
+  "binarySha256": "d6b416353df8ffb9c5cfd7e842e03533e77feacdf73d530f4576a093821c66b8",
+  "cases": [
+    {
+      "label": "repeated-25-smoke",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "8e33a0e3cbbc0464b46651b0cf7e31ccd14fa2cd4290579b544beaf33fda42b2"
+    },
+    {
+      "label": "unique-25-smoke",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "f40aad390a3148597f29b1540df4ab0d2a2fe27b83c71e1ffce6c751ec048eda"
+    },
+    {
+      "label": "deep-25-smoke",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "d86abfefb6572b3a84eff9a4f7fe5834ee38124699f22e9331cfd7e8c5466825"
+    },
+    {
+      "label": "far-25-smoke",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "dac64b2d4ed00e83fa474ea12d865693c386b0b9428333c5e21779c7e4a9e371"
+    },
+    {
+      "label": "textures-25-smoke",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "9a3a04f5f2bf45e62d01099777f7c7e934635a908f1ac3610e50a33d5e6f130b"
+    },
+    {
+      "label": "repeated-1000-1",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "2b5888629cbc4e211f15a5845a6c1e5c4b217fa29c89e1490569a6c8c2db6a70"
+    },
+    {
+      "label": "unique-1000-1",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "e9d9cbc2502ee87f20b440aaa1ea5ec2e59d1b1205c79b7bda13c8743cc8b9de"
+    },
+    {
+      "label": "deep-1000-1",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "681e4638d27f82e542ab8ddcaa41750f45803c1120c4c79b73855118abe598fc"
+    },
+    {
+      "label": "far-1000-1",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "958a01d0f4b1a38b94875a12e28efc7cfe8efbcddfc83c0532724bcf234a9976"
+    },
+    {
+      "label": "textures-1000-1",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "03c32b5b836d08752083041ebb90709695d0852dcd9da5a8fafda77ad3e71e78"
+    },
+    {
+      "label": "repeated-10000-1",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "ea1e06089efcfcb573c5338bdf3d7065c1fc6d92c456b08de0fd408c706e9ddb"
+    },
+    {
+      "label": "repeated-10000-2",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "5f3f0c9a6b06429b79f90bed8ca7ea6411fc01972cc3522843ca44e1ec9eb23d"
+    },
+    {
+      "label": "repeated-10000-3",
+      "samples": 67,
+      "completeResidentCounters": true,
+      "reportSha256": "488a3403a8fe50401d87f511f068cb8646d0e36c1d409861fc4d5006e74bc5bf"
+    }
+  ],
+  "completeDriverObservations": 871,
+  "releaseAcceptance": false
+}

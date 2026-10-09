@@ -1,0 +1,13 @@
+Test project /work/package/normal
+    Start 60: drm_memory
+1/1 Test #60: drm_memory .......................***Failed    0.01 sec
+A client without resident counts cannot produce a complete aggregate
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.01 sec
+
+The following tests FAILED:
+	 60 - drm_memory (Failed)
+Errors while running CTest

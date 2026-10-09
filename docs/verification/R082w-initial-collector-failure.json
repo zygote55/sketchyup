@@ -1,0 +1,9 @@
+{
+  "passed": false,
+  "benchmarkQualified": false,
+  "releaseAcceptance": false,
+  "source": "296bb8e74224181b5e030fd2cb88c5f28882bd84",
+  "normalCases": 0,
+  "sanitizerCases": 0,
+  "error": ""
+}

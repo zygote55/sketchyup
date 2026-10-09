@@ -1,0 +1,655 @@
+{
+  "passed": true,
+  "source": "21e7622254d294c7ae08ee98ce84f19b06dfefd4",
+  "releaseAcceptance": false,
+  "experimentalResourceSizing": true,
+  "steps": [
+    {
+      "name": "remote-preflight",
+      "exitCode": 0
+    },
+    {
+      "name": "transfer-workers",
+      "exitCode": 0
+    },
+    {
+      "name": "transfer-benchmark",
+      "exitCode": 0
+    },
+    {
+      "name": "verify-transferred-binary",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-repeated-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "read-repeated-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-unique-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "read-unique-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-deep-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "read-deep-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-far-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "read-far-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-textures-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "read-textures-25-smoke",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-repeated-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "read-repeated-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-unique-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "read-unique-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-deep-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "read-deep-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-far-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "read-far-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-textures-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "read-textures-1000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-repeated-10000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "read-repeated-10000-1",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-repeated-10000-2",
+      "exitCode": 0
+    },
+    {
+      "name": "read-repeated-10000-2",
+      "exitCode": 0
+    },
+    {
+      "name": "remote-repeated-10000-3",
+      "exitCode": 0
+    },
+    {
+      "name": "read-repeated-10000-3",
+      "exitCode": 0
+    },
+    {
+      "name": "collect-remote-evidence",
+      "exitCode": 0
+    }
+  ],
+  "memoryBudgetSha256": "5f4c4a11f9f1d8a0a7b11b7e417e5036baa7a64d7e0c5afb15a80368ba8fe8dd",
+  "memoryBudgetFrozenAt": "2026-10-08T06:45:07.038486+00:00",
+  "memoryChecks": [
+    {
+      "label": "repeated-25-smoke",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 136122368,
+      "peakRssBytes": 148926464,
+      "sampledGrowthBytes": 4816896,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "unique-25-smoke",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 136122368,
+      "peakRssBytes": 154075136,
+      "sampledGrowthBytes": 13676544,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "deep-25-smoke",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 136122368,
+      "peakRssBytes": 145690624,
+      "sampledGrowthBytes": 4501504,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "far-25-smoke",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 136122368,
+      "peakRssBytes": 146391040,
+      "sampledGrowthBytes": 5382144,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "textures-25-smoke",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 405164032,
+      "peakRssBytes": 342810624,
+      "sampledGrowthBytes": 5144576,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "repeated-1000-1",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 175968256,
+      "peakRssBytes": 441946112,
+      "sampledGrowthBytes": 12423168,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "unique-1000-1",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 175968256,
+      "peakRssBytes": 446726144,
+      "sampledGrowthBytes": 20439040,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "deep-1000-1",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 175968256,
+      "peakRssBytes": 442507264,
+      "sampledGrowthBytes": 12648448,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "far-1000-1",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 175968256,
+      "peakRssBytes": 441970688,
+      "sampledGrowthBytes": 12324864,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "textures-1000-1",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 444936192,
+      "peakRssBytes": 575033344,
+      "sampledGrowthBytes": 12103680,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "repeated-10000-1",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 501121024,
+      "peakRssBytes": 3176419328,
+      "sampledGrowthBytes": 21422080,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "repeated-10000-2",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 501121024,
+      "peakRssBytes": 3176079360,
+      "sampledGrowthBytes": 21409792,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    },
+    {
+      "label": "repeated-10000-3",
+      "completeDriverSamples": true,
+      "driverSamples": 67,
+      "driverResidentUpperBoundMaxBytes": 501121024,
+      "peakRssBytes": 3176067072,
+      "sampledGrowthBytes": 21315584,
+      "processWithinProspectiveBudget": true,
+      "driverWithinProspectiveBudget": true,
+      "memoryWithinDeclaredScope": true,
+      "releaseAcceptance": false
+    }
+  ],
+  "binarySha256": "d6b416353df8ffb9c5cfd7e842e03533e77feacdf73d530f4576a093821c66b8",
+  "binaryBytes": 4799944,
+  "measurements": [
+    {
+      "label": "repeated-25-smoke",
+      "fixtureSha256": "97aadcff18317af573a28a7b03129f3f59f926c3ef36de255ae9832f0e36c405",
+      "sceneP95Ms": 0.253603,
+      "pickP95Ms": 0.015109,
+      "editP95Ms": 16.79191,
+      "viewportGpuCompleteP95Ms": 0.532423,
+      "editToViewportGpuCompleteP95Ms": 1.106185,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 144551936,
+        "lastResidentBytes": 149368832,
+        "maximumResidentBytes": 149368832,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 2536400,
+        "bodyGpuPayloadBytes": 866400,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 148926464,
+      "inferenceTruncatedQueries": 0,
+      "inferenceInitialBuildMs": 2.40668,
+      "inferenceQueryP95Ms": 0.018796,
+      "inferenceUpdateP95Ms": 0.200822
+    },
+    {
+      "label": "unique-25-smoke",
+      "fixtureSha256": "231d89f28bd86b304e1ba0365551f85879e7fa1306b79adde0f6a8a6dfa3cefa",
+      "sceneP95Ms": 0.278049,
+      "pickP95Ms": 0.010309,
+      "editP95Ms": 16.91386,
+      "viewportGpuCompleteP95Ms": 0.564374,
+      "editToViewportGpuCompleteP95Ms": 1.020512,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 140857344,
+        "lastResidentBytes": 154533888,
+        "maximumResidentBytes": 154533888,
+        "maximumHistoryBytes": 17660500,
+        "bodyVectorCapacityBytes": 2536400,
+        "bodyGpuPayloadBytes": 866400,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 154075136,
+      "inferenceTruncatedQueries": 0,
+      "inferenceInitialBuildMs": 2.970472,
+      "inferenceQueryP95Ms": 0.025799,
+      "inferenceUpdateP95Ms": 0.180203
+    },
+    {
+      "label": "deep-25-smoke",
+      "fixtureSha256": "078fd5a262581a8d23b02e7e3c0527b6d661eb77c625050fda944dbe73ca55ef",
+      "sceneP95Ms": 0.261648,
+      "pickP95Ms": 0.070524,
+      "editP95Ms": 16.78248,
+      "viewportGpuCompleteP95Ms": 0.53633,
+      "editToViewportGpuCompleteP95Ms": 1.526495,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 141651968,
+        "lastResidentBytes": 146153472,
+        "maximumResidentBytes": 146153472,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 2536400,
+        "bodyGpuPayloadBytes": 866400,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 145690624,
+      "inferenceTruncatedQueries": 0,
+      "inferenceInitialBuildMs": 2.58102,
+      "inferenceQueryP95Ms": 0.018625,
+      "inferenceUpdateP95Ms": 0.307645
+    },
+    {
+      "label": "far-25-smoke",
+      "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+      "sceneP95Ms": 0.247271,
+      "pickP95Ms": 0.013495,
+      "editP95Ms": 16.94046,
+      "viewportGpuCompleteP95Ms": 0.528636,
+      "editToViewportGpuCompleteP95Ms": 1.200133,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 141213696,
+        "lastResidentBytes": 146595840,
+        "maximumResidentBytes": 146595840,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 2536400,
+        "bodyGpuPayloadBytes": 866400,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 146391040,
+      "inferenceTruncatedQueries": 0,
+      "inferenceInitialBuildMs": 2.5333,
+      "inferenceQueryP95Ms": 0.019387,
+      "inferenceUpdateP95Ms": 0.211613
+    },
+    {
+      "label": "textures-25-smoke",
+      "fixtureSha256": "171096beb61bd5290e70faa4d0988894ac514d86764e6517eabf0ddcd6e06e8b",
+      "sceneP95Ms": 0.287887,
+      "pickP95Ms": 0.01551,
+      "editP95Ms": 16.785332,
+      "viewportGpuCompleteP95Ms": 0.591215,
+      "editToViewportGpuCompleteP95Ms": 1.322576,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 276078592,
+        "lastResidentBytes": 281223168,
+        "maximumResidentBytes": 281223168,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 2536400,
+        "bodyGpuPayloadBytes": 866400,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 342810624,
+      "inferenceTruncatedQueries": 0,
+      "inferenceInitialBuildMs": 2.604395,
+      "inferenceQueryP95Ms": 0.019607,
+      "inferenceUpdateP95Ms": 0.198668
+    },
+    {
+      "label": "repeated-1000-1",
+      "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+      "sceneP95Ms": 1.984996,
+      "pickP95Ms": 0.067749,
+      "editP95Ms": 16.320698,
+      "viewportGpuCompleteP95Ms": 2.299865,
+      "editToViewportGpuCompleteP95Ms": 7.050142,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 429940736,
+        "lastResidentBytes": 442363904,
+        "maximumResidentBytes": 442363904,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 101456000,
+        "bodyGpuPayloadBytes": 34656000,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 441946112,
+      "inferenceTruncatedQueries": 61,
+      "inferenceInitialBuildMs": 85.989724,
+      "inferenceQueryP95Ms": 0.231761,
+      "inferenceUpdateP95Ms": 1.188901
+    },
+    {
+      "label": "unique-1000-1",
+      "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+      "sceneP95Ms": 1.887941,
+      "pickP95Ms": 0.048392,
+      "editP95Ms": 16.63814,
+      "viewportGpuCompleteP95Ms": 2.203021,
+      "editToViewportGpuCompleteP95Ms": 4.301022,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 426717184,
+        "lastResidentBytes": 447156224,
+        "maximumResidentBytes": 447156224,
+        "maximumHistoryBytes": 17660500,
+        "bodyVectorCapacityBytes": 101456000,
+        "bodyGpuPayloadBytes": 34656000,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 446726144,
+      "inferenceTruncatedQueries": 61,
+      "inferenceInitialBuildMs": 101.864036,
+      "inferenceQueryP95Ms": 0.290212,
+      "inferenceUpdateP95Ms": 0.643774
+    },
+    {
+      "label": "deep-1000-1",
+      "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+      "sceneP95Ms": 1.81414,
+      "pickP95Ms": 0.149764,
+      "editP95Ms": 20.626876,
+      "viewportGpuCompleteP95Ms": 2.135172,
+      "editToViewportGpuCompleteP95Ms": 17.138059,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 430120960,
+        "lastResidentBytes": 442765312,
+        "maximumResidentBytes": 442769408,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 101456000,
+        "bodyGpuPayloadBytes": 34656000,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 442507264,
+      "inferenceTruncatedQueries": 61,
+      "inferenceInitialBuildMs": 88.744683,
+      "inferenceQueryP95Ms": 0.243864,
+      "inferenceUpdateP95Ms": 3.799557
+    },
+    {
+      "label": "far-1000-1",
+      "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+      "sceneP95Ms": 2.085808,
+      "pickP95Ms": 0.083129,
+      "editP95Ms": 16.243007,
+      "viewportGpuCompleteP95Ms": 2.504634,
+      "editToViewportGpuCompleteP95Ms": 7.312439,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 429944832,
+        "lastResidentBytes": 442269696,
+        "maximumResidentBytes": 442269696,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 101456000,
+        "bodyGpuPayloadBytes": 34656000,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 441970688,
+      "inferenceTruncatedQueries": 61,
+      "inferenceInitialBuildMs": 83.963631,
+      "inferenceQueryP95Ms": 0.227903,
+      "inferenceUpdateP95Ms": 1.170857
+    },
+    {
+      "label": "textures-1000-1",
+      "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+      "sceneP95Ms": 1.947394,
+      "pickP95Ms": 0.065564,
+      "editP95Ms": 16.151161,
+      "viewportGpuCompleteP95Ms": 2.295567,
+      "editToViewportGpuCompleteP95Ms": 10.485745,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 563322880,
+        "lastResidentBytes": 575426560,
+        "maximumResidentBytes": 575426560,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 101456000,
+        "bodyGpuPayloadBytes": 34656000,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 575033344,
+      "inferenceTruncatedQueries": 61,
+      "inferenceInitialBuildMs": 87.059073,
+      "inferenceQueryP95Ms": 0.242802,
+      "inferenceUpdateP95Ms": 1.124469
+    },
+    {
+      "label": "repeated-10000-1",
+      "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+      "sceneP95Ms": 25.148528,
+      "pickP95Ms": 0.818206,
+      "editP95Ms": 124.202099,
+      "viewportGpuCompleteP95Ms": 27.049333,
+      "editToViewportGpuCompleteP95Ms": 97.549795,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 3155202048,
+        "lastResidentBytes": 3176624128,
+        "maximumResidentBytes": 3176624128,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 1014560000,
+        "bodyGpuPayloadBytes": 346560000,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 3176419328,
+      "inferenceTruncatedQueries": 61,
+      "inferenceInitialBuildMs": 778.162732,
+      "inferenceQueryP95Ms": 0.862561,
+      "inferenceUpdateP95Ms": 14.262053
+    },
+    {
+      "label": "repeated-10000-2",
+      "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+      "sceneP95Ms": 24.472703,
+      "pickP95Ms": 0.762069,
+      "editP95Ms": 122.891699,
+      "viewportGpuCompleteP95Ms": 26.455013,
+      "editToViewportGpuCompleteP95Ms": 97.013012,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 3155181568,
+        "lastResidentBytes": 3176591360,
+        "maximumResidentBytes": 3176591360,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 1014560000,
+        "bodyGpuPayloadBytes": 346560000,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 3176079360,
+      "inferenceTruncatedQueries": 61,
+      "inferenceInitialBuildMs": 817.45949,
+      "inferenceQueryP95Ms": 0.862961,
+      "inferenceUpdateP95Ms": 14.009957
+    },
+    {
+      "label": "repeated-10000-3",
+      "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+      "sceneP95Ms": 24.260915,
+      "pickP95Ms": 0.789571,
+      "editP95Ms": 125.430071,
+      "viewportGpuCompleteP95Ms": 26.273171,
+      "editToViewportGpuCompleteP95Ms": 98.297307,
+      "editFrameSamples": 500,
+      "history": {
+        "historyCycles": 5,
+        "renderedUndoRedoFrames": 1000,
+        "memorySamples": 65,
+        "firstResidentBytes": 3155243008,
+        "lastResidentBytes": 3176558592,
+        "maximumResidentBytes": 3176558592,
+        "maximumHistoryBytes": 1632500,
+        "bodyVectorCapacityBytes": 1014560000,
+        "bodyGpuPayloadBytes": 346560000,
+        "memoryAcceptance": false
+      },
+      "peakRssBytes": 3176067072,
+      "inferenceTruncatedQueries": 61,
+      "inferenceInitialBuildMs": 826.132789,
+      "inferenceQueryP95Ms": 0.875314,
+      "inferenceUpdateP95Ms": 14.079287
+    }
+  ],
+  "fixtureHashes": {
+    "repeated": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+    "unique": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+    "deep": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+    "far": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+    "textures": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c"
+  },
+  "memoryWithinDeclaredScope": true
+}

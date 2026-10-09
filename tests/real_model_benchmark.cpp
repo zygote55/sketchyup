@@ -4,6 +4,7 @@
 #include "core/components.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
+#include "drm_memory.hpp"
 #include "io/document_io.hpp"
 #include "io/model_style_io.hpp"
 #include <QApplication>
@@ -22,6 +23,7 @@
 #include <iostream>
 #include <numbers>
 #include <sys/resource.h>
+#include <unistd.h>
 using namespace sketchy;
 namespace {
 void check(bool value, const char *message) {
@@ -36,6 +38,16 @@ qint64 peakRss() {
     rusage usage{};
     check(getrusage(RUSAGE_SELF, &usage) == 0, "Read benchmark RSS");
     return qint64(usage.ru_maxrss) * 1024;
+}
+qint64 residentBytes() {
+    QFile status("/proc/self/statm");
+    check(status.open(QIODevice::ReadOnly), "Read current benchmark RSS");
+    const auto columns = status.readAll().simplified().split(' ');
+    bool ok{};
+    const auto pages = columns.size() > 1 ? columns[1].toLongLong(&ok) : 0;
+    const auto pageSize = ::sysconf(_SC_PAGESIZE);
+    check(ok && pages > 0 && pageSize > 0, "Current RSS has valid resident pages");
+    return pages * pageSize;
 }
 class TimedViewport final : public Viewport {
   public:
@@ -96,14 +108,21 @@ int main(int argc, char **argv) {
     qputenv("XDG_DATA_HOME", settings.path().toUtf8());
     QApplication app(argc, argv);
     try {
-        check(argc <= 3, "Usage: real_model_benchmark [count] [repeated|unique|deep|far|textures]");
+        check(argc <= 4, "Usage: real_model_benchmark [count] [repeated|unique|deep|far|textures] "
+                         "[rendered-history-cycles]");
         bool ok = argc == 1;
         const int count = argc == 1 ? 1000 : QString::fromLocal8Bit(argv[1]).toInt(&ok);
         check(ok && count >= 1 && count <= 10000, "Instance count must be 1..10000");
-        const QString scenario = argc == 3 ? QString::fromLocal8Bit(argv[2]) : "repeated";
+        const QString scenario = argc >= 3 ? QString::fromLocal8Bit(argv[2]) : "repeated";
         check(scenario == "repeated" || scenario == "unique" || scenario == "deep" ||
                   scenario == "far" || scenario == "textures",
               "Unknown benchmark scenario");
+        const bool renderHistory = argc == 4;
+        bool cyclesValid = !renderHistory;
+        const int historyCycles =
+            renderHistory ? QString::fromLocal8Bit(argv[3]).toInt(&cyclesValid) : 1;
+        check(cyclesValid && historyCycles >= 1 && historyCycles <= 20,
+              "Rendered history cycles must be 1..20");
         QElapsedTimer timer;
         timer.start();
         Document doc;
@@ -233,6 +252,7 @@ int main(int argc, char **argv) {
             frame();
         const auto warmStats = view.renderStats();
         const auto warmMemory = view.geometryCacheMemory();
+        const auto warmDriverMemory = benchmark::processDrmMemory();
         QSize pixels;
         for (int i = 0; i < 50; ++i) {
             pixels = frame();
@@ -311,33 +331,84 @@ int main(int argc, char **argv) {
         const auto editing = instances.front();
         const auto base = doc.bodies().at(editing)->transform;
         const auto baselineBytes = doc.historyBytes();
-        for (int i = 0; i < 100; ++i) {
-            timer.restart();
-            view.beginEditFrame(timer);
-            doc.transform(editing, Transform::translation({0, 0, .01 * (i + 1)}) * base);
-            view.refresh();
-            frame();
-            edits.push_back(timer.nsecsElapsed() / 1e6);
-            editFrames.push_back(view.editFrameMs());
-            check(editFrames.back() <= edits.back(),
-                  "First completed edit frame precedes the enclosing readback completion");
-            const auto before = inference.bodyBuilds();
-            timer.restart();
-            inference.sync(doc);
-            inferenceUpdates.push_back(timer.nsecsElapsed() / 1e6);
-            check(inference.bodyBuilds() - before == (scenario == "unique" ? 1 : 2),
-                  "Inference transform rebuilds only the changed placement");
+        QJsonArray historyMemorySamples;
+        qint64 maximumHistoryBytes{};
+        auto historySample = [&](const char *phase, int cycle, int step) {
+            if (!renderHistory || step % 25)
+                return;
+            const auto memory = view.geometryCacheMemory();
+            check(memory.bodyVectorCapacityBytes == warmMemory.bodyVectorCapacityBytes &&
+                      memory.bodyGpuPayloadBytes == warmMemory.bodyGpuPayloadBytes,
+                  "Rendered history retains fixed body-cache capacity");
+            maximumHistoryBytes = std::max(maximumHistoryBytes, qint64(doc.historyBytes()));
+            historyMemorySamples.append(
+                QJsonObject{{"cycle", cycle + 1},
+                            {"phase", phase},
+                            {"step", step},
+                            {"residentBytes", residentBytes()},
+                            {"peakRssBytes", peakRss()},
+                            {"historyBytes", qint64(doc.historyBytes())},
+                            {"bodyVectorCapacityBytes", qint64(memory.bodyVectorCapacityBytes)},
+                            {"bodyGpuPayloadBytes", qint64(memory.bodyGpuPayloadBytes)},
+                            {"drmMemory", benchmark::processDrmMemory()}});
+        };
+        qint64 historyBytes{};
+        for (int cycle = 0; cycle < historyCycles; ++cycle) {
+            const auto cycleStart = doc.bodies().at(editing)->transform;
+            historySample("start", cycle, 0);
+            for (int i = 0; i < 100; ++i) {
+                timer.restart();
+                view.beginEditFrame(timer);
+                doc.transform(editing,
+                              Transform::translation({0, 0, .01 * (cycle * 100 + i + 1)}) * base);
+                view.refresh();
+                frame();
+                edits.push_back(timer.nsecsElapsed() / 1e6);
+                editFrames.push_back(view.editFrameMs());
+                check(editFrames.back() <= edits.back(),
+                      "First completed edit frame precedes the enclosing readback completion");
+                const auto before = inference.bodyBuilds();
+                timer.restart();
+                inference.sync(doc);
+                inferenceUpdates.push_back(timer.nsecsElapsed() / 1e6);
+                check(inference.bodyBuilds() - before == (scenario == "unique" ? 1 : 2),
+                      "Inference transform rebuilds only the changed placement");
+                historySample("edit", cycle, i + 1);
+            }
+            const auto cycleEnd = doc.bodies().at(editing)->transform;
+            historyBytes = doc.historyBytes();
+            for (int i = 0; i < 100; ++i) {
+                check(doc.canUndo(), "Every history edit remains undoable");
+                doc.undo();
+                if (renderHistory) {
+                    view.refresh();
+                    frame();
+                    inference.sync(doc);
+                    historySample("undo", cycle, i + 1);
+                }
+            }
+            check(doc.bodies().at(editing)->transform == cycleStart,
+                  "Undo restores the cycle's exact initial placement");
+            for (int i = 0; i < 100; ++i) {
+                check(doc.canRedo(), "Every history edit remains redoable");
+                doc.redo();
+                if (renderHistory) {
+                    view.refresh();
+                    frame();
+                    inference.sync(doc);
+                    historySample("redo", cycle, i + 1);
+                }
+            }
+            check(doc.bodies().at(editing)->transform == cycleEnd,
+                  "Redo restores the cycle's exact final placement");
+            check(doc.historyBytes() == size_t(historyBytes),
+                  "Undo/redo retains bounded history allocation");
         }
-        const auto historyBytes = doc.historyBytes();
-        for (int i = 0; i < 100; ++i)
-            doc.undo();
-        for (int i = 0; i < 100; ++i)
-            doc.redo();
-        check(doc.historyBytes() == historyBytes, "Undo/redo retains bounded history allocation");
         inference.sync(doc);
         frame();
         infer(editing); // The post-history index must describe the current revision.
         const auto finalMemory = view.geometryCacheMemory();
+        const auto finalDriverMemory = benchmark::processDrmMemory();
         check(finalMemory.bodyVectorCapacityBytes == warmMemory.bodyVectorCapacityBytes &&
                   finalMemory.bodyGpuPayloadBytes == warmMemory.bodyGpuPayloadBytes,
               "Repeated transform edits retain fixed body-cache capacity");
@@ -397,7 +468,7 @@ int main(int argc, char **argv) {
             {"inferenceUpdateP95Ms", p95(inferenceUpdates)},
             {"inferenceQuerySamples", 50},
             {"inferenceWarmupQueries", 10},
-            {"inferenceUpdateSamples", 100},
+            {"inferenceUpdateSamples", qint64(inferenceUpdates.size())},
             {"inferencePrimitiveCount", qint64(inference.primitiveCount())},
             {"inferenceInitialBodyBuilds", qint64(inferenceInitialBuilds)},
             {"inferenceFinalBodyBuilds", qint64(inference.bodyBuilds())},
@@ -416,6 +487,22 @@ int main(int argc, char **argv) {
             {"finalPeakRssBytes", peakRss()},
             {"initialHistoryBytes", qint64(baselineBytes)},
             {"retainedHistoryBytes", qint64(historyBytes)},
+            {"renderedHistory", renderHistory},
+            {"historyCycles", historyCycles},
+            {"historyEdits", historyCycles * 100},
+            {"historyUndoOperations", historyCycles * 100},
+            {"historyRedoOperations", historyCycles * 100},
+            {"historyUndoRedoFrames", renderHistory ? historyCycles * 200 : 0},
+            {"maximumSampledHistoryBytes", maximumHistoryBytes},
+            {"historyMemorySamples", historyMemorySamples},
+            {"historyMemoryScope",
+             "Current process RSS from Linux statm after completed "
+             "viewport frames and inference synchronization; samples every "
+             "25 operations. DRM client buffer-object counters are reported separately; "
+             "driver internals and other device allocations remain unaccounted. "
+             "No numeric release memory gate is inferred."},
+            {"warmDrmMemory", warmDriverMemory},
+            {"finalDrmMemory", finalDriverMemory},
             {"bodyMeshBuilds", qint64(view.renderStats().bodyMeshBuilds)},
             {"uploadedBytesCumulative", qint64(view.renderStats().uploadedBytes)},
             {"bodyCacheVectorCapacityBytes", qint64(finalMemory.bodyVectorCapacityBytes)},
