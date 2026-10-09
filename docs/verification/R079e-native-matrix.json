@@ -1,0 +1,30 @@
+[
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "library_input_tests",
+    "exitCode": 0,
+    "seconds": 4.071
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "scene_input_tests",
+    "exitCode": 0,
+    "seconds": 4.263
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "navigation_input_tests",
+    "exitCode": 0,
+    "seconds": 3.23
+  },
+  {
+    "platform": "wayland",
+    "scale": 2,
+    "target": "native_mcp_tests",
+    "exitCode": 0,
+    "seconds": 4.202
+  }
+]

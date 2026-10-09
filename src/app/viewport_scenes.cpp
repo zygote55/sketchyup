@@ -146,7 +146,7 @@ void Viewport::applySceneCamera(const SceneCamera &camera) {
     ortho_ = camera.orthographic;
     cameraChanged();
 }
-void Viewport::recallSavedScene(Id id) {
+void Viewport::recallSavedScene(Id id, bool animate) {
     if (!doc_.scenes().contains(id))
         throw std::runtime_error("Saved scene no longer exists");
     const auto snapshot = doc_.scenes().at(id)->snapshot;
@@ -163,7 +163,7 @@ void Viewport::recallSavedScene(Id id) {
     if (snapshot.section)
         clipPlane_ = snapshot.section->plane;
     if (snapshot.camera) {
-        if (reducedMotion_ || sceneTransitionMs_ == 0 || from == *snapshot.camera)
+        if (!animate || reducedMotion_ || sceneTransitionMs_ == 0 || from == *snapshot.camera)
             applySceneCamera(*snapshot.camera);
         else {
             sceneCameraFrom_ = from;
