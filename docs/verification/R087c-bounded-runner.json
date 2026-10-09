@@ -1,0 +1,15 @@
+{
+  "memoryBytes": 4294967296,
+  "memorySwapBytes": 4294967296,
+  "nanoCpus": 1000000000,
+  "cpuSet": "21",
+  "pidsLimit": 256,
+  "restartPolicy": "no",
+  "kernelLimitsVerified": true,
+  "diskBackedTemporaryStorage": true,
+  "concurrentRunRejected": true,
+  "memoryBackedPackageRefused": true,
+  "existingRunRefused": true,
+  "termStopsOwnedContainer": true,
+  "containerExitStatusPreserved": true
+}
