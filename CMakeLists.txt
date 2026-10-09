@@ -798,6 +798,8 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_link_libraries(tool_lifecycle_tests PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(interaction_tests tests/interaction_tests.cpp)
     target_link_libraries(interaction_tests PRIVATE sketchyup_desktop Qt6::Test)
+    add_executable(preference_input_tests tests/preference_input_tests.cpp)
+    target_link_libraries(preference_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(native_accessibility_audit tests/native_accessibility_audit.cpp)
     target_link_libraries(native_accessibility_audit PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(shell_tests tests/shell_tests.cpp)
@@ -1054,3 +1056,5 @@ install(FILES docs/decisions/0140-optional-capability-discovery.md DESTINATION s
 
 install(FILES docs/M8_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
 install(FILES docs/decisions/0145-native-accessibility-inventory.md DESTINATION share/doc/sketchyup/decisions)
+
+install(FILES docs/decisions/0146-legacy-preference-compatibility.md DESTINATION share/doc/sketchyup/decisions)

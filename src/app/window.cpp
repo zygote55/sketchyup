@@ -767,6 +767,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         auto *entry =
             action("view.theme." + QString::number(mode), themeNames[mode], {}, [this, mode] {
                 themeMode_ = mode;
+                QSettings("SketchyUp", "SketchyUp").setValue("theme", mode);
                 applyTheme();
             });
         entry->setCheckable(true);
