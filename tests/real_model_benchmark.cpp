@@ -1,12 +1,16 @@
 #include "app/surface_format.hpp"
 #include "app/viewport.hpp"
+#include "core/assets.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
+#include "core/materials.hpp"
 #include "io/document_io.hpp"
 #include "io/model_style_io.hpp"
 #include <QApplication>
+#include <QBuffer>
 #include <QCryptographicHash>
 #include <QElapsedTimer>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSysInfo>
@@ -31,6 +35,28 @@ qint64 peakRss() {
     check(getrusage(RUSAGE_SELF, &usage) == 0, "Read benchmark RSS");
     return qint64(usage.ru_maxrss) * 1024;
 }
+AssetPayloadPtr largeTexture(int variant) {
+    QImage image(4096, 4096, QImage::Format_RGBA8888);
+    check(!image.isNull(), "Allocate full-resolution texture fixture");
+    image.setDotsPerMeterX(0);
+    image.setDotsPerMeterY(0);
+    for (int y = 0; y < image.height(); ++y) {
+        auto *row = image.scanLine(y);
+        for (int x = 0; x < image.width(); ++x) {
+            const bool bright = ((x / 64 + y / 64) % 2) != 0;
+            row[4 * x] = variant == 0 ? 220 : 30;
+            row[4 * x + 1] = bright ? 180 : 40;
+            row[4 * x + 2] = variant == 1 ? 220 : 30;
+            row[4 * x + 3] = 255;
+        }
+    }
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    check(buffer.open(QIODevice::WriteOnly) && image.save(&buffer, "PNG"),
+          "Encode complete large texture fixture");
+    return std::make_shared<const AssetPayload>(
+        std::vector<std::uint8_t>(bytes.begin(), bytes.end()));
+}
 } // namespace
 int main(int argc, char **argv) {
     QSurfaceFormat format;
@@ -44,13 +70,13 @@ int main(int argc, char **argv) {
     qputenv("XDG_DATA_HOME", settings.path().toUtf8());
     QApplication app(argc, argv);
     try {
-        check(argc <= 3, "Usage: real_model_benchmark [count] [repeated|unique|deep|far]");
+        check(argc <= 3, "Usage: real_model_benchmark [count] [repeated|unique|deep|far|textures]");
         bool ok = argc == 1;
         const int count = argc == 1 ? 1000 : QString::fromLocal8Bit(argv[1]).toInt(&ok);
         check(ok && count >= 1 && count <= 10000, "Instance count must be 1..10000");
         const QString scenario = argc == 3 ? QString::fromLocal8Bit(argv[2]) : "repeated";
         check(scenario == "repeated" || scenario == "unique" || scenario == "deep" ||
-                  scenario == "far",
+                  scenario == "far" || scenario == "textures",
               "Unknown benchmark scenario");
         QElapsedTimer timer;
         timer.start();
@@ -79,7 +105,16 @@ int main(int argc, char **argv) {
         } else {
             // Preserve the original repeated fixture, including allocation and
             // revision order, so its canonical hash remains comparable.
-            const auto component = createComponent(doc, prism(1), "26-sided benchmark prism");
+            const auto body = prism(1);
+            if (scenario == "textures") {
+                const auto front = createAsset(doc, "4096px front", "image/png", largeTexture(0));
+                const auto back = createAsset(doc, "4096px back", "image/png", largeTexture(1));
+                assignMaterial(doc, body, {}, createMaterial(doc, "Front", {1, 1, 1}, 1, front),
+                               true, false);
+                assignMaterial(doc, body, {}, createMaterial(doc, "Back", {1, 1, 1}, 1, back),
+                               false, true);
+            }
+            const auto component = createComponent(doc, body, "26-sided benchmark prism");
             instances.push_back(component.instance);
             for (int i = 1; i < count; ++i)
                 instances.push_back(placeComponent(doc, component.definition,
@@ -117,6 +152,8 @@ int main(int argc, char **argv) {
         Viewport view(doc, &host);
         view.resize(1920, 1080);
         view.setSynchronousFrameTiming(true);
+        QElapsedTimer textureReady;
+        textureReady.start();
         host.show();
         check(QTest::qWaitForWindowExposed(&host), "Benchmark viewport exposed");
         // Native Wayland may deliver the final output scale after first exposure.
@@ -150,6 +187,16 @@ int main(int argc, char **argv) {
                   "Benchmark requires an exact 1920 by 1080 framebuffer");
             return image.size();
         };
+        double textureReadyMs{};
+        if (scenario == "textures") {
+            frame();
+            while (view.texturesPending() && textureReady.elapsed() < 15000)
+                QTest::qWait(10);
+            frame(); // Consume the completed decoder generation and upload it.
+            check(!view.texturesPending() && view.textureSummary().isEmpty(),
+                  "Both maximum-size textures are ready without a color fallback");
+            textureReadyMs = textureReady.nsecsElapsed() / 1e6;
+        }
         for (int i = 0; i < 10; ++i)
             frame();
         const auto warmStats = view.renderStats();
@@ -190,6 +237,8 @@ int main(int argc, char **argv) {
                   finalMemory.bodyGpuPayloadBytes == warmMemory.bodyGpuPayloadBytes,
               "Repeated transform edits retain fixed body-cache capacity");
         check(view.renderStats().glError == 0, "Benchmark leaves no OpenGL error");
+        check(!view.texturesPending() && view.textureSummary().isEmpty(),
+              "Benchmark finishes without missing or over-budget textures");
         QJsonObject report{
             {"fixtureVersion", scenario == "repeated" ? 1 : 2},
             {"fixtureScenario", scenario},
@@ -198,6 +247,11 @@ int main(int argc, char **argv) {
             {"placements", count},
             {"outerGroups", outerGroups},
             {"coordinateOffset", QJsonArray{offset.x, offset.y, offset.z}},
+            {"fixtureTextureCount", scenario == "textures" ? 2 : 0},
+            {"fixtureTextureWidth", scenario == "textures" ? 4096 : 0},
+            {"fixtureTextureHeight", scenario == "textures" ? 4096 : 0},
+            {"fixtureTextureRgbaBytes", scenario == "textures" ? qint64(128 * 1024 * 1024) : 0},
+            {"textureReadyAfterShowMs", textureReadyMs},
             {"triangles", qint64(triangles)},
             {"bodies", qint64(doc.bodies().size())},
             {"platform", QGuiApplication::platformName()},

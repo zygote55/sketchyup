@@ -496,7 +496,7 @@
   "rootCauseConfirmed": false,
   "releaseAcceptance": false,
   "originalQualificationFreezeSha256": "f1c9bc90a6da16e34ca60b436875138cf76e5384e31f325b59515c8078df5ddb",
-  "publicationOriginalHead": "8e0afcbbd6ae314500df3a453e2c58f608a8cbbc",
+  "publicationOriginalHead": "8770fa52314e5af0e5d63dddd9ae8ce9bbe36d90",
   "applicationAndNativeFixtureInputsByteIdenticalFor236And237": true,
   "freshCompleteCurrentHeadCIRequired": true,
   "legacyInheritedSingleFailureMetadataNotUsedForThesePRs": true

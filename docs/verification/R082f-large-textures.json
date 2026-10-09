@@ -1,0 +1,93 @@
+{
+  "passed": true,
+  "source": "c018449641e3178315157f19e1acf2279c7b2351",
+  "releaseAcceptance": false,
+  "binarySha256": "33eeeae6aa76b8b9ac0987584fc91f119aeb15f604f1b75f3d6eee70c8db5ed7",
+  "binaryBytes": 4732912,
+  "measurements": [
+    {
+      "label": "repeated-1000-1",
+      "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+      "sceneP95Ms": 2.189954,
+      "pickP95Ms": 0.060776,
+      "editP95Ms": 17.814038,
+      "peakRssBytes": 454746112,
+      "reportSha256": "ae01435d11c304c30556d2aedd6b209995af66d28a5f96916c6f23e7704d8737"
+    },
+    {
+      "label": "textures-smoke",
+      "fixtureSha256": "171096beb61bd5290e70faa4d0988894ac514d86764e6517eabf0ddcd6e06e8b",
+      "sceneP95Ms": 0.29466,
+      "pickP95Ms": 0.018746,
+      "editP95Ms": 16.948021,
+      "peakRssBytes": 331915264,
+      "reportSha256": "d8476b75caa3db21ae05b9f24c16e5719cdff849a61d3dce4b59589d33cc43ed"
+    },
+    {
+      "label": "textures-1000-1",
+      "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+      "sceneP95Ms": 2.270777,
+      "pickP95Ms": 0.067208,
+      "editP95Ms": 18.482339,
+      "peakRssBytes": 587071488,
+      "reportSha256": "30a5b12d8d3bfaa3acab6e9fc25b122988704959ccdc0e5269b112f8d39eea2b"
+    },
+    {
+      "label": "textures-1000-2",
+      "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+      "sceneP95Ms": 2.527395,
+      "pickP95Ms": 0.077918,
+      "editP95Ms": 20.464377,
+      "peakRssBytes": 588423168,
+      "reportSha256": "f01827d8d1ae85fdbd44f03728799af232f2fc96e91926b50eca9c9dbcd683b6"
+    },
+    {
+      "label": "textures-1000-3",
+      "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+      "sceneP95Ms": 2.606495,
+      "pickP95Ms": 0.071486,
+      "editP95Ms": 18.660878,
+      "peakRssBytes": 587833344,
+      "reportSha256": "3de02fc6c24b6931d7ec3ea8dc0f8d288119e280a3f438426df9966d7e4e0174"
+    }
+  ],
+  "fixtureHashes": {
+    "repeated": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+    "textures": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c"
+  },
+  "buildProvenance": {
+    "runtimeSource": "29fb31bba53e0b6dd2c0d5a73ffbc7fa1b44903e",
+    "benchmarkSource": "c018449641e3178315157f19e1acf2279c7b2351",
+    "benchmarkSourceSha256": "ca4864c57ed3bd35553d771d6206cbbf9d8083ad3a0e5e3b2f4ca3a6f8df2253",
+    "runtimeAndCmakeInputsByteUnchanged": true,
+    "cachedBuild": "Single benchmark-source overlay on completed package cache; original source restored and compared after build. Existing package artifacts were not rebuilt or modified.",
+    "cpuCeiling": 8,
+    "buildJobs": 2,
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0
+  },
+  "remoteResources": {
+    "cpuQuota": 1,
+    "cpuAffinity": [
+      11
+    ],
+    "memoryBytes": 4294967296,
+    "extraSwapBytes": 0,
+    "pids": 128,
+    "deadlineSeconds": 300,
+    "persistentTemporaryFiles": true
+  },
+  "hardwareRecord": "R085f-discrete-hardware.json",
+  "preflight": {
+    "availableMemoryKiB": 21987796,
+    "loadAverage": [
+      "0.00",
+      "0.01",
+      "0.02"
+    ],
+    "kernel": "7.2.7-1-cachyos",
+    "dpmsPower": 0,
+    "dpmsEnabled": 0,
+    "glxinfo": "name of display: :0\ndisplay: :0  screen: 0\ndirect rendering: Yes\nExtended renderer info (GLX_MESA_query_renderer):\n    Vendor: AMD (0x1002)\n    Device: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) (0x73bf)\n    Version: 26.3.0\n    Accelerated: yes\n    Video memory: 16384MB\n    Unified memory: no\n    Preferred profile: core (0x1)\n    Max core profile version: 4.6\n    Max compat profile version: 4.6\n    Max GLES1 profile version: 1.1\n    Max GLES[23] profile version: 3.2\nMemory info (GL_ATI_meminfo):\n    VBO free memory - total: 16235 MB, largest block: 16235 MB\n    VBO free aux. memory - total: 11665 MB, largest block: 11665 MB\n    Texture free memory - total: 16235 MB, largest block: 16235 MB\n    Texture free aux. memory - total: 11665 MB, largest block: 11665 MB\n    Renderbuffer free memory - total: 16235 MB, largest block: 16235 MB\n    Renderbuffer free aux. memory - total: 11665 MB, largest block: 11665 MB\nMemory info (GL_NVX_gpu_memory_info):\n    Dedicated video memory: 16384 MB\n    Total available memory: 28077 MB\n    Currently available dedicated video memory: 16235 MB\nOpenGL vendor string: AMD\nOpenGL renderer string: AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos)\nOpenGL core profile version string: 4.6 (Core Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL core profile shading language version string: 4.60\nOpenGL core profile context flags: (none)\nOpenGL core profile profile mask: core profile\n\nOpenGL version string: 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL shading language version string: 4.60\nOpenGL context flags: (none)\nOpenGL profile mask: compatibility profile\n\nOpenGL ES profile version string: OpenGL ES 3.2 Mesa 26.3.0-devel (git-8ea6e9dd41)\nOpenGL ES profile shading language version string: OpenGL ES GLSL ES 3.20\n\n"
+  }
+}
