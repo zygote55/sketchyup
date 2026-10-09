@@ -1,0 +1,16 @@
+import hashlib,json,os,subprocess,sys
+from pathlib import Path
+root=Path('/home/keith/sketchyup-verification/r082ab-native-persistence-20261008')
+label=sys.argv[1];freeze=json.loads((root/'freeze.json').read_text());case=next(c for c in freeze['cases'] if c['label']==label)
+def sha(p):
+ with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+assert sha(root/'worker.py')==freeze['workerSha256']
+for name,h in freeze['artifacts'].items():assert sha(root/name)==h,name
+cg=Path('/sys/fs/cgroup')/Path('/proc/self/cgroup').read_text().strip().split(':',2)[2].lstrip('/')
+limits={n:(cg/n).read_text().strip() for n in ('memory.max','memory.swap.max','cpu.max','pids.max')}
+assert limits=={'memory.max':'4294967296','memory.swap.max':'0','cpu.max':'800000 100000','pids.max':'128'}
+assert os.sched_getaffinity(0)==set(range(8))
+limits['cpuAffinity']=sorted(os.sched_getaffinity(0));limits['tmpdir']=os.environ['TMPDIR'];(root/'evidence'/f'{label}-limits.json').write_text(json.dumps(limits,indent=2)+'\n')
+r=subprocess.run([str(root/'bin/file_operation_input_tests'),str(root/'fixture/canonical.sketchyup')])
+(root/'evidence'/f'{label}-worker-exit.json').write_text(json.dumps({'exitCode':r.returncode,'memoryPeakBytes':int((cg/'memory.peak').read_text()),'memorySwapPeakBytes':int((cg/'memory.swap.peak').read_text()),'memoryEvents':(cg/'memory.events').read_text(),'sourceFixtureSha256After':sha(root/'fixture/canonical.sketchyup')},indent=2)+'\n')
+raise SystemExit(r.returncode)

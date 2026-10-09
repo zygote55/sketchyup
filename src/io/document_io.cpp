@@ -20,7 +20,8 @@
 #include <utility>
 namespace sketchy {
 // This access bridge is confined to native decoding. All adopted bodies were allocated
-// by decodeBodies; validation and publication remain inside Document::restoreRecords.
+// by decodeBodies and their topology has already been validated. Remaining record
+// validation and publication stay inside Document::restoreRecords.
 struct DocumentDecodeAccess {
     template <class... Args> static void restore(Document &document, Args &&...args) {
         document.restoreRecords(true, std::forward<Args>(args)...);
@@ -481,9 +482,11 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
                          .second)
                     throw std::runtime_error("Duplicate edge ID");
             }
-            b->topology.validate(b->surface);
         } else
             b->topology = Topology::rebuild(b->surface, {});
+        // Legacy records need the same validation after rebuilding their edge IDs.
+        // No later decoder step changes either the surface or its topology.
+        b->topology.validate(b->surface);
         if (version >= 4) {
             const auto curves = array(o["curves"]);
             if (curves.size() > 1024)

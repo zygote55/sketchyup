@@ -1,0 +1,67 @@
+{
+  "frozenAt": "2026-10-08T12:02:38.127531+00:00",
+  "source": "ed31cdf811357647fabf61d641ff1205bfc7a528",
+  "qualification": "build/native-persistence-r082aa/build-result.json",
+  "productionLimits": true,
+  "releaseAcceptance": false,
+  "fixturePath": "/home/keith/projects/sketchyup-render-ci/build/r082c-persistence-fixtures/canonical.sketchyup",
+  "fixtureBytes": 100671415,
+  "artifacts": {
+    "bin/file_operation_input_tests": "d3dc1ada0f250e318ff24399cc71539b2a9a31db6b62ac68a721b4c34e731345",
+    "bin/sketchyup-text-worker": "de40a2767d0853c6ecc28534f17fcda5ce001b53acb5e5876007bdc57a4dee53",
+    "fixture/canonical.sketchyup": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+  },
+  "controllerSha256": "6a5332ad288d5a9ec23e584d2d7254a40a4db5d8c059d72c51b2338243143b30",
+  "remoteControllerSha256": "459200f31c8ca46b625270e2df737059c5014765a0541eb6d2ade5d04c3052c3",
+  "workerSha256": "259e0014e595d034940ac613aba181f9cafb4e77af32da125b4f13096e67eb25",
+  "preflightSha256": "7345bd841837ee73ad7cf88c1db74e4af1736b71c7cf897369125ac174640b5a",
+  "cases": [
+    {
+      "label": "warm-1",
+      "policy": "warm",
+      "repeat": 1
+    },
+    {
+      "label": "verified-cold-1",
+      "policy": "verified-cold",
+      "repeat": 1
+    },
+    {
+      "label": "warm-2",
+      "policy": "warm",
+      "repeat": 2
+    },
+    {
+      "label": "verified-cold-2",
+      "policy": "verified-cold",
+      "repeat": 2
+    },
+    {
+      "label": "warm-3",
+      "policy": "warm",
+      "repeat": 3
+    },
+    {
+      "label": "verified-cold-3",
+      "policy": "verified-cold",
+      "repeat": 3
+    }
+  ],
+  "resources": {
+    "runtimeHostMemoryBytes": 4294967296,
+    "swapBytes": 0,
+    "cpuAffinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "cpuQuotaPercent": 800,
+    "caseDeadlineSeconds": 90
+  },
+  "scope": "Actual native X11 load/save, canonical byte checks, reentrancy/stale-save guards, first loaded frame and event-loop heartbeat. Cold policy verifies only owned input-file OS pages, not controller/library/UI coldness. Three repetitions per policy; no percentile or full release acceptance."
+}

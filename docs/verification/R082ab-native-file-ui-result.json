@@ -1,0 +1,366 @@
+{
+  "passed": true,
+  "productionLimits": true,
+  "releaseAcceptance": false,
+  "cases": [
+    {
+      "label": "warm-1",
+      "result": {
+        "cache": {
+          "policy": "warm"
+        },
+        "fileBytes": 100671415,
+        "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+        "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+        "passed": true,
+        "platform": "xcb",
+        "releaseAcceptance": false,
+        "scale": 1,
+        "timings": [
+          {
+            "heartbeatCallbacks": 22,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": true,
+            "maximumHeartbeatGapMs": 30.467455,
+            "operation": "open",
+            "operationAndFirstFrameMs": 204.187061,
+            "operationMs": 195.236542,
+            "p95HeartbeatGapMs": 20.807218
+          },
+          {
+            "heartbeatCallbacks": 63,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 54.987906,
+            "operation": "save-with-newer-edit",
+            "operationAndFirstFrameMs": 396.237051,
+            "operationMs": 396.23698,
+            "p95HeartbeatGapMs": 5.722448
+          },
+          {
+            "heartbeatCallbacks": 64,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 32.679577,
+            "operation": "save-current",
+            "operationAndFirstFrameMs": 383.187726,
+            "operationMs": 383.187666,
+            "p95HeartbeatGapMs": 6.719953
+          }
+        ],
+        "viewportLogicalHeight": 714,
+        "viewportLogicalWidth": 950
+      },
+      "worker": {
+        "exitCode": 0,
+        "memoryPeakBytes": 1874173952,
+        "memorySwapPeakBytes": 0,
+        "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+        "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+      },
+      "stdoutSha256": "a29df312693d03ca8a4d3e38681ec630e25f8f15ff26b5317eb9373c03ca6e4a",
+      "stderrSha256": "ed956072e84b78c6c35d7e09e1ef57e1315d2179c0a384d33720906c62c19289"
+    },
+    {
+      "label": "verified-cold-1",
+      "result": {
+        "cache": {
+          "pages": 24578,
+          "policy": "verified-cold",
+          "residentPagesBeforeOpen": 0
+        },
+        "fileBytes": 100671415,
+        "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+        "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+        "passed": true,
+        "platform": "xcb",
+        "releaseAcceptance": false,
+        "scale": 1,
+        "timings": [
+          {
+            "heartbeatCallbacks": 22,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": true,
+            "maximumHeartbeatGapMs": 66.037912,
+            "operation": "open",
+            "operationAndFirstFrameMs": 268.398684,
+            "operationMs": 259.739368,
+            "p95HeartbeatGapMs": 52.367919
+          },
+          {
+            "heartbeatCallbacks": 57,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 65.999289,
+            "operation": "save-with-newer-edit",
+            "operationAndFirstFrameMs": 395.06308,
+            "operationMs": 395.06303,
+            "p95HeartbeatGapMs": 5.766593
+          },
+          {
+            "heartbeatCallbacks": 55,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 56.960933,
+            "operation": "save-current",
+            "operationAndFirstFrameMs": 404.462122,
+            "operationMs": 404.462062,
+            "p95HeartbeatGapMs": 21.646031
+          }
+        ],
+        "viewportLogicalHeight": 714,
+        "viewportLogicalWidth": 950
+      },
+      "worker": {
+        "exitCode": 0,
+        "memoryPeakBytes": 1634463744,
+        "memorySwapPeakBytes": 0,
+        "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+        "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+      },
+      "stdoutSha256": "77630b48ab7c666ac197bcd39f3ee4c58619834fd8d29444eb3b86c18985e4d2",
+      "stderrSha256": "e2c138a03330c1a5115eb17cf016fa5a247133fcb5a0a5eb854f838efea74a7e"
+    },
+    {
+      "label": "warm-2",
+      "result": {
+        "cache": {
+          "policy": "warm"
+        },
+        "fileBytes": 100671415,
+        "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+        "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+        "passed": true,
+        "platform": "xcb",
+        "releaseAcceptance": false,
+        "scale": 1,
+        "timings": [
+          {
+            "heartbeatCallbacks": 22,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": true,
+            "maximumHeartbeatGapMs": 60.924821,
+            "operation": "open",
+            "operationAndFirstFrameMs": 270.3075,
+            "operationMs": 262.900122,
+            "p95HeartbeatGapMs": 56.750984
+          },
+          {
+            "heartbeatCallbacks": 55,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 66.796613,
+            "operation": "save-with-newer-edit",
+            "operationAndFirstFrameMs": 395.830218,
+            "operationMs": 395.830168,
+            "p95HeartbeatGapMs": 5.767434
+          },
+          {
+            "heartbeatCallbacks": 52,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 62.910362,
+            "operation": "save-current",
+            "operationAndFirstFrameMs": 392.112087,
+            "operationMs": 392.112027,
+            "p95HeartbeatGapMs": 27.732952
+          }
+        ],
+        "viewportLogicalHeight": 714,
+        "viewportLogicalWidth": 950
+      },
+      "worker": {
+        "exitCode": 0,
+        "memoryPeakBytes": 1642315776,
+        "memorySwapPeakBytes": 0,
+        "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+        "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+      },
+      "stdoutSha256": "a6f479877ab545466ee06e5968bb9208183ba6c1cb7b3bac2b1c5991ac3ca9f3",
+      "stderrSha256": "5189148b5d889e8637a637673353ebbb19c71137b8ef787527e893d2a4d59df3"
+    },
+    {
+      "label": "verified-cold-2",
+      "result": {
+        "cache": {
+          "pages": 24578,
+          "policy": "verified-cold",
+          "residentPagesBeforeOpen": 0
+        },
+        "fileBytes": 100671415,
+        "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+        "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+        "passed": true,
+        "platform": "xcb",
+        "releaseAcceptance": false,
+        "scale": 1,
+        "timings": [
+          {
+            "heartbeatCallbacks": 22,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": true,
+            "maximumHeartbeatGapMs": 63.399251,
+            "operation": "open",
+            "operationAndFirstFrameMs": 269.098134,
+            "operationMs": 260.753355,
+            "p95HeartbeatGapMs": 55.783176
+          },
+          {
+            "heartbeatCallbacks": 55,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 65.22602,
+            "operation": "save-with-newer-edit",
+            "operationAndFirstFrameMs": 395.02549,
+            "operationMs": 395.02544,
+            "p95HeartbeatGapMs": 6.104213
+          },
+          {
+            "heartbeatCallbacks": 50,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 60.863976,
+            "operation": "save-current",
+            "operationAndFirstFrameMs": 393.714661,
+            "operationMs": 393.714611,
+            "p95HeartbeatGapMs": 29.022621
+          }
+        ],
+        "viewportLogicalHeight": 714,
+        "viewportLogicalWidth": 950
+      },
+      "worker": {
+        "exitCode": 0,
+        "memoryPeakBytes": 1633759232,
+        "memorySwapPeakBytes": 0,
+        "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+        "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+      },
+      "stdoutSha256": "a8b03a83b0db950f632292b04510dce6260103b01b1cc101a41f35bddf5baa5c",
+      "stderrSha256": "db24e2821b66b7cf0b6ade1656eed60a7b146769e990c60ad411704a7442b455"
+    },
+    {
+      "label": "warm-3",
+      "result": {
+        "cache": {
+          "policy": "warm"
+        },
+        "fileBytes": 100671415,
+        "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+        "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+        "passed": true,
+        "platform": "xcb",
+        "releaseAcceptance": false,
+        "scale": 1,
+        "timings": [
+          {
+            "heartbeatCallbacks": 21,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": true,
+            "maximumHeartbeatGapMs": 62.420142,
+            "operation": "open",
+            "operationAndFirstFrameMs": 270.330314,
+            "operationMs": 261.455589,
+            "p95HeartbeatGapMs": 61.138597
+          },
+          {
+            "heartbeatCallbacks": 63,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 64.262551,
+            "operation": "save-with-newer-edit",
+            "operationAndFirstFrameMs": 431.86642,
+            "operationMs": 431.86637,
+            "p95HeartbeatGapMs": 5.745403
+          },
+          {
+            "heartbeatCallbacks": 55,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 56.639703,
+            "operation": "save-current",
+            "operationAndFirstFrameMs": 404.03906,
+            "operationMs": 404.03901,
+            "p95HeartbeatGapMs": 22.930621
+          }
+        ],
+        "viewportLogicalHeight": 714,
+        "viewportLogicalWidth": 950
+      },
+      "worker": {
+        "exitCode": 0,
+        "memoryPeakBytes": 1711996928,
+        "memorySwapPeakBytes": 0,
+        "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+        "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+      },
+      "stdoutSha256": "eb151a2f59032379189c881a0aa7024f647718798b25331aba05ac73bf141831",
+      "stderrSha256": "d72c639ca3d2b8ff7b1ee7f3ad126005f5aa7ccf18b1d221b341de50b310b3d9"
+    },
+    {
+      "label": "verified-cold-3",
+      "result": {
+        "cache": {
+          "pages": 24578,
+          "policy": "verified-cold",
+          "residentPagesBeforeOpen": 0
+        },
+        "fileBytes": 100671415,
+        "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+        "graphics": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.7-1-cachyos) / 4.6 (Compatibility Profile) Mesa 26.3.0-devel (git-8ea6e9dd41)",
+        "passed": true,
+        "platform": "xcb",
+        "releaseAcceptance": false,
+        "scale": 1,
+        "timings": [
+          {
+            "heartbeatCallbacks": 22,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": true,
+            "maximumHeartbeatGapMs": 56.26458,
+            "operation": "open",
+            "operationAndFirstFrameMs": 251.934065,
+            "operationMs": 244.135714,
+            "p95HeartbeatGapMs": 45.616457
+          },
+          {
+            "heartbeatCallbacks": 38,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 131.586665,
+            "operation": "save-with-newer-edit",
+            "operationAndFirstFrameMs": 395.840409,
+            "operationMs": 395.840359,
+            "p95HeartbeatGapMs": 50.220091
+          },
+          {
+            "heartbeatCallbacks": 60,
+            "heartbeatIntervalMs": 5,
+            "includesFirstFrameReadback": false,
+            "maximumHeartbeatGapMs": 29.335836,
+            "operation": "save-current",
+            "operationAndFirstFrameMs": 376.523962,
+            "operationMs": 376.523772,
+            "p95HeartbeatGapMs": 6.953797
+          }
+        ],
+        "viewportLogicalHeight": 714,
+        "viewportLogicalWidth": 950
+      },
+      "worker": {
+        "exitCode": 0,
+        "memoryPeakBytes": 1640108032,
+        "memorySwapPeakBytes": 0,
+        "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+        "sourceFixtureSha256After": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37"
+      },
+      "stdoutSha256": "74593b86df09a0411fc01fb6cecd94c22a5122d1900f594f1385ca7f65a4e9be",
+      "stderrSha256": "a7e9ae58d58871e912cc3e5c21649ac5d82751386f4e7f5e37b0fd67f09dc757"
+    }
+  ],
+  "source": "ed31cdf811357647fabf61d641ff1205bfc7a528",
+  "binarySha256": "d3dc1ada0f250e318ff24399cc71539b2a9a31db6b62ac68a721b4c34e731345",
+  "fixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+  "allMeasuredOperationsUnderFiveSeconds": true,
+  "allMaximumHeartbeatGapsUnder50ms": false
+}

@@ -1,0 +1,29 @@
+import hashlib,json,os,subprocess
+from pathlib import Path
+m=Path('/home/keith/projects/sketchyup');s=m/'build/remote-native-persistence-r082ab';remote='/home/keith/sketchyup-verification/r082ab-native-persistence-20261008';host='sketchyup-gpu';ssh=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5',host];transport='ssh -o BatchMode=yes -o ConnectTimeout=5';report={'passed':False,'productionLimits':True,'releaseAcceptance':False,'cases':[]}
+def sha(p):
+ with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def save():(s/'result.json').write_text(json.dumps(report,indent=2)+'\n')
+try:
+ f=json.loads((s/'freeze.json').read_text());assert sha(Path(__file__))==f['controllerSha256'];build=json.loads((m/'build/native-persistence-r082aa/build-result.json').read_text());assert build['passed']
+ capture=m/'build/local-checks/r082aa-native-persistence/capture';fixture=Path(f['fixturePath']);assert sha(fixture)==f['artifacts']['fixture/canonical.sketchyup']
+ for name in ('file_operation_input_tests','sketchyup-text-worker'):assert sha(capture/name)==f['artifacts']['bin/'+name]
+ preflight=(s/'preflight.py').read_text();assert sha(s/'preflight.py')==f['preflightSha256'];subprocess.run([*ssh,'python3','-'],input=preflight,text=True,check=True,timeout=30)
+ subprocess.run(['rsync','-a','-e',transport,str(s/'run.py'),str(s/'worker.py'),str(s/'freeze.json'),host+':'+remote+'/'],check=True,timeout=30)
+ subprocess.run(['rsync','-a','-e',transport,str(capture/'file_operation_input_tests'),str(capture/'sketchyup-text-worker'),host+':'+remote+'/bin/'],check=True,timeout=30)
+ subprocess.run(['rsync','-a','-e',transport,str(fixture),host+':'+remote+'/fixture/'],check=True,timeout=60)
+ try:
+  for case in f['cases']:
+   label=case['label'];r=subprocess.run([*ssh,'python3',remote+'/run.py',label],check=False,timeout=130)
+   subprocess.run(['rsync','-a','-e',transport,host+':'+remote+'/evidence/',str(s/'evidence')+'/'],check=True,timeout=30)
+   r.check_returncode();data=json.loads(next(l for l in reversed((s/'evidence'/f'{label}.stdout').read_text().splitlines()) if l.startswith('{')));worker=json.loads((s/'evidence'/f'{label}-worker-exit.json').read_text())
+   assert data['passed'] and data['fixtureSha256']==f['artifacts']['fixture/canonical.sketchyup'] and data['fileBytes']==f['fixtureBytes'] and data['platform']=='xcb' and data['scale']==1
+   assert 'AMD' in data['graphics'] or 'Radeon' in data['graphics'];assert 'llvmpipe' not in data['graphics'].lower();assert data['cache']['policy']==case['policy']
+   if case['policy']=='verified-cold':assert data['cache']['residentPagesBeforeOpen']==0
+   assert worker['exitCode']==0 and worker['memorySwapPeakBytes']==0 and worker['sourceFixtureSha256After']==data['fixtureSha256']
+   assert {x['operation'] for x in data['timings']}=={'open','save-with-newer-edit','save-current'}
+   report['cases'].append({'label':label,'result':data,'worker':worker,'stdoutSha256':sha(s/'evidence'/f'{label}.stdout'),'stderrSha256':sha(s/'evidence'/f'{label}.stderr')});save();print(label,'validated',flush=True)
+ finally:subprocess.run(['rsync','-a','-e',transport,host+':'+remote+'/evidence/',str(s/'evidence')+'/'],check=True,timeout=30)
+ assert len(report['cases'])==6;report['passed']=True;report['source']=f['source'];report['binarySha256']=f['artifacts']['bin/file_operation_input_tests'];report['fixtureSha256']=f['artifacts']['fixture/canonical.sketchyup'];report['allMeasuredOperationsUnderFiveSeconds']=all(t['operationMs']<5000 for c in report['cases'] for t in c['result']['timings']);report['allMaximumHeartbeatGapsUnder50ms']=all(t['maximumHeartbeatGapMs']<50 for c in report['cases'] for t in c['result']['timings'])
+except BaseException as e:report['error']=str(e);raise
+finally:save()

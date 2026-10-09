@@ -67,13 +67,13 @@ int main(int argc, char **argv) {
                 qToLittleEndian<quint32>(encoded.size(), header.data() + 12);
                 return header + encoded + replacement;
             };
-            for (int invalid = 0; invalid < 3; ++invalid) {
+            for (int invalid = 0; invalid < 6; ++invalid) {
                 auto root = QJsonDocument::fromJson(payload).object();
                 if (invalid == 0)
                     root["unknownRequiredRecord"] = true;
                 else if (invalid == 1)
                     root["nextId"] = "1";
-                else {
+                else if (invalid == 2) {
                     auto bodies = root["bodies"].toArray();
                     auto body = bodies[0].toObject();
                     auto vertices = body["vertices"].toArray();
@@ -83,12 +83,67 @@ int main(int argc, char **argv) {
                     body["vertices"] = vertices;
                     bodies[0] = body;
                     root["bodies"] = bodies;
+                } else {
+                    auto bodies = root["bodies"].toArray();
+                    auto body = bodies[0].toObject();
+                    auto edges = body["edges"].toArray();
+                    if (invalid == 3)
+                        edges.removeLast();
+                    else if (invalid == 4)
+                        body["nextEdgeId"] = "1";
+                    else {
+                        auto edge = edges[0].toArray();
+                        edge[2] = "999999";
+                        edges[0] = edge;
+                    }
+                    body["edges"] = edges;
+                    bodies[0] = body;
+                    root["bodies"] = bodies;
                 }
                 const auto rejected = QJsonDocument(root).toJson(QJsonDocument::Compact);
                 rejects([&] { decodeDocument(rejected); });
                 rejects([&] { decodeContainer(repack(rejected)); });
             }
             rejects([&] { decodeContainer(repack("{")); });
+        }
+        {
+            auto legacy = QJsonDocument::fromJson(
+                              read(QString(SOURCE_DIR) + "/tests/fixtures/raw-scene-v1.json"))
+                              .object();
+            auto bodies = legacy["bodies"].toArray();
+            auto body = bodies[0].toObject();
+            body["wires"] = QJsonArray{QJsonArray{"1", "1"}};
+            bodies[0] = body;
+            legacy["bodies"] = bodies;
+            rejects([&] { decodeDocument(QJsonDocument(legacy).toJson()); });
+
+            auto components =
+                QJsonDocument::fromJson(
+                    encodeDocument(loadDocument(
+                        QString(SOURCE_DIR) + "/tests/fixtures/container-components-v8.sketchyup")))
+                    .object();
+            auto definitions = components["definitions"].toArray();
+            bool corrupted = false;
+            for (qsizetype index = 0; index < definitions.size() && !corrupted; ++index) {
+                auto definition = definitions[index].toObject();
+                auto members = definition["members"].toArray();
+                for (qsizetype member = 0; member < members.size(); ++member) {
+                    auto record = members[member].toObject();
+                    auto edges = record["edges"].toArray();
+                    if (edges.isEmpty())
+                        continue;
+                    edges.removeLast();
+                    record["edges"] = edges;
+                    members[member] = record;
+                    definition["members"] = members;
+                    definitions[index] = definition;
+                    corrupted = true;
+                    break;
+                }
+            }
+            check(corrupted, "Component fixture includes explicit member topology");
+            components["definitions"] = definitions;
+            rejects([&] { decodeDocument(QJsonDocument(components).toJson()); });
         }
         QDir fixtures(QString(SOURCE_DIR) + "/tests/fixtures");
         const auto names =

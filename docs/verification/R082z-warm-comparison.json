@@ -1,0 +1,140 @@
+{
+  "passed": true,
+  "releaseAcceptance": false,
+  "privateExperimentalOnly": true,
+  "source": "ed31cdf811357647fabf61d641ff1205bfc7a528",
+  "productionLimitsChanged": false,
+  "measurementOrder": [
+    "repeat-1",
+    "repeat-2",
+    "repeat-3",
+    "once-1",
+    "once-2",
+    "once-3"
+  ],
+  "variants": {
+    "repeat": {
+      "binarySha256": "e0c1a4def3887c29dafb8f93fd84e4f1e80834ae39b9b93c6942722edf31bc86",
+      "runs": [
+        {
+          "build": "Release",
+          "byteExactRoundTrip": true,
+          "cachePolicy": "warm",
+          "coldCacheVerified": false,
+          "compiler": "16.2.1 20260810",
+          "fixtureScenario": "repeated-million-triangle-v1",
+          "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+          "fixtureVersion": 1,
+          "nativeBytes": 70248107,
+          "openMs": 4336.066169,
+          "peakRssBytes": 1086136320,
+          "privateExperimentalOnly": true,
+          "qt": "6.11.2",
+          "releaseAcceptance": false,
+          "saveMs": 4280.767621,
+          "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+        },
+        {
+          "build": "Release",
+          "byteExactRoundTrip": true,
+          "cachePolicy": "warm",
+          "coldCacheVerified": false,
+          "compiler": "16.2.1 20260810",
+          "fixtureScenario": "repeated-million-triangle-v1",
+          "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+          "fixtureVersion": 1,
+          "nativeBytes": 70248107,
+          "openMs": 4355.873068,
+          "peakRssBytes": 1085034496,
+          "privateExperimentalOnly": true,
+          "qt": "6.11.2",
+          "releaseAcceptance": false,
+          "saveMs": 4291.097162,
+          "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+        },
+        {
+          "build": "Release",
+          "byteExactRoundTrip": true,
+          "cachePolicy": "warm",
+          "coldCacheVerified": false,
+          "compiler": "16.2.1 20260810",
+          "fixtureScenario": "repeated-million-triangle-v1",
+          "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+          "fixtureVersion": 1,
+          "nativeBytes": 70248107,
+          "openMs": 4292.228812,
+          "peakRssBytes": 1086132224,
+          "privateExperimentalOnly": true,
+          "qt": "6.11.2",
+          "releaseAcceptance": false,
+          "saveMs": 4250.468906,
+          "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+        }
+      ],
+      "allOpenSaveUnderFiveSeconds": true
+    },
+    "once": {
+      "binarySha256": "521addba5c19ba3ee2796db22f10d85d0590bd0758ef8210289d2ffa4dcf6f5d",
+      "runs": [
+        {
+          "build": "Release",
+          "byteExactRoundTrip": true,
+          "cachePolicy": "warm",
+          "coldCacheVerified": false,
+          "compiler": "16.2.1 20260810",
+          "fixtureScenario": "repeated-million-triangle-v1",
+          "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+          "fixtureVersion": 1,
+          "nativeBytes": 70248107,
+          "openMs": 4203.65826,
+          "peakRssBytes": 1086492672,
+          "privateExperimentalOnly": true,
+          "qt": "6.11.2",
+          "releaseAcceptance": false,
+          "saveMs": 4161.359417,
+          "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+        },
+        {
+          "build": "Release",
+          "byteExactRoundTrip": true,
+          "cachePolicy": "warm",
+          "coldCacheVerified": false,
+          "compiler": "16.2.1 20260810",
+          "fixtureScenario": "repeated-million-triangle-v1",
+          "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+          "fixtureVersion": 1,
+          "nativeBytes": 70248107,
+          "openMs": 4192.631084,
+          "peakRssBytes": 1086619648,
+          "privateExperimentalOnly": true,
+          "qt": "6.11.2",
+          "releaseAcceptance": false,
+          "saveMs": 4218.090488,
+          "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+        },
+        {
+          "build": "Release",
+          "byteExactRoundTrip": true,
+          "cachePolicy": "warm",
+          "coldCacheVerified": false,
+          "compiler": "16.2.1 20260810",
+          "fixtureScenario": "repeated-million-triangle-v1",
+          "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+          "fixtureVersion": 1,
+          "nativeBytes": 70248107,
+          "openMs": 4184.751713,
+          "peakRssBytes": 1087201280,
+          "privateExperimentalOnly": true,
+          "qt": "6.11.2",
+          "releaseAcceptance": false,
+          "saveMs": 4183.708916,
+          "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+        }
+      ],
+      "allOpenSaveUnderFiveSeconds": true
+    }
+  },
+  "logSha256": "5752fc0eb320c09028daa93009368982d7c924968bc1aaea8b5c5af5e6c666ff",
+  "allCandidateWarmOpenSaveUnderFiveSeconds": true,
+  "timingScope": "Three sequential warm core load/durable-save roundtrips per variant; excludes UI responsiveness and cold-cache acceptance."
+}
