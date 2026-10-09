@@ -40,6 +40,7 @@ class RenderSnapshot {
     const RenderCamera &camera() const { return camera_; }
     const std::optional<RenderEnvironment> &environment() const { return environment_; }
     bool visible(Id body, Id face = 0) const;
+    bool edgeVisible(Id body, Id edge) const;
 
   private:
     RenderSnapshot(Document document, RenderSettings settings, RenderCamera camera,
