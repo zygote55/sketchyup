@@ -871,7 +871,7 @@ QToolBar {border:0;border-right:1px solid $border;spacing:6px;padding:10px 5px;}
 QToolButton {padding:12px 5px;border-radius:4px;} QToolButton:checked {background:$selected;color:$ink;}
 QToolButton:hover,QPushButton:hover {background:$hover;}
 QPushButton {border:1px solid $border;padding:7px 11px;border-radius:4px;}
-QLineEdit {background:$input;border:1px solid $border;border-radius:4px;padding:7px;selection-background-color:$accent;}
+QLineEdit {background:$input;border:1px solid $border;border-radius:4px;padding:7px;selection-background-color:$accent;selection-color:$selectionInk;}
 QLineEdit:focus {border:1px solid $accent;}
 QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 QListWidget,QTreeWidget {border:0;background:transparent;}
@@ -879,6 +879,7 @@ QTreeWidget:focus {border:1px solid $accent;} QTreeWidget::item {padding:3px 1px
 QTreeWidget::item:selected {background:$selected;color:$ink;}
 QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
 )");
+    style.replace("$selectionInk", dark ? colors.surface.name() : colors.input.name());
     style.replace("$surface", colors.surface.name());
     style.replace("$ink", colors.ink.name());
     style.replace("$border", colors.border.name());

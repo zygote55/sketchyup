@@ -806,6 +806,8 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_link_libraries(tool_lifecycle_tests PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(interaction_tests tests/interaction_tests.cpp)
     target_link_libraries(interaction_tests PRIVATE sketchyup_desktop Qt6::Test)
+    add_executable(theme_input_tests tests/theme_input_tests.cpp)
+    target_link_libraries(theme_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(shortcut_input_tests tests/shortcut_input_tests.cpp)
     target_link_libraries(shortcut_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_executable(keyboard_modeling_input_tests tests/keyboard_modeling_input_tests.cpp)
@@ -1075,4 +1077,5 @@ install(FILES docs/decisions/0147-keyboard-measured-modeling.md DESTINATION shar
 
 install(FILES docs/decisions/0148-versioned-shortcut-bindings.md DESTINATION share/doc/sketchyup/decisions)
 
+install(FILES docs/decisions/0150-selected-text-contrast.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0149-native-shortcut-editor.md DESTINATION share/doc/sketchyup/decisions)
