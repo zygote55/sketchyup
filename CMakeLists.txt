@@ -838,6 +838,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_link_libraries(m4_workflow_tests PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(units_input_tests tests/units_input_tests.cpp)
     target_link_libraries(units_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    sketchyup_native_fixture(real_model_benchmark tests/real_model_benchmark.cpp)
+    target_link_libraries(real_model_benchmark PRIVATE sketchyup_desktop Qt6::Test)
+    target_compile_definitions(real_model_benchmark PRIVATE SKETCHYUP_BENCHMARK_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
     sketchyup_native_fixture(history_input_tests tests/history_input_tests.cpp)
     target_link_libraries(history_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(recovery_input_tests tests/recovery_input_tests.cpp)
@@ -1081,13 +1084,9 @@ install(FILES docs/decisions/0140-optional-capability-discovery.md DESTINATION s
 
 install(FILES docs/M8_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
 install(FILES docs/decisions/0145-native-accessibility-inventory.md DESTINATION share/doc/sketchyup/decisions)
-
 install(FILES docs/decisions/0146-legacy-preference-compatibility.md DESTINATION share/doc/sketchyup/decisions)
-
 install(FILES docs/decisions/0147-keyboard-measured-modeling.md DESTINATION share/doc/sketchyup/decisions)
-
 install(FILES docs/decisions/0148-versioned-shortcut-bindings.md DESTINATION share/doc/sketchyup/decisions)
-
 install(FILES docs/decisions/0156-filtered-shortcut-keyboard-navigation.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0155-linux-accessibility-bridge.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0154-keyboard-outliner-workflow.md DESTINATION share/doc/sketchyup/decisions)
@@ -1096,3 +1095,4 @@ install(FILES docs/decisions/0152-context-link-contrast.md DESTINATION share/doc
 install(FILES docs/decisions/0151-interface-text-size.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0150-selected-text-contrast.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0149-native-shortcut-editor.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/decisions/0141-real-model-performance-fixtures.md DESTINATION share/doc/sketchyup/decisions)
