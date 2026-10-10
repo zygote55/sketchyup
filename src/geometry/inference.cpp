@@ -466,8 +466,13 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
             }))
             continue;
         const auto screen = *q.camera.project(candidate.point);
-        const auto [eye, ray] = q.camera.ray(screen.x, screen.y);
-        const auto target = dot(candidate.point - eye, ray);
+        const auto [eye, cameraRay] = q.camera.ray(screen.x, screen.y);
+        // A float viewport inverse can round-trip to a slightly different ray.
+        // Test visibility toward the actual candidate, otherwise its own face
+        // can intersect that displaced ray before the projected target distance.
+        const auto delta = candidate.point - eye;
+        const auto target = length(delta);
+        const auto ray = target > 0 ? delta * (1 / target) : cameraRay;
         bool occluded = false;
         // Construction guides are a dotted overlay, visible through faces.
         // A mixed model/guide intersection still honors model occlusion.
