@@ -1,0 +1,155 @@
+{
+  "normalSource": "da89227a9dd72127c505cb84f2949bb0b62e14b3",
+  "sanitizerSource": "44992365d7c2122736e153f3b6cac27e7600d262",
+  "largeFixtureSha256": "d74a68105014d648676afbfb37998fd3e08fd95a9148a36f0d8b29d03dd60f37",
+  "releaseAccepted": false,
+  "cases": [
+    {
+      "configuration": "normal",
+      "fixture": "files",
+      "platform": "wayland",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "7b3a20a88e77b37b30cefaea268e4ea42747b6286a76af0beb0ef889fd10fe63"
+    },
+    {
+      "configuration": "normal",
+      "fixture": "files",
+      "platform": "wayland",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "7b3a20a88e77b37b30cefaea268e4ea42747b6286a76af0beb0ef889fd10fe63"
+    },
+    {
+      "configuration": "normal",
+      "fixture": "files",
+      "platform": "xcb",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "8c7db8f2ef24417bec42f18abb6014885bf63eaaed769b2624a0e8997b10d72a"
+    },
+    {
+      "configuration": "normal",
+      "fixture": "files",
+      "platform": "xcb",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "8c7db8f2ef24417bec42f18abb6014885bf63eaaed769b2624a0e8997b10d72a"
+    },
+    {
+      "configuration": "normal",
+      "fixture": "recovery",
+      "platform": "wayland",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "e5be82268d807337aa83e227e08f15e646c4fa89dd55323a0ee691c72d30e132"
+    },
+    {
+      "configuration": "normal",
+      "fixture": "recovery",
+      "platform": "wayland",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "e0f699ba60cbb3b19b17790ae6c77e1bb3dc7079e130ec9adbbee86cdee30ff1"
+    },
+    {
+      "configuration": "normal",
+      "fixture": "recovery",
+      "platform": "xcb",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "9bd7ff278900d13ee4386e43a78d36f91e977ffaed6fc08f441facd4f0992edf"
+    },
+    {
+      "configuration": "normal",
+      "fixture": "recovery",
+      "platform": "xcb",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "e09093b73bcd38438925384989c123f1a6c9605ca3783f848782fd50107891aa"
+    },
+    {
+      "configuration": "normal",
+      "fixture": "files-large",
+      "platform": "wayland",
+      "scale": 1,
+      "nativeBytes": 100671415,
+      "passed": true,
+      "logSha256": "d7ea70fce85cdcbc4535dca271b22ed99e731e3a02fe6e63f78af3eb03b1aa49"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "files",
+      "platform": "wayland",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "7b3a20a88e77b37b30cefaea268e4ea42747b6286a76af0beb0ef889fd10fe63"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "files",
+      "platform": "wayland",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "7b3a20a88e77b37b30cefaea268e4ea42747b6286a76af0beb0ef889fd10fe63"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "files",
+      "platform": "xcb",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "8c7db8f2ef24417bec42f18abb6014885bf63eaaed769b2624a0e8997b10d72a"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "files",
+      "platform": "xcb",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "8c7db8f2ef24417bec42f18abb6014885bf63eaaed769b2624a0e8997b10d72a"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "recovery",
+      "platform": "wayland",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "e5be82268d807337aa83e227e08f15e646c4fa89dd55323a0ee691c72d30e132"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "recovery",
+      "platform": "wayland",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "e0f699ba60cbb3b19b17790ae6c77e1bb3dc7079e130ec9adbbee86cdee30ff1"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "recovery",
+      "platform": "xcb",
+      "scale": 1,
+      "passed": true,
+      "logSha256": "9bd7ff278900d13ee4386e43a78d36f91e977ffaed6fc08f441facd4f0992edf"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "recovery",
+      "platform": "xcb",
+      "scale": 2,
+      "passed": true,
+      "logSha256": "e09093b73bcd38438925384989c123f1a6c9605ca3783f848782fd50107891aa"
+    },
+    {
+      "configuration": "sanitize",
+      "fixture": "files-large",
+      "platform": "wayland",
+      "scale": 1,
+      "nativeBytes": 100671415,
+      "passed": true,
+      "logSha256": "d7ea70fce85cdcbc4535dca271b22ed99e731e3a02fe6e63f78af3eb03b1aa49"
+    }
+  ],
+  "interruption": "The first three sanitizer file cases completed before a user-message interruption. The empty fourth-case log is retained privately; that case and remaining cases ran after resumption."
+}
