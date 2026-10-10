@@ -53,6 +53,8 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
     edit.hostedResolved = true;
     if (before.displayUnits() != after.displayUnits())
         edit.displayUnits = std::pair{before.displayUnits(), after.displayUnits()};
+    if (before.displayPrecision() != after.displayPrecision())
+        edit.displayPrecision = std::pair{before.displayPrecision(), after.displayPrecision()};
     if (before.solar() != after.solar())
         edit.solar = std::pair{before.solar(), after.solar()};
     if (before.style() != after.style())

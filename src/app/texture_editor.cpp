@@ -109,7 +109,7 @@ void editTextureMapping(Document &doc, Viewport &view, QWidget *parent, int side
             auto lengthText = [&](double value) {
                 return std::abs(value) > coordinateLimit || (value != 0 && std::abs(value) < 1e-7)
                            ? QLocale().toString(value, 'g', 12) + " m"
-                           : displayLength(value, doc.displayUnits());
+                           : displayLength(value, doc.displayUnits(), fullDisplayPrecision);
             };
             x->setText(lengthText(base.origin.x));
             y->setText(lengthText(base.origin.y));

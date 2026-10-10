@@ -18,6 +18,7 @@
 namespace sketchy {
 Document Document::readSnapshot() const {
     Document result(displayUnits_);
+    result.displayPrecision_ = displayPrecision_;
     result.style_ = style_;
     result.solar_ = solar_;
     result.identity_ = identity_;
@@ -291,8 +292,9 @@ size_t Document::readSnapshotBytes() const {
         result += sizeof(DefinitionFloor) + 64 + floor.geometry.size() * 96;
     return result;
 }
-Document::Document(DisplayUnit units) : displayUnits_(units) {
-    unitCode(units);
+Document::Document(DisplayUnit units, int displayPrecision)
+    : displayUnits_(units), displayPrecision_(displayPrecision) {
+    requireDisplayPrecision(units, displayPrecision);
     std::random_device random;
     std::ostringstream out;
     out << std::hex << std::setfill('0');
@@ -300,14 +302,21 @@ Document::Document(DisplayUnit units) : displayUnits_(units) {
         out << std::setw(8) << random();
     identity_ = out.str();
 }
-void Document::setDisplayUnits(DisplayUnit units) {
+void Document::setDisplayUnits(DisplayUnit units, std::optional<int> precision) {
     unitCode(units);
-    if (units == displayUnits_)
+    const auto target =
+        precision.value_or(units == displayUnits_ ? displayPrecision_ : fullDisplayPrecision);
+    requireDisplayPrecision(units, target);
+    if (units == displayUnits_ && target == displayPrecision_)
         return;
-    Edit edit{"Change document units", {}};
-    edit.displayUnits = std::pair{displayUnits_, units};
+    Edit edit{units == displayUnits_ ? "Change display precision" : "Change document units", {}};
+    if (units != displayUnits_)
+        edit.displayUnits = std::pair{displayUnits_, units};
+    if (target != displayPrecision_)
+        edit.displayPrecision = std::pair{displayPrecision_, target};
     apply(std::move(edit), revision_);
 }
+void Document::setDisplayPrecision(int precision) { setDisplayUnits(displayUnits_, precision); }
 void Document::setSolar(const SolarSettings &solar) {
     solar.validate();
     if (solar == solar_) return;
@@ -727,6 +736,8 @@ void Document::update(Edit edit, bool forward) {
         hosted_ = forward ? edit.hosted->after : edit.hosted->before;
     if (edit.displayUnits)
         displayUnits_ = forward ? edit.displayUnits->second : edit.displayUnits->first;
+    if (edit.displayPrecision)
+        displayPrecision_ = forward ? edit.displayPrecision->second : edit.displayPrecision->first;
     if (edit.style)
         style_ = forward ? edit.style->second : edit.style->first;
     if (edit.solar)
@@ -747,7 +758,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
+        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
         throw std::runtime_error("Empty edit");
     if (edit.solar) {
         edit.solar->first.validate();
@@ -768,6 +779,14 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             edit.displayUnits->first == edit.displayUnits->second)
             throw std::runtime_error("Invalid or stale document unit change");
     }
+    if (edit.displayPrecision &&
+        (edit.displayPrecision->first != displayPrecision_ ||
+         edit.displayPrecision->first == edit.displayPrecision->second))
+        throw std::runtime_error("Invalid or stale display precision change");
+    if (edit.displayUnits || edit.displayPrecision)
+        requireDisplayPrecision(edit.displayUnits ? edit.displayUnits->second : displayUnits_,
+                                edit.displayPrecision ? edit.displayPrecision->second
+                                                      : displayPrecision_);
     if (edit.hosted && (edit.hosted->before != hosted_ || !edit.hosted->after))
         throw std::runtime_error("Invalid or stale hosted component change");
     expandHostedEdit(*this, edit);
@@ -1448,6 +1467,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     totals_ = totals;
     if (h.edit.displayUnits)
         displayUnits_ = h.edit.displayUnits->second;
+    if (h.edit.displayPrecision)
+        displayPrecision_ = h.edit.displayPrecision->second;
     if (h.edit.style)
         style_ = h.edit.style->second;
     if (h.edit.solar)
@@ -1548,6 +1569,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineAnnotations = staged.annotations_;
     const auto baselineActiveSections = staged.activeSections_;
     const auto baselineUnits = staged.displayUnits_;
+    const auto baselinePrecision = staged.displayPrecision_;
     const auto baselineStyle = staged.style_;
     const auto baselineSolar = staged.solar_;
     const auto baselineHosted = staged.hosted_;
@@ -1560,6 +1582,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("Replacement must commit exactly one atomic operation");
     if (!undo_.back().edit.displayUnits && staged.displayUnits_ != baselineUnits)
         throw std::runtime_error("Replacement cannot change document units outside its scope");
+    if (!undo_.back().edit.displayPrecision && staged.displayPrecision_ != baselinePrecision)
+        throw std::runtime_error("Replacement cannot change display precision outside its scope");
     if (!undo_.back().edit.solar && staged.solar_ != baselineSolar)
         throw std::runtime_error("Replacement cannot change sun study outside its scope");
     if (!undo_.back().edit.style && staged.style_ != baselineStyle)
@@ -1778,13 +1802,14 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        AssetRecords assets, Id nextAssetId, DisplayUnit units, HostedPtr hosted,
                        ModelStyle style, SceneRecords scenes, Id nextSceneId, SectionRecords sections,
                        Id nextSectionId, ActiveSections activeSections,
-                       AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar) {
+                       AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar,
+                       int displayPrecision) {
     restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
                    std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
                    nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
                    units, std::move(hosted), style, std::move(scenes), nextSceneId,
                    std::move(sections), nextSectionId, std::move(activeSections),
-                   std::move(annotations), nextAnnotationId, solar);
+                   std::move(annotations), nextAnnotationId, solar, displayPrecision);
 }
 void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
                               std::map<Id, BodyPtr> bodies, std::uint64_t revision,
@@ -1795,8 +1820,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
                               SceneRecords scenes, Id nextSceneId, SectionRecords sections,
                               Id nextSectionId, ActiveSections activeSections,
                               AnnotationRecords annotations, Id nextAnnotationId,
-                              SolarSettings solar) {
-    unitCode(units);
+                              SolarSettings solar, int displayPrecision) {
+    requireDisplayPrecision(units, displayPrecision);
     style.validate();
     solar.validate();
     if (identity.size() != 32 ||
@@ -1879,6 +1904,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
     displayUnits_ = units;
+    displayPrecision_ = displayPrecision;
     style_ = style;
     solar_ = solar;
     nextId_ = next;

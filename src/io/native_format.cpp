@@ -106,11 +106,11 @@ QJsonObject migrateNativeFile(const QString &input, const QString &output) {
 QJsonObject nativeFormatCapabilities() {
     return {{"apiVersion", 1},
             {"format", "sketchyup"},
-            {"publicSchema", "sketchyup-document-v24"},
+            {"publicSchema", "sketchyup-document-v25"},
             {"documentVersion", nativeDocumentVersion},
             {"containerVersion", nativeContainerVersion},
             {"readDocumentVersions", QJsonArray{1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
-                                                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}},
+                                                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}},
             {"fileLimitBytes", QString::number(fileLimit)},
             {"migrationReplacesFiles", false},
             {"unknownRequiredRecords", "reject"},

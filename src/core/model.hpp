@@ -86,6 +86,7 @@ struct Edit {
     Id nextAssetFloor{};
     HistoryMetadata metadata{};
     std::optional<std::pair<DisplayUnit, DisplayUnit>> displayUnits{};
+    std::optional<std::pair<int, int>> displayPrecision{};
     std::optional<HostedChange> hosted{};
     bool hostedResolved{};
     std::optional<std::pair<ModelStyle, ModelStyle>> style{};
@@ -181,13 +182,17 @@ class Document {
     bool canRedo() const { return !redo_.empty(); }
     size_t historyBytes() const { return historyBytes_; }
     static constexpr size_t historyLimit = 64 * 1024 * 1024;
-    explicit Document(DisplayUnit units = DisplayUnit::Meters);
+    explicit Document(DisplayUnit units = DisplayUnit::Meters,
+                      int displayPrecision = fullDisplayPrecision);
     DisplayUnit displayUnits() const { return displayUnits_; }
+    int displayPrecision() const { return displayPrecision_; }
     const ModelStyle &style() const { return style_; }
     void setStyle(const ModelStyle &style);
     const SolarSettings &solar() const { return solar_; }
     void setSolar(const SolarSettings &solar);
-    void setDisplayUnits(DisplayUnit units);
+    // A unit change resets precision to Full unless a precision is given.
+    void setDisplayUnits(DisplayUnit units, std::optional<int> precision = std::nullopt);
+    void setDisplayPrecision(int precision);
     Id addFace(const std::vector<std::vector<Vec3>> &loops, std::string name = "Face");
     void extrude(Id body, Id face, double distance);
     ChangeReport pushPull(Id body, Id face, double distance, bool newFace = false);
@@ -247,7 +252,8 @@ class Document {
                  HostedPtr hosted = std::make_shared<const HostedComponents>(),
                  ModelStyle style = {}, SceneRecords scenes = {}, Id nextSceneId = 1,
                  SectionRecords sections = {}, Id nextSectionId = 1, ActiveSections activeSections = {},
-                 AnnotationRecords annotations = {}, Id nextAnnotationId = 1, SolarSettings solar = {});
+                 AnnotationRecords annotations = {}, Id nextAnnotationId = 1, SolarSettings solar = {},
+                 int displayPrecision = fullDisplayPrecision);
 
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
@@ -260,10 +266,12 @@ class Document {
                         Id nextAssetId, DisplayUnit units, HostedPtr hosted, ModelStyle style,
                         SceneRecords scenes, Id nextSceneId, SectionRecords sections,
                         Id nextSectionId, ActiveSections activeSections,
-                        AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar);
+                        AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar,
+                        int displayPrecision);
 
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};
+    int displayPrecision_{fullDisplayPrecision};
     ModelStyle style_;
     SolarSettings solar_;
     std::map<Id, BodyPtr> bodies_;
