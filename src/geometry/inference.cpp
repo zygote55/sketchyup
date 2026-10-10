@@ -1,7 +1,9 @@
 #include "geometry/inference.hpp"
+#include "geometry/inference_detail.hpp"
 #include "geometry/constraints.hpp"
 #include <algorithm>
 #include <numeric>
+#include <set>
 namespace sketchy {
 namespace {
 std::array<double, 4> multiply(const std::array<double, 16> &m, std::array<double, 4> p) {
@@ -87,141 +89,17 @@ const char *inferenceEntityLabel(InferenceEntity entity) {
     }
     return "";
 }
-InferenceIndex::Box InferenceIndex::bounds(Vec3 a, Vec3 b, Vec3 c) {
+namespace inference_detail {
+Box bounds(Vec3 a, Vec3 b, Vec3 c) {
     return {{std::min({a.x, b.x, c.x}), std::min({a.y, b.y, c.y}), std::min({a.z, b.z, c.z})},
             {std::max({a.x, b.x, c.x}), std::max({a.y, b.y, c.y}), std::max({a.z, b.z, c.z})}};
 }
-InferenceIndex::Box InferenceIndex::join(Box a, Box b) {
+Box join(Box a, Box b) {
     return {
         {std::min(a.low.x, b.low.x), std::min(a.low.y, b.low.y), std::min(a.low.z, b.low.z)},
         {std::max(a.high.x, b.high.x), std::max(a.high.y, b.high.y), std::max(a.high.z, b.high.z)}};
 }
-std::vector<InferenceIndex::Node> InferenceIndex::build(std::vector<size_t> &order,
-                                                        const std::vector<Box> &boxes) {
-    order.resize(boxes.size());
-    std::iota(order.begin(), order.end(), 0);
-    std::vector<Node> nodes;
-    std::function<size_t(size_t, size_t)> partition = [&](size_t first, size_t count) {
-        const auto id = nodes.size();
-        Box box = boxes[order[first]];
-        for (size_t i = first + 1; i < first + count; ++i)
-            box = join(box, boxes[order[i]]);
-        nodes.push_back({box, first, count, 0, 0});
-        if (count <= 8)
-            return id;
-        const auto extent = box.high - box.low;
-        const auto axis = extent.x >= extent.y && extent.x >= extent.z ? 0
-                          : extent.y >= extent.z                       ? 1
-                                                                       : 2;
-        auto center = [&](size_t i) {
-            const auto p = boxes[i].low + boxes[i].high;
-            return axis == 0 ? p.x : axis == 1 ? p.y : p.z;
-        };
-        const auto middle = first + count / 2;
-        std::nth_element(order.begin() + first, order.begin() + middle,
-                         order.begin() + first + count,
-                         [&](size_t a, size_t b) { return center(a) < center(b); });
-        const auto left = partition(first, count / 2), right = partition(middle, count - count / 2);
-        nodes[id].count = 0;
-        nodes[id].left = left;
-        nodes[id].right = right;
-        return id;
-    };
-    if (!boxes.empty())
-        partition(0, boxes.size());
-    return nodes;
-}
-void InferenceIndex::sync(const Document &doc, const std::function<bool()> &canceled) {
-    if (identity_ == doc.identity() && revision_ == doc.revision() &&
-        doc.isCurrentSnapshot(snapshot_))
-        return;
-    // Stage changed caches; failure leaves the previous snapshot usable.
-    auto next = bodies_;
-    if (identity_ != doc.identity())
-        next.clear();
-    std::erase_if(next, [&](const auto &p) { return !doc.bodies().contains(p.first); });
-    size_t builds = 0;
-    for (const auto &[id, body] : doc.bodies()) {
-        if (canceled && canceled())
-            throw std::runtime_error("Inference preparation canceled");
-        const auto world = doc.worldTransform(id);
-        if (next.contains(id) && next.at(id)->record == body && next.at(id)->world == world)
-            continue;
-        Cache cache;
-        cache.record = body;
-        cache.world = world;
-        auto add = [&](InferenceKind kind, Id entity, Vec3 a, Vec3 b, Vec3 c) {
-            cache.primitives.push_back({kind, entity, a, b, c, bounds(a, b, c)});
-        };
-        const auto adjacency = body->topology.adjacency(body->surface);
-        cache.vertexEdges = adjacency.vertexEdges;
-        for (const auto &[vertex, local] : body->surface.vertices) {
-            const auto p = world.point(local);
-            add(InferenceKind::Endpoint, vertex, p, p, p);
-            if (adjacency.vertexEdges.contains(vertex) &&
-                adjacency.vertexEdges.at(vertex).size() >= 3)
-                add(InferenceKind::Intersection, vertex, p, p, p);
-        }
-        for (const auto &[edge, e] : body->topology.edges) {
-            const auto a = world.point(body->surface.vertices.at(e.a)),
-                       b = world.point(body->surface.vertices.at(e.b));
-            const auto midpoint = (a + b) * .5;
-            add(InferenceKind::Midpoint, edge, midpoint, midpoint, midpoint);
-            add(InferenceKind::OnEdge, edge, a, b, b);
-        }
-        for (const auto &[curve, c] : body->curves) {
-            const auto center = world.point(c.center);
-            add(InferenceKind::Center, curve, center, center, center);
-        }
-        for (const auto &[id, guide] : body->guides) {
-            const auto origin = world.point(guide.origin);
-            if (guide.kind == GuideKind::Point)
-                add(InferenceKind::GuidePoint, id, origin, origin, origin);
-            else {
-                const auto ends =
-                    boundedGuideLine(guideLine(origin, world.vector(guide.direction)));
-                add(InferenceKind::OnGuide, id, ends[0], ends[1], ends[1]);
-            }
-        }
-        for (const auto &t : body->surface.triangles())
-            add(InferenceKind::OnFace, t.face, world.point(t.a), world.point(t.b),
-                world.point(t.c));
-        std::vector<Box> boxes;
-        boxes.reserve(cache.primitives.size());
-        for (const auto &p : cache.primitives)
-            boxes.push_back(p.box);
-        cache.nodes = build(cache.order, boxes);
-        if (!cache.nodes.empty())
-            cache.box = cache.nodes[0].box;
-        next[id] = std::make_shared<Cache>(std::move(cache));
-        ++builds;
-    }
-    std::vector<Id> ids;
-    std::vector<Box> boxes;
-    for (const auto &[id, cache] : next)
-        if (!cache->nodes.empty()) {
-            ids.push_back(id);
-            boxes.push_back(cache->box);
-        }
-    std::vector<size_t> order;
-    auto nodes = build(order, boxes);
-    bodies_ = std::move(next);
-    bodyIds_ = std::move(ids);
-    bodyOrder_ = std::move(order);
-    nodes_ = std::move(nodes);
-    snapshot_ = doc.saveStamp();
-    identity_ = doc.identity();
-    revision_ = doc.revision();
-    bodyBuilds_ += builds;
-}
-size_t InferenceIndex::primitiveCount() const {
-    size_t count = 0;
-    for (const auto &[id, cache] : bodies_)
-        count += cache->primitives.size();
-    return count;
-}
-InferenceIndex::Planes InferenceIndex::frustum(const InferenceCamera &camera, double x, double y,
-                                               double radius) {
+Planes frustum(const InferenceCamera &camera, double x, double y, double radius) {
     const auto left = 2 * (x - radius) / camera.width - 1,
                right = 2 * (x + radius) / camera.width - 1;
     const auto bottom = 1 - 2 * (y + radius) / camera.height,
@@ -239,7 +117,7 @@ InferenceIndex::Planes InferenceIndex::frustum(const InferenceCamera &camera, do
     }
     return planes;
 }
-bool InferenceIndex::intersects(Box box, const Planes &planes) {
+bool intersects(Box box, const Planes &planes) {
     const auto center = (box.low + box.high) * .5, extent = (box.high - box.low) * .5;
     for (const auto &p : planes)
         if (p[0] * center.x + p[1] * center.y + p[2] * center.z + p[3] + std::abs(p[0]) * extent.x +
@@ -248,38 +126,346 @@ bool InferenceIndex::intersects(Box box, const Planes &planes) {
             return false;
     return true;
 }
+} // namespace inference_detail
+using namespace inference_detail;
+struct InferenceIndex::Local {
+    BodyPtr source; // Geometry (surface, topology, curves) this index was built from.
+    std::map<Id, std::vector<Id>> vertexEdges;
+    std::vector<LocalPrimitive> primitives;
+    std::vector<std::uint32_t> order;
+    std::vector<Node> nodes;
+};
+struct InferenceIndex::Placement {
+    BodyPtr record;
+    Transform world;
+    std::array<double, 9> magnitude{}; // |M_ij| at [i * 3 + j], M the linear part.
+    std::shared_ptr<const Local> local;
+    std::vector<Primitive> guides; // World space: bounded guide lines are not affine.
+    Box box;
+    bool empty{true};
+};
+namespace {
+using Node = InferenceIndex::Node;
+using LocalPrimitive = InferenceIndex::LocalPrimitive;
+std::vector<Node> build(std::vector<std::uint32_t> &order, const std::vector<Box> &boxes) {
+    order.resize(boxes.size());
+    std::iota(order.begin(), order.end(), 0u);
+    std::vector<Node> nodes;
+    std::function<std::uint32_t(std::uint32_t, std::uint32_t)> partition =
+        [&](std::uint32_t first, std::uint32_t count) {
+            const auto id = std::uint32_t(nodes.size());
+            Box box = boxes[order[first]];
+            for (auto i = first + 1; i < first + count; ++i)
+                box = join(box, boxes[order[i]]);
+            nodes.push_back({box, first, count, 0, 0});
+            if (count <= 8)
+                return id;
+            const auto extent = box.high - box.low;
+            const auto axis = extent.x >= extent.y && extent.x >= extent.z ? 0
+                              : extent.y >= extent.z                       ? 1
+                                                                           : 2;
+            auto center = [&](std::uint32_t i) {
+                const auto p = boxes[i].low + boxes[i].high;
+                return axis == 0 ? p.x : axis == 1 ? p.y : p.z;
+            };
+            const auto middle = first + count / 2;
+            std::nth_element(order.begin() + first, order.begin() + middle,
+                             order.begin() + first + count,
+                             [&](auto a, auto b) { return center(a) < center(b); });
+            const auto left = partition(first, count / 2),
+                       right = partition(middle, count - count / 2);
+            nodes[id].count = 0;
+            nodes[id].left = left;
+            nodes[id].right = right;
+            return id;
+        };
+    if (boxes.size() > UINT32_MAX)
+        throw std::runtime_error("Inference index exceeds its primitive limit");
+    if (!boxes.empty())
+        partition(0, std::uint32_t(boxes.size()));
+    return nodes;
+}
+// Inference reads only these fields of a body's geometry; guides stay per placement.
+// Allocator floors (nextId) are ignored: a resolved instance record may carry higher
+// floors than its definition member (see matchesComponentProjection).
+bool sameGeometry(const Body &a, const Body &b) {
+    return &a == &b ||
+           (a.surface.vertices == b.surface.vertices && a.surface.faces == b.surface.faces &&
+            a.surface.wires == b.surface.wires && a.topology.edges == b.topology.edges &&
+            a.curves == b.curves);
+}
+std::shared_ptr<const InferenceIndex::Local> buildLocal(const BodyPtr &body) {
+    auto local = std::make_shared<InferenceIndex::Local>();
+    local->source = body;
+    std::vector<Box> boxes;
+    auto add = [&](InferenceKind kind, Id entity, Vec3 a, Vec3 b, Vec3 c) {
+        local->primitives.push_back({kind, entity, a, b, c});
+        boxes.push_back(bounds(a, b, c));
+    };
+    auto adjacency = body->topology.adjacency(body->surface);
+    for (const auto &[vertex, p] : body->surface.vertices) {
+        add(InferenceKind::Endpoint, vertex, p, p, p);
+        if (adjacency.vertexEdges.contains(vertex) && adjacency.vertexEdges.at(vertex).size() >= 3)
+            add(InferenceKind::Intersection, vertex, p, p, p);
+    }
+    for (const auto &[edge, e] : body->topology.edges) {
+        const auto a = body->surface.vertices.at(e.a), b = body->surface.vertices.at(e.b);
+        // World midpoints are taken between world endpoints; bound both endpoints.
+        add(InferenceKind::Midpoint, edge, a, b, b);
+        add(InferenceKind::OnEdge, edge, a, b, b);
+    }
+    for (const auto &[curve, c] : body->curves)
+        add(InferenceKind::Center, curve, c.center, c.center, c.center);
+    for (const auto &t : body->surface.triangles())
+        add(InferenceKind::OnFace, t.face, t.a, t.b, t.c);
+    local->vertexEdges = std::move(adjacency.vertexEdges);
+    local->primitives.shrink_to_fit();
+    local->nodes = build(local->order, boxes);
+    return local;
+}
+// Exactly the world primitive a fully expanded index stores for this placement.
+Primitive toWorld(const Transform &world, const LocalPrimitive &l) {
+    switch (l.kind) {
+    case InferenceKind::Midpoint: {
+        const auto a = world.point(l.a), b = world.point(l.b);
+        const auto midpoint = (a + b) * .5;
+        return {l.kind, l.entity, midpoint, midpoint, midpoint, bounds(midpoint, midpoint, midpoint)};
+    }
+    case InferenceKind::OnEdge: {
+        const auto a = world.point(l.a), b = world.point(l.b);
+        return {l.kind, l.entity, a, b, b, bounds(a, b, b)};
+    }
+    case InferenceKind::OnFace: {
+        const auto a = world.point(l.a), b = world.point(l.b), c = world.point(l.c);
+        return {l.kind, l.entity, a, b, c, bounds(a, b, c)};
+    }
+    default: {
+        const auto p = world.point(l.a);
+        return {l.kind, l.entity, p, p, p, bounds(p, p, p)};
+    }
+    }
+}
+// Conservative world box of a transformed local box. The relative margin covers
+// rounding in Transform::point, so every contained primitive's world box (and
+// therefore every primitive the expanded index would visit) remains inside it.
+Box worldBox(const InferenceIndex::Placement &placement, Box local) {
+    const auto c = (local.low + local.high) * .5, e = (local.high - local.low) * .5;
+    const auto center = placement.world.point(c);
+    const std::array<double, 3> extent{e.x, e.y, e.z},
+        magnitude{std::abs(c.x) + e.x, std::abs(c.y) + e.y, std::abs(c.z) + e.z};
+    std::array<double, 3> radius{};
+    for (int i = 0; i < 3; ++i) {
+        double reach = 0, scale = std::abs(placement.world.m[12 + i]);
+        for (int j = 0; j < 3; ++j) {
+            reach += placement.magnitude[i * 3 + j] * extent[j];
+            scale += placement.magnitude[i * 3 + j] * magnitude[j];
+        }
+        radius[i] = reach + 1e-12 * scale;
+    }
+    const Vec3 r{radius[0], radius[1], radius[2]};
+    return {center - r, center + r};
+}
+} // namespace
+void InferenceIndex::sync(const Document &doc, const std::function<bool()> &canceled) {
+    if (identity_ == doc.identity() && revision_ == doc.revision() &&
+        doc.isCurrentSnapshot(snapshot_))
+        return;
+    // Stage changed placements; failure leaves the previous snapshot usable.
+    auto next = placements_;
+    if (identity_ != doc.identity())
+        next.clear();
+    std::erase_if(next, [&](const auto &p) { return !doc.bodies().contains(p.first); });
+    size_t builds = 0, locals = 0;
+    // Resolved lazily, only when a changed record cannot keep its local index:
+    // scene record -> canonical definition member, and local indexes by source.
+    std::optional<std::map<Id, BodyPtr>> bound;
+    std::map<const Body *, std::shared_ptr<const Local>> shared;
+    auto sharedFor = [&](Id id, const Body &record) -> std::shared_ptr<const Local> {
+        if (!bound) {
+            bound.emplace();
+            for (const auto &[root, instance] : doc.instances()) {
+                const auto definition = doc.definitions().find(instance->definition);
+                if (definition == doc.definitions().end())
+                    continue;
+                // A reference member's record is the nested instance root, bound
+                // by that nested instance's own entry.
+                for (const auto &[member, target] : instance->members)
+                    if (const auto source = definition->second->members.find(member);
+                        source != definition->second->members.end() &&
+                        !definition->second->references.contains(member))
+                        (*bound)[target] = source->second;
+            }
+            for (const auto &[placementId, placement] : next)
+                shared.emplace(placement->local->source.get(), placement->local);
+        }
+        const auto found = bound->find(id);
+        if (found == bound->end() || !sameGeometry(*found->second, record))
+            return {};
+        auto &slot = shared[found->second.get()];
+        if (!slot) {
+            slot = buildLocal(found->second);
+            ++locals;
+        }
+        return slot;
+    };
+    for (const auto &[id, record] : doc.bodies()) {
+        if (canceled && canceled())
+            throw std::runtime_error("Inference preparation canceled");
+        const auto world = doc.worldTransform(id);
+        const auto found = next.find(id);
+        const auto *previous = found == next.end() ? nullptr : found->second.get();
+        if (previous && previous->record == record && previous->world == world)
+            continue;
+        std::shared_ptr<const Local> local;
+        if (previous &&
+            (previous->record == record || sameGeometry(*previous->local->source, *record)))
+            local = previous->local;
+        else
+            local = sharedFor(id, *record);
+        if (!local) {
+            local = buildLocal(record);
+            ++locals;
+        }
+        auto placement = std::make_shared<Placement>();
+        placement->record = record;
+        placement->world = world;
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                placement->magnitude[i * 3 + j] = std::abs(world.m[j * 4 + i]);
+        placement->local = local;
+        for (const auto &[guideId, guide] : record->guides) {
+            const auto origin = world.point(guide.origin);
+            if (guide.kind == GuideKind::Point)
+                placement->guides.push_back({InferenceKind::GuidePoint, guideId, origin, origin,
+                                             origin, bounds(origin, origin, origin)});
+            else {
+                const auto ends =
+                    boundedGuideLine(guideLine(origin, world.vector(guide.direction)));
+                placement->guides.push_back({InferenceKind::OnGuide, guideId, ends[0], ends[1],
+                                             ends[1], bounds(ends[0], ends[1], ends[1])});
+            }
+        }
+        std::optional<Box> box;
+        if (!local->nodes.empty())
+            box = worldBox(*placement, local->nodes[0].box);
+        for (const auto &guide : placement->guides)
+            box = box ? join(*box, guide.box) : guide.box;
+        placement->empty = !box;
+        if (box)
+            placement->box = *box;
+        next[id] = std::move(placement);
+        ++builds;
+    }
+    std::vector<std::pair<Id, const Placement *>> entries;
+    std::vector<Box> boxes;
+    size_t primitives = 0;
+    for (const auto &[id, placement] : next) {
+        primitives += placement->local->primitives.size() + placement->guides.size();
+        if (!placement->empty) {
+            entries.push_back({id, placement.get()});
+            boxes.push_back(placement->box);
+        }
+    }
+    std::vector<std::uint32_t> order;
+    auto nodes = build(order, boxes);
+    placements_ = std::move(next);
+    entries_ = std::move(entries);
+    entryOrder_ = std::move(order);
+    nodes_ = std::move(nodes);
+    snapshot_ = doc.saveStamp();
+    identity_ = doc.identity();
+    revision_ = doc.revision();
+    bodyBuilds_ += builds;
+    localBuilds_ += locals;
+    primitiveCount_ = primitives;
+}
+size_t InferenceIndex::primitiveCount() const { return primitiveCount_; }
+size_t InferenceIndex::indexedPrimitiveCount() const {
+    std::set<const Local *> seen;
+    size_t count = 0;
+    for (const auto &[id, placement] : placements_) {
+        count += placement->guides.size();
+        if (seen.insert(placement->local.get()).second)
+            count += placement->local->primitives.size();
+    }
+    return count;
+}
+size_t InferenceIndex::indexBytes() const {
+    // Containers' payloads plus an estimate of ordered-map node overhead.
+    constexpr size_t mapNode = 48;
+    std::set<const Local *> seen;
+    size_t bytes = sizeof(*this) + entries_.capacity() * sizeof(entries_[0]) +
+                   entryOrder_.capacity() * sizeof(std::uint32_t) +
+                   nodes_.capacity() * sizeof(Node);
+    for (const auto &[id, placement] : placements_) {
+        bytes += mapNode + sizeof(Id) + sizeof(placement) + sizeof(Placement) +
+                 placement->guides.capacity() * sizeof(Primitive);
+        if (!seen.insert(placement->local.get()).second)
+            continue;
+        const auto &local = *placement->local;
+        bytes += sizeof(Local) + local.primitives.capacity() * sizeof(LocalPrimitive) +
+                 local.order.capacity() * sizeof(std::uint32_t) +
+                 local.nodes.capacity() * sizeof(Node);
+        for (const auto &[vertex, edges] : local.vertexEdges)
+            bytes += mapNode + sizeof(vertex) + sizeof(edges) + edges.capacity() * sizeof(Id);
+    }
+    return bytes;
+}
 void InferenceIndex::visit(const Planes &planes, Id context,
                            const std::function<void(Id, const Primitive &)> &fn) const {
-    auto walk = [&](const auto &nodes, const auto &order, auto leaf) {
+    auto walk = [](const std::vector<Node> &nodes, const auto &test, const auto &leaf) {
         if (nodes.empty())
             return;
-        std::vector<size_t> pending{0};
-        while (!pending.empty()) {
-            const auto &node = nodes[pending.back()];
-            pending.pop_back();
-            if (!intersects(node.box, planes))
+        // Median splits keep depth below log2(2^32 / 8) + 1, so at most one
+        // pending sibling per level plus the current node fits.
+        std::array<std::uint32_t, 64> pending;
+        size_t size = 0;
+        pending[size++] = 0;
+        while (size) {
+            const auto &node = nodes[pending[--size]];
+            if (!test(node.box))
                 continue;
             if (node.count)
-                for (size_t i = node.first; i < node.first + node.count; ++i)
-                    leaf(order[i]);
+                for (auto i = node.first; i < node.first + node.count; ++i)
+                    leaf(i);
             else {
-                pending.push_back(node.right);
-                pending.push_back(node.left);
+                pending[size++] = node.right;
+                pending[size++] = node.left;
             }
         }
     };
-    walk(nodes_, bodyOrder_, [&](size_t index) {
-        const auto id = bodyIds_[index];
+    const auto inside = [&](Box box) { return intersects(box, planes); };
+    walk(nodes_, inside, [&](std::uint32_t entry) {
+        const auto &[id, placement] = entries_[entryOrder_[entry]];
         if (context && context != id)
             return;
-        const auto &cache = *bodies_.at(id);
-        walk(cache.nodes, cache.order, [&](size_t p) {
-            if (intersects(cache.primitives[p].box, planes))
-                fn(id, cache.primitives[p]);
-        });
+        for (const auto &guide : placement->guides)
+            if (intersects(guide.box, planes))
+                fn(id, guide);
+        const auto &local = *placement->local;
+        walk(
+            local.nodes,
+            [&](Box box) { return intersects(worldBox(*placement, box), planes); },
+            [&](std::uint32_t i) {
+                const auto p = toWorld(placement->world, local.primitives[local.order[i]]);
+                if (intersects(p.box, planes))
+                    fn(id, p);
+            });
     });
 }
 InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
+    return runQuery(
+        q,
+        [&](const Planes &planes, Id context, const auto &fn) { visit(planes, context, fn); },
+        [&](Id id) {
+            const auto &placement = *placements_.at(id);
+            return BodyView{&placement.local->vertexEdges, placement.local->source.get(),
+                            placement.record.get(), &placement.world};
+        });
+}
+namespace inference_detail {
+InferenceResult runQuery(const InferenceQuery &q, const Visitor &visit,
+                         const std::function<BodyView(Id)> &bodyView) {
     if (!std::isfinite(q.camera.width) || !std::isfinite(q.camera.height) || q.camera.width <= 0 ||
         q.camera.height <= 0 || !std::isfinite(q.x) || !std::isfinite(q.y) ||
         !std::isfinite(q.radius) || q.radius <= 0 || q.radius > 64)
@@ -293,6 +479,24 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
                                : std::nullopt;
     InferenceResult result;
     const auto [origin, direction] = q.camera.ray(q.x, q.y);
+    // Candidate priority. Trailing point coordinates make the order total, so
+    // results never depend on the order in which the index visits primitives.
+    const auto priority = [](const InferenceCandidate &a, const InferenceCandidate &b) {
+        return std::tie(a.kind, a.pixels, a.depth, a.body, a.entityType, a.entity, a.otherBody,
+                        a.otherEntityType, a.otherEntity, a.point.x, a.point.y, a.point.z) <
+               std::tie(b.kind, b.pixels, b.depth, b.body, b.entityType, b.entity, b.otherBody,
+                        b.otherEntityType, b.otherEntity, b.point.x, b.point.y, b.point.z);
+    };
+    constexpr size_t candidateLimit = 4096, edgeLimit = 256;
+    // Keep the best `limit` items by a total order. Pruning at twice the limit
+    // bounds memory and still retains exactly the overall best items.
+    const auto keep = [&](auto &items, size_t limit, const auto &less) {
+        std::sort(items.begin(), items.end(), less);
+        if (items.size() > limit) {
+            items.resize(limit);
+            result.truncated = true;
+        }
+    };
     auto add = [&](InferenceKind kind, Vec3 p, Id body, Id entity, Id otherBody = 0,
                    Id otherEntity = 0, bool edgeIntersection = false, bool guide = false,
                    bool otherGuide = false) {
@@ -307,10 +511,6 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
         const auto distance = std::hypot(screen->x - q.x, screen->y - q.y);
         if (distance > q.radius)
             return;
-        if (result.candidates.size() >= 4096) {
-            result.truncated = true;
-            return;
-        }
         const auto type =
             guide || kind == InferenceKind::GuidePoint || kind == InferenceKind::OnGuide
                 ? InferenceEntity::Guide
@@ -325,10 +525,15 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
             return;
         result.candidates.push_back({kind, p, body, entity, otherBody, otherEntity, distance,
                                      screen->depth, type, otherType});
+        if (result.candidates.size() >= 2 * candidateLimit)
+            keep(result.candidates, candidateLimit, priority);
     };
     struct Edge {
         Id body;
-        const Primitive *p;
+        Primitive p;
+    };
+    const auto edgeOrder = [](const Edge &a, const Edge &b) {
+        return std::tie(a.body, a.p.kind, a.p.entity) < std::tie(b.body, b.p.kind, b.p.entity);
     };
     auto typeOf = [](InferenceKind kind) {
         return kind == InferenceKind::OnFace ? InferenceEntity::Face
@@ -345,16 +550,16 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
         const auto type = typeOf(p.kind);
         if (!q.visible(body, type, p.entity))
             return false;
-        const auto &cache = *bodies_.at(body);
         if (type == InferenceEntity::Vertex) {
-            const auto found = cache.vertexEdges.find(p.entity);
-            return found != cache.vertexEdges.end() &&
+            const auto &vertexEdges = *bodyView(body).vertexEdges;
+            const auto found = vertexEdges.find(p.entity);
+            return found != vertexEdges.end() &&
                    std::any_of(found->second.begin(), found->second.end(), [&](Id edge) {
                        return q.visible(body, InferenceEntity::Edge, edge);
                    });
         }
         if (type == InferenceEntity::Curve) {
-            const auto &edges = cache.record->curves.at(p.entity).edges;
+            const auto &edges = bodyView(body).geometry->curves.at(p.entity).edges;
             return std::any_of(edges.begin(), edges.end(), [&](auto edge) {
                 return q.visible(body, InferenceEntity::Edge, edge.edge);
             });
@@ -372,10 +577,9 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
             if (auto t = triangleHit(origin, direction, p.a, p.b, p.c))
                 add(p.kind, origin + direction * *t, body, p.entity);
         } else if (p.kind == InferenceKind::OnEdge || p.kind == InferenceKind::OnGuide) {
-            if (edges.size() < 256)
-                edges.push_back({body, &p});
-            else
-                result.truncated = true;
+            edges.push_back({body, p});
+            if (edges.size() >= 2 * edgeLimit)
+                keep(edges, edgeLimit, edgeOrder);
             if (plane) {
                 const auto a = dot(p.a - plane->origin, plane->normal),
                            b = dot(p.b - plane->origin, plane->normal);
@@ -387,11 +591,11 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
                 }
             }
             if (guide) {
-                const auto &cache = *bodies_.at(body);
-                const auto &line = cache.record->guides.at(p.entity);
+                const auto view = bodyView(body);
+                const auto &line = view.record->guides.at(p.entity);
                 if (const auto projected =
-                        projectDirection({DirectionKind::Parallel, cache.world.point(line.origin),
-                                          cache.world.vector(line.direction), body, p.entity,
+                        projectDirection({DirectionKind::Parallel, view.world->point(line.origin),
+                                          view.world->vector(line.direction), body, p.entity,
                                           InferenceEntity::Guide},
                                          q.camera, q.x, q.y))
                     add(p.kind, projected->point, body, p.entity);
@@ -425,10 +629,13 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
         } else
             add(p.kind, p.a, body, p.entity);
     });
+    // Pair edges in a canonical order: the reported first/other identities and
+    // any edge truncation are independent of spatial traversal order.
+    keep(edges, edgeLimit, edgeOrder);
     for (size_t i = 0; i < edges.size(); ++i)
         for (size_t j = i + 1; j < edges.size(); ++j) {
             ++result.intersectionPairs;
-            const auto &a = *edges[i].p, &b = *edges[j].p;
+            const auto &a = edges[i].p, &b = edges[j].p;
             const auto u = a.b - a.a, v = b.b - b.a, w = a.a - b.a;
             const auto aa = dot(u, u), bb = dot(u, v), cc = dot(v, v), dd = dot(u, w),
                        ee = dot(v, w), denom = aa * cc - bb * bb;
@@ -443,12 +650,7 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
                     b.entity, true, a.kind == InferenceKind::OnGuide,
                     b.kind == InferenceKind::OnGuide);
         }
-    std::sort(result.candidates.begin(), result.candidates.end(), [](const auto &a, const auto &b) {
-        return std::tie(a.kind, a.pixels, a.depth, a.body, a.entityType, a.entity, a.otherBody,
-                        a.otherEntityType, a.otherEntity) <
-               std::tie(b.kind, b.pixels, b.depth, b.body, b.entityType, b.entity, b.otherBody,
-                        b.otherEntityType, b.otherEntity);
-    });
+    keep(result.candidates, candidateLimit, priority);
     std::vector<InferenceCandidate> visible;
     size_t visibilityChecks = 0;
     for (const auto &candidate : result.candidates) {
@@ -500,4 +702,5 @@ InferenceResult InferenceIndex::query(const InferenceQuery &q) const {
     result.candidates = std::move(visible);
     return result;
 }
+} // namespace inference_detail
 } // namespace sketchy
