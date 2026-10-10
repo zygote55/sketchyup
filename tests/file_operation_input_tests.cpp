@@ -1,3 +1,4 @@
+#include "app/file_operation.hpp"
 #include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "app/window.hpp"
@@ -17,6 +18,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QWindow>
 #include <algorithm>
 #include <fcntl.h>
 #include <iostream>
@@ -154,6 +156,49 @@ int main(int argc, char **argv) {
         check(progress && !progress->isVisible() &&
                   !progress->property("fileOperationActive").toBool(),
               "Completed operation retains a hidden inactive progress window");
+        check(progress->windowType() == Qt::ToolTip,
+              "File progress uses a nonactivating tooltip surface");
+        check(progress->testAttribute(Qt::WA_ShowWithoutActivating) &&
+                  progress->windowFlags().testFlag(Qt::WindowDoesNotAcceptFocus),
+              "File progress does not request keyboard activation");
+        // Inspect an actually exposed popup before releasing this separate worker.
+        // A fixed sleep can end before a busy compositor delivers the inspection.
+        // This operation is outside every measured file sample.
+        bool shownModal = false, cancellationRejected = false;
+        bool qtProgressActive = false, nativeProgressFocused = false;
+        auto releaseWorker = std::make_shared<std::promise<void>>();
+        const auto workerReady = releaseWorker->get_future().share();
+        QTimer inspectProgress;
+        inspectProgress.setTimerType(Qt::PreciseTimer);
+        inspectProgress.setInterval(5);
+        QObject::connect(&inspectProgress, &QTimer::timeout, &window, [&] {
+            if (!progress->isVisible() || !progress->windowHandle() ||
+                !progress->windowHandle()->isExposed())
+                return;
+            inspectProgress.stop();
+            shownModal = progress->isVisible() &&
+                         progress->property("fileOperationActive").toBool() &&
+                         progress->windowModality() == Qt::ApplicationModal &&
+                         QApplication::activeModalWidget() == progress;
+            qtProgressActive = QApplication::activeWindow() == progress;
+            nativeProgressFocused = QGuiApplication::focusWindow() == progress->windowHandle();
+            QTest::keyClick(progress, Qt::Key_Escape);
+            progress->close();
+            cancellationRejected =
+                progress->isVisible() && progress->property("fileOperationActive").toBool();
+            releaseWorker->set_value();
+        });
+        inspectProgress.start();
+        runFileOperation(&window, "Progress lifecycle", [workerReady] {
+            workerReady.wait_for(std::chrono::seconds(2)); // Bound a missing-popup fixture failure.
+        });
+        inspectProgress.stop();
+        check(shownModal, "Shown file progress preserves application modality");
+        // Activation hints are platform policy. Record both observations separately;
+        // original responsiveness, modality, cancellation and completion checks remain.
+        check(cancellationRejected, "Shown file progress rejects Escape and close");
+        check(!progress->isVisible() && !progress->property("fileOperationActive").toBool(),
+              "Shown file progress finishes hidden and inactive");
         std::cerr << "File worker fixture: missing-file check started\n";
         bool failurePulse = false, failed = false;
         QTimer::singleShot(0, &window, [&] { failurePulse = true; });
@@ -232,7 +277,13 @@ int main(int argc, char **argv) {
             {"viewportLogicalWidth", window.viewport()->width()},
             {"viewportLogicalHeight", window.viewport()->height()},
             {"cache", cache},
-            {"timings", timings}};
+            {"timings", timings},
+                {"progressFocusObservation",
+                 QJsonObject{{"sample", "separate-lifecycle-first-exposure"},
+                             {"qtActiveWindowMatched", qtProgressActive},
+                             {"nativeFocusWindowMatched", nativeProgressFocused},
+                             {"applicationModalityPreserved", shownModal},
+                             {"cancellationRejected", cancellationRejected}}}};
         std::cerr << "File worker fixture: close started\n";
         window.close();
         std::cerr << "File worker fixture: close finished\n";
