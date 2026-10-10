@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
         const auto retired = createSection(doc, "Retired", 0, {});
         doc.undo();
         const auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
-        check(QJsonDocument::fromJson(raw).object()["version"] == 25, "Schema 25 explicit");
+        check(QJsonDocument::fromJson(raw).object()["version"] == 26, "Schema 26 explicit");
         check(encodeDocument(decodeDocument(raw)) == raw &&
                   encodeContainer(decodeContainer(bytes)) == bytes,
               "Exact raw/container section round trips");
@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
               "Version 18 retains saved scenes with no invented sections");
         const auto length = qFromLittleEndian<quint32>(oldBytes.constData() + 12);
         auto expected = QJsonDocument::fromJson(oldBytes.mid(16 + length)).object();
-        expected["version"] = 25;
+        expected["version"] = 26;
         expected["solar"] = encodeSolarSettings(SolarSettings{});
         expected["displayPrecision"] = fullDisplayPrecision;
         expected["annotations"] = QJsonArray{};
@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
         const auto priorDoc = decodeContainer(priorBytes);
         const auto priorLength = qFromLittleEndian<quint32>(priorBytes.constData() + 12);
         auto priorExpected = QJsonDocument::fromJson(priorBytes.mid(16 + priorLength)).object();
-        priorExpected["version"] = 25;
+        priorExpected["version"] = 26;
         priorExpected["solar"] = encodeSolarSettings(SolarSettings{});
         priorExpected["displayPrecision"] = fullDisplayPrecision;
         priorExpected["annotations"] = QJsonArray{};

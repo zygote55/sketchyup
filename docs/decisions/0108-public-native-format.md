@@ -117,20 +117,22 @@ branches, relocation/round trips, checksum/future-version failures, unknown requ
 features/chunks/records, same-path and symlink rejection, competing writers, and CLI
 argument isolation. Originals are compared byte for byte after each migration.
 
-## Schema 25: instanced component placements (R082.cc)
+## Schema 26: instanced component placements (R082.cc)
 
-2026-10-10. The public schema advances to **sketchyup-document-v25** under the same
+2026-10-10. The public schema advances to **sketchyup-document-v26** under the same
 container version 2; see [instanced component storage](0159-instanced-component-storage.md).
-The document chunk uses `json-v25` and `requiredFeatures` appends
-`instanced-placements-v1`. Component placement members are no longer stored in
-`bodies`: they are rebuilt from their definition and the placement's explicit
-`members` map, so stored identities are unchanged. Instance records add a required
-`floors` object mapping a scene member ID to `[nextId, nextEdgeId]` for members whose
-allocator floors exceed their definition's; it is otherwise empty. Every other record
-above is unchanged.
+Schema 25 added display precision ([R084.r](0018-document-units.md)). The schema-26
+document chunk uses `json-v26` and `requiredFeatures` appends
+`instanced-placements-v1` after `display-precision-v1`. Component placement members
+are no longer stored in `bodies`: they are rebuilt from their definition and the
+placement's explicit `members` map, so stored identities are unchanged. Instance
+records add a required `floors` object mapping a scene member ID to
+`[nextId, nextEdgeId]` for members whose allocator floors exceed their definition's;
+it is otherwise empty. Every other record above is unchanged.
 
-Readers accept raw document versions 1–25. Schemas 8–24 store expanded members;
+Readers accept raw document versions 1–26. Schemas 8–25 store expanded members;
 each must equal its definition projection under the canonical comparison, or the
 file is rejected with a diagnostic naming the member, component instance and
 definition, leaving the source unchanged. Acceptance adds the retained
-`instances-v24.sketchyup` writer fixture to the historical corpus.
+`instances-v24.sketchyup` and `instances-v25.sketchyup` writer fixtures to the
+historical corpus.

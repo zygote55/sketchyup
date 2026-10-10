@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
             doc.setStyle(style);
             const auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
             const auto root = QJsonDocument::fromJson(raw).object();
-            check(root["version"] == 25 && decodeDocument(raw).style() == style,
+            check(root["version"] == 26 && decodeDocument(raw).style() == style,
                   "Current schema preserves all style fields and modes");
             auto reopened = decodeContainer(bytes);
             check(reopened.style() == style && encodeContainer(reopened) == bytes &&
@@ -204,7 +204,7 @@ int main(int argc, char **argv) {
             auto original = QJsonDocument::fromJson(
                                 bytes.mid(16 + length, chunk["bytes"].toString().toLongLong()))
                                 .object();
-            original["version"] = 25;
+            original["version"] = 26;
         original["solar"] = encodeSolarSettings(SolarSettings{});
         original["displayPrecision"] = fullDisplayPrecision;
             original["annotations"] = QJsonArray{};
@@ -215,7 +215,7 @@ int main(int argc, char **argv) {
             original["scenes"] = QJsonArray{};
             original["nextSceneId"] = "1";
             original["style"] = encodeModelStyle(ModelStyle{});
-            // Schema 25 rebuilds placement members instead of storing them.
+            // Schema 26 rebuilds placement members instead of storing them.
             std::set<QString> members;
             auto placements = original["instances"].toArray();
             for (qsizetype i = 0; i < placements.size(); ++i) {

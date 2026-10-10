@@ -10,7 +10,8 @@ placements of the benchmark definition the model JSON reached 69.7 MB, above the
 32 MiB document-chunk bound that [real-model fixtures](0141-real-model-performance-fixtures.md)
 must fit.
 
-Native model JSON advances from schema 24 to 25. A v25 file no longer stores the
+Native model JSON advances from schema 25 ([display precision](0018-document-units.md))
+to 26. A v26 file no longer stores the
 member bodies of a component placement. The `bodies` array keeps every record that
 is not a placement member, including each top-level placement root with its
 instance-owned state: identity, parent, transform, name, properties, hidden,
@@ -37,11 +38,11 @@ every definition member, and nested bindings must name the referenced definition
 projection never allocates identities. The resolved size is checked against the
 document editing limits before records are built. A projected member that is
 also stored in `bodies`, or that collides with another record, is rejected. The
-complete document then passes the ordinary restore validation, so a v25 document
+complete document then passes the ordinary restore validation, so a v26 document
 reopens with the same identities, geometry, allocator floors, revision and clean
-history baseline that schema 24 produced.
+history baseline that schemas 24 and 25 produced.
 
-Readers retain schemas 1–24. Schemas 8–24 store expanded members; before
+Readers retain schemas 1–25. Schemas 8–25 store expanded members; before
 restoring, each top-level placement is projected and every stored member and
 placement root is compared with its projection by the canonical rule: exact
 equality, except that a stored allocator floor may exceed (never fall below) the
@@ -52,9 +53,10 @@ separate definitions, so valid files do not contain mismatches; the check guards
 against corrupted or hand-edited files. As with every failed migration, rejection
 writes nothing and the source file remains byte-for-byte unchanged.
 
-Container v2 is otherwise unchanged. Its document chunk uses `json-v25` and the
-required features add `instanced-placements-v1`, so an older reader rejects the
-file instead of opening placements without their members. The manifest's
+Container v2 is otherwise unchanged. Its document chunk uses `json-v26` and the
+required features add `instanced-placements-v1` after `display-precision-v1`, so a
+v26 file requires both and an older reader rejects it instead of opening placements
+without their members. The manifest's
 allocator floors still list every resolved scene record. Immutable save snapshots,
 recovery checkpoints, migration and inspection all use the same encoder and
 decoder.

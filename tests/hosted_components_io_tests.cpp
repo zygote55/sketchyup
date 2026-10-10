@@ -73,7 +73,7 @@ void roundtripAndRecovery(bool cutting) {
     validateHostedComponents(reopened.hostedComponents(), reopened.bodies(), reopened.definitions(),
                              reopened.instances());
     const auto json = QJsonDocument::fromJson(raw).object();
-    check(json["version"] == 25, "Hosted document schema version is explicit");
+    check(json["version"] == 26, "Hosted document schema version is explicit");
     for (int variant = 0; variant < 17; ++variant) {
         auto bad = json;
         auto hosted = bad["hosted"].toObject();
@@ -183,7 +183,7 @@ void roundtripAndRecovery(bool cutting) {
         }
     }
     const auto legacy = rewrite(bytes, [&](auto &manifest, auto &document) {
-        // Schemas before 25 store every expanded placement member.
+        // Schemas before 26 store every expanded placement member.
         document["bodies"] = encodeBodies(doc.bodies());
         auto placements = document["instances"].toArray();
         for (qsizetype i = 0; i < placements.size(); ++i) {

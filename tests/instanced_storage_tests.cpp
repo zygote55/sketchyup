@@ -280,8 +280,8 @@ size_t storedMembers(const QJsonObject &tree) {
 void roundTrip(const Document &doc, const std::string &label) {
     const auto container = encodeContainer(doc);
     const auto tree = documentTree(container);
-    check(tree["version"] == 25 && storedMembers(tree) == 0,
-          label + ": schema 25 writes no projected member bodies");
+    check(tree["version"] == nativeDocumentVersion && storedMembers(tree) == 0,
+          label + ": current schema writes no projected member bodies");
     const auto reopened = decodeContainer(container);
     identical(doc, reopened, label);
     check(encodeContainer(reopened) == container, label + ": byte-exact reopen");
@@ -398,39 +398,42 @@ int main(int argc, char **argv) {
             check(recovered.document->dirty(), "Recovered document remains unsaved");
         }
 
-        // Golden v24 file with expanded members migrates exactly.
-        const auto golden = read(fixturePath());
-        const auto goldenTree = documentTree(golden);
-        check(goldenTree["version"] == 24 && storedMembers(goldenTree) > 10,
-              "Retained v24 fixture stores expanded members");
-        const auto legacy = loadDocument(fixturePath());
-        check(QJsonValue(encodeBodies(legacy.bodies())) == goldenTree["bodies"],
-              "v24 bodies decode into identical records");
-        roundTrip(legacy, "v24 golden");
-        {
-            const auto output = files.filePath("migrated.sketchyup");
-            const auto report = migrateNativeFile(fixturePath(), output);
-            check(report["outputDocumentVersion"] == 25 && read(fixturePath()) == golden,
-                  "Migration leaves the v24 original unchanged");
+        // Golden v24 and v25 files store expanded members; both migrate exactly, and a
+        // member that differs from its definition is rejected by name.
+        for (const auto &[name, version] :
+             std::vector<std::pair<QString, int>>{{"instances-v24.sketchyup", 24},
+                                                  {"instances-v25.sketchyup", 25}}) {
+            const auto label = "v" + std::to_string(version) + " golden";
+            const auto source = QString(SOURCE_DIR) + "/tests/fixtures/" + name;
+            const auto original = read(source);
+            const auto tree = documentTree(original);
+            check(tree["version"] == version && storedMembers(tree) > 10,
+                  label + " fixture stores expanded members");
+            const auto legacy = loadDocument(source);
+            check(QJsonValue(encodeBodies(legacy.bodies())) == tree["bodies"],
+                  label + " bodies decode into identical records");
+            roundTrip(legacy, label);
+            const auto output = files.filePath("migrated-" + name);
+            const auto report = migrateNativeFile(source, output);
+            check(report["outputDocumentVersion"] == nativeDocumentVersion &&
+                      read(source) == original,
+                  label + ": migration leaves the original unchanged");
             const auto migrated = loadDocument(output);
-            identical(legacy, migrated, "migrated v24");
-            check(QJsonValue(encodeBodies(migrated.bodies())) == goldenTree["bodies"],
-                  "Migrated placements rebuild every v24 member record");
-        }
+            identical(legacy, migrated, "migrated " + label);
+            check(QJsonValue(encodeBodies(migrated.bodies())) == tree["bodies"],
+                  label + ": migrated placements rebuild every member record");
 
-        // A v24 member that differs from its definition is rejected by name.
-        {
             QString instance, definition;
-            const auto member = memberBody(goldenTree, &instance, &definition);
-            const auto corrupt = editBody(goldenTree, member, [](QJsonObject &body) {
+            const auto member = memberBody(tree, &instance, &definition);
+            const auto corrupt = editBody(tree, member, [](QJsonObject &body) {
                 auto vertices = body["vertices"].toArray();
                 auto vertex = vertices[0].toArray();
                 vertex[1] = vertex[1].toDouble() + .25;
                 vertices[0] = vertex;
                 body["vertices"] = vertices;
             });
-            const auto path = files.filePath("corrupt-v24.sketchyup");
-            const auto bytes = repack(golden, compact(corrupt));
+            const auto path = files.filePath("corrupt-" + name);
+            const auto bytes = repack(original, compact(corrupt));
             write(path, bytes);
             const auto message = rejection([&] { (void)loadDocument(path); });
             check(message.find("instance " + instance.toStdString()) != std::string::npos &&
@@ -438,13 +441,19 @@ int main(int argc, char **argv) {
                           std::string::npos &&
                       message.size() < 256,
                   "Bounded diagnostic names the placement and definition: " + message);
-            const auto output = files.filePath("corrupt-migrated.sketchyup");
-            rejection([&] { (void)migrateNativeFile(path, output); });
+            const auto rejected = files.filePath("corrupt-migrated-" + name);
+            rejection([&] { (void)migrateNativeFile(path, rejected); });
             rejection([&] { (void)inspectNativeFile(path); });
-            check(read(path) == bytes && !QFile::exists(output),
-                  "Rejected migration leaves the original untouched");
+            check(read(path) == bytes && !QFile::exists(rejected),
+                  label + ": rejected migration leaves the original untouched");
             const auto raw = rejection([&] { (void)decodeDocument(compact(corrupt)); });
-            check(raw == message, "Raw JSON migration uses the same diagnostic");
+            check(raw == message, label + ": raw JSON migration uses the same diagnostic");
+        }
+        const auto golden = read(fixturePath());
+        const auto goldenTree = documentTree(golden);
+        {
+            QString instance, definition;
+            const auto member = memberBody(goldenTree, &instance, &definition);
             // A scene member floor below its canonical member floor is also a mismatch.
             auto lowered = goldenTree;
             auto definitions = lowered["definitions"].toArray();
@@ -479,7 +488,7 @@ int main(int argc, char **argv) {
                   "Member floor below its definition floor is rejected by name");
         }
 
-        // A raised member allocator floor in v24 survives the compact v25 form.
+        // A raised member allocator floor in v24 survives the compact form.
         {
             const auto member = memberBody(goldenTree);
             const auto raised = editBody(goldenTree, member, [](QJsonObject &body) {
@@ -504,11 +513,11 @@ int main(int argc, char **argv) {
             check(floors == 1, "Only the raised member writes a floor record");
         }
 
-        // Strict schema 25 placement records.
+        // Strict current-schema placement records.
         {
             const auto tree = QJsonDocument::fromJson(encodeDocument(fixture)).object();
             check(decodeDocument(compact(tree)).revision() == fixture.revision(),
-                  "Unmodified v25 tree decodes");
+                  "Unmodified current tree decodes");
             auto instances = [&](const std::function<void(QJsonObject &)> &change) {
                 auto copy = tree;
                 auto records = copy["instances"].toArray();
@@ -561,7 +570,7 @@ int main(int argc, char **argv) {
                 copy["bodies"] = bodies;
                 rejection([&] { (void)decodeDocument(compact(copy)); });
             }
-            // An older reader's feature set cannot open a v25 chunk.
+            // An older reader's feature set cannot open a current chunk.
             const auto container = encodeContainer(fixture);
             const auto withoutFeature = repack(container, compact(documentTree(container)),
                                                [](QJsonObject &manifest) {
@@ -573,11 +582,11 @@ int main(int argc, char **argv) {
                                                    manifest["requiredFeatures"] = features;
                                                });
             rejection([&] { (void)decodeContainer(withoutFeature); });
-            auto v24 = documentTree(container);
-            v24["version"] = 24;
-            rejection([&] { (void)decodeContainer(repack(container, compact(v24))); });
+            auto previous = documentTree(container);
+            previous["version"] = nativeDocumentVersion - 1;
+            rejection([&] { (void)decodeContainer(repack(container, compact(previous))); });
         }
-        std::cout << "Instanced component storage: schema 25 round trips, v24 golden migration, "
+        std::cout << "Instanced component storage: schema 26 round trips, v24/v25 golden migration, "
                      "named mismatch rejection and compact placements passed\n";
         return 0;
     } catch (const std::exception &error) {

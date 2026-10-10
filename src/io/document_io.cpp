@@ -70,7 +70,7 @@ QJsonValue encodeTextureMapping(const std::optional<TextureMapping> &mapping) {
                        {"vGradient", point(mapping->vGradient)},
                        {"offset", QJsonArray{mapping->offset.u, mapping->offset.v}}};
 }
-// Scene records owned by a placement, other than that placement's own root. Schema 25
+// Scene records owned by a placement, other than that placement's own root. Schema 26
 // stores none of them: they are exact projections of their definitions.
 std::set<Id> placementMembers(const ComponentInstances &instances) {
     std::set<Id> members;
@@ -147,7 +147,7 @@ void boundPlacements(const std::map<Id, BodyPtr> &stored, const ComponentInstanc
             throw std::runtime_error("Component expansion exceeds document editing limits");
     }
 }
-// Schemas 8-24 store expanded members. Each must equal its projection under the
+// Schemas 8-25 store expanded members. Each must equal its projection under the
 // canonical comparison; a mismatch names the member, placement and definition.
 void verifyStoredPlacements(const ComponentDefinitions &definitions,
                             const ComponentInstances &instances,
@@ -169,7 +169,7 @@ void verifyStoredPlacements(const ComponentDefinitions &definitions,
         }
     }
 }
-// Schema 25: rebuild every placement member from its definition and binding.
+// Schema 26: rebuild every placement member from its definition and binding.
 void projectPlacements(const ComponentDefinitions &definitions,
                        const ComponentInstances &instances,
                        const std::map<Id, std::map<Id, std::pair<Id, Id>>> &floors,
@@ -923,7 +923,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         for (auto value : instanceRecords) {
             const auto record = object(value);
             QStringList allowed{"root", "definition", "members"};
-            if (root["version"].toInt() >= 25)
+            if (root["version"].toInt() >= 26)
                 allowed.append("floors");
             supportedFields(record, allowed);
             auto instance = std::make_shared<ComponentInstance>();
@@ -936,7 +936,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             const auto placement = readId(record["root"]);
             if (!instances.emplace(placement, instance).second)
                 throw std::runtime_error("Duplicate component instance root");
-            if (root["version"].toInt() >= 25) {
+            if (root["version"].toInt() >= 26) {
                 if (!record.contains("floors"))
                     throw std::runtime_error("Missing component placement floors");
                 const auto records = object(record["floors"]);
@@ -956,7 +956,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             const auto sizes = validateComponentDefinitions(definitions, nextDefinitionId, tags,
                                                             nextTagId, materials, nextMaterialId,
                                                             assets, nextAssetId);
-            if (root["version"].toInt() >= 25) {
+            if (root["version"].toInt() >= 26) {
                 boundPlacements(bodies, instances, topLevelPlacements(instances), sizes);
                 projectPlacements(definitions, instances, floors, bodies);
             } else

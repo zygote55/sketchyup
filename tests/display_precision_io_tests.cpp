@@ -99,8 +99,9 @@ int main(int argc, char **argv) {
         auto head = manifest(bytes);
         const auto features = head["requiredFeatures"].toArray();
         check(features.contains("display-precision-v1") &&
-                  head["chunks"].toArray()[0].toObject()["encoding"] == "json-v25",
-              "Container requires display-precision-v1 with json-v25");
+                  head["chunks"].toArray()[0].toObject()["encoding"] ==
+                      QString("json-v%1").arg(nativeDocumentVersion),
+              "Container requires display-precision-v1 with the current encoding");
         auto withoutFeature = head;
         QJsonArray reduced;
         for (const auto &feature : features)
@@ -150,8 +151,18 @@ int main(int argc, char **argv) {
                   golden.bodies().size() == 1 && !golden.dirty(),
               "v25 golden fixture keeps ft-in at two decimals");
         QFile goldenFile(fixture);
-        check(goldenFile.open(QIODevice::ReadOnly) && encodeContainer(golden) == goldenFile.readAll(),
-              "v25 golden fixture re-encodes byte-for-byte");
+        check(goldenFile.open(QIODevice::ReadOnly), "Read v25 golden fixture");
+        const auto goldenBytes = goldenFile.readAll();
+        check(manifest(goldenBytes)["chunks"].toArray()[0].toObject()["encoding"] == "json-v25",
+              "Retained fixture is schema-25 writer output");
+        // Schema 26 (R082.cc) only changes placement storage; this fixture has no
+        // placements, so its migrated container reopens byte-for-byte.
+        const auto upgraded = encodeContainer(golden);
+        const auto reopenedGolden = decodeContainer(upgraded);
+        check(encodeContainer(reopenedGolden) == upgraded &&
+                  reopenedGolden.displayPrecision() == 2 &&
+                  encodeBodies(reopenedGolden.bodies()) == encodeBodies(golden.bodies()),
+              "v25 golden fixture migrates to the current schema exactly");
 
         // Public API: document.units precision and document.describe.
         Document api;
