@@ -55,6 +55,38 @@ int main() {
         check(created >= liveNext && created > retired && live.bodies().empty() &&
                   !live.isCurrentSnapshot(fork.saveStamp()),
               "Private snapshot edits must preserve floors and leave live state untouched");
+        {
+            auto callerBody = std::make_shared<Body>(*captured.bodies().at(body));
+            const auto expected = *callerBody;
+            Document restored;
+            restored.restore(captured.identity(), captured.nextId(), {{body, callerBody}});
+            check(restored.bodies().at(body).get() != callerBody.get(),
+                  "Public restore must freeze caller-owned bodies");
+            callerBody->name = "Caller mutation after restore";
+            callerBody->surface.vertices.begin()->second.x += 10;
+            check(*restored.bodies().at(body) == expected,
+                  "Caller mutation cannot alter a restored document");
+
+            auto legacy = std::make_shared<Body>(expected);
+            legacy->topology = {};
+            Document upgraded;
+            upgraded.restore(captured.identity(), captured.nextId(), {{body, legacy}});
+            check(legacy->topology.edges.empty() &&
+                      !upgraded.bodies().at(body)->topology.edges.empty(),
+                  "Legacy topology rebuilding must not mutate caller records");
+            const auto before = upgraded.bodies().at(body);
+            const auto identity = upgraded.identity();
+            bool rejected = false;
+            try {
+                upgraded.restore(identity, captured.nextId() + 1,
+                                 {{body, legacy}, {captured.nextId(), nullptr}});
+            } catch (const std::runtime_error &) {
+                rejected = true;
+            }
+            check(rejected && upgraded.identity() == identity &&
+                      upgraded.bodies().at(body) == before,
+                  "Rejected restore must preserve the previously published document");
+        }
         std::cout << "Immutable read snapshots preserve records, identity, floors and saved state "
                      "without history\n";
     } catch (const std::exception &error) {
