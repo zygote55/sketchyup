@@ -1,0 +1,88 @@
+{
+  "corpusVersion": 1,
+  "formats": [
+    {
+      "accepted": 4,
+      "format": "native-json",
+      "mutations": 512,
+      "rejected": 508,
+      "seedBytes": 4271,
+      "seedSha256": "c550d54c774795603b3482cd72976e4d3db8037233cd5840f3272fbbd3851c94"
+    },
+    {
+      "accepted": 0,
+      "format": "native-container",
+      "mutations": 512,
+      "rejected": 512,
+      "seedBytes": 5303,
+      "seedSha256": "84edd0b624560f5a89aa07af79a9ea1228b3926de264665e4c54f451e549d485"
+    },
+    {
+      "accepted": 94,
+      "format": "glb",
+      "mutations": 512,
+      "rejected": 418,
+      "seedBytes": 2908,
+      "seedSha256": "ec9382c1bcb187ef605da7706b53fd419540dda789e0b98e174748736f0ff214"
+    },
+    {
+      "accepted": 161,
+      "format": "stl-binary",
+      "mutations": 512,
+      "rejected": 351,
+      "seedBytes": 684,
+      "seedSha256": "807d862781e2b1f750eac0a1a27396db9bb08383e8056c9d522d06a4ac919211"
+    },
+    {
+      "accepted": 6,
+      "format": "stl-ascii",
+      "mutations": 512,
+      "rejected": 506,
+      "seedBytes": 1073,
+      "seedSha256": "bee88651a46c7d4676ae88e62b185344c75e4e58dca9ab2b47a47f0d90568d70"
+    },
+    {
+      "accepted": 20,
+      "format": "obj",
+      "mutations": 512,
+      "rejected": 492,
+      "seedBytes": 32,
+      "seedSha256": "32dfb0a798728f3cb486b0ca5743a437e28c7594f8a63c630fa23b47407d7278"
+    },
+    {
+      "accepted": 35,
+      "format": "dxf",
+      "mutations": 512,
+      "rejected": 477,
+      "seedBytes": 344,
+      "seedSha256": "1968772f59899773ed15632c4acca9b2944eb50fa9e068d0dee85dcac32e5952"
+    },
+    {
+      "accepted": 2,
+      "format": "template",
+      "mutations": 512,
+      "rejected": 510,
+      "seedBytes": 5796,
+      "seedSha256": "a696bddd4725825a9ed9e704159e93874da477ef5dd28eb8de85cb8e7b2a5484"
+    },
+    {
+      "accepted": 1,
+      "format": "component",
+      "mutations": 512,
+      "rejected": 511,
+      "seedBytes": 5795,
+      "seedSha256": "b725438725cf42df6170294f087f72c050968853b3936da324f2992c398e91b8"
+    },
+    {
+      "accepted": 26,
+      "format": "extension",
+      "mutations": 512,
+      "rejected": 486,
+      "seedBytes": 1068,
+      "seedSha256": "81c09be930c5152a2b2245714bb5621b3de668d94a47bf53ad7e8ccc8d172b40"
+    }
+  ],
+  "mutations": 5120,
+  "seed": "0x83a5c0de",
+  "sourcePreserved": true
+}
