@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "source": "8e0afcbbd6ae314500df3a453e2c58f608a8cbbc",
+  "releaseAcceptance": false,
+  "originalFailureRetained": true,
+  "originalWaylandDeadlineUnchanged": true,
+  "rootCauseConfirmed": false,
+  "trackedSourceRestored": true,
+  "cases": 13,
+  "keyboardCases": 4,
+  "keyboardBinarySha256": "64f6fe1aff4ef1780229eb71c5d4d3780bf49e0340aba7f59abe95d4dbcabe3b",
+  "sanitizerLeakDetection": true,
+  "caseCpuAffinity": [
+    0,
+    1
+  ],
+  "llvmpipeThreads": 2,
+  "binarySha256": "66378ae50d1d12679511b5492a553c73e65de7addbabf118e4ae8ba9ba60843f",
+  "buildLogSha256": "1b0450fee546a602d0c409c63c318e0444eec1d1586de82fe8de19f750563c78",
+  "nativeLogSha256": "029f42491bf43417eb064d1ce504c04870f1c8bfa5c2a9ef5435e43c298c0a9b"
+}
