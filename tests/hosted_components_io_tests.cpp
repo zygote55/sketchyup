@@ -73,7 +73,7 @@ void roundtripAndRecovery(bool cutting) {
     validateHostedComponents(reopened.hostedComponents(), reopened.bodies(), reopened.definitions(),
                              reopened.instances());
     const auto json = QJsonDocument::fromJson(raw).object();
-    check(json["version"] == 24, "Hosted document schema version is explicit");
+    check(json["version"] == 25, "Hosted document schema version is explicit");
     for (int variant = 0; variant < 17; ++variant) {
         auto bad = json;
         auto hosted = bad["hosted"].toObject();
@@ -182,8 +182,18 @@ void roundtripAndRecovery(bool cutting) {
             rejects([&] { decodeDocument(QJsonDocument(bad).toJson()); });
         }
     }
-    const auto legacy = rewrite(bytes, [](auto &manifest, auto &document) {
+    const auto legacy = rewrite(bytes, [&](auto &manifest, auto &document) {
+        // Schemas before 25 store every expanded placement member.
+        document["bodies"] = encodeBodies(doc.bodies());
+        auto placements = document["instances"].toArray();
+        for (qsizetype i = 0; i < placements.size(); ++i) {
+            auto placement = placements[i].toObject();
+            placement.remove("floors");
+            placements[i] = placement;
+        }
+        document["instances"] = placements;
         auto features = manifest["requiredFeatures"].toArray();
+        features.removeAt(features.size() - 1); // instanced-placements-v1
         features.removeAt(features.size() - 1); // reference-images-v1
         features.removeAt(features.size() - 1); // solar-study-v1
         features.removeAt(features.size() - 1); // editable-text-v1
