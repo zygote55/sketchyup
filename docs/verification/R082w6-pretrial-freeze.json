@@ -1,0 +1,15 @@
+{
+  "candidate": "21e7622254d294c7ae08ee98ce84f19b06dfefd4",
+  "frozenAt": "2026-10-08T08:38:08.386168+00:00",
+  "filesSha256": {
+    "run.py": "81558bd7dbe1ab08abbd0b8dcc85c3268439022e4de370854f6be6e61b17d8ab",
+    "worker.py": "32a7c0dd144489542c6973b55669dc242bb234d802cfb2591dd7da732b043410",
+    "sequence.json": "a9a2376c26eb5e6c67e4c3645789f0c884d0a084cb2b6faa0b14ad6c22b9da92",
+    "memory-budget.json": "5f4c4a11f9f1d8a0a7b11b7e417e5036baa7a64d7e0c5afb15a80368ba8fe8dd",
+    "experiment-contract.json": "d1dd36178f9dfb1ccfd1f7229f6a4792070ed2fd7078a0acf6daafb7513a3d63"
+  },
+  "controllerSha256": "debde4672dfc13bea3be5f19d54ce10eab79e78a91ec25b40adfc861c59c3754",
+  "caseCount": 13,
+  "noProductionSizingChange": true,
+  "releaseAcceptance": false
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "frozenAt": "2026-10-08T06:45:07.038486+00:00",
+  "acceptanceStatus": "prospective-only",
+  "priorEvidenceAccepted": false,
+  "publicModelLimitsChanged": false,
+  "releaseAccepted": false,
+  "measurementPolicy": "Fresh forward runs only; exact artifact/source/canonical fixture identities, separate Intel and AMD reports, actual framebuffer1920x1080, unchanged five-cycle fixture, all ordinary timing/oracle requirements preserved. No retrospective pass is assigned.",
+  "limits": {
+    "supported100kPeakRssBytes": 1073741824,
+    "experimental1mPeakRssBytes": 3758096384,
+    "drmResidentUpperBoundBytes": 2147483648,
+    "sampledResidentGrowthBytes": 67108864,
+    "retainedHistoryBytes": 67108864
+  },
+  "sampledGrowthPolicy": "Maximum current RSS minus first current RSS across65 checkpoints after fixture warmup. Five identical edit/undo/redo cycles; no fixture or iteration reduction. This finite campaign cannot establish infinite-session boundedness.",
+  "driverPolicy": "Require available=true,partial=false and a numeric residentUpperBoundBytes at warmup,final and every checkpoint on physical Intel/AMD. Deduplicate own process DRM descriptors by driver/device/client. Overlapping client/region resident values remain a conservative upper bound; never add DRM categories or their resident bound to processRSS. Absence,partial data or aggregate overflow leaves memory acceptance open. Driver internals outsidefdinfo remain unaccounted.",
+  "rationale": "M0 did not freeze the promised numeric peak-memory budget. This is a documented late calibration, informed by the retained exploratory constructor, viewport and history measurements rather than represented as an original M0 threshold. The100k ceiling leaves a1GiB process envelope for the supported five-family controls. The1M ceiling reserves512MiB within the operational4GiB job ceiling for omitted overhead/reclamation; the2GiB DRM buffer-object ceiling leaves explicit margin over the roughly330MiB body vertex payload plus128MiB maximum texture fixture, staging and framebuffer allocations. The64MiB retained-history/growth ceiling bounds this declared repeated-session sample without changing the existing history charge cap. A operational cgroup cap alone is not acceptance. Full application workflows and reference-platform runs must still meet these ceilings in fresh forward measurements."
+}

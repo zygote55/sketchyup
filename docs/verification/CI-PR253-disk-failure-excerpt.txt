@@ -1,0 +1,3 @@
+arch	Sanitized native MCP inspection	2026-10-08T11:26:49.1316106Z FAILED: [code=1] texture_viewport_tests 
+arch	Sanitized native MCP inspection	2026-10-08T11:26:49.1323391Z /usr/bin/ld: final link failed: No space left on device
+arch	Sanitized native MCP inspection	2026-10-08T11:26:49.1323837Z collect2: error: ld returned 1 exit status

@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "source": "21e7622254d294c7ae08ee98ce84f19b06dfefd4",
+  "releaseAcceptance": false,
+  "normalCases": 1,
+  "sanitizerCases": 1,
+  "hardwareArtifactRevalidated": false,
+  "baselineAssertionFailureVerified": true,
+  "sanitizerLeakDetection": true,
+  "logSha256": "1a2b3bd519b2068c5de914e034e9eb1f1e4de488428d441385d722a8ac23d5d2"
+}

@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "benchmarkQualified": false,
+  "releaseAcceptance": false,
+  "source": "296bb8e74224181b5e030fd2cb88c5f28882bd84",
+  "normalCases": 1,
+  "sanitizerCases": 1,
+  "sanitizerLeakDetection": true,
+  "logSha256": "35a21db4ea6be0e1ba629a27fe09fe6a1e6cadf31b8ba8102cd72a9a78b1e470",
+  "ctestLogs": {
+    "normal": "51ec3afa3d7340c3ba3b647d8ff379cb9a909c70da74207c06d0debc9481a6b3",
+    "sanitize": "537f02475d61cb9c146d1fedfcc953b73d885842c3bb5c03e242c6d9861c6ee5"
+  },
+  "qualificationCorrection": "Both tests actually passed. Original controller expected older CTest summary wording containing zero tests failed; current CTest omits that phrase. Terminal exit0, unchanged source hashes, actual Test Passed records and variant flags verified; no test rerun or assertion change."
+}
