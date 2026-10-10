@@ -140,6 +140,8 @@ struct Projection {
     std::map<Id, BodyPtr> scene;
     ComponentInstances instances;
     Id next;
+    // Persisted scene allocator floors above the canonical member floor (native load).
+    const std::map<Id, std::pair<Id, Id>> *floors;
     void resolve(Id root, Id definitionId, const Body &placement) {
         const auto &definition = *definitions.at(definitionId);
         const auto reuse = bindings.contains(root) && bindings.at(root)->definition == definitionId
@@ -190,6 +192,15 @@ struct Projection {
                 body->surface.nextId = std::max(body->surface.nextId, old.surface.nextId);
                 body->topology.nextId = std::max(body->topology.nextId, old.topology.nextId);
             }
+            if (floors && floors->contains(id)) {
+                const auto [surface, edges] = floors->at(id);
+                if (surface < body->surface.nextId || edges < body->topology.nextId ||
+                    (surface == body->surface.nextId && edges == body->topology.nextId))
+                    throw std::runtime_error(
+                        "Placement allocator floor must exceed its definition floor");
+                body->surface.nextId = surface;
+                body->topology.nextId = edges;
+            }
             scene[id] = body;
         }
     }
@@ -214,7 +225,7 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
             if (id != root)
                 nestedRoots.insert(id);
         }
-    Projection projection{doc, definitions, bindings, seed, seed, {}, next};
+    Projection projection{doc, definitions, bindings, seed, seed, {}, next, nullptr};
     for (auto id : owned)
         projection.scene.erase(id);
     ComponentSize total;
@@ -365,7 +376,7 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id
     // complete candidate, including ownership, locks and editing scopes.
     const std::map<Id, BodyPtr> seed{{root, placement}};
     const ComponentInstances newBindings{{root, binding}};
-    Projection projection{doc, doc.definitions(), newBindings, seed, seed, {}, next};
+    Projection projection{doc, doc.definitions(), newBindings, seed, seed, {}, next, nullptr};
     projection.resolve(root, definition, *placement);
     Edit edit{"Place component", {}};
     edit.nextIdFloor = projection.next;
@@ -626,5 +637,38 @@ ComponentResult setComponentGlue(Document &doc, Id id, std::optional<ComponentGl
     Edit edit{edited->glue ? "Set component glue face" : "Clear component glue face", {}};
     edit.definitions.push_back({id, original, edited});
     return {id, 0, doc.apply(std::move(edit), doc.revision()), {}};
+}
+std::map<Id, BodyPtr> projectComponentPlacement(const ComponentDefinitions &definitions,
+                                                const ComponentInstances &instances, Id root,
+                                                const Body &placement,
+                                                const std::map<Id, std::pair<Id, Id>> &floors) {
+    // Every binding must already name each member, so projection never allocates.
+    auto complete = [&](auto &&self, Id placed, Id definitionId, size_t depth) -> void {
+        if (depth > 128 || !instances.contains(placed) || !instances.at(placed) ||
+            instances.at(placed)->definition != definitionId ||
+            !definitions.contains(definitionId))
+            throw std::runtime_error("Missing or mismatched component placement binding");
+        const auto &definition = *definitions.at(definitionId);
+        const auto &binding = *instances.at(placed);
+        if (binding.members.size() != definition.members.size() ||
+            !binding.members.contains(definition.root) ||
+            binding.members.at(definition.root) != placed)
+            throw std::runtime_error("Incomplete component placement member map");
+        for (const auto &[member, body] : definition.members) {
+            if (!binding.members.contains(member))
+                throw std::runtime_error("Incomplete component placement member map");
+            if (definition.references.contains(member))
+                self(self, binding.members.at(member), definition.references.at(member),
+                     depth + 1);
+        }
+    };
+    if (!instances.contains(root) || !instances.at(root))
+        throw std::runtime_error("Missing component placement binding");
+    complete(complete, root, instances.at(root)->definition, 1);
+    const Document empty;
+    const std::map<Id, BodyPtr> seed;
+    Projection projection{empty, definitions, instances, seed, {}, {}, 0, &floors};
+    projection.resolve(root, instances.at(root)->definition, placement);
+    return std::move(projection.scene);
 }
 } // namespace sketchy

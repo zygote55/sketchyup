@@ -99,7 +99,8 @@ void rootState(Body &body, const Body &placement) {
     body.locked = placement.locked;
     body.tag = placement.tag;
 }
-bool projected(const Body &expected, const Body &actual) {
+} // namespace
+bool matchesComponentProjection(const Body &expected, const Body &actual) {
     // Scene allocator floors can exceed the canonical floor after undo. They
     // never license a geometry identity mismatch or a lower allocator floor.
     if (actual.surface.nextId < expected.surface.nextId ||
@@ -110,7 +111,6 @@ bool projected(const Body &expected, const Body &actual) {
     comparable.topology.nextId = expected.topology.nextId;
     return comparable == expected;
 }
-} // namespace
 std::map<Id, ComponentSize>
 validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDefinitionId,
                              const TagRecords &tags, Id nextTagId, const MaterialRecords &materials,
@@ -251,7 +251,7 @@ void validateInstances(const ComponentDefinitions &definitions, const ComponentI
                     expected = std::move(geometry);
                 }
             }
-            if (!projected(expected, actual))
+            if (!matchesComponentProjection(expected, actual))
                 throw std::runtime_error("Resolved component member disagrees with its definition");
         }
     }

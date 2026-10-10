@@ -9,6 +9,7 @@
 #include <QTemporaryDir>
 #include <QtEndian>
 #include <iostream>
+#include <set>
 using namespace sketchy;
 namespace {
 void check(bool value, const char *message) {
@@ -71,7 +72,7 @@ int main(int argc, char **argv) {
             doc.setStyle(style);
             const auto raw = encodeDocument(doc), bytes = encodeContainer(doc);
             const auto root = QJsonDocument::fromJson(raw).object();
-            check(root["version"] == 25 && decodeDocument(raw).style() == style,
+            check(root["version"] == 26 && decodeDocument(raw).style() == style,
                   "Current schema preserves all style fields and modes");
             auto reopened = decodeContainer(bytes);
             check(reopened.style() == style && encodeContainer(reopened) == bytes &&
@@ -203,7 +204,7 @@ int main(int argc, char **argv) {
             auto original = QJsonDocument::fromJson(
                                 bytes.mid(16 + length, chunk["bytes"].toString().toLongLong()))
                                 .object();
-            original["version"] = 25;
+            original["version"] = 26;
         original["solar"] = encodeSolarSettings(SolarSettings{});
         original["displayPrecision"] = fullDisplayPrecision;
             original["annotations"] = QJsonArray{};
@@ -214,6 +215,24 @@ int main(int argc, char **argv) {
             original["scenes"] = QJsonArray{};
             original["nextSceneId"] = "1";
             original["style"] = encodeModelStyle(ModelStyle{});
+            // Schema 26 rebuilds placement members instead of storing them.
+            std::set<QString> members;
+            auto placements = original["instances"].toArray();
+            for (qsizetype i = 0; i < placements.size(); ++i) {
+                auto placement = placements[i].toObject();
+                const auto map = placement["members"].toObject();
+                for (auto it = map.begin(); it != map.end(); ++it)
+                    if (it.value() != placement["root"])
+                        members.insert(it.value().toString());
+                placement["floors"] = QJsonObject{};
+                placements[i] = placement;
+            }
+            original["instances"] = placements;
+            QJsonArray stored;
+            for (const auto &body : original["bodies"].toArray())
+                if (!members.contains(body.toObject()["id"].toString()))
+                    stored.append(body);
+            original["bodies"] = stored;
             check(QJsonDocument::fromJson(encodeDocument(doc, AssetStorage::External)).object() ==
                       original,
                   "Migration adds only version, default style and empty scenes, preserving explicit and implicit "

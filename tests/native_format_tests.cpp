@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
             check(inspected["valid"] == true && inspected["documentVersion"].toInt() >= 1,
                   "Historical file fully validates");
             const auto report = migrateNativeFile(source, output);
-            check(report["sourceUnmodified"] == true && report["outputDocumentVersion"] == 25,
+            check(report["sourceUnmodified"] == true && report["outputDocumentVersion"] == nativeDocumentVersion,
                   "Migration report identifies public schema");
             check(read(source) == before && encodeDocument(loadDocument(output)) == model,
                   "Migration preserves source bytes and all model records");
@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
         }
         // Exercise every accepted raw schema version, including versions with no
         // surviving feature-rich binary fixture in the repository.
-        for (int version = 1; version <= 25; ++version) {
+        for (int version = 1; version <= nativeDocumentVersion; ++version) {
             auto tree = QJsonDocument::fromJson(encodeDocument(Document{})).object();
             tree["version"] = version;
             for (const auto &[introduced, fields] : std::vector<std::pair<int, QStringList>>{
@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
         write(bad, QJsonDocument(tree).toJson());
         rejects([&] { migrateNativeFile(bad, out); });
         tree.remove("unknownRequiredRecord");
-        tree["version"] = 26;
+        tree["version"] = nativeDocumentVersion + 1;
         write(bad, QJsonDocument(tree).toJson());
         rejects([&] { inspectNativeFile(bad); });
         const auto original = read(valid);

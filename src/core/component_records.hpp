@@ -43,6 +43,9 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
                              const AssetRecords &assets = {}, Id nextAssetId = 1);
 // Resolved records must exactly project their canonical definition and binding.
 // Root placement/state is instance-owned; inner members are definition-owned.
+// The canonical comparison of a resolved record with its projection: exact equality,
+// except that scene allocator floors may exceed (never fall below) the projected floors.
+bool matchesComponentProjection(const Body &expected, const Body &actual);
 void validateComponentInstances(const ComponentDefinitions &definitions,
                                 const ComponentInstances &instances,
                                 const std::map<Id, BodyPtr> &scene);
