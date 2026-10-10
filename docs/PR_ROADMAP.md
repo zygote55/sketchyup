@@ -1277,7 +1277,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R089 — Close the 1.0 release gate and publish artifacts
 
-**Status:** Planned. **Track:** Release. **Scope:** N02, D06, A08. **UX:** —.
+**Status:** Planned. [Gate procedure](M9_ACCEPTANCE.md) defined; M9 acceptance remains open. **Track:** Release. **Scope:** N02, D06, A08. **UX:** —.
 
 **Requires:** [R088](#r088); milestone gate rule above.
 
