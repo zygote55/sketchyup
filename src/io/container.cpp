@@ -108,7 +108,7 @@ QByteArray encodeContainer(const Document &doc) {
                                               "tags-v1", "materials-v1", "assets-v1",
                                               "display-units-v1", "edge-appearance-v1",
                                               "component-glue-v1", "hosted-components-v1", "texture-mapping-v1", "model-style-v1", "saved-scenes-v1", "section-planes-v1", "section-scenes-v1", "annotations-v1", "editable-text-v1", "solar-study-v1", "reference-images-v1",
-                                              "display-precision-v1"}},
+                                              "display-precision-v1", "instanced-placements-v1"}},
                                   {"allocatorFloors", floors(doc, true, true, true, true, true, true, true, true)},
                                   {"assets", assets},
                                   {"chunks", chunks}})
@@ -145,7 +145,13 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    const bool displayPrecision = features == std::set<QString>{
+    const bool instancedPlacements = features == std::set<QString>{
+        "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
+        "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
+        "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
+        "model-style-v1", "saved-scenes-v1", "section-planes-v1", "section-scenes-v1", "annotations-v1", "editable-text-v1", "solar-study-v1", "reference-images-v1",
+        "display-precision-v1", "instanced-placements-v1"};
+    const bool displayPrecision = instancedPlacements || features == std::set<QString>{
         "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
         "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
         "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
@@ -273,7 +279,7 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (displayPrecision ? "json-v25" : referenceImages ? "json-v24" : solarStudy ? "json-v23" : editableText ? "json-v22"
+        chunk["encoding"] != (instancedPlacements ? "json-v26" : displayPrecision ? "json-v25" : referenceImages ? "json-v24" : solarStudy ? "json-v23" : editableText ? "json-v22"
                                    : annotations ? "json-v21"
                               : sectionScenes ? "json-v20"
                               : sections ? "json-v19"
@@ -324,7 +330,7 @@ Document decodeContainer(const QByteArray &bytes) {
     QJsonParseError payloadError;
     const auto parsedPayload = QJsonDocument::fromJson(payload, &payloadError);
     const auto payloadTree = parsedPayload.object();
-    if (payloadTree["version"] != (displayPrecision ? 25 : referenceImages ? 24 : solarStudy ? 23 : editableText ? 22
+    if (payloadTree["version"] != (instancedPlacements ? 26 : displayPrecision ? 25 : referenceImages ? 24 : solarStudy ? 23 : editableText ? 22
                                    : annotations ? 21
                                    : sectionScenes ? 20
                                    : sections ? 19

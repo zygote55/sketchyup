@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
         check(resolveComponentGlue(*reopened.definitions().at(made.definition)).profile.size() == 4,
               "Reopened glue resolves against authoritative geometry");
         const auto json = QJsonDocument::fromJson(raw).object();
-        check(json["version"] == 25, "Glue schema version is explicit");
+        check(json["version"] == 26, "Glue schema version is explicit");
         auto missing = json;
         auto definitions = missing["definitions"].toArray();
         auto definition = definitions[0].toObject();
@@ -76,6 +76,15 @@ int main(int argc, char **argv) {
         missing["definitions"] = definitions;
         rejects([&] { decodeDocument(QJsonDocument(missing).toJson()); });
         missing["version"] = 13;
+        // Schemas before 26 store every expanded placement member.
+        missing["bodies"] = encodeBodies(doc.bodies());
+        auto placements = missing["instances"].toArray();
+        for (qsizetype i = 0; i < placements.size(); ++i) {
+            auto placement = placements[i].toObject();
+            placement.remove("floors");
+            placements[i] = placement;
+        }
+        missing["instances"] = placements;
         missing.remove("style");
         missing.remove("scenes");
         missing.remove("sections");
@@ -118,8 +127,18 @@ int main(int argc, char **argv) {
             bad["definitions"] = records;
             rejects([&] { decodeDocument(QJsonDocument(bad).toJson()); });
         }
-        const auto oldContainer = rewrite(bytes, [](auto &manifest, auto &document) {
+        const auto oldContainer = rewrite(bytes, [&](auto &manifest, auto &document) {
+            // Schemas before 26 store every expanded placement member.
+            document["bodies"] = encodeBodies(doc.bodies());
+            auto placements = document["instances"].toArray();
+            for (qsizetype i = 0; i < placements.size(); ++i) {
+                auto placement = placements[i].toObject();
+                placement.remove("floors");
+                placements[i] = placement;
+            }
+            document["instances"] = placements;
             auto features = manifest["requiredFeatures"].toArray();
+            features.removeAt(features.size() - 1); // instanced-placements-v1
             features.removeAt(features.size() - 1); // display-precision-v1
             features.removeAt(features.size() - 1); // reference-images-v1
         features.removeAt(features.size() - 1); // solar-study-v1
