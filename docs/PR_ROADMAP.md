@@ -1205,7 +1205,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R083 — Harden files, recovery and transaction failure paths
 
-**Status:** In progress. Overlapping hardening fixtures and the [combined local failure matrix](verification/R083d-local-failure-matrix.md) pass normal and sanitizer runs, including parser corruption, publication faults and replayable transaction/geometry sequences. [D-002](verification/R083f-file-worker-hang.md), the sanitized file-worker CI hang, was in the test harness, not the product: a save failed on a nearly full CI disk and the test never dismissed the "Save failed" dialog. Release-candidate revalidation and final acceptance remain open. **Track:** Quality. **Scope:** D02, D03, D04, D06, X06. **UX:** —.
+**Status:** In progress. Overlapping hardening fixtures and the [combined local failure matrix](verification/R083d-local-failure-matrix.md) pass normal and sanitizer runs, including parser corruption, publication faults and replayable transaction/geometry sequences. The bounded [coverage-guided parser fuzzing campaign](verification/R083e-parser-fuzzing.md) records measured coverage for all ten parser formats and one open sanitizer finding in Qt JSON parsing under libFuzzer. [D-002](verification/R083f-file-worker-hang.md), the sanitized file-worker CI hang, was in the test harness, not the product: a save failed on a nearly full CI disk and the test never dismissed the "Save failed" dialog. Release-candidate revalidation and final acceptance remain open. **Track:** Quality. **Scope:** D02, D03, D04, D06, X06. **UX:** —.
 
 **Requires:** [R073](#r073), [R038](#r038), [R041](#r041), [R074](#r074), [R075](#r075), [R076](#r076), [R077](#r077); milestone gate rule above.
 
@@ -1265,7 +1265,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R088 — Publish user workflows, support matrix and parity report
 
-**Status:** In progress. Overlapping [installed development guides and support boundaries](verification/R088a-development-guides.md) document implemented workflows and known gaps, with byte-exact install and source-archive checks. A [59-row Core evidence index](verification/R088b-core-evidence-index.md) maps retained passing fixtures and explicit limitations without claiming full row acceptance. The complete Core parity report, release-candidate walkthrough and preceding acceptance gates remain open. **Track:** Planning. **Scope:** A07, X05, N05. **UX:** —.
+**Status:** In progress. Overlapping [installed development guides and support boundaries](verification/R088a-development-guides.md) document implemented workflows and known gaps, with byte-exact install and source-archive checks. A [59-row Core evidence index](verification/R088b-core-evidence-index.md) maps retained passing fixtures and explicit limitations without claiming full row acceptance. A [clause-level gap analysis against main](verification/R088d-core-parity-gaps.md) records the Core acceptance clauses that still lack passing evidence. The complete Core parity report, release-candidate walkthrough and preceding acceptance gates remain open. **Track:** Planning. **Scope:** A07, X05, N05. **UX:** —.
 
 **Requires:** [R086](#r086), [R087](#r087), [R078](#r078); milestone gate rule above.
 
@@ -1277,7 +1277,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R089 — Close the 1.0 release gate and publish artifacts
 
-**Status:** Planned. **Track:** Release. **Scope:** N02, D06, A08. **UX:** —.
+**Status:** Planned. [Gate procedure](M9_ACCEPTANCE.md) defined; M9 acceptance remains open. A [working open-defect triage list](verification/R089a-defect-triage.md) classifies the known defects on `main`; it is not the release-candidate triage. **Track:** Release. **Scope:** N02, D06, A08. **UX:** —.
 
 **Requires:** [R088](#r088); milestone gate rule above.
 
