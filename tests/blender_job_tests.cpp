@@ -11,6 +11,7 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QSaveFile>
 #include <QThread>
 #include <QTimer>
 #include <future>
@@ -51,8 +52,16 @@ int fake(QCoreApplication &app, const QStringList &args) {
     const auto requestPath = args.last();
     if (requestPath.endsWith(".blend") && args.contains("--disable-autoexec")) {
         const auto proof = qEnvironmentVariable("SKETCHYUP_HANDOFF_LAUNCH_PROOF");
-        if (!proof.isEmpty())
-            write(proof, requestPath.toUtf8());
+        if (!proof.isEmpty()) {
+            // The detached-process fixture uses visibility of this path as its
+            // completion signal. Publish all bytes together so the parent cannot
+            // observe an empty file between open and write.
+            QSaveFile result(proof);
+            const auto bytes = requestPath.toUtf8();
+            check(result.open(QIODevice::WriteOnly) && result.write(bytes) == bytes.size() &&
+                      result.commit(),
+                  "Publish complete external-launch proof");
+        }
         return 0;
     }
     const auto root = QFileInfo(requestPath).absolutePath();

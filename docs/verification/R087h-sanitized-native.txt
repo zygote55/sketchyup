@@ -1,0 +1,81 @@
+	linux-vdso.so.1 (0x000078e618bdf000)
+	libwayland-client.so.0 => /work/package/r087h-wayland-client/libwayland-client.so.0 (0x000078e618a9a000)
+	libwayland-cursor.so.0 => /usr/lib/libwayland-cursor.so.0 (0x000078e618a91000)
+	libQt6Gui.so.6 => /usr/lib/libQt6Gui.so.6 (0x000078e618129000)
+	libQt6Core.so.6 => /usr/lib/libQt6Core.so.6 (0x000078e617a99000)
+	libxkbcommon.so.0 => /usr/lib/libxkbcommon.so.0 (0x000078e617a38000)
+	libstdc++.so.6 => /usr/lib/libstdc++.so.6 (0x000078e617765000)
+	libm.so.6 => /usr/lib/libm.so.6 (0x000078e61762e000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x000078e61740b000)
+	libffi.so.8 => /usr/lib/libffi.so.8 (0x000078e6173fd000)
+	libEGL.so.1 => /usr/lib/libEGL.so.1 (0x000078e6173eb000)
+	libfontconfig.so.1 => /usr/lib/libfontconfig.so.1 (0x000078e61736e000)
+	libX11.so.6 => /usr/lib/libX11.so.6 (0x000078e61722c000)
+	libglib-2.0.so.0 => /usr/lib/libglib-2.0.so.0 (0x000078e6170c9000)
+	libQt6DBus.so.6 => /usr/lib/libQt6DBus.so.6 (0x000078e616ffc000)
+	libGLX.so.0 => /usr/lib/libGLX.so.0 (0x000078e616fcb000)
+	libOpenGL.so.0 => /usr/lib/libOpenGL.so.0 (0x000078e616fa7000)
+	libpng16.so.16 => /usr/lib/libpng16.so.16 (0x000078e616f68000)
+	libharfbuzz.so.0 => /usr/lib/libharfbuzz.so.0 (0x000078e616e24000)
+	libmd4c.so.0 => /usr/lib/libmd4c.so.0 (0x000078e616e0e000)
+	libfreetype.so.6 => /usr/lib/libfreetype.so.6 (0x000078e616d3e000)
+	libz.so.1 => /usr/lib/libz.so.1 (0x000078e616d23000)
+	libgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x000078e616cf6000)
+	liburing.so.2 => /usr/lib/liburing.so.2 (0x000078e616ced000)
+	libicui18n.so.78 => /usr/lib/libicui18n.so.78 (0x000078e61695f000)
+	libicuuc.so.78 => /usr/lib/libicuuc.so.78 (0x000078e616751000)
+	libsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x000078e616608000)
+	libdouble-conversion.so.3 => /usr/lib/libdouble-conversion.so.3 (0x000078e6165f1000)
+	libb2.so.1 => /usr/lib/libb2.so.1 (0x000078e6165d1000)
+	libpcre2-16.so.0 => /usr/lib/libpcre2-16.so.0 (0x000078e61652b000)
+	libcrypto.so.3 => /usr/lib/libcrypto.so.3 (0x000078e615f81000)
+	libzstd.so.1 => /usr/lib/libzstd.so.1 (0x000078e615e9b000)
+	/usr/lib64/ld-linux-x86-64.so.2 (0x000078e618be2000)
+	libGLdispatch.so.0 => /usr/lib/libGLdispatch.so.0 (0x000078e615e22000)
+	libexpat.so.1 => /usr/lib/libexpat.so.1 (0x000078e615df1000)
+	libxcb.so.1 => /usr/lib/libxcb.so.1 (0x000078e615dc6000)
+	libpcre2-8.so.0 => /usr/lib/libpcre2-8.so.0 (0x000078e615d13000)
+	libdbus-1.so.3 => /usr/lib/libdbus-1.so.3 (0x000078e615cc0000)
+	libgraphite2.so.3 => /usr/lib/libgraphite2.so.3 (0x000078e615c9d000)
+	libbz2.so.1.0 => /usr/lib/libbz2.so.1.0 (0x000078e615c88000)
+	libbrotlidec.so.1 => /usr/lib/libbrotlidec.so.1 (0x000078e615c79000)
+	libicudata.so.78 => /usr/lib/libicudata.so.78 (0x000078e613ce4000)
+	libgomp.so.1 => /usr/lib/libgomp.so.1 (0x000078e613c8a000)
+	libbrotlienc.so.1 => /usr/lib/libbrotlienc.so.1 (0x000078e613bca000)
+	libXau.so.6 => /usr/lib/libXau.so.6 (0x000078e613bc3000)
+	libXdmcp.so.6 => /usr/lib/libXdmcp.so.6 (0x000078e613bbb000)
+	libbrotlicommon.so.1 => /usr/lib/libbrotlicommon.so.1 (0x000078e613b98000)
+	libwayland-client.so.0 => /work/package/r087h-wayland-client/libwayland-client.so.0 (0x000078e618a9a000)
+Blender worker lifecycle and artifact validation passed
+Sanitized Wayland scale=1 render_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native render setup, cancellation, revision capture, result and image save passed
+Sanitized Wayland scale=1 shortcut_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native shortcuts: draft/cancel/save, live keys, conflicts, typing, restart, reset and stale-save rejection passed
+Sanitized Wayland scale=2 render_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native render setup, cancellation, revision capture, result and image save passed
+Sanitized Wayland scale=2 shortcut_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native shortcuts: draft/cancel/save, live keys, conflicts, typing, restart, reset and stale-save rejection passed
