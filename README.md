@@ -15,7 +15,7 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. The M7 presentation and rendering checkpoint is [accepted](docs/verification/M7-accepted.md). The [M8 exchange and extensibility gate](docs/verification/M8.md) is accepted. Shared components support native editing.
+M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. The M7 presentation and rendering checkpoint is [accepted](docs/verification/M7-accepted.md). The [M8 exchange and extensibility gate](docs/verification/M8.md) is accepted, and M9 hardening is in progress. Shared components support native editing.
 OpenAI and experimental loopback Ollama adapters, transactional previews and optional
 Blender rendering are implemented. Live OpenAI acceptance passed the M5 and M6
 workflow gates; the measured local CPU Ollama profile timed out on the initial
