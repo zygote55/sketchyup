@@ -1,0 +1,2 @@
+arch	UNKNOWN STEP	2026-10-08T06:49:49.6402317Z [06:48:49.648] warning: failed to query rendering device from EGL
+arch	UNKNOWN STEP	2026-10-08T06:49:49.6403057Z [06:48:49.648] failed to initialize allocator

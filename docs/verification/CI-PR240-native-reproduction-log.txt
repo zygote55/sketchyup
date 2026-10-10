@@ -1,0 +1,105 @@
+	libwayland-client.so.0 => /work/package/ci-wayland-client/libwayland-client.so.0 (0x00007bd6e9798000)
+Exact PR240 sanitizer fixture: scale=1 control
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=1
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=2
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=3
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=4
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=5
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=6
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=7
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=8
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=9
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=10
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=11
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Exact PR240 sanitizer fixture: scale=2 attempt=12
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399

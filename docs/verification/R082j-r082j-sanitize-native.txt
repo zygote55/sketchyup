@@ -1,0 +1,164 @@
+Sanitized Wayland scale=1 guide_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=1
+Sanitized Wayland scale=1 viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+{"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom","colorBits":[8,8,8,8],"contextGenerations":2,"outputTransitions":[],"passed":true,"platform":"wayland","scale":1,"screens":[{"name":"headless","scale":1}]}
+Sanitized Wayland scale=1 material_viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=1
+Sanitized Wayland scale=1 texture_viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+Sanitized Wayland scale=1 section_viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native scoped sections, caps, picking, Undo, reflection and UVs passed
+Sanitized Wayland scale=1 style_viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+{"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071,0.20000000298023224],"edgesVisible":true,"front":[0.8199999928474426,0.8399999737739563,0.800000011920929],"gridVisible":false,"ground":[0.8600000143051147,0.8700000047683716,0.8199999928474426],"groundHeight":0,"groundVisible":false,"mode":"textured","profileWidth":5,"profiles":true,"xrayOpacity":0.25},"passed":true,"platform":"wayland","profileEdges":6,"scale":1,"syntheticProfileEdges":0}
+Sanitized Wayland scale=1 solar_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Ground probe -2.97511,1.43117 shadow=65 lit=156
+Native sun controls, history, scene capture, lighting, shadows and picking passed
+Sanitized Wayland scale=1 selection_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+Sanitized Wayland scale=1 raster_export_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Exact raster dimensions, fresh rendering, annotations, clipping, state preservation and atomic publication passed
+Sanitized Wayland scale=1 reference_image_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Reference image native display, picking, import, calibration and persistence passed
+Sanitized Wayland scale=2 guide_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=2
+Sanitized Wayland scale=2 viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+{"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom","colorBits":[8,8,8,8],"contextGenerations":2,"outputTransitions":[],"passed":true,"platform":"wayland","scale":2,"screens":[{"name":"headless","scale":2}]}
+Sanitized Wayland scale=2 material_viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2
+Sanitized Wayland scale=2 texture_viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+Sanitized Wayland scale=2 section_viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native scoped sections, caps, picking, Undo, reflection and UVs passed
+Sanitized Wayland scale=2 style_viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+{"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071,0.20000000298023224],"edgesVisible":true,"front":[0.8199999928474426,0.8399999737739563,0.800000011920929],"gridVisible":false,"ground":[0.8600000143051147,0.8700000047683716,0.8199999928474426],"groundHeight":0,"groundVisible":false,"mode":"textured","profileWidth":5,"profiles":true,"xrayOpacity":0.25},"passed":true,"platform":"wayland","profileEdges":6,"scale":2,"syntheticProfileEdges":0}
+Sanitized Wayland scale=2 solar_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Ground probe -2.97511,1.43117 shadow=65 lit=156
+Native sun controls, history, scene capture, lighting, shadows and picking passed
+Sanitized Wayland scale=2 selection_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+Sanitized Wayland scale=2 raster_export_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Exact raster dimensions, fresh rendering, annotations, clipping, state preservation and atomic publication passed
+Sanitized Wayland scale=2 reference_image_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Reference image native display, picking, import, calibration and persistence passed

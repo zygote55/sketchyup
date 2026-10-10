@@ -4,20 +4,23 @@
 namespace sketchy {
 void Viewport::syncTextures() {
     AssetRecords assets;
-    for (const auto &[id, body] : doc_.bodies()) {
-        if (opacity_.contains(id) && opacity_.at(id) == 0)
-            continue;
-        if (body->referenceImage && visible({id, SelectionKind::Body, 0}))
-            assets.emplace(body->referenceImage->asset,
-                           doc_.assets().at(body->referenceImage->asset));
-        for (const auto &[face, record] : body->surface.faces) {
-            if (!visible({id, SelectionKind::Face, face}))
+    // Even an empty request must retire obsolete CPU and GPU images below.
+    if (!doc_.assets().empty()) {
+        for (const auto &[id, body] : doc_.bodies()) {
+            if (opacity_.contains(id) && opacity_.at(id) == 0)
                 continue;
-            const auto sides = faceMaterials(*body, face);
-            for (auto material : {sides.front, sides.back})
-                if (material)
-                    if (const auto asset = doc_.materials().at(material)->asset)
-                        assets.emplace(asset, doc_.assets().at(asset));
+            if (body->referenceImage && visible({id, SelectionKind::Body, 0}))
+                assets.emplace(body->referenceImage->asset,
+                               doc_.assets().at(body->referenceImage->asset));
+            for (const auto &[face, record] : body->surface.faces) {
+                if (!visible({id, SelectionKind::Face, face}))
+                    continue;
+                const auto sides = faceMaterials(*body, face);
+                for (auto material : {sides.front, sides.back})
+                    if (material)
+                        if (const auto asset = doc_.materials().at(material)->asset)
+                            assets.emplace(asset, doc_.assets().at(asset));
+            }
         }
     }
     textureCache_.request(assets);

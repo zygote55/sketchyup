@@ -1,0 +1,68 @@
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.6s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build
+[1/30] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/inference.cpp.o
+[2/30] Linking CXX static library libsketchyup_core.a
+[3/30] Automatic MOC for target sketchyup_providers
+[4/28] Automatic MOC for target sketchyup_render
+[5/26] Linking CXX executable sketchyup-text-worker
+[6/26] Linking CXX executable sketchyup-extension-worker
+[7/26] Automatic MOC for target sketchyup_desktop
+[8/25] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_textures.cpp.o
+[9/25] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport.cpp.o
+[10/25] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_guides.cpp.o
+[11/25] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_selection.cpp.o
+[12/25] Linking CXX static library libsketchyup_desktop.a
+[13/25] Automatic MOC for target real_model_benchmark
+[14/24] Automatic MOC for target guide_input_tests
+[15/24] Automatic MOC for target viewport_tests
+[16/23] Running rcc for resource performance_fixture_textures
+[17/23] Building CXX object CMakeFiles/guide_input_tests.dir/guide_input_tests_autogen/mocs_compilation.cpp.o
+[18/23] Building CXX object CMakeFiles/guide_input_tests.dir/tests/guide_input_tests.cpp.o
+[19/23] Building CXX object CMakeFiles/real_model_benchmark.dir/.qt/rcc/qrc_performance_fixture_textures.cpp.o
+[20/23] Building CXX object CMakeFiles/real_model_benchmark.dir/tests/real_model_benchmark.cpp.o
+[21/23] Linking CXX executable real_model_benchmark
+[22/23] Linking CXX executable guide_input_tests
+[23/23] Linking CXX executable viewport_tests
+38c6574a949bc3039f28ddf5ea5032cfae33d0b265d1423fe603ad37109bf3f6  /capture/real_model_benchmark
+Native Wayland scale=1 viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+{"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom","colorBits":[8,8,8,8],"contextGenerations":2,"outputTransitions":[],"passed":true,"platform":"wayland","scale":1,"screens":[{"name":"headless","scale":1}]}
+Native Wayland scale=1 guide_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=1
+Native Wayland scale=2 viewport_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+{"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom","colorBits":[8,8,8,8],"contextGenerations":2,"outputTransitions":[],"passed":true,"platform":"wayland","scale":2,"screens":[{"name":"headless","scale":2}]}
+Native Wayland scale=2 guide_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=2
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.6s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build

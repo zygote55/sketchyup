@@ -1,0 +1,7 @@
+{
+  "dependencyStillRunning": "running",
+  "noCompilerStarted": true,
+  "noTemporaryBuildArtifactsOrLog": true,
+  "workerState": "LoadState=not-found\nSubState=dead\n",
+  "reason": "The disposable CI image has grep but no rg. New prospective variant adds the established fallback and explicit auxiliary-file identity checks."
+}

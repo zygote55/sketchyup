@@ -1,0 +1,9 @@
+# PR240 native file-worker CI reproduction
+
+The original full CI run [37695628856](https://github.com/zygote55/sketchyup/actions/runs/37695628856/job/113046531293) timed out in the sanitizer Wayland scale-2 file-worker fixture at its unchanged 60-second deadline. The renderer had initialized. The retained failure contains no confirmed OOM, disk exhaustion or sanitizer finding. Its root cause remains unconfirmed.
+
+An independent build of the exact PR240 application, fixture and Wayland controller inputs passed one scale-1 control and twelve sequential scale-2 repetitions with ASan leak detection and UBSan enabled. The [result](CI-PR240-native-reproduction-result.json), [prospective input freeze](CI-PR240-native-reproduction-freeze.json), [controller](CI-PR240-native-reproduction-controller.txt), [worker](CI-PR240-native-reproduction-worker.txt) and [native log](CI-PR240-native-reproduction-log.txt) retain the evidence. This is a bounded reproduction, not proof that the original failure has been fixed or that full CI passed.
+
+The disposable image includes CI's declared DejaVu fonts and the separately qualified private Wayland client library. Fixture execution uses two llvmpipe threads and CPUs 0–1. Compilation uses eight permitted CPUs, two compiler jobs, 4 GiB and no swap; scratch is on persistent disk. All original tracked cache inputs were restored. An earlier waiting controller was corrected for the image's missing `rg` before any build or native fixture ran; its [no-run proof](CI-PR240-waiting-no-run-proof.json) remains retained.
+
+This publication changes documentation only. The [input proof](CI-PR240-native-reproduction.json) verifies every original non-documentation file. A fresh complete workflow on this publication is required before merging; the original failed runs remain visible. Full R082/R085 and release acceptance remain open.

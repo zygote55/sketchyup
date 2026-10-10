@@ -1,0 +1,31 @@
+import fcntl,hashlib,json,os,pathlib,shutil,signal,subprocess,time
+m=pathlib.Path('/home/keith/projects/sketchyup');s=m/'build/file-worker-ci-r087s2';cache=pathlib.Path('/home/keith/projects/sketchyup-styles');f=json.loads((s/'source-freeze.json').read_text());report={'passed':False,'source':f['source'],'releaseAcceptance':False,'originalFailureRetained':True,'originalWaylandDeadlineUnchanged':True,'rootCauseConfirmed':False}
+def sha(p):
+ with p.open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
+def interrupted(sig,frame):raise KeyboardInterrupt('Exact-source file check interrupted')
+signal.signal(signal.SIGTERM,interrupted)
+try:
+ assert sha(pathlib.Path(__file__))==f['controllerSha256']
+ assert sha(s/'source/check-native.sh')==f['nativeControllerSha256']
+ assert sha(s/'source/scripts/test-wayland.sh')==f['waylandScriptSha256']
+ while subprocess.check_output(['systemctl','--user','show','sketchyup-r082ac2-inference-truncation','-p','SubState','--value'],text=True).strip() not in ('dead','exited','failed'):time.sleep(10)
+ with (m/'build/local-checks/active.lock').open('w') as lock:
+  fcntl.flock(lock,fcntl.LOCK_EX);assert not subprocess.check_output(['docker','ps','-q','--filter','label=io.sketchyup.local-check=true'],text=True).strip();assert int(next(l.split()[1] for l in pathlib.Path('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:')))>=6*1024*1024;assert subprocess.check_output(['git','-C',str(cache),'rev-parse','HEAD'],text=True).strip()==f['cacheBase'];assert not subprocess.check_output(['git','-C',str(cache),'status','--porcelain'],text=True).strip();original={n:(cache/n).read_bytes() for n in f['overlaySha256']};(s/'tmp').mkdir();unit='sketchyup-r087s2-file-ci-compiler'
+  try:
+   for n,h in f['overlaySha256'].items():assert sha(s/'source'/n)==h;(cache/n).write_bytes((s/'source'/n).read_bytes())
+   for n,h in f['runtimeAndFixtureSha256'].items():assert sha(cache/n)==h,n
+   cmd=['systemd-run','--user','--wait','--pipe','--collect','--unit='+unit]
+   for p in ('MemoryMax=4G','MemorySwapMax=0','CPUQuota=800%','TasksMax=256','RuntimeMaxSec=90min','LimitCORE=0'):cmd+=['-p',p]
+   cmd+=['--setenv=TMPDIR='+str(s/'tmp'),'/usr/bin/taskset','-c','0,1,3,6,8,10,12,13','/home/keith/.local/bin/cmake','--build',str(cache/'build/native-text-sanitize'),'--target','file_operation_input_tests','--parallel','2']
+   with (s/'build.log').open('x') as log:subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT,check=True)
+   (s/'artifacts').mkdir();shutil.copy2(cache/'build/native-text-sanitize/file_operation_input_tests',s/'artifacts/file_operation_input_tests');(s/'artifacts/ci-wayland-client').mkdir();shutil.copy2(m/'build/vertex-arrays-r082q/wayland-client/libwayland-client.so.0',s/'artifacts/ci-wayland-client/libwayland-client.so.0');assert sha(s/'artifacts/ci-wayland-client/libwayland-client.so.0')==f['ciWaylandClientSha256']
+  finally:
+   subprocess.run(['systemctl','--user','stop',unit],capture_output=True)
+   for n,b in original.items():(cache/n).write_bytes(b)
+   report['trackedSourceRestored']=not subprocess.check_output(['git','-C',str(cache),'status','--porcelain'],text=True).strip();assert report['trackedSourceRestored']
+ env=dict(os.environ,SKETCHYUP_CHECK_SOURCE_ROOT=str(s/'source'),SKETCHYUP_CHECK_PACKAGE_DIR=str(s/'artifacts'))
+ subprocess.run([str(m/'build/verification-scripts/run-eight-cpu-check.sh'),'r087s2-pr240-file-worker-ci','sketchyup-native-fonts-check:20261008','bash','/source/check-native.sh'],env=env,check=True)
+ run=m/'build/local-checks/r087s2-pr240-file-worker-ci';state=json.loads((run/'state.json').read_text());assert state['ExitCode']==0 and not state['OOMKilled'];assert (run/'output.log').read_text().count('Exact PR240 sanitizer fixture:')==13;assert (run/'output.log').read_text().count('Native file workers:')==13
+ report.update(passed=True,cases=13,sanitizerLeakDetection=True,caseCpuAffinity=[0,1],llvmpipeThreads=2,binarySha256=sha(s/'artifacts/file_operation_input_tests'),buildLogSha256=sha(s/'build.log'),nativeLogSha256=sha(run/'output.log'))
+except BaseException as e:report['error']=str(e);raise
+finally:(s/'result.json').write_text(json.dumps(report,indent=2)+'\n')
