@@ -1,0 +1,39 @@
+Test project /work/package/src/build
+      Start  19: document_snapshot
+ 1/17 Test  #19: document_snapshot ................   Passed    0.01 sec
+      Start  84: ollama_provider
+ 2/17 Test  #84: ollama_provider ..................   Passed    1.21 sec
+      Start  85: chatgpt_auth
+ 3/17 Test  #85: chatgpt_auth .....................   Passed    0.81 sec
+      Start  86: openai_provider
+ 4/17 Test  #86: openai_provider ..................   Passed    3.08 sec
+      Start 118: native_format
+ 5/17 Test #118: native_format ....................   Passed    0.98 sec
+      Start 134: native_assistant_session
+ 6/17 Test #134: native_assistant_session .........   Passed    0.51 sec
+      Start 135: assistant
+ 7/17 Test #135: assistant ........................   Passed    2.00 sec
+      Start 138: automation_session
+ 8/17 Test #138: automation_session ...............   Passed    0.37 sec
+      Start 139: transaction_dispatch
+ 9/17 Test #139: transaction_dispatch .............   Passed    0.57 sec
+      Start 141: transaction_coordinator
+10/17 Test #141: transaction_coordinator ..........   Passed    0.47 sec
+      Start 143: staging
+11/17 Test #143: staging ..........................   Passed    0.06 sec
+      Start 144: inspection_session
+12/17 Test #144: inspection_session ...............   Passed    0.05 sec
+      Start 145: inspection
+13/17 Test #145: inspection .......................   Passed    0.22 sec
+      Start 160: history_commands
+14/17 Test #160: history_commands .................   Passed    0.08 sec
+      Start 162: commands
+15/17 Test #162: commands .........................   Passed    0.51 sec
+      Start 163: diagnostic_inspection
+16/17 Test #163: diagnostic_inspection ............   Passed    0.10 sec
+      Start 175: persistence
+17/17 Test #175: persistence ......................   Passed    0.23 sec
+
+100% tests passed out of 17
+
+Total Test time (real) =  11.27 sec

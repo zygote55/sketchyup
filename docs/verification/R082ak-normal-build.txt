@@ -1,0 +1,237 @@
+Complete frozen public runtime and test inputs verified: 478
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.7s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build
+[1/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/annotation_records.cpp.o
+[2/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/reference_images.cpp.o
+[3/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/annotations.cpp.o
+[4/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/annotation_anchors.cpp.o
+[5/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/section_records.cpp.o
+[6/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/sections.cpp.o
+[7/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/scene_records.cpp.o
+[8/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/scenes.cpp.o
+[9/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/face_textures.cpp.o
+[10/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/host_regeneration.cpp.o
+[11/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/hosted_components.cpp.o
+[12/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/shading_normals.cpp.o
+[13/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/edge_appearance.cpp.o
+[14/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/face_orientation.cpp.o
+[15/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/solid_boolean.cpp.o
+[16/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/intersection_edit.cpp.o
+[17/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/profile_sweep.cpp.o
+[18/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/prepared_edit.cpp.o
+[19/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/history.cpp.o
+[20/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/tags.cpp.o
+[21/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/entity_measure.cpp.o
+[22/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/assets.cpp.o
+[23/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/material_records.cpp.o
+[24/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/materials.cpp.o
+[25/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[26/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_records.cpp.o
+[27/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/appearance.cpp.o
+[28/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/consolidation.cpp.o
+[29/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/geometry_subset.cpp.o
+[30/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/groups.cpp.o
+[31/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/transform_selection.cpp.o
+[32/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/copy_array.cpp.o
+[33/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/selection.cpp.o
+[34/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/inference.cpp.o
+[35/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/constraints.cpp.o
+[36/184] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/model.cpp.o
+[37/184] Linking CXX static library libsketchyup_core.a
+[38/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/extension_worker.cpp.o
+[39/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/extension_store.cpp.o
+[40/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/extension.cpp.o
+[41/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/library_catalog.cpp.o
+[42/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/library_bundle.cpp.o
+[43/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/component_library.cpp.o
+[44/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/measured_request.cpp.o
+[45/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/measured_export.cpp.o
+[46/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/measured_drawing.cpp.o
+[47/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/dxf_export.cpp.o
+[48/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/dxf_import.cpp.o
+[49/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/stl_export.cpp.o
+[50/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/stl_import.cpp.o
+[51/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/obj_export.cpp.o
+[52/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/obj_import.cpp.o
+[53/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/gltf_import.cpp.o
+[54/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/native_format.cpp.o
+[55/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/integrations/animation_capture.cpp.o
+[56/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/solar_commands.cpp.o
+[57/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/reference_image_commands.cpp.o
+[58/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/text_commands.cpp.o
+[59/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/text/text_worker.cpp.o
+[60/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/annotation_commands.cpp.o
+[61/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/section_commands.cpp.o
+[62/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/scene_commands.cpp.o
+[63/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/texture_commands.cpp.o
+[64/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/furniture_recipe.cpp.o
+[65/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/site_recipe.cpp.o
+[66/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/stair_recipe.cpp.o
+[67/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/roof_recipe.cpp.o
+[68/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/measurement_assertions.cpp.o
+[69/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/hosted_commands.cpp.o
+[70/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/integrations/render_snapshot.cpp.o
+[71/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/native_assistant_session.cpp.o
+[72/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/integrations/glb_export.cpp.o
+[73/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/model_recipes.cpp.o
+[74/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/assistant.cpp.o
+[75/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/local_mcp.cpp.o
+[76/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/mcp.cpp.o
+[77/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/recipe.cpp.o
+[78/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/session.cpp.o
+[79/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/transactions.cpp.o
+[80/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/transaction_catalog.cpp.o
+[81/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/transaction_coordinator.cpp.o
+[82/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/outcome_store.cpp.o
+[83/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/staging.cpp.o
+[84/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/inspection_session.cpp.o
+[85/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/inspection.cpp.o
+[86/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/history.cpp.o
+[87/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/recovery.cpp.o
+[88/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/formline.cpp.o
+[89/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/entity_info.cpp.o
+[90/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/assets.cpp.o
+[91/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/texture_image.cpp.o
+[92/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/document_io.cpp.o
+[93/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/container.cpp.o
+[94/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/save.cpp.o
+[95/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/component_scope.cpp.o
+[96/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/commands.cpp.o
+[97/184] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/catalog.cpp.o
+[98/184] Linking CXX static library libsketchyup_io.a
+[99/184] Automatic MOC for target sketchyup_render
+[100/184] Automatic MOC for target sketchyup_providers
+[101/184] Building CXX object CMakeFiles/sketchyup-extension-worker.dir/src/automation/extension_worker_main.cpp.o
+[102/184] Building CXX object CMakeFiles/sketchyup_render.dir/sketchyup_render_autogen/mocs_compilation.cpp.o
+[103/184] Building CXX object CMakeFiles/sketchyup_render.dir/src/integrations/animation_export.cpp.o
+[104/184] Building CXX object CMakeFiles/sketchyup_render.dir/src/integrations/render_queue.cpp.o
+[105/184] Building CXX object CMakeFiles/sketchyup_render.dir/src/integrations/render_store.cpp.o
+[106/184] Building CXX object CMakeFiles/sketchyup_providers.dir/sketchyup_providers_autogen/mocs_compilation.cpp.o
+[107/184] Building CXX object CMakeFiles/sketchyup_render.dir/src/integrations/blender_job.cpp.o
+[108/184] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/ollama_provider.cpp.o
+[109/184] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/provider_transport.cpp.o
+[110/184] Building CXX object CMakeFiles/sketchyup_providers.dir/src/integrations/openai_provider.cpp.o
+[111/184] Linking CXX executable sketchyup-extension-worker
+[112/184] Linking CXX static library libsketchyup_providers.a
+[113/184] Linking CXX static library libsketchyup_render.a
+[114/184] Linking CXX executable sketchyup-text-worker
+[115/184] Automatic MOC for target sketchyup_desktop
+[116/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/sketchyup_desktop_autogen/mocs_compilation.cpp.o
+[117/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_shortcuts.cpp.o
+[118/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_library.cpp.o
+[119/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_extensions.cpp.o
+[120/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_measured.cpp.o
+[121/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_measured.cpp.o
+[122/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_dxf.cpp.o
+[123/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_stl.cpp.o
+[124/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_walk.cpp.o
+[125/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_obj.cpp.o
+[126/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_raster.cpp.o
+[127/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_raster.cpp.o
+[128/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/reference_images_panel.cpp.o
+[129/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_reference_images.cpp.o
+[130/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/solar_panel.cpp.o
+[131/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_solar.cpp.o
+[132/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/annotations_panel.cpp.o
+[133/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/text_panel.cpp.o
+[134/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_annotations.cpp.o
+[135/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/scenes_panel.cpp.o
+[136/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/sections_panel.cpp.o
+[137/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_sections.cpp.o
+[138/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_scenes.cpp.o
+[139/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/styles_panel.cpp.o
+[140/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_styles.cpp.o
+[141/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/texture_editor.cpp.o
+[142/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_textures.cpp.o
+[143/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_hosted.cpp.o
+[144/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_hosted.cpp.o
+[145/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_diagnostics.cpp.o
+[146/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_orientation.cpp.o
+[147/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_assistant.cpp.o
+[148/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_assistant.cpp.o
+[149/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/assistant_panel.cpp.o
+[150/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/render_jobs.cpp.o
+[151/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/render_panel.cpp.o
+[152/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/native_mcp.cpp.o
+[153/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/inspection_service.cpp.o
+[154/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/history_panel.cpp.o
+[155/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/recovery_controller.cpp.o
+[156/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_recovery.cpp.o
+[157/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_import.cpp.o
+[158/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/materials_panel.cpp.o
+[159/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_materials.cpp.o
+[160/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/entity_info_panel.cpp.o
+[161/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/organization_panel.cpp.o
+[162/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_components.cpp.o
+[163/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_groups.cpp.o
+[164/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport.cpp.o
+[165/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_inference.cpp.o
+[166/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_guides.cpp.o
+[167/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_selection.cpp.o
+[168/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_navigation.cpp.o
+[169/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_push_pull.cpp.o
+[170/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_booleans.cpp.o
+[171/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_intersections.cpp.o
+[172/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_sweep.cpp.o
+[173/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_offset.cpp.o
+[174/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_transform.cpp.o
+[175/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_units.cpp.o
+[176/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window.cpp.o
+[177/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/tool_session.cpp.o
+[178/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window_components.cpp.o
+[179/184] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/inference_worker.cpp.o
+[180/184] Linking CXX static library libsketchyup_desktop.a
+[181/184] Automatic MOC for target file_operation_input_tests
+[182/183] Building CXX object CMakeFiles/file_operation_input_tests.dir/tests/file_operation_input_tests.cpp.o
+[183/183] Linking CXX executable file_operation_input_tests
+[1/39] Building CXX object CMakeFiles/sketchyup-cli.dir/src/automation/main.cpp.o
+[2/39] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/window.cpp.o
+[3/39] Linking CXX static library libsketchyup_desktop.a
+[4/39] Building CXX object CMakeFiles/document_snapshot_tests.dir/tests/document_snapshot_tests.cpp.o
+[5/39] Building CXX object CMakeFiles/ollama_provider_tests.dir/tests/ollama_provider_tests.cpp.o
+[6/39] Building CXX object CMakeFiles/chatgpt_auth_tests.dir/tests/chatgpt_auth_tests.cpp.o
+[7/39] Building CXX object CMakeFiles/openai_provider_tests.dir/tests/openai_provider_tests.cpp.o
+[8/39] Building CXX object CMakeFiles/native_format_tests.dir/tests/native_format_tests.cpp.o
+[9/39] Building CXX object CMakeFiles/native_assistant_session_tests.dir/tests/native_assistant_session_tests.cpp.o
+[10/39] Building CXX object CMakeFiles/assistant_tests.dir/tests/assistant_tests.cpp.o
+[11/39] Building CXX object CMakeFiles/transaction_dispatch_tests.dir/tests/transaction_dispatch_tests.cpp.o
+[12/39] Building CXX object CMakeFiles/transaction_coordinator_tests.dir/tests/transaction_coordinator_tests.cpp.o
+[13/39] Building CXX object CMakeFiles/staging_tests.dir/tests/staging_tests.cpp.o
+[14/39] Building CXX object CMakeFiles/inspection_session_tests.dir/tests/inspection_session_tests.cpp.o
+[15/39] Building CXX object CMakeFiles/command_tests.dir/tests/command_tests.cpp.o
+[16/39] Building CXX object CMakeFiles/diagnostic_inspection_tests.dir/tests/diagnostic_inspection_tests.cpp.o
+[17/39] Building CXX object CMakeFiles/persistence_tests.dir/tests/persistence_tests.cpp.o
+[18/39] Linking CXX executable sketchyup-cli
+[19/39] Linking CXX executable document_snapshot_tests
+[20/39] Building CXX object CMakeFiles/automation_session_tests.dir/tests/automation_session_tests.cpp.o
+[21/39] Building CXX object CMakeFiles/inspection_tests.dir/tests/inspection_tests.cpp.o
+[22/39] Building CXX object CMakeFiles/history_command_tests.dir/tests/history_command_tests.cpp.o
+[23/39] Linking CXX executable chatgpt_auth_tests
+[24/39] Linking CXX executable ollama_provider_tests
+[25/39] Linking CXX executable openai_provider_tests
+[26/39] Linking CXX executable native_format_tests
+[27/39] Linking CXX executable native_assistant_session_tests
+[28/39] Linking CXX executable assistant_tests
+[29/39] Linking CXX executable automation_session_tests
+[30/39] Linking CXX executable transaction_dispatch_tests
+[31/39] Linking CXX executable transaction_coordinator_tests
+[32/39] Linking CXX executable staging_tests
+[33/39] Linking CXX executable inspection_session_tests
+[34/39] Linking CXX executable inspection_tests
+[35/39] Linking CXX executable history_command_tests
+[36/39] Linking CXX executable command_tests
+[37/39] Linking CXX executable persistence_tests
+[38/39] Linking CXX executable diagnostic_inspection_tests
+[39/39] Linking CXX executable file_operation_input_tests
+Native Wayland production-limit smoke: policy=warm scale=1
+Native Wayland production-limit smoke: policy=warm scale=2
+Native Wayland production-limit smoke: policy=verified-cold scale=1
+Native Wayland production-limit smoke: policy=verified-cold scale=2
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.7s)
+-- Generating done (0.7s)
+-- Build files have been written to: /work/package/src/build
