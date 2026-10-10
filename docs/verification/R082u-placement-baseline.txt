@@ -1,0 +1,9 @@
+Running as unit: sketchyup-r082u3-baseline.service
+[1/3] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[2/3] Linking CXX static library libsketchyup_core.a
+[3/3] Linking CXX executable component_projection_benchmark
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 34.266s
+             CPU time consumed: 33.660s
+                   Memory peak: 649M (swap: 0B)

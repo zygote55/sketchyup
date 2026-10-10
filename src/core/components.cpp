@@ -339,18 +339,42 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id
     placement->parent = parent;
     placement->transform = local;
     placement->name = name.empty() ? prototype->name : std::move(name);
-    auto scene = doc.bodies();
-    scene[root] = placement;
-    auto instances = doc.instances();
     auto binding = std::make_shared<ComponentInstance>();
     binding->definition = definition;
     binding->members[prototype->root] = root;
-    instances[root] = binding;
-    return {definition,
-            root,
-            publish(doc, doc.definitions(), instances, scene, next, doc.nextDefinitionId(),
-                    "Place component"),
-            {}};
+    const auto sizes = validateComponentDefinitions(
+        doc.definitions(), doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
+        doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
+    auto total = sizes.at(definition);
+    for (const auto &[id, body] : doc.bodies()) {
+        total.records += 1;
+        total.vertices += body->surface.vertices.size();
+        total.faces += body->surface.faces.size();
+        total.wires += body->surface.wires.size();
+        total.edges += body->topology.edges.size();
+        total.curves += body->curves.size();
+        total.guides += body->guides.size();
+    }
+    if (total.records > DocumentLimits::bodies || total.vertices > DocumentLimits::vertices ||
+        total.faces > DocumentLimits::faces || total.wires > DocumentLimits::wires ||
+        total.edges > DocumentLimits::edges || total.curves > DocumentLimits::curves ||
+        total.guides > DocumentLimits::guides)
+        throw std::runtime_error("Component placement exceeds document editing limits");
+    // A new placement has fresh IDs and cannot alter an existing definition or
+    // binding. Resolve only its expansion; Document::apply still validates the
+    // complete candidate, including ownership, locks and editing scopes.
+    const std::map<Id, BodyPtr> seed{{root, placement}};
+    const ComponentInstances newBindings{{root, binding}};
+    Projection projection{doc, doc.definitions(), newBindings, seed, seed, {}, next};
+    projection.resolve(root, definition, *placement);
+    Edit edit{"Place component", {}};
+    edit.nextIdFloor = projection.next;
+    edit.nextDefinitionFloor = doc.nextDefinitionId();
+    for (const auto &[id, body] : projection.scene)
+        edit.changes.push_back({id, nullptr, body, {}, {}, {}, true});
+    for (const auto &[id, instance] : projection.instances)
+        edit.instances.push_back({id, nullptr, instance});
+    return {definition, root, doc.apply(std::move(edit), doc.revision()), {}};
 }
 ComponentResult replaceComponent(Document &doc, Id root, Id definition) {
     const auto old = doc.instances().at(root);

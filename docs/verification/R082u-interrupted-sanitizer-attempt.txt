@@ -1,0 +1,207 @@
+Running as unit: sketchyup-r082u2-regressions.service; invocation ID: 117ca8b1bd044259be3837a7801a86c8
+[1/44] Building CXX object CMakeFiles/hosted_copy_tests.dir/tests/hosted_copy_tests.cpp.o
+[2/44] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[3/44] Linking CXX static library libsketchyup_core.a
+[4/44] Building CXX object CMakeFiles/hosted_opening_tests.dir/tests/hosted_opening_tests.cpp.o
+[5/44] Building CXX object CMakeFiles/hosted_components_tests.dir/tests/hosted_components_tests.cpp.o
+[6/44] Building CXX object CMakeFiles/selection_tests.dir/tests/selection_tests.cpp.o
+[7/44] Building CXX object CMakeFiles/group_tests.dir/tests/group_tests.cpp.o
+[8/44] Building CXX object CMakeFiles/model_recipes_tests.dir/tests/model_recipes_tests.cpp.o
+[9/44] Building CXX object CMakeFiles/site_recipe_tests.dir/tests/site_recipe_tests.cpp.o
+[10/44] Building CXX object CMakeFiles/stair_recipe_tests.dir/tests/stair_recipe_tests.cpp.o
+[11/44] Building CXX object CMakeFiles/furniture_recipe_tests.dir/tests/furniture_recipe_tests.cpp.o
+[12/44] Building CXX object CMakeFiles/roof_recipe_tests.dir/tests/roof_recipe_tests.cpp.o
+[13/44] Building CXX object CMakeFiles/recipe_hosted_tests.dir/tests/recipe_hosted_tests.cpp.o
+[14/44] Building CXX object CMakeFiles/component_scope_tests.dir/tests/component_scope_tests.cpp.o
+[15/44] Building CXX object CMakeFiles/hosted_components_io_tests.dir/tests/hosted_components_io_tests.cpp.o
+[16/44] Building CXX object CMakeFiles/component_glue_io_tests.dir/tests/component_glue_io_tests.cpp.o
+[17/44] Linking CXX executable hosted_copy_tests
+[18/44] Linking CXX executable sketchyup-text-worker
+[19/44] Linking CXX executable hosted_components_tests
+[20/44] Building CXX object CMakeFiles/hosted_command_tests.dir/tests/hosted_command_tests.cpp.o
+[21/44] Linking CXX executable component_glue_tests
+[22/44] Linking CXX executable hosted_opening_tests
+[23/44] Linking CXX executable component_placement_tests
+[24/44] Linking CXX executable document_snapshot_tests
+[25/44] Linking CXX executable component_tests
+[26/44] Linking CXX executable component_record_tests
+[27/44] Linking CXX executable group_tests
+[28/44] Linking CXX executable selection_tests
+[29/44] Linking CXX executable native_format_tests
+[30/44] Linking CXX executable component_projection_benchmark
+[31/44] Linking CXX executable model_recipes_tests
+[32/44] Linking CXX executable site_recipe_tests
+[33/44] Linking CXX executable furniture_recipe_tests
+[34/44] Linking CXX executable stair_recipe_tests
+[35/44] Linking CXX executable roof_recipe_tests
+[36/44] Linking CXX executable recipe_hosted_tests
+[37/44] Linking CXX executable transaction_dispatch_tests
+[38/44] Linking CXX executable component_scope_tests
+[39/44] Linking CXX executable hosted_components_io_tests
+[40/44] Linking CXX executable component_glue_io_tests
+[41/44] Linking CXX executable hosted_command_tests
+[42/44] Linking CXX executable command_tests
+[43/44] Linking CXX executable recovery_tests
+[44/44] Linking CXX executable persistence_tests
+Test project /home/keith/projects/sketchyup-style-ci/build/environment
+      Start   9: hosted_copies
+ 1/25 Test   #9: hosted_copies ....................   Passed    3.58 sec
+      Start  10: hosted_components
+ 2/25 Test  #10: hosted_components ................   Passed    0.64 sec
+      Start  12: component_glue
+ 3/25 Test  #12: component_glue ...................   Passed    0.01 sec
+      Start  13: hosted_openings
+ 4/25 Test  #13: hosted_openings ..................   Passed    0.06 sec
+      Start  14: component_placement
+ 5/25 Test  #14: component_placement ..............   Passed    0.00 sec
+      Start  19: document_snapshot
+ 6/25 Test  #19: document_snapshot ................   Passed    0.01 sec
+      Start  34: components
+ 7/25 Test  #34: components .......................   Passed    0.05 sec
+      Start  35: component_records
+ 8/25 Test  #35: component_records ................   Passed    0.03 sec
+      Start  38: groups
+ 9/25 Test  #38: groups ...........................   Passed    0.02 sec
+      Start  41: selection
+10/25 Test  #41: selection ........................   Passed    0.03 sec
+      Start 118: native_format
+11/25 Test #118: native_format ....................   Passed    2.17 sec
+      Start 121: model_recipes
+12/25 Test #121: model_recipes ....................   Passed    4.75 sec
+      Start 128: site_recipe
+13/25 Test #128: site_recipe ......................   Passed    7.16 sec
+      Start 129: furniture_recipe
+14/25 Test #129: furniture_recipe .................   Passed   12.07 sec
+      Start 130: stair_recipe
+15/25 Test #130: stair_recipe .....................   Passed    3.39 sec
+      Start 131: roof_recipe
+16/25 Test #131: roof_recipe ......................   Passed    2.29 sec
+      Start 133: recipe_hosted
+17/25 Test #133: recipe_hosted ....................   Passed    2.56 sec
+      Start 139: transaction_dispatch
+18/25 Test #139: transaction_dispatch .............   Passed    0.75 sec
+      Start 146: component_scope
+19/25 Test #146: component_scope ..................   Passed    0.31 sec
+      Start 147: hosted_components_io
+20/25 Test #147: hosted_components_io .............   Passed    0.30 sec
+      Start 148: component_glue_io
+21/25 Test #148: component_glue_io ................   Passed    0.09 sec
+      Start 161: hosted_commands
+22/25 Test #161: hosted_commands ..................   Passed    1.26 sec
+      Start 162: commands
+23/25 Test #162: commands .........................   Passed    6.88 sec
+      Start 171: recovery
+24/25 Test #171: recovery .........................   Passed    2.63 sec
+      Start 175: persistence
+25/25 Test #175: persistence ......................   Passed    0.32 sec
+
+100% tests passed out of 25
+
+Total Test time (real) =  51.36 sec
+[1/57] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/scene_records.cpp.o
+[2/57] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[3/57] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_records.cpp.o
+[4/57] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/library_bundle.cpp.o
+[5/57] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/native_format.cpp.o
+[6/57] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/model.cpp.o
+[7/57] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/scene_commands.cpp.o
+[8/57] Linking CXX static library libsketchyup_core.a
+[9/57] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/recovery.cpp.o
+[10/57] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/document_io.cpp.o
+[11/57] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/container.cpp.o
+[12/57] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/save.cpp.o
+[13/57] Building CXX object CMakeFiles/hosted_copy_tests.dir/tests/hosted_copy_tests.cpp.o
+[14/57] Building CXX object CMakeFiles/hosted_components_tests.dir/tests/hosted_components_tests.cpp.o
+[15/57] Building CXX object CMakeFiles/hosted_opening_tests.dir/tests/hosted_opening_tests.cpp.o
+[16/57] Building CXX object CMakeFiles/sketchyup_io.dir/src/automation/commands.cpp.o
+[17/57] Linking CXX static library libsketchyup_io.a
+[18/57] Linking CXX executable sketchyup-text-worker
+[19/57] Building CXX object CMakeFiles/group_tests.dir/tests/group_tests.cpp.o
+[20/57] Building CXX object CMakeFiles/selection_tests.dir/tests/selection_tests.cpp.o
+[21/57] Building CXX object CMakeFiles/component_projection_benchmark.dir/tests/component_projection_benchmark.cpp.o
+[22/57] Building CXX object CMakeFiles/model_recipes_tests.dir/tests/model_recipes_tests.cpp.o
+[23/57] Building CXX object CMakeFiles/site_recipe_tests.dir/tests/site_recipe_tests.cpp.o
+[24/57] Building CXX object CMakeFiles/stair_recipe_tests.dir/tests/stair_recipe_tests.cpp.o
+[25/57] Building CXX object CMakeFiles/furniture_recipe_tests.dir/tests/furniture_recipe_tests.cpp.o
+[26/57] Building CXX object CMakeFiles/roof_recipe_tests.dir/tests/roof_recipe_tests.cpp.o
+[27/57] Building CXX object CMakeFiles/recipe_hosted_tests.dir/tests/recipe_hosted_tests.cpp.o
+[28/57] Building CXX object CMakeFiles/component_scope_tests.dir/tests/component_scope_tests.cpp.o
+[29/57] Building CXX object CMakeFiles/hosted_components_io_tests.dir/tests/hosted_components_io_tests.cpp.o
+[30/57] Building CXX object CMakeFiles/component_glue_io_tests.dir/tests/component_glue_io_tests.cpp.o
+[31/57] Linking CXX executable hosted_copy_tests
+[32/57] Linking CXX executable hosted_components_tests
+[33/57] Building CXX object CMakeFiles/hosted_command_tests.dir/tests/hosted_command_tests.cpp.o
+[34/57] Linking CXX executable component_glue_tests
+[35/57] Linking CXX executable component_placement_tests
+[36/57] Linking CXX executable hosted_opening_tests
+[37/57] Linking CXX executable document_snapshot_tests
+[38/57] Linking CXX executable component_tests
+[39/57] Linking CXX executable component_record_tests
+[40/57] Linking CXX executable group_tests
+[41/57] Linking CXX executable selection_tests
+[42/57] Linking CXX executable native_format_tests
+[43/57] Linking CXX executable component_projection_benchmark
+[44/57] Linking CXX executable model_recipes_tests
+[45/57] Linking CXX executable site_recipe_tests
+[46/57] Linking CXX executable furniture_recipe_tests
+[47/57] Linking CXX executable stair_recipe_tests
+[48/57] Linking CXX executable roof_recipe_tests
+[49/57] Linking CXX executable recipe_hosted_tests
+[50/57] Linking CXX executable transaction_dispatch_tests
+[51/57] Linking CXX executable component_scope_tests
+[52/57] Linking CXX executable hosted_components_io_tests
+[53/57] Linking CXX executable component_glue_io_tests
+[54/57] Linking CXX executable command_tests
+[55/57] Linking CXX executable hosted_command_tests
+[56/57] Linking CXX executable recovery_tests
+[57/57] Linking CXX executable persistence_tests
+Test project /home/keith/projects/sketchyup-style-ci/build/sanitize
+      Start   9: hosted_copies
+ 1/25 Test   #9: hosted_copies ....................   Passed   25.42 sec
+      Start  10: hosted_components
+ 2/25 Test  #10: hosted_components ................   Passed    4.86 sec
+      Start  12: component_glue
+ 3/25 Test  #12: component_glue ...................   Passed    0.30 sec
+      Start  13: hosted_openings
+ 4/25 Test  #13: hosted_openings ..................   Passed    0.47 sec
+      Start  14: component_placement
+ 5/25 Test  #14: component_placement ..............   Passed    0.05 sec
+      Start  19: document_snapshot
+ 6/25 Test  #19: document_snapshot ................   Passed    0.18 sec
+      Start  34: components
+ 7/25 Test  #34: components .......................   Passed    0.50 sec
+      Start  35: component_records
+ 8/25 Test  #35: component_records ................   Passed    0.38 sec
+      Start  38: groups
+ 9/25 Test  #38: groups ...........................   Passed    0.26 sec
+      Start  41: selection
+10/25 Test  #41: selection ........................   Passed    0.33 sec
+      Start 118: native_format
+11/25 Test #118: native_format ....................   Passed   18.97 sec
+      Start 121: model_recipes
+Traceback (most recent call last):
+  File "/home/keith/projects/sketchyup/build/verification-scripts/validate-component-placement2.py", line 36, in <module>
+    worker();raise SystemExit(0)
+    ~~~~~~^^
+  File "/home/keith/projects/sketchyup/build/verification-scripts/validate-component-placement2.py", line 30, in worker
+    subprocess.run(['ctest','--test-dir',str(cache/'build'/variant),'--output-on-failure','-R','^('+'|'.join(freeze['cases'])+')$'],check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 557, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1213, in communicate
+    self.wait()
+    ~~~~~~~~~^^
+  File "/usr/lib/python3.14/subprocess.py", line 1279, in wait
+    return self._wait(timeout=timeout)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 2084, in _wait
+    (pid, sts) = self._try_wait(0)
+                 ~~~~~~~~~~~~~~^^^
+  File "/usr/lib/python3.14/subprocess.py", line 2042, in _try_wait
+    (pid, sts) = os.waitpid(self.pid, wait_flags)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/keith/projects/sketchyup/build/verification-scripts/validate-component-placement2.py", line 13, in interrupted
+    def interrupted(signum,frame):raise KeyboardInterrupt('Placement validation interrupted')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt: Placement validation interrupted
