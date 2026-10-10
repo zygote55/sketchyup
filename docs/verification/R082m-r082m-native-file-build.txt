@@ -1,0 +1,150 @@
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.6s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build
+[1/31] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/component_records.cpp.o
+[2/31] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/components.cpp.o
+[3/31] Building CXX object CMakeFiles/sketchyup_core.dir/src/geometry/inference.cpp.o
+[4/31] Building CXX object CMakeFiles/sketchyup_core.dir/src/core/model.cpp.o
+[5/31] Linking CXX static library libsketchyup_core.a
+[6/31] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/document_io.cpp.o
+[7/31] Building CXX object CMakeFiles/sketchyup_io.dir/src/io/container.cpp.o
+[8/31] Linking CXX static library libsketchyup_io.a
+[9/31] Automatic MOC for target sketchyup_render
+[10/29] Automatic MOC for target sketchyup_providers
+[11/27] Linking CXX executable sketchyup-text-worker
+[12/27] Linking CXX executable sketchyup-extension-worker
+[13/27] Automatic MOC for target sketchyup_desktop
+[14/26] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_textures.cpp.o
+[15/26] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport.cpp.o
+[16/26] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_guides.cpp.o
+[17/26] Building CXX object CMakeFiles/sketchyup_desktop.dir/src/app/viewport_selection.cpp.o
+[18/26] Linking CXX static library libsketchyup_desktop.a
+[19/26] Automatic MOC for target viewport_tests
+[20/25] Automatic MOC for target file_operation_input_tests
+[21/25] Building CXX object CMakeFiles/file_operation_input_tests.dir/file_operation_input_tests_autogen/mocs_compilation.cpp.o
+[22/25] Building CXX object CMakeFiles/viewport_tests.dir/tests/viewport_tests.cpp.o
+[23/25] Building CXX object CMakeFiles/file_operation_input_tests.dir/tests/file_operation_input_tests.cpp.o
+[24/25] Linking CXX executable viewport_tests
+[25/25] Linking CXX executable file_operation_input_tests
+e4890be5614e5897658678cb71d7809f94411bc46a9dbc3dd494e906bacb3056  /capture/file_operation_input_tests
+f39538ee1085ee6f4fdf9f8ea333b389f1710faf223aa1f72b32de3585797b7e  /capture/sketchyup-text-worker
+c52b264575b1b7aac3d141cef5622db9604936f94be05973838e27d79c588879  /capture/viewport_tests
+Native Wayland scale=1 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 211.966 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 33.4701 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 36.7207 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"6d0996b94f005fe63f3af23e9c9ff3d0515bfc776d398cdd3d3db132f7e3292f","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":1,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":144.197866,"operation":"open","operationAndFirstFrameMs":211.965994,"operationMs":83.30643,"p95HeartbeatGapMs":144.197866},{"heartbeatCallbacks":2,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":14.987732,"operation":"save-with-newer-edit","operationAndFirstFrameMs":33.47014,"operationMs":33.470045,"p95HeartbeatGapMs":14.987732},{"heartbeatCallbacks":2,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":18.048385,"operation":"save-current","operationAndFirstFrameMs":36.720652,"operationMs":36.720593,"p95HeartbeatGapMs":18.048385}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Native Wayland scale=2 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 363.958 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 34.8905 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 34.2252 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"policy":"warm"},"fileBytes":2100399,"fixtureSha256":"61d0b7ce3784f3d0f5c148f777aa64c0276f677161fe02e97fabfe5c4f910852","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":206.56929,"operation":"open","operationAndFirstFrameMs":363.958172,"operationMs":222.081296,"p95HeartbeatGapMs":206.56929},{"heartbeatCallbacks":6,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":5.891965,"operation":"save-with-newer-edit","operationAndFirstFrameMs":34.890455,"operationMs":34.890386,"p95HeartbeatGapMs":5.891965},{"heartbeatCallbacks":6,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":5.182152,"operation":"save-current","operationAndFirstFrameMs":34.225184,"operationMs":34.225136,"p95HeartbeatGapMs":5.182152}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Native Wayland scale=1 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 63.4792 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 47.1341 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 39.9215 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"pages":513,"policy":"verified-cold","residentPagesBeforeOpen":0},"fileBytes":2100399,"fixtureSha256":"b187a239f2c1e5424c7d1187a15516331c5178410cedb33bbde22d743da0ed99","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":1,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":44.789326,"operation":"open","operationAndFirstFrameMs":63.479248,"operationMs":50.426614,"p95HeartbeatGapMs":44.789326},{"heartbeatCallbacks":4,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":17.080909,"operation":"save-with-newer-edit","operationAndFirstFrameMs":47.134073,"operationMs":47.134023,"p95HeartbeatGapMs":17.080909},{"heartbeatCallbacks":2,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":21.018828,"operation":"save-current","operationAndFirstFrameMs":39.921455,"operationMs":39.921311,"p95HeartbeatGapMs":21.018828}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+Native Wayland scale=2 file_operation_input_tests
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+File worker fixture: creating window
+File worker fixture: open started
+File worker fixture: open finished in 239.294 ms
+File worker fixture: missing-file check started
+File worker fixture: missing-file check finished
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 34.8117 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 45.9925 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+File worker fixture: final save started
+File worker fixture: final save finished
+File worker fixture: close started
+File worker fixture: close finished
+{"cache":{"pages":513,"policy":"verified-cold","residentPagesBeforeOpen":0},"fileBytes":2100399,"fixtureSha256":"6bd7629b6b93b374ca7425dce9662e1181258e29a61d15027e5aa9bf9a4eb511","graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Compatibility Profile) Mesa 26.2.3-arch1.2","passed":true,"platform":"wayland","releaseAcceptance":false,"scale":2,"timings":[{"heartbeatCallbacks":1,"heartbeatIntervalMs":5,"includesFirstFrameReadback":true,"maximumHeartbeatGapMs":205.57208,"operation":"open","operationAndFirstFrameMs":239.293833,"operationMs":212.195047,"p95HeartbeatGapMs":205.57208},{"heartbeatCallbacks":6,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":5.885219,"operation":"save-with-newer-edit","operationAndFirstFrameMs":34.811652,"operationMs":34.811547,"p95HeartbeatGapMs":5.885219},{"heartbeatCallbacks":8,"heartbeatIntervalMs":5,"includesFirstFrameReadback":false,"maximumHeartbeatGapMs":5.765435,"operation":"save-current","operationAndFirstFrameMs":45.992462,"operationMs":45.992329,"p95HeartbeatGapMs":5.765435}],"viewportLogicalHeight":718,"viewportLogicalWidth":950}
+Native file workers: responsive load/save, stale-save preservation, reentrant action fences and failed-load retention passed; bytes=2100399
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+{"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom","colorBits":[8,8,8,8],"contextGenerations":2,"graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2","outputTransitions":[],"passed":true,"platform":"wayland","scale":1,"screens":[{"name":"headless","scale":1}]}
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+{"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom","colorBits":[8,8,8,8],"contextGenerations":2,"graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2","outputTransitions":[],"passed":true,"platform":"wayland","scale":2,"screens":[{"name":"headless","scale":2}]}
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.7s)
+-- Generating done (0.6s)
+-- Build files have been written to: /work/package/src/build
