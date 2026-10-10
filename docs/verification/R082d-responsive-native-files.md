@@ -43,5 +43,7 @@ checkpoint capture and unrelated imports/exports are outside this worker change.
 The separately running clean package lifecycle uses its earlier stated source;
 it does not count as packaging verification of these new workers. Final CI,
 ordered merges, remaining R082 scenarios and release acceptance remain open.
-The required discrete-GPU benchmark is [blocked by unavailable hardware](R085e-hardware-availability.md),
-as confirmed by the project owner; this requirement is not waived.
+Discrete-GPU hardware was unavailable when these file-worker checks were recorded.
+The owner subsequently provided a CachyOS/Radeon system; the
+[hardware availability record](R085e-hardware-availability.md) tracks that update.
+The requirement remains open pending its complete performance evidence.

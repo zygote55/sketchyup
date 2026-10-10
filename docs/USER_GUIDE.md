@@ -46,7 +46,11 @@ defaults is a draft until saved. See [shortcut behavior](decisions/0149-native-s
 
 ## Save, recover and migrate
 
-Save named `.sketchyup` documents explicitly. A successful replacement keeps the
+Save named `.sketchyup` documents explicitly. Longer native opens/saves show a
+progress dialog while file work continues. If edits arrive during a save, status
+reports that newer edits remain unsaved; save again to record them. See the
+[file-operation contract](decisions/0158-responsive-native-file-operations.md).
+A successful replacement keeps the
 previous valid file as `.sketchyup.bak`. Automatic recovery normally runs every
 30 seconds and keeps separate copies. File → Recovery settings changes the
 interval; File → Save recovery now retries after a reported failure.
