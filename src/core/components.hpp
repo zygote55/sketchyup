@@ -19,4 +19,13 @@ ComponentResult setComponentAxes(Document &doc, Id definition, Transform axes);
 ComponentResult setComponentGlue(Document &doc, Id definition, std::optional<ComponentGlue> glue);
 // Map a materialized definition-edit draft to one live placement, including references.
 std::map<Id, Id> componentScopeMembers(const Document &doc, const Document &draft, Id instance);
+// Rebuild one persisted top-level placement exactly as editing projects it, from
+// already validated definitions and complete member bindings, including nested
+// bindings. `placement` supplies the root's instance-owned state. `floors` restores
+// scene allocator floors that exceed the canonical member floor; each must be higher.
+// Returns the root and every resolved member, each a fresh unshared record.
+std::map<Id, BodyPtr>
+projectComponentPlacement(const ComponentDefinitions &definitions,
+                          const ComponentInstances &instances, Id root, const Body &placement,
+                          const std::map<Id, std::pair<Id, Id>> &floors = {});
 } // namespace sketchy

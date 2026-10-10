@@ -17,6 +17,7 @@ struct MeasuredDrawing {
     std::vector<MeasuredSource> sources;
     std::vector<MeasuredAnnotation> annotations;
     DisplayUnit units{DisplayUnit::Meters};
+    int precision{fullDisplayPrecision};
     QJsonObject report;
 };
 // Orthographic technical line drawing. Page frame comes from the snapshot camera;

@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
         check(encodeContainer(decodeContainer(bytes)) == bytes,
               "Image placement and embedded pixels roundtrip byte-exactly");
         auto raw = QJsonDocument::fromJson(encodeDocument(doc)).object();
-        check(raw["version"] == 24, "Reference image schema is explicit");
+        check(raw["version"] == 26, "Reference image schema is explicit");
         auto oldSchema = raw;
         oldSchema["version"] = 23;
         rejects([&] { decodeDocument(QJsonDocument(oldSchema).toJson()); });

@@ -5,6 +5,7 @@
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
+#include "io/display_precision_io.hpp"
 #include "io/model_style_io.hpp"
 #include "io/solar_io.hpp"
 #include "automation/solar_commands.hpp"
@@ -521,6 +522,7 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
     switch (spec->operation) {
     case Operation::Document:
         data = {{"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
+                {"displayPrecision", encodeDisplayPrecision(doc.displayPrecision())},
                 {"style", encodeModelStyle(doc.style())},
                 {"solar", encodeSolarSettings(doc.solar())},
                 {"dirty", doc.dirty()},

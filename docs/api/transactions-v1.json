@@ -2446,6 +2446,22 @@
                                         "command": {
                                             "const": "document.units"
                                         },
+                                        "precision": {
+                                            "description": "Displayed decimal places: \"full\" (default after a unit change) or 0-6 for m, 0-3 for mm and 0-3 for the inches of ft-in",
+                                            "oneOf": [
+                                                {
+                                                    "enum": [
+                                                        "full"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                {
+                                                    "maximum": 6,
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                }
+                                            ]
+                                        },
                                         "units": {
                                             "enum": [
                                                 "m",

@@ -163,8 +163,8 @@ void TextPanel::describe() {
     const auto &source = *body.textSource;
     details_->setText(QString::fromStdString(source.text) + "\n" +
                       QString::fromStdString(source.actualFamily + " " + source.actualStyle) +
-                      " · " + displayLength(source.height, doc_.displayUnits()) + " high, " +
-                      displayLength(source.depth, doc_.displayUnits()) + " deep\n" +
+                      " · " + displayLength(source.height, doc_.displayUnits(), doc_.displayPrecision()) + " high, " +
+                      displayLength(source.depth, doc_.displayUnits(), doc_.displayPrecision()) + " deep\n" +
                       availability(source) +
                       (textGeometryDigest(body) == source.geometryDigest
                            ? QString{}
@@ -246,9 +246,9 @@ void TextPanel::edit(bool creating) {
     style->setCurrentText(QString::fromStdString(original.style));
     connect(family, &QComboBox::currentTextChanged, &dialog, styles);
     form->addRow("Font style (blank uses default)", style);
-    auto *height = new QLineEdit(displayLength(original.height, doc_.displayUnits()));
+    auto *height = new QLineEdit(displayLength(original.height, doc_.displayUnits(), fullDisplayPrecision));
     height->setObjectName("textHeight");
-    auto *depth = new QLineEdit(displayLength(original.depth, doc_.displayUnits()));
+    auto *depth = new QLineEdit(displayLength(original.depth, doc_.displayUnits(), fullDisplayPrecision));
     depth->setObjectName("textDepth");
     auto *spacing = new QLineEdit(QLocale().toString(original.lineSpacing, 'g', 15));
     spacing->setObjectName("textSpacing");

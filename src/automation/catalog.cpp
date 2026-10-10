@@ -262,7 +262,16 @@ QJsonArray commandCatalog() {
         spec("document.style", "Change model style", "Document",
              {{"style", modelStyleSchema()}}, {"style"}),
         spec("document.units", "Change document units", "Document",
-             {{"units", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"m", "mm", "ft-in"}}}}},
+             {{"units", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"m", "mm", "ft-in"}}}},
+              {"precision",
+               QJsonObject{
+                   {"description",
+                    "Displayed decimal places: \"full\" (default after a unit change) or "
+                    "0-6 for m, 0-3 for mm and 0-3 for the inches of ft-in"},
+                   {"oneOf", QJsonArray{QJsonObject{{"type", "string"}, {"enum", QJsonArray{"full"}}},
+                                        QJsonObject{{"type", "integer"},
+                                                    {"minimum", 0},
+                                                    {"maximum", 6}}}}}}},
              {"units"}),
         spec("tag.create", "Create tag or folder", "Organization",
              {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},

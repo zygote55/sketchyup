@@ -103,7 +103,7 @@ void Viewport::paintAnnotations(QPainter &painter) {
         auto font = painter.font();
         font.setPixelSize(qRound(record->textSize * scale));
         painter.setFont(font);
-        const auto text = annotationText(*record, m, doc_.displayUnits());
+        const auto text = annotationText(*record, m, doc_.displayUnits(), doc_.displayPrecision());
         const auto bounds = painter.fontMetrics().boundingRect(
             QRect(0, 0, qRound(360 * scale), qRound(1000 * scale)), Qt::TextWordWrap, text);
         QRectF box(textPoint.x() - bounds.width() / 2. - 5 * scale,

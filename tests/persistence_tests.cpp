@@ -475,6 +475,7 @@ int main(int argc, char **argv) {
         auto legacy = QJsonDocument::fromJson(encodeDocument(doc)).object();
         legacy["version"] = 1;
         legacy.remove("solar");
+        legacy.remove("displayPrecision");
         legacy.remove("style");
         legacy.remove("scenes");
         legacy.remove("sections");

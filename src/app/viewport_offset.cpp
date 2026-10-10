@@ -75,12 +75,12 @@ void Viewport::updateOffsetPreview(QPointF point) {
         previewValid_ = false;
         previewEdges_.clear();
         previewError_.clear();
-        emit measurementPreview(displayLength(0, doc_.displayUnits()));
+        emit measurementPreview(displayLength(0, doc_.displayUnits(), doc_.displayPrecision()));
         update();
         return;
     }
     previewCommand(offsetCommand(previewDistance_));
-    emit measurementPreview(displayLength(previewDistance_, doc_.displayUnits()));
+    emit measurementPreview(displayLength(previewDistance_, doc_.displayUnits(), doc_.displayPrecision()));
 }
 void Viewport::finishOffset(double distance) {
     if (!std::isfinite(distance) || std::abs(distance) < tolerance)
@@ -107,6 +107,6 @@ void Viewport::finishOffset(double distance) {
     emit changed();
     emit message(QString("Offset %1 · Source faces and holes retained · Enter a new distance to "
                          "revise · Ctrl+Z undoes")
-                     .arg(displayLength(distance, doc_.displayUnits())));
+                     .arg(displayLength(distance, doc_.displayUnits(), doc_.displayPrecision())));
 }
 } // namespace sketchy

@@ -80,7 +80,7 @@ QString Viewport::guideMeasurementText(Vec3 end) const {
     const auto value = guideMeasurement(end);
     return tool_ == Tool::Protractor
                ? QLocale().toString(value * 180 / std::numbers::pi, 'g', 10) + " deg"
-               : displayLength(value, doc_.displayUnits());
+               : displayLength(value, doc_.displayUnits(), doc_.displayPrecision());
 }
 Guide Viewport::prospectiveGuide(Vec3 end) const {
     const auto origin = anchor_ ? anchor_ : committedAnchor_;

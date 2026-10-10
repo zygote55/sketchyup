@@ -88,7 +88,7 @@ DrawingPaths paths(const MeasuredDrawing &drawing) {
     for (const auto &annotation : drawing.annotations) {
         const auto &record = annotation.record;
         const auto &measurement = annotation.measurement;
-        const auto text = annotationText(record, measurement, drawing.units);
+        const auto text = annotationText(record, measurement, drawing.units, drawing.precision);
         result.textBytes += text.toUtf8().size();
         require(result.textBytes <= 1024 * 1024, "Drawing annotation text exceeds 1 MiB");
         const bool broken = measurement.state != AnchorState::Resolved;

@@ -33,6 +33,7 @@
 #include "geometry/inference.hpp"
 #include "geometry/intersection.hpp"
 #include "io/assets.hpp"
+#include "io/display_precision_io.hpp"
 #include "io/document_io.hpp"
 #include "io/model_style_io.hpp"
 #include "io/native_limits.hpp"
@@ -297,6 +298,7 @@ QJsonObject describe(const Document &doc) {
             {"revision", QString::number(doc.revision())},
             {"units", "m"},
             {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
+            {"displayPrecision", encodeDisplayPrecision(doc.displayPrecision())},
             {"style", encodeModelStyle(doc.style())},
             {"solar", encodeSolarSettings(doc.solar())},
             {"bodies", bodies},
@@ -704,7 +706,11 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         } else if (name == "document.units") {
             if (!command["units"].isString())
                 throw std::runtime_error("Document units must be a string");
-            staged.setDisplayUnits(parseDisplayUnit(command["units"].toString().toStdString()));
+            const auto units = parseDisplayUnit(command["units"].toString().toStdString());
+            staged.setDisplayUnits(units, command.contains("precision")
+                                              ? std::optional(decodeDisplayPrecision(
+                                                    command["precision"], units))
+                                              : std::nullopt);
         } else if (name.startsWith("asset.")) {
             if ((command.contains("name") && !command["name"].isString()) ||
                 (command.contains("mediaType") && !command["mediaType"].isString()))
@@ -1639,7 +1645,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
+        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
         throw std::runtime_error("Batch has no committed changes");
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();

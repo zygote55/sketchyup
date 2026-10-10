@@ -6,6 +6,7 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QSettings>
+#include <algorithm>
 namespace sketchy {
 DisplayUnit Window::preferredUnits() {
     try {
@@ -16,6 +17,14 @@ DisplayUnit Window::preferredUnits() {
     } catch (const std::exception &) {
         return DisplayUnit::Meters;
     }
+}
+int Window::preferredPrecision() {
+    // Stored as "full" or a decimal-place count valid for the preferred units.
+    const auto stored = QSettings("SketchyUp", "SketchyUp").value("defaultPrecision", "full");
+    bool valid = false;
+    const auto precision = stored.toString().toInt(&valid);
+    return valid && validDisplayPrecision(preferredUnits(), precision) ? precision
+                                                                       : fullDisplayPrecision;
 }
 void Window::startUnits() {
     QSettings preferences("SketchyUp", "SketchyUp");
@@ -43,6 +52,27 @@ void Window::unitsSettings(bool firstRun) {
         units->addItem(unitName(unit), QString::fromLatin1(unitCode(unit).data()));
     units->setCurrentIndex(int(firstRun ? preferredUnits() : doc_.displayUnits()));
     form.addRow("Units", units);
+    // Display only: precision never rounds geometry or entered values. First-run
+    // setup asks only for units, so new models start at Full.
+    auto *precision = new QComboBox;
+    precision->setObjectName("documentPrecisionChoice");
+    precision->setAccessibleName("Display precision");
+    const auto populate = [precision](DisplayUnit unit, int selected) {
+        precision->clear();
+        precision->addItem(precisionSample(unit, fullDisplayPrecision), fullDisplayPrecision);
+        for (int places = 0; places <= maxDisplayPrecision(unit); ++places)
+            precision->addItem(precisionSample(unit, places), places);
+        precision->setCurrentIndex(std::max(0, precision->findData(selected)));
+    };
+    populate(firstRun ? preferredUnits() : doc_.displayUnits(),
+             firstRun ? fullDisplayPrecision : doc_.displayPrecision());
+    connect(units, &QComboBox::currentIndexChanged, precision, [units, populate] {
+        populate(parseDisplayUnit(units->currentData().toString().toStdString()),
+                 fullDisplayPrecision);
+    });
+    form.addRow("Precision", precision);
+    form.setRowVisible(precision, !firstRun);
+    QWidget::setTabOrder(units, precision);
     auto *makeDefault = new QCheckBox("Use for new documents");
     makeDefault->setObjectName("documentUnitsDefault");
     makeDefault->setChecked(firstRun);
@@ -69,16 +99,21 @@ void Window::unitsSettings(bool firstRun) {
             if (!doc_.isCurrentSnapshot(stamp) || doc_.revision() != revision)
                 throw std::runtime_error("The document changed. Reopen units to try again.");
             const auto selected = parseDisplayUnit(units->currentData().toString().toStdString());
+            const auto places = firstRun ? fullDisplayPrecision : precision->currentData().toInt();
             viewport_->cancel();
             // First-run defaults affect only a pristine blank document, never an opened model.
             if (firstRun && path_.isEmpty() && !doc_.dirty() && !doc_.canUndo() &&
                 doc_.bodies().empty() && doc_.revision() == 0)
-                doc_ = Document(selected);
+                doc_ = Document(selected, places);
             else if (!firstRun)
-                doc_.setDisplayUnits(selected);
-            if (makeDefault->isChecked())
-                QSettings("SketchyUp", "SketchyUp")
-                    .setValue("defaultUnits", QString::fromLatin1(unitCode(selected).data()));
+                doc_.setDisplayUnits(selected, places);
+            if (makeDefault->isChecked()) {
+                QSettings preferences("SketchyUp", "SketchyUp");
+                preferences.setValue("defaultUnits", QString::fromLatin1(unitCode(selected).data()));
+                preferences.setValue("defaultPrecision", places == fullDisplayPrecision
+                                                             ? QString("full")
+                                                             : QString::number(places));
+            }
             viewport_->refresh();
             sync();
             dialog.accept();

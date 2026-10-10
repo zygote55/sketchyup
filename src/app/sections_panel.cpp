@@ -164,7 +164,9 @@ void SectionsPanel::describe() {
                              : QString("Missing context");
     details_->setText(QString("Context: %1\nDistance along normal: %2\n%3 · %4\nPlane edits and "
                               "activation are undoable.")
-                          .arg(context, displayLength(-record.plane.offset, doc_.displayUnits()),
+                          .arg(context,
+                               displayLength(-record.plane.offset, doc_.displayUnits(),
+                                             doc_.displayPrecision()),
                                record.fill ? "Fill on" : "Fill off",
                                record.edges ? "Cut edges on" : "Cut edges off"));
 }
@@ -222,7 +224,7 @@ void SectionsPanel::edit(bool create) {
         normal[i]->setObjectName("sectionNormal" + QString::number(i));
         form->addRow(QString("Local normal %1").arg(QChar("XYZ"[i])), normal[i]);
     }
-    auto *distance = new QLineEdit(displayLength(-original.plane.offset, doc_.displayUnits()));
+    auto *distance = new QLineEdit(displayLength(-original.plane.offset, doc_.displayUnits(), fullDisplayPrecision));
     distance->setObjectName("sectionDistance");
     form->addRow("Distance along normal", distance);
     auto *fill = new QCheckBox("Show section fill");

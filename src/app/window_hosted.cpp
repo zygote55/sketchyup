@@ -12,7 +12,7 @@ namespace {
 QString vectorText(Vec3 vector, DisplayUnit units, bool lengths) {
     QStringList values;
     for (auto value : {vector.x, vector.y, vector.z})
-        values.append(lengths ? displayLength(value, units) : QLocale().toString(value, 'g', 10));
+        values.append(lengths ? displayLength(value, units, fullDisplayPrecision) : QLocale().toString(value, 'g', 10));
     return values.join(QLocale().decimalPoint() == "," ? "; " : ", ");
 }
 Vec3 vectorValue(const QString &text, DisplayUnit units, bool lengths) {
@@ -170,7 +170,7 @@ void Window::hostedOptionsDialog() {
     auto *scale = field(dialog, form, "hostedPlacementScale", "Scale (x, y, z; negative mirrors)",
                         vectorText(options.scale, doc_.displayUnits(), false));
     auto *inset = field(dialog, form, "hostedPlacementInset", "Inset along host normal",
-                        displayLength(options.inset, doc_.displayUnits()));
+                        displayLength(options.inset, doc_.displayUnits(), fullDisplayPrecision));
     auto *note = new QLabel(
         "Anchor and inset use the host's local coordinates. Rotation follows its first boundary "
         "edge. Scale 1 uses the definition's original size. Bind current pose uses only inset. "

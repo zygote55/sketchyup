@@ -242,6 +242,7 @@ void componentsAndMalformed() {
     root["bodies"] = bodies;
     root["version"] = 12;
     root.remove("solar");
+    root.remove("displayPrecision");
     root.remove("style");
     root.remove("scenes");
     root.remove("sections");

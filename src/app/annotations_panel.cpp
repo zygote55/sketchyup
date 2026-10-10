@@ -173,7 +173,7 @@ void AnnotationsPanel::describe() {
     }
     const auto &record = *doc_.annotations().at(selected());
     const auto m = measureAnnotation(doc_, record);
-    details_->setText(annotationText(record, m, doc_.displayUnits()) +
+    details_->setText(annotationText(record, m, doc_.displayUnits(), doc_.displayPrecision()) +
                       "\nEdit / rebind keeps existing attachments unless you choose new ones. "
                       "Changes are undoable.");
 }
@@ -252,7 +252,7 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
         const std::array<double, 3> xyz{value.x, value.y, value.z};
         for (size_t i = 0; i < 3; ++i) {
             layout->addWidget(new QLabel(QString(QChar("XYZ"[i]))));
-            fields[i] = new QLineEdit(displayLength(xyz[i], doc_.displayUnits()));
+            fields[i] = new QLineEdit(displayLength(xyz[i], doc_.displayUnits(), fullDisplayPrecision));
             fields[i]->setObjectName(prefix + QString::number(i));
             layout->addWidget(fields[i]);
         }

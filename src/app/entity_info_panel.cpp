@@ -14,9 +14,9 @@
 namespace sketchy {
 namespace {
 QString number(double value) { return QLocale().toString(value, 'g', 8); }
-QString vector(Vec3 value, DisplayUnit unit) {
-    return displayLength(value.x, unit) + " · " + displayLength(value.y, unit) + " · " +
-           displayLength(value.z, unit);
+QString vector(Vec3 value, DisplayUnit unit, int precision) {
+    return displayLength(value.x, unit, precision) + " · " +
+           displayLength(value.y, unit, precision) + " · " + displayLength(value.z, unit, precision);
 }
 QJsonArray point(Vec3 value) { return {value.x, value.y, value.z}; }
 QString unavailable(const std::string &status) {
@@ -175,13 +175,16 @@ void EntityInfoPanel::refresh() {
                                                     : Vec3{};
         if (frame_->currentIndex() == 2 && entity.kind == SelectionKind::Guide)
             origin = body.guides.at(entity.entity).origin;
-        position_->setText(vector(origin, doc_.displayUnits()));
-        dimensions_->setText(frame.bounds ? vector(frame.bounds->dimensions(), doc_.displayUnits())
+        position_->setText(vector(origin, doc_.displayUnits(), doc_.displayPrecision()));
+        dimensions_->setText(frame.bounds ? vector(frame.bounds->dimensions(), doc_.displayUnits(),
+                                                 doc_.displayPrecision())
                                           : "No finite bounds");
         length_->setText(frame.infiniteLength ? "Infinite guide"
-                                              : displayLength(frame.length, doc_.displayUnits()));
-        area_->setText(displayMeasure(frame.area, 2, doc_.displayUnits()));
-        volume_->setText(frame.volume ? displayMeasure(*frame.volume, 3, doc_.displayUnits())
+                                              : displayLength(frame.length, doc_.displayUnits(),
+                                                              doc_.displayPrecision()));
+        area_->setText(displayMeasure(frame.area, 2, doc_.displayUnits(), doc_.displayPrecision()));
+        volume_->setText(frame.volume ? displayMeasure(*frame.volume, 3, doc_.displayUnits(),
+                                                     doc_.displayPrecision())
                                       : unavailable(measured.solid.status));
         QStringList properties;
         for (const auto &[key, property] : body.properties) {
@@ -281,8 +284,8 @@ void EntityInfoPanel::edit() {
         const std::array<double, 3> p{originalPosition.x, originalPosition.y, originalPosition.z},
             d{originalDimensions.x, originalDimensions.y, originalDimensions.z};
         for (size_t i = 0; i < 3; ++i) {
-            position[i]->setText(displayLength(p[i], doc_.displayUnits()));
-            dimensions[i]->setText(displayLength(d[i], doc_.displayUnits()));
+            position[i]->setText(displayLength(p[i], doc_.displayUnits(), fullDisplayPrecision));
+            dimensions[i]->setText(displayLength(d[i], doc_.displayUnits(), fullDisplayPrecision));
             dimensions[i]->setEnabled(bool(bounds));
         }
     };

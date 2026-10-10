@@ -24,6 +24,17 @@ semicolons between coordinate/dimension values. Invalid input stays selected
 with an explanation. Enter completes accepted numeric input and returns focus
 to modeling; Escape cancels the active operation.
 
+**File → Document units** chooses metres, millimetres or feet and inches, and a
+display **Precision**. Each precision choice shows a sample in the selected
+units. **Full** is the default. It shows the exact trimmed values used before
+this setting existed. A fixed precision shows that many decimal places, keeping
+trailing zeros (`1.20 m`). For feet and inches it applies to the inches
+(`4' 0.6"`). Areas and volumes use the same number of decimals. Changing units
+resets precision to Full. Precision changes only what is displayed; geometry,
+typed values and editable fields keep their exact values. It is saved with the
+model and can be undone. Decimal imperial entry works with any units: `2.5in`,
+`1.25ft`, `1.5'` and `3' 4.5"`, or a bare `2.5` (feet) in a feet-and-inches model.
+
 ## Navigate and adapt the interface
 
 **F6 / Shift+F6** cycles window regions. **Ctrl+K** finds commands, objects and
