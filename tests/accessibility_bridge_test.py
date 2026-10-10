@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -145,6 +146,7 @@ def main():
             with (root / "application.log").open("w") as log:
                 process = subprocess.Popen([str(args.application.resolve()), "--demo"],
                                            env=environment, stdout=log, stderr=log)
+                passed = False
                 try:
                     with bridge.owned(bridge.get_desktop(0)) as desktop:
                         def own_application():
@@ -213,14 +215,23 @@ def main():
                             }
                             args.report.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
                             print(json.dumps(report, ensure_ascii=False))
+                            passed = True
                 finally:
                     # This process owns only a private unsaved demo; no user document is open.
+                    exited_early = process.poll()
                     process.terminate()
                     try:
                         process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait(timeout=5)
+                    if not passed:
+                        # The log lives in the temporary directory; show it before it is removed.
+                        log.flush()
+                        tail = (root / "application.log").read_text(errors="replace").splitlines()[-60:]
+                        status = "still running" if exited_early is None else f"exited with {exited_early}"
+                        print(f"Application {status}; last {len(tail)} log lines:", file=sys.stderr)
+                        print("\n".join(tail), file=sys.stderr)
     finally:
         bridge.exit()
 
