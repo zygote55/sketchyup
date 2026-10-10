@@ -198,6 +198,11 @@ int main(int argc, char **argv) {
         host.setWindowTitle("SketchyUp performance benchmark");
         host.resize(1920, 1080);
         TimedViewport view(doc, &host);
+        // Diagnostic comparison only: draw every body from its own world-space mesh.
+        const bool placementSharing =
+            qEnvironmentVariable("SKETCHYUP_BENCHMARK_PLACEMENT_SHARING") != "0";
+        view.setPlacementMeshSharing(placementSharing);
+        const auto frameDirectory = qEnvironmentVariable("SKETCHYUP_BENCHMARK_FRAME_DIR");
         view.resize(1920, 1080);
         view.setSynchronousFrameTiming(true);
         QElapsedTimer textureReady;
@@ -250,6 +255,19 @@ int main(int argc, char **argv) {
         }
         for (int i = 0; i < 10; ++i)
             frame();
+        // Exact framebuffer identity lets renderer changes compare their pixels.
+        auto framebufferHash = [&](const char *phase) {
+            QCoreApplication::processEvents();
+            const auto image = view.grabFramebuffer().convertToFormat(QImage::Format_RGBA8888);
+            if (!frameDirectory.isEmpty())
+                check(image.save(frameDirectory + "/" + scenario + "-" + phase + ".png"),
+                      "Save benchmark framebuffer");
+            return QString::fromLatin1(
+                QCryptographicHash::hash(QByteArrayView(image.constBits(), image.sizeInBytes()),
+                                         QCryptographicHash::Sha256)
+                    .toHex());
+        };
+        const auto warmFramebufferHash = framebufferHash("warm");
         const auto warmStats = view.renderStats();
         const auto warmMemory = view.geometryCacheMemory();
         const auto warmDriverMemory = benchmark::processDrmMemory();
@@ -406,6 +424,7 @@ int main(int argc, char **argv) {
         }
         inference.sync(doc);
         frame();
+        const auto finalFramebufferHash = framebufferHash("final");
         infer(editing); // The post-history index must describe the current revision.
         const auto finalMemory = view.geometryCacheMemory();
         const auto finalDriverMemory = benchmark::processDrmMemory();
@@ -419,6 +438,8 @@ int main(int argc, char **argv) {
             {"fixtureVersion", scenario == "repeated" ? 1 : 2},
             {"fixtureScenario", scenario},
             {"fixtureSha256", QString::fromLatin1(fixtureHash)},
+            {"warmFramebufferSha256", warmFramebufferHash},
+            {"finalFramebufferSha256", finalFramebufferHash},
             {"instances", qint64(doc.instances().size())},
             {"placements", count},
             {"outerGroups", outerGroups},
@@ -504,6 +525,11 @@ int main(int argc, char **argv) {
             {"warmDrmMemory", warmDriverMemory},
             {"finalDrmMemory", finalDriverMemory},
             {"bodyMeshBuilds", qint64(view.renderStats().bodyMeshBuilds)},
+            {"placementMeshSharing", placementSharing},
+            {"placementMeshes", qint64(view.renderStats().placementMeshes)},
+            {"sharedPlacements", qint64(view.renderStats().sharedPlacements)},
+            {"tessellations", qint64(view.renderStats().tessellations)},
+            {"meshUploads", qint64(view.renderStats().meshUploads)},
             {"uploadedBytesCumulative", qint64(view.renderStats().uploadedBytes)},
             {"bodyCacheVectorCapacityBytes", qint64(finalMemory.bodyVectorCapacityBytes)},
             {"bodyCacheGpuPayloadBytes", qint64(finalMemory.bodyGpuPayloadBytes)},

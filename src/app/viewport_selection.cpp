@@ -191,8 +191,9 @@ void Viewport::rebuildPickGeometry() {
             continue;
         if (!cache->sectionError.isEmpty())
             continue;
+        const auto &local = cache->geometry->localTriangles;
         auto appendTriangle = [&](size_t triangleIndex, const SectionTriangle *cut) {
-            const auto &triangle = cache->worldTriangles[triangleIndex];
+            const auto triangle = worldTriangle(*cache, triangleIndex);
             const SelectedEntity entity{
                 id, cache->record->referenceImage ? SelectionKind::Body : SelectionKind::Face,
                 triangle.face};
@@ -204,7 +205,7 @@ void Viewport::rebuildPickGeometry() {
                 size_t corner = 0;
                 for (auto point : {triangle.a, triangle.b, triangle.c})
                     vertices[corner++] = vertex(point, c);
-                referenceVertices(*cache->record, cache->localTriangles[triangleIndex], vertices);
+                referenceVertices(*cache->record, local[triangleIndex], vertices);
                 for (auto &v : vertices) {
                     v.r = v.br = c[0];
                     v.g = v.bg = c[1];
@@ -227,14 +228,14 @@ void Viewport::rebuildPickGeometry() {
                 v.a = front.opacity;
                 v.ba = back.opacity;
             }
-            textureVertices(*cache->record, cache->localTriangles[triangleIndex],
-                            cache->world.determinant() < 0, vertices);
+            textureVertices(*cache->record, local[triangleIndex], cache->world.determinant() < 0,
+                            vertices);
             if (cut)
                 vertices = clippedVertices(vertices, *cut);
             faces.insert(faces.end(), vertices.begin(), vertices.end());
         };
         if (cache->sectionCuts.empty()) {
-            for (size_t i = 0; i < cache->worldTriangles.size(); ++i)
+            for (size_t i = 0; i < local.size(); ++i)
                 appendTriangle(i, nullptr);
         } else {
             for (const auto &triangle : cache->sectionMesh.triangles) {
@@ -249,7 +250,8 @@ void Viewport::rebuildPickGeometry() {
                 }
             }
         }
-        for (const auto &edge : cache->worldEdges) {
+        for (size_t i = 0; i < cache->geometry->localEdges.size(); ++i) {
+            const auto edge = worldEdge(*cache, i);
             const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
             if (!visible(entity))
                 continue;
@@ -582,10 +584,13 @@ void Viewport::rebuildSelectionOverlay() {
             if (!cache.sectionError.isEmpty())
                 continue;
             if (cache.sectionCuts.empty()) {
-                for (const auto &t : cache.worldTriangles)
-                    if (entities.contains({id, SelectionKind::Face, t.face}))
+                for (size_t i = 0; i < cache.geometry->localTriangles.size(); ++i)
+                    if (entities.contains(
+                            {id, SelectionKind::Face, cache.geometry->localTriangles[i].face})) {
+                        const auto t = worldTriangle(cache, i);
                         for (auto p : {t.a, t.b, t.c})
                             faces.push_back(vertex(p));
+                    }
             } else {
                 for (const auto &t : cache.sectionMesh.triangles)
                     if (t.source != noSectionSource &&

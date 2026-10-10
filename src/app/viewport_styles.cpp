@@ -133,10 +133,11 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
             if (body.referenceImage)
                 continue;
             std::map<Id, bool> facing;
-            for (const auto &triangle : cache->worldTriangles) {
-                if (facing.contains(triangle.face) ||
-                    !visible({id, SelectionKind::Face, triangle.face}))
+            for (size_t i = 0; i < cache->geometry->localTriangles.size(); ++i) {
+                const auto face = cache->geometry->localTriangles[i].face;
+                if (facing.contains(face) || !visible({id, SelectionKind::Face, face}))
                     continue;
+                const auto triangle = worldTriangle(*cache, i);
                 const auto normal = cross(triangle.b - triangle.a, triangle.c - triangle.a);
                 if (length(normal) == 0)
                     continue;
@@ -148,13 +149,14 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
                     0)
                     facing.emplace(triangle.face, front);
             }
-            for (const auto &edge : cache->worldEdges) {
+            for (size_t i = 0; i < cache->geometry->localEdges.size(); ++i) {
+                const auto edge = worldEdge(*cache, i);
                 const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
                 // Softened edges can form silhouettes; explicit hiding still applies.
                 if (!selection_.showingHidden() && selection_.hidden(doc_, entity, false))
                     continue;
-                const auto found = cache->adjacency.edgeFaces.find(edge.id);
-                if (found == cache->adjacency.edgeFaces.end())
+                const auto found = cache->geometry->adjacency.edgeFaces.find(edge.id);
+                if (found == cache->geometry->adjacency.edgeFaces.end())
                     continue;
                 size_t count = 0;
                 bool front = false, back = false;
