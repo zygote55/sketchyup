@@ -20,9 +20,9 @@ R085 physical platforms, R086 live providers and R087 final packages/upgrades.
 | Scope | Capability | Regression evidence | Additional evidence / explicit limitation |
 | --- | --- | --- | --- |
 | [N01](../SCOPE.md) | Native desktop and viewport | [desktop](R085b-full-ctest.txt) | [Native backend and corrected fractional cases; physical transitions open](R085b-native-surface-color.md) |
-| [N02](../SCOPE.md) | Build and package | [desktop](R085b-full-ctest.txt) | [Development lifecycle passed; clean-machine, historical migration and final gate open](R087a-package-lifecycle.md) |
+| [N02](../SCOPE.md) | Build and package | [desktop](R085b-full-ctest.txt) | [Clean development package and 25 historical migrations passed; current/reference clean-machine and final release gates remain open](R087g-clean-current-package.md) |
 | [N03](../SCOPE.md) | Native interaction | [shortcut_bindings](R085b-full-ctest.txt) | [Native keyboard workflow; full platform/input coverage open](R084m-integrated-keyboard-shortcuts.md) |
-| [N04](../SCOPE.md) | Scaling and displays | [desktop](R085b-full-ctest.txt) | [Partial scale matrix; physical mixed-DPI transitions open](R085b-native-surface-color.md) |
+| [N04](../SCOPE.md) | Scaling and displays | [desktop](R085b-full-ctest.txt) | [Native mixed-scale and assisted X11 transitions passed; automatic placement and remaining physical platform gates stay open](R085i-assisted-output-transitions.md) |
 | [N05](../SCOPE.md) | Accessibility/preferences | [shortcut_bindings](R085b-full-ctest.txt) | [Linux accessibility bridge; complete control/dialog audit open](R084l-integrated-accessibility-bridge.md) |
 | [D01](../SCOPE.md) | Units and axes | [document_units](R085b-full-ctest.txt), [document_units_io](R085b-full-ctest.txt) | Scope gate M1/M3; final integration remains open |
 | [D02](../SCOPE.md) | Native document format | [native_format](R085b-full-ctest.txt), [persistence](R085b-full-ctest.txt), [parser_fault_corpus](R085b-full-ctest.txt) | Scope gate M1/M4; final integration remains open |
