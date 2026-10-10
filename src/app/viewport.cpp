@@ -1336,7 +1336,7 @@ void Viewport::paintScene(QPaintDevice *device) {
     const int hudBottom = height() - (sceneTabs_->isVisible() ? sceneTabs_->height() + 12 : 0);
     p.drawText(20, hudBottom - 22,
                "Z up   ·   Inference 8 px   ·   Grid fallback " +
-                   displayLength(.1, doc_.displayUnits()));
+                   displayLength(.1, doc_.displayUnits(), doc_.displayPrecision()));
     if (transformTool())
         p.drawText(QRect(20, hudBottom - 66, width() - 40, 38), Qt::TextWordWrap,
                    QString("%1 axes · Ctrl: copy %2 · Choose pivot, then destination · Esc: cancel")
@@ -1938,7 +1938,8 @@ void Viewport::updateToolPreview(QPointF point) {
         previewDistance_ =
             std::round((dot(extrusionAxis_, w) - b * dot(direction, w)) / denominator * 10) / 10;
         previewCommand(extrusionCommand(previewDistance_));
-        emit measurementPreview(QLocale().toString(previewDistance_, 'g', 8));
+        emit measurementPreview(
+            displayLength(previewDistance_, doc_.displayUnits(), doc_.displayPrecision()));
     } else if (auto end = ground(point)) {
         if (tool_ == Tool::Freehand && samples_.size() >= 3 &&
             (point - project(*anchor_)).manhattanLength() <= 6)
@@ -1986,6 +1987,11 @@ void Viewport::updateToolPreview(QPointF point) {
         }
         const auto delta = plane_.coordinates(*end) - plane_.coordinates(*anchor_);
         const auto locale = QLocale();
+        // Live readouts follow document units and display precision, and keep
+        // explicit suffixes so focusing the field and pressing Enter reparses them.
+        const auto lengthText = [this](double meters) {
+            return displayLength(meters, doc_.displayUnits(), doc_.displayPrecision());
+        };
         if (guideTool())
             return;
         if (arcTool()) {
@@ -1993,28 +1999,28 @@ void Viewport::updateToolPreview(QPointF point) {
                 const auto command = shapeCommand(*end);
                 if (tool_ == Tool::CenterArc || tool_ == Tool::Pie)
                     emit measurementPreview(
-                        locale.toString(command["radius"].toDouble(), 'g', 8) +
+                        lengthText(command["radius"].toDouble()) +
                         (locale.decimalPoint() == "," ? "; " : ", ") +
                         locale.toString(command["sweepAngle"].toDouble() * 180 / std::numbers::pi,
                                         'g', 8) +
                         " deg");
                 else if (tool_ == Tool::TwoPointArc)
-                    emit measurementPreview(locale.toString(command["bulge"].toDouble(), 'g', 8));
+                    emit measurementPreview(lengthText(command["bulge"].toDouble()));
                 else {
                     const auto separator = locale.decimalPoint() == "," ? ";" : ",";
-                    emit measurementPreview("[" + locale.toString(end->x, 'g', 8) + separator +
-                                            locale.toString(end->y, 'g', 8) + separator +
-                                            locale.toString(end->z, 'g', 8) + "]");
+                    emit measurementPreview("[" + lengthText(end->x) + separator +
+                                            lengthText(end->y) + separator + lengthText(end->z) +
+                                            "]");
                 }
             } catch (const std::exception &) {
                 // The authoritative preview already displays the constraint error.
             }
         } else
             emit measurementPreview(tool_ == Tool::Rectangle
-                                        ? locale.toString(std::abs(delta.x), 'g', 8) +
+                                        ? lengthText(std::abs(delta.x)) +
                                               (locale.decimalPoint() == "," ? "; " : ", ") +
-                                              locale.toString(std::abs(delta.y), 'g', 8)
-                                        : locale.toString(length(delta), 'g', 8));
+                                              lengthText(std::abs(delta.y))
+                                        : lengthText(length(delta)));
     } else {
         previewValid_ = false;
         previewEdges_.clear();
