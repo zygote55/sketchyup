@@ -93,6 +93,33 @@ int main(int argc, char **argv) {
     try {
         QTemporaryDir dir;
         require(dir.isValid(), "Temporary directory");
+        {
+            Document caller, receiver;
+            const auto id = caller.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}});
+            receiver.addFace({{{5, 0, 0}, {6, 0, 0}, {6, 1, 0}, {5, 1, 0}}});
+            const auto before = encodeContainer(receiver);
+            const auto stamp = receiver.saveStamp();
+            const auto historyBytes = receiver.historyBytes();
+            for (int invalid = 0; invalid < 3; ++invalid) {
+                auto body = std::make_shared<Body>(*caller.bodies().at(id));
+                if (invalid == 0)
+                    body->topology.edges.erase(body->topology.edges.begin());
+                else if (invalid == 1)
+                    body->topology.nextId = 1;
+                else
+                    body->topology.edges.begin()->second.b = 999999;
+                rejects(
+                    [&] { receiver.restore(caller.identity(), caller.nextId(), {{id, body}}); });
+                require(
+                    encodeContainer(receiver) == before && receiver.isCurrentSnapshot(stamp) &&
+                        receiver.canUndo() && !receiver.canRedo() &&
+                        receiver.historyBytes() == historyBytes,
+                    "Public restore rejects invalid topology without changing records or history");
+            }
+            receiver.undo();
+            require(receiver.bodies().empty(),
+                    "Rejected restore preserves the existing undo action");
+        }
         for (const auto &name :
              {"container-scene-v2.sketchyup", "raw-scene-v2.json", "raw-scene-v1.json"}) {
             const auto fixture = read(QString(SKETCHYUP_TEST_FIXTURES) + "/" + name);

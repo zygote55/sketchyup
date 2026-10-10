@@ -1,0 +1,26 @@
+import ctypes,hashlib,json,os,subprocess,sys
+from pathlib import Path
+root=Path('/home/keith/sketchyup-verification/r082ab-native-persistence-20261008');label=sys.argv[1];f=json.loads((root/'freeze.json').read_text());case=next(c for c in f['cases'] if c['label']==label)
+assert hashlib.sha256(Path(__file__).read_bytes()).hexdigest()==f['remoteControllerSha256']
+assert subprocess.check_output(['systemctl','--user','show','sketchyup-r086y-coder-runtime','-p','SubState','--value'],text=True).strip() in ('dead','exited','failed')
+assert Path('/proc/821/comm').read_text().strip()=='xfce4-session'
+env={}
+for item in Path('/proc/821/environ').read_bytes().split(b'\0'):
+ key,_,v=item.partition(b'=')
+ if key in (b'DISPLAY',b'XAUTHORITY',b'XDG_RUNTIME_DIR',b'DBUS_SESSION_BUS_ADDRESS'):env[key.decode()]=v.decode()
+os.environ.update(env)
+x=ctypes.CDLL('libX11.so.6');ext=ctypes.CDLL('libXext.so.6');x.XOpenDisplay.argtypes=[ctypes.c_char_p];x.XOpenDisplay.restype=ctypes.c_void_p;x.XCloseDisplay.argtypes=[ctypes.c_void_p];ext.DPMSInfo.argtypes=[ctypes.c_void_p,ctypes.POINTER(ctypes.c_ushort),ctypes.POINTER(ctypes.c_int)]
+d=x.XOpenDisplay(None);assert d;p=ctypes.c_ushort();e=ctypes.c_int()
+try:assert ext.DPMSInfo(d,ctypes.byref(p),ctypes.byref(e));assert not e.value or p.value==0,'Display asleep; no test will wake it'
+finally:x.XCloseDisplay(d)
+assert int(next(l.split()[1] for l in Path('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:')))>=6*1024*1024
+for n in ('tmp','cache','data'):(root/n/label).mkdir(parents=True)
+env.update(TMPDIR=str(root/'tmp'/label),XDG_CACHE_HOME=str(root/'cache'/label),XDG_DATA_HOME=str(root/'data'/label),QT_QPA_PLATFORM='xcb',QT_QPA_PLATFORMTHEME='generic',QT_STYLE_OVERRIDE='Fusion',QT_IM_MODULE='compose',QT_SCALE_FACTOR='1',SKETCHYUP_TEST_FILE_CACHE_POLICY=case['policy'],OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',LP_NUM_THREADS='1')
+unit='sketchyup-r082ab-'+label;cmd=['systemd-run','--user','--wait','--pipe','--collect','--unit='+unit]
+for prop in ('MemoryMax=4G','MemorySwapMax=0','CPUQuota=800%','TasksMax=128','RuntimeMaxSec=90s','LimitCORE=0','UMask=0077','WorkingDirectory='+str(root)):cmd+=['-p',prop]
+for k,v in env.items():cmd+=['--setenv='+k+'='+v]
+cmd+=['/usr/bin/taskset','-c','0-7','/usr/bin/python3',str(root/'worker.py'),label]
+with (root/'evidence'/f'{label}.stdout').open('x') as out,(root/'evidence'/f'{label}.stderr').open('x') as err:
+ try:r=subprocess.run(cmd,stdout=out,stderr=err,timeout=115)
+ except BaseException:subprocess.run(['systemctl','--user','stop',unit],capture_output=True);raise
+(root/'evidence'/f'{label}-exit.json').write_text(json.dumps({'exitCode':r.returncode})+'\n');print(label,'exit',r.returncode);raise SystemExit(r.returncode)

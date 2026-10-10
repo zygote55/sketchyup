@@ -1569,9 +1569,11 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
         // Public restore still freezes caller records, regardless of shared_ptr counts.
         auto restored =
             decoderOwnsBodies ? std::const_pointer_cast<Body>(b) : std::make_shared<Body>(*b);
-        if (restored->topology.edges.empty() && restored->topology.nextId == 1)
-            restored->topology = Topology::rebuild(restored->surface, {});
-        restored->topology.validate(restored->surface);
+        if (!decoderOwnsBodies) {
+            if (restored->topology.edges.empty() && restored->topology.nextId == 1)
+                restored->topology = Topology::rebuild(restored->surface, {});
+            restored->topology.validate(restored->surface);
+        }
         validateEdgeAppearances(*restored);
         validateCurves(restored->curves, restored->surface, restored->topology);
         edgeFloors.emplace(id, restored->topology.nextId);
