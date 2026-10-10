@@ -1,0 +1,6 @@
+Running as unit: sketchyup-r085m-xcb.service
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.976s
+             CPU time consumed: 1.857s
+                   Memory peak: 960.5M (swap: 0B)
