@@ -1,6 +1,6 @@
 # SketchyUp native Linux build plan
 
-Status: implementation begun; native spikes and remaining gates are recorded in [the roadmap](PR_ROADMAP.md). Updated: 2026-10-03.
+Status: M0–M8 gates are accepted and M9 hardening is in progress; delivered entries, evidence and remaining gates are recorded in [the roadmap](PR_ROADMAP.md). Updated: 2026-10-10.
 
 This document defines intended behavior and acceptance gates. It does not claim
 that the native application, proposed commands, packages, or integrations exist.
@@ -64,6 +64,10 @@ source data, not the native topology model. See [retirement and viewport evidenc
 ## 2. Architectural decisions
 
 ### Proposed baseline and decision gates
+
+This table records the original proposals. Accepted choices are in the
+[decision records](decisions/); notably, [M0](decisions/0002-native-spikes.md) chose
+Qt Widgets with a QOpenGLWidget viewport instead of Qt Quick/QML and Qt Quick 3D.
 
 | Area | Proposed choice | Required evidence before finalizing |
 | --- | --- | --- |
