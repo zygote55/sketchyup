@@ -112,6 +112,8 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
          sameRecord);
     if (live.displayUnits() != snapshot.displayUnits())
         stage.changes.push_back({"displayUnits", "updated", 0});
+    if (live.displayPrecision() != snapshot.displayPrecision())
+        stage.changes.push_back({"displayPrecision", "updated", 0});
     if (live.solar() != snapshot.solar())
         stage.changes.push_back({"solar", "updated", 0});
     if (live.style() != snapshot.style())

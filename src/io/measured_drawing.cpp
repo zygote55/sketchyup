@@ -22,6 +22,7 @@ MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredP
     MeasuredDrawing result;
     result.page = page;
     result.units = doc.displayUnits();
+    result.precision = doc.displayPrecision();
     std::vector<MeasuredEdge> edges;
     std::vector<MeasuredTriangle> occluders;
     QJsonObject losses;

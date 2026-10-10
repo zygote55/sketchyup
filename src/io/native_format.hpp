@@ -5,7 +5,7 @@ namespace sketchy {
 class Document;
 // Verify and atomically publish a new native container; never replace an existing path.
 QJsonObject createNativeFile(const Document &document, const QString &output);
-inline constexpr int nativeDocumentVersion = 24, nativeContainerVersion = 2;
+inline constexpr int nativeDocumentVersion = 26, nativeContainerVersion = 2;
 // Fully decode and validate before reporting any file as valid. Never rewrite input.
 QJsonObject inspectNativeFile(const QString &path);
 // Publishes a verified current container to a new path without replacing any file.

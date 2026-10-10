@@ -1117,13 +1117,14 @@ void AssistantPanel::Impl::inspect(int row) {
                            .toArray();
         if (d.size() != 3)
             return QString("no finite bounds");
-        return displayLength(d[0].toDouble(), document.displayUnits()) + " × " +
-               displayLength(d[1].toDouble(), document.displayUnits()) + " × " +
-               displayLength(d[2].toDouble(), document.displayUnits());
+        return displayLength(d[0].toDouble(), document.displayUnits(), document.displayPrecision()) + " × " +
+               displayLength(d[1].toDouble(), document.displayUnits(), document.displayPrecision()) + " × " +
+               displayLength(d[2].toDouble(), document.displayUnits(), document.displayPrecision());
     };
     auto quantity = [&](const QJsonObject &value, const char *name, int power) {
         const auto number = value.value("world").toObject().value(name);
-        return number.isDouble() ? displayMeasure(number.toDouble(), power, document.displayUnits())
+        return number.isDouble() ? displayMeasure(number.toDouble(), power, document.displayUnits(),
+                                                    document.displayPrecision())
                                  : QString("not available");
     };
     measure->setText(

@@ -1,4 +1,5 @@
 #include "io/document_io.hpp"
+#include "core/components.hpp"
 #include "core/document_limits.hpp"
 #include "io/annotations_io.hpp"
 #include "io/assets.hpp"
@@ -15,6 +16,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <algorithm>
 #include <limits>
 #include <set>
 #include <utility>
@@ -68,6 +70,141 @@ QJsonValue encodeTextureMapping(const std::optional<TextureMapping> &mapping) {
                        {"vGradient", point(mapping->vGradient)},
                        {"offset", QJsonArray{mapping->offset.u, mapping->offset.v}}};
 }
+// Scene records owned by a placement, other than that placement's own root. Schema 26
+// stores none of them: they are exact projections of their definitions.
+std::set<Id> placementMembers(const ComponentInstances &instances) {
+    std::set<Id> members;
+    for (const auto &[root, instance] : instances)
+        for (const auto &[member, target] : instance->members)
+            if (target != root)
+                members.insert(target);
+    return members;
+}
+// Scene allocator floors above the projected floor; projection starts each member at the
+// floor of the definition record it copies (the referenced root for a nested placement).
+QJsonObject placementFloors(const Document &doc, Id root, const ComponentInstance &instance) {
+    QJsonObject floors;
+    const auto &definition = *doc.definitions().at(instance.definition);
+    for (const auto &[member, target] : instance.members) {
+        if (target == root)
+            continue;
+        const auto &prototype =
+            definition.references.contains(member)
+                ? *doc.definitions()
+                       .at(definition.references.at(member))
+                       ->members.at(doc.definitions().at(definition.references.at(member))->root)
+                : *definition.members.at(member);
+        const auto &body = *doc.bodies().at(target);
+        if (body.surface.nextId != prototype.surface.nextId ||
+            body.topology.nextId != prototype.topology.nextId)
+            floors[sid(target)] = QJsonArray{sid(body.surface.nextId), sid(body.topology.nextId)};
+    }
+    return floors;
+}
+std::string placementMismatch(Id member, Id instance, Id definition) {
+    return "Stored member " + std::to_string(member) + " of component instance " +
+           std::to_string(instance) + " differs from its definition " +
+           std::to_string(definition) + " projection";
+}
+// Every placement not owned by another placement, in identity order.
+std::vector<Id> topLevelPlacements(const ComponentInstances &instances) {
+    const auto members = placementMembers(instances);
+    std::vector<Id> roots;
+    for (const auto &[root, instance] : instances)
+        if (!members.contains(root))
+            roots.push_back(root);
+    return roots;
+}
+// Bound the expansion before allocating it, using validated definition sizes.
+void boundPlacements(const std::map<Id, BodyPtr> &stored, const ComponentInstances &instances,
+                     const std::vector<Id> &roots, const std::map<Id, ComponentSize> &sizes) {
+    ComponentSize total;
+    for (const auto &[id, body] : stored) {
+        total.records += 1;
+        total.vertices += body->surface.vertices.size();
+        total.faces += body->surface.faces.size();
+        total.wires += body->surface.wires.size();
+        total.edges += body->topology.edges.size();
+        total.curves += body->curves.size();
+        total.guides += body->guides.size();
+    }
+    for (auto root : roots) {
+        // The stored root is replaced by its projection, which the size already counts.
+        if (!instances.at(root) || !sizes.contains(instances.at(root)->definition))
+            throw std::runtime_error("Dangling component instance");
+        const auto &size = sizes.at(instances.at(root)->definition);
+        total.records += size.records - 1;
+        total.vertices += size.vertices;
+        total.faces += size.faces;
+        total.wires += size.wires;
+        total.edges += size.edges;
+        total.curves += size.curves;
+        total.guides += size.guides;
+        if (total.records > DocumentLimits::bodies || total.vertices > DocumentLimits::vertices ||
+            total.faces > DocumentLimits::faces || total.wires > DocumentLimits::wires ||
+            total.edges > DocumentLimits::edges || total.curves > DocumentLimits::curves ||
+            total.guides > DocumentLimits::guides)
+            throw std::runtime_error("Component expansion exceeds document editing limits");
+    }
+}
+// Schemas 8-25 store expanded members. Each must equal its projection under the
+// canonical comparison; a mismatch names the member, placement and definition.
+void verifyStoredPlacements(const ComponentDefinitions &definitions,
+                            const ComponentInstances &instances,
+                            const std::map<Id, BodyPtr> &bodies) {
+    std::map<Id, Id> owner;
+    for (const auto &[root, instance] : instances)
+        for (const auto &[member, target] : instance->members)
+            if (target != root || !owner.contains(target))
+                owner[target] = root;
+    for (auto root : topLevelPlacements(instances)) {
+        if (!bodies.contains(root))
+            throw std::runtime_error("Dangling component instance");
+        for (const auto &[id, expected] :
+             projectComponentPlacement(definitions, instances, root, *bodies.at(root))) {
+            const auto placement = owner.contains(id) ? owner.at(id) : root;
+            if (!bodies.contains(id) || !matchesComponentProjection(*expected, *bodies.at(id)))
+                throw std::runtime_error(
+                    placementMismatch(id, placement, instances.at(placement)->definition));
+        }
+    }
+}
+// Schema 26: rebuild every placement member from its definition and binding.
+void projectPlacements(const ComponentDefinitions &definitions,
+                       const ComponentInstances &instances,
+                       const std::map<Id, std::map<Id, std::pair<Id, Id>>> &floors,
+                       std::map<Id, BodyPtr> &bodies) {
+    const auto members = placementMembers(instances);
+    for (const auto &[id, body] : bodies)
+        if (members.contains(id))
+            throw std::runtime_error("Projected component member must not be stored");
+    std::map<Id, std::pair<Id, Id>> allFloors;
+    for (const auto &[root, records] : floors) {
+        const auto &instance = *instances.at(root);
+        for (const auto &[target, floor] : records) {
+            if (target == root || std::none_of(instance.members.begin(), instance.members.end(),
+                                               [&](const auto &m) { return m.second == target; }))
+                throw std::runtime_error("Placement floor must name one of its members");
+            allFloors[target] = floor;
+        }
+    }
+    for (auto root : topLevelPlacements(instances)) {
+        if (!bodies.contains(root))
+            throw std::runtime_error("Dangling component instance");
+        for (auto &[id, body] :
+             projectComponentPlacement(definitions, instances, root, *bodies.at(root), allFloors)) {
+            if (id == root)
+                continue; // The stored root keeps its exact record; restore validates it.
+            if (!bodies.emplace(id, std::move(body)).second)
+                throw std::runtime_error("Projected component member collides with another record");
+        }
+    }
+    // Every recorded floor must belong to a resolved member.
+    for (const auto &[target, floor] : allFloors)
+        if (!bodies.contains(target) || bodies.at(target)->surface.nextId != floor.first ||
+            bodies.at(target)->topology.nextId != floor.second)
+            throw std::runtime_error("Placement floor names an unresolved member");
+}
 std::optional<TextureMapping> decodeTextureMapping(const QJsonValue &value) {
     if (value.isNull())
         return {};
@@ -86,6 +223,14 @@ std::optional<TextureMapping> decodeTextureMapping(const QJsonValue &value) {
                            point(record["vGradient"]), {number(offset[0]), number(offset[1])}};
     mapping.validate();
     return mapping;
+}
+// Native JSON stores an integer: -1 is Full, otherwise decimal places. The
+// unit-specific range is validated by Document::restoreRecords.
+int storedDisplayPrecision(const QJsonValue &value) {
+    const auto number = value.toDouble(-2);
+    if (!value.isDouble() || number < -1 || number > 16 || number != std::floor(number))
+        throw std::runtime_error("Invalid document display precision");
+    return int(number);
 }
 } // namespace
 QJsonObject encodeCurve(Id id, const Curve &curve) {
@@ -201,7 +346,15 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
     return bodies;
 }
 QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
-    const auto bodies = encodeBodies(doc.bodies());
+    QJsonArray bodies;
+    {
+        const auto members = placementMembers(doc.instances());
+        std::map<Id, BodyPtr> stored;
+        for (const auto &[id, body] : doc.bodies())
+            if (!members.contains(id))
+                stored.emplace_hint(stored.end(), id, body);
+        bodies = encodeBodies(stored);
+    }
     QJsonArray definitions, instances, tags, materials, assets;
     for (const auto &[id, asset] : doc.assets()) {
         const auto inlineData = asset->payload && assetStorage == AssetStorage::Inline;
@@ -254,8 +407,10 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         QJsonObject members;
         for (auto [member, target] : instance->members)
             members[sid(member)] = sid(target);
-        instances.append(QJsonObject{
-            {"root", sid(root)}, {"definition", sid(instance->definition)}, {"members", members}});
+        instances.append(QJsonObject{{"root", sid(root)},
+                                     {"definition", sid(instance->definition)},
+                                     {"members", members},
+                                     {"floors", placementFloors(doc, root, *instance)}});
     }
     auto bytes =
         QJsonDocument(
@@ -272,6 +427,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
                 {"nextSceneId", sid(doc.nextSceneId())},
                 {"style", encodeModelStyle(doc.style())},
                 {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
+                {"displayPrecision", doc.displayPrecision()},
                 {"revision", sid(doc.revision())},
                 {"units", "m"},
                 {"up", "Z"},
@@ -611,6 +767,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     if (root["version"].toInt() >= 21)
         rootFields += {"annotations", "nextAnnotationId"};
     if (root["version"].toInt() >= 23) rootFields.append("solar");
+    // Display precision (R084.r); older schemas migrate to Full.
+    if (root["version"].toInt() >= 25) rootFields.append("displayPrecision");
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         inputBytes > modelLimit)
@@ -618,6 +776,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     auto bodies = decodeBodies(root["bodies"], root["version"].toInt());
     ComponentDefinitions definitions;
     ComponentInstances instances;
+    std::map<Id, std::map<Id, std::pair<Id, Id>>> floors;
     Id nextDefinitionId = 1;
     AssetRecords assets;
     Id nextAssetId = 1;
@@ -763,14 +922,45 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         }
         for (auto value : instanceRecords) {
             const auto record = object(value);
-            supportedFields(record, {"root", "definition", "members"});
+            QStringList allowed{"root", "definition", "members"};
+            if (root["version"].toInt() >= 26)
+                allowed.append("floors");
+            supportedFields(record, allowed);
             auto instance = std::make_shared<ComponentInstance>();
             instance->definition = readId(record["definition"]);
             const auto members = object(record["members"]);
+            if (members.size() > qsizetype(DocumentLimits::bodies))
+                throw std::runtime_error("Too many component member bindings");
             for (auto it = members.begin(); it != members.end(); ++it)
                 instance->members[readId(it.key())] = readId(it.value());
-            if (!instances.emplace(readId(record["root"]), instance).second)
+            const auto placement = readId(record["root"]);
+            if (!instances.emplace(placement, instance).second)
                 throw std::runtime_error("Duplicate component instance root");
+            if (root["version"].toInt() >= 26) {
+                if (!record.contains("floors"))
+                    throw std::runtime_error("Missing component placement floors");
+                const auto records = object(record["floors"]);
+                if (records.size() > members.size())
+                    throw std::runtime_error("Too many component placement floors");
+                auto &placementFloors = floors[placement];
+                for (auto it = records.begin(); it != records.end(); ++it) {
+                    const auto values = array(it.value());
+                    if (values.size() != 2)
+                        throw std::runtime_error("Placement floor requires surface and edge floors");
+                    placementFloors[readId(it.key())] = {readId(values[0]), readId(values[1])};
+                }
+            }
+        }
+        if (!instances.empty()) {
+            // Expansion follows definitions, so reject cycles and dangling records first.
+            const auto sizes = validateComponentDefinitions(definitions, nextDefinitionId, tags,
+                                                            nextTagId, materials, nextMaterialId,
+                                                            assets, nextAssetId);
+            if (root["version"].toInt() >= 26) {
+                boundPlacements(bodies, instances, topLevelPlacements(instances), sizes);
+                projectPlacements(definitions, instances, floors, bodies);
+            } else
+                verifyStoredPlacements(definitions, instances, bodies);
         }
     }
     if (!root["documentId"].isString())
@@ -802,7 +992,9 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             ? decodeAnnotations(root["annotations"], readId(root["nextAnnotationId"]))
             : AnnotationRecords{},
         root["version"].toInt() >= 21 ? readId(root["nextAnnotationId"]) : 1,
-        root["version"].toInt() >= 23 ? decodeSolarSettings(root["solar"]) : SolarSettings{});
+        root["version"].toInt() >= 23 ? decodeSolarSettings(root["solar"]) : SolarSettings{},
+        root["version"].toInt() >= 25 ? storedDisplayPrecision(root["displayPrecision"])
+                                      : fullDisplayPrecision);
     return doc;
 }
 } // namespace sketchy

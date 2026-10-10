@@ -132,7 +132,7 @@ QAction *Window::action(const QString &id, const QString &title, const QKeySeque
     return a;
 }
 Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
-    : QMainWindow(parent), doc_(preferredUnits()) {
+    : QMainWindow(parent), doc_(preferredUnits(), preferredPrecision()) {
     QSettings preferences("SketchyUp", "SketchyUp");
     recentFiles_ = preferences.value("recentFiles").toStringList().mid(0, 10);
     themeMode_ = std::clamp(preferences.value("theme", 0).toInt(), 0, 2);
@@ -280,7 +280,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     auto *file = menuBar()->addMenu("&File");
     file->addAction(action("file.new", "New", QKeySequence::New, [this] {
         if (canReplace()) {
-            doc_ = Document(preferredUnits());
+            doc_ = Document(preferredUnits(), preferredPrecision());
             resetRecoveryContext();
             path_.clear();
             viewport_->cancel();
@@ -1114,7 +1114,7 @@ void Window::sync() {
         if (body.surface.faces.contains(viewport_->selectedFace()))
             text +=
                 "\nFace area " + displayMeasure(doc_.worldArea(body.id, viewport_->selectedFace()),
-                                                2, doc_.displayUnits());
+                                                2, doc_.displayUnits(), doc_.displayPrecision());
     }
     info_->setText(text);
     info_->setAccessibleDescription(text);
