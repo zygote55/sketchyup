@@ -63,6 +63,10 @@ for variant in range(12):
     scene.cycles.seed = 42
     scene.cycles.use_denoising = False
     scene.cycles.use_adaptive_sampling = False
+    # EEVEE otherwise uses its default 64 anti-aliasing samples, which made the
+    # 108 software renders take ~40 min in CI. 16 keeps dithered semi-transparent
+    # coverage well inside the 0.04 tolerance (measured headroom 0.025 vs 0.033).
+    scene.eevee.taa_render_samples = 16
     scene.render.threads_mode = 'FIXED'
     scene.render.threads = 2
     scene.render.resolution_x = scene.render.resolution_y = 64
