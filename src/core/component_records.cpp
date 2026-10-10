@@ -3,6 +3,7 @@
 #include "core/component_validation.hpp"
 #include "core/document_limits.hpp"
 #include "core/model.hpp"
+#include "core/record_overlay.hpp"
 #include <algorithm>
 #include <set>
 namespace sketchy {
@@ -193,65 +194,71 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
     return sizes;
 }
 namespace {
+// Validate one binding against its definition. Scene and Instances need only
+// contains/at, so the same checks serve whole-map and overlay candidates.
+template <class Scene, class Instances>
+void validateInstance(const ComponentDefinitions &definitions, const Instances &instances,
+                      const Scene &scene, const Document *baseline, Id root,
+                      const InstancePtr &instance, std::set<Id> &owned) {
+    if (!instance || !definitions.contains(instance->definition) || !scene.contains(root))
+        throw std::runtime_error("Dangling component instance");
+    const auto &definition = *definitions.at(instance->definition);
+    if (instance->members.size() != definition.members.size() ||
+        !instance->members.contains(definition.root) ||
+        instance->members.at(definition.root) != root || scene.at(root)->kind != BodyKind::Group)
+        throw std::runtime_error("Invalid component instance root or member map");
+    const bool unchangedLeaf = baseline && definition.references.empty() &&
+                               baseline->instances().contains(root) &&
+                               baseline->instances().at(root) == instance &&
+                               baseline->definitions().contains(instance->definition) &&
+                               baseline->definitions().at(instance->definition) ==
+                                   definitions.at(instance->definition);
+    std::set<Id> unique;
+    for (const auto &[member, target] : instance->members) {
+        if (!definition.members.contains(member) || !scene.contains(target) ||
+            !unique.insert(target).second)
+            throw std::runtime_error("Invalid or duplicated component member binding");
+        if (member != definition.root) {
+            if (!owned.insert(target).second)
+                throw std::runtime_error("Scene record belongs to multiple component members");
+            if (definition.references.contains(member)) {
+                const auto nested = definition.references.at(member);
+                if (!instances.contains(target) || instances.at(target)->definition != nested)
+                    throw std::runtime_error("Missing nested component instance binding");
+            } else if (instances.contains(target))
+                throw std::runtime_error("Unreferenced nested component instance");
+        }
+        // Ownership/binding checks still run across the entire candidate.
+        // Only the expensive canonical-body comparison can be reused.
+        if (unchangedLeaf && baseline->bodies().contains(target) &&
+            baseline->bodies().at(target) == scene.at(target))
+            continue;
+        auto expected = *definition.members.at(member);
+        const auto &actual = *scene.at(target);
+        if (member == definition.root)
+            rootState(expected, actual);
+        else {
+            expected.id = target;
+            expected.parent = instance->members.at(expected.parent);
+            if (definition.references.contains(member)) {
+                const auto nested = definition.references.at(member);
+                auto geometry = *definitions.at(nested)->members.at(definitions.at(nested)->root);
+                rootState(geometry, expected);
+                expected = std::move(geometry);
+            }
+        }
+        if (!projected(expected, actual))
+            throw std::runtime_error("Resolved component member disagrees with its definition");
+    }
+}
 void validateInstances(const ComponentDefinitions &definitions, const ComponentInstances &instances,
                        const std::map<Id, BodyPtr> &scene, const Document *baseline) {
     if (instances.size() > 10000)
         throw std::runtime_error("Too many component instances");
     std::set<Id> owned, roots;
     for (const auto &[root, instance] : instances) {
-        if (!instance || !definitions.contains(instance->definition) || !scene.contains(root))
-            throw std::runtime_error("Dangling component instance");
-        const auto &definition = *definitions.at(instance->definition);
-        if (instance->members.size() != definition.members.size() ||
-            !instance->members.contains(definition.root) ||
-            instance->members.at(definition.root) != root ||
-            scene.at(root)->kind != BodyKind::Group)
-            throw std::runtime_error("Invalid component instance root or member map");
+        validateInstance(definitions, instances, scene, baseline, root, instance, owned);
         roots.insert(root);
-        const bool unchangedLeaf = baseline && definition.references.empty() &&
-                                   baseline->instances().contains(root) &&
-                                   baseline->instances().at(root) == instance &&
-                                   baseline->definitions().contains(instance->definition) &&
-                                   baseline->definitions().at(instance->definition) ==
-                                       definitions.at(instance->definition);
-        std::set<Id> unique;
-        for (const auto &[member, target] : instance->members) {
-            if (!definition.members.contains(member) || !scene.contains(target) ||
-                !unique.insert(target).second)
-                throw std::runtime_error("Invalid or duplicated component member binding");
-            if (member != definition.root) {
-                if (!owned.insert(target).second)
-                    throw std::runtime_error("Scene record belongs to multiple component members");
-                if (definition.references.contains(member)) {
-                    const auto nested = definition.references.at(member);
-                    if (!instances.contains(target) || instances.at(target)->definition != nested)
-                        throw std::runtime_error("Missing nested component instance binding");
-                } else if (instances.contains(target))
-                    throw std::runtime_error("Unreferenced nested component instance");
-            }
-            // Ownership/binding checks still run across the entire candidate.
-            // Only the expensive canonical-body comparison can be reused.
-            if (unchangedLeaf && baseline->bodies().contains(target) &&
-                baseline->bodies().at(target) == scene.at(target))
-                continue;
-            auto expected = *definition.members.at(member);
-            const auto &actual = *scene.at(target);
-            if (member == definition.root)
-                rootState(expected, actual);
-            else {
-                expected.id = target;
-                expected.parent = instance->members.at(expected.parent);
-                if (definition.references.contains(member)) {
-                    const auto nested = definition.references.at(member);
-                    auto geometry =
-                        *definitions.at(nested)->members.at(definitions.at(nested)->root);
-                    rootState(geometry, expected);
-                    expected = std::move(geometry);
-                }
-            }
-            if (!projected(expected, actual))
-                throw std::runtime_error("Resolved component member disagrees with its definition");
-        }
     }
     auto parents = owned;
     parents.insert(roots.begin(), roots.end());
@@ -260,6 +267,52 @@ void validateInstances(const ComponentDefinitions &definitions, const ComponentI
             throw std::runtime_error("Unbound geometry inside a component instance");
 }
 } // namespace
+bool componentBound(const Document &doc, Id id) {
+    if (!id || !doc.bodies().contains(id))
+        return false;
+    if (doc.instances().contains(id))
+        return true;
+    // Every member target descends from its owning instance root, so only the
+    // bounded ancestor chain can own this record.
+    size_t depth = 0;
+    for (Id ancestor = doc.bodies().at(id)->parent; ancestor && ++depth <= 128;) {
+        const auto found = doc.bodies().find(ancestor);
+        if (found == doc.bodies().end())
+            return false;
+        if (const auto instance = doc.instances().find(ancestor);
+            instance != doc.instances().end())
+            for (const auto &[member, target] : instance->second->members)
+                if (target == id)
+                    return true;
+        ancestor = found->second->parent;
+    }
+    return false;
+}
+void validateComponentInstanceInsertions(const ComponentDefinitions &definitions,
+                                         const ComponentInstances &added,
+                                         const std::map<Id, BodyPtr> &changedBodies,
+                                         const Document &baseline) {
+    if (baseline.instances().size() + added.size() > 10000)
+        throw std::runtime_error("Too many component instances");
+    const RecordOverlay<BodyPtr> scene{baseline.bodies(), changedBodies};
+    const RecordOverlay<InstancePtr> instances{baseline.instances(), added};
+    std::set<Id> owned, roots;
+    for (const auto &[root, instance] : added) {
+        validateInstance(definitions, instances, scene, &baseline, root, instance, owned);
+        roots.insert(root);
+    }
+    // Unchanged records keep their parent and ownership. Inserted bindings own
+    // only inserted records, so only changed records can become unbound children.
+    for (const auto &[id, body] : changedBodies) {
+        if (!body)
+            continue;
+        const auto parent = body->parent;
+        const bool boundParent =
+            owned.contains(parent) || roots.contains(parent) || componentBound(baseline, parent);
+        if (boundParent && !owned.contains(id))
+            throw std::runtime_error("Unbound geometry inside a component instance");
+    }
+}
 void validateComponentInstances(const ComponentDefinitions &definitions,
                                 const ComponentInstances &instances,
                                 const std::map<Id, BodyPtr> &scene) {

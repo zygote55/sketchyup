@@ -345,16 +345,16 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id
     const auto sizes = validateComponentDefinitions(
         doc.definitions(), doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
         doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
+    // The document's running totals equal a sum over every materialized record.
     auto total = sizes.at(definition);
-    for (const auto &[id, body] : doc.bodies()) {
-        total.records += 1;
-        total.vertices += body->surface.vertices.size();
-        total.faces += body->surface.faces.size();
-        total.wires += body->surface.wires.size();
-        total.edges += body->topology.edges.size();
-        total.curves += body->curves.size();
-        total.guides += body->guides.size();
-    }
+    const auto &current = doc.materializedTotals();
+    total.records += current.records;
+    total.vertices += current.vertices;
+    total.faces += current.faces;
+    total.wires += current.wires;
+    total.edges += current.edges;
+    total.curves += current.curves;
+    total.guides += current.guides;
     if (total.records > DocumentLimits::bodies || total.vertices > DocumentLimits::vertices ||
         total.faces > DocumentLimits::faces || total.wires > DocumentLimits::wires ||
         total.edges > DocumentLimits::edges || total.curves > DocumentLimits::curves ||

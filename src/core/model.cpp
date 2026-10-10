@@ -5,8 +5,12 @@
 #include "core/edge_appearance.hpp"
 #include "core/face_textures.hpp"
 #include "core/reference_images.hpp"
+#include "core/record_overlay.hpp"
 #include "geometry/offset.hpp"
 #include <algorithm>
+#include <atomic>
+#include <cstdlib>
+#include <string_view>
 #include <iomanip>
 #include <random>
 #include <set>
@@ -39,6 +43,9 @@ Document Document::readSnapshot() const {
     result.definitionFloors_ = definitionFloors_;
     result.surfaceFloors_ = surfaceFloors_;
     result.edgeFloors_ = edgeFloors_;
+    result.totals_ = totals_;
+    result.lockedBodies_ = lockedBodies_;
+    result.detachedFloors_ = detachedFloors_;
     result.revision_ = revision_;
     result.session_ = session_;
     result.state_ = state_;
@@ -46,6 +53,10 @@ Document Document::readSnapshot() const {
     return result;
 }
 namespace {
+std::atomic<size_t> &incrementalValidations() {
+    static std::atomic<size_t> count{0};
+    return count;
+}
 size_t bytes(const BodyPtr &body);
 size_t componentBytes(const DefinitionPtr &definition) {
     if (!definition)
@@ -101,30 +112,69 @@ size_t bytes(const BodyPtr &b) {
     }
     return n;
 }
-Transform worldTransformIn(const std::map<Id, BodyPtr> &bodies, Id id) {
+template <class Bodies> Transform worldTransformIn(const Bodies &bodies, Id id) {
     Transform result;
     std::set<Id> visited;
     while (id) {
         if (!visited.insert(id).second || visited.size() > 128)
             throw std::runtime_error("Cyclic or excessively deep hierarchy");
-        auto found = bodies.find(id);
-        if (found == bodies.end())
+        if (!bodies.contains(id))
             throw std::runtime_error("Missing parent entity");
-        result = found->second->transform * result;
-        id = found->second->parent;
+        const auto &found = bodies.at(id);
+        result = found->transform * result;
+        id = found->parent;
     }
     return result;
 }
+void checkWorldBounds(const Body &b, const Transform &world) {
+    if (b.referenceImage)
+        referenceImageCorners(*b.referenceImage, world);
+    for (const auto &[vertex, point] : b.surface.vertices)
+        checkPoint(world.point(point));
+    for (const auto &[guideId, guide] : b.guides) {
+        checkPoint(world.point(guide.origin));
+        if (guide.kind == GuideKind::Line) {
+            const auto n = length(world.vector(guide.direction));
+            if (!std::isfinite(n) || n == 0)
+                throw std::runtime_error("Guide direction is singular in world space");
+        }
+    }
+}
+void addTotals(DocumentTotals &totals, const BodyPtr &b) {
+    if (!b)
+        return;
+    totals.records += 1;
+    totals.vertices += b->surface.vertices.size();
+    totals.faces += b->surface.faces.size();
+    totals.wires += b->surface.wires.size();
+    totals.edges += b->topology.edges.size();
+    totals.curves += b->curves.size();
+    totals.guides += b->guides.size();
+}
+void subtractTotals(DocumentTotals &totals, const BodyPtr &b) {
+    if (!b)
+        return;
+    totals.records -= 1;
+    totals.vertices -= b->surface.vertices.size();
+    totals.faces -= b->surface.faces.size();
+    totals.wires -= b->surface.wires.size();
+    totals.edges -= b->topology.edges.size();
+    totals.curves -= b->curves.size();
+    totals.guides -= b->guides.size();
+}
+void checkDocumentLimits(const DocumentTotals &totals) {
+    if (totals.records > DocumentLimits::bodies || totals.vertices > DocumentLimits::vertices ||
+        totals.faces > DocumentLimits::faces || totals.wires > DocumentLimits::wires ||
+        totals.edges > DocumentLimits::edges || totals.curves > DocumentLimits::curves ||
+        totals.guides > DocumentLimits::guides)
+        throw std::runtime_error("Document complexity exceeds editing limits");
+}
+// Full oracle: recount every record and validate every parent chain.
 void validateDocumentSize(const std::map<Id, BodyPtr> &bodies,
                           const std::map<Id, BodyPtr> *baseline = nullptr) {
-    size_t vertices = 0, faces = 0, wires = 0, edges = 0, curves = 0, guides = 0;
+    DocumentTotals totals;
     for (const auto &[id, b] : bodies) {
-        vertices += b->surface.vertices.size();
-        faces += b->surface.faces.size();
-        wires += b->surface.wires.size();
-        edges += b->topology.edges.size();
-        curves += b->curves.size();
-        guides += b->guides.size();
+        addTotals(totals, b);
         if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
             throw std::runtime_error("Reference images cannot own child entities");
         const auto world = worldTransformIn(bodies, id);
@@ -136,24 +186,26 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies,
                 baseline->contains(ancestor) && baseline->at(ancestor) == bodies.at(ancestor);
         if (unchanged)
             continue;
-        if (b->referenceImage)
-            referenceImageCorners(*b->referenceImage, world);
-        for (const auto &[vertex, point] : b->surface.vertices)
-            checkPoint(world.point(point));
-        for (const auto &[guideId, guide] : b->guides) {
-            checkPoint(world.point(guide.origin));
-            if (guide.kind == GuideKind::Line) {
-                const auto n = length(world.vector(guide.direction));
-                if (!std::isfinite(n) || n == 0)
-                    throw std::runtime_error("Guide direction is singular in world space");
-            }
-        }
+        checkWorldBounds(*b, world);
     }
-    if (bodies.size() > DocumentLimits::bodies || vertices > DocumentLimits::vertices ||
-        faces > DocumentLimits::faces || wires > DocumentLimits::wires ||
-        edges > DocumentLimits::edges || curves > DocumentLimits::curves ||
-        guides > DocumentLimits::guides)
-        throw std::runtime_error("Document complexity exceeds editing limits");
+    checkDocumentLimits(totals);
+}
+// Incremental form. Precondition: the baseline document is valid and no changed
+// record that existed before alters its parent, transform or reference-image
+// ownership, or is erased. Unchanged records then keep their valid parent chain
+// and world transform, so only changed records can fail, in the same ID order
+// as the full scan. Totals are the running totals after the edit.
+void validateChangedDocumentSize(const RecordOverlay<BodyPtr> &bodies,
+                                 const std::map<Id, BodyPtr> &changed,
+                                 const DocumentTotals &totals) {
+    for (const auto &[id, b] : changed) {
+        if (!b)
+            continue;
+        if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
+            throw std::runtime_error("Reference images cannot own child entities");
+        checkWorldBounds(*b, worldTransformIn(bodies, id));
+    }
+    checkDocumentLimits(totals);
 }
 void validate(const Body &b) {
     if (b.textSource) {
@@ -618,6 +670,25 @@ void Document::update(Edit edit, bool forward) {
         else
             instances.erase(change.root);
     }
+    auto totals = totals_;
+    std::set<Id> detachedAdded, lockedAdded;
+    std::vector<Id> detachedErased, lockedErased;
+    for (const auto &c : edit.changes) {
+        const auto &target = forward ? c.after : c.before;
+        subtractTotals(totals, forward ? c.before : c.after);
+        addTotals(totals, target);
+        if (target) {
+            if (detachedFloors_.contains(c.id))
+                detachedErased.push_back(c.id);
+        } else if ((surfaceFloors_.contains(c.id) || edgeFloors_.contains(c.id)) &&
+                   !detachedFloors_.contains(c.id))
+            detachedAdded.insert(c.id);
+        if (target && target->locked) {
+            if (!lockedBodies_.contains(c.id))
+                lockedAdded.insert(c.id);
+        } else if (lockedBodies_.contains(c.id))
+            lockedErased.push_back(c.id);
+    }
     for (const auto &c : edit.changes) {
         auto p = forward ? c.after : c.before;
         if (p) {
@@ -636,6 +707,13 @@ void Document::update(Edit edit, bool forward) {
             next.erase(c.id);
     }
     bodies_.swap(next);
+    totals_ = totals;
+    for (auto id : detachedErased)
+        detachedFloors_.erase(id);
+    detachedFloors_.merge(detachedAdded);
+    for (auto id : lockedErased)
+        lockedBodies_.erase(id);
+    lockedBodies_.merge(lockedAdded);
     definitions_.swap(definitions);
     instances_.swap(instances);
     tags_.swap(tags);
@@ -654,7 +732,7 @@ void Document::update(Edit edit, bool forward) {
     if (edit.solar)
         solar_ = forward ? edit.solar->second : edit.solar->first;
 }
-ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
+ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullValidation) {
     auto boundedText = [](const std::string &text, size_t limit) {
         return text.size() <= limit && text.find('\0') == std::string::npos;
     };
@@ -817,8 +895,48 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             tags.erase(change.id);
     }
     validateTagRecords(tags, nextTag);
+    // Choose the validation scheme by inspecting the edit only. Every precondition
+    // and record check below runs identically in both schemes; the incremental one
+    // replaces whole-document scans with checks of the changed records, valid
+    // because the current document already satisfies every invariant.
+    const bool incremental = [&] {
+        if (fullValidation || !edit.definitions.empty() || !edit.tags.empty() ||
+            !edit.materials.empty() || !edit.assets.empty() || !edit.scenes.empty() ||
+            !edit.sections.empty() || !activeSections.empty() || !annotations.empty() ||
+            !hosted->hosts.empty() || !hosted->attachments.empty())
+            return false;
+        std::set<Id> inserted;
+        for (const auto &c : edit.changes) {
+            if (!c.before) {
+                if (c.after)
+                    inserted.insert(c.id);
+                continue;
+            }
+            // Unchanged descendants keep their parent chain, world transform and
+            // reference-image ownership only while this record keeps them.
+            if (!c.after || c.after->parent != c.before->parent ||
+                c.after->transform != c.before->transform ||
+                c.after->referenceImage.has_value() != c.before->referenceImage.has_value() ||
+                componentBound(*this, c.id))
+                return false;
+        }
+        for (const auto &change : edit.instances) {
+            if (change.before || !change.after || !inserted.contains(change.root))
+                return false;
+            for (const auto &[member, target] : change.after->members)
+                if (!inserted.contains(target))
+                    return false;
+        }
+        return true;
+    }();
+    if (incremental)
+        ++incrementalValidations();
     auto definitions = definitions_;
-    auto instances = instances_;
+    // The full scheme stages a complete candidate; the incremental scheme stages
+    // only inserted bindings and splices them in at commit.
+    ComponentInstances instances, addedInstances;
+    if (!incremental)
+        instances = instances_;
     auto definitionFloors = definitionFloors_;
     Id nextDefinition = std::max(nextDefinitionId_, edit.nextDefinitionFloor);
     std::set<Id> definitionIds, instanceRoots;
@@ -880,14 +998,20 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             throw std::runtime_error("Invalid or stale component instance change");
         if (change.after) {
             change.after = std::make_shared<ComponentInstance>(*change.after);
-            instances[change.root] = change.after;
+            (incremental ? addedInstances : instances)[change.root] = change.after;
         } else
             instances.erase(change.root);
     }
     std::set<Id> ids;
     Id next = std::max(nextId_, edit.nextIdFloor);
-    auto floors = surfaceFloors_;
-    auto edgeFloors = edgeFloors_;
+    // Allocator floors are staged sparsely for changed records and spliced in at commit.
+    std::map<Id, Id> floorUpdates, edgeFloorUpdates;
+    auto floorOf = [](const std::map<Id, Id> &updates, const std::map<Id, Id> &base, Id id) {
+        if (const auto found = updates.find(id); found != updates.end())
+            return found->second;
+        const auto found = base.find(id);
+        return found != base.end() ? found->second : Id{1};
+    };
     edit.bytes = sizeof(Edit) + edit.label.size() + edit.metadata.taskId.size() +
                  edit.metadata.request.size();
     for (const auto &c : edit.changes) {
@@ -902,7 +1026,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             if (c.after->id != c.id || c.id == UINT64_MAX)
                 throw std::runtime_error("Identity mismatch");
             validate(*c.after);
-            const auto floor = floors.contains(c.id) ? floors.at(c.id) : Id{1};
+            const auto floor = floorOf(floorUpdates, surfaceFloors_, c.id);
             for (const auto &[id, vertex] : c.after->surface.vertices)
                 if (id < floor && (!c.before || !c.before->surface.vertices.contains(id)))
                     throw std::runtime_error("Retired vertex ID cannot be reused");
@@ -915,7 +1039,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             for (const auto &[id, guide] : c.after->guides)
                 if (id < floor && (!c.before || !c.before->guides.contains(id)))
                     throw std::runtime_error("Retired guide ID cannot be reused");
-            floors[c.id] = std::max(floor, c.after->surface.nextId);
+            floorUpdates[c.id] = std::max(floor, c.after->surface.nextId);
             next = std::max(next, c.id + 1);
         }
         edit.bytes += sizeof(Change) + bytes(c.before) + bytes(c.after);
@@ -924,8 +1048,8 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     for (auto &c : edit.changes)
         if (c.after) {
             auto frozen = std::make_shared<Body>(*c.after);
-            frozen->surface.nextId = floors.at(c.id);
-            const auto edgeFloor = edgeFloors.contains(c.id) ? edgeFloors.at(c.id) : Id{1};
+            frozen->surface.nextId = floorUpdates.at(c.id);
+            const auto edgeFloor = floorOf(edgeFloorUpdates, edgeFloors_, c.id);
             bool indexed = true;
             try {
                 frozen->topology.validate(frozen->surface);
@@ -960,7 +1084,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                     ++it;
             }
             validateCurves(frozen->curves, frozen->surface, frozen->topology);
-            edgeFloors[c.id] = frozen->topology.nextId;
+            edgeFloorUpdates[c.id] = frozen->topology.nextId;
             c.after = std::move(frozen);
         }
     edit.bytes = sizeof(Edit) + edit.label.size() + edit.metadata.taskId.size() +
@@ -1027,14 +1151,29 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                                        change.after ? change.after->guides : noGuides);
         report.emplace(change.id, std::move(changes));
     }
-    auto updated = bodies_;
+    // Changed records (nullptr = erased) and the running totals after this edit.
+    std::map<Id, BodyPtr> changedBodies;
+    auto totals = totals_;
     for (const auto &c : edit.changes) {
-        if (c.after)
-            updated[c.id] = c.after;
-        else
-            updated.erase(c.id);
+        changedBodies.emplace(c.id, c.after);
+        addTotals(totals, c.after);
+        subtractTotals(totals, c.before);
     }
-    validateDocumentSize(updated, &bodies_);
+    const RecordOverlay<BodyPtr> candidate{bodies_, changedBodies};
+    // The full scheme materializes the complete candidate map for its oracles.
+    std::map<Id, BodyPtr> updated;
+    if (incremental)
+        validateChangedDocumentSize(candidate, changedBodies, totals);
+    else {
+        updated = bodies_;
+        for (const auto &c : edit.changes) {
+            if (c.after)
+                updated[c.id] = c.after;
+            else
+                updated.erase(c.id);
+        }
+        validateDocumentSize(updated, &bodies_);
+    }
     if (!annotations.empty()) {
         auto candidate = readSnapshot();
         candidate.bodies_ = updated;
@@ -1088,7 +1227,10 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                 validateSectionContext(sectionCandidate, *sections.at(id));
         validateSectionDepth(sectionCandidate);
     }
-    validateTagAssignments(tags, updated);
+    // Incremental edits change no tag, material or asset record and erase no body,
+    // so only changed records can violate an assignment; scan them in ID order.
+    const auto &assignedBodies = incremental ? changedBodies : updated;
+    validateTagAssignments(tags, assignedBodies);
     if (!edit.scenes.empty()) {
         // Check newly captured references against the same candidate as the edit.
         // Renaming/reordering an old scene preserves its diagnosed missing refs.
@@ -1100,12 +1242,18 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
                                  change.before->snapshot != change.after->snapshot))
                 validateSceneCapture(capture, change.after->snapshot);
     }
-    validateMaterialAssignments(materials, updated);
-    validateReferenceImageAssets(updated, assets);
+    validateMaterialAssignments(materials, assignedBodies);
+    validateReferenceImageAssets(assignedBodies, assets);
     validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
                                  nextMaterial, assets, nextAsset);
-    validateComponentInstanceEdits(definitions, instances, updated, *this);
-    validateHostedComponents(*hosted, updated, definitions, instances);
+    if (incremental) {
+        validateComponentInstanceInsertions(definitions, addedInstances, changedBodies, *this);
+        // No hosted records exist, so this checks only their bounds.
+        validateHostedComponents(*hosted, bodies_, definitions, instances_);
+    } else {
+        validateComponentInstanceEdits(definitions, instances, updated, *this);
+        validateHostedComponents(*hosted, updated, definitions, instances);
+    }
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
     auto lockedIn = [](const auto &records, Id id) {
@@ -1137,32 +1285,65 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
             for (const auto &[root, instance] : instances_)
                 if (instance->definition == change.id && lockedIn(bodies_, root))
                     throw std::runtime_error("Cannot change glue behavior of a locked component");
-    for (const auto &[id, body] : bodies_) {
-        if (!body->locked)
-            continue;
-        // Even an unchanged locked child cannot be moved, reparented or deleted
-        // indirectly by an ancestor edit. Compare ancestry, not just world points.
+    // Even an unchanged locked child cannot be moved, reparented or deleted
+    // indirectly by an ancestor edit. Compare ancestry, not just world points.
+    auto restructuresLocked = [&](const auto &after, Id id) {
         for (auto ancestor = id; ancestor; ancestor = bodies_.at(ancestor)->parent) {
             const auto &before = *bodies_.at(ancestor);
-            if (instanceRoots.contains(ancestor) || !updated.contains(ancestor) ||
-                updated.at(ancestor)->parent != before.parent ||
-                updated.at(ancestor)->transform != before.transform ||
-                updated.at(ancestor)->kind != before.kind)
+            if (instanceRoots.contains(ancestor) || !after.contains(ancestor) ||
+                after.at(ancestor)->parent != before.parent ||
+                after.at(ancestor)->transform != before.transform ||
+                after.at(ancestor)->kind != before.kind)
                 throw std::runtime_error("Cannot restructure a locked descendant");
         }
-    }
+    };
+    if (fullValidation) {
+        for (const auto &[id, body] : bodies_)
+            if (body->locked)
+                restructuresLocked(updated, id);
+    } else
+        for (auto id : lockedBodies_) // The same locked records, in the same ID order.
+            restructuresLocked(candidate, id);
     // Keep floors for live contexts and contexts reachable from retained history.
     // Redo is about to be discarded. Floors of permanently retired bodies are unnecessary.
-    std::set<Id> reachable;
-    for (const auto &[id, body] : updated)
-        reachable.insert(id);
-    for (const auto &entry : undo_)
-        for (const auto &change : entry.edit.changes)
+    auto floorKey = [&](Id id) {
+        return floorUpdates.contains(id) || surfaceFloors_.contains(id) ||
+               edgeFloorUpdates.contains(id) || edgeFloors_.contains(id);
+    };
+    std::set<Id> prunedFloors;
+    if (fullValidation) {
+        std::set<Id> reachable;
+        for (const auto &[id, body] : updated)
+            reachable.insert(id);
+        for (const auto &entry : undo_)
+            for (const auto &change : entry.edit.changes)
+                reachable.insert(change.id);
+        for (const auto &change : edit.changes)
             reachable.insert(change.id);
-    for (const auto &change : edit.changes)
-        reachable.insert(change.id);
-    std::erase_if(floors, [&](const auto &entry) { return !reachable.contains(entry.first); });
-    std::erase_if(edgeFloors, [&](const auto &entry) { return !reachable.contains(entry.first); });
+        for (const auto *records : {&surfaceFloors_, &edgeFloors_, &floorUpdates, &edgeFloorUpdates})
+            for (const auto &[id, floor] : *records)
+                if (!reachable.contains(id))
+                    prunedFloors.insert(id);
+    } else
+        // Every floor of a live or edited record is reachable, so only detached
+        // floors can be retired; historyRefs_ indexes the retained undo entries.
+        for (auto id : detachedFloors_)
+            if (!candidate.contains(id) && !ids.contains(id) && !historyRefs_.contains(id))
+                prunedFloors.insert(id);
+    std::set<Id> detachedAdded, lockedAdded;
+    std::vector<Id> detachedErased(prunedFloors.begin(), prunedFloors.end()), lockedErased;
+    for (const auto &c : edit.changes) {
+        if (c.after) {
+            if (detachedFloors_.contains(c.id))
+                detachedErased.push_back(c.id);
+        } else if (floorKey(c.id) && !detachedFloors_.contains(c.id))
+            detachedAdded.insert(c.id);
+        if (c.after && c.after->locked) {
+            if (!lockedBodies_.contains(c.id))
+                lockedAdded.insert(c.id);
+        } else if (lockedBodies_.contains(c.id))
+            lockedErased.push_back(c.id);
+    }
     std::map<Id, std::set<Id>> reachableDefinitions;
     auto retainDefinition = [&](Id id, const DefinitionPtr &definition) {
         if (!definition)
@@ -1171,32 +1352,70 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
         for (const auto &[member, body] : definition->members)
             members.insert(member);
     };
-    for (const auto &[id, definition] : definitions)
-        retainDefinition(id, definition);
-    for (const auto &entry : undo_)
-        for (const auto &change : entry.edit.definitions) {
+    // Current definitions are always reachable; history matters only when a floor
+    // names a definition or member that no current definition retains.
+    const bool definitionFloorsCurrent =
+        !fullValidation &&
+        std::all_of(definitionFloors.begin(), definitionFloors.end(), [&](const auto &entry) {
+            const auto found = definitions.find(entry.first);
+            return found != definitions.end() &&
+                   std::all_of(entry.second.geometry.begin(), entry.second.geometry.end(),
+                               [&](const auto &member) {
+                                   return found->second->members.contains(member.first);
+                               });
+        });
+    if (!definitionFloorsCurrent) {
+        for (const auto &[id, definition] : definitions)
+            retainDefinition(id, definition);
+        for (const auto &entry : undo_)
+            for (const auto &change : entry.edit.definitions) {
+                retainDefinition(change.id, change.before);
+                retainDefinition(change.id, change.after);
+            }
+        for (const auto &change : edit.definitions) {
             retainDefinition(change.id, change.before);
             retainDefinition(change.id, change.after);
         }
-    for (const auto &change : edit.definitions) {
-        retainDefinition(change.id, change.before);
-        retainDefinition(change.id, change.after);
+        std::erase_if(definitionFloors,
+                      [&](const auto &entry) { return !reachableDefinitions.contains(entry.first); });
+        for (auto &[id, floor] : definitionFloors)
+            std::erase_if(floor.geometry, [&](const auto &entry) {
+                return !reachableDefinitions.at(id).contains(entry.first);
+            });
     }
-    std::erase_if(definitionFloors,
-                  [&](const auto &entry) { return !reachableDefinitions.contains(entry.first); });
-    for (auto &[id, floor] : definitionFloors)
-        std::erase_if(floor.geometry, [&](const auto &entry) {
-            return !reachableDefinitions.at(id).contains(entry.first);
-        });
     History h{std::move(edit), state_, std::make_shared<State>()};
-    undo_.push_back(h); // Allocation can still fail before any committed change.
+    addHistoryRefs(h.edit);
+    try {
+        undo_.push_back(h); // Allocation can still fail before any committed change.
+    } catch (...) {
+        removeHistoryRefs(h.edit);
+        throw;
+    }
+    // Nothing below allocates: staged map nodes are spliced, assigned or erased.
     for (const auto &r : redo_)
         historyBytes_ -= r.edit.bytes;
     redo_.clear();
     historyBytes_ += h.edit.bytes;
-    bodies_.swap(updated);
+    auto commitSparse = [](auto &base, auto &staged) {
+        for (auto it = staged.begin(); it != staged.end();)
+            if (const auto found = base.find(it->first); found != base.end()) {
+                if (it->second)
+                    found->second = std::move(it->second);
+                else
+                    base.erase(found);
+                it = staged.erase(it);
+            } else
+                ++it;
+        base.merge(staged);
+    };
+    if (incremental) {
+        commitSparse(bodies_, changedBodies);
+        instances_.merge(addedInstances);
+    } else {
+        bodies_.swap(updated);
+        instances_.swap(instances);
+    }
     definitions_.swap(definitions);
-    instances_.swap(instances);
     definitionFloors_.swap(definitionFloors);
     nextDefinitionId_ = nextDefinition;
     tags_.swap(tags);
@@ -1214,8 +1433,19 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     nextSectionId_ = nextSection;
     nextAnnotationId_ = nextAnnotation;
     nextId_ = next;
-    surfaceFloors_.swap(floors);
-    edgeFloors_.swap(edgeFloors);
+    commitSparse(surfaceFloors_, floorUpdates);
+    commitSparse(edgeFloors_, edgeFloorUpdates);
+    for (auto id : prunedFloors) {
+        surfaceFloors_.erase(id);
+        edgeFloors_.erase(id);
+    }
+    for (auto id : detachedErased)
+        detachedFloors_.erase(id);
+    detachedFloors_.merge(detachedAdded);
+    for (auto id : lockedErased)
+        lockedBodies_.erase(id);
+    lockedBodies_.merge(lockedAdded);
+    totals_ = totals;
     if (h.edit.displayUnits)
         displayUnits_ = h.edit.displayUnits->second;
     if (h.edit.style)
@@ -1227,6 +1457,7 @@ ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
     while ((historyBytes_ > historyLimit || undo_.size() > historyEntryLimit) && undo_.size() > 1) {
         historyPruned_ = true;
         historyBytes_ -= undo_.front().edit.bytes;
+        removeHistoryRefs(undo_.front().edit);
         undo_.pop_front();
     }
     return report;
@@ -1476,6 +1707,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     while (staged.historyBytes_ > historyLimit && staged.undo_.size() > 1) {
         staged.historyPruned_ = true;
         staged.historyBytes_ -= staged.undo_.front().edit.bytes;
+        staged.removeHistoryRefs(staged.undo_.front().edit);
         staged.undo_.pop_front();
     }
     *this = std::move(staged);
@@ -1494,9 +1726,12 @@ void Document::undo() {
         redo_.pop_back();
         throw;
     }
+    removeHistoryRefs(h.edit);
     undo_.pop_back();
     state_ = h.before;
     ++revision_;
+    if (fullValidationOracle())
+        verifyIncrementalState();
 }
 void Document::redo() {
     if (redo_.empty())
@@ -1504,16 +1739,25 @@ void Document::redo() {
     if (revision_ == UINT64_MAX)
         throw std::runtime_error("Document revision space exhausted");
     auto h = redo_.back();
-    undo_.push_back(h);
+    addHistoryRefs(h.edit);
+    try {
+        undo_.push_back(h);
+    } catch (...) {
+        removeHistoryRefs(h.edit);
+        throw;
+    }
     try {
         update(h.edit, true);
     } catch (...) {
         undo_.pop_back();
+        removeHistoryRefs(h.edit);
         throw;
     }
     redo_.pop_back();
     state_ = h.after;
     ++revision_;
+    if (fullValidationOracle())
+        verifyIncrementalState();
 }
 Document::SaveStamp Document::saveStamp() const {
     SaveStamp stamp;
@@ -1602,6 +1846,13 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     validateComponentInstances(definitions, instances, bodies);
     hosted = freezeHostedComponents(hosted);
     validateHostedComponents(*hosted, bodies, definitions, instances);
+    DocumentTotals totals;
+    std::set<Id> locked;
+    for (const auto &[id, b] : bodies) {
+        addTotals(totals, b);
+        if (b->locked)
+            locked.insert(id);
+    }
     std::map<Id, DefinitionFloor> definitionFloors;
     for (auto &[id, definition] : definitions) {
         auto &floor = definitionFloors[id];
@@ -1652,6 +1903,10 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     nextAnnotationId_ = nextAnnotationId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
+    totals_ = totals;
+    lockedBodies_ = std::move(locked);
+    detachedFloors_.clear();
+    historyRefs_.clear();
     undo_.clear();
     redo_.clear();
     historyBytes_ = 0;
@@ -1660,5 +1915,170 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     session_ = std::move(session);
     state_ = std::move(fresh);
     savedState_ = state_;
+}
+namespace {
+std::atomic<bool> &validationOracle() {
+    static std::atomic<bool> enabled{[] {
+        const char *value = std::getenv("SKETCHYUP_FULL_VALIDATION_ORACLE");
+        return value && std::string_view(value) == "1";
+    }()};
+    return enabled;
+}
+bool sameEntities(const EntityChanges &a, const EntityChanges &b) {
+    return a.created == b.created && a.deleted == b.deleted && a.modified == b.modified &&
+           a.descendants == b.descendants;
+}
+bool sameReport(const ChangeReport &a, const ChangeReport &b) {
+    return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](const auto &x, const auto &y) {
+        return x.first == y.first && sameEntities(x.second.vertices, y.second.vertices) &&
+               sameEntities(x.second.edges, y.second.edges) &&
+               sameEntities(x.second.faces, y.second.faces) &&
+               sameEntities(x.second.curves, y.second.curves) &&
+               sameEntities(x.second.guides, y.second.guides);
+    });
+}
+template <class Records, class Equal>
+bool sameRecords(const Records &a, const Records &b, Equal equal) {
+    return std::equal(a.begin(), a.end(), b.begin(), b.end(), [&](const auto &x, const auto &y) {
+        return x.first == y.first && equal(x.second, y.second);
+    });
+}
+bool sameBody(const BodyPtr &a, const BodyPtr &b) { return a == b || (a && b && *a == *b); }
+bool sameDefinition(const DefinitionPtr &a, const DefinitionPtr &b) {
+    return a == b || (a && b && a->id == b->id && a->root == b->root &&
+                      a->nextMemberId == b->nextMemberId && a->name == b->name &&
+                      a->references == b->references && a->glue == b->glue &&
+                      sameRecords(a->members, b->members, sameBody));
+}
+} // namespace
+void Document::setFullValidationOracle(bool enabled) { validationOracle() = enabled; }
+bool Document::fullValidationOracle() { return validationOracle(); }
+size_t Document::incrementalValidationCount() { return incrementalValidations(); }
+void Document::addHistoryRefs(const Edit &edit) {
+    size_t added = 0;
+    try {
+        for (const auto &change : edit.changes) {
+            ++historyRefs_[change.id];
+            ++added;
+        }
+    } catch (...) {
+        for (size_t i = 0; i < added; ++i)
+            if (const auto found = historyRefs_.find(edit.changes[i].id);
+                found != historyRefs_.end() && !--found->second)
+                historyRefs_.erase(found);
+        throw;
+    }
+}
+void Document::removeHistoryRefs(const Edit &edit) noexcept {
+    for (const auto &change : edit.changes)
+        if (const auto found = historyRefs_.find(change.id);
+            found != historyRefs_.end() && !--found->second)
+            historyRefs_.erase(found);
+}
+void Document::verifyIncrementalState() const {
+    DocumentTotals totals;
+    std::set<Id> locked, detached;
+    std::map<Id, size_t> refs;
+    for (const auto &[id, body] : bodies_) {
+        addTotals(totals, body);
+        if (body->locked)
+            locked.insert(id);
+    }
+    for (const auto *records : {&surfaceFloors_, &edgeFloors_})
+        for (const auto &[id, floor] : *records)
+            if (!bodies_.contains(id))
+                detached.insert(id);
+    for (const auto &entry : undo_)
+        for (const auto &change : entry.edit.changes)
+            ++refs[change.id];
+    std::string failure;
+    if (totals != totals_)
+        failure += " running totals";
+    if (locked != lockedBodies_)
+        failure += " locked index";
+    if (detached != detachedFloors_)
+        failure += " detached floor index";
+    if (refs != historyRefs_)
+        failure += " history index";
+    if (!failure.empty())
+        throw ValidationOracleMismatch("Incremental bookkeeping disagrees with a recount:" +
+                                       failure);
+}
+std::string Document::stateMismatch(const Document &other) const {
+    std::string failure;
+    auto check = [&](bool same, const char *name) {
+        if (!same)
+            failure += std::string(" ") + name;
+    };
+    check(sameRecords(bodies_, other.bodies_, sameBody), "bodies");
+    check(sameRecords(definitions_, other.definitions_, sameDefinition), "definitions");
+    check(sameRecords(instances_, other.instances_,
+                      [](const auto &a, const auto &b) { return a == b || (a && b && *a == *b); }),
+          "instances");
+    check(surfaceFloors_ == other.surfaceFloors_, "surface floors");
+    check(edgeFloors_ == other.edgeFloors_, "edge floors");
+    check(sameRecords(definitionFloors_, other.definitionFloors_,
+                      [](const auto &a, const auto &b) {
+                          return a.nextMemberId == b.nextMemberId && a.geometry == b.geometry;
+                      }),
+          "definition floors");
+    check(nextId_ == other.nextId_ && nextDefinitionId_ == other.nextDefinitionId_ &&
+              nextTagId_ == other.nextTagId_ && nextMaterialId_ == other.nextMaterialId_ &&
+              nextAssetId_ == other.nextAssetId_ && nextSceneId_ == other.nextSceneId_ &&
+              nextSectionId_ == other.nextSectionId_ &&
+              nextAnnotationId_ == other.nextAnnotationId_,
+          "allocators");
+    check(revision_ == other.revision_ && undo_.size() == other.undo_.size() &&
+              redo_.size() == other.redo_.size() && historyBytes_ == other.historyBytes_ &&
+              historyPruned_ == other.historyPruned_,
+          "history");
+    check((!hosted_ && !other.hosted_) || (hosted_ && other.hosted_ && *hosted_ == *other.hosted_),
+          "hosted records");
+    check(totals_ == other.totals_ && lockedBodies_ == other.lockedBodies_ &&
+              detachedFloors_ == other.detachedFloors_ && historyRefs_ == other.historyRefs_,
+          "incremental indexes");
+    check(readSnapshotBytes() == other.readSnapshotBytes(), "retained bytes");
+    return failure;
+}
+ChangeReport Document::apply(Edit edit, std::uint64_t expected) {
+    if (!fullValidationOracle())
+        return applyEdit(std::move(edit), expected, false);
+    // Oracle: run the full-document validator on a private copy, then the normal
+    // path, and require identical decisions, messages, reports and state.
+    auto reference = *this;
+    auto run = [&](Document &doc, Edit candidate, bool full, ChangeReport &report,
+                   std::string &message) -> std::exception_ptr {
+        try {
+            report = doc.applyEdit(std::move(candidate), expected, full);
+            return nullptr;
+        } catch (const ValidationOracleMismatch &) {
+            throw;
+        } catch (const std::exception &error) {
+            message = error.what();
+            return std::current_exception();
+        } catch (...) {
+            message = "<non-standard exception>";
+            return std::current_exception();
+        }
+    };
+    ChangeReport referenceReport, report;
+    std::string referenceMessage, message;
+    const auto referenceError = run(reference, edit, true, referenceReport, referenceMessage);
+    const auto error = run(*this, std::move(edit), false, report, message);
+    if (bool(error) != bool(referenceError) || message != referenceMessage)
+        throw ValidationOracleMismatch("Incremental validation " +
+                                       (error ? "rejected (" + message + ")" : std::string("accepted")) +
+                                       " but full validation " +
+                                       (referenceError ? "rejected (" + referenceMessage + ")"
+                                                       : std::string("accepted")));
+    if (const auto failure = stateMismatch(reference); !failure.empty())
+        throw ValidationOracleMismatch("Incremental and full validation disagree on:" + failure);
+    if (!error && !sameReport(report, referenceReport))
+        throw ValidationOracleMismatch("Incremental and full validation disagree on the report");
+    verifyIncrementalState();
+    reference.verifyIncrementalState();
+    if (error)
+        std::rethrow_exception(error);
+    return report;
 }
 } // namespace sketchy
