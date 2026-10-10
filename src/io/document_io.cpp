@@ -224,6 +224,14 @@ std::optional<TextureMapping> decodeTextureMapping(const QJsonValue &value) {
     mapping.validate();
     return mapping;
 }
+// Native JSON stores an integer: -1 is Full, otherwise decimal places. The
+// unit-specific range is validated by Document::restoreRecords.
+int storedDisplayPrecision(const QJsonValue &value) {
+    const auto number = value.toDouble(-2);
+    if (!value.isDouble() || number < -1 || number > 16 || number != std::floor(number))
+        throw std::runtime_error("Invalid document display precision");
+    return int(number);
+}
 } // namespace
 QJsonObject encodeCurve(Id id, const Curve &curve) {
     auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
@@ -419,6 +427,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
                 {"nextSceneId", sid(doc.nextSceneId())},
                 {"style", encodeModelStyle(doc.style())},
                 {"displayUnits", QString::fromLatin1(unitCode(doc.displayUnits()).data())},
+                {"displayPrecision", doc.displayPrecision()},
                 {"revision", sid(doc.revision())},
                 {"units", "m"},
                 {"up", "Z"},
@@ -758,6 +767,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     if (root["version"].toInt() >= 21)
         rootFields += {"annotations", "nextAnnotationId"};
     if (root["version"].toInt() >= 23) rootFields.append("solar");
+    // Display precision (R084.r); older schemas migrate to Full.
+    if (root["version"].toInt() >= 25) rootFields.append("displayPrecision");
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         inputBytes > modelLimit)
@@ -981,7 +992,9 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             ? decodeAnnotations(root["annotations"], readId(root["nextAnnotationId"]))
             : AnnotationRecords{},
         root["version"].toInt() >= 21 ? readId(root["nextAnnotationId"]) : 1,
-        root["version"].toInt() >= 23 ? decodeSolarSettings(root["solar"]) : SolarSettings{});
+        root["version"].toInt() >= 23 ? decodeSolarSettings(root["solar"]) : SolarSettings{},
+        root["version"].toInt() >= 25 ? storedDisplayPrecision(root["displayPrecision"])
+                                      : fullDisplayPrecision);
     return doc;
 }
 } // namespace sketchy

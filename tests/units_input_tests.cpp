@@ -10,6 +10,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QTest>
@@ -178,6 +179,62 @@ int main(int argc, char **argv) {
         check(doc.displayUnits() == DisplayUnit::FeetInches &&
                   window.findChild<QLabel *>("measurementUnits")->text().contains("ft-in"),
               "Reopening chooses stored document units over application defaults");
+        // R084.r: keyboard-only display precision change updates Info readouts.
+        view->setSelection(1);
+        QMetaObject::invokeMethod(view, "changed");
+        auto *infoDimensions = window.findChild<QLabel *>("entityInfoDimensions");
+        auto *infoArea = window.findChild<QLabel *>("entityInfoArea");
+        check(QTest::qWaitFor([&] { return infoDimensions->text().contains("'"); }),
+              "Info shows the reopened selection");
+        const auto fullDimensions = infoDimensions->text();
+        const auto area = doc.worldArea(1, 5);
+        check(infoArea->text() == displayMeasure(area, 2, DisplayUnit::FeetInches,
+                                                 fullDisplayPrecision),
+              "Full precision keeps the historical area readout");
+        const auto beforePrecision = doc.saveStamp();
+        modal(
+            window, "documentUnitsDialog",
+            [&] { window.findChild<QAction *>("file.units")->trigger(); },
+            [&](QDialog *dialog) {
+                auto *units = dialog->findChild<QComboBox *>("documentUnitsChoice");
+                auto *precision = dialog->findChild<QComboBox *>("documentPrecisionChoice");
+                check(precision && precision->isVisible() &&
+                          precision->accessibleName() == "Display precision" &&
+                          precision->count() == 5 && precision->currentIndex() == 0 &&
+                          precision->itemText(0) == "Full (4' 0.605031\")" &&
+                          precision->itemText(2) == "4' 0.6\"",
+                      "Precision choices show real ft-in samples with Full selected");
+                units->setCurrentIndex(0);
+                check(precision->count() == 8 && precision->currentIndex() == 0 &&
+                          precision->itemText(3) == "1.23 m",
+                      "Changing units repopulates samples and selects Full");
+                units->setCurrentIndex(2);
+                focus(units);
+                QTest::keyClick(units, Qt::Key_Tab);
+                check(QTest::qWaitFor([&] { return precision->hasFocus(); }),
+                      "Precision follows units in tab order");
+                QTest::keyClick(precision, Qt::Key_Down);
+                QTest::keyClick(precision, Qt::Key_Down);
+                check(precision->currentData().toInt() == 1, "Keyboard selects one decimal");
+                QTest::keyClick(precision, Qt::Key_Return);
+                check(QTest::qWaitFor([&] { return !dialog->isVisible(); }),
+                      "Return accepts the units dialog");
+            });
+        check(doc.displayUnits() == DisplayUnit::FeetInches && doc.displayPrecision() == 1 &&
+                  doc.dirty() && doc.history().entries.back().label == "Change display precision",
+              "Dialog applies one labeled precision edit");
+        check(QTest::qWaitFor([&] { return infoDimensions->text() != fullDimensions; }) &&
+                  infoArea->text() == displayMeasure(area, 2, DisplayUnit::FeetInches, 1) &&
+                  infoArea->text().endsWith(" ft²") &&
+                  infoDimensions->text().contains(QRegularExpression("^\\d+' \\d+\\.\\d\"")),
+              "Info lengths and area follow display precision");
+        window.findChild<QAction *>("edit.undo")->trigger();
+        check(doc.displayPrecision() == fullDisplayPrecision &&
+                  doc.isCurrentSnapshot(beforePrecision) &&
+                  QTest::qWaitFor([&] { return infoDimensions->text() == fullDimensions; }),
+              "Undo restores Full precision readouts");
+        if (app.arguments().contains("--capture"))
+            window.grab().save("/capture/R084r-precision.png");
         view->setTool(Viewport::Tool::Select);
         view->setSelection(1);
         QMetaObject::invokeMethod(view, "changed");
@@ -200,14 +257,14 @@ int main(int argc, char **argv) {
         for (auto unit : {DisplayUnit::Meters, DisplayUnit::Millimeters, DisplayUnit::FeetInches})
             for (double length : {0., -.00001, -1.25, .3048, .609599999999, 1000000.})
                 check(
-                    std::abs(parseLength(displayLength(length, unit), inputUnit(unit), QLocale()) -
+                    std::abs(parseLength(displayLength(length, unit, fullDisplayPrecision), inputUnit(unit), QLocale()) -
                              length) < tolerance,
                     "Formatted length parses back within modeling tolerance");
         const auto originalLocale = QLocale();
         QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
         for (auto unit : {DisplayUnit::Meters, DisplayUnit::Millimeters, DisplayUnit::FeetInches})
             check(
-                std::abs(parseLength(displayLength(-1234.56789, unit), inputUnit(unit), QLocale()) +
+                std::abs(parseLength(displayLength(-1234.56789, unit, fullDisplayPrecision), inputUnit(unit), QLocale()) +
                          1234.56789) < tolerance,
                 "Localized display omits grouping and retains parseable decimal units");
         QLocale::setDefault(originalLocale);
@@ -257,7 +314,7 @@ int main(int argc, char **argv) {
               "Stale dialog preserves intervening preference edit");
         doc.markSaved();
         std::cout << "Native first-run/default/document units, numeric tools, Info, undo/reopen, "
-                     "cancellation and stale guards passed; DPR="
+                     "display precision, cancellation and stale guards passed; DPR="
                   << window.devicePixelRatioF() << '\n';
     } catch (const std::exception &error) {
         doc.markSaved();

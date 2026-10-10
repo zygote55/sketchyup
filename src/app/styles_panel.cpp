@@ -158,7 +158,7 @@ void StylesPanel::customize() {
     color("Monochrome front", "styleFrontColor", &ModelStyle::front);
     color("Monochrome back", "styleBackColor", &ModelStyle::back);
     color("Edges and profiles", "styleEdgeColor", &ModelStyle::edge);
-    auto *ground = new QLineEdit(displayLength(original.groundHeight, doc_.displayUnits()));
+    auto *ground = new QLineEdit(displayLength(original.groundHeight, doc_.displayUnits(), fullDisplayPrecision));
     ground->setObjectName("styleGroundHeight");
     form->addRow("Ground height", ground);
     auto *width = new QLineEdit(decimal(original.profileWidth));

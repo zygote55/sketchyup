@@ -181,6 +181,7 @@ int main(int argc, char **argv) {
         auto expected = QJsonDocument::fromJson(oldBytes.mid(16 + length)).object();
         expected["version"] = 25;
         expected["solar"] = encodeSolarSettings(SolarSettings{});
+        expected["displayPrecision"] = fullDisplayPrecision;
         expected["annotations"] = QJsonArray{};
         expected["nextAnnotationId"] = "1";
         expected["sections"] = QJsonArray{};
@@ -214,6 +215,7 @@ int main(int argc, char **argv) {
         auto priorExpected = QJsonDocument::fromJson(priorBytes.mid(16 + priorLength)).object();
         priorExpected["version"] = 25;
         priorExpected["solar"] = encodeSolarSettings(SolarSettings{});
+        priorExpected["displayPrecision"] = fullDisplayPrecision;
         priorExpected["annotations"] = QJsonArray{};
         priorExpected["nextAnnotationId"] = "1";
         check(QJsonDocument::fromJson(encodeDocument(priorDoc, AssetStorage::External)).object() ==

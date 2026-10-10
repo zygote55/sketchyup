@@ -87,6 +87,7 @@ class Window : public QMainWindow {
     QLabel *status_{};
     QLabel *measurementUnits_{};
     static DisplayUnit preferredUnits();
+    static int preferredPrecision();
     void unitsSettings(bool firstRun = false);
     QLabel *title_{};
     QLabel *breadcrumb_{};

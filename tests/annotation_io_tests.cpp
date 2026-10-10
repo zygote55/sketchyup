@@ -128,6 +128,7 @@ int main(int argc, char **argv) {
         legacy["version"] = 20;
         rejects([&] { decodeDocument(QJsonDocument(legacy).toJson()); });
         legacy.remove("solar");
+        legacy.remove("displayPrecision");
         legacy.remove("annotations");
         legacy.remove("nextAnnotationId");
         check(decodeDocument(QJsonDocument(legacy).toJson()).annotations().empty(),

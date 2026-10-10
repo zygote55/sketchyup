@@ -89,6 +89,7 @@ int main(int argc, char **argv) {
         missing.remove("scenes");
         missing.remove("sections");
         missing.remove("solar");
+        missing.remove("displayPrecision");
         missing.remove("annotations");
         missing.remove("nextAnnotationId");
         missing.remove("nextSectionId");
@@ -138,6 +139,7 @@ int main(int argc, char **argv) {
             document["instances"] = placements;
             auto features = manifest["requiredFeatures"].toArray();
             features.removeAt(features.size() - 1); // instanced-placements-v1
+            features.removeAt(features.size() - 1); // display-precision-v1
             features.removeAt(features.size() - 1); // reference-images-v1
         features.removeAt(features.size() - 1); // solar-study-v1
         features.removeAt(features.size() - 1); // editable-text-v1
@@ -163,6 +165,7 @@ int main(int argc, char **argv) {
             document.remove("scenes");
             document.remove("sections");
             document.remove("solar");
+            document.remove("displayPrecision");
             document.remove("annotations");
             document.remove("nextAnnotationId");
             document.remove("nextSectionId");

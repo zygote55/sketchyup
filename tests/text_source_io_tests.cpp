@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
         check(encodeContainer(loaded) == stored && loaded.bodies().at(id)->textSource == record,
               "Reopen keeps cached geometry and source without loading any font");
         check(QJsonDocument::fromJson(encodeDocument(doc)).object()["version"] == 25,
-              "Editable text uses explicit schema 24");
+              "Editable text uses explicit schema 25");
         check(exportGlb(RenderSnapshot::capture(doc))
                       .manifest["losses"]
                       .toObject()["editableTextSourcesOmitted"] == 1,

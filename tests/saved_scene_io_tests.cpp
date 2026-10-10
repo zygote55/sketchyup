@@ -222,6 +222,7 @@ int main(int argc, char **argv) {
         auto old = QJsonDocument::fromJson(oldBytes.mid(16 + oldLength)).object();
         old["version"] = 25;
         old["solar"] = encodeSolarSettings(SolarSettings{});
+        old["displayPrecision"] = fullDisplayPrecision;
         old["annotations"] = QJsonArray{};
         old["nextAnnotationId"] = "1";
         old["sections"] = QJsonArray{};

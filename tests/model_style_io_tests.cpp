@@ -108,6 +108,7 @@ int main(int argc, char **argv) {
             old.remove("scenes");
             old.remove("sections");
             old.remove("solar");
+            old.remove("displayPrecision");
             old.remove("annotations");
             old.remove("nextAnnotationId");
             old.remove("nextSectionId");
@@ -205,6 +206,7 @@ int main(int argc, char **argv) {
                                 .object();
             original["version"] = 25;
         original["solar"] = encodeSolarSettings(SolarSettings{});
+        original["displayPrecision"] = fullDisplayPrecision;
             original["annotations"] = QJsonArray{};
             original["nextAnnotationId"] = "1";
             original["sections"] = QJsonArray{};

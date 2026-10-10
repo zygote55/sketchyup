@@ -185,7 +185,8 @@ int main(int argc, char **argv) {
                      {18, {"scenes", "nextSceneId"}},
                      {19, {"sections", "nextSectionId", "activeSections"}},
                      {21, {"annotations", "nextAnnotationId"}},
-                     {23, {"solar"}}})
+                     {23, {"solar"}},
+                     {25, {"displayPrecision"}}})
                 if (version < introduced)
                     for (const auto &field : fields)
                         tree.remove(field);

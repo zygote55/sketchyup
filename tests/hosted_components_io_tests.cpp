@@ -194,6 +194,7 @@ void roundtripAndRecovery(bool cutting) {
         document["instances"] = placements;
         auto features = manifest["requiredFeatures"].toArray();
         features.removeAt(features.size() - 1); // instanced-placements-v1
+        features.removeAt(features.size() - 1); // display-precision-v1
         features.removeAt(features.size() - 1); // reference-images-v1
         features.removeAt(features.size() - 1); // solar-study-v1
         features.removeAt(features.size() - 1); // editable-text-v1
@@ -218,6 +219,7 @@ void roundtripAndRecovery(bool cutting) {
         document.remove("scenes");
         document.remove("sections");
         document.remove("solar");
+        document.remove("displayPrecision");
         document.remove("annotations");
         document.remove("nextAnnotationId");
         document.remove("nextSectionId");

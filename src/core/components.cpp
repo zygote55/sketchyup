@@ -475,7 +475,8 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
                   doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
                   doc.nextMaterialId(), doc.assets(), doc.nextAssetId(), doc.displayUnits(),
                   std::make_shared<const HostedComponents>(), doc.style(), doc.scenes(),
-                  doc.nextSceneId(), doc.sections(), doc.nextSectionId(), {}, {}, doc.nextAnnotationId(), doc.solar());
+                  doc.nextSceneId(), doc.sections(), doc.nextSectionId(), {}, {}, doc.nextAnnotationId(), doc.solar(),
+                  doc.displayPrecision());
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
@@ -508,7 +509,8 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         root->name != previousRoot->name || root->properties != previousRoot->properties ||
         root->tag != previousRoot->tag)
         throw std::runtime_error("Instance root state is outside shared geometry edit scope");
-    if (draft.displayUnits() != doc.displayUnits())
+    if (draft.displayUnits() != doc.displayUnits() ||
+        draft.displayPrecision() != doc.displayPrecision())
         throw std::runtime_error("Edit document units outside a shared geometry scope");
     if (draft.solar() != doc.solar())
         throw std::runtime_error("Edit sun study outside a shared geometry scope");

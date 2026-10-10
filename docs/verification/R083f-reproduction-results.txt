@@ -1,0 +1,176 @@
+R083.f reproduction results, 2026-10-10. Image sketchyup-native-fonts-check:20261008
+(qt6-base 6.11.2, qt6-wayland 6.11.2, mesa 26.2.3, weston 15.0.1, wayland 1.26.0, ttf-dejavu),
+private CI Wayland client library, ASan/UBSan with leak detection and halt-on-error.
+/tmp is a size-limited tmpfs; the fixture, its saves and .bak copies live there.
+
+== 1. Archived pre-#242 sanitized fixture (source 8e0afcbb, R087.t), Wayland 2x, /tmp capacity sweep
+=== tmpfs size=2m
+Could not write save: Unknown error
+status=1 elapsed=0.8
+=== tmpfs size=3m
+Timed out after 60 s: /bin-dir/file_operation_input_tests
+status=1 elapsed=60.1
+=== tmpfs size=5m
+Timed out after 60 s: /bin-dir/file_operation_input_tests
+status=1 elapsed=60.1
+=== tmpfs size=6m
+Timed out after 60 s: /bin-dir/file_operation_input_tests
+status=1 elapsed=60.2
+=== tmpfs size=7m
+Timed out after 60 s: /bin-dir/file_operation_input_tests
+status=1 elapsed=60.2
+=== tmpfs size=8m
+Timed out after 60 s: /bin-dir/file_operation_input_tests
+status=1 elapsed=60.1
+=== tmpfs size=9m
+Native file workers ... passed
+status=0 elapsed=5.7
+=== tmpfs size=10m
+Native file workers ... passed
+status=0 elapsed=5.8
+=== tmpfs size=12m
+Native file workers ... passed
+status=0 elapsed=5.9
+=== tmpfs size=16m
+Native file workers ... passed
+status=0 elapsed=4.2
+
+-- main thread after 25 s with /tmp=4m (gdb, archived binary; paths from its build tree)
+#1  ppoll () from /usr/lib/libc.so.6
+#4  g_main_context_iteration () from /usr/lib/libglib-2.0.so.0
+#5  QEventDispatcherGlib::processEvents(...) from /usr/lib/libQt6Core.so.6
+#6  QEventLoop::exec(...) from /usr/lib/libQt6Core.so.6
+#7  QDialog::exec() () from /usr/lib/libQt6Widgets.so.6
+#9  sketchy::Window::save (this=..., saveAs=false) at src/app/window.cpp:1172
+#15 sketchy::Window::run (this=..., fn=..., viewOnly=false) at src/app/window.cpp:968
+#24 QAction::trigger at /usr/include/qt6/QtGui/qaction.h:210
+#25 main (argc=1, argv=...) at tests/file_operation_input_tests.cpp:92
+
+== 2. Current main (8534bb67) sanitized fixture, ample /tmp (64m)
+=== control-wayland (tmp=64m wayland 1x)
+Native file workers ... passed
+status=0 elapsed_ms=6969
+=== control-wayland (tmp=64m wayland 2x)
+Native file workers ... passed
+status=0 elapsed_ms=6543
+=== control-x11 (tmp=64m x11 1x)
+Native file workers ... passed
+status=0 elapsed_ms=7269
+=== control-x11 (tmp=64m x11 2x)
+Native file workers ... passed
+status=0 elapsed_ms=8063
+
+== 3. Current main sanitized fixture, limited /tmp (backtrace taken after 25 s)
+=== fixture-enospc (tmp=2m wayland 2x)
+Could not write save: Unknown error
+status=1 elapsed_ms=1986
+=== first-save-enospc (tmp=4m wayland 2x)
+#7  QDialog::exec() () from /usr/lib/libQt6Widgets.so.6
+#9  sketchy::Window::save (saveAs=false) at src/app/window.cpp:1172
+#25 tests/file_operation_input_tests.cpp:229
+#27 tests/file_operation_input_tests.cpp:229
+File worker fixture: creating window
+File worker fixture: save-with-newer-edit started
+Timed out after 60 s: build/sanitize/file_operation_input_tests
+status=1 elapsed_ms=60134
+=== second-save-enospc (tmp=7m wayland 2x)
+#7  QDialog::exec() () from /usr/lib/libQt6Widgets.so.6
+#9  sketchy::Window::save (saveAs=false) at src/app/window.cpp:1172
+#25 tests/file_operation_input_tests.cpp:233
+#27 tests/file_operation_input_tests.cpp:233
+File worker fixture: creating window
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 89.9035 ms
+File worker fixture: save-current started
+Timed out after 60 s: build/sanitize/file_operation_input_tests
+status=1 elapsed_ms=60122
+=== boundary-pass (tmp=9m wayland 2x)
+File worker fixture: creating window
+File worker fixture: save-with-newer-edit started
+File worker fixture: save-with-newer-edit finished in 122.883 ms
+File worker fixture: save-current started
+File worker fixture: save-current finished in 215.237 ms
+File worker fixture: save-before-replace started
+File worker fixture: save-before-replace finished
+Native file workers ... passed
+status=0 elapsed_ms=6411
+=== first-save-enospc-x11 (tmp=4m x11 2x)
+#7  QDialog::exec() () from /usr/lib/libQt6Widgets.so.6
+#9  sketchy::Window::save (saveAs=false) at src/app/window.cpp:1172
+#25 tests/file_operation_input_tests.cpp:229
+#27 tests/file_operation_input_tests.cpp:229
+File worker fixture: creating window
+File worker fixture: save-with-newer-edit started
+status=124 elapsed_ms=63193
+
+== 4. Product probe (docs/verification/probes/save-failure-modal.cpp): TMPDIR on its own 16 MiB
+   tmpfs, /tmp 200 MiB. Wayland 'minimized' status=1 is 'Weston exited (139)' after the probe
+   printed its last line; see section 5.
+=== probe-wayland-diskfull (tmp=200m wayland 1x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: passed; heartbeat ticks under modal=21
+status=0 elapsed_ms=6161
+=== probe-wayland-hidden (tmp=200m wayland 1x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: hidden open/save finished with progress shown
+xdg_surface#33: error 3: xdg_surface has never been configured
+status=255 elapsed_ms=7316
+=== probe-wayland-minimized (tmp=200m wayland 1x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: minimized open/save finished with progress shown
+status=1 elapsed_ms=8800
+=== probe-wayland-diskfull (tmp=200m wayland 2x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: passed; heartbeat ticks under modal=873
+status=0 elapsed_ms=12321
+=== probe-wayland-hidden (tmp=200m wayland 2x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: hidden open/save finished with progress shown
+D-002 probe: passed; heartbeat ticks under modal=743
+status=0 elapsed_ms=14320
+=== probe-wayland-minimized (tmp=200m wayland 2x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: minimized open/save finished with progress shown
+status=1 elapsed_ms=10565
+=== probe-x11-diskfull (tmp=200m x11 1x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: passed; heartbeat ticks under modal=20
+status=0 elapsed_ms=7011
+=== probe-x11-hidden (tmp=200m x11 1x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: hidden open/save finished with progress shown
+D-002 probe: passed; heartbeat ticks under modal=21
+status=0 elapsed_ms=9250
+=== probe-x11-minimized (tmp=200m x11 1x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: minimized open/save finished with progress shown
+D-002 probe: passed; heartbeat ticks under modal=21
+status=0 elapsed_ms=8979
+=== probe-x11-diskfull (tmp=200m x11 2x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: passed; heartbeat ticks under modal=21
+status=0 elapsed_ms=7649
+=== probe-x11-hidden (tmp=200m x11 2x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: hidden open/save finished with progress shown
+D-002 probe: passed; heartbeat ticks under modal=20
+status=0 elapsed_ms=14663
+=== probe-x11-minimized (tmp=200m x11 2x)
+D-002 probe: modal shown: Save failed: Could not write save: No space left on device
+D-002 probe: minimized open/save finished with progress shown
+D-002 probe: passed; heartbeat ticks under modal=21
+status=0 elapsed_ms=12159
+
+== 5. Isolation of the remap failures (Wayland 1x, separate compositor session per run)
+D002_REMAP_ONLY=hide (hide/show, no file work):           8/8 status=0
+D002_REMAP_ONLY=minimize (minimize/hide/show, no file work): 4/4 status=0
+D002_UNEXPOSED=hidden (open+save while hidden, then show):  2/8 status=0, 6/8 status=255
+  'xdg_surface#NN: error 3: xdg_surface has never been configured'
+D002_UNEXPOSED=hidden, earlier separate series:             5/6 status=0, 1/6 status=255 (same error)
+D002_UNEXPOSED=minimized: open and save finish while minimized; Weston then logs
+  'Detected an unmapped surface or view in the layer list, which should not occur.'
+  and exits 139. Weston under gdb: SIGSEGV in libweston-15.so.0 request dispatch
+  (ffi_call <- wl_event_loop_dispatch <- wl_display_run <- wet_main).
+
+== 6. Startup open before the first show (sanitized sketchyup --capture, 24 MiB model)
+Wayland 1x: 4/4 status=0 "passed":true; Wayland 2x: 2/2 status=0 "passed":true

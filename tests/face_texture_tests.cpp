@@ -387,6 +387,7 @@ void persistenceAndMalformed() {
     legacy.remove("scenes");
     legacy.remove("sections");
     legacy.remove("solar");
+    legacy.remove("displayPrecision");
     legacy.remove("annotations");
     legacy.remove("nextAnnotationId");
     legacy.remove("nextSectionId");

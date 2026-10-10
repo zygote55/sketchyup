@@ -149,7 +149,8 @@ QString Viewport::hostedPlacementSummary() const {
     if (!session_.active())
         return "Select one component and one host face · Shift+H previews attachment";
     return (hostedRetainPose_ ? QString("Bind current pose") : QString("Attach on selected face")) +
-           " · Inset " + displayLength(hostedOptions_.inset, doc_.displayUnits()) +
+           " · Inset " + displayLength(hostedOptions_.inset, doc_.displayUnits(),
+                                         doc_.displayPrecision()) +
            (previewValid_ ? " · Enter applies" : " · Enter valid placement coordinates") +
            " · Esc cancels · Alt-drag orbits";
 }

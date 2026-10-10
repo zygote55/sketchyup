@@ -53,9 +53,9 @@ void Viewport::setAssistantPreviewFocus(Id body) {
         if (!value)
             return QString("absent");
         const auto d = value->dimensions();
-        return displayLength(d.x, doc_.displayUnits()) + " × " +
-               displayLength(d.y, doc_.displayUnits()) + " × " +
-               displayLength(d.z, doc_.displayUnits());
+        return displayLength(d.x, doc_.displayUnits(), doc_.displayPrecision()) + " × " +
+               displayLength(d.y, doc_.displayUnits(), doc_.displayPrecision()) + " × " +
+               displayLength(d.z, doc_.displayUnits(), doc_.displayPrecision());
     };
     const auto text = QString("Preview #%1 · world bounds\n%2 → %3")
                           .arg(assistantFocus_)
