@@ -3,7 +3,7 @@
 An independent native Linux 3D modeler in development. C++20, Qt 6 and OpenGL;
 ordinary editing runs locally without an account or browser runtime. Own code
 is MIT licensed. Bundled Clipper2 retains its Boost Software License 1.0 and
-Manifold retains Apache License 2.0; their notices ship with the application.
+Manifold retains Apache License 2.0 and cgltf retains MIT; their notices ship with the application.
 Arch/Omarchy is the primary development environment.
 
 ## Current build
@@ -20,7 +20,7 @@ OpenAI and experimental loopback Ollama adapters, transactional previews and opt
 Blender rendering are implemented. Live OpenAI acceptance passed the M5 and M6
 workflow gates; the measured local CPU Ollama profile timed out on the initial
 modeling corpus. Native
-exchange covers GLB/glTF, OBJ/MTL and STL import/export, a documented 2D DXF subset and measured PDF/SVG views; see [Inspect and migrate native documents](#inspect-and-migrate-native-documents) and the sections after it. Curves retain analytic parameters alongside configurable segmented editing geometry. Surface topology and file format remain experimental.
+exchange covers GLB/glTF, OBJ/MTL and STL import/export, a documented 2D DXF subset and measured PDF/SVG views, with explicit conversion losses; see [Inspect and migrate native documents](#inspect-and-migrate-native-documents) and the sections after it. Curves retain analytic parameters alongside configurable segmented editing geometry. The application remains a development build; the current native storage contract is documented below.
 Automatic recovery copies are enabled every 30 seconds; File → Recovery settings
 changes the interval (5–3,600 seconds) or disables it. The recovery status shows
 only the last verified copy and identifies newer edits still in memory. A write
@@ -46,6 +46,10 @@ conversion details; the original file stays unchanged. See the
 
 ## Build and run
 
+Start with the [user workflow guide](docs/USER_GUIDE.md) and
+[development support matrix](docs/SUPPORT_MATRIX.md) for tested behavior and
+remaining release gates.
+
 Requires CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ base/Wayland development
 packages, OpenSSL 3 development headers and OpenGL 3.3. Python 3 is required
 when building the default CLI verification targets (`BUILD_TESTING=ON`). Verified locally with Qt 6.11.2 on Wayland and X11.
@@ -54,7 +58,7 @@ download code. See [measured evidence and limitations](docs/verification/native-
 
 ```sh
 cmake --preset dev
-cmake --build --preset dev --parallel 4
+cmake --build --preset dev --parallel 2
 ctest --preset dev
 ./build/dev/sketchyup --demo
 ```
