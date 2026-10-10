@@ -30,9 +30,24 @@ void type(QDialog *dialog, const QString &field, const QString &text) {
 void accept(QDialog *dialog) {
     dialog->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Ok)->click();
 }
+void activate(Window &window) {
+    // Wayland compositors grant focus asynchronously, notably just after a modal
+    // dialog closes and under CI load; keep requesting it rather than once.
+    for (int attempt = 0; attempt < 15; ++attempt) {
+        window.activateWindow();
+        if (QTest::qWaitForWindowActive(&window, 1000))
+            return;
+    }
+    const auto *active = QApplication::activeWindow();
+    const auto *focus = QGuiApplication::focusWindow();
+    std::cerr << "Active widget window: "
+              << (active ? active->metaObject()->className() : "none") << ' '
+              << (active ? active->objectName().toStdString() : "") << "; focus window: "
+              << (focus ? focus->objectName().toStdString() : "none") << '\n';
+    check(false, "Entity info window active");
+}
 void edit(Window &window, const std::function<void(QDialog *)> &operation, bool keyboard = false) {
-    window.activateWindow();
-    check(QTest::qWaitForWindowActive(&window), "Entity info window active");
+    activate(window);
     auto *frame = window.findChild<QComboBox *>("entityInfoFrame");
     frame->setFocus();
     bool opened = false;
