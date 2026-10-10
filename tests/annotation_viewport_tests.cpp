@@ -82,7 +82,8 @@ int main(int argc, char **argv) {
         const auto millimetres = frame(*view);
         check(changed(drawn, millimetres, box, *view) > 20, "Units change displayed text pixels");
         check(annotationText(*doc.annotations().at(id),
-                             measureAnnotation(doc, *doc.annotations().at(id)), doc.displayUnits())
+                             measureAnnotation(doc, *doc.annotations().at(id)), doc.displayUnits(),
+                             doc.displayPrecision())
                   .contains("4000 mm"),
               "Unit text contract");
         doc.undo();
@@ -111,7 +112,7 @@ int main(int argc, char **argv) {
         check(red > 40, "Broken label draws red marker and explicit state");
         check(annotationText(*doc.annotations().at(labelId),
                              measureAnnotation(doc, *doc.annotations().at(labelId)),
-                             doc.displayUnits())
+                             doc.displayUnits(), doc.displayPrecision())
                   .contains("Ambiguous reference"),
               "Ambiguity text explicit");
         const auto capture = qEnvironmentVariable("SKETCHYUP_ANNOTATION_VIEW_EVIDENCE");

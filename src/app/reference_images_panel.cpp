@@ -116,8 +116,8 @@ void ReferenceImagesPanel::refresh() {
     details_->setText(
         QString("%1\n%2 × %3 · opacity %4%\n%5\n%6")
             .arg(QString::fromStdString(body.name))
-            .arg(displayLength(image.width, doc_.displayUnits()))
-            .arg(displayLength(image.height, doc_.displayUnits()))
+            .arg(displayLength(image.width, doc_.displayUnits(), doc_.displayPrecision()))
+            .arg(displayLength(image.height, doc_.displayUnits(), doc_.displayPrecision()))
             .arg(image.opacity * 100, 0, 'g', 5)
             .arg(asset.payload ? "Embedded pixels" : "Missing pixels — purple placeholder")
             .arg(view_.textureSummary()));
@@ -142,7 +142,7 @@ void ReferenceImagesPanel::importFile(const QString &path) {
     dialog.setWindowTitle("Place reference image");
     QFormLayout form(&dialog);
     auto *name = field(form, "referenceName", "Name", QFileInfo(path).completeBaseName());
-    auto *width = field(form, "referenceWidth", "Width", displayLength(1, doc_.displayUnits()));
+    auto *width = field(form, "referenceWidth", "Width", displayLength(1, doc_.displayUnits(), fullDisplayPrecision));
     auto *hint =
         new QLabel("The image is placed on the local XY plane at the context origin. Height "
                    "follows the pixel aspect ratio. Calibrate it afterward using a known length.");
@@ -183,7 +183,7 @@ void ReferenceImagesPanel::edit(bool calibrate) {
         const auto measured = sketchy::length(doc_.worldTransform(id).vector({image.width, 0, 0}));
         const auto parent = original->parent ? doc_.worldTransform(original->parent) : Transform{};
         auto *length = field(form, "referenceLength", "Known length",
-                             displayLength(measured, doc_.displayUnits()));
+                             displayLength(measured, doc_.displayUnits(), fullDisplayPrecision));
         const auto originalLength = length->text();
         command = [=, this] {
             const ImagePoint first{number(u1), number(v1)}, second{number(u2), number(v2)};
@@ -204,9 +204,10 @@ void ReferenceImagesPanel::edit(bool calibrate) {
     } else {
         auto *name = field(form, "referenceName", "Name", QString::fromStdString(original->name));
         auto *width =
-            field(form, "referenceWidth", "Width", displayLength(image.width, doc_.displayUnits()));
+            field(form, "referenceWidth", "Width",
+                  displayLength(image.width, doc_.displayUnits(), fullDisplayPrecision));
         auto *height = field(form, "referenceHeight", "Height",
-                             displayLength(image.height, doc_.displayUnits()));
+                             displayLength(image.height, doc_.displayUnits(), fullDisplayPrecision));
         auto *opacity = field(form, "referenceOpacity", "Opacity (0 to 1)",
                               QLocale().toString(image.opacity, 'g', 15));
         const auto oldWidth = width->text(), oldHeight = height->text(),
