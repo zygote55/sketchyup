@@ -725,6 +725,7 @@ experimental development package.
 - [PR roadmap](docs/PR_ROADMAP.md)
 - [UX design and mockups](docs/UX_DESIGN.md)
 - [AI modeling contract](docs/AI_MODELING.md) — proposed future behavior
+- [Parser fuzzing](docs/PARSER_FUZZING.md) — opt-in coverage-guided parser checks
 - [Baseline/license decision](docs/decisions/0001-baseline.md)
 - [Native architecture experiments](docs/decisions/0002-native-spikes.md)
 - [Compatibility gaps](docs/decisions/0003-compatibility-gaps.md)
