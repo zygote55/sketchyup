@@ -1,4 +1,5 @@
 #include "io/assets.hpp"
+#include "io/document_decode_p.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
 #include "io/native_limits.hpp"
@@ -313,7 +314,9 @@ Document decodeContainer(const QByteArray &bytes) {
     }
     if (cursor != total)
         throw std::runtime_error("Trailing or unreferenced container data");
-    const auto payloadTree = QJsonDocument::fromJson(payload).object();
+    QJsonParseError payloadError;
+    const auto parsedPayload = QJsonDocument::fromJson(payload, &payloadError);
+    const auto payloadTree = parsedPayload.object();
     if (payloadTree["version"] != (referenceImages ? 24 : solarStudy ? 23 : editableText ? 22
                                    : annotations ? 21
                                    : sectionScenes ? 20
@@ -338,7 +341,9 @@ Document decodeContainer(const QByteArray &bytes) {
         throw std::runtime_error("Document chunk encoding mismatch");
     if (assets && payloadTree["assetStorage"] != "external")
         throw std::runtime_error("Packaged document requires external asset chunks");
-    auto doc = decodeDocument(payload, assetPayloads);
+    if (payloadError.error != QJsonParseError::NoError || !parsedPayload.isObject())
+        throw std::runtime_error("Invalid JSON document");
+    auto doc = document_io_detail::decodeParsedDocument(payloadTree, payload.size(), assetPayloads);
     if (assets && manifest["assets"] != assetManifest(doc))
         throw std::runtime_error("Asset manifest disagrees with document");
     if (manifest["documentId"] != QString::fromStdString(doc.identity()) ||

@@ -1,0 +1,43 @@
+{
+  "frozenAt": "2026-10-08T10:20:52.040320+00:00",
+  "source": "c584ff50cf54d5ba8df099cdd74b0a108430732d",
+  "dependencyPR": 255,
+  "binarySha256": "e0c1a4def3887c29dafb8f93fd84e4f1e80834ae39b9b93c6942722edf31bc86",
+  "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+  "fixtureBytes": 70248107,
+  "controllerSha256": "e4621f03ab0c0b7b954ebf53c68eb8eed8c33a4c0bd5c633f2fbc2c8ff42f87d",
+  "frozenFilesSha256": {
+    "native_persistence_benchmark": "e0c1a4def3887c29dafb8f93fd84e4f1e80834ae39b9b93c6942722edf31bc86",
+    "canonical.sketchyup": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+    "measure.py": "e4621f03ab0c0b7b954ebf53c68eb8eed8c33a4c0bd5c633f2fbc2c8ff42f87d"
+  },
+  "runs": [
+    "advised-cold-1",
+    "warm-1",
+    "advised-cold-2",
+    "warm-2",
+    "advised-cold-3",
+    "warm-3"
+  ],
+  "requireZeroResidentFileDataPagesBeforeColdLaunch": true,
+  "noGlobalCacheDrop": true,
+  "storageControllerCacheColdClaimed": false,
+  "uiAcceptanceClaimed": false,
+  "releaseAcceptance": false,
+  "memoryMaxBytes": 4294967296,
+  "swapMaxBytes": 0,
+  "cpuAffinity": [
+    0,
+    1,
+    3,
+    6,
+    8,
+    10,
+    12,
+    13
+  ],
+  "measurementCpu": 8,
+  "heavyDependency": "sketchyup-r086v-provider-build",
+  "lightProviderClientMayCoexistAt512MiBCpu0": true,
+  "warmProofSha256": "3afafe24aa2b005a916f78e475612373ccef0f236fcfd6f1f06d995a65a3cc67"
+}

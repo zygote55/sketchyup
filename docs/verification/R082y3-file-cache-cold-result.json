@@ -1,0 +1,160 @@
+{
+  "passed": true,
+  "releaseAcceptance": false,
+  "productionLimitsChanged": false,
+  "timingScope": "Synchronous core load/validation and durable save; excludes UI.",
+  "cacheScope": "Input-file OS data pages verified nonresident immediately before launch; storage-controller caches and libraries are not claimed cold.",
+  "source": "c584ff50cf54d5ba8df099cdd74b0a108430732d",
+  "binarySha256": "e0c1a4def3887c29dafb8f93fd84e4f1e80834ae39b9b93c6942722edf31bc86",
+  "measurements": [
+    {
+      "label": "advised-cold-1",
+      "binaryReport": {
+        "build": "Release",
+        "byteExactRoundTrip": true,
+        "cachePolicy": "advised-cold",
+        "coldCacheVerified": false,
+        "compiler": "16.2.1 20260810",
+        "fixtureScenario": "repeated-million-triangle-v1",
+        "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+        "fixtureVersion": 1,
+        "nativeBytes": 70248107,
+        "openMs": 4282.390764,
+        "peakRssBytes": 1087504384,
+        "privateExperimentalOnly": true,
+        "qt": "6.11.2",
+        "releaseAcceptance": false,
+        "saveMs": 4097.442574,
+        "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+      },
+      "filePageResidencyVerifiedBeforeLaunch": true,
+      "beforeLaunchResidency": {
+        "pages": 17151,
+        "residentPages": 0
+      }
+    },
+    {
+      "label": "warm-1",
+      "binaryReport": {
+        "build": "Release",
+        "byteExactRoundTrip": true,
+        "cachePolicy": "warm",
+        "coldCacheVerified": false,
+        "compiler": "16.2.1 20260810",
+        "fixtureScenario": "repeated-million-triangle-v1",
+        "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+        "fixtureVersion": 1,
+        "nativeBytes": 70248107,
+        "openMs": 4229.153952,
+        "peakRssBytes": 1086423040,
+        "privateExperimentalOnly": true,
+        "qt": "6.11.2",
+        "releaseAcceptance": false,
+        "saveMs": 4112.258806,
+        "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+      },
+      "filePageResidencyVerifiedBeforeLaunch": false,
+      "beforeLaunchResidency": null
+    },
+    {
+      "label": "advised-cold-2",
+      "binaryReport": {
+        "build": "Release",
+        "byteExactRoundTrip": true,
+        "cachePolicy": "advised-cold",
+        "coldCacheVerified": false,
+        "compiler": "16.2.1 20260810",
+        "fixtureScenario": "repeated-million-triangle-v1",
+        "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+        "fixtureVersion": 1,
+        "nativeBytes": 70248107,
+        "openMs": 4259.325886,
+        "peakRssBytes": 1086517248,
+        "privateExperimentalOnly": true,
+        "qt": "6.11.2",
+        "releaseAcceptance": false,
+        "saveMs": 4101.95273,
+        "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+      },
+      "filePageResidencyVerifiedBeforeLaunch": true,
+      "beforeLaunchResidency": {
+        "pages": 17151,
+        "residentPages": 0
+      }
+    },
+    {
+      "label": "warm-2",
+      "binaryReport": {
+        "build": "Release",
+        "byteExactRoundTrip": true,
+        "cachePolicy": "warm",
+        "coldCacheVerified": false,
+        "compiler": "16.2.1 20260810",
+        "fixtureScenario": "repeated-million-triangle-v1",
+        "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+        "fixtureVersion": 1,
+        "nativeBytes": 70248107,
+        "openMs": 4227.791832,
+        "peakRssBytes": 1087737856,
+        "privateExperimentalOnly": true,
+        "qt": "6.11.2",
+        "releaseAcceptance": false,
+        "saveMs": 4109.094181,
+        "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+      },
+      "filePageResidencyVerifiedBeforeLaunch": false,
+      "beforeLaunchResidency": null
+    },
+    {
+      "label": "advised-cold-3",
+      "binaryReport": {
+        "build": "Release",
+        "byteExactRoundTrip": true,
+        "cachePolicy": "advised-cold",
+        "coldCacheVerified": false,
+        "compiler": "16.2.1 20260810",
+        "fixtureScenario": "repeated-million-triangle-v1",
+        "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+        "fixtureVersion": 1,
+        "nativeBytes": 70248107,
+        "openMs": 4276.485207,
+        "peakRssBytes": 1087168512,
+        "privateExperimentalOnly": true,
+        "qt": "6.11.2",
+        "releaseAcceptance": false,
+        "saveMs": 4126.291727,
+        "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+      },
+      "filePageResidencyVerifiedBeforeLaunch": true,
+      "beforeLaunchResidency": {
+        "pages": 17151,
+        "residentPages": 0
+      }
+    },
+    {
+      "label": "warm-3",
+      "binaryReport": {
+        "build": "Release",
+        "byteExactRoundTrip": true,
+        "cachePolicy": "warm",
+        "coldCacheVerified": false,
+        "compiler": "16.2.1 20260810",
+        "fixtureScenario": "repeated-million-triangle-v1",
+        "fixtureSha256": "852d62e6f0dbe15b069dadab3bb7ac6b68a8f00261eb9c4f59e37bf313af3a77",
+        "fixtureVersion": 1,
+        "nativeBytes": 70248107,
+        "openMs": 4244.355886,
+        "peakRssBytes": 1086873600,
+        "privateExperimentalOnly": true,
+        "qt": "6.11.2",
+        "releaseAcceptance": false,
+        "saveMs": 4157.513456,
+        "timingScope": "Synchronous core load/validation and durable save; excludes fixture construction, post-check hashing and UI responsiveness"
+      },
+      "filePageResidencyVerifiedBeforeLaunch": false,
+      "beforeLaunchResidency": null
+    }
+  ],
+  "allOpenSaveUnderFiveSeconds": true,
+  "logSha256": "035cea1f6e494395682bc97fe19662205ffbfbfe14b78ea608a3cbd6ba6b56df"
+}

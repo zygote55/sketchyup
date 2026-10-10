@@ -1,0 +1,13 @@
+{
+  "originalPublication": "8f33281d9c01f4a37fd315401ecbc85d28a4fc7d",
+  "inheritedCIBase": "ba38fff38c27224c872c40f69a8c4f5bf33fcab8",
+  "runtimeAndTestSourcesByteIdenticalToQualifiedY": true,
+  "verifiedExistingNonDocumentationInputs": 892,
+  "onlyChangedBuildInputs": [
+    ".github/workflows/native.yml",
+    "scripts/ci-reclaim-development-build.sh"
+  ],
+  "helperSha256": "51ea1fb4d2ffe5dae5fee9d9c7c34430ce32243804992a55b4987aad6ca5c4d0",
+  "fullCurrentHeadCIRequired": true,
+  "releaseAcceptance": false
+}
