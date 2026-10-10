@@ -1195,6 +1195,8 @@ Implementation split: R036.a material records, assignments, public commands and 
 
 The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-progress.md) passes six exact-source AMD100MB cases: all18 heartbeat gaps are below50ms (worst33.005558ms), with three normal/three sanitizer I/O and four normal/four sanitizer native controls. Original bytes, fences, history, recovery, timing and resource rules remain unchanged; platform focus is reported separately. Public capacity, full hardware campaigns and final integration remain open.
 
+[Instanced component storage](verification/R082cc-instanced-storage.md) (schema 26) stops writing projected placement members, shrinking the 1,000-placement benchmark model from 6,975,154 to 538,261 JSON bytes with exact v24 and v25 migration; in-memory expansion, viewport, inference and limits follow in R082.dd–gg.
+
 **Requires:** [R081](#r081), [R072](#r072); milestone gate rule above.
 
 **Build:** Profile and optimize incremental meshes, spatial indexing, instancing, selection and history against fixed benchmark fixtures. Preserve public behavior and record cache/history memory separately.

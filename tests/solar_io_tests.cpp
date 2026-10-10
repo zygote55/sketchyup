@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
                   old.bodies().size() == 2,
               "Actual v22 text fixture migrates without losing cached geometry or source");
         auto tree = QJsonDocument::fromJson(encodeDocument(doc)).object();
-        check(tree["version"] == 25, "Explicit solar schema 25");
+        check(tree["version"] == 26, "Explicit solar schema 26");
         tree["version"] = 22;
         rejects([&] { decodeDocument(QJsonDocument(tree).toJson()); });
         std::cout << "Sun study persistence, immutable rendering, scenes, prepared edits and "
