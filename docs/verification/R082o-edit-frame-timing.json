@@ -1,0 +1,400 @@
+{
+  "source": "bbe6e58b786d13bd8301579ae7423e15f9bd697f",
+  "runtimeChanged": false,
+  "releaseAccepted": false,
+  "binarySha256": "86644f569db8f5c498bdd7ac3acee6015f5de37a61c657623f8415c1d3aa6da0",
+  "compiledOverlayInputs": {
+    "src/app/viewport_guides.cpp": "14c5ebf63476cd52e4d5b25e5ffe54e2069e78a717ea36fc0b3d11c55b10446d",
+    "src/app/viewport.cpp": "1ff885d8b9285c86ea468ad95f1ad58c9eb0031ea66f9a771b0474f5bc6f3ce1",
+    "src/app/viewport_selection.cpp": "67de88a17770c71d1a7c3cca0abb652bf6f9c3abf4d886297fb4dce08b75245f",
+    "src/app/viewport_textures.cpp": "676e80b99af0b4c0937a6c5da2e3d85570f2291db715db7f38e8c05d97506863",
+    "CMakeLists.txt": "7b2d31af076e4f061203897db469e2fe1556c532009837ae4dda9d3eb68bff93",
+    "tests/real_model_benchmark.cpp": "5dfdf912f0e5ad04e0171fd879eac4e7bbcdc9e746737476f408ce74a0c4fe19",
+    "src/geometry/inference.cpp": "beebc65c2e0c727431d8040d63e9c6199d68c3b4a8ce09c9ea45ef18e2b4cb1f",
+    "tests/fixtures/performance/front.png": "bef19ea75d4f1b1a636d6db100f1f0b32c89cc0f6f5301af159f8b27b31e940b",
+    "tests/fixtures/performance/back.png": "dc7164dbfa82e0992f6d75fd5287e3fd17226fdbb30cb2142244d0c3a6b9c268"
+  },
+  "packageCacheBase": "29fb31b",
+  "buildLimits": {
+    "Memory": 4294967296,
+    "MemorySwap": 4294967296,
+    "NanoCpus": 8000000000,
+    "CpusetCpus": "0,1,3,6,8,10,12,13",
+    "PidsLimit": 256
+  },
+  "buildLog": {
+    "file": "R082o-build.txt",
+    "sha256": "29a80a8485dbea95da3f913013a2c71cdc5349bfe71374afdfdb024e8928a2ac"
+  },
+  "compilerJobs": 2,
+  "ltoWorkersPerLink": 2,
+  "normalSoftwareCases": [
+    {
+      "case": "smoke-1-deep",
+      "raw": {
+        "file": "R082o-smoke-1-deep.txt",
+        "sha256": "50eaeb6863aca3f4918f20152b03cb2cd53f1592a14b9ef94c83cd5ab9d46cfe"
+      },
+      "fixtureSha256": "078fd5a262581a8d23b02e7e3c0527b6d661eb77c625050fda944dbe73ca55ef",
+      "editFrameP95Ms": 17.17274,
+      "editReadbackP95Ms": 61.129963
+    },
+    {
+      "case": "smoke-1-far",
+      "raw": {
+        "file": "R082o-smoke-1-far.txt",
+        "sha256": "d63412c68e65409b6d82e3333476c4c4cab661ded5e5a9adc1854d65007888a0"
+      },
+      "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+      "editFrameP95Ms": 12.070907,
+      "editReadbackP95Ms": 44.828444
+    },
+    {
+      "case": "smoke-1-repeated",
+      "raw": {
+        "file": "R082o-smoke-1-repeated.txt",
+        "sha256": "dd291de09d2a93752d98b84541040218c900a950e2a2bfd7d61bf877f8dcb24c"
+      },
+      "fixtureSha256": "97aadcff18317af573a28a7b03129f3f59f926c3ef36de255ae9832f0e36c405",
+      "editFrameP95Ms": 11.218229,
+      "editReadbackP95Ms": 37.191932
+    },
+    {
+      "case": "smoke-1-textures",
+      "raw": {
+        "file": "R082o-smoke-1-textures.txt",
+        "sha256": "99464be78459904605f95131c086dd7f05dfeca4bc65ed4f0faf717efb680014"
+      },
+      "fixtureSha256": "171096beb61bd5290e70faa4d0988894ac514d86764e6517eabf0ddcd6e06e8b",
+      "editFrameP95Ms": 26.766065,
+      "editReadbackP95Ms": 75.891738
+    },
+    {
+      "case": "smoke-1-unique",
+      "raw": {
+        "file": "R082o-smoke-1-unique.txt",
+        "sha256": "2316ad07893fef832e9f7bd6525aee0de75ffa2327e3cdf5db07d5774c24ec4a"
+      },
+      "fixtureSha256": "231d89f28bd86b304e1ba0365551f85879e7fa1306b79adde0f6a8a6dfa3cefa",
+      "editFrameP95Ms": 12.260955,
+      "editReadbackP95Ms": 43.139964
+    },
+    {
+      "case": "smoke-2-deep",
+      "raw": {
+        "file": "R082o-smoke-2-deep.txt",
+        "sha256": "ac97dcc2dec51b81194cf36c56f154f9dfe209decfb80cbbd20e92b382f09452"
+      },
+      "fixtureSha256": "078fd5a262581a8d23b02e7e3c0527b6d661eb77c625050fda944dbe73ca55ef",
+      "editFrameP95Ms": 18.484147,
+      "editReadbackP95Ms": 21.801991
+    },
+    {
+      "case": "smoke-2-far",
+      "raw": {
+        "file": "R082o-smoke-2-far.txt",
+        "sha256": "53e25928de4ee1340ace8464d98df615fe17a5f07345c8a080446e3eef9c8370"
+      },
+      "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+      "editFrameP95Ms": 10.902459,
+      "editReadbackP95Ms": 14.133336
+    },
+    {
+      "case": "smoke-2-repeated",
+      "raw": {
+        "file": "R082o-smoke-2-repeated.txt",
+        "sha256": "c908485c22462fe56007465e712001f7fa33d16921df0a8e0684d3bfdecacba6"
+      },
+      "fixtureSha256": "97aadcff18317af573a28a7b03129f3f59f926c3ef36de255ae9832f0e36c405",
+      "editFrameP95Ms": 13.907503,
+      "editReadbackP95Ms": 17.11024
+    },
+    {
+      "case": "smoke-2-textures",
+      "raw": {
+        "file": "R082o-smoke-2-textures.txt",
+        "sha256": "7ebb6881ba7ae1635ddce0ac2216ba93626534613e56634831ebd2abc7f6f0f5"
+      },
+      "fixtureSha256": "171096beb61bd5290e70faa4d0988894ac514d86764e6517eabf0ddcd6e06e8b",
+      "editFrameP95Ms": 48.935501,
+      "editReadbackP95Ms": 121.786802
+    },
+    {
+      "case": "smoke-2-unique",
+      "raw": {
+        "file": "R082o-smoke-2-unique.txt",
+        "sha256": "ee36030863bc97c4680ca931c88de305be84cbf7f6a7838d3be466d4d1a98c9b"
+      },
+      "fixtureSha256": "231d89f28bd86b304e1ba0365551f85879e7fa1306b79adde0f6a8a6dfa3cefa",
+      "editFrameP95Ms": 14.765967,
+      "editReadbackP95Ms": 18.403926
+    }
+  ],
+  "hardwareCases": [
+    {
+      "hardware": "intel",
+      "label": "unique-smoke",
+      "raw": {
+        "file": "R082o-intel-unique-smoke.json",
+        "sha256": "88def09419e9d34196cb3815192fa119f07dcfc7725e3071e6b530d808927800"
+      },
+      "frameP95Ms": 2.439377,
+      "editFrameP95Ms": 3.419131,
+      "editReadbackP95Ms": 16.693464,
+      "fixtureSha256": "231d89f28bd86b304e1ba0365551f85879e7fa1306b79adde0f6a8a6dfa3cefa",
+      "placements": 25
+    },
+    {
+      "hardware": "intel",
+      "label": "repeated-smoke",
+      "raw": {
+        "file": "R082o-intel-repeated-smoke.json",
+        "sha256": "6331f2c7f0823af00cc2b14d68a5fa45b009584c21cc1839c92ea5e5444f8a21"
+      },
+      "frameP95Ms": 2.204149,
+      "editFrameP95Ms": 4.037359,
+      "editReadbackP95Ms": 16.980991,
+      "fixtureSha256": "97aadcff18317af573a28a7b03129f3f59f926c3ef36de255ae9832f0e36c405",
+      "placements": 25
+    },
+    {
+      "hardware": "intel",
+      "label": "repeated-1000-1",
+      "raw": {
+        "file": "R082o-intel-repeated-1000-1.json",
+        "sha256": "cf3847eadb8d36a696aaf3468720aa55bcdad37a0d58e5cd98d35bf251853829"
+      },
+      "frameP95Ms": 10.273434,
+      "editFrameP95Ms": 24.957107,
+      "editReadbackP95Ms": 41.976415,
+      "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+      "placements": 1000
+    },
+    {
+      "hardware": "intel",
+      "label": "unique-1000-1",
+      "raw": {
+        "file": "R082o-intel-unique-1000-1.json",
+        "sha256": "24b051c1b3bf253331f38d5d9cee16f1b90e80349d38f6d184ec64863c5298a7"
+      },
+      "frameP95Ms": 9.815348,
+      "editFrameP95Ms": 16.132627,
+      "editReadbackP95Ms": 32.711615,
+      "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+      "placements": 1000
+    },
+    {
+      "hardware": "intel",
+      "label": "deep-smoke",
+      "raw": {
+        "file": "R082o-intel-deep-smoke.json",
+        "sha256": "0cbeca8724c2ffa7ebae54c13202d3afda70721cf64b31df262aa8cda2ca4c4e"
+      },
+      "frameP95Ms": 4.08708,
+      "editFrameP95Ms": 7.829867,
+      "editReadbackP95Ms": 16.916413,
+      "fixtureSha256": "078fd5a262581a8d23b02e7e3c0527b6d661eb77c625050fda944dbe73ca55ef",
+      "placements": 25
+    },
+    {
+      "hardware": "intel",
+      "label": "deep-1000-1",
+      "raw": {
+        "file": "R082o-intel-deep-1000-1.json",
+        "sha256": "d33811a1937a06a15b6925b66edd109df8743d5e86beab0018d6bb0cdcc4d6e8"
+      },
+      "frameP95Ms": 10.773904,
+      "editFrameP95Ms": 52.30796,
+      "editReadbackP95Ms": 70.524824,
+      "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+      "placements": 1000
+    },
+    {
+      "hardware": "intel",
+      "label": "far-smoke",
+      "raw": {
+        "file": "R082o-intel-far-smoke.json",
+        "sha256": "9f0f5adc4358cba145de848cf491e6d041de45f5d70160c5098d551571a4ed9a"
+      },
+      "frameP95Ms": 2.5219,
+      "editFrameP95Ms": 3.926637,
+      "editReadbackP95Ms": 16.718241,
+      "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+      "placements": 25
+    },
+    {
+      "hardware": "intel",
+      "label": "far-1000-1",
+      "raw": {
+        "file": "R082o-intel-far-1000-1.json",
+        "sha256": "9bd953ca1e831ac524467bdd92d4fd7dcf7b9d8d03188fce90a28bff12a78ce5"
+      },
+      "frameP95Ms": 10.717907,
+      "editFrameP95Ms": 28.649209,
+      "editReadbackP95Ms": 46.918356,
+      "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+      "placements": 1000
+    },
+    {
+      "hardware": "intel",
+      "label": "textures-smoke",
+      "raw": {
+        "file": "R082o-intel-textures-smoke.json",
+        "sha256": "20ca110799579b3cae60e0230e0d9fda07bca528519ed9b339e26c081f8e7991"
+      },
+      "frameP95Ms": 6.019924,
+      "editFrameP95Ms": 8.419999,
+      "editReadbackP95Ms": 18.578775,
+      "fixtureSha256": "171096beb61bd5290e70faa4d0988894ac514d86764e6517eabf0ddcd6e06e8b",
+      "placements": 25
+    },
+    {
+      "hardware": "intel",
+      "label": "textures-1000-1",
+      "raw": {
+        "file": "R082o-intel-textures-1000-1.json",
+        "sha256": "261768a89c6a96638bb71fcbe20d626385357b0cab2fdaa66d0112cb25b7e464"
+      },
+      "frameP95Ms": 12.593063,
+      "editFrameP95Ms": 42.934624,
+      "editReadbackP95Ms": 61.32729,
+      "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+      "placements": 1000
+    },
+    {
+      "hardware": "amd",
+      "label": "unique-smoke",
+      "raw": {
+        "file": "R082o-amd-unique-smoke.json",
+        "sha256": "1ceb61e225ae9a30b265181f2a93176b2c8fac0481c1f70419c17c1585a35eff"
+      },
+      "frameP95Ms": 0.532762,
+      "editFrameP95Ms": 0.944805,
+      "editReadbackP95Ms": 17.659411,
+      "fixtureSha256": "231d89f28bd86b304e1ba0365551f85879e7fa1306b79adde0f6a8a6dfa3cefa",
+      "placements": 25
+    },
+    {
+      "hardware": "amd",
+      "label": "repeated-smoke",
+      "raw": {
+        "file": "R082o-amd-repeated-smoke.json",
+        "sha256": "a81f85e6f8eb752fb363bb838b92f6285eddbabcdd0f71b8eafc20a703a41a95"
+      },
+      "frameP95Ms": 0.529175,
+      "editFrameP95Ms": 0.977628,
+      "editReadbackP95Ms": 16.823602,
+      "fixtureSha256": "97aadcff18317af573a28a7b03129f3f59f926c3ef36de255ae9832f0e36c405",
+      "placements": 25
+    },
+    {
+      "hardware": "amd",
+      "label": "repeated-1000-1",
+      "raw": {
+        "file": "R082o-amd-repeated-1000-1.json",
+        "sha256": "1b5d8c515f83822d53bd81069033054930363b3281a3c3e057b0401323f46e99"
+      },
+      "frameP95Ms": 2.170363,
+      "editFrameP95Ms": 6.435677,
+      "editReadbackP95Ms": 16.503976,
+      "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d",
+      "placements": 1000
+    },
+    {
+      "hardware": "amd",
+      "label": "unique-1000-1",
+      "raw": {
+        "file": "R082o-amd-unique-1000-1.json",
+        "sha256": "aad5e7175c09c1d0f47b189e8899285a8ba58861a5fa1696309fa434251066fb"
+      },
+      "frameP95Ms": 2.206031,
+      "editFrameP95Ms": 3.77389,
+      "editReadbackP95Ms": 16.498906,
+      "fixtureSha256": "f125cbd838a2f01fc4c98a976b981a78d0f162e31d35ef654f4a4c35dbad6e2d",
+      "placements": 1000
+    },
+    {
+      "hardware": "amd",
+      "label": "deep-smoke",
+      "raw": {
+        "file": "R082o-amd-deep-smoke.json",
+        "sha256": "f268ddaf4a193216bb6ba8be1b379968d52f5a30e81620228130945b4def2172"
+      },
+      "frameP95Ms": 0.560334,
+      "editFrameP95Ms": 1.387415,
+      "editReadbackP95Ms": 16.581784,
+      "fixtureSha256": "078fd5a262581a8d23b02e7e3c0527b6d661eb77c625050fda944dbe73ca55ef",
+      "placements": 25
+    },
+    {
+      "hardware": "amd",
+      "label": "deep-1000-1",
+      "raw": {
+        "file": "R082o-amd-deep-1000-1.json",
+        "sha256": "6f1cd2e4e06a39f2c6eab3c771cc46d3cc7cd697811de36f720ffcfedafad91d"
+      },
+      "frameP95Ms": 2.323364,
+      "editFrameP95Ms": 16.459602,
+      "editReadbackP95Ms": 19.608003,
+      "fixtureSha256": "1045d3f4961af727e6ba99a9408822a67c5dcff870114f1fc54e0ae494989754",
+      "placements": 1000
+    },
+    {
+      "hardware": "amd",
+      "label": "far-smoke",
+      "raw": {
+        "file": "R082o-amd-far-smoke.json",
+        "sha256": "732d4ff3a41bf7f7a7920ad6edf693d1088cff9c4ee811142cc4037fef8f25d3"
+      },
+      "frameP95Ms": 0.527081,
+      "editFrameP95Ms": 1.015439,
+      "editReadbackP95Ms": 16.880802,
+      "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+      "placements": 25
+    },
+    {
+      "hardware": "amd",
+      "label": "far-1000-1",
+      "raw": {
+        "file": "R082o-amd-far-1000-1.json",
+        "sha256": "c7c5862b0d9f518fff4493f630db481a4cfdd10d8a07fd093e70e9e5a4313384"
+      },
+      "frameP95Ms": 2.166436,
+      "editFrameP95Ms": 6.897766,
+      "editReadbackP95Ms": 32.225677,
+      "fixtureSha256": "f1b3ebef3c0479c1ab15689928a4e0325b866cbce06d70eca4a6a70ec5fc91bb",
+      "placements": 1000
+    },
+    {
+      "hardware": "amd",
+      "label": "textures-smoke",
+      "raw": {
+        "file": "R082o-amd-textures-smoke.json",
+        "sha256": "b8f8bc475138e4492da4985a7c5e34d518b355a10db6e315036c888ea84b8bb4"
+      },
+      "frameP95Ms": 0.572578,
+      "editFrameP95Ms": 1.246739,
+      "editReadbackP95Ms": 16.968279,
+      "fixtureSha256": "171096beb61bd5290e70faa4d0988894ac514d86764e6517eabf0ddcd6e06e8b",
+      "placements": 25
+    },
+    {
+      "hardware": "amd",
+      "label": "textures-1000-1",
+      "raw": {
+        "file": "R082o-amd-textures-1000-1.json",
+        "sha256": "b762d090ccd6a29e1dbfdd974a87297e45a2e52f9e77b6cf84ca1955d7258590"
+      },
+      "frameP95Ms": 2.23147,
+      "editFrameP95Ms": 10.258741,
+      "editReadbackP95Ms": 16.257398,
+      "fixtureSha256": "370b777e583aa817345ff5bae0e1e0f6c1b33299066f833178b5fcf8b413d84c",
+      "placements": 1000
+    }
+  ],
+  "hardwareProfiles": {
+    "intel": "Native Wayland, own fullscreen window,8CPUaffinity slots,4GiB/noSwap",
+    "amd": "Native X11,CPU11 only,4GiB/noSwap; Ollama stopped before measurements"
+  },
+  "recordedAt": "2026-10-07T23:18:47.052380+00:00"
+}

@@ -1,0 +1,112 @@
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+could not load cursor 'dnd-move'
+could not load cursor 'dnd-copy'
+could not load cursor 'dnd-none'
+{
+    "bodies": 51,
+    "bodyCacheGpuPayloadBytes": 866400,
+    "bodyCacheVectorCapacityBytes": 2536400,
+    "bodyMeshBuilds": 51,
+    "buildType": "Release",
+    "cacheAccountingScope": "Body geometry vector capacity and GPU vertex payload only; excludes maps, textures, overlays, drivers and allocator overhead. RSS includes the process.",
+    "coordinateOffset": [
+        900000,
+        -900000,
+        900000
+    ],
+    "editAndReadbackP95Ms": 14.133336,
+    "editFrameSamples": 100,
+    "editFrameTimingScope": "From synchronous document mutation through the first complete Viewport::paintGL and glFinish; includes refresh and queued events before that frame, excludes subsequent readback/repaint, input queueing and compositor presentation. The enclosing editAndReadback measurement is retained.",
+    "editToViewportGpuCompleteP95Ms": 10.902459,
+    "finalPeakRssBytes": 630312960,
+    "fixtureBufferScope": "Temporary JSON and canonical byte buffers are released before viewport construction; fixture RSS still includes their peak.",
+    "fixtureBuildMs": 75.925466,
+    "fixturePeakRssBytes": 34664448,
+    "fixtureScenario": "far",
+    "fixtureSha256": "bc4fd17e2476a47ce94a1929e514786a4165e3133b4f00653cad276f7f875794",
+    "fixtureTextureCount": 0,
+    "fixtureTextureHeight": 0,
+    "fixtureTextureRgbaBytes": 0,
+    "fixtureTextureWidth": 0,
+    "fixtureVersion": 2,
+    "frameSamples": 50,
+    "gpuCompleteFrameP95Ms": 7.203812,
+    "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2",
+    "hostFullScreen": false,
+    "hostLogicalHeight": 1080,
+    "hostLogicalWidth": 1920,
+    "inferenceCandidatesMin": 1,
+    "inferenceFinalBodyBuilds": 251,
+    "inferenceInitialBodyBuilds": 51,
+    "inferenceInitialBuildMs": 9.059784,
+    "inferenceIntersectionPairsMax": 378,
+    "inferencePrimitiveCount": 9000,
+    "inferenceQueryP95Ms": 0.244018,
+    "inferenceQuerySamples": 50,
+    "inferenceTimingScope": "Production geometry index, actual viewport camera, 8 logical pixel radius, all editing contexts; excludes worker queueing, editor eligibility policy and displayed feedback. Updates are timed separately after edit/readback.",
+    "inferenceTruncatedQueries": 8,
+    "inferenceUpdateP95Ms": 1.318614,
+    "inferenceUpdateSamples": 100,
+    "inferenceValidatedQueries": 61,
+    "inferenceVisitedPrimitivesMax": 1180,
+    "inferenceWarmupQueries": 10,
+    "initialHistoryBytes": 0,
+    "instances": 25,
+    "kernel": "7.2.5-3-omarchy",
+    "outerGroups": 1,
+    "pickP95Ms": 0.08915,
+    "pixelHeight": 1080,
+    "pixelWidth": 1920,
+    "placements": 25,
+    "platform": "wayland",
+    "qtVersion": "6.11.2",
+    "releaseAcceptance": false,
+    "retainedHistoryBytes": 326500,
+    "scale": 2,
+    "style": {
+        "axesVisible": true,
+        "back": [
+            0.550000011920929,
+            0.6200000047683716,
+            0.6800000071525574
+        ],
+        "background": [
+            0.9411764740943909,
+            0.9450980424880981,
+            0.9254902005195618
+        ],
+        "edge": [
+            0.18000000715255737,
+            0.2199999988079071,
+            0.20000000298023224
+        ],
+        "edgesVisible": true,
+        "front": [
+            0.8199999928474426,
+            0.8399999737739563,
+            0.800000011920929
+        ],
+        "gridVisible": true,
+        "ground": [
+            0.8600000143051147,
+            0.8700000047683716,
+            0.8199999928474426
+        ],
+        "groundHeight": 0,
+        "groundVisible": false,
+        "mode": "textured",
+        "profileWidth": 2,
+        "profiles": false,
+        "xrayOpacity": 0.25
+    },
+    "textureReadyAfterShowMs": 0,
+    "timingScope": "OpenGL scene through glFinish; excludes painter overlays and compositor. Edits include framebuffer readback.",
+    "triangles": 2500,
+    "uploadedBytesCumulative": 6092464,
+    "viewportClippedByHost": false,
+    "viewportGpuCompleteP95Ms": 8.904723,
+    "viewportTimingScope": "Complete Viewport::paintGL including QPainter overlays, followed by glFinish; excludes child widgets, framebuffer readback and compositor presentation. Scene timing retains its separate intermediate glFinish.",
+    "warmupFrames": 10
+}
