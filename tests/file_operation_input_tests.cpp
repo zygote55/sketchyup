@@ -12,6 +12,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
@@ -21,15 +22,79 @@
 #include <QWindow>
 #include <algorithm>
 #include <fcntl.h>
+#include <filesystem>
 #include <iostream>
+#include <optional>
 #include <sys/mman.h>
 #include <unistd.h>
 using namespace sketchy;
 namespace {
+// Set by the modal guard below when a dialog nobody asked for appears. Every later
+// check() then fails with the dialog's text instead of an unrelated symptom.
+std::string unexpectedModal;
 void check(bool value, const char *message) {
+    if (!unexpectedModal.empty())
+        throw std::runtime_error(unexpectedModal);
     if (!value)
         throw std::runtime_error(message);
 }
+// Fails fast and informatively when a modal dialog the test did not drive appears,
+// e.g. the "Save failed" warning, which would otherwise block QDialog::exec() until an
+// external timeout kills the process with no output. The progress popup is always
+// expected; the unsaved-changes prompt only while expectUnsavedPrompt is set.
+class UnexpectedModalGuard {
+  public:
+    bool expectUnsavedPrompt = false;
+    UnexpectedModalGuard() {
+        timer_.setInterval(50);
+        QObject::connect(&timer_, &QTimer::timeout, &timer_, [this] { poll(); });
+        timer_.start();
+    }
+
+  private:
+    void poll() {
+        QWidget *modal = QApplication::activeModalWidget();
+        if (!modal || !unexpectedModal.empty() || modal->objectName() == "fileOperationDialog")
+            return;
+        auto *box = qobject_cast<QMessageBox *>(modal);
+        if (expectUnsavedPrompt && box && box->windowTitle() == "Unsaved changes")
+            return;
+        QStringList text;
+        if (box) {
+            text << box->text() << box->informativeText();
+        } else {
+            for (auto *label : modal->findChildren<QLabel *>())
+                text << label->text();
+        }
+        text.removeAll(QString());
+        unexpectedModal = QString("Unexpected modal %1 titled \"%2\": %3")
+                              .arg(modal->metaObject()->className(), modal->windowTitle(),
+                                   text.join(" | "))
+                              .toStdString();
+        std::cerr << unexpectedModal << '\n';
+        if (auto *dialog = qobject_cast<QDialog *>(modal))
+            dialog->reject(); // Unwind the nested event loop so the test can fail.
+        else
+            modal->close();
+    }
+    QTimer timer_;
+};
+// Test-only fault injection (SKETCHYUP_TEST_INJECT_SAVE_FAILURE=1): make the save
+// directory read-only so publication fails and the app raises its "Save failed" dialog.
+struct ReadOnlyDirectory {
+    explicit ReadOnlyDirectory(const QString &directory) : path_(directory.toStdString()) {
+        namespace fs = std::filesystem;
+        fs::permissions(path_, fs::perms::owner_write | fs::perms::group_write |
+                                   fs::perms::others_write,
+                        fs::perm_options::remove);
+    }
+    ~ReadOnlyDirectory() {
+        namespace fs = std::filesystem;
+        std::error_code ignored;
+        fs::permissions(path_, fs::perms::owner_write, fs::perm_options::add, ignored);
+    }
+    std::string path_;
+};
 QByteArray read(const QString &path) {
     QFile file(path);
     check(file.open(QIODevice::ReadOnly), "Read native fixture");
@@ -113,6 +178,8 @@ int main(int argc, char **argv) {
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
     QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    UnexpectedModalGuard modalGuard;
+    std::optional<ReadOnlyDirectory> readOnlySaveDirectory;
     try {
         check(argc == 1 || argc == 2, "Optional argument is the large native fixture path");
         const auto path = files.filePath("Model.sketchyup");
@@ -217,6 +284,8 @@ int main(int argc, char **argv) {
         auto *save = window.findChild<QAction *>("file.save");
         auto *newFile = window.findChild<QAction *>("file.new");
         check(save && newFile, "Native file actions exist");
+        if (qEnvironmentVariableIntValue("SKETCHYUP_TEST_INJECT_SAVE_FAILURE") == 1)
+            readOnlySaveDirectory.emplace(files.path());
         window.document().move(1, {.5, 0, 0});
         const auto captured = encodeContainer(window.document());
         bool savePulse = false;
@@ -254,7 +323,9 @@ int main(int argc, char **argv) {
         });
         chooseSave.start(10);
         std::cerr << "File worker fixture: save-before-replace started\n";
+        modalGuard.expectUnsavedPrompt = true;
         newFile->trigger();
+        modalGuard.expectUnsavedPrompt = false;
         std::cerr << "File worker fixture: save-before-replace finished\n";
         chooseSave.stop();
         check(choiceHandled && lateEdit && window.document().identity() == session &&
