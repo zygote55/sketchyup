@@ -1,5 +1,6 @@
 #include "io/native_format.hpp"
 #include "io/document_io.hpp"
+#include "io/native_limits.hpp"
 #include "io/new_file.hpp"
 #include <QCryptographicHash>
 #include <QDir>
@@ -15,7 +16,7 @@
 #include <unistd.h>
 namespace sketchy {
 namespace {
-constexpr qint64 fileLimit = 128LL * 1024 * 1024;
+constexpr qint64 fileLimit = NativeLimits::fileBytes;
 QString hash(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
 }

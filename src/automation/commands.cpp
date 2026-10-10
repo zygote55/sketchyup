@@ -17,6 +17,7 @@
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
+#include "core/document_limits.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/face_orientation.hpp"
 #include "core/groups.hpp"
@@ -34,6 +35,7 @@
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
 #include "io/model_style_io.hpp"
+#include "io/native_limits.hpp"
 #include "io/solar_io.hpp"
 #include <QString>
 #include <algorithm>
@@ -220,18 +222,18 @@ QJsonObject capabilities() {
                      {"precondition", "document identity and expected content revision"},
                      {"idempotency", "Durable retries require the transaction dispatcher; legacy "
                                      "batch execution is local only"}}},
-        {"limits", QJsonObject{{"fileBytes", 128 * 1024 * 1024},
-                               {"nativeContainerBytes", 16 + 97 * 1024 * 1024},
+        {"limits", QJsonObject{{"fileBytes", int(NativeLimits::fileBytes)},
+                               {"nativeContainerBytes", int(NativeLimits::containerBytes)},
                                {"assetBytes", int(AssetPayload::limit)},
                                {"totalAssetBytes", int(assetTotalLimit)},
                                {"assets", 1024},
-                               {"documentBytes", 128 * 1024 * 1024},
-                               {"packagedModelBytes", 32 * 1024 * 1024},
-                               {"bodies", 10000},
+                               {"documentBytes", int(NativeLimits::fileBytes)},
+                               {"packagedModelBytes", int(NativeLimits::modelBytes)},
+                               {"bodies", int(DocumentLimits::bodies)},
                                {"componentDefinitions", 1024},
                                {"materials", 1024},
-                               {"vertices", 100000},
-                               {"guides", 10000},
+                               {"vertices", int(DocumentLimits::vertices)},
+                               {"guides", int(DocumentLimits::guides)},
                                {"guidesPerContext", 1024},
                                {"batchCommands", 100},
                                {"tagsAndFolders", 1024},

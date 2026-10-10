@@ -1,5 +1,6 @@
 #include "automation/scene_commands.hpp"
 #include "automation/solar_commands.hpp"
+#include "core/document_limits.hpp"
 #include "io/scenes_io.hpp"
 #include <QJsonArray>
 namespace sketchy {
@@ -74,7 +75,7 @@ QJsonObject savedSceneSnapshotSchema(const QJsonObject &styleSchema) {
          {"entity", identity}});
     auto hidden = list(QJsonObject{{"oneOf", QJsonArray{body, entity}}}, 0, 50000);
     hidden["uniqueItems"] = true;
-    const auto visibility = object({{"bodies", list(visible, 0, 10000)},
+    const auto visibility = object({{"bodies", list(visible, 0, int(DocumentLimits::bodies))},
                                     {"tags", list(visible, 0, 1024)},
                                     {"hidden", hidden},
                                     {"showHidden", flag}});
