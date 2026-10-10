@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
         // Inspect an actually exposed popup before releasing this separate worker.
         // A fixed sleep can end before a busy compositor delivers the inspection.
         // This operation is outside every measured file sample.
-        bool shownModal = false, cancellationRejected = false;
+        bool progressInspected = false, shownModal = false, cancellationRejected = false;
         bool qtProgressActive = false, nativeProgressFocused = false;
         auto releaseWorker = std::make_shared<std::promise<void>>();
         const auto workerReady = releaseWorker->get_future().share();
@@ -243,6 +243,7 @@ int main(int argc, char **argv) {
                 !progress->windowHandle()->isExposed())
                 return;
             inspectProgress.stop();
+            progressInspected = true;
             shownModal = progress->isVisible() &&
                          progress->property("fileOperationActive").toBool() &&
                          progress->windowModality() == Qt::ApplicationModal &&
@@ -257,9 +258,12 @@ int main(int argc, char **argv) {
         });
         inspectProgress.start();
         runFileOperation(&window, "Progress lifecycle", [workerReady] {
-            workerReady.wait_for(std::chrono::seconds(2)); // Bound a missing-popup fixture failure.
+            // Bound a missing-popup fixture failure; a sanitized busy compositor can take
+            // over two seconds to expose the popup, which then releases the worker early.
+            workerReady.wait_for(std::chrono::seconds(10));
         });
         inspectProgress.stop();
+        check(progressInspected, "File progress was exposed for inspection within 10 s");
         check(shownModal, "Shown file progress preserves application modality");
         // Activation hints are platform policy. Record both observations separately;
         // original responsiveness, modality, cancellation and completion checks remain.
