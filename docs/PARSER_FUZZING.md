@@ -30,6 +30,13 @@ TMPDIR="$PWD/build/fuzz-scratch" ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 \
   -detect_leaks=1 -print_final_stats=1 -artifact_prefix=build/fuzz-artifacts/
 ```
 
+With Qt 6.11.2, the six JSON-based targets (native JSON/container, GLB, template,
+component and extension) stop on their first valid seed with an ASan
+alloc-dealloc mismatch reported entirely inside `QJsonDocument::fromJson`. A
+libFuzzer program that links only Qt reproduces it; plain ASan does not. Run those
+targets with `alloc_dealloc_mismatch=0` added to `ASAN_OPTIONS` and record that
+option with the results. See [R083.e](verification/R083e-parser-fuzzing.md).
+
 The harness caps generated inputs at 1 MiB. This is a campaign bound; the
 production file limits remain covered by separate boundary tests. Expected
 validation exceptions count as parser rejection. Allocation failure, crashes,
