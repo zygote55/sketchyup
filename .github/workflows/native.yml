@@ -109,6 +109,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_outliner_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/shortcut_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/measured_input_tests
@@ -129,6 +130,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_outliner_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/shortcut_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/measured_input_tests
@@ -266,6 +268,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_outliner_input_tests
           SKETCHYUP_TEST_SCALE=1 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-1.json
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/theme_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/visible_focus_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/text_size_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/shortcut_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/measured_input_tests
@@ -287,6 +290,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_outliner_input_tests
           SKETCHYUP_TEST_SCALE=2 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-2.json
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/theme_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/visible_focus_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/text_size_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/shortcut_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/measured_input_tests
