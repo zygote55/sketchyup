@@ -11,6 +11,8 @@
 #include <deque>
 #include <functional>
 #include <optional>
+#include <set>
+#include <stdexcept>
 namespace sketchy {
 struct Change {
     Id id;
@@ -99,6 +101,15 @@ struct Edit {
     std::optional<std::pair<SolarSettings, SolarSettings>> solar{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
+// Running materialized-record totals compared with DocumentLimits.
+struct DocumentTotals {
+    size_t records{}, vertices{}, faces{}, wires{}, edges{}, curves{}, guides{};
+    bool operator==(const DocumentTotals &) const = default;
+};
+// Raised only by the test/debug full-validation oracle; never by ordinary validation.
+struct ValidationOracleMismatch : std::logic_error {
+    using std::logic_error::logic_error;
+};
 class Document {
     struct State {};
     using StatePtr = std::shared_ptr<const State>;
@@ -151,6 +162,19 @@ class Document {
     const AnnotationRecords &annotations() const { return annotations_; }
     Id nextAnnotationId() const { return nextAnnotationId_; }
     std::uint64_t revision() const { return revision_; }
+    // Maintained incrementally by apply, undo/redo, amendment and restore.
+    const DocumentTotals &materializedTotals() const { return totals_; }
+    // Test/debug switch (default off, or SKETCHYUP_FULL_VALIDATION_ORACLE=1). When on,
+    // every apply also runs the full-document validator on a private copy, and apply,
+    // undo and redo recount all incremental bookkeeping; any disagreement in the
+    // accept/reject decision, error text, report or resulting state throws
+    // ValidationOracleMismatch.
+    static void setFullValidationOracle(bool enabled);
+    static bool fullValidationOracle();
+    // Process-wide count of edits that chose the incremental scheme (diagnostics/tests).
+    static size_t incrementalValidationCount();
+    // Recount totals and every incremental index; throws ValidationOracleMismatch.
+    void verifyIncrementalState() const;
     Id nextId() const { return nextId_; }
     const std::string &identity() const { return identity_; }
     bool dirty() const { return state_ != savedState_; }
@@ -285,6 +309,17 @@ class Document {
     std::deque<History> undo_, redo_;
     size_t historyBytes_{};
     bool historyPruned_{};
+    // Incremental bookkeeping. Invariants (checked by verifyIncrementalState):
+    // totals_ sums bodies_; lockedBodies_ is the set of locked body IDs;
+    // detachedFloors_ is the set of allocator-floor keys without a live body;
+    // historyRefs_ counts undo_ entries whose body changes name each ID.
+    DocumentTotals totals_;
+    std::set<Id> lockedBodies_, detachedFloors_;
+    std::map<Id, size_t> historyRefs_;
+    void addHistoryRefs(const Edit &edit);
+    void removeHistoryRefs(const Edit &edit) noexcept;
+    std::string stateMismatch(const Document &other) const;
+    ChangeReport applyEdit(Edit edit, std::uint64_t expectedRevision, bool fullValidation);
     void update(Edit edit, bool forward);
 };
 } // namespace sketchy

@@ -1,0 +1,11 @@
+{
+  "instances": 1000,
+  "bodies": 2000,
+  "vertices": 52000,
+  "limitScale": 1,
+  "constructionMs": 1067.89,
+  "checkpoints": [{"instances": 1000, "cumulativeMs": 1067.848400}],
+  "documentDigest": "cd2e24f5916f5640",
+  "timingScope": "Public face/extrude/component creation and placement only",
+  "releaseAcceptance": false
+}
