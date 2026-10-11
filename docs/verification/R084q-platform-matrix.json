@@ -1,0 +1,699 @@
+{
+  "date": "2026-10-10",
+  "mergedMain": "c04aea04",
+  "environment": "sketchyup-native-fonts-check:20261008 container, Qt 6.11.2, Xvfb and headless Weston, software GL, host-built binaries",
+  "cases": [
+    {
+      "test": "visible_focus_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 14,
+      "passes": true
+    },
+    {
+      "test": "visible_focus_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 15,
+      "passes": true
+    },
+    {
+      "test": "visible_focus_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 25,
+      "passes": true
+    },
+    {
+      "test": "visible_focus_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 32,
+      "passes": true
+    },
+    {
+      "test": "theme_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "theme_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 1,
+      "passes": true
+    },
+    {
+      "test": "theme_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "theme_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 2,
+      "passes": true
+    },
+    {
+      "test": "text_size_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "text_size_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 3,
+      "passes": true
+    },
+    {
+      "test": "text_size_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 8,
+      "passes": true
+    },
+    {
+      "test": "text_size_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "interaction_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "interaction_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 2,
+      "passes": true
+    },
+    {
+      "test": "interaction_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "interaction_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 3,
+      "passes": true
+    },
+    {
+      "test": "keyboard_outliner_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "keyboard_outliner_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 2,
+      "passes": true
+    },
+    {
+      "test": "keyboard_outliner_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "keyboard_outliner_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "keyboard_modeling_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "keyboard_modeling_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 1,
+      "passes": true
+    },
+    {
+      "test": "keyboard_modeling_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "keyboard_modeling_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 3,
+      "passes": true
+    },
+    {
+      "test": "shortcut_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "shortcut_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "shortcut_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "shortcut_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 7,
+      "passes": true
+    },
+    {
+      "test": "preference_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "preference_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 2,
+      "passes": true
+    },
+    {
+      "test": "preference_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "preference_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 3,
+      "passes": true
+    },
+    {
+      "test": "style_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "style_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 1,
+      "passes": true
+    },
+    {
+      "test": "style_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "style_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "solar_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 8,
+      "passes": true
+    },
+    {
+      "test": "solar_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "solar_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 9,
+      "passes": true
+    },
+    {
+      "test": "solar_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 13,
+      "passes": true
+    },
+    {
+      "test": "scene_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "scene_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 3,
+      "passes": true
+    },
+    {
+      "test": "scene_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "scene_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "organization_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "organization_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 2,
+      "passes": true
+    },
+    {
+      "test": "organization_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "organization_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "entity_info_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "entity_info_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 2,
+      "passes": true
+    },
+    {
+      "test": "entity_info_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "entity_info_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 3,
+      "passes": true
+    },
+    {
+      "test": "material_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "material_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 3,
+      "passes": true
+    },
+    {
+      "test": "material_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "material_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 6,
+      "passes": true
+    },
+    {
+      "test": "annotation_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "annotation_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 2,
+      "passes": true
+    },
+    {
+      "test": "annotation_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "annotation_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "assistant_panel_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 8,
+      "passes": true
+    },
+    {
+      "test": "assistant_panel_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "assistant_panel_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 9,
+      "passes": true
+    },
+    {
+      "test": "assistant_panel_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 13,
+      "passes": true
+    },
+    {
+      "test": "section_input_tests",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "section_input_tests",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 1,
+      "passes": true
+    },
+    {
+      "test": "section_input_tests",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 5,
+      "passes": true
+    },
+    {
+      "test": "section_input_tests",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 3,
+      "passes": true
+    },
+    {
+      "test": "native_accessibility_audit",
+      "backend": "x11",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 7,
+      "passes": true
+    },
+    {
+      "test": "native_accessibility_audit",
+      "backend": "wayland",
+      "scale": 1,
+      "exitCode": 0,
+      "seconds": 4,
+      "passes": true
+    },
+    {
+      "test": "native_accessibility_audit",
+      "backend": "x11",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 7,
+      "passes": true
+    },
+    {
+      "test": "native_accessibility_audit",
+      "backend": "wayland",
+      "scale": 2,
+      "exitCode": 0,
+      "seconds": 8,
+      "passes": true
+    }
+  ],
+  "passes": true,
+  "focusReports": {
+    "x11-1": {
+      "measuredControls": 421,
+      "skippedClippedControls": 14,
+      "failures": 0,
+      "minimumContrastOutside": 4.648,
+      "minimumContrastInside": 3.926,
+      "coveredClasses": [
+        "QCheckBox",
+        "QComboBox",
+        "QDateEdit",
+        "QDoubleSpinBox",
+        "QKeySequenceEdit",
+        "QLabel",
+        "QLineEdit",
+        "QListWidget",
+        "QPlainTextEdit",
+        "QPushButton",
+        "QScrollArea",
+        "QSpinBox",
+        "QTabBar",
+        "QTimeEdit",
+        "QToolBar",
+        "QToolButton",
+        "QTreeWidget",
+        "sketchy::AssistantPanel",
+        "sketchy::Viewport"
+      ]
+    },
+    "x11-2": {
+      "measuredControls": 421,
+      "skippedClippedControls": 14,
+      "failures": 0,
+      "minimumContrastOutside": 4.648,
+      "minimumContrastInside": 3.926,
+      "coveredClasses": [
+        "QCheckBox",
+        "QComboBox",
+        "QDateEdit",
+        "QDoubleSpinBox",
+        "QKeySequenceEdit",
+        "QLabel",
+        "QLineEdit",
+        "QListWidget",
+        "QPlainTextEdit",
+        "QPushButton",
+        "QScrollArea",
+        "QSpinBox",
+        "QTabBar",
+        "QTimeEdit",
+        "QToolBar",
+        "QToolButton",
+        "QTreeWidget",
+        "sketchy::AssistantPanel",
+        "sketchy::Viewport"
+      ]
+    },
+    "wayland-1": {
+      "measuredControls": 421,
+      "skippedClippedControls": 14,
+      "failures": 0,
+      "minimumContrastOutside": 4.648,
+      "minimumContrastInside": 3.926,
+      "coveredClasses": [
+        "QCheckBox",
+        "QComboBox",
+        "QDateEdit",
+        "QDoubleSpinBox",
+        "QKeySequenceEdit",
+        "QLabel",
+        "QLineEdit",
+        "QListWidget",
+        "QPlainTextEdit",
+        "QPushButton",
+        "QScrollArea",
+        "QSpinBox",
+        "QTabBar",
+        "QTimeEdit",
+        "QToolBar",
+        "QToolButton",
+        "QTreeWidget",
+        "sketchy::AssistantPanel",
+        "sketchy::Viewport"
+      ]
+    },
+    "wayland-2": {
+      "measuredControls": 421,
+      "skippedClippedControls": 14,
+      "failures": 0,
+      "minimumContrastOutside": 4.648,
+      "minimumContrastInside": 3.926,
+      "coveredClasses": [
+        "QCheckBox",
+        "QComboBox",
+        "QDateEdit",
+        "QDoubleSpinBox",
+        "QKeySequenceEdit",
+        "QLabel",
+        "QLineEdit",
+        "QListWidget",
+        "QPlainTextEdit",
+        "QPushButton",
+        "QScrollArea",
+        "QSpinBox",
+        "QTabBar",
+        "QTimeEdit",
+        "QToolBar",
+        "QToolButton",
+        "QTreeWidget",
+        "sketchy::AssistantPanel",
+        "sketchy::Viewport"
+      ]
+    }
+  },
+  "releaseAcceptance": false
+}
