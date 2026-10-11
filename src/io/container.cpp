@@ -114,7 +114,7 @@ QByteArray encodeContainer(const Document &doc) {
                                   {"chunks", chunks}})
             .toJson(QJsonDocument::Compact);
     if (manifest.size() > manifestLimit)
-        throw std::runtime_error("Container manifest exceeds 1 MiB");
+        throw std::runtime_error("Container manifest exceeds 4 MiB");
     QByteArray header(16, '\0');
     header.replace(0, magic.size(), magic);
     qToLittleEndian<quint32>(nativeContainerVersion, header.data() + 8);

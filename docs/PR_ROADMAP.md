@@ -1197,6 +1197,8 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 [Instanced component storage](verification/R082cc-instanced-storage.md) (schema 26) stops writing projected placement members, shrinking the 1,000-placement benchmark model from 6,975,154 to 538,261 JSON bytes with exact v24 and v25 migration; in-memory expansion, viewport, inference and limits follow in R082.dd–gg.
 
+[Public placement limits](verification/R082gg-placement-limits.md) split unique geometry (unchanged values) from 20,000 placements and materialized totals (40,000 bodies, 600,000 vertices), so the 10,000-placement, million-triangle fixture is public; [R082.w v2](verification/R082w-memory-budget-v2.md) adds a 1.25 GiB supported 1M class from software measurements, pending Intel/AMD reruns, and limit rejections now name the limit, values and entity.
+
 **Requires:** [R081](#r081), [R072](#r072); milestone gate rule above.
 
 **Build:** Profile and optimize incremental meshes, spatial indexing, instancing, selection and history against fixed benchmark fixtures. Preserve public behavior and record cache/history memory separately.

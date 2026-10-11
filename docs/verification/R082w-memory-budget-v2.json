@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 2,
+  "supersedes": "R082w-memory-budget-v1.json",
+  "frozenAt": "2026-10-11T16:58:39+00:00",
+  "acceptanceStatus": "prospective-only",
+  "priorEvidenceAccepted": false,
+  "publicModelLimitsChanged": true,
+  "releaseAccepted": false,
+  "hardwareAccepted": false,
+  "calibrationSource": "Software llvmpipe, Release, xcb, one CPU and 4 GiB in sketchyup-native-fonts-check:20261008 (R082gg-placement-limits.md). Not hardware evidence.",
+  "hardwareRequirement": "Fresh Intel and AMD reruns per docs/M9_HARDWARE_SESSION.md section 1 are required before any ceiling below is accepted.",
+  "measurementPolicy": "Fresh forward runs only; exact artifact/source/canonical fixture identities, separate Intel and AMD reports, actual framebuffer 1920x1080, unchanged five-cycle fixture, all ordinary timing/oracle requirements preserved. No retrospective pass is assigned.",
+  "publicLimits": {
+    "uniqueGeometry": {"bodies": 10000, "vertices": 100000, "faces": 100000, "wires": 100000, "edges": 300000, "curves": 10000, "guides": 10000},
+    "placements": 20000,
+    "materialized": {"bodies": 40000, "vertices": 600000, "faces": 600000, "wires": 600000, "edges": 900000, "curves": 40000, "guides": 40000}
+  },
+  "limits": {
+    "supported100kPeakRssBytes": 1073741824,
+    "supported1mPeakRssBytes": 1342177280,
+    "modeledWorstCaseAtLimitsPeakRssBytes": 3221225472,
+    "drmResidentUpperBoundBytes": 2147483648,
+    "sampledResidentGrowthBytes": 67108864,
+    "retainedHistoryBytes": 67108864
+  },
+  "classes": {
+    "supported100k": ["repeated", "unique", "deep", "far", "textures"],
+    "supported1m": ["repeated", "deep", "textures"],
+    "excludedFrom1m": {"far": "Far at 10,000 placements not yet measured. The earlier 'Inference probe intersects rendered geometry' failure from 1,200 placements was a fixture defect (the history loop detached the edited placement from its group), fixed in R082.hh; the product is unaffected."},
+    "modeledWorstCaseControl": "repeated 10,000 placements with SKETCHYUP_BENCHMARK_PLACEMENT_SHARING=0 (every placement draws its own world-space mesh)"
+  },
+  "calibration": {
+    "supported100kMeasuredPeakRssBytes": {"repeated": 288276480, "unique": 560132096, "deep": 297476096, "far": 294277120, "textures": 561713152},
+    "supported1mMeasuredPeakRssBytes": {"repeated5Cycles": 613515264, "deep1Cycle": 624054272, "textures1Cycle": 883724288},
+    "sharingOffControl10kPeakRssBytes": 1928605696,
+    "repeated10kSampledResidentGrowthBytes": 6627328,
+    "repeated10kRetainedHistoryBytes": 1636500,
+    "modeledWorstCaseBytes": 2865235152,
+    "modeledWorstCaseArithmetic": "288,276,480 base (1,000 shared placements) + 19,000 x 36,138 B per further placement (686.6 MB, larger than 40,000 bodies x 10.3 KB) + 600,000 x 2,542 B unshared viewport per materialized vertex (1,525.2 MB) + 100,000 x 917 B unique inference (91.7 MB) + 273,436,672 B maximum texture fixture = 2,865,235,152 B (2.67 GiB); core vertices are counted twice, so the bound is conservative."
+  },
+  "sampledGrowthPolicy": "Maximum current RSS minus first current RSS across 65 checkpoints after fixture warmup. Five identical edit/undo/redo cycles; no fixture or iteration reduction. This finite campaign cannot establish infinite-session boundedness.",
+  "driverPolicy": "Unchanged from v1: require available=true, partial=false and a numeric residentUpperBoundBytes at warmup, final and every checkpoint on physical Intel/AMD. Never add DRM categories or their resident bound to process RSS.",
+  "rationale": "R082.gg makes the 10,000-placement, million-triangle fixture public. With shared placement meshes (R082.dd), schema 26 storage (R082.cc), single-member inference (R082.ee) and incremental placement validation (R082.ff), its software peak RSS falls from the v1 experimental class to 614-884 MB, so it joins the supported class at 1.25 GiB, 52% above the largest measured family. The 100k ceiling stays at 1 GiB. The 3 GiB modeled ceiling bounds the worst-case document at the new limits on the unshared viewport path (for example an active section through every placement) and stays below the operational 4 GiB job cap. Ceilings come from software measurements; hardware RSS was about 150 MB higher at 1,000 placements in v1, and acceptance needs Intel/AMD reruns."
+}

@@ -8,7 +8,7 @@ struct NativeLimits {
     static constexpr std::size_t fileBytes = 128 * 1024 * 1024;
     static constexpr std::size_t modelBytes = 32 * 1024 * 1024;
     static constexpr std::size_t legacyModelBytes = 32 * 1024 * 1024;
-    static constexpr std::size_t manifestBytes = 1024 * 1024;
+    static constexpr std::size_t manifestBytes = 4 * 1024 * 1024;
     static constexpr std::size_t containerBytes = 16 + manifestBytes + modelBytes + assetTotalLimit;
 };
 static_assert(NativeLimits::containerBytes <= NativeLimits::fileBytes);

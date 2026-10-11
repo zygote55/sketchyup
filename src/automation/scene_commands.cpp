@@ -75,7 +75,7 @@ QJsonObject savedSceneSnapshotSchema(const QJsonObject &styleSchema) {
          {"entity", identity}});
     auto hidden = list(QJsonObject{{"oneOf", QJsonArray{body, entity}}}, 0, 50000);
     hidden["uniqueItems"] = true;
-    const auto visibility = object({{"bodies", list(visible, 0, int(DocumentLimits::bodies))},
+    const auto visibility = object({{"bodies", list(visible, 0, int(DocumentLimits::materialized.bodies))},
                                     {"tags", list(visible, 0, 1024)},
                                     {"hidden", hidden},
                                     {"showHidden", flag}});

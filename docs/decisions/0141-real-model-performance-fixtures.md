@@ -157,3 +157,18 @@ editing limits or retrospectively accept earlier experimental measurements.
 Fresh source-bound integrated and discrete hardware reports, original timing
 oracles and the larger public fixture remain required. A finite five-cycle sample
 does not establish bounded growth over an unlimited editing session.
+
+## Public million-triangle fixture (R082.gg)
+
+The 10,000-placement fixture now fits the public document limits, which split
+unique geometry from placement records ([ADR 0005](0005-document-protocol.md)).
+It uses 10,000 of 20,000 placements, 20,000 of 40,000 materialized bodies,
+520,000 of 600,000 vertices and 780,000 of 900,000 edges; its definition counts
+once toward unique geometry. `real_model_benchmark` runs it without a private
+sizing build. Software measurements and the modeled worst case set the
+[R082.w v2 budget](../verification/R082w-memory-budget-v2.md): the repeated, deep
+and textures families join the supported class at 1.25 GiB. The far family is
+excluded from that claim because far at 10,000 placements is not yet measured; its
+earlier failure was a fixture defect fixed in R082.hh, which also makes earlier
+deep and far edit and inference-update timings incomparable. Hardware reruns remain required for acceptance.
+[Evidence](../verification/R082gg-placement-limits.md).
