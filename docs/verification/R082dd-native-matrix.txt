@@ -1,0 +1,454 @@
+R082.dd native and sanitizer checks (container sketchyup-native-fonts-check:20261008, one CPU, 4 GiB, llvmpipe, Debug).
+Exact native.yml xvfb/test-wayland.sh invocations; runner scripts were build/r082dd/*.sh.
+
+== Merged tree (52097a22 + origin/main c04aea04): X11 matrix 1x/2x, placement A/B, Wayland-2 reruns, benchmarks, ASan/UBSan
+viewport_tests X11-1 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+viewport_tests X11-2 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+viewport_precision_tests X11-1 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 1
+viewport_precision_tests X11-2 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 2
+material_viewport_tests X11-1 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=1
+material_viewport_tests X11-2 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2
+texture_viewport_tests X11-1 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+texture_viewport_tests X11-2 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+section_viewport_tests X11-1 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+section_viewport_tests X11-2 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+style_viewport_tests X11-1 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071,0.2
+style_viewport_tests X11-2 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071,0.2
+smooth_viewport_tests X11-1 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=1
+smooth_viewport_tests X11-2 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=2
+annotation_viewport_tests X11-1 exit 0: Native annotation graphics, units, broken states, visibility and Undo passed
+annotation_viewport_tests X11-2 exit 0: Native annotation graphics, units, broken states, visibility and Undo passed
+selection_input_tests X11-1 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+selection_input_tests X11-2 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+component_input_tests X11-1 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=1
+component_input_tests X11-2 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=2
+group_input_tests X11-1 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=1
+group_input_tests X11-2 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=2
+solar_input_tests X11-1 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+solar_input_tests X11-2 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+section_input_tests X11-1 exit 0: Native section authoring, context, precise units, history, stale drafts and persistence passed
+section_input_tests X11-2 exit 0: Native section authoring, context, precise units, history, stale drafts and persistence passed
+style_input_tests X11-1 exit 0: Native styles, history, precise units, color chooser, cancellation and stale edits passed
+style_input_tests X11-2 exit 0: Native styles, history, precise units, color chooser, cancellation and stale edits passed
+material_input_tests X11-1 exit 0: Native swatches, retained errors, precision, side assignment, paint/sample, shared scope, assets, undo and stale guards passed; DPR=1
+material_input_tests X11-2 exit 0: Native swatches, retained errors, precision, side assignment, paint/sample, shared scope, assets, undo and stale guards passed; DPR=2
+texture_input_tests X11-1 exit 0: Native texture units, mirror, rotation, shear, scopes, reset, precision, history and stale guards passed; DPR=1
+texture_input_tests X11-2 exit 0: Native texture units, mirror, rotation, shear, scopes, reset, precision, history and stale guards passed; DPR=2
+edge_input_tests X11-1 exit 0: Native edge actions, dashed reveal, picking/inference, Undo, reopen and shared scope passed; DPR=1
+edge_input_tests X11-2 exit 0: Native edge actions, dashed reveal, picking/inference, Undo, reopen and shared scope passed; DPR=2
+hosted_input_tests X11-1 exit 0: Native glue, private attachment preview, exact amendment, mirrored placement, bind/detach/bake, Undo and locks passed; DPR 1
+hosted_input_tests X11-2 exit 0: Native glue, private attachment preview, exact amendment, mirrored placement, bind/detach/bake, Undo and locks passed; DPR 2
+hosted_array_input_tests X11-1 exit 0: Native attached Ctrl-copy, xN/divisions, exact spacing, private preview, one Undo, persistence and indirect editor locks passed; DPR 1
+hosted_array_input_tests X11-2 exit 0: Native attached Ctrl-copy, xN/divisions, exact spacing, private preview, one Undo, persistence and indirect editor locks passed; DPR 2
+diagnostics_input_tests X11-1 exit 0: Native diagnostic findings, selection/frame, explicit repairs, Undo and staleness passed; DPR 1
+diagnostics_input_tests X11-2 exit 0: Native diagnostic findings, selection/frame, explicit repairs, Undo and staleness passed; DPR 2
+organization_input_tests X11-1 exit 0: Native hierarchy, search, selection, keyboard/pointer metadata, tags, visibility, shared scope and persistence passed; DPR=1
+organization_input_tests X11-2 exit 0: Native hierarchy, search, selection, keyboard/pointer metadata, tags, visibility, shared scope and persistence passed; DPR=2
+entity_info_input_tests X11-1 exit 0: Native entity frames, metric/imperial/locale edits, atomic undo, retained errors, shared scope and diagnostics passed; DPR=1
+entity_info_input_tests X11-2 exit 0: Native entity frames, metric/imperial/locale edits, atomic undo, retained errors, shared scope and diagnostics passed; DPR=2
+reference_image_input_tests X11-1 exit 0: Reference image native display, picking, import, calibration and persistence passed
+reference_image_input_tests X11-2 exit 0: Reference image native display, picking, import, calibration and persistence passed
+raster_export_input_tests X11-1 exit 0: Exact raster dimensions, fresh rendering, annotations, clipping, state preservation and atomic publication passed
+raster_export_input_tests X11-2 exit 0: Exact raster dimensions, fresh rendering, annotations, clipping, state preservation and atomic publication passed
+measured_input_tests X11-1 exit 0: Measured native workflow: physical raster scale, source/view restoration, vectors, annotations, cancel and nonreplacement passed
+measured_input_tests X11-2 exit 0: Measured native workflow: physical raster scale, source/view restoration, vectors, annotations, cancel and nonreplacement passed
+transform_input_tests X11-1 exit 0: Native move/rotate/scale/flip, pivots, copy amendment, local axes, pointer parity, cancel and lock guards passed; DPR=1
+transform_input_tests X11-2 exit 0: Native move/rotate/scale/flip, pivots, copy amendment, local axes, pointer parity, cancel and lock guards passed; DPR=2
+navigation_input_tests X11-1 exit 0: Camera presets, FOV, trackpad/native gestures, anchored tools, world push/pull, repeat, retained faces and tilted measured room passed; DPR=1
+navigation_input_tests X11-2 exit 0: Camera presets, FOV, trackpad/native gestures, anchored tools, world push/pull, repeat, retained faces and tilted measured room passed; DPR=2
+interaction_tests X11-1 exit 0: {"checks":"draw, numeric input, picking, extrusion, undo/redo, text focus, cancel, circle, camera, measurements","height":600,"passed":true,"platform":"xcb","scale":1,"width":640}
+interaction_tests X11-2 exit 0: {"checks":"draw, numeric input, picking, extrusion, undo/redo, text focus, cancel, circle, camera, measurements","height":600,"passed":true,"platform":"xcb","scale":2,"width":640}
+m4_workflow_tests X11-1 exit 0: M4 measured room, two openings, shared/unique nested windows, History, save/reopen, killed-writer recovery and canceled close passed; DPR=1
+m4_workflow_tests X11-2 exit 0: M4 measured room, two openings, shared/unique nested windows, History, save/reopen, killed-writer recovery and canceled close passed; DPR=2
+library_input_tests X11-1 exit 0: Native library: templates, default camera, keyboard search/insertion, undo, errors, save and source preservation passed
+library_input_tests X11-2 exit 0: Native library: templates, default camera, keyboard search/insertion, undo, errors, save and source preservation passed
+array_input_tests X11-1 exit 0: Native linear/radial xN and /N arrays, exact spacing/counts, multi-turn sweep, selection and guarded one-step amendment passed; DPR=1
+array_input_tests X11-2 exit 0: Native linear/radial xN and /N arrays, exact spacing/counts, multi-turn sweep, selection and guarded one-step amendment passed; DPR=2
+intersection_input_tests X11-1 exit 0: Native intersection modes, selection, visible preview/cancel, orbit/apply, stale/no-op, undo/persistence and component references passed
+intersection_input_tests X11-2 exit 0: Native intersection modes, selection, visible preview/cancel, orbit/apply, stale/no-op, undo/persistence and component references passed
+boolean_input_tests X11-1 exit 0: Native Union/Subtract/Intersect/Trim/Split/Outer Shell, target swap, retention, preview/cancel, orbit/apply, stale/invalid/empty, Undo/persistence and shared components passed
+boolean_input_tests X11-2 exit 0: Native Union/Subtract/Intersect/Trim/Split/Outer Shell, target swap, retention, preview/cancel, orbit/apply, stale/invalid/empty, Undo/persistence and shared components passed
+sweep_input_tests X11-1 exit 0: Native Follow Me selection, preview/cancel, orbit/apply, undo/persistence, curved/closed paths and rejection passed
+sweep_input_tests X11-2 exit 0: Native Follow Me selection, preview/cancel, orbit/apply, undo/persistence, curved/closed paths and rejection passed
+orientation_input_tests X11-1 exit 0: Native orientation arrows, physical front/back pixels, reflection, preview/orbit/cancel/apply, stale/no-change, Undo/persistence and shared scope passed
+orientation_input_tests X11-2 exit 0: Native orientation arrows, physical front/back pixels, reflection, preview/orbit/cancel/apply, stale/no-change, Undo/persistence and shared scope passed
+offset_input_tests X11-1 exit 0: Native Offset shortcut, preview/cancel, exact numeric amendment, stale guards, Undo/Redo and drag passed
+offset_input_tests X11-2 exit 0: Native Offset shortcut, preview/cancel, exact numeric amendment, stale guards, Undo/Redo and drag passed
+scene_input_tests X11-1 exit 0: Native scenes: selective capture/recall, tab keyboard/reclick, rename/update, Undo/save, missing refs and reduced-motion transitions passed
+scene_input_tests X11-2 exit 0: Native scenes: selective capture/recall, tab keyboard/reclick, rename/update, Undo/save, missing refs and reduced-motion transitions passed
+assistant_preview_tests X11-1 exit 0: Immutable assistant preview, hatching, depth, visibility and staleness passed
+assistant_preview_tests X11-2 exit 0: Immutable assistant preview, hatching, depth, visibility and staleness passed
+desktop_inspection_tests X11-1 exit 0: Desktop selection, snapshots and bounded PNG capture passed at DPR 1
+desktop_inspection_tests X11-2 exit 0: Desktop selection, snapshots and bounded PNG capture passed at DPR 2
+site_recipe_input_tests X11-1 exit 0: Native site rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 1
+site_recipe_input_tests X11-2 exit 0: Native site rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 2
+furniture_recipe_input_tests X11-1 exit 0: Native furniture rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 1
+furniture_recipe_input_tests X11-2 exit 0: Native furniture rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 2
+stair_recipe_input_tests X11-1 exit 0: Native stairs rendering, grouped Move, preserved room, Undo and persistence passed; DPR 1
+stair_recipe_input_tests X11-2 exit 0: Native stairs rendering, grouped Move, preserved room, Undo and persistence passed; DPR 2
+roof_recipe_input_tests X11-1 exit 0: Native roof rendering, grouped Move, preserved room, Undo and persistence passed; DPR 1
+roof_recipe_input_tests X11-2 exit 0: Native roof rendering, grouped Move, preserved room, Undo and persistence passed; DPR 2
+recipe_hosted_input_tests X11-1 exit 0: Native recipe adoption action, indirect editor locks, Move, persistence and Undo passed; DPR 1
+recipe_hosted_input_tests X11-2 exit 0: Native recipe adoption action, indirect editor locks, Move, persistence and Undo passed; DPR 2
+m6_workflow_input_tests X11-1 exit 0: Native integrated study, 120 mm joint separation, preservation, Undo and exact reopen passed; DPR 1
+m6_workflow_input_tests X11-2 exit 0: Native integrated study, 120 mm joint separation, preservation, Undo and exact reopen passed; DPR 2
+guide_input_tests X11-1 exit 0: Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=1
+guide_input_tests X11-2 exit 0: Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=2
+inference_input_tests X11-1 exit 0: Native inference acquisition, Tab alternatives, context adoption, plane filtering and snapshot preparation passed; devicePixelRatio=1
+inference_input_tests X11-2 exit 0: Native inference acquisition, Tab alternatives, context adoption, plane filtering and snapshot preparation passed; devicePixelRatio=2
+text_input_tests X11-1 exit 0: Native text editing, responsive generation, cancellation, stale results, font portability and baking passed
+text_input_tests X11-2 exit 0: Native text editing, responsive generation, cancellation, stale results, font portability and baking passed
+units_input_tests X11-1 exit 0: Native first-run/default/document units, numeric tools, Info, undo/reopen, display precision, cancellation and stale guards passed; DPR=1
+units_input_tests X11-2 exit 0: Native first-run/default/document units, numeric tools, Info, undo/reopen, display precision, cancellation and stale guards passed; DPR=2
+gltf_input_tests X11-1 exit 0: Native GLB/glTF report, corrupt/cancel preservation, unsaved-copy lifecycle, source-safe save, component editing and undo passed; DPR=1
+gltf_input_tests X11-2 exit 0: Native GLB/glTF report, corrupt/cancel preservation, unsaved-copy lifecycle, source-safe save, component editing and undo passed; DPR=2
+placement_viewport_tests X11-1 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=1
+placement_viewport_tests Wayland-1 attempt 1 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=1
+placement_viewport_tests X11-2 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=2
+placement_viewport_tests Wayland-2 attempt 1 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=2
+before viewport_tests Wayland-2 attempt 1 exit 0: Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+before viewport_tests Wayland-2 attempt 2 exit 0: Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+before viewport_tests Wayland-2 attempt 3 exit 0: Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+viewport_tests Wayland-2 attempt 1 exit 0: Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+texture_viewport_tests Wayland-2 attempt 1 exit 1: Texture viewport exposed
+texture_viewport_tests Wayland-2 attempt 2 exit 1: Texture viewport exposed
+texture_viewport_tests Wayland-2 attempt 3 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+annotation_viewport_tests Wayland-2 attempt 1 exit 0: Native annotation graphics, units, broken states, visibility and Undo passed
+transform_input_tests Wayland-2 attempt 1 exit 1: Transform window exposed (status: )
+transform_input_tests Wayland-2 attempt 2 exit 0: Native move/rotate/scale/flip, pivots, copy amendment, local axes, pointer parity, cancel and lock guards passed; DPR=2
+solar_input_tests Wayland-2 attempt 1 exit 1: Sun study window exposed
+solar_input_tests Wayland-2 attempt 2 exit 1: Sun study window exposed
+solar_input_tests Wayland-2 attempt 3 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+section_input_tests Wayland-2 attempt 1 exit 0: Native section authoring, context, precise units, history, stale drafts and persistence passed
+style_input_tests Wayland-2 attempt 1 exit 0: Native styles, history, precise units, color chooser, cancellation and stale edits passed
+texture_input_tests Wayland-2 attempt 1 exit 0: Native texture units, mirror, rotation, shear, scopes, reset, precision, history and stale guards passed; DPR=2
+edge_input_tests Wayland-2 attempt 1 exit 0: Native edge actions, dashed reveal, picking/inference, Undo, reopen and shared scope passed; DPR=2
+organization_input_tests Wayland-2 attempt 1 exit 0: Native hierarchy, search, selection, keyboard/pointer metadata, tags, visibility, shared scope and persistence passed; DPR=2
+hosted_input_tests Wayland-2 attempt 1 exit 0: Native glue, private attachment preview, exact amendment, mirrored placement, bind/detach/bake, Undo and locks passed; DPR 2
+9c8bb67469a7dbe6847b14c496740131c5de0a20785120a59ffa07460bfc2cbb  build/dev/real_model_benchmark
+benchmark sharing=1 repeated exit 0 in 108 s
+benchmark sharing=0 repeated exit 0 in 170 s
+benchmark sharing=1 unique exit 0 in 130 s
+benchmark sharing=1 deep exit 0 in 206 s
+benchmark sharing=0 deep exit 0 in 400 s
+benchmark sharing=1 far exit 0 in 177 s
+benchmark sharing=0 far exit 0 in 213 s
+benchmark sharing=1 textures exit 0 in 249 s
+benchmark sharing=0 textures exit 0 in 255 s
+asan component_tests exit 0: Component creation, placement, replacement, nested uniqueness and undo passed
+asan component_record_tests exit 0: Component definition records, projections, graph cycles and expansion budgets passed
+asan component_placement_tests exit 0: Bounded face gluing, containment, physical orientation and explicit component scale passed
+asan selection_tests exit 0: Typed selection, modes, boundary/connected topology, context and visibility guards, keyboard order, session reset and immutability passed
+asan group_tests exit 0: Groups, context isolation, nested transforms, authoritative locks and undo passed
+asan tag_tests exit 0: Tag folders, independent visibility, history, identity, component scope and merge partitions passed
+asan core_tests exit 0: 256 geometry and document checks passed
+asan scene_tests exit 0: Scene records: units, nested/mirrored transforms, properties, atomic validation and history passed
+asan material_tests exit 0: Material records, front/back lineage, opacity, scope, locks and history passed
+asan section_geometry_tests exit 0: Oriented sections, holes, multiple cuts, provenance and bounds passed
+asan shading_normals_tests exit 0: Area-weighted smooth fans, hard boundaries and quantized corners passed
+asan viewport_tests X11-1 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta z
+asan viewport_tests Wayland-1 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-del
+asan viewport_tests X11-2 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta z
+asan viewport_tests Wayland-2 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-del
+asan placement_viewport_tests X11-1 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=1
+asan placement_viewport_tests Wayland-1 exit 1: Date: 2026-10-11 UTC
+asan placement_viewport_tests X11-2 exit 0: 
+asan placement_viewport_tests Wayland-2 exit 1: Date: 2026-10-11 UTC
+asan material_viewport_tests X11-1 exit 0: 
+asan material_viewport_tests Wayland-1 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=1
+asan material_viewport_tests X11-2 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2
+asan material_viewport_tests Wayland-2 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2
+asan texture_viewport_tests X11-1 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+asan texture_viewport_tests Wayland-1 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+asan texture_viewport_tests X11-2 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+asan texture_viewport_tests Wayland-2 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+asan section_viewport_tests X11-1 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+asan section_viewport_tests Wayland-1 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+asan section_viewport_tests X11-2 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+asan section_viewport_tests Wayland-2 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+asan style_viewport_tests X11-1 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.219999998807907
+asan style_viewport_tests Wayland-1 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.21999999880
+asan style_viewport_tests X11-2 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.219999998807907
+asan style_viewport_tests Wayland-2 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.21999999880
+asan smooth_viewport_tests X11-1 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=1
+asan smooth_viewport_tests Wayland-1 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=1
+asan smooth_viewport_tests X11-2 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=2
+asan smooth_viewport_tests Wayland-2 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=2
+asan viewport_precision_tests X11-1 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 1
+asan viewport_precision_tests Wayland-1 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 1
+asan viewport_precision_tests X11-2 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 2
+asan viewport_precision_tests Wayland-2 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 2
+asan component_input_tests X11-1 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=1
+asan component_input_tests Wayland-1 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=1
+asan component_input_tests X11-2 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=2
+asan component_input_tests Wayland-2 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=2
+asan selection_input_tests X11-1 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+asan selection_input_tests Wayland-1 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+asan selection_input_tests X11-2 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+asan selection_input_tests Wayland-2 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+asan group_input_tests X11-1 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=1
+asan group_input_tests Wayland-1 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=1
+asan group_input_tests X11-2 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=2
+asan group_input_tests Wayland-2 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=2
+asan solar_input_tests X11-1 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+asan solar_input_tests Wayland-1 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+asan solar_input_tests X11-2 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+asan solar_input_tests Wayland-2 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+
+== Pre-merge 52097a22 sources (before allocator-floor comparison fix): Wayland subset 1x/2x and fractional scaling
+diagnostics_input_tests X11-2 repeat 1 exit 0: Native diagnostic findings, selection/frame, explicit repairs, Undo and staleness passed; DPR 2
+diagnostics_input_tests X11-2 repeat 2 exit 0: Native diagnostic findings, selection/frame, explicit repairs, Undo and staleness passed; DPR 2
+diagnostics_input_tests X11-2 repeat 3 exit 0: Native diagnostic findings, selection/frame, explicit repairs, Undo and staleness passed; DPR 2
+viewport_tests Wayland-1 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zo
+viewport_tests Wayland-2 exit 1: [20:17:09.348] BUG: finalizing a layer with views still on it.
+viewport_precision_tests Wayland-1 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 1
+viewport_precision_tests Wayland-2 exit 1: [20:17:27.882] BUG: finalizing a layer with views still on it.
+material_viewport_tests Wayland-1 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=1
+material_viewport_tests Wayland-2 exit 1: [20:17:42.201] BUG: finalizing a layer with views still on it.
+texture_viewport_tests Wayland-1 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+texture_viewport_tests Wayland-2 exit 1: [20:18:00.243] BUG: finalizing a layer with views still on it.
+section_viewport_tests Wayland-1 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+section_viewport_tests Wayland-2 exit 1: [20:18:12.021] BUG: finalizing a layer with views still on it.
+style_viewport_tests Wayland-1 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071
+style_viewport_tests Wayland-2 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071
+smooth_viewport_tests Wayland-1 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=1
+smooth_viewport_tests Wayland-2 exit 1: [20:18:52.147] BUG: finalizing a layer with views still on it.
+annotation_viewport_tests Wayland-1 exit 0: Native annotation graphics, units, broken states, visibility and Undo passed
+annotation_viewport_tests Wayland-2 exit 1: [20:19:06.465] BUG: finalizing a layer with views still on it.
+component_input_tests Wayland-1 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=1
+component_input_tests Wayland-2 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=2
+group_input_tests Wayland-1 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=1
+group_input_tests Wayland-2 exit 1: [20:19:37.331] BUG: finalizing a layer with views still on it.
+selection_input_tests Wayland-1 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+selection_input_tests Wayland-2 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+transform_input_tests Wayland-1 exit 0: Native move/rotate/scale/flip, pivots, copy amendment, local axes, pointer parity, cancel and lock guards passed; DPR=1
+transform_input_tests Wayland-2 exit 1: [20:20:20.071] BUG: finalizing a layer with views still on it.
+array_input_tests Wayland-1 exit 0: Native linear/radial xN and /N arrays, exact spacing/counts, multi-turn sweep, selection and guarded one-step amendment passed; DPR=1
+array_input_tests Wayland-2 exit 0: Native linear/radial xN and /N arrays, exact spacing/counts, multi-turn sweep, selection and guarded one-step amendment passed; DPR=2
+solar_input_tests Wayland-1 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+solar_input_tests Wayland-2 exit 1: [20:21:43.353] BUG: finalizing a layer with views still on it.
+section_input_tests Wayland-1 exit 0: Native section authoring, context, precise units, history, stale drafts and persistence passed
+section_input_tests Wayland-2 exit 1: [20:22:07.506] BUG: finalizing a layer with views still on it.
+style_input_tests Wayland-1 exit 0: Native styles, history, precise units, color chooser, cancellation and stale edits passed
+style_input_tests Wayland-2 exit 1: [20:22:27.198] BUG: finalizing a layer with views still on it.
+material_input_tests Wayland-1 exit 0: Native swatches, retained errors, precision, side assignment, paint/sample, shared scope, assets, undo and stale guards passed; DPR=1
+material_input_tests Wayland-2 exit 1: [20:22:43.069] BUG: finalizing a layer with views still on it.
+texture_input_tests Wayland-1 exit 0: Native texture units, mirror, rotation, shear, scopes, reset, precision, history and stale guards passed; DPR=1
+texture_input_tests Wayland-2 exit 1: [20:23:00.040] BUG: finalizing a layer with views still on it.
+edge_input_tests Wayland-1 exit 0: Native edge actions, dashed reveal, picking/inference, Undo, reopen and shared scope passed; DPR=1
+edge_input_tests Wayland-2 exit 1: [20:23:20.512] BUG: finalizing a layer with views still on it.
+organization_input_tests Wayland-1 exit 0: Native hierarchy, search, selection, keyboard/pointer metadata, tags, visibility, shared scope and persistence passed; DPR=1
+organization_input_tests Wayland-2 exit 1: [20:23:44.065] BUG: finalizing a layer with views still on it.
+entity_info_input_tests Wayland-1 exit 0: Native entity frames, metric/imperial/locale edits, atomic undo, retained errors, shared scope and diagnostics passed; DPR=1
+entity_info_input_tests Wayland-2 exit 1: [20:24:02.653] BUG: finalizing a layer with views still on it.
+hosted_input_tests Wayland-1 exit 0: Native glue, private attachment preview, exact amendment, mirrored placement, bind/detach/bake, Undo and locks passed; DPR 1
+hosted_input_tests Wayland-2 exit 1: [20:24:21.588] BUG: finalizing a layer with views still on it.
+hosted_array_input_tests Wayland-1 exit 0: Native attached Ctrl-copy, xN/divisions, exact spacing, private preview, one Undo, persistence and indirect editor locks passed; DPR 1
+hosted_array_input_tests Wayland-2 exit 0: Native attached Ctrl-copy, xN/divisions, exact spacing, private preview, one Undo, persistence and indirect editor locks passed; DPR 2
+raster_export_input_tests Wayland-1 exit 0: Exact raster dimensions, fresh rendering, annotations, clipping, state preservation and atomic publication passed
+raster_export_input_tests Wayland-2 exit 0: Exact raster dimensions, fresh rendering, annotations, clipping, state preservation and atomic publication passed
+measured_input_tests Wayland-1 exit 0: Measured native workflow: physical raster scale, source/view restoration, vectors, annotations, cancel and nonreplacement passed
+measured_input_tests Wayland-2 exit 0: Measured native workflow: physical raster scale, source/view restoration, vectors, annotations, cancel and nonreplacement passed
+navigation_input_tests Wayland-1 exit 0: Camera presets, FOV, trackpad/native gestures, anchored tools, world push/pull, repeat, retained faces and tilted measured room passed; DPR=1
+navigation_input_tests Wayland-2 exit 1: [20:26:11.710] BUG: finalizing a layer with views still on it.
+placement_viewport_tests X11-1 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=1
+placement_viewport_tests Wayland-1 exit 1: [20:29:09.470] caught signal 15
+placement_viewport_tests X11-2 exit 0: 
+placement_viewport_tests Wayland-2 exit 1: [20:32:18.160] caught signal 15
+viewport_tests Wayland-1.5 exit 0: 
+viewport_tests X11-1.5 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom
+viewport_tests Wayland-1.75 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta
+viewport_tests X11-1.75 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoo
+
+== Pre-merge Wayland-2 retry with test messages
+before viewport_tests Wayland-2 exit 0: Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/pi
+viewport_tests Wayland-2 exit 1: First viewport window exposed 
+viewport_precision_tests Wayland-2 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 2 
+material_viewport_tests Wayland-2 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2 
+texture_viewport_tests Wayland-2 exit 1: Texture viewport exposed 
+section_viewport_tests Wayland-2 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed 
+smooth_viewport_tests Wayland-2 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=2 
+annotation_viewport_tests Wayland-2 exit 1: Annotation viewport exposed 
+group_input_tests Wayland-2 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=2 
+transform_input_tests Wayland-2 exit 1: Transform window exposed (status: ) 
+solar_input_tests Wayland-2 exit 1: Timed out after 60 s: build/dev/solar_input_tests Date: 2026-10-10 UTC 
+section_input_tests Wayland-2 exit 1: Section window exposed 
+style_input_tests Wayland-2 exit 1: 
+material_input_tests Wayland-2 exit 0: Native swatches, retained errors, precision, side assignment, paint/sample, shared scope, assets, undo and stale guards passed; DPR=2 
+texture_input_tests Wayland-2 exit 1: Window exposed 
+edge_input_tests Wayland-2 exit 1: Edge window exposed 
+organization_input_tests Wayland-2 exit 1: Organization window exposed 
+entity_info_input_tests Wayland-2 exit 0: Native entity frames, metric/imperial/locale edits, atomic undo, retained errors, shared scope and diagnostics passed; DPR=2 
+hosted_input_tests Wayland-2 exit 1: Hosted model is exposed Status:  
+navigation_input_tests Wayland-2 exit 0: Camera presets, FOV, trackpad/native gestures, anchored tools, world push/pull, repeat, retained faces and tilted measured room passed; DPR=2 
+placement_viewport_tests X11-1 exit 0: {"differingStates":14,"graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2","platform":"xcb","scale":1,"states":[{"bodies":24,"differentPixels":7,"maximumChannelDelta":144,"picksEqual":tru
+placement_viewport_tests Wayland-1 exit 0: {"differingStates":14,"graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2","platform":"wayland","scale":1,"states":[{"bodies":24,"differentPixels":4853,"maximumChannelDelta":156,"pick
+placement_viewport_tests X11-2 exit 0: {"differingStates":14,"graphics":"llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2","platform":"xcb","scale":2,"states":[{"bodies":24,"differentPixels":50,"maximumChannelDelta":144,"picksEqual":tr
+placement_viewport_tests Wayland-2 exit 1: Placement viewport exposed 
+
+== Pre-merge X11 matrix 1x/2x
+viewport_tests X11-1 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+viewport_tests X11-2 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+viewport_precision_tests X11-1 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 1
+viewport_precision_tests X11-2 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 2
+material_viewport_tests X11-1 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=1
+material_viewport_tests X11-2 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2
+texture_viewport_tests X11-1 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+texture_viewport_tests X11-2 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+section_viewport_tests X11-1 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+section_viewport_tests X11-2 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+style_viewport_tests X11-1 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071,0.2
+style_viewport_tests X11-2 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071,0.2
+smooth_viewport_tests X11-1 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=1
+smooth_viewport_tests X11-2 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=2
+annotation_viewport_tests X11-1 exit 0: Native annotation graphics, units, broken states, visibility and Undo passed
+annotation_viewport_tests X11-2 exit 0: Native annotation graphics, units, broken states, visibility and Undo passed
+selection_input_tests X11-1 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+selection_input_tests X11-2 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+component_input_tests X11-1 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=1
+component_input_tests X11-2 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=2
+group_input_tests X11-1 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=1
+group_input_tests X11-2 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=2
+solar_input_tests X11-1 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+solar_input_tests X11-2 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+section_input_tests X11-1 exit 0: Native section authoring, context, precise units, history, stale drafts and persistence passed
+section_input_tests X11-2 exit 0: Native section authoring, context, precise units, history, stale drafts and persistence passed
+style_input_tests X11-1 exit 0: Native styles, history, precise units, color chooser, cancellation and stale edits passed
+style_input_tests X11-2 exit 0: Native styles, history, precise units, color chooser, cancellation and stale edits passed
+material_input_tests X11-1 exit 0: Native swatches, retained errors, precision, side assignment, paint/sample, shared scope, assets, undo and stale guards passed; DPR=1
+material_input_tests X11-2 exit 0: Native swatches, retained errors, precision, side assignment, paint/sample, shared scope, assets, undo and stale guards passed; DPR=2
+texture_input_tests X11-1 exit 0: Native texture units, mirror, rotation, shear, scopes, reset, precision, history and stale guards passed; DPR=1
+texture_input_tests X11-2 exit 0: Native texture units, mirror, rotation, shear, scopes, reset, precision, history and stale guards passed; DPR=2
+edge_input_tests X11-1 exit 0: Native edge actions, dashed reveal, picking/inference, Undo, reopen and shared scope passed; DPR=1
+edge_input_tests X11-2 exit 0: Native edge actions, dashed reveal, picking/inference, Undo, reopen and shared scope passed; DPR=2
+hosted_input_tests X11-1 exit 0: Native glue, private attachment preview, exact amendment, mirrored placement, bind/detach/bake, Undo and locks passed; DPR 1
+hosted_input_tests X11-2 exit 0: Native glue, private attachment preview, exact amendment, mirrored placement, bind/detach/bake, Undo and locks passed; DPR 2
+hosted_array_input_tests X11-1 exit 0: Native attached Ctrl-copy, xN/divisions, exact spacing, private preview, one Undo, persistence and indirect editor locks passed; DPR 1
+hosted_array_input_tests X11-2 exit 0: Native attached Ctrl-copy, xN/divisions, exact spacing, private preview, one Undo, persistence and indirect editor locks passed; DPR 2
+diagnostics_input_tests X11-1 exit 0: Native diagnostic findings, selection/frame, explicit repairs, Undo and staleness passed; DPR 1
+diagnostics_input_tests X11-2 exit 1: report visible=1 notice=Framed the listed geometry. Model and selection are unchanged.
+organization_input_tests X11-1 exit 0: Native hierarchy, search, selection, keyboard/pointer metadata, tags, visibility, shared scope and persistence passed; DPR=1
+organization_input_tests X11-2 exit 0: Native hierarchy, search, selection, keyboard/pointer metadata, tags, visibility, shared scope and persistence passed; DPR=2
+entity_info_input_tests X11-1 exit 0: Native entity frames, metric/imperial/locale edits, atomic undo, retained errors, shared scope and diagnostics passed; DPR=1
+entity_info_input_tests X11-2 exit 0: Native entity frames, metric/imperial/locale edits, atomic undo, retained errors, shared scope and diagnostics passed; DPR=2
+reference_image_input_tests X11-1 exit 0: Reference image native display, picking, import, calibration and persistence passed
+reference_image_input_tests X11-2 exit 0: Reference image native display, picking, import, calibration and persistence passed
+raster_export_input_tests X11-1 exit 0: Exact raster dimensions, fresh rendering, annotations, clipping, state preservation and atomic publication passed
+raster_export_input_tests X11-2 exit 0: Exact raster dimensions, fresh rendering, annotations, clipping, state preservation and atomic publication passed
+measured_input_tests X11-1 exit 0: Measured native workflow: physical raster scale, source/view restoration, vectors, annotations, cancel and nonreplacement passed
+measured_input_tests X11-2 exit 0: Measured native workflow: physical raster scale, source/view restoration, vectors, annotations, cancel and nonreplacement passed
+transform_input_tests X11-1 exit 0: Native move/rotate/scale/flip, pivots, copy amendment, local axes, pointer parity, cancel and lock guards passed; DPR=1
+transform_input_tests X11-2 exit 0: Native move/rotate/scale/flip, pivots, copy amendment, local axes, pointer parity, cancel and lock guards passed; DPR=2
+navigation_input_tests X11-1 exit 0: Camera presets, FOV, trackpad/native gestures, anchored tools, world push/pull, repeat, retained faces and tilted measured room passed; DPR=1
+navigation_input_tests X11-2 exit 0: Camera presets, FOV, trackpad/native gestures, anchored tools, world push/pull, repeat, retained faces and tilted measured room passed; DPR=2
+interaction_tests X11-1 exit 0: {"checks":"draw, numeric input, picking, extrusion, undo/redo, text focus, cancel, circle, camera, measurements","height":600,"passed":true,"platform":"xcb","scale":1,"width":640}
+interaction_tests X11-2 exit 0: {"checks":"draw, numeric input, picking, extrusion, undo/redo, text focus, cancel, circle, camera, measurements","height":600,"passed":true,"platform":"xcb","scale":2,"width":640}
+m4_workflow_tests X11-1 exit 0: M4 measured room, two openings, shared/unique nested windows, History, save/reopen, killed-writer recovery and canceled close passed; DPR=1
+m4_workflow_tests X11-2 exit 0: M4 measured room, two openings, shared/unique nested windows, History, save/reopen, killed-writer recovery and canceled close passed; DPR=2
+library_input_tests X11-1 exit 0: Native library: templates, default camera, keyboard search/insertion, undo, errors, save and source preservation passed
+library_input_tests X11-2 exit 0: Native library: templates, default camera, keyboard search/insertion, undo, errors, save and source preservation passed
+array_input_tests X11-1 exit 0: Native linear/radial xN and /N arrays, exact spacing/counts, multi-turn sweep, selection and guarded one-step amendment passed; DPR=1
+array_input_tests X11-2 exit 0: Native linear/radial xN and /N arrays, exact spacing/counts, multi-turn sweep, selection and guarded one-step amendment passed; DPR=2
+intersection_input_tests X11-1 exit 0: Native intersection modes, selection, visible preview/cancel, orbit/apply, stale/no-op, undo/persistence and component references passed
+intersection_input_tests X11-2 exit 0: Native intersection modes, selection, visible preview/cancel, orbit/apply, stale/no-op, undo/persistence and component references passed
+boolean_input_tests X11-1 exit 0: Native Union/Subtract/Intersect/Trim/Split/Outer Shell, target swap, retention, preview/cancel, orbit/apply, stale/invalid/empty, Undo/persistence and shared components passed
+boolean_input_tests X11-2 exit 0: Native Union/Subtract/Intersect/Trim/Split/Outer Shell, target swap, retention, preview/cancel, orbit/apply, stale/invalid/empty, Undo/persistence and shared components passed
+sweep_input_tests X11-1 exit 0: Native Follow Me selection, preview/cancel, orbit/apply, undo/persistence, curved/closed paths and rejection passed
+sweep_input_tests X11-2 exit 0: Native Follow Me selection, preview/cancel, orbit/apply, undo/persistence, curved/closed paths and rejection passed
+orientation_input_tests X11-1 exit 0: Native orientation arrows, physical front/back pixels, reflection, preview/orbit/cancel/apply, stale/no-change, Undo/persistence and shared scope passed
+orientation_input_tests X11-2 exit 0: Native orientation arrows, physical front/back pixels, reflection, preview/orbit/cancel/apply, stale/no-change, Undo/persistence and shared scope passed
+offset_input_tests X11-1 exit 0: Native Offset shortcut, preview/cancel, exact numeric amendment, stale guards, Undo/Redo and drag passed
+offset_input_tests X11-2 exit 0: Native Offset shortcut, preview/cancel, exact numeric amendment, stale guards, Undo/Redo and drag passed
+scene_input_tests X11-1 exit 0: Native scenes: selective capture/recall, tab keyboard/reclick, rename/update, Undo/save, missing refs and reduced-motion transitions passed
+scene_input_tests X11-2 exit 0: Native scenes: selective capture/recall, tab keyboard/reclick, rename/update, Undo/save, missing refs and reduced-motion transitions passed
+assistant_preview_tests X11-1 exit 0: Immutable assistant preview, hatching, depth, visibility and staleness passed
+assistant_preview_tests X11-2 exit 0: Immutable assistant preview, hatching, depth, visibility and staleness passed
+desktop_inspection_tests X11-1 exit 0: Desktop selection, snapshots and bounded PNG capture passed at DPR 1
+desktop_inspection_tests X11-2 exit 0: Desktop selection, snapshots and bounded PNG capture passed at DPR 2
+site_recipe_input_tests X11-1 exit 0: Native site rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 1
+site_recipe_input_tests X11-2 exit 0: Native site rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 2
+furniture_recipe_input_tests X11-1 exit 0: Native furniture rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 1
+furniture_recipe_input_tests X11-2 exit 0: Native furniture rendering, grouped Move, preserved scene, Undo and persistence passed; DPR 2
+stair_recipe_input_tests X11-1 exit 0: Native stairs rendering, grouped Move, preserved room, Undo and persistence passed; DPR 1
+stair_recipe_input_tests X11-2 exit 0: Native stairs rendering, grouped Move, preserved room, Undo and persistence passed; DPR 2
+roof_recipe_input_tests X11-1 exit 0: Native roof rendering, grouped Move, preserved room, Undo and persistence passed; DPR 1
+roof_recipe_input_tests X11-2 exit 0: Native roof rendering, grouped Move, preserved room, Undo and persistence passed; DPR 2
+recipe_hosted_input_tests X11-1 exit 0: Native recipe adoption action, indirect editor locks, Move, persistence and Undo passed; DPR 1
+recipe_hosted_input_tests X11-2 exit 0: Native recipe adoption action, indirect editor locks, Move, persistence and Undo passed; DPR 2
+m6_workflow_input_tests X11-1 exit 0: Native integrated study, 120 mm joint separation, preservation, Undo and exact reopen passed; DPR 1
+m6_workflow_input_tests X11-2 exit 0: Native integrated study, 120 mm joint separation, preservation, Undo and exact reopen passed; DPR 2
+guide_input_tests X11-1 exit 0: Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=1
+guide_input_tests X11-2 exit 0: Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=2
+inference_input_tests X11-1 exit 0: Native inference acquisition, Tab alternatives, context adoption, plane filtering and snapshot preparation passed; devicePixelRatio=1
+inference_input_tests X11-2 exit 0: Native inference acquisition, Tab alternatives, context adoption, plane filtering and snapshot preparation passed; devicePixelRatio=2
+text_input_tests X11-1 exit 0: Native text editing, responsive generation, cancellation, stale results, font portability and baking passed
+text_input_tests X11-2 exit 0: Native text editing, responsive generation, cancellation, stale results, font portability and baking passed
+units_input_tests X11-1 exit 0: Native first-run/default/document units, numeric tools, Info, undo/reopen, cancellation and stale guards passed; DPR=1
+units_input_tests X11-2 exit 0: Native first-run/default/document units, numeric tools, Info, undo/reopen, cancellation and stale guards passed; DPR=2
+gltf_input_tests X11-1 exit 0: Native GLB/glTF report, corrupt/cancel preservation, unsaved-copy lifecycle, source-safe save, component editing and undo passed; DPR=1
+gltf_input_tests X11-2 exit 0: Native GLB/glTF report, corrupt/cancel preservation, unsaved-copy lifecycle, source-safe save, component editing and undo passed; DPR=2
+
+== Pre-merge ASan/UBSan
+component_tests exit 0: Component creation, placement, replacement, nested uniqueness and undo passed
+component_record_tests exit 0: Component definition records, projections, graph cycles and expansion budgets passed
+component_placement_tests exit 0: Bounded face gluing, containment, physical orientation and explicit component scale passed
+selection_tests exit 0: Typed selection, modes, boundary/connected topology, context and visibility guards, keyboard order, session reset and immutability passed
+group_tests exit 0: Groups, context isolation, nested transforms, authoritative locks and undo passed
+tag_tests exit 0: Tag folders, independent visibility, history, identity, component scope and merge partitions passed
+core_tests exit 0: 256 geometry and document checks passed
+scene_tests exit 0: Scene records: units, nested/mirrored transforms, properties, atomic validation and history passed
+material_tests exit 0: Material records, front/back lineage, opacity, scope, locks and history passed
+section_geometry_tests exit 0: Oriented sections, holes, multiple cuts, provenance and bounds passed
+shading_normals_tests exit 0: Area-weighted smooth fans, hard boundaries and quantized corners passed
+viewport_tests X11-1 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+viewport_tests Wayland-1 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zo
+viewport_tests X11-2 exit 0: {"bodyMeshBuilds":6,"bodyUploads":29,"cachedBodies":5,"checks":"depth, transparency, sort order, clipping/picking, buffer reuse, context recreation, hide/show, resize, immutable document, incremental body caches, pixel-delta zoom",
+viewport_tests Wayland-2 exit 1: First viewport window exposed
+placement_viewport_tests X11-1 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=1
+placement_viewport_tests Wayland-1 exit 1: Date: 2026-10-10 UTC
+placement_viewport_tests X11-2 exit 0: 
+placement_viewport_tests Wayland-2 exit 1: Placement viewport exposed
+material_viewport_tests X11-1 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=1
+material_viewport_tests Wayland-1 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=1
+material_viewport_tests X11-2 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2
+material_viewport_tests Wayland-2 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2
+texture_viewport_tests X11-1 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+texture_viewport_tests Wayland-1 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+texture_viewport_tests X11-2 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+texture_viewport_tests Wayland-2 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+section_viewport_tests X11-1 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+section_viewport_tests Wayland-1 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+section_viewport_tests X11-2 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+section_viewport_tests Wayland-2 exit 1: Section viewport exposed
+style_viewport_tests X11-1 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071,0.2
+style_viewport_tests Wayland-1 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071
+style_viewport_tests X11-2 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071,0.2
+style_viewport_tests Wayland-2 exit 0: {"modelStyle":{"axesVisible":false,"back":[0.550000011920929,0.6200000047683716,0.6800000071525574],"background":[0.03999999910593033,0.03999999910593033,0.03999999910593033],"edge":[0.18000000715255737,0.2199999988079071
+smooth_viewport_tests X11-1 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=1
+smooth_viewport_tests Wayland-1 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=1
+smooth_viewport_tests X11-2 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=2
+smooth_viewport_tests Wayland-2 exit 1: Smooth viewport exposed
+viewport_precision_tests X11-1 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 1
+viewport_precision_tests Wayland-1 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 1
+viewport_precision_tests X11-2 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 2
+viewport_precision_tests Wayland-2 exit 1: Precision window exposed
+component_input_tests X11-1 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=1
+component_input_tests Wayland-1 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=1
+component_input_tests X11-2 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=2
+component_input_tests Wayland-2 exit 1: Component window exposed | status: 
+selection_input_tests X11-1 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+selection_input_tests Wayland-1 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+selection_input_tests X11-2 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+selection_input_tests Wayland-2 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+group_input_tests X11-1 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=1
+group_input_tests Wayland-1 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=1
+group_input_tests X11-2 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=2
+group_input_tests Wayland-2 exit 1: Group window exposed · 
+solar_input_tests X11-1 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+solar_input_tests Wayland-1 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+solar_input_tests X11-2 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+solar_input_tests Wayland-2 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+
+== Host ctest --preset dev -j3 on merged tree
+100% tests passed out of 185
+Total Test time (real) =  66.49 sec
