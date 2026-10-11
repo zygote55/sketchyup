@@ -302,7 +302,11 @@ int main(int argc, char **argv) {
         size_t inferenceVisitedMax{}, inferencePairsMax{}, inferenceCandidatesMin = SIZE_MAX;
         size_t inferenceTruncatedQueries{};
         auto infer = [&](Id placement) {
-            const auto point = view.project(doc.worldTransform(placement).point({0, 0, 1}));
+            const auto probe = doc.worldTransform(placement).point({0, 0, 1});
+            // A probe outside the clip volume can still project onto unrelated geometry.
+            check(view.inferenceCamera().project(probe).has_value(),
+                  "Inference probe lies inside the viewport clip volume");
+            const auto point = view.project(probe);
             const auto hit = view.pick(point);
             check(hit.first != 0, "Inference probe intersects rendered geometry");
             const InferenceQuery query{view.inferenceCamera(), point.x(), point.y(), 8};
@@ -348,6 +352,9 @@ int main(int argc, char **argv) {
               "Stationary inference queries and sync reuse every body cache");
         const auto editing = instances.front();
         const auto base = doc.bodies().at(editing)->transform;
+        // Edit in place: the deep and far families nest every placement in groups.
+        const auto editingParent = doc.bodies().at(editing)->parent;
+        const auto editingTop = doc.worldTransform(editing).point({0, 0, 1});
         const auto baselineBytes = doc.historyBytes();
         QJsonArray historyMemorySamples;
         qint64 maximumHistoryBytes{};
@@ -378,7 +385,8 @@ int main(int argc, char **argv) {
                 timer.restart();
                 view.beginEditFrame(timer);
                 doc.transform(editing,
-                              Transform::translation({0, 0, .01 * (cycle * 100 + i + 1)}) * base);
+                              Transform::translation({0, 0, .01 * (cycle * 100 + i + 1)}) * base,
+                              editingParent);
                 view.refresh();
                 frame();
                 edits.push_back(timer.nsecsElapsed() / 1e6);
@@ -422,6 +430,10 @@ int main(int argc, char **argv) {
             check(doc.historyBytes() == size_t(historyBytes),
                   "Undo/redo retains bounded history allocation");
         }
+        check(doc.bodies().at(editing)->parent == editingParent &&
+                  length(doc.worldTransform(editing).point({0, 0, 1}) -
+                         (editingTop + Vec3{0, 0, double(historyCycles)})) < 1e-6,
+              "History edits keep the placement in its group at its fixture position");
         inference.sync(doc);
         frame();
         const auto finalFramebufferHash = framebufferHash("final");
