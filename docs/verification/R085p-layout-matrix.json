@@ -1,0 +1,480 @@
+{
+  "record": "R085.p keyboard layouts",
+  "date": "2026-10-10",
+  "source": {
+    "base": "4d71fcd0 (origin/main)",
+    "code_commit": "a08f434c",
+    "note": "Binaries were built from the working tree whose code content is a08f434c; the run happened before the commit."
+  },
+  "binaries_sha256": {
+    "keyboard_layout_input_tests": "47a60290b2338cc70207db899712c194328674244b5668fb9b11aa8f2a43d8e2",
+    "numeric_input_tests": "87274ed65133ac8ec635ae2164779be221f1f1268447ced6e42bceb0d6544435"
+  },
+  "environment": {
+    "runner": "scripts/run-container-check.sh (1 CPU, 4 GiB, no extra swap)",
+    "image": "sketchyup-native-fonts-check:20261008",
+    "image_id": "sha256:873ba0787bccd851a46f068e265f7d2922f90df0857e782bbf6d441f0c51bd08",
+    "packages": {
+      "qt6-base": "6.11.2-3",
+      "qt6-wayland": "6.11.2-1",
+      "weston": "15.0.1-3",
+      "xorg-server-xvfb": "21.1.24-1",
+      "xorg-setxkbmap": "1.3.5-1",
+      "xkeyboard-config": "2.48-1",
+      "libxkbcommon": "1.13.2-1",
+      "libxcb": "1.17.0-1"
+    },
+    "packages_installed_for_evidence": [],
+    "packages_installed_for_diagnosis_only": {
+      "r085p-probe-5": [
+        "xorg-xinput",
+        "xorg-xprop",
+        "xdotool",
+        "xorg-xev"
+      ],
+      "r085p-probe-9": [
+        "xorg-xprop"
+      ]
+    }
+  },
+  "paths": {
+    "xcb-real": "scripts/test-keyboard-layout.sh xcb: Xvfb -noreset, setxkbmap -model pc105 -layout L, Qt xcb client, physical keycodes via XTest",
+    "wayland-real": "scripts/test-keyboard-layout.sh wayland: same Xvfb, Weston 15 x11 backend (keymap from the X server's XKB rule names), Qt Wayland client, physical keycodes via XTest into Weston's output window",
+    "xcb-qtest": "existing fixture under xvfb-run -noreset after setxkbmap; QTest events bypass the layout (control only)",
+    "wayland-qtest": "existing fixture under scripts/test-wayland.sh (headless Weston) with XKB_DEFAULT_LAYOUT/XKB_DEFAULT_MODEL set; QTest events bypass the layout (control only)"
+  },
+  "runs": {
+    "r085p-layout-1": "setxkbmap without -noreset: Xvfb reverted to US when setxkbmap disconnected; de/fr failed the fixture's server-layout check, us passed. Infrastructure failure, retained.",
+    "r085p-layout-2": "6/6 pass with -noreset (fixture before the locale-separator phase).",
+    "r085p-layout-3-prefix": {
+      "note": "Fixture with the locale-separator phase, product code before the fix",
+      "results": [
+        {
+          "layout": "us",
+          "path": "xcb-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 0,
+          "seconds": 10
+        },
+        {
+          "layout": "us",
+          "path": "wayland-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 0,
+          "seconds": 17
+        },
+        {
+          "layout": "de",
+          "path": "xcb-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 1,
+          "seconds": 11
+        },
+        {
+          "layout": "de",
+          "path": "wayland-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 1,
+          "seconds": 19
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 1,
+          "seconds": 11
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 1,
+          "seconds": 19
+        }
+      ]
+    },
+    "r085p-matrix-1": {
+      "note": "Fixed product code; final evidence",
+      "results": [
+        {
+          "layout": "us",
+          "path": "xcb-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 0,
+          "seconds": 10
+        },
+        {
+          "layout": "us",
+          "path": "wayland-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 0,
+          "seconds": 17
+        },
+        {
+          "layout": "de",
+          "path": "xcb-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 0,
+          "seconds": 7
+        },
+        {
+          "layout": "de",
+          "path": "wayland-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 0,
+          "seconds": 17
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 0,
+          "seconds": 8
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-real",
+          "fixture": "keyboard_layout_input_tests",
+          "exit": 0,
+          "seconds": 17
+        },
+        {
+          "layout": "us",
+          "path": "xcb-qtest",
+          "fixture": "shortcut_input_tests",
+          "exit": 0,
+          "seconds": 8
+        },
+        {
+          "layout": "us",
+          "path": "xcb-qtest",
+          "fixture": "keyboard_modeling_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "us",
+          "path": "xcb-qtest",
+          "fixture": "keyboard_outliner_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "us",
+          "path": "xcb-qtest",
+          "fixture": "units_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "us",
+          "path": "xcb-qtest",
+          "fixture": "numeric_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "us",
+          "path": "xcb-qtest",
+          "fixture": "tool_lifecycle_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "us",
+          "path": "xcb-qtest",
+          "fixture": "constraint_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "us",
+          "path": "xcb-qtest",
+          "fixture": "inference_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "us",
+          "path": "wayland-qtest",
+          "fixture": "shortcut_input_tests",
+          "exit": 0,
+          "seconds": 13
+        },
+        {
+          "layout": "us",
+          "path": "wayland-qtest",
+          "fixture": "keyboard_modeling_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "us",
+          "path": "wayland-qtest",
+          "fixture": "keyboard_outliner_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "us",
+          "path": "wayland-qtest",
+          "fixture": "units_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "us",
+          "path": "wayland-qtest",
+          "fixture": "numeric_input_tests",
+          "exit": 0,
+          "seconds": 2
+        },
+        {
+          "layout": "us",
+          "path": "wayland-qtest",
+          "fixture": "tool_lifecycle_tests",
+          "exit": 0,
+          "seconds": 3
+        },
+        {
+          "layout": "us",
+          "path": "wayland-qtest",
+          "fixture": "constraint_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "us",
+          "path": "wayland-qtest",
+          "fixture": "inference_input_tests",
+          "exit": 0,
+          "seconds": 3
+        },
+        {
+          "layout": "de",
+          "path": "xcb-qtest",
+          "fixture": "shortcut_input_tests",
+          "exit": 0,
+          "seconds": 8
+        },
+        {
+          "layout": "de",
+          "path": "xcb-qtest",
+          "fixture": "keyboard_modeling_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "de",
+          "path": "xcb-qtest",
+          "fixture": "keyboard_outliner_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "de",
+          "path": "xcb-qtest",
+          "fixture": "units_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "de",
+          "path": "xcb-qtest",
+          "fixture": "numeric_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "de",
+          "path": "xcb-qtest",
+          "fixture": "tool_lifecycle_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "de",
+          "path": "xcb-qtest",
+          "fixture": "constraint_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "de",
+          "path": "xcb-qtest",
+          "fixture": "inference_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "de",
+          "path": "wayland-qtest",
+          "fixture": "shortcut_input_tests",
+          "exit": 0,
+          "seconds": 13
+        },
+        {
+          "layout": "de",
+          "path": "wayland-qtest",
+          "fixture": "keyboard_modeling_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "de",
+          "path": "wayland-qtest",
+          "fixture": "keyboard_outliner_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "de",
+          "path": "wayland-qtest",
+          "fixture": "units_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "de",
+          "path": "wayland-qtest",
+          "fixture": "numeric_input_tests",
+          "exit": 0,
+          "seconds": 2
+        },
+        {
+          "layout": "de",
+          "path": "wayland-qtest",
+          "fixture": "tool_lifecycle_tests",
+          "exit": 0,
+          "seconds": 3
+        },
+        {
+          "layout": "de",
+          "path": "wayland-qtest",
+          "fixture": "constraint_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "de",
+          "path": "wayland-qtest",
+          "fixture": "inference_input_tests",
+          "exit": 0,
+          "seconds": 2
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-qtest",
+          "fixture": "shortcut_input_tests",
+          "exit": 0,
+          "seconds": 9
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-qtest",
+          "fixture": "keyboard_modeling_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-qtest",
+          "fixture": "keyboard_outliner_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-qtest",
+          "fixture": "units_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-qtest",
+          "fixture": "numeric_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-qtest",
+          "fixture": "tool_lifecycle_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-qtest",
+          "fixture": "constraint_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "fr",
+          "path": "xcb-qtest",
+          "fixture": "inference_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-qtest",
+          "fixture": "shortcut_input_tests",
+          "exit": 0,
+          "seconds": 13
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-qtest",
+          "fixture": "keyboard_modeling_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-qtest",
+          "fixture": "keyboard_outliner_input_tests",
+          "exit": 0,
+          "seconds": 5
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-qtest",
+          "fixture": "units_input_tests",
+          "exit": 0,
+          "seconds": 6
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-qtest",
+          "fixture": "numeric_input_tests",
+          "exit": 0,
+          "seconds": 3
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-qtest",
+          "fixture": "tool_lifecycle_tests",
+          "exit": 0,
+          "seconds": 2
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-qtest",
+          "fixture": "constraint_input_tests",
+          "exit": 0,
+          "seconds": 4
+        },
+        {
+          "layout": "fr",
+          "path": "wayland-qtest",
+          "fixture": "inference_input_tests",
+          "exit": 0,
+          "seconds": 3
+        }
+      ]
+    }
+  }
+}
