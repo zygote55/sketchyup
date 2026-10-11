@@ -1,0 +1,93 @@
+# Merged dev focused suites
+ 1/18 Test  #44: inference ........................   Passed    1.04 sec
+ 2/18 Test  #10: hosted_components ................   Passed    0.64 sec
+ 3/18 Test #149: hosted_components_io .............   Passed    0.32 sec
+ 4/18 Test #148: component_scope ..................   Passed    0.13 sec
+ 5/18 Test #152: inference_instanced_io ...........   Passed    0.14 sec
+ 6/18 Test #150: component_glue_io ................   Passed    0.07 sec
+ 7/18 Test  #34: components .......................   Passed    0.09 sec
+ 8/18 Test  #75: measured_drawing .................   Passed    0.04 sec
+ 9/18 Test  #47: drawing ..........................   Passed    0.05 sec
+10/18 Test  #41: selection ........................   Passed    0.05 sec
+11/18 Test  #35: component_records ................   Passed    0.04 sec
+12/18 Test  #42: guides ...........................   Passed    0.05 sec
+13/18 Test  #12: component_glue ...................   Passed    0.04 sec
+14/18 Test  #40: transform_selection ..............   Passed    0.03 sec
+15/18 Test  #43: constraints ......................   Passed    0.01 sec
+16/18 Test  #14: component_placement ..............   Passed    0.01 sec
+17/18 Test  #45: inference_equivalence ............   Passed   12.25 sec
+18/18 Test #151: instanced_storage ................   Passed   19.12 sec
+100% tests passed out of 18
+# Full headless ctest
+ 1/60 Test  #9: hosted_copies ....................   Passed    5.99 sec
+ 2/60 Test #24: history ..........................   Passed    7.48 sec
+ 3/60 Test #52: geometry_fuzz ....................   Passed    3.50 sec
+ 4/60 Test #15: diagnostics ......................   Passed    2.06 sec
+ 5/60 Test #28: booleans .........................   Passed    0.67 sec
+ 6/60 Test #46: curves ...........................   Passed    1.28 sec
+ 7/60 Test #44: inference ........................   Passed    1.17 sec
+ 8/60 Test #32: solids ...........................   Passed    1.01 sec
+ 9/60 Test #10: hosted_components ................   Passed    0.98 sec
+10/60 Test #30: solid_operations .................   Passed    0.74 sec
+11/60 Test #31: solid_shells .....................   Passed    0.27 sec
+12/60 Test #11: host_regeneration ................   Passed    0.21 sec
+13/60 Test #29: orientation ......................   Passed    0.17 sec
+14/60 Test #59: topology .........................   Passed    0.99 sec
+15/60 Test #50: scene ............................   Passed    0.17 sec
+16/60 Test #21: saved_scenes .....................   Passed    0.17 sec
+17/60 Test  #6: section_records ..................   Passed    0.20 sec
+18/60 Test #13: hosted_openings ..................   Passed    0.09 sec
+19/60 Test #34: components .......................   Passed    0.12 sec
+20/60 Test  #7: section_geometry .................   Passed    0.08 sec
+21/60 Test #53: push_pull ........................   Passed    0.07 sec
+22/60 Test  #1: measured_view ....................   Passed    0.07 sec
+23/60 Test #49: core .............................   Passed    0.04 sec
+24/60 Test #56: sweep ............................   Passed    0.07 sec
+25/60 Test #35: component_records ................   Passed    0.03 sec
+26/60 Test #25: assets ...........................   Passed    0.06 sec
+27/60 Test #47: drawing ..........................   Passed    0.03 sec
+28/60 Test #26: materials ........................   Passed    0.04 sec
+29/60 Test #58: planar ...........................   Passed    0.05 sec
+30/60 Test #60: arrangements .....................   Passed    0.09 sec
+31/60 Test #41: selection ........................   Passed    0.04 sec
+32/60 Test #40: transform_selection ..............   Passed    0.03 sec
+33/60 Test #36: consolidation ....................   Passed    0.04 sec
+34/60 Test #27: entity_measure ...................   Passed    0.03 sec
+35/60 Test #39: copy_array .......................   Passed    0.04 sec
+36/60 Test #42: guides ...........................   Passed    0.03 sec
+37/60 Test #12: component_glue ...................   Passed    0.02 sec
+38/60 Test #33: tags .............................   Passed    0.01 sec
+39/60 Test #57: offset ...........................   Passed    0.04 sec
+40/60 Test #38: groups ...........................   Passed    0.02 sec
+41/60 Test #54: cleanup ..........................   Passed    0.02 sec
+42/60 Test #48: amend ............................   Passed    0.01 sec
+43/60 Test #22: model_style ......................   Passed    0.01 sec
+44/60 Test #37: appearance .......................   Passed    0.02 sec
+45/60 Test  #4: annotation_records ...............   Passed    0.02 sec
+46/60 Test  #5: annotation_anchors ...............   Passed    0.02 sec
+47/60 Test #43: constraints ......................   Passed    0.01 sec
+48/60 Test #14: component_placement ..............   Passed    0.01 sec
+49/60 Test #51: tolerance ........................   Passed    0.01 sec
+50/60 Test  #3: solar ............................   Passed    0.01 sec
+51/60 Test #55: intersections ....................   Passed    0.01 sec
+52/60 Test #23: document_units ...................   Passed    0.01 sec
+53/60 Test #16: edge_visibility ..................   Passed    0.01 sec
+54/60 Test #17: shading_normals ..................   Passed    0.01 sec
+55/60 Test #19: document_snapshot ................   Passed    0.01 sec
+56/60 Test #18: prepared_edit ....................   Passed    0.01 sec
+57/60 Test  #2: reference_image ..................   Passed    0.01 sec
+58/60 Test #20: camera_motion ....................   Passed    0.00 sec
+59/60 Test  #8: texture_mapping ..................   Passed    0.01 sec
+60/60 Test #45: inference_equivalence ............   Passed   17.19 sec
+100% tests passed out of 60
+# Sanitize (ASan/UBSan) inference suites
+1/9 Test #34: components .......................   Passed    0.50 sec
+2/9 Test #47: drawing ..........................   Passed    0.26 sec
+3/9 Test #35: component_records ................   Passed    0.29 sec
+4/9 Test #41: selection ........................   Passed    0.31 sec
+5/9 Test #42: guides ...........................   Passed    0.25 sec
+6/9 Test #43: constraints ......................   Passed    0.15 sec
+7/9 Test #40: transform_selection ..............   Passed    0.24 sec
+8/9 Test #44: inference ........................   Passed    5.88 sec
+9/9 Test #45: inference_equivalence ............   Passed   64.16 sec
+100% tests passed out of 9
