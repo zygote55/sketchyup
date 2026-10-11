@@ -20,6 +20,9 @@ class OrganizationPanel : public QWidget {
     OrganizationPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
     QTreeWidget *outliner() const { return outliner_; }
     void refresh();
+    void showOutliner();
+    void showTags();
+    void showInfo();
     void showMaterials();
     void showHistory();
     void showStyles();

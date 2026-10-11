@@ -557,6 +557,9 @@ void OrganizationPanel::filter() {
             item->setExpanded(true);
     }
 }
+void OrganizationPanel::showOutliner() { tabs_->setCurrentIndex(0); }
+void OrganizationPanel::showTags() { tabs_->setCurrentIndex(1); }
+void OrganizationPanel::showInfo() { tabs_->setCurrentWidget(info_); }
 void OrganizationPanel::showMaterials() { tabs_->setCurrentWidget(materials_); }
 void OrganizationPanel::showStyles() { tabs_->setCurrentWidget(styles_); }
 void OrganizationPanel::showScenes() { tabs_->setCurrentWidget(scenes_); }
