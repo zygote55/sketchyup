@@ -47,9 +47,9 @@ git worktree add --detach .local/wt-session "$SESSION_REV"
 echo "$SESSION_REV" | tee ~/sketchyup-verification/m9-hardware-session.rev
 ```
 
-Only the R082.gg capacity case (section 1d) needs a different revision: the merge
-commit of R082.gg once it lands. Its branch is `build/r082gg-placement-limits`; no
-PR is open as of 2026-10-11.
+R082.gg (#298, the public 10,000-placement limits) is on `main` as of 2026-10-11, so
+the capacity case (section 1d) uses the same revision as every other section. Any
+`main` revision from `d4dcac19` on contains it.
 
 **P2. Build the binaries (day before).** Earlier records built Release binaries in
 the pinned build image and ran the copied executables on both machines. Use the
@@ -170,7 +170,7 @@ the [BUILD_PLAN targets](BUILD_PLAN.md#initial-performance-budgets).
 | `intel-8cpu frame` | R082.i/j: 5 × 25-placement smokes, 15 × 1,000 (three per scenario) | 4 GiB, no swap, `CPUQuota=800%`, `TasksMax=256`, CPUs 0,1,3,6,8,10,12,13, 300 s, Wayland, fullscreen 1920×1080 |
 | `intel-1cpu history` | R082.an: 5 smokes, 5 × 1,000, five history cycles | 4 GiB, no swap, `CPUQuota=100%`, `TasksMax=128`, CPU 13, 900 s |
 | `intel-8cpu file` | R082.m: 3 warm and 3 verified-cold 100 MB cases | as `intel-8cpu`, 120 s |
-| `intel-1cpu capacity-10k` | R082.an's 10,000-placement row | as `intel-1cpu` |
+| `intel-1cpu capacity-10k` | R082.an's 10,000-placement row, now accepted by the public path (R082.gg) | as `intel-1cpu` |
 
 All runs set `QT_QPA_PLATFORMTHEME=generic`, `QT_SCALE_FACTOR=1`, one OpenMP/BLAS
 thread and private TMP/XDG directories, as before. The compositor scale still
@@ -185,18 +185,43 @@ systemd-inhibit --what=idle --why='SketchyUp M9 campaign' scripts/session-benchm
 systemd-inhibit --what=idle --why='SketchyUp M9 campaign' scripts/session-benchmark-campaign.sh intel-8cpu file
 ```
 
-**1d (conditional on R082.gg merging).** Only with a build of a revision that
-contains R082.gg; until then the public editing limit rejects the case, as in
-R082.an (`Component placement exceeds document editing limits`). That rejection is
-D-003's recorded state, not a new failure:
+**1d (10,000 placements, R082.gg).** The public path now accepts the 10,000-placement,
+million-triangle fixture ([R082.gg](verification/R082gg-placement-limits.md), #298), so
+this case is a measurement, not a rejection check. The earlier state
+(`Component placement exceeds document editing limits` at the first 10,000-placement
+attempt in R082.an, D-003) no longer applies; a rejection now is a failure to report.
+Measure it against the [R082.w v2](verification/R082w-memory-budget-v2.md) budget, not
+the v1 3.5 GiB experimental class:
 
 ```sh
 systemd-inhibit --what=idle scripts/session-benchmark-campaign.sh intel-1cpu capacity-10k
 ```
 
+The script's `capacity-10k` list runs only `repeated` at 10,000 placements, three
+times, five history cycles. R082.gg's remaining list also names the deep and textures
+families at 10,000, the sharing-off control and, since the R082.hh fixture fix, the
+far family. Those are not in the script. Before the day, add them to its
+`capacity-10k` case list (same arguments, `10000 deep 5`, `10000 textures 5`,
+`10000 far 5`) and run the control by hand with
+`SKETCHYUP_BENCHMARK_PLACEMENT_SHARING=0` and the same controls. R082.gg
+measured deep and textures at 10,000 with a test build that raised the limit scale,
+and only `repeated` with the public build, so a public-build rejection of another
+family is possible and is a finding. Without the added cases, section 1d covers
+`repeated` only and the rest stays open. The script flags
+`viewportGpuCompleteP95Ms` above 16.7 ms for every case; for 10,000 placements the
+target is 33.3 ms ([BUILD_PLAN](BUILD_PLAN.md#initial-performance-budgets)), so judge
+that figure by hand and do not count a 16.7–33.3 ms flag here as a miss.
+
 Do not use the laptop while a campaign runs; the benchmark window is fullscreen.
 If a display sleeps, the script stops before the next case. Resume with
 `SESSION_FROM=<label>` in a new evidence directory.
+
+**Expected for 1d.** Every case exits 0 and the fixture hash is `5a0d89c3…` as in
+R082.gg. Own-process peak RSS stays below the v2 ceilings: 1.25 GiB for repeated, deep
+and textures, and 3 GiB for the sharing-off control (software: 614 MB, 624 MB, 884 MB
+and 1.93 GB). Resident growth over five cycles stays below 64 MiB (software: 6.6 MB)
+and retained history below 64 MiB (software: 1.6 MB). A pass accepts the v2 ceilings
+for that GPU; a ceiling above them is a finding and reclassifies D-003 to Major.
 
 **Expected.** Every case exits 0 with no `MISS` for picking, inference or edit
 feedback. The frame row is the open question: in R082.j, all 1,000-placement runs
@@ -214,8 +239,9 @@ as measured for D-004, not relabeled. Fail: any nonzero exit, hash mismatch or
 other `MISS`.
 
 **Feeds.** [R082](PR_ROADMAP.md#r082) (D06, N01); D-004, D-005 and D-003 in
-[R089.a](verification/R089a-defect-triage.md); the M9 R082 row. Write a new R082
-record that cites R082.i/j/m/an/bb as the earlier conditions.
+[R089.a](verification/R089a-defect-triage.md) (D-003 is Minor, "fixed in software,
+hardware acceptance pending", until this section reports); the M9 R082 row. Write a
+new R082 record that cites R082.i/j/m/an/bb and R082.gg/w v2 as the earlier conditions.
 
 ## 2. R082/R085 AMD campaigns (about 70 min unattended; run during sections 3–10)
 
@@ -238,8 +264,10 @@ rsync -a sketchyup-gpu:$R/evidence/ ~/sketchyup-verification/m9-hardware-session
 Controls: X11 (`QT_QPA_PLATFORM=xcb`); benchmark cases use 4 GiB, no swap,
 `CPUQuota=100%`, `TasksMax=128`, the highest-numbered CPU (11 on the 12-CPU
 guest) and 900 s; file cases use `CPUQuota=800%`, CPUs 0–7, 90 s, Fusion style and
-`QT_IM_MODULE=compose`, as R082.bb. The 10k case (conditional, as 1d) is
-`... session-benchmark-campaign.sh amd capacity-10k`.
+`QT_IM_MODULE=compose`, as R082.bb. The 10k case (as 1d, including the
+script's `repeated`-only case list and the hand-run families and control) is
+`... session-benchmark-campaign.sh amd capacity-10k`; it measures the same fixture on
+the discrete GPU against R082.w v2.
 
 The guest's XFCE power manager may blank the display during a long run. The
 script checks `xset q` before every case and stops rather than waking it. If it
@@ -398,8 +426,9 @@ D-007 in R089.a if a real-device race appears.
 
 **Purpose.** Dead keys, Compose and an IME in Measurements and text fields, on
 Wayland and X11. The user guide says that physical layouts and input methods are untested.
-[PR #291](https://github.com/zygote55/sketchyup/pull/291) (R085.p, open) covers
-physical keyboard layouts with keycodes; this section covers composition.
+[R085.p](verification/R085p-keyboard-layouts.md) (#291, merged) covers us, de and fr
+layouts with injected physical keycodes on X11 and nested Weston; this section covers
+composition, not layouts on a real keyboard.
 
 **Setup (owner).** In `fcitx5-configtool`, add "Keyboard - English (US, intl., with
 dead keys)" and Mozc (or Pinyin) as extra input methods. The profile was backed up
@@ -544,7 +573,7 @@ investigation.
 | Build (P2, day before) | none | 1–2 h (one CPU in the container) |
 | Preflight P0–P6 | attended | 30 min |
 | 1. Intel campaigns (frame, history, file) | start, then hands off | 80 min |
-| 1d. Intel 10k (conditional) | hands off | 45 min |
+| 1d. Intel 10k | hands off | 45 min (more for the added families) |
 | 2. AMD campaigns (overlaps 3–10) | start only | 70 min (10 min attended) |
 | 3. Hotplug, two platforms | attended | 20 min |
 | 4. Suspend/resume, three runs | attended | 25 min |
