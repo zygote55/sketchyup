@@ -48,8 +48,9 @@ SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_modeling_input
 ```
 
 These run isolated Xvfb and Weston sessions with software rendering. They do not
-prove physical display, GPU or compositor behavior. Also re-run the integrated
-studies: `scripts/verify-m5-offline.sh`, `scripts/verify-m6-offline.sh`, the M7
+prove physical display, GPU or compositor behavior; the owner-attended physical
+checks follow the [hardware session runbook](M9_HARDWARE_SESSION.md). Also re-run
+the integrated studies: `scripts/verify-m5-offline.sh`, `scripts/verify-m6-offline.sh`, the M7
 `m7_presentation` tests and `m8_exchange_tests`. Each takes a new evidence directory.
 
 Then install the RC package and work through every user-guide workflow by hand on
