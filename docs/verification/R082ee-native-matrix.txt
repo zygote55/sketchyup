@@ -1,0 +1,100 @@
+# R082.ee native matrix (container sketchyup-native-fonts-check:20261008, 1 CPU, 4 GiB, software GL)
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/inference_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/inference_input_tests
+PASS
+=== scripts/test-wayland.sh build/dev/inference_input_tests
+PASS
+=== env SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/inference_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/guide_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/guide_input_tests
+PASS
+=== scripts/test-wayland.sh build/dev/guide_input_tests
+PASS
+=== env SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/guide_input_tests
+FAIL(1)
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/constraint_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/constraint_input_tests
+PASS
+=== scripts/test-wayland.sh build/dev/constraint_input_tests
+PASS
+=== env SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/constraint_input_tests
+FAIL(1)
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/drawing_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/drawing_input_tests
+PASS
+=== scripts/test-wayland.sh build/dev/drawing_input_tests
+PASS
+=== env SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/drawing_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/selection_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/selection_input_tests
+PASS
+=== scripts/test-wayland.sh build/dev/selection_input_tests
+PASS
+=== env SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/selection_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/component_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/component_input_tests
+PASS
+=== scripts/test-wayland.sh build/dev/component_input_tests
+PASS
+=== env SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/curve_input_tests
+PASS
+=== xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/curve_input_tests
+PASS
+=== scripts/test-wayland.sh build/dev/curve_input_tests
+PASS
+=== env SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/curve_input_tests
+FAIL(1)
+OVERALL fail=1
+
+# Wayland 2x detail rerun
+=== guide_input_tests
+Tape, sill reuse, protractor, unit conversion, locks, numeric amendment, measurement-only, visibility, persistence and cleanup passed; DPR=2
+rc=0
+=== constraint_input_tests
+Native world locks, zoom, camera, Shift/arrow release, reference arming, Tab, plane hold, numeric constraints and undo passed; devicePixelRatio=2
+rc=0
+=== curve_input_tests
+Native circle/arc/pie pointer phases, numeric constraints, segmentation, amendment, cancel and persistence passed
+rc=0
+
+# Wayland 2x repeat
+1 guide_input_tests rc=0
+1 constraint_input_tests rc=1
+Constraint viewport exposed
+1 curve_input_tests rc=1
+Curve viewport exposed
+1 inference_input_tests rc=0
+2 guide_input_tests rc=0
+2 constraint_input_tests rc=0
+2 curve_input_tests rc=1
+Curve viewport exposed
+2 inference_input_tests rc=0
+3 guide_input_tests rc=1
+Guide viewport exposed
+3 constraint_input_tests rc=1
+Constraint viewport exposed
+3 curve_input_tests rc=0
+3 inference_input_tests rc=0
+
+# Native benchmark exit codes (Debug, xcb, xvfb 1920x1080)
+repeated 25 rc=0
+repeated 1000 rc=0
+unique 25 rc=0
+unique 1000 rc=0
+deep 25 rc=0
+deep 1000 rc=0
+far 25 rc=0
+far 1000 rc=0
+textures 25 rc=0
+textures 1000 rc=0
