@@ -77,6 +77,11 @@ Shortcuts are defaults; saved custom bindings take precedence.
 - **Outliner:** F6 to the model panel, then arrows or Home choose an entity; F2
   renames, Space hides/shows, Ctrl+Shift+L locks, Enter opens a group, Escape leaves it
   and Ctrl+Z / Ctrl+Shift+Z undo and redo ([workflow](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084k-keyboard-outliner.md)).
+- **Model panel tabs:** inside a panel page, Ctrl+Tab and Ctrl+Shift+Tab switch tabs
+  and move focus into the new page; from the tab bar (Shift+Tab from the page), Left
+  and Right switch tabs. Every tab also has a View menu and Ctrl+K command, such as
+  **Entity info** or **Outliner**, that shows the panel and focuses that page
+  ([record](https://github.com/zygote55/sketchyup/blob/15bcf724be7b17545ca5b8ff562995bca455f9f6/docs/verification/R084s-keyboard-panel-tabs.md)).
 - **Exact values:** Entity info (the **Info** tab) shows the selection's bounds, area
   and volume. The AT-SPI check read 8 × 6 × 0.15 m, 100.2 m² and 7.2 m³ for the demo
   slab ([bridge](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084l-linux-accessibility-bridge.md)).
@@ -118,8 +123,7 @@ Some interactions remain pointer-first:
 layouts and interactive screen-reader workflows are not established.
 Tab traversal is checked for the Drawing plane, Keyboard shortcuts, Commands and
 Assistant preferences dialogs ([record](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084p-dialog-keyboard.md)), not every
-dialog. Switching model-panel tabs, for example to Info, by keyboard has no test of
-its own. Physical keyboard layouts and input methods are untested, and no Orca,
+dialog. Physical keyboard layouts and input methods are untested, and no Orca,
 speech or braille session has been validated.
 
 ## Save, recover and migrate
