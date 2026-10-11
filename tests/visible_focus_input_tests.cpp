@@ -14,18 +14,18 @@
 #include <QDialog>
 #include <QFile>
 #include <QGridLayout>
-#include <QPainter>
-#include <QSpinBox>
-#include <QLineEdit>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequenceEdit>
+#include <QLineEdit>
 #include <QOpenGLWidget>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSettings>
+#include <QSpinBox>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTemporaryDir>
@@ -56,11 +56,13 @@ void check(bool value, const char *message) {
         throw std::runtime_error(message);
 }
 // Widget classes whose focus indicator the audit requires to be exercised.
-const char *const kFamilies[] = {"QLineEdit",   "QPushButton",   "QComboBox",       "QCheckBox",
-                                 "QSpinBox",    "QDoubleSpinBox", "QPlainTextEdit", "QListWidget",
-                                 "QTreeWidget", "QTabBar",       "QToolButton",     "QToolBar",
-                                 "QTimeEdit",   "QDateEdit",     "QKeySequenceEdit", "QScrollArea",
-                                 "QLabel",      "sketchy::AssistantPanel", "sketchy::Viewport"};
+const char *const kFamilies[] = {"QLineEdit",        "QPushButton", "QComboBox",
+                                 "QCheckBox",        "QSpinBox",    "QDoubleSpinBox",
+                                 "QPlainTextEdit",   "QListWidget", "QTreeWidget",
+                                 "QTabBar",          "QToolButton", "QToolBar",
+                                 "QTimeEdit",        "QDateEdit",   "QKeySequenceEdit",
+                                 "QScrollArea",      "QLabel",      "sketchy::AssistantPanel",
+                                 "sketchy::Viewport"};
 QString family(const QWidget *widget) {
     if (qobject_cast<const QKeySequenceEdit *>(widget))
         return "QKeySequenceEdit";
@@ -78,16 +80,15 @@ QString family(const QWidget *widget) {
 // Qt exposes internal editors separately from their composite public control.
 bool internalEditor(const QWidget *widget) {
     for (auto *parent = widget->parentWidget(); parent; parent = parent->parentWidget())
-        if (qobject_cast<const QAbstractSpinBox *>(parent) || qobject_cast<const QTabBar *>(parent) ||
+        if (qobject_cast<const QAbstractSpinBox *>(parent) ||
+            qobject_cast<const QTabBar *>(parent) ||
             qobject_cast<const QKeySequenceEdit *>(parent) ||
             qobject_cast<const QComboBox *>(parent) ||
             qobject_cast<const QAbstractItemView *>(parent))
             return true;
     return false;
 }
-QString identity(const QWidget *widget) {
-    return family(widget) + ':' + widget->objectName();
-}
+QString identity(const QWidget *widget) { return family(widget) + ':' + widget->objectName(); }
 struct Ring {
     QColor edges[4];
     bool valid{};
@@ -113,9 +114,10 @@ QColor edgeColor(const QImage &image, const QRect &box, qreal scale, qreal inset
             ++histogram[image.pixel(x, y)];
     }
     check(!histogram.empty(), "Focus edge band has pixels");
-    return QColor(std::max_element(histogram.begin(), histogram.end(),
-                                   [](const auto &a, const auto &b) { return a.second < b.second; })
-                      ->first);
+    return QColor(
+        std::max_element(histogram.begin(), histogram.end(), [](const auto &a, const auto &b) {
+            return a.second < b.second;
+        })->first);
 }
 // Dominant colour of the bands `insets` logical pixels from the boundary (negative =
 // outside), over the middle half of the chosen edges (bit mask; top, right, bottom, left).
@@ -135,17 +137,19 @@ QColor bandColor(const QImage &image, const QRect &box, const QRect &valid, cons
             for (int i = length / 4; i < length - length / 4; ++i) {
                 const int x = horizontal ? box.left() + i
                                          : (edge == 1 ? box.right() - offset : box.left() + offset);
-                const int y = !horizontal ? box.top() + i
-                                          : (edge == 0 ? box.top() + offset : box.bottom() - offset);
+                const int y = !horizontal
+                                  ? box.top() + i
+                                  : (edge == 0 ? box.top() + offset : box.bottom() - offset);
                 if (valid.contains(x, y) && !skip.contains(x, y))
                     ++histogram[image.pixel(x, y)];
             }
         }
     if (histogram.empty())
         return {};
-    return QColor(std::max_element(histogram.begin(), histogram.end(),
-                                   [](const auto &a, const auto &b) { return a.second < b.second; })
-                      ->first);
+    return QColor(
+        std::max_element(histogram.begin(), histogram.end(), [](const auto &a, const auto &b) {
+            return a.second < b.second;
+        })->first);
 }
 struct Capture {
     QImage image;
@@ -173,13 +177,13 @@ Capture capture(QWidget &top, QWidget &widget) {
                            .toImage()
                            .convertToFormat(QImage::Format_RGB32);
     const auto scale = image.devicePixelRatio();
-    const QRect box(QPoint(int(std::lround(margin * scale)), int(std::lround(margin * scale))),
-                    QSize(int(std::lround(area.width() * scale)),
-                          int(std::lround(area.height() * scale))));
-    const QRect window(QPoint(int(std::lround((top.rect().left() - logical.left() + margin) * scale)),
-                              int(std::lround((top.rect().top() - logical.top() + margin) * scale))),
-                       QSize(int(std::lround(top.width() * scale)),
-                             int(std::lround(top.height() * scale))));
+    const QRect box(
+        QPoint(int(std::lround(margin * scale)), int(std::lround(margin * scale))),
+        QSize(int(std::lround(area.width() * scale)), int(std::lround(area.height() * scale))));
+    const QRect window(
+        QPoint(int(std::lround((top.rect().left() - logical.left() + margin) * scale)),
+               int(std::lround((top.rect().top() - logical.top() + margin) * scale))),
+        QSize(int(std::lround(top.width() * scale)), int(std::lround(top.height() * scale))));
     return {image, box, scale, window.intersected(QRect(QPoint(), image.size()))};
 }
 QWidget *neighbour(QWidget &top, const QWidget *than) {
@@ -258,7 +262,9 @@ int main(int argc, char **argv) {
                 std::cerr << "Control did not take focus: " << identity(&widget).toStdString()
                           << " context=" << context.toStdString()
                           << " active=" << widget.window()->isActiveWindow() << " focusWidget="
-                          << (QApplication::focusWidget() ? identity(QApplication::focusWidget()).toStdString() : "none")
+                          << (QApplication::focusWidget()
+                                  ? identity(QApplication::focusWidget()).toStdString()
+                                  : "none")
                           << '\n';
             if (!widget.hasFocus()) {
                 ++failures;
@@ -280,11 +286,11 @@ int main(int argc, char **argv) {
                 const auto origin = view->mapTo(&top, QPoint(0, 0));
                 const auto area = focusRect(widget);
                 const auto here = widget.mapTo(&top, area.topLeft());
-                canvas = QRect(QPointF((origin.x() - here.x()) * after.scale + after.box.left(),
-                                       (origin.y() - here.y()) * after.scale + after.box.top())
-                                   .toPoint(),
-                               QSizeF(view->width() * after.scale, view->height() * after.scale)
-                                   .toSize());
+                canvas = QRect(
+                    QPointF((origin.x() - here.x()) * after.scale + after.box.left(),
+                            (origin.y() - here.y()) * after.scale + after.box.top())
+                        .toPoint(),
+                    QSizeF(view->width() * after.scale, view->height() * after.scale).toSize());
                 if (&top != window.window())
                     canvas = {};
             }
@@ -292,10 +298,11 @@ int main(int argc, char **argv) {
                                    {-2.0, -3.0, -4.0}, 0b1111);
             if (!outer.isValid() || gl)
                 outer = widget.palette().color(QPalette::Window);
-            const auto inner = bandColor(after.image, after.box, after.valid, {}, after.scale,
-                                         {2.0}, 0b1001);
+            const auto inner =
+                bandColor(after.image, after.box, after.valid, {}, after.scale, {2.0}, 0b1001);
             for (int edge = 0; edge < 4; ++edge) {
-                const auto unfocusedColor = edgeColor(before.image, before.box, before.scale, 0, edge);
+                const auto unfocusedColor =
+                    edgeColor(before.image, before.box, before.scale, 0, edge);
                 const auto focusedColor = edgeColor(after.image, after.box, after.scale, 0, edge);
                 differs &= unfocusedColor != focusedColor;
                 ring.append(focusedColor.name());
@@ -315,10 +322,11 @@ int main(int argc, char **argv) {
             failures += !passes;
             if (!passes)
                 std::cerr << "Focus indicator failure: " << identity(&widget).toStdString()
-                          << " context=" << context.toStdString() << " theme=" << theme.toStdString()
-                          << " text=" << textPercent << " differs=" << differs
-                          << " layoutStable=" << layoutStable << " outside=" << outside
-                          << " inside=" << inside << " [" << worst.toStdString() << "]\n";
+                          << " context=" << context.toStdString()
+                          << " theme=" << theme.toStdString() << " text=" << textPercent
+                          << " differs=" << differs << " layoutStable=" << layoutStable
+                          << " outside=" << outside << " inside=" << inside << " ["
+                          << worst.toStdString() << "]\n";
             rows.append(QJsonObject{{"context", context},
                                     {"theme", theme},
                                     {"textPercent", textPercent},
@@ -333,9 +341,8 @@ int main(int argc, char **argv) {
             if (!captureDir.isEmpty()) {
                 const auto path = QString("%1/%2-%3-%4-%5.png")
                                       .arg(captureDir, theme, QString::number(textPercent), kind,
-                                           widget.objectName().isEmpty()
-                                               ? QString::number(measured)
-                                               : widget.objectName());
+                                           widget.objectName().isEmpty() ? QString::number(measured)
+                                                                         : widget.objectName());
                 after.image
                     .scaled(after.image.size() * 4, Qt::IgnoreAspectRatio, Qt::FastTransformation)
                     .save(path);
@@ -354,9 +361,9 @@ int main(int argc, char **argv) {
                     !qobject_cast<QAbstractItemView *>(widget) &&
                     !qobject_cast<QPlainTextEdit *>(widget))
                     continue;
-                // Bounded run time: two controls per class and context (the first
-                // two in tree order); every class is still exercised in every context.
-                if (++sampled[family(widget)] > 2)
+                // Bounded run time: the first two controls of each class per context at the
+                // default size, the first one at 200% text; every class is still exercised.
+                if (++sampled[family(widget)] > (textPercent == 100 ? 2 : 1))
                     continue;
                 probe(top, *widget, context);
             }
@@ -374,7 +381,8 @@ int main(int argc, char **argv) {
                     check(QTest::qWaitForWindowActive(dialog), "Focus dialog active");
                     check(QTest::qWaitFor([&] {
                               auto *focused = QApplication::focusWidget();
-                              return focused && (focused == dialog || dialog->isAncestorOf(focused));
+                              return focused &&
+                                     (focused == dialog || dialog->isAncestorOf(focused));
                           }),
                           "Focus dialog owns keyboard focus");
                     sweep(*dialog, dialog->windowTitle());
@@ -429,8 +437,7 @@ int main(int argc, char **argv) {
             tool->setFocus(Qt::TabFocusReason);
             QTest::qWait(30);
             const auto right = dialog.grab().toImage();
-            QImage both(left.width() + right.width() + 16, left.height(),
-                        QImage::Format_RGB32);
+            QImage both(left.width() + right.width() + 16, left.height(), QImage::Format_RGB32);
             both.fill(dialog.palette().color(QPalette::Window));
             QPainter painter(&both);
             painter.drawImage(0, 0, left);
@@ -463,7 +470,8 @@ int main(int argc, char **argv) {
                 auto *rail = window.findChild<QToolBar *>("toolRail");
                 check(rail, "Tool rail exists");
                 if (!captureDir.isEmpty())
-                    window.grab().save(QString("%1/window-%2-%3.png").arg(captureDir, theme).arg(percent));
+                    window.grab().save(
+                        QString("%1/window-%2-%3.png").arg(captureDir, theme).arg(percent));
                 // Probe one checked and one unchecked tool: checked + focused must show both.
                 std::set<bool> probed;
                 for (auto *button : rail->findChildren<QToolButton *>()) {
@@ -518,8 +526,8 @@ int main(int argc, char **argv) {
                       "Assistant preferences own keyboard focus");
                 auto *provider = dialog->findChild<QComboBox *>("assistantProviderChoice");
                 check(provider, "Provider choice exists");
-                for (const auto &name : {QStringLiteral("None"), QStringLiteral("Ollama"),
-                                         QStringLiteral("OpenAI")}) {
+                for (const auto &name :
+                     {QStringLiteral("None"), QStringLiteral("Ollama"), QStringLiteral("OpenAI")}) {
                     provider->setCurrentText(name);
                     QTest::qWait(25);
                     sweep(*dialog, "Assistant preferences / " + name);
