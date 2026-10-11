@@ -7,11 +7,15 @@ placement into scene bodies; persistence, inference, construction and limits
 belong to R082.cc, .ee, .ff and .gg. [Raw reports and hashes](R082dd-instanced-viewport.json);
 [native and sanitizer logs](R082dd-native-matrix.txt).
 
-**Open decision: framebuffers are not bit-identical.** Picking, selection,
+**Accepted: framebuffers are not bit-identical.** Picking, selection,
 transparency order, shadow casters, canonical fixture hashes and every existing
 native assertion are unchanged. A shared placement mesh moves 3 or 4 pixels of
 each 1920 × 1080 benchmark frame (largest channel delta 159). Turning sharing off
 reproduces the pre-change frames exactly. No expected hash or tolerance was edited.
+The difference is accepted: it comes from rounding a placement-space position and
+its translation separately at triangle edges, it changes no semantic result, and
+R082.a's "exact framebuffer" requirement concerns the unclipped frame size, not
+pixel hashes.
 
 ## Design
 
@@ -175,7 +179,8 @@ with sharing on and off: one placement mesh, 89,266 B of vectors, 34,656 B of pa
 
 No sanitizer reported an error or leak. The new
 `placement_viewport_tests` fixture takes about 30 s on the host, but more than 60 s
-under ASan with Wayland's fixed weston limit. It is not yet in `native.yml`.
+under ASan with Wayland's fixed weston limit. It runs in the non-sanitized X11 and
+Wayland 1×/2× lists of `native.yml`, not the sanitized list.
 
 ## Caveats
 
