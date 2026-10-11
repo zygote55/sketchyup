@@ -84,7 +84,7 @@ Evidenced. Release-candidate revalidation of every row under
 | A05 | Provider independence | Open | Remote passes ([R086.b](R086b-remote-evaluation.md), [R086.as](R086as-openai-inspection-batches.md)). **Limitation — local configuration:** by the 2026-10-11 owner decision ([ADR 0160](../decisions/0160-provider-scope-for-1-0.md)) a passing local configuration is not a 1.0 requirement, so the row's clause now asks for a remote provider only. The local profiles stay experimental; the frozen profile fails 0/3 on every live task ([R086.c](R086c-local-evaluation.md)) and a later local-guidance profile also fails ([review](R086al-local-guidance-failure-review.json)). **Open (R086):** the remote profile's release-candidate re-run and release review. |
 | A06 | External automation | Evidenced | `mcp`, `native_mcp_tests`, `automation_session`. |
 | A07 | Agent instructions/examples | Evidenced | `shipped_recipes`, `tool_reference_drift`; room, hosted-room, roof, stair, table and cabinet recipes in `examples/`. |
-| A08 | AI verification | Partial | Postconditions, preservation and injected-metadata tasks scored ([R086.a](R086a-frozen-provider-corpus.md)). **Partial — undo and recovery scoring:** the frozen corpus and `scripts/score-provider-release.py` score neither. Coverage comes from deterministic tests (`transaction_sequence`, `outcome_store`) and single M5 live Undo/Redo trials. **Open (R086):** the local profile never reached hostile metadata. |
+| A08 | AI verification | Evidenced | Postconditions, preservation and injected-metadata tasks scored ([R086.a](R086a-frozen-provider-corpus.md)). Undo and recovery are now scored at 100% in [corpus v2](R086by-corpus-v2.md); the remote profile passed all 24 runs with undo and recovery restored on every run ([R086.bz](R086bz-remote-evaluation-v2.md)). The local profile is experimental and not gated ([ADR 0160](../decisions/0160-provider-scope-for-1-0.md)). |
 | X01 | Formline migration | Evidenced | `formline`, `formline_input_tests`. |
 | X02 | GLB/glTF | Evidenced | Cameras and hierarchy in `tests/gltf_import_tests.cpp:119-120`; loss manifest in `tests/glb_export_tests.cpp:191-195`; [R074.c](R074c-native-gltf-workflow.md). |
 | X03 | OBJ and STL | Evidenced | [R075.d](R075d-native-obj-workflow.md), [R076.d](R076d-native-stl-workflow.md); independent measurement in [M8](M8.md). |
@@ -92,7 +92,7 @@ Evidenced. Release-candidate revalidation of every row under
 | X05 | Public extension interface | Evidenced | [R080.a](R080a-extension-contract.md)–[d](R080d-native-extensions.md). |
 | X06 | Native-format migration | Evidenced | [R073](R073-public-native-format.md); 25 installed migrations in [R087.g](R087g-clean-current-package.md); [ADR 0108](../decisions/0108-public-native-format.md) documents the stored data. |
 
-Totals: **50 Evidenced, 5 Open (N01, N02, N04, N05, A05), 1 Partial (A08),
+Totals: **51 Evidenced, 5 Open (N01, N02, N04, N05, A05), 0 Partial,
 3 Gap (N03, D01, D06).** The Evidenced count means every clause has a cited
 assertion on `main`. It does not mean the row is accepted.
 
@@ -123,8 +123,6 @@ Behaviour that probably works but has no qualifying evidence:
 - **A05 — remote release-candidate re-run (R086).** The remote OpenAI ChatGPT-plan
   profile must pass the frozen corpus again at the release candidate. The local
   profile is no longer a gate ([ADR 0160](../decisions/0160-provider-scope-for-1-0.md)).
-- **A08 — undo and recovery scoring.** Undo and recovery postconditions in the
-  provider corpus (a new corpus version) or an explicit release scoring step.
 - **N05 — user-guide limits (R088).** Viewport accessibility limits in the installed
   user guide.
 - **N04 — physical 150% (R085).** A physical 150% output plus the open placement and
