@@ -1,3 +1,4 @@
+#include "app/keypad_decimal.hpp"
 #include "app/window.hpp"
 #include "automation/extension_store.hpp"
 #include "automation/extension_worker.hpp"
@@ -128,6 +129,7 @@ void Window::extensionsDialog() {
                 QWidget *editor{};
                 if (spec["type"] == "number") {
                     auto *number = new ExtensionNumber;
+                    acceptKeypadDecimal(number);
                     number->setDecimals(9);
                     number->setRange(spec["minimum"].toDouble(), spec["maximum"].toDouble());
                     number->setValue(spec["default"].toDouble());

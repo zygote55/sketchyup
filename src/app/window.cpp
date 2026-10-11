@@ -1,4 +1,5 @@
 #include "app/window.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/context_label.hpp"
 #include "app/file_operation.hpp"
 #include "app/inspection_service.hpp"
@@ -271,6 +272,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     measurements_ = new QLineEdit;
     measurements_->setObjectName("measurements");
     measurements_->installEventFilter(this);
+    acceptKeypadDecimal(measurements_);
     measurements_->setFixedWidth(150);
     measurements_->setPlaceholderText("width, depth");
     measurements_->setAccessibleName("Measurements");
@@ -608,6 +610,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         auto *origin = new QLineEdit(QStringList{"0", "0", "0"}.join(separator));
         auto *normal = new QLineEdit(QStringList{"0", "0", "1"}.join(separator));
         auto *axis = new QLineEdit(QStringList{"1", "0", "0"}.join(separator));
+        for (auto *field : {origin, normal, axis})
+            acceptKeypadDecimal(field);
         origin->setAccessibleName("Plane origin");
         normal->setAccessibleName("Plane normal direction");
         axis->setAccessibleName("Plane horizontal direction");

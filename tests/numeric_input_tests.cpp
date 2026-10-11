@@ -115,6 +115,63 @@ int main(int argc, char **argv) {
         body = doc.bodies().rbegin()->second;
         check(std::abs(body->surface.area(body->surface.faces.begin()->first) - 1) < 1e-8,
               "Leading comma decimal revises the rectangle to 0.5 by 2");
+        // The keypad decimal key is labelled by the keyboard layout (',' on German, '.'
+        // on French), so it always types the locale's separator. Main-keyboard '.' and
+        // ',' are unchanged. QTest synthesizes the key the layout would produce.
+        for (const auto &locale : {QLocale(QLocale::German, QLocale::Germany),
+                                   QLocale(QLocale::English, QLocale::UnitedStates),
+                                   QLocale(QLocale::French, QLocale::France)}) {
+            QLocale::setDefault(locale);
+            const auto point = locale.decimalPoint();
+            const auto list = point == "," ? QString(";") : QString(",");
+            const auto where = locale.name().toStdString();
+            for (const auto key : {Qt::Key_Period, Qt::Key_Comma}) {
+                view->setFocus();
+                QTest::keyClick(view, key, Qt::KeypadModifier);
+                check(field->hasFocus() && field->text() == point,
+                      ("Keypad decimal starts Measurements with the separator in " + where)
+                          .c_str());
+                QTest::keyClicks(field, "5" + list + "1");
+                QTest::keyClick(field, key, Qt::KeypadModifier);
+                QTest::keyClick(field, Qt::Key_5);
+                check(field->text() == point + "5" + list + "1" + point + "5",
+                      ("Keypad decimal types the locale separator in " + where).c_str());
+                QTest::keyClick(field, Qt::Key_Return);
+                body = doc.bodies().rbegin()->second;
+                check(std::abs(body->surface.area(body->surface.faces.begin()->first) - .75) <
+                          1e-8,
+                      ("Keypad decimal reads 0.5 by 1.5 in " + where).c_str());
+            }
+            // 1<keypad decimal>5 is one value: the rectangle is 1.5 by 2.
+            view->setFocus();
+            QTest::keyClick(view, Qt::Key_1);
+            QTest::keyClick(field, Qt::Key_Period, Qt::KeypadModifier);
+            QTest::keyClicks(field, "5" + list + "2");
+            QTest::keyClick(field, Qt::Key_Return);
+            body = doc.bodies().rbegin()->second;
+            check(std::abs(body->surface.area(body->surface.faces.begin()->first) - 3) < 1e-8,
+                  ("1<keypad decimal>5 parses as 1.5 in " + where).c_str());
+            // Main-keyboard keys keep their own text, whatever the locale.
+            field->setFocus();
+            field->clear();
+            QTest::keyClick(field, Qt::Key_Period);
+            QTest::keyClick(field, Qt::Key_Comma);
+            check(field->text() == ".,",
+                  ("Main-keyboard period and comma are unchanged in " + where).c_str());
+            field->clear();
+            view->setFocus();
+            QTest::keyClick(view, Qt::Key_Period);
+            check(field->hasFocus() && field->text() == ".",
+                  ("Main-keyboard period still starts Measurements in " + where).c_str());
+            field->clear();
+            view->setFocus();
+            QTest::keyClick(view, Qt::Key_Comma);
+            check(field->hasFocus() == (point == ",") && field->text() == (point == "," ? "," : ""),
+                  ("Main-keyboard comma starts Measurements only in a comma locale: " + where)
+                      .c_str());
+            field->clear();
+            view->setFocus();
+        }
         QLocale::setDefault(priorLocale);
         view->setTool(Viewport::Tool::Line);
         check(view->measurements("[0,10,0]") && view->measurements("<2,1,0>"),

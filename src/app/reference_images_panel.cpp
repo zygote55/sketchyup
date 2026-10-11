@@ -1,4 +1,5 @@
 #include "app/reference_images_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "io/texture_image.hpp"
@@ -17,6 +18,12 @@ QLineEdit *field(QFormLayout &form, const char *id, const char *label, const QSt
     auto *result = new QLineEdit(value);
     result->setObjectName(id);
     form.addRow(label, result);
+    return result;
+}
+QLineEdit *numericField(QFormLayout &form, const char *id, const char *label,
+                        const QString &value) {
+    auto *result = field(form, id, label, value);
+    acceptKeypadDecimal(result);
     return result;
 }
 double number(QLineEdit *field) {
@@ -142,7 +149,7 @@ void ReferenceImagesPanel::importFile(const QString &path) {
     dialog.setWindowTitle("Place reference image");
     QFormLayout form(&dialog);
     auto *name = field(form, "referenceName", "Name", QFileInfo(path).completeBaseName());
-    auto *width = field(form, "referenceWidth", "Width", displayLength(1, doc_.displayUnits(), fullDisplayPrecision));
+    auto *width = numericField(form, "referenceWidth", "Width", displayLength(1, doc_.displayUnits(), fullDisplayPrecision));
     auto *hint =
         new QLabel("The image is placed on the local XY plane at the context origin. Height "
                    "follows the pixel aspect ratio. Calibrate it afterward using a known length.");
@@ -176,13 +183,13 @@ void ReferenceImagesPanel::edit(bool calibrate) {
             "known distance. Calibration preserves the first point and the image aspect ratio.");
         hint->setWordWrap(true);
         form.addRow(hint);
-        auto *u1 = field(form, "referenceFirstU", "First horizontal", "0");
-        auto *v1 = field(form, "referenceFirstV", "First vertical", "1");
-        auto *u2 = field(form, "referenceSecondU", "Second horizontal", "1");
-        auto *v2 = field(form, "referenceSecondV", "Second vertical", "1");
+        auto *u1 = numericField(form, "referenceFirstU", "First horizontal", "0");
+        auto *v1 = numericField(form, "referenceFirstV", "First vertical", "1");
+        auto *u2 = numericField(form, "referenceSecondU", "Second horizontal", "1");
+        auto *v2 = numericField(form, "referenceSecondV", "Second vertical", "1");
         const auto measured = sketchy::length(doc_.worldTransform(id).vector({image.width, 0, 0}));
         const auto parent = original->parent ? doc_.worldTransform(original->parent) : Transform{};
-        auto *length = field(form, "referenceLength", "Known length",
+        auto *length = numericField(form, "referenceLength", "Known length",
                              displayLength(measured, doc_.displayUnits(), fullDisplayPrecision));
         const auto originalLength = length->text();
         command = [=, this] {
@@ -204,11 +211,11 @@ void ReferenceImagesPanel::edit(bool calibrate) {
     } else {
         auto *name = field(form, "referenceName", "Name", QString::fromStdString(original->name));
         auto *width =
-            field(form, "referenceWidth", "Width",
+            numericField(form, "referenceWidth", "Width",
                   displayLength(image.width, doc_.displayUnits(), fullDisplayPrecision));
-        auto *height = field(form, "referenceHeight", "Height",
+        auto *height = numericField(form, "referenceHeight", "Height",
                              displayLength(image.height, doc_.displayUnits(), fullDisplayPrecision));
-        auto *opacity = field(form, "referenceOpacity", "Opacity (0 to 1)",
+        auto *opacity = numericField(form, "referenceOpacity", "Opacity (0 to 1)",
                               QLocale().toString(image.opacity, 'g', 15));
         const auto oldWidth = width->text(), oldHeight = height->text(),
                    oldOpacity = opacity->text();

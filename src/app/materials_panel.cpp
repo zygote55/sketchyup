@@ -1,4 +1,5 @@
 #include "app/materials_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/texture_editor.hpp"
 #include "core/face_textures.hpp"
 #include "io/assets.hpp"
@@ -227,6 +228,7 @@ void MaterialsPanel::edit(bool create) {
     auto *color = new QLineEdit(QColor::fromRgbF(rgb[0], rgb[1], rgb[2]).name());
     color->setObjectName("materialColor");
     auto *opacity = new QDoubleSpinBox;
+    acceptKeypadDecimal(opacity);
     opacity->setObjectName("materialOpacity");
     opacity->setRange(0, 100);
     opacity->setDecimals(2);

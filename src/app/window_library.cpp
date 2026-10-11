@@ -1,3 +1,4 @@
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "app/window.hpp"
 #include "automation/measurements.hpp"
@@ -75,6 +76,7 @@ void Window::libraryDialog(bool templates) {
     auto *position = new QLineEdit("0, 0, 0");
     if (QLocale().decimalPoint() == ",")
         position->setText("0; 0; 0");
+    acceptKeypadDecimal(position);
     position->setObjectName("libraryPosition");
     position->setAccessibleName("World placement position");
     if (!templates)

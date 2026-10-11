@@ -1,4 +1,5 @@
 #include "app/render_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/render_jobs.hpp"
 #include "core/scenes.hpp"
 #include "integrations/animation_export.hpp"
@@ -391,12 +392,14 @@ struct RenderPanel::Impl {
                 environmentPath->setText(selected);
         });
         environmentStrength = new QDoubleSpinBox;
+        acceptKeypadDecimal(environmentStrength);
         environmentStrength->setObjectName("renderEnvironmentStrength");
         environmentStrength->setRange(0, 100);
         environmentStrength->setDecimals(3);
         environmentStrength->setValue(1);
         form->addRow("Environment strength", environmentStrength);
         environmentRotation = new QDoubleSpinBox;
+        acceptKeypadDecimal(environmentRotation);
         environmentRotation->setObjectName("renderEnvironmentRotation");
         environmentRotation->setRange(-360, 360);
         environmentRotation->setDecimals(2);
@@ -866,12 +869,14 @@ struct RenderPanel::Impl {
         fps->setObjectName("animationFps");
         form->addRow("Frames per second", fps);
         auto *transition = new QDoubleSpinBox;
+        acceptKeypadDecimal(transition);
         transition->setRange(.05, 10);
         transition->setValue(1);
         transition->setSuffix(" s");
         transition->setObjectName("animationTransition");
         form->addRow("Transition", transition);
         auto *hold = new QDoubleSpinBox;
+        acceptKeypadDecimal(hold);
         hold->setRange(0, 5);
         hold->setValue(.5);
         hold->setSuffix(" s");
