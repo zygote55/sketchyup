@@ -922,21 +922,35 @@ QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #header {border-bottom:1px solid $border;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
 #tray {border-left:1px solid $border;} #section {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
 #hint {color:$muted;font-size:$hintPx;padding:12px 0;} #footer {border-top:1px solid $border;}
-QToolBar {border:0;border-right:1px solid $border;spacing:6px;padding:10px 5px;}
-QToolButton {padding:12px 5px;border-radius:4px;} QToolButton:checked {background:$selected;color:$ink;}
+QToolBar {border:1px solid transparent;border-right:1px solid $border;spacing:6px;padding:9px 5px 9px 4px;}
+QToolButton {padding:11px 4px;border:1px solid transparent;border-radius:4px;}
+QToolButton:checked {background:$selected;color:$ink;}
 QToolButton:hover,QPushButton:hover {background:$hover;}
 QPushButton {border:1px solid $border;padding:7px 11px;border-radius:4px;}
 QLineEdit {background:$input;border:1px solid $border;border-radius:4px;padding:7px;selection-background-color:$accent;selection-color:$selectionInk;}
-QLineEdit:focus {border:1px solid $accent;}
-QLineEdit[invalid="true"] {border:2px solid #bc4343;}
-QListWidget,QTreeWidget {border:0;background:transparent;}
-QTreeWidget:focus {border:1px solid $accent;} QTreeWidget::item {padding:3px 1px;}
+QComboBox,QAbstractSpinBox,QPlainTextEdit,QTextEdit {background:$input;border:1px solid $border;border-radius:4px;padding:3px 5px;selection-background-color:$accent;selection-color:$selectionInk;}
+QAbstractSpinBox::up-button {subcontrol-origin:border;subcontrol-position:top right;width:18px;border:0;}
+QAbstractSpinBox::down-button {subcontrol-origin:border;subcontrol-position:bottom right;width:18px;border:0;}
+QComboBox::drop-down {subcontrol-origin:border;subcontrol-position:center right;width:18px;border:0;}
+QAbstractSpinBox::up-arrow {image:url(:/sketchyup/control-arrow-up-$arrowTheme.png);width:9px;height:5px;}
+QAbstractSpinBox::down-arrow,QComboBox::down-arrow {image:url(:/sketchyup/control-arrow-down-$arrowTheme.png);width:9px;height:5px;}
+QCheckBox,QRadioButton {border:1px solid transparent;border-radius:4px;padding:1px 2px;}
+QTabWidget::pane {border:1px solid $border;}
+QTabBar::tab {padding:6px 12px;border:1px solid transparent;border-radius:4px;}
+QTabBar::tab:selected {background:$selected;color:$ink;} QTabBar::tab:hover:!selected {background:$hover;}
+QSlider,QScrollArea,#assistantContainer {border:1px solid transparent;border-radius:4px;}
+#contextBreadcrumb,#componentScopeBanner {border:1px solid transparent;border-radius:4px;padding:2px 4px;}
+QListWidget,QTreeWidget {border:1px solid transparent;background:transparent;}
+QTreeWidget::item {padding:3px 1px;}
 QTreeWidget::item:selected {background:$selected;color:$ink;}
-QListWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;} QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
+QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
+QLineEdit:focus,QComboBox:focus,QAbstractSpinBox:focus,QPlainTextEdit:focus,QTextEdit:focus,QCheckBox:focus,QRadioButton:focus,QToolButton:focus,QTabBar::tab:selected:focus,QSlider:focus,QScrollArea:focus,#assistantContainer:focus,#contextBreadcrumb:focus,#componentScopeBanner:focus,QListWidget:focus,QTreeWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;}
+QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
     style.replace("$hintPx", QString::number(interfaceExtent(11, textPercent)) + "px");
+    style.replace("$arrowTheme", dark ? "dark" : "light");
     style.replace("$selectionInk", dark ? colors.surface.name() : colors.input.name());
     style.replace("$surface", colors.surface.name());
     style.replace("$ink", colors.ink.name());

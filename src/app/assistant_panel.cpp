@@ -117,6 +117,7 @@ struct AssistantPanel::Impl {
         owner.setObjectName("assistantContainer");
         owner.setMinimumWidth(240);
         owner.setFocusPolicy(Qt::StrongFocus);
+        owner.setAttribute(Qt::WA_StyledBackground); // Draw the themed focus border.
         auto *layout = new QVBoxLayout(&owner);
         layout->setContentsMargins(8, 8, 8, 8);
         chip = label({}, "assistantProvider");
