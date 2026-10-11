@@ -5,6 +5,7 @@
 #include "core/shading_normals.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QOpenGLContext>
 #include <QOpenGLVersionFunctionsFactory>
@@ -42,6 +43,12 @@ namespace {
 QVector3D qv(Vec3 p) { return {float(p.x), float(p.y), float(p.z)}; }
 Vec3 vec(QVector3D p) { return {p.x(), p.y(), p.z()}; }
 constexpr float degreesToRadians = std::numbers::pi_v<float> / 180;
+// Typed text that opens Measurements from the viewport. A value such as ",5" may
+// begin with the locale's decimal separator, which is not always '.'.
+bool startsMeasurement(const QString &text) {
+    return !text.isEmpty() && (QString("0123456789.+-[<xX/").contains(text[0]) ||
+                               text.startsWith(QLocale().decimalPoint()));
+}
 } // namespace
 Viewport::Viewport(Document &doc, QWidget *parent)
     : QOpenGLWidget(parent), doc_(doc), session_(doc) {
@@ -2353,7 +2360,7 @@ bool Viewport::event(QEvent *event) {
             tool_ != Tool::Paint && tool_ != Tool::Sweep && tool_ != Tool::Intersect &&
             tool_ != Tool::Boolean && tool_ != Tool::Orientation &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
-            !key->text().isEmpty() && QString("0123456789.+-[<xX/").contains(key->text()[0])) {
+            startsMeasurement(key->text())) {
             event->accept();
             return true;
         }
@@ -2689,7 +2696,7 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
         tool_ != Tool::Paint && tool_ != Tool::Sweep && tool_ != Tool::Intersect &&
         tool_ != Tool::Boolean && tool_ != Tool::Orientation &&
         !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
-        !e->text().isEmpty() && QString("0123456789.+-[<xX/").contains(e->text()[0])) {
+        startsMeasurement(e->text())) {
         emit measurementsRequested(e->text());
         e->accept();
         return;

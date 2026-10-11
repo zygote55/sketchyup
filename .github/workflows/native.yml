@@ -214,6 +214,13 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 30s build/dev/dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/shell_tests
+      - name: Keyboard layouts through physical key input
+        run: |
+          for layout in us de fr; do
+            for platform in xcb wayland; do
+              SKETCHYUP_TEST_KEYBOARD_LAYOUT=$layout scripts/test-keyboard-layout.sh $platform build/dev/keyboard_layout_input_tests
+            done
+          done
       - name: Isolated Wayland interaction and rendering
         run: |
           scripts/test-wayland.sh build/dev/diagnostics_input_tests

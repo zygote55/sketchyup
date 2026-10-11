@@ -107,6 +107,14 @@ int main(int argc, char **argv) {
         body = doc.bodies().rbegin()->second;
         check(std::abs(body->surface.area(body->surface.faces.begin()->first) - 3.75) < 1e-8,
               "Locale dimensions");
+        QTest::keyClick(view, Qt::Key_Comma);
+        check(field->hasFocus() && field->text() == ",",
+              "Locale decimal separator starts Measurements from the viewport");
+        QTest::keyClicks(field, "5;2");
+        QTest::keyClick(field, Qt::Key_Return);
+        body = doc.bodies().rbegin()->second;
+        check(std::abs(body->surface.area(body->surface.faces.begin()->first) - 1) < 1e-8,
+              "Leading comma decimal revises the rectangle to 0.5 by 2");
         QLocale::setDefault(priorLocale);
         view->setTool(Viewport::Tool::Line);
         check(view->measurements("[0,10,0]") && view->measurements("<2,1,0>"),
