@@ -50,53 +50,61 @@ struct InferenceResult {
     size_t visitedPrimitives{}, intersectionPairs{};
     bool truncated{};
 };
-// Per-body immutable geometry caches and a two-level world-space BVH. Camera
-// movement changes only the query frustum, never the indexed world geometry.
+namespace inference_detail {
+struct Box {
+    Vec3 low{}, high{};
+};
+// World-space primitive, as presented to the query core.
+struct Primitive {
+    InferenceKind kind{};
+    Id entity{};
+    Vec3 a{}, b{}, c{};
+    Box box;
+};
+} // namespace inference_detail
+// Two-level index. Each distinct body geometry (one per component definition
+// member, shared by every instance) is indexed once in its local space. Every
+// scene body is a placement: its composed world transform plus that shared local
+// index. Queries transform candidate primitives to world space on the fly with the
+// placement's own transform, so snapped points equal a fully expanded world index.
 class InferenceIndex {
   public:
     void sync(const Document &document, const std::function<bool()> &canceled = {});
     InferenceResult query(const InferenceQuery &query) const;
+    // Placement entries (re)built: one per new, edited or moved scene body.
     size_t bodyBuilds() const { return bodyBuilds_; }
+    // Local geometry indexes built; a moved placement or an instance of an
+    // already indexed definition member builds none.
+    size_t localBuilds() const { return localBuilds_; }
+    // Primitives visible to queries, as if every placement were expanded.
     size_t primitiveCount() const;
+    // Primitives actually stored: shared local primitives once, plus guides.
+    size_t indexedPrimitiveCount() const;
+    // Approximate retained bytes of index-owned structures (shared parts once).
+    size_t indexBytes() const;
 
-  private:
-    struct Box {
-        Vec3 low{}, high{};
+    struct LocalPrimitive {
+        InferenceKind kind{};
+        Id entity{};
+        Vec3 a{}, b{}, c{}; // Midpoint keeps its edge endpoints in a and b.
     };
     struct Node {
-        Box box;
-        size_t first{}, count{}, left{}, right{};
+        inference_detail::Box box;
+        std::uint32_t first{}, count{}, left{}, right{};
     };
-    struct Primitive {
-        InferenceKind kind;
-        Id entity{};
-        Vec3 a{}, b{}, c{};
-        Box box;
-    };
-    struct Cache {
-        BodyPtr record;
-        Transform world;
-        std::map<Id, std::vector<Id>> vertexEdges;
-        std::vector<Primitive> primitives;
-        std::vector<size_t> order;
-        std::vector<Node> nodes;
-        Box box;
-    };
-    std::map<Id, std::shared_ptr<const Cache>> bodies_;
-    std::vector<Id> bodyIds_;
-    std::vector<size_t> bodyOrder_;
+    struct Local;
+    struct Placement;
+
+  private:
+    std::map<Id, std::shared_ptr<const Placement>> placements_;
+    std::vector<std::pair<Id, const Placement *>> entries_;
+    std::vector<std::uint32_t> entryOrder_;
     std::vector<Node> nodes_;
     std::string identity_;
     Document::SaveStamp snapshot_;
     std::uint64_t revision_{UINT64_MAX};
-    size_t bodyBuilds_{};
-    static Box bounds(Vec3 a, Vec3 b, Vec3 c);
-    static Box join(Box a, Box b);
-    static std::vector<Node> build(std::vector<size_t> &order, const std::vector<Box> &boxes);
-    using Planes = std::array<std::array<double, 4>, 6>;
-    static Planes frustum(const InferenceCamera &camera, double x, double y, double radius);
-    static bool intersects(Box box, const Planes &planes);
-    void visit(const Planes &planes, Id context,
-               const std::function<void(Id, const Primitive &)> &fn) const;
+    size_t bodyBuilds_{}, localBuilds_{}, primitiveCount_{};
+    void visit(const std::array<std::array<double, 4>, 6> &planes, Id context,
+               const std::function<void(Id, const inference_detail::Primitive &)> &fn) const;
 };
 } // namespace sketchy
