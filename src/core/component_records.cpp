@@ -61,15 +61,9 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
         edit.style = std::pair{before.style(), after.style()};
 }
 namespace {
-void bounded(const ComponentSize &size) {
-    if (size.records > DocumentLimits::bodies || size.vertices > DocumentLimits::vertices ||
-        size.faces > DocumentLimits::faces || size.wires > DocumentLimits::wires ||
-        size.edges > DocumentLimits::edges || size.curves > DocumentLimits::curves ||
-        size.guides > DocumentLimits::guides || size.depth > 128)
-        throw std::runtime_error("Component expansion exceeds document editing limits");
-}
 void add(ComponentSize &a, const ComponentSize &b) {
-    // Every operand is bounded before addition, so sums cannot overflow size_t.
+    // Callers bound every running sum before the next addition, so sums of
+    // bounded record counts cannot overflow size_t.
     a.records += b.records;
     a.vertices += b.vertices;
     a.faces += b.faces;
@@ -77,8 +71,13 @@ void add(ComponentSize &a, const ComponentSize &b) {
     a.edges += b.edges;
     a.curves += b.curves;
     a.guides += b.guides;
+    a.placements += b.placements;
     a.depth = std::max(a.depth, b.depth);
-    bounded(a);
+}
+void boundedDepth(const ComponentSize &size, const ComponentDefinition &definition) {
+    if (size.depth > 128)
+        throw std::runtime_error("Component nesting exceeds 128 levels (" +
+                                 definitionLimitContext(definition.name, definition.id) + ")");
 }
 ComponentSize sizeOf(const Body &body) {
     return {1,
@@ -88,7 +87,8 @@ ComponentSize sizeOf(const Body &body) {
             body.topology.edges.size(),
             body.curves.size(),
             body.guides.size(),
-            1};
+            1,
+            0};
 }
 void rootState(Body &body, const Body &placement) {
     body.id = placement.id;
@@ -101,6 +101,24 @@ void rootState(Body &body, const Body &placement) {
     body.tag = placement.tag;
 }
 } // namespace
+LimitCounts limitCounts(const ComponentSize &size) {
+    return {size.placements, size.records, size.vertices, size.faces,
+            size.wires,      size.edges,   size.curves,   size.guides};
+}
+ComponentGeometry componentGeometry(const ComponentDefinitions &definitions) {
+    ComponentGeometry result;
+    for (const auto &[id, definition] : definitions) {
+        auto &direct = result.direct[id];
+        direct.placements = 1;
+        for (const auto &[member, body] : definition->members) {
+            const auto size = sizeOf(*body);
+            add(result.stored, size);
+            if (!definition->references.contains(member))
+                add(direct, size);
+        }
+    }
+    return result;
+}
 bool matchesComponentProjection(const Body &expected, const Body &actual) {
     // Scene allocator floors can exceed the canonical floor after undo. They
     // never license a geometry identity mismatch or a lower allocator floor.
@@ -132,6 +150,12 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
             !root->surface.wires.empty() || !root->curves.empty() || !root->guides.empty())
             throw std::runtime_error(
                 "Component root is a placement frame; geometry belongs to members");
+        // Definition members count once toward the unique geometry limits.
+        // Check before restoring them so the definition is named.
+        for (const auto &[member, body] : definition->members)
+            add(stored, sizeOf(*body));
+        checkLimits(limitCounts(stored), LimitClass::UniqueGeometry, "Component definition",
+                    definitionLimitContext(definition->name, id));
         // Reuse authoritative geometry, topology, curve, guide, hierarchy and
         // world-bound validation instead of accepting a looser prototype format.
         Document canonical;
@@ -150,9 +174,6 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
                 if (!ancestor || ++depth > 128)
                     throw std::runtime_error("Component members must descend from one root");
             }
-            auto size = sizeOf(*body);
-            size.depth = depth;
-            add(stored, size);
             if (definition->references.contains(body->parent))
                 throw std::runtime_error("Nested component reference must be a leaf node");
         }
@@ -186,7 +207,13 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
             } else
                 size.depth = depth;
             add(total, size);
+            boundedDepth(total, definition);
+            checkLimits(limitCounts(total), LimitClass::Placement, "Component expansion",
+                        definitionLimitContext(definition.name, id));
         }
+        total.placements += 1;
+        checkLimits(limitCounts(total), LimitClass::Placement, "Component expansion",
+                    definitionLimitContext(definition.name, id));
         visiting.erase(id);
         sizes[id] = total;
         return total;
@@ -255,7 +282,8 @@ void validateInstance(const ComponentDefinitions &definitions, const Instances &
 }
 void validateInstances(const ComponentDefinitions &definitions, const ComponentInstances &instances,
                        const std::map<Id, BodyPtr> &scene, const Document *baseline) {
-    if (instances.size() > 10000)
+    // Defensive bound; Document reports the D06 placement diagnostic first.
+    if (instances.size() > DocumentLimits::materialized.placements)
         throw std::runtime_error("Too many component instances");
     std::set<Id> owned, roots;
     for (const auto &[root, instance] : instances) {
@@ -294,7 +322,7 @@ void validateComponentInstanceInsertions(const ComponentDefinitions &definitions
                                          const ComponentInstances &added,
                                          const std::map<Id, BodyPtr> &changedBodies,
                                          const Document &baseline) {
-    if (baseline.instances().size() + added.size() > 10000)
+    if (baseline.instances().size() + added.size() > DocumentLimits::materialized.placements)
         throw std::runtime_error("Too many component instances");
     const RecordOverlay<BodyPtr> scene{baseline.bodies(), changedBodies};
     const RecordOverlay<InstancePtr> instances{baseline.instances(), added};

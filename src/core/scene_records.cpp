@@ -28,7 +28,7 @@ void SceneEntity::validate() const {
     throw std::runtime_error("Unknown scene visibility entity kind");
 }
 void SceneVisibility::validate() const {
-    if (bodyVisible.size() > DocumentLimits::bodies || tagVisible.size() > 1024 ||
+    if (bodyVisible.size() > DocumentLimits::materialized.bodies || tagVisible.size() > 1024 ||
         hiddenEntities.size() > 50000)
         throw std::runtime_error("Scene visibility exceeds its reference budget");
     for (const auto &[id, visible] : bodyVisible)

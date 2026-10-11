@@ -228,8 +228,9 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
     Projection projection{doc, definitions, bindings, seed, seed, {}, next, nullptr};
     for (auto id : owned)
         projection.scene.erase(id);
+    // Materialized totals, each running sum bounded before the next addition.
     ComponentSize total;
-    auto count = [&](ComponentSize size) {
+    auto count = [&](ComponentSize size, auto context) {
         total.records += size.records;
         total.vertices += size.vertices;
         total.faces += size.faces;
@@ -237,19 +238,23 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
         total.edges += size.edges;
         total.curves += size.curves;
         total.guides += size.guides;
-        if (total.records > DocumentLimits::bodies || total.vertices > DocumentLimits::vertices ||
-            total.faces > DocumentLimits::faces || total.wires > DocumentLimits::wires ||
-            total.edges > DocumentLimits::edges || total.curves > DocumentLimits::curves ||
-            total.guides > DocumentLimits::guides)
-            throw std::runtime_error("Component placement exceeds document editing limits");
+        total.placements += size.placements;
+        if (!exceededLimit(limitCounts(total), LimitClass::Placement).empty())
+            checkLimits(limitCounts(total), LimitClass::Placement, "Component placement",
+                        context());
     };
     for (const auto &[id, body] : projection.scene)
         count({1, body->surface.vertices.size(), body->surface.faces.size(),
                body->surface.wires.size(), body->topology.edges.size(), body->curves.size(),
-               body->guides.size(), 1});
+               body->guides.size(), 1, 0},
+              [id] { return "body #" + std::to_string(id); });
     for (const auto &[root, binding] : bindings)
         if (!nestedRoots.contains(root))
-            count(sizes.at(binding->definition));
+            count(sizes.at(binding->definition), [&, root] {
+                const auto &definition = *definitions.at(binding->definition);
+                return "placement #" + std::to_string(root) + " of " +
+                       definitionLimitContext(definition.name, definition.id);
+            });
     for (const auto &[root, binding] : bindings)
         if (!nestedRoots.contains(root))
             projection.resolve(root, binding->definition, *seed.at(root));
@@ -357,6 +362,7 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id
         doc.definitions(), doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
         doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
     // The document's running totals equal a sum over every materialized record.
+    // A placement adds only placement-owned records, so unique geometry is unchanged.
     auto total = sizes.at(definition);
     const auto &current = doc.materializedTotals();
     total.records += current.records;
@@ -366,11 +372,11 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id
     total.edges += current.edges;
     total.curves += current.curves;
     total.guides += current.guides;
-    if (total.records > DocumentLimits::bodies || total.vertices > DocumentLimits::vertices ||
-        total.faces > DocumentLimits::faces || total.wires > DocumentLimits::wires ||
-        total.edges > DocumentLimits::edges || total.curves > DocumentLimits::curves ||
-        total.guides > DocumentLimits::guides)
-        throw std::runtime_error("Component placement exceeds document editing limits");
+    total.placements += doc.instances().size();
+    if (!exceededLimit(limitCounts(total), LimitClass::Placement).empty())
+        checkLimits(limitCounts(total), LimitClass::Placement, "Component placement",
+                    "placing " + definitionLimitContext(prototype->name, definition) + " into " +
+                        (parent ? "group #" + std::to_string(parent) : std::string("the model")));
     // A new placement has fresh IDs and cannot alter an existing definition or
     // binding. Resolve only its expansion; Document::apply still validates the
     // complete candidate, including ownership, locks and editing scopes.

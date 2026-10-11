@@ -211,3 +211,32 @@ edge admission is independent of per-body topology limits. Legacy raw JSON keeps
 an explicit separate model-byte bound. The initial consolidation changes no
 numbers, schema or accepted files; [normal/sanitized validation](../verification/R082l-resource-limits.md)
 records the unchanged profile. Private sizing experiments do not redefine it.
+
+## Unique geometry and placement limits (R082.gg)
+
+Component placements no longer count against the unique-geometry limits.
+`DocumentLimits` now has two classes:
+
+- **Unique geometry** keeps the earlier values: 10,000 bodies, 100,000 each of
+  vertices, faces and wires, 300,000 edges, and 10,000 each of curves and guides.
+  It counts records outside every placement plus each definition's members once.
+  Placement roots and projected members do not count.
+- **Placement limits** bound 20,000 materialized component instances (nested ones
+  included) and the materialized totals after expanding every placement: 40,000
+  bodies, 600,000 each of vertices, faces and wires, 900,000 edges, and 40,000 each
+  of curves and guides.
+
+The materialized values come from measured per-placement and per-vertex costs, so
+that the worst document they admit models at 2.67 GiB peak RSS even when every
+placement draws its own mesh ([R082.w v2](../verification/R082w-memory-budget-v2.md)).
+Placement, apply, load/decode and restore enforce both classes. Placement and
+apply preflight the materialized totals; apply and restore then check the placement
+count before validating bindings and unique geometry after it. Rejections follow
+D06: they name the operation, the limit class, the first exceeded quantity, its
+attempted and maximum values, and the offending definition, placement or body,
+with names truncated to 64 UTF-8-safe bytes and the message capped at 256 bytes.
+The native manifest bound rises from 1 MiB to 4 MiB because the manifest records
+allocator floors for every materialized body; the container stays below the
+128 MiB file bound and no schema changes. Capability output keeps `bodies`,
+`vertices` and `guides` as the unique values and adds `placements` and the
+materialized totals. [Evidence](../verification/R082gg-placement-limits.md).

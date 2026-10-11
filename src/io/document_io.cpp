@@ -116,8 +116,9 @@ std::vector<Id> topLevelPlacements(const ComponentInstances &instances) {
     return roots;
 }
 // Bound the expansion before allocating it, using validated definition sizes.
-void boundPlacements(const std::map<Id, BodyPtr> &stored, const ComponentInstances &instances,
-                     const std::vector<Id> &roots, const std::map<Id, ComponentSize> &sizes) {
+void boundPlacements(const std::map<Id, BodyPtr> &stored, const ComponentDefinitions &definitions,
+                     const ComponentInstances &instances, const std::vector<Id> &roots,
+                     const std::map<Id, ComponentSize> &sizes) {
     ComponentSize total;
     for (const auto &[id, body] : stored) {
         total.records += 1;
@@ -140,11 +141,13 @@ void boundPlacements(const std::map<Id, BodyPtr> &stored, const ComponentInstanc
         total.edges += size.edges;
         total.curves += size.curves;
         total.guides += size.guides;
-        if (total.records > DocumentLimits::bodies || total.vertices > DocumentLimits::vertices ||
-            total.faces > DocumentLimits::faces || total.wires > DocumentLimits::wires ||
-            total.edges > DocumentLimits::edges || total.curves > DocumentLimits::curves ||
-            total.guides > DocumentLimits::guides)
-            throw std::runtime_error("Component expansion exceeds document editing limits");
+        total.placements += size.placements;
+        if (!exceededLimit(limitCounts(total), LimitClass::Placement).empty()) {
+            const auto &definition = *definitions.at(instances.at(root)->definition);
+            checkLimits(limitCounts(total), LimitClass::Placement, "Document load",
+                        "placement #" + std::to_string(root) + " of " +
+                            definitionLimitContext(definition.name, definition.id));
+        }
     }
 }
 // Schemas 8-25 store expanded members. Each must equal its projection under the
@@ -452,8 +455,8 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
 }
 std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
     auto records = array(value);
-    if (records.size() > qsizetype(DocumentLimits::bodies))
-        throw std::runtime_error("Too many bodies");
+    checkLimits({0, size_t(records.size())}, LimitClass::Placement, "Document load",
+                "stored body records");
     std::map<Id, BodyPtr> bodies;
     size_t totalVertices = 0, totalFaces = 0, totalGuides = 0;
     for (auto record : records) {
@@ -591,9 +594,8 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
         auto vertices = array(o["vertices"]), faces = array(o["faces"]), wires = array(o["wires"]);
         totalVertices += vertices.size();
         totalFaces += faces.size();
-        if (totalVertices > DocumentLimits::vertices || totalFaces > DocumentLimits::faces ||
-            wires.size() > qsizetype(DocumentLimits::wires))
-            throw std::runtime_error("Document complexity exceeds editing limits");
+        checkLimits({0, 0, totalVertices, totalFaces, size_t(wires.size())},
+                    LimitClass::Placement, "Document load", "body #" + std::to_string(b->id));
         for (auto vertex : vertices) {
             auto a = array(vertex);
             if (a.size() != 4)
@@ -692,8 +694,10 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
         if (version >= 5) {
             const auto guides = array(o["guides"]);
             totalGuides += guides.size();
-            if (guides.size() > 1024 || totalGuides > DocumentLimits::guides)
+            if (guides.size() > 1024)
                 throw std::runtime_error("Guide count exceeds editing limits");
+            checkLimits({.guides = totalGuides}, LimitClass::Placement, "Document load",
+                        "body #" + std::to_string(b->id));
             auto vector = [&](const QJsonValue &value) {
                 const auto values = array(value);
                 if (values.size() != 3)
@@ -878,8 +882,10 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         nextDefinitionId = readId(root["nextDefinitionId"]);
         const auto definitionRecords = array(root["definitions"]);
         const auto instanceRecords = array(root["instances"]);
-        if (definitionRecords.size() > 1024 || instanceRecords.size() > 10000)
+        if (definitionRecords.size() > 1024)
             throw std::runtime_error("Too many component records");
+        checkLimits({size_t(instanceRecords.size())}, LimitClass::Placement, "Document load",
+                    "stored component instances");
         for (auto value : definitionRecords) {
             const auto record = object(value);
             QStringList allowed{"id", "root", "nextMemberId", "name", "members", "references"};
@@ -929,8 +935,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             auto instance = std::make_shared<ComponentInstance>();
             instance->definition = readId(record["definition"]);
             const auto members = object(record["members"]);
-            if (members.size() > qsizetype(DocumentLimits::bodies))
-                throw std::runtime_error("Too many component member bindings");
+            checkLimits({0, size_t(members.size())}, LimitClass::Placement, "Document load",
+                        "stored component member bindings");
             for (auto it = members.begin(); it != members.end(); ++it)
                 instance->members[readId(it.key())] = readId(it.value());
             const auto placement = readId(record["root"]);
@@ -957,7 +963,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
                                                             nextTagId, materials, nextMaterialId,
                                                             assets, nextAssetId);
             if (root["version"].toInt() >= 26) {
-                boundPlacements(bodies, instances, topLevelPlacements(instances), sizes);
+                boundPlacements(bodies, definitions, instances, topLevelPlacements(instances),
+                                sizes);
                 projectPlacements(definitions, instances, floors, bodies);
             } else
                 verifyStoredPlacements(definitions, instances, bodies);

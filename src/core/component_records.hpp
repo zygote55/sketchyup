@@ -1,6 +1,7 @@
 #pragma once
 #include "core/asset_records.hpp"
 #include "core/body.hpp"
+#include "core/document_limits.hpp"
 #include "core/material_records.hpp"
 #include "core/tag_records.hpp"
 #include <optional>
@@ -33,9 +34,21 @@ using InstancePtr = std::shared_ptr<const ComponentInstance>;
 using ComponentInstances = std::map<Id, InstancePtr>; // keyed by scene root
 struct ComponentSize {
     size_t records{}, vertices{}, faces{}, wires{}, edges{}, curves{}, guides{}, depth{};
+    // Materialized component instances, the placement itself and nested ones.
+    size_t placements{};
 };
+LimitCounts limitCounts(const ComponentSize &size);
+struct ComponentGeometry {
+    // Records one placement of each definition owns directly: every member
+    // except nested references, whose records belong to the nested placement.
+    std::map<Id, ComponentSize> direct;
+    // Every definition member counted once (unique geometry).
+    ComponentSize stored;
+};
+ComponentGeometry componentGeometry(const ComponentDefinitions &definitions);
 // Validate canonical records and the acyclic reference graph, returning bounded
-// expanded sizes for allocation preflight. Does not mutate caller-owned records.
+// expanded sizes for allocation preflight. Definition members together must fit
+// the unique geometry limits; each expansion must fit the materialized limits. Does not mutate caller-owned records.
 std::map<Id, ComponentSize>
 validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDefinitionId,
                              const TagRecords &tags = {}, Id nextTagId = 1,

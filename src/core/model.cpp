@@ -45,6 +45,7 @@ Document Document::readSnapshot() const {
     result.surfaceFloors_ = surfaceFloors_;
     result.edgeFloors_ = edgeFloors_;
     result.totals_ = totals_;
+    result.placementCounts_ = placementCounts_;
     result.lockedBodies_ = lockedBodies_;
     result.detachedFloors_ = detachedFloors_;
     result.revision_ = revision_;
@@ -163,15 +164,147 @@ void subtractTotals(DocumentTotals &totals, const BodyPtr &b) {
     totals.curves -= b->curves.size();
     totals.guides -= b->guides.size();
 }
-void checkDocumentLimits(const DocumentTotals &totals) {
-    if (totals.records > DocumentLimits::bodies || totals.vertices > DocumentLimits::vertices ||
-        totals.faces > DocumentLimits::faces || totals.wires > DocumentLimits::wires ||
-        totals.edges > DocumentLimits::edges || totals.curves > DocumentLimits::curves ||
-        totals.guides > DocumentLimits::guides)
-        throw std::runtime_error("Document complexity exceeds editing limits");
+LimitCounts limitCounts(const DocumentTotals &totals, size_t placements = 0) {
+    return {placements,   totals.records, totals.vertices, totals.faces,
+            totals.wires, totals.edges,   totals.curves,   totals.guides};
+}
+size_t limitField(const LimitCounts &counts, std::string_view name) {
+    return name == "placements" ? counts.placements
+           : name == "bodies"   ? counts.bodies
+           : name == "vertices" ? counts.vertices
+           : name == "faces"    ? counts.faces
+           : name == "wires"    ? counts.wires
+           : name == "edges"    ? counts.edges
+           : name == "curves"   ? counts.curves
+                                : counts.guides;
+}
+LimitCounts bodyLimitCounts(const BodyPtr &b) {
+    DocumentTotals totals;
+    addTotals(totals, b);
+    return limitCounts(totals);
+}
+// D06 context for an edit rejected by a document limit: the record that grows
+// the exceeded quantity, chosen from the edit alone so incremental and full
+// validation report the same entity.
+std::string editLimitContext(const Edit &edit, const ComponentDefinitions &definitions,
+                             LimitClass limits, std::string_view quantity) {
+    auto placementContext = [&](const InstanceChange &change) {
+        const auto id = change.after->definition;
+        const auto found = definitions.find(id);
+        return "placement #" + std::to_string(change.root) + " of " +
+               definitionLimitContext(found != definitions.end() && found->second
+                                          ? std::string_view(found->second->name)
+                                          : std::string_view("Component"),
+                                      id);
+    };
+    if (quantity == "placements") {
+        for (const auto &change : edit.instances)
+            if (change.after && !change.before)
+                return placementContext(change);
+    }
+    if (limits == LimitClass::UniqueGeometry)
+        for (const auto &change : edit.definitions) {
+            if (!change.after)
+                continue;
+            size_t before{}, after{};
+            for (const auto &[member, body] : change.after->members)
+                after += limitField(bodyLimitCounts(body), quantity);
+            if (change.before)
+                for (const auto &[member, body] : change.before->members)
+                    before += limitField(bodyLimitCounts(body), quantity);
+            if (after > before)
+                return definitionLimitContext(change.after->name, change.id);
+        }
+    for (const auto &change : edit.changes)
+        if (change.after && limitField(bodyLimitCounts(change.after), quantity) >
+                                limitField(bodyLimitCounts(change.before), quantity))
+            return "body #" + std::to_string(change.id);
+    for (const auto &change : edit.instances)
+        if (change.after)
+            return placementContext(change);
+    for (const auto &change : edit.changes)
+        if (change.after)
+            return "body #" + std::to_string(change.id);
+    return {};
+}
+// Materialized totals; an edit names its offending record, a load does not.
+void checkDocumentLimits(const DocumentTotals &totals, const Edit *edit,
+                         const ComponentDefinitions &definitions) {
+    const auto counts = limitCounts(totals);
+    const auto exceeded = exceededLimit(counts, LimitClass::Placement);
+    if (exceeded.empty())
+        return;
+    checkLimits(counts, LimitClass::Placement, edit ? "Document edit" : "Document load",
+                edit ? editLimitContext(*edit, definitions, LimitClass::Placement, exceeded)
+                     : std::string_view{});
+}
+// Placement records and unique geometry. Unique geometry is the materialized
+// totals minus every record a placement owns, plus each definition's members
+// once. Requires validated bindings, so owned records never exceed the totals.
+// Checked before bindings are validated, so validation work stays bounded.
+void checkPlacementCount(size_t placements, const ComponentDefinitions &definitions,
+                         const Edit *edit) {
+    const LimitCounts records{placements};
+    if (exceededLimit(records, LimitClass::Placement).empty())
+        return;
+    checkLimits(records, LimitClass::Placement, edit ? "Document edit" : "Document load",
+                edit ? editLimitContext(*edit, definitions, LimitClass::Placement, "placements")
+                     : std::string{});
+}
+void checkUniqueGeometry(const DocumentTotals &totals,
+                         const std::map<Id, size_t> &placementCounts,
+                         const ComponentDefinitions &definitions, const Edit *edit) {
+    auto unique = limitCounts(totals);
+    if (!definitions.empty()) {
+        const auto geometry = componentGeometry(definitions);
+        auto subtract = [](size_t &value, size_t owned) { value -= std::min(value, owned); };
+        for (const auto &[definition, count] : placementCounts) {
+            if (!count || !geometry.direct.contains(definition))
+                continue;
+            const auto owned = limitCounts(geometry.direct.at(definition));
+            subtract(unique.bodies, owned.bodies * count);
+            subtract(unique.vertices, owned.vertices * count);
+            subtract(unique.faces, owned.faces * count);
+            subtract(unique.wires, owned.wires * count);
+            subtract(unique.edges, owned.edges * count);
+            subtract(unique.curves, owned.curves * count);
+            subtract(unique.guides, owned.guides * count);
+        }
+        const auto stored = limitCounts(geometry.stored);
+        unique.bodies += stored.bodies;
+        unique.vertices += stored.vertices;
+        unique.faces += stored.faces;
+        unique.wires += stored.wires;
+        unique.edges += stored.edges;
+        unique.curves += stored.curves;
+        unique.guides += stored.guides;
+    }
+    if (const auto exceeded = exceededLimit(unique, LimitClass::UniqueGeometry);
+        !exceeded.empty())
+        checkLimits(unique, LimitClass::UniqueGeometry, edit ? "Document edit" : "Document load",
+                    edit ? editLimitContext(*edit, definitions, LimitClass::UniqueGeometry,
+                                            exceeded)
+                         : std::string{});
+}
+std::map<Id, size_t> countPlacements(const ComponentInstances &instances) {
+    std::map<Id, size_t> counts;
+    for (const auto &[root, instance] : instances)
+        ++counts[instance->definition];
+    return counts;
+}
+void countPlacementChange(std::map<Id, size_t> &counts, const InstancePtr &removed,
+                          const InstancePtr &added) {
+    if (removed) {
+        const auto found = counts.find(removed->definition);
+        if (!--found->second)
+            counts.erase(found);
+    }
+    if (added)
+        ++counts[added->definition];
 }
 // Full oracle: recount every record and validate every parent chain.
-void validateDocumentSize(const std::map<Id, BodyPtr> &bodies,
+void validateDocumentSize(const std::map<Id, BodyPtr> &bodies, const Edit *edit,
+                          const ComponentDefinitions &definitions,
                           const std::map<Id, BodyPtr> *baseline = nullptr) {
     DocumentTotals totals;
     for (const auto &[id, b] : bodies) {
@@ -189,7 +322,7 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies,
             continue;
         checkWorldBounds(*b, world);
     }
-    checkDocumentLimits(totals);
+    checkDocumentLimits(totals, edit, definitions);
 }
 // Incremental form. Precondition: the baseline document is valid and no changed
 // record that existed before alters its parent, transform or reference-image
@@ -198,7 +331,8 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies,
 // as the full scan. Totals are the running totals after the edit.
 void validateChangedDocumentSize(const RecordOverlay<BodyPtr> &bodies,
                                  const std::map<Id, BodyPtr> &changed,
-                                 const DocumentTotals &totals) {
+                                 const DocumentTotals &totals, const Edit &edit,
+                                 const ComponentDefinitions &definitions) {
     for (const auto &[id, b] : changed) {
         if (!b)
             continue;
@@ -206,7 +340,7 @@ void validateChangedDocumentSize(const RecordOverlay<BodyPtr> &bodies,
             throw std::runtime_error("Reference images cannot own child entities");
         checkWorldBounds(*b, worldTransformIn(bodies, id));
     }
-    checkDocumentLimits(totals);
+    checkDocumentLimits(totals, &edit, definitions);
 }
 void validate(const Body &b) {
     if (b.textSource) {
@@ -672,8 +806,10 @@ void Document::update(Edit edit, bool forward) {
         else
             definitions.erase(change.id);
     }
+    auto placementCounts = placementCounts_;
     for (const auto &change : edit.instances) {
         const auto target = forward ? change.after : change.before;
+        countPlacementChange(placementCounts, forward ? change.before : change.after, target);
         if (target)
             instances[change.root] = target;
         else
@@ -717,6 +853,7 @@ void Document::update(Edit edit, bool forward) {
     }
     bodies_.swap(next);
     totals_ = totals;
+    placementCounts_.swap(placementCounts);
     for (auto id : detachedErased)
         detachedFloors_.erase(id);
     detachedFloors_.merge(detachedAdded);
@@ -1021,6 +1158,9 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         } else
             instances.erase(change.root);
     }
+    checkPlacementCount(incremental ? instances_.size() + addedInstances.size()
+                                    : instances.size(),
+                        definitions, &edit);
     std::set<Id> ids;
     Id next = std::max(nextId_, edit.nextIdFloor);
     // Allocator floors are staged sparsely for changed records and spliced in at commit.
@@ -1182,7 +1322,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     // The full scheme materializes the complete candidate map for its oracles.
     std::map<Id, BodyPtr> updated;
     if (incremental)
-        validateChangedDocumentSize(candidate, changedBodies, totals);
+        validateChangedDocumentSize(candidate, changedBodies, totals, edit, definitions);
     else {
         updated = bodies_;
         for (const auto &c : edit.changes) {
@@ -1191,7 +1331,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             else
                 updated.erase(c.id);
         }
-        validateDocumentSize(updated, &bodies_);
+        validateDocumentSize(updated, &edit, definitions, &bodies_);
     }
     if (!annotations.empty()) {
         auto candidate = readSnapshot();
@@ -1273,6 +1413,13 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         validateComponentInstanceEdits(definitions, instances, updated, *this);
         validateHostedComponents(*hosted, updated, definitions, instances);
     }
+    // The full scheme recounts the complete candidate; the incremental one adds
+    // only its inserted bindings to the running counts.
+    auto placementCounts = incremental ? placementCounts_ : countPlacements(instances);
+    if (incremental)
+        for (const auto &[root, instance] : addedInstances)
+            countPlacementChange(placementCounts, nullptr, instance);
+    checkUniqueGeometry(totals, placementCounts, definitions, &edit);
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
     auto lockedIn = [](const auto &records, Id id) {
@@ -1427,6 +1574,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
                 ++it;
         base.merge(staged);
     };
+    placementCounts_.swap(placementCounts);
     if (incremental) {
         commitSparse(bodies_, changedBodies);
         instances_.merge(addedInstances);
@@ -1827,7 +1975,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
-        !next || bodies.size() > DocumentLimits::bodies)
+        !next || bodies.size() > DocumentLimits::materialized.bodies)
         throw std::runtime_error("Invalid document metadata");
     std::map<Id, Id> floors, edgeFloors;
     for (auto &[id, b] : bodies) {
@@ -1849,7 +1997,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
         b = std::move(restored);
         floors.emplace(id, b->surface.nextId);
     }
-    validateDocumentSize(bodies);
+    validateDocumentSize(bodies, nullptr, definitions);
     validateTagRecords(tags, nextTagId);
     validateTagAssignments(tags, bodies);
     validateAssetRecords(assets, nextAssetId);
@@ -1868,7 +2016,15 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     validateReferenceImageAssets(bodies, assets);
     validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
                                  nextMaterialId, assets, nextAssetId);
+    checkPlacementCount(instances.size(), definitions, nullptr);
     validateComponentInstances(definitions, instances, bodies);
+    auto placementCounts = countPlacements(instances);
+    {
+        DocumentTotals materialized;
+        for (const auto &[id, b] : bodies)
+            addTotals(materialized, b);
+        checkUniqueGeometry(materialized, placementCounts, definitions, nullptr);
+    }
     hosted = freezeHostedComponents(hosted);
     validateHostedComponents(*hosted, bodies, definitions, instances);
     DocumentTotals totals;
@@ -1930,6 +2086,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     totals_ = totals;
+    placementCounts_ = std::move(placementCounts);
     lockedBodies_ = std::move(locked);
     detachedFloors_.clear();
     historyRefs_.clear();
@@ -2020,6 +2177,8 @@ void Document::verifyIncrementalState() const {
     std::string failure;
     if (totals != totals_)
         failure += " running totals";
+    if (countPlacements(instances_) != placementCounts_)
+        failure += " placement counts";
     if (locked != lockedBodies_)
         failure += " locked index";
     if (detached != detachedFloors_)
@@ -2060,7 +2219,8 @@ std::string Document::stateMismatch(const Document &other) const {
           "history");
     check((!hosted_ && !other.hosted_) || (hosted_ && other.hosted_ && *hosted_ == *other.hosted_),
           "hosted records");
-    check(totals_ == other.totals_ && lockedBodies_ == other.lockedBodies_ &&
+    check(totals_ == other.totals_ && placementCounts_ == other.placementCounts_ &&
+              lockedBodies_ == other.lockedBodies_ &&
               detachedFloors_ == other.detachedFloors_ && historyRefs_ == other.historyRefs_,
           "incremental indexes");
     check(readSnapshotBytes() == other.readSnapshotBytes(), "retained bytes");

@@ -101,7 +101,7 @@ struct Edit {
     std::optional<std::pair<SolarSettings, SolarSettings>> solar{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
-// Running materialized-record totals compared with DocumentLimits.
+// Running materialized-record totals compared with DocumentLimits::materialized.
 struct DocumentTotals {
     size_t records{}, vertices{}, faces{}, wires{}, edges{}, curves{}, guides{};
     bool operator==(const DocumentTotals &) const = default;
@@ -312,8 +312,10 @@ class Document {
     // Incremental bookkeeping. Invariants (checked by verifyIncrementalState):
     // totals_ sums bodies_; lockedBodies_ is the set of locked body IDs;
     // detachedFloors_ is the set of allocator-floor keys without a live body;
-    // historyRefs_ counts undo_ entries whose body changes name each ID.
+    // historyRefs_ counts undo_ entries whose body changes name each ID;
+    // placementCounts_ counts instances_ by definition (unique-geometry limits).
     DocumentTotals totals_;
+    std::map<Id, size_t> placementCounts_;
     std::set<Id> lockedBodies_, detachedFloors_;
     std::map<Id, size_t> historyRefs_;
     void addHistoryRefs(const Edit &edit);

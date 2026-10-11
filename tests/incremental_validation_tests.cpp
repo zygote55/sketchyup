@@ -97,16 +97,22 @@ void randomizedEquivalence(std::uint32_t seed, int steps) {
     // Small, large (limit pressure) and nested definitions.
     const auto small = createComponent(doc, prism(doc, 6), "Small").definition;
     const auto large = createComponent(doc, prism(doc, 200, 2, {10, 0, 0}), "Large").definition;
-    // Unchanged loose geometry close to the vertex limit keeps sequences near the
-    // boundary without re-validating large records on every step.
-    for (int i = 0; i < 85; ++i) {
+    // Unchanged loose geometry just below the unique vertex limit keeps sequences at
+    // the boundary without re-validating large records on every step. A locked
+    // group keeps random erases from releasing it, so loose edits and unique copies
+    // reach the unique limit. placementBoundary covers the materialized limits,
+    // which random sequences would need about 1,250 placements to reach.
+    std::set<Id> ballast;
+    for (int i = 0; i < 100; ++i) {
         std::vector<Vec3> loop;
-        for (int j = 0; j < 1000; ++j) {
-            const auto angle = 2 * std::numbers::pi * j / 1000;
+        const int sides = i < 99 ? 1000 : 520;
+        for (int j = 0; j < sides; ++j) {
+            const auto angle = 2 * std::numbers::pi * j / sides;
             loop.push_back({50 + std::cos(angle), std::sin(angle), double(i)});
         }
-        doc.addFace({loop}, "Ballast");
+        ballast.insert(doc.addFace({loop}, "Ballast"));
     }
+    setEntityState(doc, createGroup(doc, ballast, "Ballast"), {}, true);
     const auto inner = placeComponent(doc, small, Transform::translation({0, 5, 0})).instance;
     const auto loose = prism(doc, 4, 1, {3, 5, 0});
     const auto outer = createGroup(doc, {inner, loose}, "Outer");
@@ -148,7 +154,7 @@ void randomizedEquivalence(std::uint32_t seed, int steps) {
         return live[pick(live.size())];
     };
     auto place = [&](Document &target) {
-        // Bias towards the large definition so sequences reach the vertex limit.
+        // Bias towards the large definition, whose unique copies press the limit.
         const auto definition =
             chance(.5) && target.definitions().contains(large) ? large : liveDefinition(target);
         const Id parent = chance(.25) ? anyGroup() : 0;
@@ -274,50 +280,63 @@ void randomizedEquivalence(std::uint32_t seed, int steps) {
 }
 
 void placementBoundary() {
-    // One 1000-sided prism instance materializes exactly 2000 vertices, so fifty
-    // instances meet the 100000-vertex limit exactly; every other total stays below.
-    static_assert(DocumentLimits::vertices == 100000);
+    // One 5000-sided prism instance materializes 10000 vertices and 15000 edges,
+    // so sixty instances meet the materialized vertex and edge limits exactly;
+    // unique geometry holds the definition once and stays far below its limits.
+    static_assert(DocumentLimits::materialized.vertices == 600000);
+    static_assert(DocumentLimits::materialized.edges == 900000);
     Document doc;
-    const auto definition = createComponent(doc, prism(doc, 1000), "Boundary").definition;
-    check(doc.materializedTotals().vertices == 2000, "Unexpected boundary fixture size");
-    for (int i = 1; i < 50; ++i)
+    const auto definition = createComponent(doc, prism(doc, 5000), "Boundary").definition;
+    check(doc.materializedTotals().vertices == 10000, "Unexpected boundary fixture size");
+    for (int i = 1; i < 60; ++i)
         placeComponent(doc, definition, Transform::translation({3.0 * i, 0, 0}));
-    check(doc.materializedTotals().vertices == DocumentLimits::vertices,
+    check(doc.materializedTotals().vertices == DocumentLimits::materialized.vertices &&
+              doc.materializedTotals().edges == DocumentLimits::materialized.edges,
           "Placements up to the limit must succeed");
     checkTotals(doc, "at limit");
     const auto full = fingerprint(doc);
+    // D06: the placement preflight names the limit, both values and the definition.
     check(rejection([&] { placeComponent(doc, definition); }) ==
-              "Component placement exceeds document editing limits",
-          "One placement past the limit must be rejected with the existing message");
+              "Component placement exceeds document placement limits: vertices would be "
+              "610,000 of 600,000 (placing definition 'Boundary' #" +
+                  std::to_string(definition) + " into the model)",
+          "One placement past the limit must be rejected with a bounded diagnostic");
+    // Apply names the record that grows the exceeded total, identically in the
+    // incremental and full-validation schemes (the oracle compares both).
+    const auto loose = doc.nextId();
     check(rejection([&] { doc.addFace({{{0, 0, 9}, {1, 0, 9}, {0, 1, 9}}}); }) ==
-              "Document complexity exceeds editing limits",
+              "Document edit exceeds document placement limits: vertices would be 600,003 of "
+              "600,000 (body #" +
+                  std::to_string(loose) + ")",
           "Any record past the limit must be rejected by apply");
     check(fingerprint(doc) == full, "Rejected boundary edits must not publish");
     doc.undo();
     checkTotals(doc, "after undo");
     placeComponent(doc, definition, Transform::translation({0, 9, 0}));
-    check(doc.materializedTotals().vertices == DocumentLimits::vertices,
+    check(doc.materializedTotals().vertices == DocumentLimits::materialized.vertices,
           "A placement freed by undo must fit again");
     doc.undo();
-    check(doc.materializedTotals().vertices == DocumentLimits::vertices - 2000,
+    check(doc.materializedTotals().vertices == DocumentLimits::materialized.vertices - 10000,
           "Undo releases one placement");
     doc.redo();
-    check(doc.materializedTotals().vertices == DocumentLimits::vertices,
+    check(doc.materializedTotals().vertices == DocumentLimits::materialized.vertices,
           "Redo restores the limit total");
     checkTotals(doc, "after redo");
 }
 
 void bodyBoundary() {
     // A one-triangle definition materializes two records per instance (frame and
-    // geometry). Fill the remaining body allowance with empty groups in one edit.
-    static_assert(DocumentLimits::bodies == 10000);
+    // geometry) but counts its members once toward unique geometry. Loose empty
+    // groups fill the unique body allowance in one edit; placements then grow the
+    // materialized total past the old 10000-body document limit, and one more
+    // loose record is rejected as unique geometry.
+    static_assert(DocumentLimits::unique.bodies == 10000);
     Document doc;
     const auto body = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
     const auto definition = createComponent(doc, body, "Triangle").definition;
-    const auto existing = doc.bodies().size();
-    const size_t placements = 6;
+    const size_t stored = doc.definitions().at(definition)->members.size();
     Edit fill{"Fill", {}};
-    for (size_t i = 0; i < DocumentLimits::bodies - existing - 2 * placements; ++i) {
+    for (size_t i = 0; i < DocumentLimits::unique.bodies - stored; ++i) {
         auto group = std::make_shared<Body>();
         group->id = doc.nextId() + i;
         group->kind = BodyKind::Group;
@@ -325,15 +344,23 @@ void bodyBoundary() {
         fill.changes.push_back({group->id, nullptr, group});
     }
     doc.apply(std::move(fill), doc.revision());
-    for (size_t i = 0; i < placements; ++i)
+    for (size_t i = 0; i < 6; ++i)
         placeComponent(doc, definition, Transform::translation({2.0 * i, 0, 0}));
-    check(doc.bodies().size() == DocumentLimits::bodies, "Placements up to the body limit succeed");
-    checkTotals(doc, "body limit");
+    check(doc.bodies().size() == DocumentLimits::unique.bodies - stored + 7 * stored,
+          "Placements beyond the unique body allowance succeed");
+    checkTotals(doc, "unique body limit");
     const auto full = fingerprint(doc);
-    check(rejection([&] { placeComponent(doc, definition); }) ==
-              "Component placement exceeds document editing limits",
-          "One placement past the body limit must be rejected with the existing message");
-    check(fingerprint(doc) == full, "Rejected body-limit placement must not publish");
+    const auto extra = doc.nextId();
+    check(rejection([&] {
+              auto group = std::make_shared<Body>();
+              group->id = extra;
+              group->kind = BodyKind::Group;
+              doc.apply({"Extra", {{extra, nullptr, group}}}, doc.revision());
+          }) == "Document edit exceeds document unique geometry limits: bodies would be "
+                "10,001 of 10,000 (body #" +
+                    std::to_string(extra) + ")",
+          "One loose record past the unique body limit must be rejected");
+    check(fingerprint(doc) == full, "Rejected unique-limit edit must not publish");
 }
 
 void restoreAndSnapshots() {
