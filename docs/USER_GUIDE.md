@@ -55,6 +55,77 @@ enter the new sequence and choose **Assign**, then **Save**. Conflict messages
 explain unavailable combinations. Cancel preserves existing bindings; Reset
 defaults is a draft until saved. See [shortcut behavior](decisions/0149-native-shortcut-editor.md).
 
+## Accessibility and keyboard use
+
+This section records what was tested. It is not a conformance claim; accessibility
+acceptance is still open (see the [support matrix](SUPPORT_MATRIX.md#runtime-and-services)).
+Shortcuts are defaults; saved custom bindings take precedence.
+
+**Without a pointer.**
+
+- **Regions:** F6 / Shift+F6 cycles the Commands button, tool rail, viewport,
+  model panel, assistant (when shown) and Measurements.
+- **Commands and objects:** Ctrl+K searches commands, objects, recent files and
+  faces typed as `face 1/2` (body/face). Choosing an object selects it.
+- **Exact modeling:** choose a drawing tool by its letter and type digits in the viewport;
+  they move to Measurements. `[x,y,z]` sets an absolute point, Enter commits and
+  Escape cancels. With a first point, Right, Left and Up lock the red, green or blue
+  axis, and a typed length then follows it ([fixture](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084d-keyboard-modeling.md)).
+- **Selecting:** with the Select tool (Space) and viewport focus, Tab / Shift+Tab
+  steps through visible entities, Ctrl+A selects all eligible geometry, Enter opens
+  the selected group or component and Escape leaves or clears.
+- **Outliner:** F6 to the model panel, then arrows or Home choose an entity; F2
+  renames, Space hides/shows, Ctrl+Shift+L locks, Enter opens a group, Escape leaves it
+  and Ctrl+Z / Ctrl+Shift+Z undo and redo ([workflow](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084k-keyboard-outliner.md)).
+- **Model panel tabs:** inside a panel page, Ctrl+Tab and Ctrl+Shift+Tab switch tabs
+  and move focus into the new page; from the tab bar (Shift+Tab from the page), Left
+  and Right switch tabs. Every tab also has a View menu and Ctrl+K command, such as
+  **Entity info** or **Outliner**, that shows the panel and focuses that page
+  ([record](https://github.com/zygote55/sketchyup/blob/15bcf724be7b17545ca5b8ff562995bca455f9f6/docs/verification/R084s-keyboard-panel-tabs.md)).
+- **Exact values:** Entity info (the **Info** tab) shows the selection's bounds, area
+  and volume. The AT-SPI check read 8 × 6 × 0.15 m, 100.2 m² and 7.2 m³ for the demo
+  slab ([bridge](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084l-linux-accessibility-bridge.md)).
+- **Shortcuts:** Edit → Keyboard shortcuts…, or Ctrl+K, as described above.
+- **Appearance:** View → Interface text size… (75–200%), View → Theme (System, Light,
+  Dark) and View → Reduced camera motion. Measured text, selected-text, button, hint
+  and breadcrumb-link contrast exceeds 4.5:1 in both themes; this is not a check of
+  every state or dialog.
+- **Focus:** every focusable control (text fields, buttons, combo and spin boxes,
+  check boxes, lists, trees, tabs, the tool rail and the assistant panel) draws a
+  1 px accent ring when it has keyboard focus, in both themes; the viewport draws
+  a 2 px accent border.
+
+**The 3D viewport.** The viewport is a rendered canvas. Assistive technology finds
+it as "3D model viewport" and can read its selection summary, a count such as
+"1 face, 2 edges" or "No selection", which updates when the selection changes. While
+an assistant preview is focused it describes that preview's world bounds instead. The
+canvas exposes no geometry, positions or hover targets, so a screen reader cannot
+read the model from it. Names and measurements come from the panels: the
+**Selection summary** label (its description adds the selected entity's name,
+editing context and face area), the Outliner and Entity info. No interactive
+screen-reader session has been run, so how a particular reader announces a change
+is unverified.
+
+Some interactions remain pointer-first:
+
+| Interaction | Keyboard alternative |
+| --- | --- |
+| Orbit, pan, zoom (drag, wheel, trackpad) | None for orbit, pan or zoom. **1** / **2** / **3** set perspective, top and front, and the View menu or Ctrl+K offers Right, Back, Left, Bottom and Isometric. **Shift+Z** fits the model. Camera → Walk (W A S D or arrows, Q / E height, Esc exits) and Look around (arrows) move the eye. |
+| Picking by click or window drag | Tab selection, Ctrl+A, the Outliner and Ctrl+K as above. No keyboard rectangle selection. |
+| Snapping to an existing endpoint, midpoint or edge | None. Enter the coordinates instead. Tab cycles inference candidates and Down locks parallel/perpendicular, but both depend on the pointer hovering the geometry. |
+| Push/pull by dragging | Select a face, press **P** and type the distance. |
+| Move, Rotate, Scale | Measurements accepts `[x,y,z]` pivots, displacements, angles and factors, but no keyboard-only test covers these tools. |
+| Follow Me, Intersect, Solid tools, Face orientation | Select the inputs, then press Enter. Not individually tested without a pointer. |
+| Paint tool | Clicking a face is required, and Paint disables Measurements. Edit → Set original face color… colors the selection. |
+| Freehand | None. Line with typed coordinates draws polylines, not strokes. |
+
+**Known gaps (M9).** These are the support matrix's limits: dialogs, keyboard
+layouts and interactive screen-reader workflows are not established.
+Tab traversal is checked for the Drawing plane, Keyboard shortcuts, Commands and
+Assistant preferences dialogs ([record](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084p-dialog-keyboard.md)), not every
+dialog. Physical keyboard layouts and input methods are untested, and no Orca,
+speech or braille session has been validated.
+
 ## Save, recover and migrate
 
 Save named `.sketchyup` documents explicitly. Longer native opens/saves show a
