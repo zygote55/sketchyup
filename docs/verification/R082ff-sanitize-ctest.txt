@@ -1,0 +1,125 @@
+Test project /home/keith/projects/sketchyup/.local/wt-r082ff/build/sanitize
+      Start  1: measured_view
+      Start  2: reference_image
+      Start  3: solar
+ 1/60 Test  #2: reference_image ..................   Passed    0.03 sec
+      Start  4: annotation_records
+ 2/60 Test  #3: solar ............................   Passed    0.03 sec
+      Start  5: annotation_anchors
+ 3/60 Test  #5: annotation_anchors ...............   Passed    0.19 sec
+      Start  6: section_records
+ 4/60 Test  #4: annotation_records ...............   Passed    0.21 sec
+      Start  7: section_geometry
+ 5/60 Test  #1: measured_view ....................   Passed    0.29 sec
+      Start  8: texture_mapping
+ 6/60 Test  #8: texture_mapping ..................   Passed    0.04 sec
+      Start  9: hosted_copies
+ 7/60 Test  #7: section_geometry .................   Passed    0.63 sec
+      Start 10: hosted_components
+ 8/60 Test  #6: section_records ..................   Passed    0.66 sec
+      Start 11: host_regeneration
+ 9/60 Test #11: host_regeneration ................   Passed    1.42 sec
+      Start 12: component_glue
+10/60 Test #12: component_glue ...................   Passed    0.33 sec
+      Start 13: hosted_openings
+11/60 Test #13: hosted_openings ..................   Passed    0.64 sec
+      Start 14: component_placement
+12/60 Test #14: component_placement ..............   Passed    0.09 sec
+      Start 15: diagnostics
+13/60 Test #10: hosted_components ................   Passed    6.91 sec
+      Start 16: edge_visibility
+14/60 Test #16: edge_visibility ..................   Passed    0.22 sec
+      Start 17: shading_normals
+15/60 Test #17: shading_normals ..................   Passed    0.08 sec
+      Start 18: prepared_edit
+16/60 Test #18: prepared_edit ....................   Passed    0.23 sec
+      Start 19: document_snapshot
+17/60 Test #19: document_snapshot ................   Passed    0.25 sec
+      Start 20: camera_motion
+18/60 Test #20: camera_motion ....................   Passed    0.16 sec
+      Start 21: saved_scenes
+19/60 Test #21: saved_scenes .....................   Passed    1.09 sec
+      Start 22: model_style
+20/60 Test #22: model_style ......................   Passed    0.25 sec
+      Start 23: document_units
+21/60 Test #23: document_units ...................   Passed    0.41 sec
+      Start 24: history
+22/60 Test #15: diagnostics ......................   Passed    7.72 sec
+      Start 25: assets
+23/60 Test #25: assets ...........................   Passed    0.35 sec
+      Start 26: materials
+24/60 Test #26: materials ........................   Passed    0.54 sec
+      Start 27: entity_measure
+25/60 Test #27: entity_measure ...................   Passed    0.59 sec
+      Start 28: booleans
+26/60 Test #28: booleans .........................   Passed    5.97 sec
+      Start 29: orientation
+27/60 Test #29: orientation ......................   Passed    1.59 sec
+      Start 30: solid_operations
+28/60 Test #24: history ..........................   Passed   11.49 sec
+      Start 31: solid_shells
+29/60 Test #31: solid_shells .....................   Passed    1.60 sec
+      Start 32: solids
+30/60 Test #30: solid_operations .................   Passed    4.66 sec
+      Start 33: tags
+31/60 Test #33: tags .............................   Passed    0.27 sec
+      Start 34: components
+32/60 Test #34: components .......................   Passed    0.80 sec
+      Start 35: incremental_validation
+33/60 Test #32: solids ...........................   Passed    6.20 sec
+      Start 36: component_records
+34/60 Test #36: component_records ................   Passed    0.37 sec
+      Start 37: consolidation
+35/60 Test #37: consolidation ....................   Passed    0.36 sec
+      Start 38: appearance
+36/60 Test #38: appearance .......................   Passed    0.25 sec
+      Start 39: groups
+37/60 Test #39: groups ...........................   Passed    0.33 sec
+      Start 40: copy_array
+38/60 Test #40: copy_array .......................   Passed    0.33 sec
+      Start 41: transform_selection
+39/60 Test #41: transform_selection ..............   Passed    0.34 sec
+      Start 42: selection
+40/60 Test #42: selection ........................   Passed    0.36 sec
+      Start 43: guides
+41/60 Test #43: guides ...........................   Passed    0.29 sec
+      Start 44: constraints
+42/60 Test #44: constraints ......................   Passed    0.22 sec
+      Start 45: inference
+43/60 Test #45: inference ........................   Passed    4.95 sec
+      Start 46: curves
+44/60 Test  #9: hosted_copies ....................   Passed   39.32 sec
+      Start 47: drawing
+45/60 Test #47: drawing ..........................   Passed    0.34 sec
+      Start 48: amend
+46/60 Test #48: amend ............................   Passed    0.22 sec
+      Start 49: core
+47/60 Test #49: core .............................   Passed    0.54 sec
+      Start 50: scene
+48/60 Test #50: scene ............................   Passed    0.94 sec
+      Start 51: tolerance
+49/60 Test #51: tolerance ........................   Passed    0.10 sec
+      Start 52: geometry_fuzz
+50/60 Test #46: curves ...........................   Passed    5.71 sec
+      Start 53: push_pull
+51/60 Test #53: push_pull ........................   Passed    0.67 sec
+      Start 54: cleanup
+52/60 Test #54: cleanup ..........................   Passed    0.27 sec
+      Start 55: intersections
+53/60 Test #55: intersections ....................   Passed    0.13 sec
+      Start 56: sweep
+54/60 Test #56: sweep ............................   Passed    0.67 sec
+      Start 57: offset
+55/60 Test #57: offset ...........................   Passed    0.26 sec
+      Start 58: planar
+56/60 Test #58: planar ...........................   Passed    0.53 sec
+      Start 59: topology
+57/60 Test #59: topology .........................   Passed    4.33 sec
+      Start 60: arrangements
+58/60 Test #60: arrangements .....................   Passed    0.48 sec
+59/60 Test #52: geometry_fuzz ....................   Passed   21.89 sec
+60/60 Test #35: incremental_validation ...........   Passed  533.54 sec
+
+100% tests passed out of 60
+
+Total Test time (real) = 559.43 sec

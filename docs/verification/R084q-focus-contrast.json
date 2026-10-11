@@ -1,0 +1,743 @@
+{
+ "scope": "Painted boundary of every Tab-focusable public control in the main window panels, tool rail, shortcut, drawing plane, command and assistant preference dialogs, in light and dark themes at 100% and 200% interface text",
+ "rows": [
+  {
+   "cls": "QCheckBox",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 2,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QCheckBox",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QCheckBox",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 4,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QCheckBox",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QComboBox",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 8,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QComboBox",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 4,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QComboBox",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 10,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QComboBox",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 4,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QDateEdit",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QDateEdit",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QDateEdit",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QDateEdit",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QDoubleSpinBox",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QDoubleSpinBox",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QDoubleSpinBox",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QDoubleSpinBox",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QKeySequenceEdit",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QKeySequenceEdit",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QKeySequenceEdit",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QKeySequenceEdit",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QLabel",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QLabel",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QLabel",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QLabel",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QLineEdit",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 26,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QLineEdit",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 11,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QLineEdit",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 27,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QLineEdit",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 11,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QListWidget",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 2,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 4.195,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QListWidget",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 2,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 4.195,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QListWidget",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 6,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 3.926,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QListWidget",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 2,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 3.926,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QPlainTextEdit",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QPushButton",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 38,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QPushButton",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 7,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QPushButton",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 37,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QPushButton",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 7,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QScrollArea",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 15,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QScrollArea",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 6,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QScrollArea",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 5,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QScrollArea",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 6,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QSpinBox",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 6,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QSpinBox",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 7,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QTabBar",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 4.195,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QTabBar",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 4.195,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QTabBar",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 3.926,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QTabBar",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 3.926,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QTimeEdit",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QTimeEdit",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.985,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QTimeEdit",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QTimeEdit",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 1,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.995,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QToolBar",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QToolBar",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QToolBar",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QToolBar",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QToolButton",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 2,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 4.195,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QToolButton",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 2,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 4.195,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "QToolButton",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 2,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 3.926,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QToolButton",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 2,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 3.926,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "QTreeWidget",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 3,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "sketchy::AssistantPanel",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "sketchy::AssistantPanel",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 8.052,
+   "minContrastInside": 8.052,
+   "ringColors": [
+    "#9ec99d"
+   ]
+  },
+  {
+   "cls": "sketchy::AssistantPanel",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.648,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "sketchy::Viewport",
+   "theme": "dark",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 2.997,
+   "minContrastInside": 4.4,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "sketchy::Viewport",
+   "theme": "dark",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 2.997,
+   "minContrastInside": 4.4,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "sketchy::Viewport",
+   "theme": "light",
+   "textPercent": 100,
+   "controls": 12,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.4,
+   "ringColors": [
+    "#547858"
+   ]
+  },
+  {
+   "cls": "sketchy::Viewport",
+   "theme": "light",
+   "textPercent": 200,
+   "controls": 3,
+   "minContrastOutside": 4.648,
+   "minContrastInside": 4.4,
+   "ringColors": [
+    "#547858"
+   ]
+  }
+ ],
+ "note": "Identical in all four platform cases; the 3D canvas row's outside ratio is reported but not asserted."
+}

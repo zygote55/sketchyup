@@ -586,6 +586,59 @@ int main(int argc, char **argv) {
             previous["version"] = nativeDocumentVersion - 1;
             rejection([&] { (void)decodeContainer(repack(container, compact(previous))); });
         }
+        // R082.ff: a compact (schema 26) load rebuilds projected members before
+        // restore; its running totals must equal a recount and stay exact while
+        // editing continues, cross-checked by the full-validation oracle.
+        {
+            const auto recount = [](const Document &doc) {
+                DocumentTotals totals;
+                for (const auto &[id, body] : doc.bodies()) {
+                    totals.records += 1;
+                    totals.vertices += body->surface.vertices.size();
+                    totals.faces += body->surface.faces.size();
+                    totals.wires += body->surface.wires.size();
+                    totals.edges += body->topology.edges.size();
+                    totals.curves += body->curves.size();
+                    totals.guides += body->guides.size();
+                }
+                return totals;
+            };
+            const bool oracle = Document::fullValidationOracle();
+            Document::setFullValidationOracle(true);
+            auto source = instancedFixture();
+            for (int i = 0; i < 5; ++i)
+                placeComponent(source, source.instances().begin()->second->definition,
+                               Transform::translation({20.0 + 3 * i, 0, 0}));
+            const auto container = encodeContainer(source);
+            check(documentTree(container)["version"] == nativeDocumentVersion &&
+                      nativeDocumentVersion == 26 && storedMembers(documentTree(container)) == 0,
+                  "Totals fixture saves compact schema 26 placements");
+            auto doc = decodeContainer(container);
+            doc.verifyIncrementalState();
+            check(doc.materializedTotals() == recount(doc) &&
+                      doc.materializedTotals() == source.materializedTotals(),
+                  "Compact load recounts totals after projecting members");
+            std::vector<Id> definitions;
+            for (const auto &[id, definition] : doc.definitions())
+                definitions.push_back(id);
+            for (int step = 0; step < 24; ++step) {
+                if (step % 4 == 3)
+                    doc.undo();
+                else if (step % 8 == 5)
+                    doc.redo();
+                else
+                    placeComponent(doc, definitions[size_t(step) % definitions.size()],
+                                   Transform::translation({3.0 * step, 30, 0}));
+                doc.verifyIncrementalState();
+                check(doc.materializedTotals() == recount(doc),
+                      "Totals stay exact while editing after a compact load (step " +
+                          std::to_string(step) + ")");
+            }
+            const auto reopened = decodeContainer(encodeContainer(doc));
+            check(reopened.materializedTotals() == doc.materializedTotals(),
+                  "Edited compact document reloads with the same totals");
+            Document::setFullValidationOracle(oracle);
+        }
         std::cout << "Instanced component storage: schema 26 round trips, v24/v25 golden migration, "
                      "named mismatch rejection and compact placements passed\n";
         return 0;

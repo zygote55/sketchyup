@@ -1,0 +1,11 @@
+{
+  "instances": 10000,
+  "bodies": 20000,
+  "vertices": 520000,
+  "limitScale": 8,
+  "constructionMs": 770788,
+  "checkpoints": [{"instances": 1000, "cumulativeMs": 4195.395019}, {"instances": 2000, "cumulativeMs": 21924.942468}, {"instances": 3000, "cumulativeMs": 56427.101303}, {"instances": 4000, "cumulativeMs": 107504.984124}, {"instances": 5000, "cumulativeMs": 171858.777963}, {"instances": 6000, "cumulativeMs": 252906.534550}, {"instances": 7000, "cumulativeMs": 346062.665442}, {"instances": 8000, "cumulativeMs": 469814.329697}, {"instances": 9000, "cumulativeMs": 610037.613991}, {"instances": 10000, "cumulativeMs": 770787.811967}],
+  "documentDigest": "924513c52e3380c3",
+  "timingScope": "Public face/extrude/component creation and placement only",
+  "releaseAcceptance": false
+}

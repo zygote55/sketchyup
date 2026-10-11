@@ -1,0 +1,384 @@
+Test project /home/keith/projects/sketchyup/.local/wt-r082ff/build/dev
+        Start  24: history
+        Start  35: incremental_validation
+        Start   9: hosted_copies
+  1/183 Test  #24: history ..........................   Passed    1.20 sec
+        Start 142: transaction_sequence
+  2/183 Test #142: transaction_sequence .............   Passed    3.41 sec
+        Start 135: recipe_hosted
+  3/183 Test   #9: hosted_copies ....................   Passed    7.37 sec
+        Start 123: model_recipes
+  4/183 Test #135: recipe_hosted ....................   Passed    3.61 sec
+        Start 163: hosted_commands
+  5/183 Test #123: model_recipes ....................   Passed    2.47 sec
+        Start  10: hosted_components
+  6/183 Test #163: hosted_commands ..................   Passed    1.86 sec
+        Start 141: transaction_dispatch
+  7/183 Test #141: transaction_dispatch .............   Passed    0.87 sec
+        Start 143: transaction_coordinator
+  8/183 Test  #10: hosted_components ................   Passed    1.21 sec
+        Start 140: automation_session
+  9/183 Test #140: automation_session ...............   Passed    0.43 sec
+        Start 149: hosted_components_io
+ 10/183 Test #143: transaction_coordinator ..........   Passed    0.67 sec
+        Start 148: component_scope
+ 11/183 Test #148: component_scope ..................   Passed    0.13 sec
+        Start  49: core
+ 12/183 Test  #49: core .............................   Passed    0.08 sec
+        Start  34: components
+ 13/183 Test #149: hosted_components_io .............   Passed    0.38 sec
+        Start 162: history_commands
+ 14/183 Test #162: history_commands .................   Passed    0.11 sec
+        Start  13: hosted_openings
+ 15/183 Test  #34: components .......................   Passed    0.12 sec
+        Start 150: component_glue_io
+ 16/183 Test #150: component_glue_io ................   Passed    0.08 sec
+        Start  36: component_records
+ 17/183 Test  #13: hosted_openings ..................   Passed    0.10 sec
+        Start  39: groups
+ 18/183 Test  #36: component_records ................   Passed    0.05 sec
+        Start  40: copy_array
+ 19/183 Test  #39: groups ...........................   Passed    0.03 sec
+        Start  12: component_glue
+ 20/183 Test  #12: component_glue ...................   Passed    0.02 sec
+        Start  14: component_placement
+ 21/183 Test  #40: copy_array .......................   Passed    0.03 sec
+        Start   1: measured_view
+ 22/183 Test  #14: component_placement ..............   Passed    0.02 sec
+        Start   2: reference_image
+ 23/183 Test   #2: reference_image ..................   Passed    0.01 sec
+        Start   3: solar
+ 24/183 Test   #3: solar ............................   Passed    0.01 sec
+        Start   4: annotation_records
+ 25/183 Test   #4: annotation_records ...............   Passed    0.03 sec
+        Start   5: annotation_anchors
+ 26/183 Test   #5: annotation_anchors ...............   Passed    0.02 sec
+        Start   6: section_records
+ 27/183 Test   #1: measured_view ....................   Passed    0.10 sec
+        Start   7: section_geometry
+ 28/183 Test   #7: section_geometry .................   Passed    0.10 sec
+        Start   8: texture_mapping
+ 29/183 Test   #8: texture_mapping ..................   Passed    0.01 sec
+        Start  11: host_regeneration
+ 30/183 Test   #6: section_records ..................   Passed    0.14 sec
+        Start  15: diagnostics
+ 31/183 Test  #11: host_regeneration ................   Passed    0.22 sec
+        Start  16: edge_visibility
+ 32/183 Test  #16: edge_visibility ..................   Passed    0.03 sec
+        Start  17: shading_normals
+ 33/183 Test  #17: shading_normals ..................   Passed    0.02 sec
+        Start  18: prepared_edit
+ 34/183 Test  #18: prepared_edit ....................   Passed    0.01 sec
+        Start  19: document_snapshot
+ 35/183 Test  #19: document_snapshot ................   Passed    0.02 sec
+        Start  20: camera_motion
+ 36/183 Test  #20: camera_motion ....................   Passed    0.01 sec
+        Start  21: saved_scenes
+ 37/183 Test  #21: saved_scenes .....................   Passed    0.19 sec
+        Start  22: model_style
+ 38/183 Test  #22: model_style ......................   Passed    0.03 sec
+        Start  23: document_units
+ 39/183 Test  #23: document_units ...................   Passed    0.02 sec
+        Start  25: assets
+ 40/183 Test  #25: assets ...........................   Passed    0.09 sec
+        Start  26: materials
+ 41/183 Test  #26: materials ........................   Passed    0.05 sec
+        Start  27: entity_measure
+ 42/183 Test  #27: entity_measure ...................   Passed    0.04 sec
+        Start  28: booleans
+ 43/183 Test  #15: diagnostics ......................   Passed    1.88 sec
+        Start  29: orientation
+ 44/183 Test  #29: orientation ......................   Passed    0.20 sec
+        Start  30: solid_operations
+ 45/183 Test  #28: booleans .........................   Passed    1.38 sec
+        Start  31: solid_shells
+ 46/183 Test  #31: solid_shells .....................   Passed    0.41 sec
+        Start  32: solids
+ 47/183 Test  #30: solid_operations .................   Passed    0.81 sec
+        Start  33: tags
+ 48/183 Test  #33: tags .............................   Passed    0.03 sec
+        Start  37: consolidation
+ 49/183 Test  #37: consolidation ....................   Passed    0.03 sec
+        Start  38: appearance
+ 50/183 Test  #38: appearance .......................   Passed    0.02 sec
+        Start  41: transform_selection
+ 51/183 Test  #41: transform_selection ..............   Passed    0.03 sec
+        Start  42: selection
+ 52/183 Test  #42: selection ........................   Passed    0.07 sec
+        Start  43: guides
+ 53/183 Test  #43: guides ...........................   Passed    0.04 sec
+        Start  44: constraints
+ 54/183 Test  #44: constraints ......................   Passed    0.02 sec
+        Start  45: inference
+ 55/183 Test  #32: solids ...........................   Passed    1.23 sec
+        Start  46: curves
+ 56/183 Test  #45: inference ........................   Passed    1.49 sec
+        Start  47: drawing
+ 57/183 Test  #47: drawing ..........................   Passed    0.06 sec
+        Start  48: amend
+ 58/183 Test  #48: amend ............................   Passed    0.02 sec
+        Start  50: scene
+ 59/183 Test  #50: scene ............................   Passed    0.23 sec
+        Start  51: tolerance
+ 60/183 Test  #51: tolerance ........................   Passed    0.02 sec
+        Start  52: geometry_fuzz
+ 61/183 Test  #46: curves ...........................   Passed    1.63 sec
+        Start  53: push_pull
+ 62/183 Test  #53: push_pull ........................   Passed    0.09 sec
+        Start  54: cleanup
+ 63/183 Test  #54: cleanup ..........................   Passed    0.04 sec
+        Start  55: intersections
+ 64/183 Test  #55: intersections ....................   Passed    0.02 sec
+        Start  56: sweep
+ 65/183 Test  #56: sweep ............................   Passed    0.11 sec
+        Start  57: offset
+ 66/183 Test  #57: offset ...........................   Passed    0.03 sec
+        Start  58: planar
+ 67/183 Test  #58: planar ...........................   Passed    0.07 sec
+        Start  59: topology
+ 68/183 Test  #59: topology .........................   Passed    0.88 sec
+        Start  60: arrangements
+ 69/183 Test  #60: arrangements .....................   Passed    0.10 sec
+        Start  61: drm_memory
+ 70/183 Test  #61: drm_memory .......................   Passed    0.01 sec
+        Start  62: shortcut_bindings
+ 71/183 Test  #62: shortcut_bindings ................   Passed    0.02 sec
+        Start  63: render_environment
+ 72/183 Test  #63: render_environment ...............   Passed    0.03 sec
+        Start  64: text_geometry
+ 73/183 Test  #64: text_geometry ....................   Passed    0.63 sec
+        Start  65: new_file_faults
+ 74/183 Test  #65: new_file_faults ..................   Passed    0.04 sec
+        Start  66: parser_fault_corpus
+ 75/183 Test  #66: parser_fault_corpus ..............   Passed    2.59 sec
+        Start  67: m8_exchange
+ 76/183 Test  #67: m8_exchange ......................   Passed    0.29 sec
+        Start  68: extension_worker
+ 77/183 Test  #52: geometry_fuzz ....................   Passed    5.77 sec
+        Start  69: extension_store
+ 78/183 Test  #68: extension_worker .................   Passed    0.43 sec
+        Start  70: extension_manifest
+ 79/183 Test  #69: extension_store ..................   Passed    0.18 sec
+        Start  71: library_bundle
+ 80/183 Test  #70: extension_manifest ...............   Passed    0.18 sec
+        Start  72: measured_cli
+ 81/183 Test  #71: library_bundle ...................   Passed    0.22 sec
+        Start  73: measured_export
+ 82/183 Test  #73: measured_export ..................   Passed    0.36 sec
+        Start  74: measured_export_real
+ 83/183 Test  #74: measured_export_real .............***Skipped   0.05 sec
+        Start  75: measured_drawing
+ 84/183 Test  #75: measured_drawing .................   Passed    0.05 sec
+        Start  76: render_environment_export
+ 85/183 Test  #72: measured_cli .....................   Passed    0.64 sec
+        Start  77: text_commands
+ 86/183 Test  #76: render_environment_export ........   Passed    0.04 sec
+        Start  78: reference_image_commands
+ 87/183 Test  #78: reference_image_commands .........   Passed    0.07 sec
+        Start  79: reference_image_io
+ 88/183 Test  #79: reference_image_io ...............   Passed    0.09 sec
+        Start  80: solar_commands
+ 89/183 Test  #80: solar_commands ...................   Passed    0.07 sec
+        Start  81: solar_io
+ 90/183 Test  #81: solar_io .........................   Passed    0.33 sec
+        Start  82: text_source_io
+ 91/183 Test  #82: text_source_io ...................   Passed    0.11 sec
+        Start  83: text_worker
+ 92/183 Test  #83: text_worker ......................   Passed    1.64 sec
+        Start  84: provider_release_score
+ 93/183 Test  #84: provider_release_score ...........   Passed    0.33 sec
+        Start  85: provider_release_corpus
+ 94/183 Test  #77: text_commands ....................   Passed    3.27 sec
+        Start  86: ollama_provider
+ 95/183 Test  #86: ollama_provider ..................   Passed    1.47 sec
+        Start  87: chatgpt_auth
+ 96/183 Test  #85: provider_release_corpus ..........   Passed    2.64 sec
+        Start  88: openai_provider
+ 97/183 Test  #87: chatgpt_auth .....................   Passed    1.17 sec
+        Start  89: blender_job
+ 98/183 Test  #89: blender_job ......................   Passed    1.93 sec
+        Start  90: m7_presentation
+ 99/183 Test  #90: m7_presentation ..................   Passed    0.34 sec
+        Start  91: m7_presentation_real
+100/183 Test  #91: m7_presentation_real .............***Skipped   0.03 sec
+        Start  92: animation_export
+101/183 Test  #92: animation_export .................   Passed    0.51 sec
+        Start  93: animation_export_real
+102/183 Test  #93: animation_export_real ............***Skipped   0.02 sec
+        Start  94: blender_handoff
+103/183 Test  #88: openai_provider ..................   Passed    3.70 sec
+        Start  95: blender_handoff_real
+104/183 Test  #95: blender_handoff_real .............***Skipped   0.03 sec
+        Start  96: render_store
+105/183 Test  #96: render_store .....................   Passed    0.24 sec
+        Start  97: render_queue
+106/183 Test  #94: blender_handoff ..................   Passed    0.61 sec
+        Start  98: blender_real
+107/183 Test  #98: blender_real .....................***Skipped   0.05 sec
+        Start  99: smooth_export
+108/183 Test  #99: smooth_export ....................   Passed    0.07 sec
+        Start 100: edge_commands
+109/183 Test #100: edge_commands ....................   Passed    0.13 sec
+        Start 101: edge_appearance
+110/183 Test #101: edge_appearance ..................   Passed    0.11 sec
+        Start 102: dxf_export
+111/183 Test #102: dxf_export .......................   Passed    0.12 sec
+        Start 103: dxf_export_real
+112/183 Test #103: dxf_export_real ..................***Skipped   0.10 sec
+        Start 104: dxf_import
+113/183 Test  #97: render_queue .....................   Passed    0.71 sec
+        Start 105: dxf_source
+114/183 Test #105: dxf_source .......................   Passed    0.04 sec
+        Start 106: stl_export
+115/183 Test #106: stl_export .......................   Passed    0.08 sec
+        Start 107: stl_export_real
+116/183 Test #107: stl_export_real ..................***Skipped   0.02 sec
+        Start 108: stl_import
+117/183 Test #108: stl_import .......................   Passed    0.40 sec
+        Start 109: stl_import_real
+118/183 Test #109: stl_import_real ..................***Skipped   0.02 sec
+        Start 110: stl_source
+119/183 Test #110: stl_source .......................   Passed    0.12 sec
+        Start 111: obj_export
+120/183 Test #111: obj_export .......................   Passed    0.07 sec
+        Start 112: obj_export_real
+121/183 Test #112: obj_export_real ..................***Skipped   0.03 sec
+        Start 113: obj_import
+122/183 Test #104: dxf_import .......................   Passed    1.00 sec
+        Start 114: obj_import_real
+123/183 Test #114: obj_import_real ..................***Skipped   0.03 sec
+        Start 115: obj_material
+124/183 Test #115: obj_material .....................   Passed    0.05 sec
+        Start 116: obj_source
+125/183 Test #116: obj_source .......................   Passed    0.10 sec
+        Start 117: gltf_import
+126/183 Test #113: obj_import .......................   Passed    0.36 sec
+        Start 118: gltf_import_real
+127/183 Test #118: gltf_import_real .................***Skipped   0.03 sec
+        Start 119: gltf_package
+128/183 Test #119: gltf_package .....................   Passed    0.04 sec
+        Start 120: native_format
+129/183 Test #120: native_format ....................   Passed    3.30 sec
+        Start 121: animation_capture
+130/183 Test #121: animation_capture ................   Passed    0.06 sec
+        Start 122: glb_export
+131/183 Test #122: glb_export .......................   Passed    0.28 sec
+        Start 124: texture_commands
+132/183 Test #124: texture_commands .................   Passed    0.31 sec
+        Start 125: section_export
+133/183 Test #125: section_export ...................   Passed    0.07 sec
+        Start 126: texture_export
+134/183 Test #117: gltf_import ......................   Passed    6.15 sec
+        Start 127: texture_image
+135/183 Test #127: texture_image ....................   Passed    2.63 sec
+        Start 128: face_textures
+136/183 Test #128: face_textures ....................   Passed    0.19 sec
+        Start 129: m6_workflow
+137/183 Test #129: m6_workflow ......................   Passed    2.13 sec
+        Start 130: site_recipe
+138/183 Test #126: texture_export ...................   Passed   11.21 sec
+        Start 131: furniture_recipe
+139/183 Test #130: site_recipe ......................   Passed    5.55 sec
+        Start 132: stair_recipe
+140/183 Test #132: stair_recipe .....................   Passed    3.88 sec
+        Start 133: roof_recipe
+141/183 Test #133: roof_recipe ......................   Passed    1.75 sec
+        Start 134: measurement_assertions
+142/183 Test #134: measurement_assertions ...........   Passed    0.14 sec
+        Start 136: native_assistant_session
+143/183 Test #136: native_assistant_session .........   Passed    0.33 sec
+        Start 137: assistant
+144/183 Test #137: assistant ........................   Passed    1.92 sec
+        Start 138: mcp
+145/183 Test #138: mcp ..............................   Passed    0.32 sec
+        Start 139: recipes
+146/183 Test #131: furniture_recipe .................   Passed   10.11 sec
+        Start 144: outcome_store
+147/183 Test #144: outcome_store ....................   Passed    1.19 sec
+        Start 145: staging
+148/183 Test #145: staging ..........................   Passed    0.18 sec
+        Start 146: inspection_session
+149/183 Test #146: inspection_session ...............   Passed    0.08 sec
+        Start 147: inspection
+150/183 Test #147: inspection .......................   Passed    0.47 sec
+        Start 151: geometry_sequence
+151/183 Test #151: geometry_sequence ................   Passed    0.65 sec
+        Start 152: measurements
+152/183 Test #152: measurements .....................   Passed    0.05 sec
+        Start 153: saved_scene_commands
+153/183 Test #153: saved_scene_commands .............   Passed    0.05 sec
+        Start 154: annotation_commands
+154/183 Test #154: annotation_commands ..............   Passed    0.05 sec
+        Start 155: section_commands
+155/183 Test #155: section_commands .................   Passed    0.04 sec
+        Start 156: annotations_io
+156/183 Test #156: annotations_io ...................   Passed    0.04 sec
+        Start 157: sections_io
+157/183 Test #157: sections_io ......................   Passed    0.06 sec
+        Start 158: saved_scenes_io
+158/183 Test #158: saved_scenes_io ..................   Passed    0.06 sec
+        Start 159: model_style_commands
+159/183 Test #159: model_style_commands .............   Passed    0.06 sec
+        Start 160: model_style_io
+160/183 Test #160: model_style_io ...................   Passed    0.10 sec
+        Start 161: document_units_io
+161/183 Test #161: document_units_io ................   Passed    0.07 sec
+        Start 164: commands
+162/183 Test #164: commands .........................   Passed    1.29 sec
+        Start 165: diagnostic_inspection
+163/183 Test #165: diagnostic_inspection ............   Passed    0.14 sec
+        Start 166: orientation_commands
+164/183 Test #166: orientation_commands .............   Passed    0.13 sec
+        Start 167: solid_commands
+165/183 Test #167: solid_commands ...................   Passed    0.73 sec
+        Start 168: boolean_commands
+166/183 Test #168: boolean_commands .................   Passed    0.24 sec
+        Start 169: intersection_commands
+167/183 Test #169: intersection_commands ............   Passed    0.10 sec
+        Start 170: sweep_commands
+168/183 Test #170: sweep_commands ...................   Passed    0.10 sec
+        Start 171: offset_commands
+169/183 Test #139: recipes ..........................   Passed    6.30 sec
+        Start 172: recovery_cli
+170/183 Test #171: offset_commands ..................   Passed    0.08 sec
+        Start 173: recovery
+171/183 Test #172: recovery_cli .....................   Passed    0.27 sec
+        Start 174: m4_persistence
+172/183 Test #174: m4_persistence ...................   Passed    0.09 sec
+        Start 175: formline
+173/183 Test #175: formline .........................   Passed    0.13 sec
+        Start 176: asset_io
+174/183 Test #176: asset_io .........................   Passed    0.18 sec
+        Start 177: persistence
+175/183 Test #177: persistence ......................   Passed    0.32 sec
+        Start 178: optional_capabilities
+176/183 Test #173: recovery .........................   Passed    1.09 sec
+        Start 179: shipped_recipes
+177/183 Test #178: optional_capabilities ............   Passed    0.36 sec
+        Start 180: tool_reference_drift
+178/183 Test #180: tool_reference_drift .............   Passed    0.27 sec
+        Start 181: recovery_controller
+179/183 Test #179: shipped_recipes ..................   Passed    6.04 sec
+        Start 182: texture_cache
+180/183 Test #182: texture_cache ....................   Passed    0.03 sec
+        Start 183: desktop
+181/183 Test #183: desktop ..........................   Passed    0.12 sec
+182/183 Test #181: recovery_controller ..............   Passed   10.13 sec
+183/183 Test  #35: incremental_validation ...........   Passed  137.45 sec
+
+100% tests passed out of 183
+
+Total Test time (real) = 137.46 sec
+
+The following tests did not run:
+	 74 - measured_export_real (Skipped)
+	 91 - m7_presentation_real (Skipped)
+	 93 - animation_export_real (Skipped)
+	 95 - blender_handoff_real (Skipped)
+	 98 - blender_real (Skipped)
+	103 - dxf_export_real (Skipped)
+	107 - stl_export_real (Skipped)
+	109 - stl_import_real (Skipped)
+	112 - obj_export_real (Skipped)
+	114 - obj_import_real (Skipped)
+	118 - gltf_import_real (Skipped)

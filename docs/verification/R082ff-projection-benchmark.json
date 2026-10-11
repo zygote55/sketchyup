@@ -1,0 +1,22 @@
+{
+  "benchmark": "component_projection_benchmark (unchanged; public construction, canonical native encode/decode)",
+  "build": "Release -g -fno-omit-frame-pointer, desktop off, CLI on; shared host, load average about 12",
+  "before": {
+    "source": "809bdbcfdcee0c9b8ba0481beb06c01b91a2313e (origin/main)",
+    "runs": [
+      {"instances": 250, "constructionMs": 698.251027, "fixtureSha256": "705e8ad78ee882a7385d4cde22bee20f49053dc5956b9fe1191eb9d980a656ee"},
+      {"instances": 500, "constructionMs": 2124.584118, "fixtureSha256": "7c591a4b4425f7020e020f162ed15c3d9e4b3f0b09849224d6f40d3ab8529904"},
+      {"instances": 1000, "constructionMs": 9876.625699, "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d"}
+    ]
+  },
+  "after": {
+    "source": "build/r082ff-incremental-placement",
+    "runs": [
+      {"instances": 250, "constructionMs": 260.156699, "fixtureSha256": "705e8ad78ee882a7385d4cde22bee20f49053dc5956b9fe1191eb9d980a656ee"},
+      {"instances": 500, "constructionMs": 336.608597, "fixtureSha256": "7c591a4b4425f7020e020f162ed15c3d9e4b3f0b09849224d6f40d3ab8529904"},
+      {"instances": 1000, "constructionMs": 703.007186, "fixtureSha256": "c874449f6143db01040c1b0df5f26dbc0f90daee66cd2635453eeac73c11376d"}
+    ]
+  },
+  "productionLimitsChanged": false,
+  "releaseAcceptance": false
+}

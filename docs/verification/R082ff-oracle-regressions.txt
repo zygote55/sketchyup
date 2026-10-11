@@ -1,0 +1,50 @@
+SKETCHYUP_FULL_VALIDATION_ORACLE=1 ctest -j3 --output-on-failure -R <22 existing component/history/transaction/automation suites>
+Test project /home/keith/projects/sketchyup/.local/wt-r082ff/build/dev
+      Start  24: history
+      Start   9: hosted_copies
+      Start 142: transaction_sequence
+ 1/22 Test #142: transaction_sequence .............   Passed    2.07 sec
+      Start 135: recipe_hosted
+ 2/22 Test #135: recipe_hosted ....................   Passed    2.26 sec
+      Start 123: model_recipes
+ 3/22 Test   #9: hosted_copies ....................   Passed    6.24 sec
+      Start 163: hosted_commands
+ 4/22 Test #123: model_recipes ....................   Passed    1.98 sec
+      Start  10: hosted_components
+ 5/22 Test  #10: hosted_components ................   Passed    1.18 sec
+      Start 141: transaction_dispatch
+ 6/22 Test #163: hosted_commands ..................   Passed    1.33 sec
+      Start 143: transaction_coordinator
+ 7/22 Test #141: transaction_dispatch .............   Passed    0.46 sec
+      Start 140: automation_session
+ 8/22 Test #143: transaction_coordinator ..........   Passed    0.56 sec
+      Start 149: hosted_components_io
+ 9/22 Test #140: automation_session ...............   Passed    0.27 sec
+      Start 148: component_scope
+10/22 Test #148: component_scope ..................   Passed    0.13 sec
+      Start  49: core
+11/22 Test #149: hosted_components_io .............   Passed    0.26 sec
+      Start  34: components
+12/22 Test  #34: components .......................   Passed    0.08 sec
+      Start 162: history_commands
+13/22 Test  #49: core .............................   Passed    0.12 sec
+      Start  13: hosted_openings
+14/22 Test #162: history_commands .................   Passed    0.09 sec
+      Start 150: component_glue_io
+15/22 Test  #13: hosted_openings ..................   Passed    0.08 sec
+      Start  36: component_records
+16/22 Test  #36: component_records ................   Passed    0.04 sec
+      Start  39: groups
+17/22 Test #150: component_glue_io ................   Passed    0.07 sec
+      Start  40: copy_array
+18/22 Test  #39: groups ...........................   Passed    0.04 sec
+      Start  12: component_glue
+19/22 Test  #40: copy_array .......................   Passed    0.03 sec
+      Start  14: component_placement
+20/22 Test  #14: component_placement ..............   Passed    0.01 sec
+21/22 Test  #12: component_glue ...................   Passed    0.03 sec
+22/22 Test  #24: history ..........................   Passed  114.15 sec
+
+100% tests passed out of 22
+
+Total Test time (real) = 114.16 sec
