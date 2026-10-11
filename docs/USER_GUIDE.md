@@ -20,7 +20,10 @@ These are default shortcuts; saved custom bindings take precedence.
    **Ctrl+Shift+Z** restores it. Save with **Ctrl+S**.
 
 Explicit suffixes override the model's display units. Comma-decimal locales use
-semicolons between coordinate/dimension values. Invalid input stays selected
+semicolons between coordinate/dimension values. The numeric keypad's decimal key
+always types your locale's decimal separator, whatever its keycap shows, in
+Measurements and in numeric fields such as Entity info; the main keyboard's `.`
+and `,` are unchanged. Invalid input stays selected
 with an explanation. Enter completes accepted numeric input and returns focus
 to modeling; Escape cancels the active operation.
 

@@ -1,4 +1,5 @@
 #include "app/entity_info_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/groups.hpp"
@@ -264,6 +265,7 @@ void EntityInfoPanel::edit() {
         layout->setContentsMargins(0, 0, 0, 0);
         for (size_t i = 0; i < 3; ++i) {
             auto *field = new QLineEdit;
+            acceptKeypadDecimal(field);
             field->setObjectName(prefix + QString::number(i));
             field->setAccessibleName(label + " " + QString("xyz")[i]);
             field->setMinimumWidth(85);

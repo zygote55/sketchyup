@@ -1,4 +1,5 @@
 #include "app/sections_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/sections.hpp"
@@ -221,10 +222,12 @@ void SectionsPanel::edit(bool create) {
                                   original.plane.normal.z};
     for (size_t i = 0; i < 3; ++i) {
         normal[i] = new QLineEdit(decimal(n[i]));
+        acceptKeypadDecimal(normal[i]);
         normal[i]->setObjectName("sectionNormal" + QString::number(i));
         form->addRow(QString("Local normal %1").arg(QChar("XYZ"[i])), normal[i]);
     }
     auto *distance = new QLineEdit(displayLength(-original.plane.offset, doc_.displayUnits(), fullDisplayPrecision));
+    acceptKeypadDecimal(distance);
     distance->setObjectName("sectionDistance");
     form->addRow("Distance along normal", distance);
     auto *fill = new QCheckBox("Show section fill");

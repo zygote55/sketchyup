@@ -1,3 +1,4 @@
+#include "app/keypad_decimal.hpp"
 #include "app/report_sheet.hpp"
 #include "app/window.hpp"
 #include "io/stl_export.hpp"
@@ -44,6 +45,7 @@ std::optional<StlOptions> options(QWidget *parent, bool exporting) {
     weld->addItems({"None — keep separate triangle corners", "Exact — join identical positions",
                     "Tolerance — join nearby positions"});
     auto *tolerance = new QDoubleSpinBox;
+    acceptKeypadDecimal(tolerance);
     tolerance->setObjectName("stlTolerance");
     tolerance->setAccessibleName("Weld tolerance in meters");
     tolerance->setDecimals(9);

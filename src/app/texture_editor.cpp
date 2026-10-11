@@ -1,4 +1,5 @@
 #include "app/texture_editor.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "app/viewport.hpp"
 #include "automation/measurements.hpp"
@@ -60,6 +61,7 @@ void editTextureMapping(Document &doc, Viewport &view, QWidget *parent, int side
     form->addRow("Coordinates", space);
     auto field = [&](const char *id, const char *label) {
         auto *input = new QLineEdit;
+        acceptKeypadDecimal(input);
         input->setObjectName(id);
         input->setAccessibleName(label);
         form->addRow(label, input);

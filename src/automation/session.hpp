@@ -18,6 +18,9 @@ class AutomationSession {
     QJsonObject execute(const QJsonObject &request);
     QJsonObject respond(const QJsonObject &envelope);
     void close();
+    // Read-only view for trusted in-process harnesses (for example undo/recovery
+    // postconditions). Requests never reach it; mutation stays behind execute().
+    const Document &document() const;
 
   private:
     std::unique_ptr<TransactionCoordinator> actor_;

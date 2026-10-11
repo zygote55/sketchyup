@@ -169,16 +169,25 @@ int main(int argc, char **argv) {
         });
         check(encodeDocument(doc) == beforeCancel, "Cancel leaves exact document unchanged");
         const auto oldLocale = QLocale();
+        QString keypadText;
         QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
         edit(window, [&](QDialog *dialog) {
             dialog->findChild<QComboBox *>("entityEditFrame")->setCurrentIndex(1);
             type(dialog, "entityEditDimensions0", "3,5m");
+            // The keypad decimal key types the locale separator, whichever character
+            // the keyboard layout labels it with.
+            type(dialog, "entityEditDimensions1", "2");
+            auto *keypad = dialog->findChild<QLineEdit *>("entityEditDimensions1");
+            QTest::keyClick(keypad, Qt::Key_Period, Qt::KeypadModifier);
+            QTest::keyClicks(keypad, "5m");
+            keypadText = keypad->text();
             accept(dialog);
         });
-        check(std::abs(
-                  measureEntity(doc, {body, SelectionKind::Body, 0}).parent.bounds->dimensions().x -
-                  3.5) < tolerance,
+        const auto edited = measureEntity(doc, {body, SelectionKind::Body, 0}).parent.bounds;
+        check(std::abs(edited->dimensions().x - 3.5) < tolerance,
               "Native dimension fields accept decimal-comma locale units");
+        check(keypadText == "2,5m" && std::abs(edited->dimensions().y - 2.5) < tolerance,
+              "Keypad decimal key types the locale separator in Entity info fields");
         QLocale::setDefault(oldLocale);
         window.findChild<QAction *>("edit.undo")->trigger();
         view->setSelection(body);

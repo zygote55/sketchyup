@@ -1,4 +1,5 @@
 #include "app/annotations_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/annotation_display.hpp"
 #include "automation/annotation_commands.hpp"
 #include "automation/measurements.hpp"
@@ -253,6 +254,7 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
         for (size_t i = 0; i < 3; ++i) {
             layout->addWidget(new QLabel(QString(QChar("XYZ"[i]))));
             fields[i] = new QLineEdit(displayLength(xyz[i], doc_.displayUnits(), fullDisplayPrecision));
+            acceptKeypadDecimal(fields[i]);
             fields[i]->setObjectName(prefix + QString::number(i));
             layout->addWidget(fields[i]);
         }
@@ -273,6 +275,7 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
     leader->setChecked(original.leader);
     form->addRow(leader);
     auto *size = new QDoubleSpinBox;
+    acceptKeypadDecimal(size);
     size->setObjectName("annotationTextSize");
     size->setRange(8, 48);
     size->setDecimals(1);

@@ -16,11 +16,16 @@ SPEC.loader.exec_module(SCORE)
 
 
 class ScoreTests(unittest.TestCase):
+    MANIFEST = 'tests/provider-release-corpus.json'
+
+    def postconditions(self, data, edit):
+        """Version 1 reports carry no undo/recovery postconditions."""
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.manifest = json.loads((ROOT / 'tests/provider-release-corpus.json').read_text())
+        self.manifest = json.loads((ROOT / self.MANIFEST).read_text())
         self.bundle = {'profile': 'chatgpt-astra', 'reviewer': 'synthetic scorer test', 'runs': []}
         self.data = []
         # Synthetic scorer inputs exercise gate logic, never provider quality.
@@ -35,7 +40,8 @@ class ScoreTests(unittest.TestCase):
                                     'textMatchesReceipts': True, 'wrongTargetMutation': False,
                                     'falseCompletion': False, 'unreportedPartialCommit': False}}
                 data = dict(self.manifest['profiles']['chatgpt-astra'],
-                            trial=trial, corpusVersion=1, inputSha256=task['inputSha256'],
+                            trial=trial, corpusVersion=self.manifest['corpusVersion'],
+                            inputSha256=task['inputSha256'],
                             promptSha256=task['promptSha256'], prompt=task['prompt'],
                             taskSeconds=300, geometryVerified=edit,
                             inspectionVerified=trial in ('measure', 'metadata'),
@@ -48,6 +54,7 @@ class ScoreTests(unittest.TestCase):
                 if trial == 'unavailable':
                     data.update(connection='ollama', endpoint='http://127.0.0.1:1')
                     data['result']['phase'] = 'failed'
+                self.postconditions(data, edit)
                 files = self.root / (name + '.files')
                 files.mkdir()
                 (files / 'input.sketchyup').write_bytes(b'synthetic input')
@@ -125,6 +132,115 @@ class ScoreTests(unittest.TestCase):
         self.data[0]['manualEditSaveReopenVerified'] = False
         self.write()
         self.assertTrue(self.evaluate()['blockers'])
+
+    def test_version_one_output_is_unchanged(self):
+        if self.manifest['corpusVersion'] != 1:
+            self.skipTest('version 1 only')
+        result = self.evaluate()
+        self.assertEqual(list(result), ['corpusVersion', 'profile', 'model', 'profileStatus',
+                                        'corpusPassed', 'releaseAccepted', 'monetaryCost',
+                                        'costPolicy', 'thresholds', 'blockers', 'runs'])
+        self.assertEqual(list(result['runs'][0]), ['trial', 'repeat', 'passed', 'rawReportSha256',
+                                                   'phase', 'elapsedMs', 'reportedTokens',
+                                                   'providerTurns', 'toolCalls'])
+
+
+INPUT = SCORE.digest(b'synthetic canonical input')
+COMMITTED = SCORE.digest(b'synthetic canonical committed')
+
+
+class VersionTwoScoreTests(ScoreTests):
+    """Every v1 gate still applies; undo and recovery are additionally required at 100%."""
+    MANIFEST = 'tests/provider-release-corpus-v2.json'
+
+    def postconditions(self, data, edit):
+        after = COMMITTED if edit else INPUT
+        undo = {'historyEntriesAdded': int(edit), 'undoAvailable': edit, 'restores': True}
+        recovery = {'restores': True, 'recoveredCanonicalSha256': after}
+        if edit:
+            undo.update(oneLabeledAssistantStep=True, afterUndoCanonicalSha256=INPUT,
+                        afterRedoCanonicalSha256=COMMITTED)
+            recovery.update(mode='recover-latest', savedCanonicalSha256=COMMITTED,
+                            undoCanonicalSha256=INPUT, dirtyUntilSaved=True,
+                            oneLabeledAssistantStep=True)
+        data.update(undoRestores=True, recoveryRestores=True, testFault=None,
+                    postconditions={'committed': edit, 'inputCanonicalSha256': INPUT,
+                                    'committedCanonicalSha256': after, 'undo': undo,
+                                    'recovery': recovery})
+
+    def index(self, trial):
+        return next(i for i, data in enumerate(self.data) if data['trial'] == trial)
+
+    def test_complete_synthetic_set_requires_all_postconditions(self):
+        result = self.evaluate()
+        self.assertTrue(result['corpusPassed'])
+        self.assertEqual(result['corpusVersion'], 2)
+        for field in SCORE.POSTCONDITIONS:
+            self.assertEqual(result['postconditions'][field],
+                             {'passed': 24, 'runs': 24, 'required': 24})
+        self.assertTrue(all(row['undoRestores'] and row['recoveryRestores']
+                            for row in result['runs']))
+
+    def test_single_postcondition_failure_blocks_profile(self):
+        for trial in ('room', 'measure'):
+            for field, reason in (('undoRestores', 'undoNotRestored'),
+                                  ('recoveryRestores', 'recoveryNotRestored')):
+                with self.subTest(trial=trial, field=field):
+                    self.setUp()
+                    index = self.index(trial)
+                    self.data[index][field] = False
+                    key = 'undo' if field == 'undoRestores' else 'recovery'
+                    self.data[index]['postconditions'][key]['restores'] = False
+                    self.write()
+                    result = self.evaluate()
+                    self.assertFalse(result['corpusPassed'])
+                    self.assertEqual(result['postconditions'][field]['passed'], 23)
+                    self.assertIn({'trial': trial, 'repeat': 1, 'reasons': [reason]},
+                                  result['blockers'])
+
+    def test_injected_test_fault_blocks(self):
+        index = self.index('resize')
+        self.data[index]['testFault'] = 'extra-history-step'
+        self.write()
+        result = self.evaluate()
+        self.assertFalse(result['corpusPassed'])
+        self.assertIn('testFaultInjected', result['blockers'][0]['reasons'])
+
+    def test_missing_or_contradicted_postconditions_fail_closed(self):
+        edits = [('undoRestores', None), ('testFault', None),
+                 ('postconditions', 'undo', 'afterUndoCanonicalSha256', COMMITTED),
+                 ('postconditions', 'undo', 'historyEntriesAdded', 2),
+                 ('postconditions', 'recovery', 'recoveredCanonicalSha256', INPUT),
+                 ('postconditions', 'recovery', 'dirtyUntilSaved', False),
+                 ('postconditions', 'recovery', 'restores', False)]
+        for change in edits:
+            with self.subTest(change=change):
+                self.setUp()
+                data = self.data[self.index('room')]
+                if len(change) == 2:
+                    del data[change[0]]
+                else:
+                    data[change[0]][change[1]][change[2]] = change[3]
+                self.write()
+                with self.assertRaises((ValueError, KeyError)):
+                    self.evaluate()
+
+    def test_version_one_report_rejected_by_version_two_manifest(self):
+        self.data[0]['corpusVersion'] = 1
+        self.write()
+        with self.assertRaises(ValueError):
+            self.evaluate()
+
+    def test_manifest_must_declare_blocking_postconditions(self):
+        for change in ('requiredPostconditions', 'hardZero'):
+            with self.subTest(change=change):
+                manifest = copy.deepcopy(self.manifest)
+                if change == 'hardZero':
+                    manifest['hardZero'].remove('undoNotRestored')
+                else:
+                    manifest['requiredPostconditions'] = ['undoRestores']
+                with self.assertRaises(ValueError):
+                    SCORE.score(manifest, self.bundle, self.root)
 
 
 if __name__ == '__main__':
