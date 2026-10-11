@@ -1,4 +1,5 @@
 #include "app/viewport.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/appearance.hpp"
@@ -51,7 +52,8 @@ namespace {
 QVector3D qv(Vec3 p) { return {float(p.x), float(p.y), float(p.z)}; }
 Vec3 vec(QVector3D p) { return {p.x(), p.y(), p.z()}; }
 constexpr float degreesToRadians = std::numbers::pi_v<float> / 180;
-// Typed text that opens Measurements from the viewport. A value such as ",5" may
+// Typed text that opens Measurements from the viewport (numericKeyText maps the
+// keypad decimal key to the locale separator). A value such as ",5" may
 // begin with the locale's decimal separator, which is not always '.'.
 bool startsMeasurement(const QString &text) {
     return !text.isEmpty() && (QString("0123456789.+-[<xX/").contains(text[0]) ||
@@ -2607,7 +2609,7 @@ bool Viewport::event(QEvent *event) {
             tool_ != Tool::Paint && tool_ != Tool::Sweep && tool_ != Tool::Intersect &&
             tool_ != Tool::Boolean && tool_ != Tool::Orientation &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
-            startsMeasurement(key->text())) {
+            startsMeasurement(numericKeyText(*key))) {
             event->accept();
             return true;
         }
@@ -2943,8 +2945,8 @@ void Viewport::keyPressEvent(QKeyEvent *e) {
         tool_ != Tool::Paint && tool_ != Tool::Sweep && tool_ != Tool::Intersect &&
         tool_ != Tool::Boolean && tool_ != Tool::Orientation &&
         !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
-        startsMeasurement(e->text())) {
-        emit measurementsRequested(e->text());
+        startsMeasurement(numericKeyText(*e))) {
+        emit measurementsRequested(numericKeyText(*e));
         e->accept();
         return;
     }

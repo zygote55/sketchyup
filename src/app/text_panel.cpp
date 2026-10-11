@@ -1,4 +1,5 @@
 #include "app/text_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/commands.hpp"
 #include "automation/measurements.hpp"
@@ -247,10 +248,13 @@ void TextPanel::edit(bool creating) {
     connect(family, &QComboBox::currentTextChanged, &dialog, styles);
     form->addRow("Font style (blank uses default)", style);
     auto *height = new QLineEdit(displayLength(original.height, doc_.displayUnits(), fullDisplayPrecision));
+    acceptKeypadDecimal(height);
     height->setObjectName("textHeight");
     auto *depth = new QLineEdit(displayLength(original.depth, doc_.displayUnits(), fullDisplayPrecision));
+    acceptKeypadDecimal(depth);
     depth->setObjectName("textDepth");
     auto *spacing = new QLineEdit(QLocale().toString(original.lineSpacing, 'g', 15));
+    acceptKeypadDecimal(spacing);
     spacing->setObjectName("textSpacing");
     const auto originalHeight = height->text(), originalDepth = depth->text(),
                originalSpacing = spacing->text();
@@ -265,6 +269,7 @@ void TextPanel::edit(bool creating) {
         for (size_t i = 0; i < 3; ++i) {
             layout->addWidget(new QLabel(QString(QChar("XYZ"[i]))));
             position[i] = new QLineEdit("0");
+            acceptKeypadDecimal(position[i]);
             position[i]->setObjectName("textPosition" + QString::number(i));
             layout->addWidget(position[i]);
         }

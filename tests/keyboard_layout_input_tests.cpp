@@ -28,7 +28,8 @@ enum Code : uint8_t {
     KeyQ = 16, KeyW, KeyE, KeyR, KeyT, KeyY, KeyU, KeyI, KeyO, KeyP, LeftBrace, RightBrace,
     Enter = 28, Control = 29, KeyA = 30, KeyS, KeyD, KeyF, KeyG, KeyH, KeyJ, KeyK, KeyL,
     Semicolon, Apostrophe, Grave, Shift, Backslash, KeyZ = 44, KeyX, KeyC, KeyV, KeyB, KeyN,
-    KeyM, Comma, Dot, Slash, Space = 57, Iso102 = 86, AltGr = 100, Up = 103, Right = 106
+    KeyM, Comma, Dot, Slash, Space = 57, NumLock = 69, KeypadDot = 83, Iso102 = 86,
+    AltGr = 100, Up = 103, Right = 106
 };
 struct Stroke {
     std::vector<Code> modifiers;
@@ -361,12 +362,60 @@ int main(int argc, char **argv) {
                 half = half || std::abs(candidate->surface.area(face) - 1) < 1e-9;
         check(half, "Leading locale decimal separator gives a 0.5 by 2 rectangle");
         f.escapeToSelect();
+
+        // The numeric keypad's decimal key types ',' on de and '.' on fr whatever the
+        // locale, so it must insert the locale's separator instead: here ',' on both de_DE
+        // and fr_FR, and '.' on C. The main-keyboard '.' and ',' keep their own meaning,
+        // which the typed ".5" / "1,5" above already relied on.
+        // Without NumLock the keypad key is KP_Delete, and the server's initial lock state
+        // differs between X11 and the nested compositor. Settle it in Measurements first,
+        // where a stray Delete cannot cancel an operation.
+        f.field->setFocus();
+        await([&] { return f.field->hasFocus(); }, "Measurements focus for the keypad probe");
+        keys.stroke(plain(KeypadDot));
+        QTest::qWait(150);
+        if (f.field->text().isEmpty()) {
+            keys.stroke(plain(NumLock));
+            keys.stroke(plain(KeypadDot));
+        }
+        await([&] { return f.field->text() == point; },
+              QString("Keypad decimal types '%1' in Measurements (field has '%2')")
+                  .arg(point, f.field->text()));
+        f.field->clear();
+        f.view->setFocus();
+        await([&] { return f.view->hasFocus(); }, "Viewport focus after the keypad probe");
+        f.shortcut('r', Viewport::Tool::Rectangle);
+        f.measure("[40" + list + "0" + list + "0]");
+        keys.stroke(plain(KeypadDot));
+        await([&] { return f.field->hasFocus() && f.field->text() == point; },
+              QString("Keypad decimal opens Measurements with '%1' (field has '%2')")
+                  .arg(point, f.field->text()));
+        for (const auto &stroke :
+             {keys.character('5'), keys.character(list[0]), keys.character('1'),
+              plain(KeypadDot), keys.character('5')})
+            keys.stroke(stroke);
+        const auto typed = point + "5" + list + "1" + point + "5";
+        await([&] { return f.field->text() == typed; },
+              QString("Keypad decimal types '%1' (field has '%2')").arg(typed, f.field->text()));
+        keys.stroke(plain(Enter));
+        QTest::qWaitFor([&] { return f.view->hasFocus(); }, 3000);
+        check(f.view->hasFocus(),
+              QString("Measurements accepts the keypad decimal (field has '%1', invalid=%2)")
+                  .arg(f.field->text(), f.field->property("invalid").toBool() ? "yes" : "no"));
+        bool threeQuarters = false;
+        for (const auto &[id, candidate] : doc.bodies())
+            for (const auto &[face, record] : candidate->surface.faces)
+                threeQuarters =
+                    threeQuarters || std::abs(candidate->surface.area(face) - .75) < 1e-9;
+        check(threeQuarters, "Keypad decimal gives a 0.5 by 1.5 rectangle");
+        f.escapeToSelect();
         doc.markSaved();
         std::cout << "Keyboard layout " << layout.toStdString() << " on "
                   << QGuiApplication::platformName().toStdString()
                   << ": character shortcuts, Shift/Ctrl shortcuts, digit view shortcut, AltGr "
                      "brackets, foot/inch marks, decimal/list separators, relative "
-                     "coordinates, arrow lock and leading locale decimal separator passed\n";
+                     "coordinates, arrow lock, leading locale decimal separator and keypad decimal "
+                     "key passed\n";
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         window.document().markSaved();
