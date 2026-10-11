@@ -3,6 +3,7 @@
 #include "core/components.hpp"
 #include "core/document_limits.hpp"
 #include "core/groups.hpp"
+#include "sanitizer_mode.hpp"
 #include <cmath>
 #include <iostream>
 #include <numbers>
@@ -32,6 +33,15 @@ Id prism(Document &doc, int sides) {
     const auto body = doc.addFace({loop});
     doc.extrude(body, doc.bodies().at(body)->surface.faces.begin()->first, 1);
     return body;
+}
+// A flat 1,000-vertex face: unique-vertex ballast without extrusion cost.
+Id ring(Document &doc, int level) {
+    std::vector<Vec3> loop;
+    for (int i = 0; i < 1000; ++i) {
+        const auto angle = 2 * std::numbers::pi * i / 1000;
+        loop.push_back({std::cos(angle), std::sin(angle), 2.0 * level});
+    }
+    return doc.addFace({loop});
 }
 void diagnostics() {
     // Locale-independent grouping and the fixed quantity order.
@@ -74,24 +84,25 @@ void diagnostics() {
     check(message.find(std::string(65, 'x')) == std::string::npos,
           "Definition names are truncated in diagnostics");
 }
-void publicTenThousandPlacements() {
+void publicPlacements(size_t count) {
     // The R082.a/ADR 0141 fixture shape: a 26-sided prism placed 10,000 times.
     // It was rejected at placement 1,924 before R082.gg.
     Document doc;
     const auto component = createComponent(doc, prism(doc, 26), "26-sided benchmark prism");
     const int columns = 100;
-    for (int i = 1; i < 10000; ++i)
+    for (size_t i = 1; i < count; ++i)
         placeComponent(doc, component.definition,
                        Transform::translation({4.0 * (i % columns), 4.0 * (i / columns), 0}));
     const auto &totals = doc.materializedTotals();
-    check(doc.instances().size() == 10000 && totals.records == 20000 &&
-              totals.vertices == 520000 && totals.faces == 280000 && totals.edges == 780000,
-          "The public path places 10,000 instances (" + std::to_string(totals.vertices) +
-              " vertices)");
+    check(doc.instances().size() == count && totals.records == 2 * count &&
+              totals.vertices == 52 * count && totals.faces == 28 * count &&
+              totals.edges == 78 * count,
+          "The public path places " + std::to_string(count) + " instances (" +
+              std::to_string(totals.vertices) + " vertices)");
     size_t triangles{};
     for (const auto &[id, body] : doc.bodies())
         triangles += body->surface.triangles().size();
-    check(triangles == 1000000, "The placed fixture has one million triangles");
+    check(triangles == 100 * count, "The placed fixture has 100 triangles per instance");
 }
 void placementCount() {
     // A definition nesting 99 triangle placements expands to 100 placements and
@@ -130,18 +141,19 @@ void placementCount() {
 }
 void uniqueGeometry() {
     // Unique geometry counts loose records and each definition's members once.
-    // A 2,000-vertex definition placed ten times plus 49 loose prisms meets the
+    // A 2,000-vertex definition placed ten times plus 98 loose faces meets the
     // unique vertex limit exactly while 118,000 vertices are materialized.
+    // Loose faces first: every later edit revalidates the definitions.
     Document doc;
+    for (int i = 0; i < 98; ++i)
+        ring(doc, i);
     const auto component = createComponent(doc, prism(doc, 1000), "Large");
     for (int i = 1; i < 10; ++i)
         placeComponent(doc, component.definition, Transform::translation({3.0 * i, 0, 0}));
-    for (int i = 0; i < 49; ++i)
-        prism(doc, 1000);
     check(doc.materializedTotals().vertices == 118000,
           "Unique vertices at the limit while materialized totals exceed 100,000");
     const auto next = doc.nextId();
-    check(rejection([&] { prism(doc, 1000); }) ==
+    check(rejection([&] { ring(doc, 98); }) ==
               "Document edit exceeds document unique geometry limits: vertices would be "
               "101,000 of 100,000 (body #" +
                   std::to_string(next) + ")",
@@ -156,11 +168,8 @@ void uniqueGeometry() {
     // is resolved: copying a 52,000-vertex definition would hold 104,000.
     Document assembly;
     std::set<Id> parts;
-    for (int i = 0; i < 26; ++i) {
-        const auto part = prism(assembly, 1000);
-        assembly.transform(part, Transform::translation({0, 0, 2.0 * i}));
-        parts.insert(part);
-    }
+    for (int i = 0; i < 52; ++i)
+        parts.insert(ring(assembly, i));
     const auto big = createComponent(assembly, createGroup(assembly, parts, "Tower"), "Tower");
     const auto second = placeComponent(assembly, big.definition, Transform::translation({5, 0, 0}));
     const auto copiedDefinition = rejection([&] { makeComponentUnique(assembly, second.instance); });
@@ -174,9 +183,14 @@ int main() {
         diagnostics();
         placementCount();
         uniqueGeometry();
-        publicTenThousandPlacements();
+        // The full 10,000-placement public path runs in unsanitized builds only;
+        // the serial sanitized CI job runs the same path at 1,000 placements.
+        const size_t placements = test::sanitized ? 1000 : 10000;
+        publicPlacements(placements);
         std::cout << "Document limits: unique geometry, placement records, materialized "
-                     "totals and bounded diagnostics passed\n";
+                     "totals and bounded diagnostics passed ("
+                  << (test::sanitized ? "sanitized mode: " : "full mode: ") << placements
+                  << " public placements)\n";
         return 0;
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';

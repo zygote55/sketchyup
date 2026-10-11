@@ -161,14 +161,24 @@ Phase 2 source on this branch (merged `origin/main` `80545acc`):
   2 generated reference artifacts match.
 - `python3 scripts/verify-installed-migrations.py --cli build/dev/sketchyup-cli --fixtures tests/fixtures --output OUT`:
   28 historical fixtures migrated; all preservation checks passed.
-- ASan/UBSan (`cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON`): 16 of 16 suites pass with no sanitizer report: `document_limits`, `document_limits_io`, `incremental_validation`, `components`, `component_records`, `component_placement`, `instanced_storage`, `native_format`, `mcp`, `automation_session`, `transaction_dispatch`, `saved_scenes_io`, `persistence`, `recovery`, `document_snapshot` and `history`. `document_limits` takes 604 s and `incremental_validation` 1,048 s under ASan.
+- ASan/UBSan (`cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON`): 16 of 16 suites pass with no sanitizer report: `document_limits`, `document_limits_io`, `incremental_validation`, `components`, `component_records`, `component_placement`, `instanced_storage`, `native_format`, `mcp`, `automation_session`, `transaction_dispatch`, `saved_scenes_io`, `persistence`, `recovery`, `document_snapshot` and `history`. Because CI runs every sanitized core test serially, both long tests detect
+  ASan (`__SANITIZE_ADDRESS__` or `__has_feature(address_sanitizer)`) and run a
+  reduced set that prints its mode. `document_limits` places the public fixture
+  1,000 times instead of 10,000 and keeps every other check: 98 s under ASan, down
+  from 604 s. `incremental_validation` runs one seed of 120 steps instead of three
+  of 220, builds the ballast without the oracle, and checks the materialized
+  40,000-body boundary under the oracle in place of the 600,000-vertex boundary,
+  whose fill costs about 0.2 ms per materialized vertex under ASan in any
+  definition shape (at least 125 s): 75 s, down from 1,048 s. Unsanitized builds run
+  the full set (dev ctest: 53 s and 138 s, identical seed results).
 - Public Release build (no scale macro), repeated 10k in the same container: passes through `scripts/run-container-check.sh` with 10,000 placements, 20,000 bodies and one million triangles, fixture hash `5a0d89c3…` as in phase 1, peak RSS 612,790,272 B, one placement mesh, 89,266 B of body vectors and 34,656 B of GPU payload (binary `3c6f94b9…`).
 
 New tests:
 
 - `document_limits` (core): diagnostics format and bounds, the public path placing
-  10,000 prism instances (one million triangles), an over-limit placement count
-  through nested placements, and an oversized unique-geometry edit and unique copy.
+  10,000 prism instances (one million triangles; 1,000 under ASan), an over-limit
+  placement count through nested placements, an oversized unique-geometry edit and
+  unique copy, and definitions together exceeding the unique limits.
 - `document_limits_io`: save and reload at 20,000 placements and 40,000 bodies, an
   over-limit instance count and an oversized unique-geometry file rejected on load.
 - `incremental_validation`: the materialized boundary (sixty 10,000-vertex

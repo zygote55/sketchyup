@@ -4,6 +4,7 @@
 #include "core/components.hpp"
 #include "core/document_limits.hpp"
 #include "core/groups.hpp"
+#include "sanitizer_mode.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -102,6 +103,10 @@ void randomizedEquivalence(std::uint32_t seed, int steps) {
     // group keeps random erases from releasing it, so loose edits and unique copies
     // reach the unique limit. placementBoundary covers the materialized limits,
     // which random sequences would need about 1,250 placements to reach.
+    // Ballast is setup, not an edit under test; sanitized builds skip the oracle
+    // while building it.
+    if constexpr (test::sanitized)
+        Document::setFullValidationOracle(false);
     std::set<Id> ballast;
     for (int i = 0; i < 100; ++i) {
         std::vector<Vec3> loop;
@@ -113,6 +118,7 @@ void randomizedEquivalence(std::uint32_t seed, int steps) {
         ballast.insert(doc.addFace({loop}, "Ballast"));
     }
     setEntityState(doc, createGroup(doc, ballast, "Ballast"), {}, true);
+    Document::setFullValidationOracle(true);
     const auto inner = placeComponent(doc, small, Transform::translation({0, 5, 0})).instance;
     const auto loose = prism(doc, 4, 1, {3, 5, 0});
     const auto outer = createGroup(doc, {inner, loose}, "Outer");
@@ -324,6 +330,64 @@ void placementBoundary() {
     checkTotals(doc, "after redo");
 }
 
+void materializedBodyBoundary() {
+    // Sanitized form of placementBoundary. Materializing 600,000 vertices costs
+    // about 0.2 ms per vertex under ASan whatever the definition shape, so the
+    // serial sanitized job reaches the materialized body limit instead: a
+    // definition of a frame and 99 empty groups materializes 100 bodies per
+    // placement, and 400 placements meet the 40,000-body limit exactly. The fill
+    // runs without the oracle; every boundary edit below runs under it.
+    static_assert(DocumentLimits::materialized.bodies == 40000);
+    Document doc;
+    const auto first = doc.nextId();
+    Edit groups{"Groups", {}};
+    std::set<Id> parts;
+    for (Id i = 0; i < 99; ++i) {
+        auto group = std::make_shared<Body>();
+        group->id = first + i;
+        group->kind = BodyKind::Group;
+        group->name = "Part";
+        groups.changes.push_back({group->id, nullptr, group});
+        parts.insert(group->id);
+    }
+    doc.apply(std::move(groups), doc.revision());
+    const auto definition =
+        createComponent(doc, createGroup(doc, parts, "Boundary"), "Boundary").definition;
+    check(doc.bodies().size() == 100, "Unexpected boundary fixture size");
+    Document::setFullValidationOracle(false);
+    for (int i = 1; i < 400; ++i)
+        placeComponent(doc, definition, Transform::translation({3.0 * i, 0, 0}));
+    Document::setFullValidationOracle(true);
+    check(doc.materializedTotals().records == DocumentLimits::materialized.bodies,
+          "Placements up to the body limit must succeed");
+    checkTotals(doc, "at limit");
+    const auto full = fingerprint(doc);
+    check(rejection([&] { placeComponent(doc, definition); }) ==
+              "Component placement exceeds document placement limits: bodies would be "
+              "40,100 of 40,000 (placing definition 'Boundary' #" +
+                  std::to_string(definition) + " into the model)",
+          "One placement past the body limit must be rejected with a bounded diagnostic");
+    const auto loose = doc.nextId();
+    check(rejection([&] { doc.addFace({{{0, 0, 9}, {1, 0, 9}, {0, 1, 9}}}); }) ==
+              "Document edit exceeds document placement limits: bodies would be 40,001 of "
+              "40,000 (body #" +
+                  std::to_string(loose) + ")",
+          "Any record past the body limit must be rejected by apply");
+    check(fingerprint(doc) == full, "Rejected boundary edits must not publish");
+    doc.undo();
+    checkTotals(doc, "after undo");
+    placeComponent(doc, definition, Transform::translation({0, 9, 0}));
+    check(doc.materializedTotals().records == DocumentLimits::materialized.bodies,
+          "A placement freed by undo must fit again");
+    doc.undo();
+    check(doc.materializedTotals().records == DocumentLimits::materialized.bodies - 100,
+          "Undo releases one placement");
+    doc.redo();
+    check(doc.materializedTotals().records == DocumentLimits::materialized.bodies,
+          "Redo restores the limit total");
+    checkTotals(doc, "after redo");
+}
+
 void bodyBoundary() {
     // A one-triangle definition materializes two records per instance (frame and
     // geometry) but counts its members once toward unique geometry. Loose empty
@@ -393,11 +457,24 @@ int main() {
     try {
         Document::setFullValidationOracle(true);
         const auto incrementalBefore = Document::incrementalValidationCount();
-        placementBoundary();
+        // The serial sanitized CI job checks the materialized body limit instead
+        // of the 600,000-vertex boundary, which is too slow under ASan.
+        if constexpr (test::sanitized)
+            materializedBodyBoundary();
+        else
+            placementBoundary();
         bodyBoundary();
         restoreAndSnapshots();
-        for (std::uint32_t seed : {0x82ffu, 0x1234u, 0xbeefu})
-            randomizedEquivalence(seed, 220);
+        // The serial sanitized CI job runs one randomized seed; unsanitized
+        // builds run all three.
+        const std::vector<std::uint32_t> seeds =
+            test::sanitized ? std::vector<std::uint32_t>{0x82ffu}
+                            : std::vector<std::uint32_t>{0x82ffu, 0x1234u, 0xbeefu};
+        for (auto seed : seeds)
+            randomizedEquivalence(seed, test::sanitized ? 120 : 220);
+        std::cout << (test::sanitized
+                          ? "sanitized mode: materialized body boundary, 1 seed of 120 steps\n"
+                          : "full mode: materialized vertex/edge boundary, 3 seeds of 220 steps\n");
         check(Document::incrementalValidationCount() > incrementalBefore + 100,
               "The incremental scheme must be exercised under the oracle");
         std::cout << "incremental validations: "
