@@ -1,3 +1,4 @@
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "app/window.hpp"
 #include "automation/measurements.hpp"
@@ -25,6 +26,7 @@ Vec3 vectorValue(const QString &text, DisplayUnit units, bool lengths) {
 QLineEdit *field(QDialog &dialog, QFormLayout &form, const char *name, const QString &label,
                  const QString &text) {
     auto *edit = new QLineEdit(text, &dialog);
+    acceptKeypadDecimal(edit); // every hosted-placement field is numeric
     edit->setObjectName(name);
     edit->setAccessibleName(label);
     edit->setMaxLength(1024);

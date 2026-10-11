@@ -1,3 +1,4 @@
+#include "app/keypad_decimal.hpp"
 #include "app/context_label.hpp"
 #include "app/unit_display.hpp"
 #include "app/window.hpp"
@@ -54,12 +55,15 @@ void Window::componentDialog(const QString &operation) {
     name->setMaxLength(1024);
     const auto separator = QLocale().decimalPoint() == "," ? ";" : ",";
     auto *origin = new QLineEdit(QStringList{"0", "0", "0"}.join(separator), &dialog);
+    acceptKeypadDecimal(origin);
     origin->setObjectName("componentOrigin");
     origin->setAccessibleName(operation == "axes" ? "Origin in component coordinates"
                                                   : "World placement position");
     auto *normal = new QLineEdit(QStringList{"0", "0", "1"}.join(separator), &dialog);
+    acceptKeypadDecimal(normal);
     normal->setObjectName("componentNormal");
     auto *axis = new QLineEdit(QStringList{"1", "0", "0"}.join(separator), &dialog);
+    acceptKeypadDecimal(axis);
     axis->setObjectName("componentXAxis");
     if (operation == "create")
         form.addRow("Name", name);

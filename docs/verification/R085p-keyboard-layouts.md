@@ -127,8 +127,8 @@ no new packages: `xorg-setxkbmap` is a dependency of `xorg-server-common`,
 - **Numeric keypad decimal.** The German layout's keypad separator types `,`
   (`kpdl(comma)`); French types `.`. With an English/C locale on QWERTZ, keypad
   `1,5` is read as two values. With fr_FR on AZERTY, keypad `.` is rejected.
-  Whether the keypad decimal should map to the locale separator is an open product
-  decision, so nothing was changed.
+  [R085.q](R085q-keypad-decimal.md) decided and implemented that the keypad decimal
+  key types the locale separator.
 - Input methods/IME, compose, dead keys and layout variants (nodeadkeys, Dvorak,
   Neo) are not tested. Non-Latin layouts (Qt's Latin fallback for Ctrl shortcuts)
   and runtime group switching are not tested either.

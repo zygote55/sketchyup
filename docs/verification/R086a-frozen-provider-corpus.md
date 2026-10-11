@@ -109,3 +109,10 @@ outcomes, truthful failure, missing metadata exposure and manual-workflow failur
 The corpus suite regenerates 16 input/prompt pairs in private XDG directories.
 No live-provider requests were made for these checks. Live repeats, their review,
 remote CI, ordered merges and the full release gate remain open.
+
+## Successor
+
+[Corpus version 2](R086by-corpus-v2.md) keeps these tasks, inputs, prompts,
+profiles and thresholds unchanged. It adds automatically scored undo and
+recovery postconditions, required at 100%. This version 1 manifest and its
+scoring remain unchanged for historical records.

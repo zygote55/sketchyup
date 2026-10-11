@@ -19,6 +19,7 @@
 #include <QSettings>
 #include <QThread>
 #include <iostream>
+#include <optional>
 using namespace sketchy;
 void check(bool ok, const char *message) {
     if (!ok)
@@ -61,6 +62,35 @@ bool preservedBaseline(const Document &before, const Document &after, Id placeme
             if (!b[key].toArray().contains(record))
                 return false;
     return a["hosted"] == b["hosted"] && before.displayUnits() == after.displayUnits();
+}
+QString sha256Hex(const QByteArray &bytes) {
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+// Canonical model content for corpus v2 undo/redo/recovery equality: the complete
+// native document encoding (sorted keys, inline assets) minus two counters that are
+// monotonic by design (ADR 0017): the revision, which every Undo/Redo advances, and
+// the root next*Id allocator floors, which Undo never lowers so IDs are not reused.
+// Every record, including each body's own allocators, must match exactly.
+QString canonicalSha256(const Document &doc) {
+    auto object = QJsonDocument::fromJson(encodeDocument(doc)).object();
+    object.remove("revision");
+    static const QRegularExpression floor("^next[A-Za-z]*Id$");
+    for (const auto &key : object.keys())
+        if (floor.match(key).hasMatch())
+            object.remove(key);
+    return sha256Hex(QJsonDocument(object).toJson(QJsonDocument::Compact));
+}
+// The task's change must be exactly one applied, labeled assistant history step that
+// carries this task's identity and request. History is session-local (ADR 0017).
+bool oneAssistantStep(const Document &doc, size_t base, const QString &taskId,
+                      const QString &request) {
+    const auto page = doc.history(0, 1000);
+    if (page.total != base + 1 || page.position != page.total || page.entries.size() != base + 1)
+        return false;
+    const auto &entry = page.entries.back();
+    return entry.applied && !entry.label.empty() && entry.metadata.assistant &&
+           QString::fromStdString(entry.metadata.taskId) == taskId &&
+           QString::fromStdString(entry.metadata.request) == request;
 }
 class TrialNetwork : public QNetworkAccessManager {
   public:
@@ -133,6 +163,11 @@ int main(int argc, char **argv) {
                   "Configure an explicit OpenAI model ID");
         else
             validateOllamaConfiguration(config);
+        // Test-only defect injection for the offline corpus v2 proof: one extra host history
+        // step after the assistant commit. Reports record it and scoring blocks it.
+        const auto testFault = qEnvironmentVariable("SKETCHYUP_PROVIDER_TRIAL_FAULT");
+        check(testFault.isEmpty() || (testFault == "extra-history-step" && !remote),
+              "Unknown or non-local trial fault");
         const QDir files(QFileInfo(args[4]).absoluteFilePath() + ".files");
         check(!QFileInfo::exists(args[4]) && !files.exists(), "Use a fresh evidence path");
         check(QDir().mkdir(files.path()) &&
@@ -188,9 +223,14 @@ int main(int argc, char **argv) {
         const auto input = files.path() + "/input.sketchyup";
         const auto output = files.path() + "/output.sketchyup";
         saveDocument(fixture, input);
-        AutomationSession session({input, output, files.path() + "/outcomes", false});
+        const auto outcomes = files.path() + "/outcomes";
+        // Optional so the v2 recovery postcondition can drop it without saving.
+        std::optional<AutomationSession> session;
+        session.emplace(AutomationSession::Options{input, output, outcomes, false});
+        const auto inputCanonical = canonicalSha256(session->document());
+        const auto inputHistory = session->document().history().total;
         auto state = [&] {
-            return session.execute({{"apiVersion", 1}, {"operation", "session.describe"}});
+            return session->execute({{"apiVersion", 1}, {"operation", "session.describe"}});
         };
         QElapsedTimer timer;
         timer.start();
@@ -198,7 +238,7 @@ int main(int argc, char **argv) {
         AssistantBackend backend{
             [&](const QJsonObject &request) {
                 try {
-                    auto result = session.execute(request);
+                    auto result = session->execute(request);
                     receipts.append(QJsonObject{
                         {"request", request}, {"result", result}, {"elapsedMs", timer.elapsed()}});
                     return result;
@@ -280,7 +320,7 @@ int main(int argc, char **argv) {
         const auto inputHash = hash(encodeContainer(fixture));
         const auto promptHash = hash(prompt.toUtf8());
         if (describe) {
-            const QJsonObject description{{"corpusVersion", 1},       {"trial", trial},
+            const QJsonObject description{{"corpusVersion", 2},       {"trial", trial},
                                           {"inputSha256", inputHash}, {"promptSha256", promptHash},
                                           {"prompt", prompt},         {"networkRequested", false}};
             QSaveFile file(args[4]);
@@ -359,6 +399,34 @@ int main(int argc, char **argv) {
             (trial == "room" || trial == "resize" || trial == "advanced" || trial == "site"))
             provider.apply();
         const auto result = provider.task().result();
+        // Test-only defect injection (validated at startup); see testFault above.
+        if (testFault == "extra-history-step" && result.value("applied") == true) {
+            const auto now = state();
+            const QJsonObject base{{"apiVersion", 1}, {"documentId", now.value("documentId")}};
+            auto begin = base;
+            begin["operation"] = "transaction.begin";
+            begin["expectedRevision"] = now.value("revision");
+            const auto draft = session->execute(begin).value("transactionId");
+            auto change = base;
+            change["operation"] = "transaction.apply";
+            change["transactionId"] = draft;
+            change["expectedVersion"] = 0;
+            change["operationId"] = "injected-fault";
+            change["commands"] = QJsonArray{
+                QJsonObject{{"command", "tag.create"}, {"name", "Injected second history step"}}};
+            session->execute(change);
+            auto seal = base;
+            seal["operation"] = "transaction.preview";
+            seal["transactionId"] = draft;
+            seal["expectedVersion"] = 1;
+            const auto sealed = session->execute(seal);
+            auto commit = base;
+            commit["operation"] = "transaction.commit";
+            commit["requestId"] = sealed.value("requestId");
+            commit["payloadHash"] = sealed.value("payloadHash");
+            check(session->execute(commit).value("status") == "committed",
+                  "Injected fault step committed");
+        }
         const auto endState = state();
         bool geometryVerified = false, inspectionVerified = false, unrelatedPreserved = false;
         QJsonObject measurements;
@@ -377,10 +445,10 @@ int main(int argc, char **argv) {
                 inspectionVerified = true;
         }
         if (result.value("applied") == true) {
-            session.execute({{"apiVersion", 1},
-                             {"operation", "document.save"},
-                             {"documentId", endState.value("documentId")},
-                             {"expectedRevision", endState.value("revision")}});
+            session->execute({{"apiVersion", 1},
+                              {"operation", "document.save"},
+                              {"documentId", endState.value("documentId")},
+                              {"expectedRevision", endState.value("revision")}});
             auto actual = loadDocument(output);
             if (trial == "advanced") {
                 unrelatedPreserved = preservedBaseline(fixture, actual);
@@ -503,7 +571,106 @@ int main(int argc, char **argv) {
                                     .contains(metadataName.toUtf8());
         }
         provider.cancel();
-        session.close();
+        session->close();
+        // Corpus v2 postconditions, computed offline from this run's own document state.
+        const auto taskId = result.value("taskId").toString();
+        const auto &live = session->document();
+        const auto committedCanonical = canonicalSha256(live);
+        const auto committedContainer = encodeContainer(live);
+        const auto liveHistory = live.history().total;
+        const bool committed = liveHistory != inputHistory || committedCanonical != inputCanonical;
+        bool undoRestores = false, recoveryRestores = false;
+        QJsonObject undoReport{{"historyEntriesAdded", qint64(liveHistory) - qint64(inputHistory)},
+                               {"undoAvailable", live.canUndo()}};
+        try {
+            Document copy = live;
+            if (committed) {
+                const bool labeled = oneAssistantStep(live, inputHistory, taskId, prompt);
+                copy.undo();
+                const auto afterUndo = canonicalSha256(copy);
+                copy.redo();
+                const auto afterRedo = canonicalSha256(copy);
+                undoRestores = labeled && afterUndo == inputCanonical &&
+                               afterRedo == committedCanonical && !copy.canRedo();
+                undoReport["oneLabeledAssistantStep"] = labeled;
+                undoReport["afterUndoCanonicalSha256"] = afterUndo;
+                undoReport["afterRedoCanonicalSha256"] = afterRedo;
+            } else {
+                // No commit: Undo is unavailable and a request for it is a no-op.
+                const auto revision = copy.revision();
+                copy.undo();
+                undoRestores = !live.canUndo() && liveHistory == inputHistory &&
+                               copy.revision() == revision &&
+                               canonicalSha256(copy) == inputCanonical;
+            }
+        } catch (const std::exception &error) {
+            undoReport["error"] = automationFailure(error);
+            undoRestores = false;
+        }
+        undoReport["restores"] = undoRestores;
+        // Unclean exit: drop the live session without saving the input model and release
+        // its outcome journal lock, then reopen through the CLI --recover-latest path.
+        session.reset();
+        QJsonObject recoveryReport;
+        try {
+            if (committed) {
+                const auto recoveredPath = files.path() + "/recovered.sketchyup";
+                AutomationSession recovered({input, recoveredPath, outcomes, false, true});
+                const auto &doc = recovered.document();
+                const auto recoveredCanonical = canonicalSha256(doc);
+                const bool exact = encodeContainer(doc) == committedContainer;
+                const auto described =
+                    recovered.execute({{"apiVersion", 1}, {"operation", "session.describe"}});
+                const bool dirty = doc.dirty() && described.value("dirty") == true;
+                const bool labeled = oneAssistantStep(doc, 0, taskId, prompt);
+                Document copy = doc;
+                copy.undo();
+                const auto recoveredUndo = canonicalSha256(copy);
+                const auto saved =
+                    recovered.execute({{"apiVersion", 1},
+                                       {"operation", "document.save"},
+                                       {"documentId", described.value("documentId")},
+                                       {"expectedRevision", described.value("revision")}});
+                const bool cleanAfterSave = saved.value("dirty") == false && !doc.dirty();
+                const auto savedCanonical = canonicalSha256(loadDocument(recoveredPath));
+                recoveryRestores = recoveredCanonical == committedCanonical && exact && dirty &&
+                                   labeled && recoveredUndo == inputCanonical && cleanAfterSave &&
+                                   savedCanonical == committedCanonical;
+                recoveryReport = {{"mode", "recover-latest"},
+                                  {"recoveredCanonicalSha256", recoveredCanonical},
+                                  {"exactCommittedContainer", exact},
+                                  {"dirtyUntilSaved", dirty},
+                                  {"oneLabeledAssistantStep", labeled},
+                                  {"undoCanonicalSha256", recoveredUndo},
+                                  {"cleanAfterSave", cleanAfterSave},
+                                  {"savedCanonicalSha256", savedCanonical}};
+            } else {
+                QString refusal;
+                try {
+                    AutomationSession({input, {}, outcomes, false, true});
+                } catch (const std::exception &error) {
+                    refusal = automationFailure(error).value("code").toString();
+                }
+                AutomationSession reopened({input, {}, outcomes, false, false});
+                const auto &doc = reopened.document();
+                const auto reopenedCanonical = canonicalSha256(doc);
+                recoveryRestores = refusal == "RECOVERY_UNAVAILABLE" &&
+                                   reopenedCanonical == inputCanonical &&
+                                   doc.history().total == 0 && !doc.dirty();
+                recoveryReport = {{"mode", "no-commit-reopen"},
+                                  {"recoverLatestRefusal", refusal},
+                                  {"recoveredCanonicalSha256", reopenedCanonical}};
+            }
+        } catch (const std::exception &error) {
+            recoveryReport["error"] = automationFailure(error);
+            recoveryRestores = false;
+        }
+        recoveryReport["restores"] = recoveryRestores;
+        const QJsonObject postconditions{{"committed", committed},
+                                         {"inputCanonicalSha256", inputCanonical},
+                                         {"committedCanonicalSha256", committedCanonical},
+                                         {"undo", undoReport},
+                                         {"recovery", recoveryReport}};
         auto manual = loadDocument(input);
         const auto oldRevision = manual.revision();
         manual.addFace({{{4, 0, 0}, {5, 0, 0}, {5, 1, 0}, {4, 1, 0}}});
@@ -512,7 +679,7 @@ int main(int argc, char **argv) {
         const bool manualVerified = loadDocument(manualPath).revision() == oldRevision + 1;
         QJsonObject report{
             {"trial", trial},
-            {"corpusVersion", 1},
+            {"corpusVersion", 2},
             {"inputSha256", inputHash},
             {"promptSha256", promptHash},
             {"metadataObserved", metadataObserved},
@@ -545,6 +712,10 @@ int main(int argc, char **argv) {
             {"unrelatedPreserved", unrelatedPreserved},
             {"revisionUnchanged", unchanged},
             {"manualEditSaveReopenVerified", manualVerified},
+            {"undoRestores", undoRestores},
+            {"recoveryRestores", recoveryRestores},
+            {"postconditions", postconditions},
+            {"testFault", testFault.isEmpty() ? QJsonValue() : QJsonValue(testFault)},
             {"measurements", measurements}};
         QSaveFile file(args[4]);
         check(file.open(QIODevice::WriteOnly), "Open evidence path");
@@ -556,6 +727,8 @@ int main(int argc, char **argv) {
                                                {"applied", result.value("applied")},
                                                {"geometryVerified", geometryVerified},
                                                {"inspectionVerified", inspectionVerified},
+                                               {"undoRestores", undoRestores},
+                                               {"recoveryRestores", recoveryRestores},
                                                {"elapsedMs", timer.elapsed()}})
                          .toJson(QJsonDocument::Compact)
                          .toStdString()

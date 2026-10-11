@@ -1,4 +1,5 @@
 #include "app/solar_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include <QCheckBox>
 #include <QDateEdit>
 #include <QDialog>
@@ -90,6 +91,7 @@ void SolarPanel::edit() {
     auto *shadows = flag("solarShadows", "Cast shadows", original.shadows);
     auto number = [&](const char *name, const char *label, double value) {
         auto *field = new QLineEdit(QLocale().toString(value, 'g', 15));
+        acceptKeypadDecimal(field);
         field->setObjectName(name);
         form->addRow(label, field);
         return field;

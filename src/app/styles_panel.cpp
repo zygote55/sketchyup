@@ -1,4 +1,5 @@
 #include "app/styles_panel.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include <QColorDialog>
@@ -159,12 +160,15 @@ void StylesPanel::customize() {
     color("Monochrome back", "styleBackColor", &ModelStyle::back);
     color("Edges and profiles", "styleEdgeColor", &ModelStyle::edge);
     auto *ground = new QLineEdit(displayLength(original.groundHeight, doc_.displayUnits(), fullDisplayPrecision));
+    acceptKeypadDecimal(ground);
     ground->setObjectName("styleGroundHeight");
     form->addRow("Ground height", ground);
     auto *width = new QLineEdit(decimal(original.profileWidth));
+    acceptKeypadDecimal(width);
     width->setObjectName("styleProfileWidth");
     form->addRow("Profile width (px)", width);
     auto *opacity = new QLineEdit(decimal(original.xrayOpacity * 100));
+    acceptKeypadDecimal(opacity);
     opacity->setObjectName("styleXrayOpacity");
     form->addRow("X-ray opacity (%)", opacity);
     auto *error = new QLabel;

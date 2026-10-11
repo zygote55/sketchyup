@@ -207,6 +207,7 @@ AutomationSession::~AutomationSession() {
     } catch (...) { /* Opening the same journal retires lost staging. */
     }
 }
+const Document &AutomationSession::document() const { return actor_->document(); }
 QJsonObject AutomationSession::describe() const {
     const auto &doc = actor_->document();
     return {{"apiVersion", 1},
