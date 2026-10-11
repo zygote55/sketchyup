@@ -88,11 +88,27 @@ void Viewport::drawSolarShadowMap(const QMatrix4x4 &viewMatrix) {
         hasCaster = true;
     };
     for (const auto &[id, cache] : bodyCaches_) {
-        if (cache->record->referenceImage)
+        if (cache->record->referenceImage || !cache->mesh)
             continue;
-        for (size_t i = 0; i + 2 < cache->opaque.size(); i += 3)
-            include(cache->opaque[i], cache->opaque[i + 1], cache->opaque[i + 2]);
-        for (const auto &triangle : cache->transparent)
+        const auto &mesh = *cache->mesh;
+        if (mesh.placement) {
+            // World positions exactly as an unshared mesh stores them.
+            auto world = [&](Vertex v) {
+                v.x += cache->world.m[12];
+                v.y += cache->world.m[13];
+                v.z += cache->world.m[14];
+                return v;
+            };
+            for (size_t i = 0; i + 2 < mesh.opaque.size(); i += 3)
+                include(world(mesh.opaque[i]), world(mesh.opaque[i + 1]),
+                        world(mesh.opaque[i + 2]));
+            for (const auto &triangle : mesh.transparent)
+                include(world(triangle[0]), world(triangle[1]), world(triangle[2]));
+            continue;
+        }
+        for (size_t i = 0; i + 2 < mesh.opaque.size(); i += 3)
+            include(mesh.opaque[i], mesh.opaque[i + 1], mesh.opaque[i + 2]);
+        for (const auto &triangle : mesh.transparent)
             include(triangle[0], triangle[1], triangle[2]);
     }
     if (!hasCaster)
@@ -165,7 +181,8 @@ void Viewport::drawSolarShadowMap(const QMatrix4x4 &viewMatrix) {
     shader_->setUniformValue("mvp", light);
     shader_->setUniformValue("surfacePass", 4);
     for (auto &[id, cache] : bodyCaches_)
-        draw(cache->opaqueGpu, GL_TRIANGLES);
+        if (cache->mesh)
+            draw(cache->mesh->opaqueGpu, GL_TRIANGLES, 1, placementOffset(*cache));
     draw(transparentGpu_, GL_TRIANGLES);
     gl_->glDisable(GL_POLYGON_OFFSET_FILL);
     gl_->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(drawFramebuffer));

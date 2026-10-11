@@ -77,6 +77,11 @@ Shortcuts are defaults; saved custom bindings take precedence.
 - **Outliner:** F6 to the model panel, then arrows or Home choose an entity; F2
   renames, Space hides/shows, Ctrl+Shift+L locks, Enter opens a group, Escape leaves it
   and Ctrl+Z / Ctrl+Shift+Z undo and redo ([workflow](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084k-keyboard-outliner.md)).
+- **Model panel tabs:** inside a panel page, Ctrl+Tab and Ctrl+Shift+Tab switch tabs
+  and move focus into the new page; from the tab bar (Shift+Tab from the page), Left
+  and Right switch tabs. Every tab also has a View menu and Ctrl+K command, such as
+  **Entity info** or **Outliner**, that shows the panel and focuses that page
+  ([record](https://github.com/zygote55/sketchyup/blob/15bcf724be7b17545ca5b8ff562995bca455f9f6/docs/verification/R084s-keyboard-panel-tabs.md)).
 - **Exact values:** Entity info (the **Info** tab) shows the selection's bounds, area
   and volume. The AT-SPI check read 8 × 6 × 0.15 m, 100.2 m² and 7.2 m³ for the demo
   slab ([bridge](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084l-linux-accessibility-bridge.md)).
@@ -118,8 +123,7 @@ Some interactions remain pointer-first:
 layouts and interactive screen-reader workflows are not established.
 Tab traversal is checked for the Drawing plane, Keyboard shortcuts, Commands and
 Assistant preferences dialogs ([record](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084p-dialog-keyboard.md)), not every
-dialog. Switching model-panel tabs, for example to Info, by keyboard has no test of
-its own. Physical keyboard layouts and input methods are untested, and no Orca,
+dialog. Physical keyboard layouts and input methods are untested, and no Orca,
 speech or braille session has been validated.
 
 ## Save, recover and migrate
@@ -153,8 +157,12 @@ The destination must be new. Unknown future formats reject explicitly. See the
 ## Use the assistant
 
 Open **View → Assistant** or press **Ctrl+J**. Preferences offers the implemented
-OpenAI connections and an experimental numeric-loopback Ollama adapter. Choose
-an explicit model from the configured connection. Credential setup uses the OS
+OpenAI connections and an experimental numeric-loopback Ollama adapter. The
+supported provider for 1.0 is the remote OpenAI connection: choose **Continue with
+ChatGPT** to sign in with a ChatGPT plan (the subscription that includes Codex;
+SketchyUp does not use the Codex tool or its credentials). The local adapter is
+experimental and is not a 1.0 requirement ([provider scope](decisions/0160-provider-scope-for-1-0.md)).
+Choose an explicit model from the configured connection. Credential setup uses the OS
 credential facility; ordinary modeling and saving work without a provider.
 
 Review the context disclosure before sending a model. **Preview first** shows
@@ -166,7 +174,8 @@ before further editing or saving.
 Model prose is not the measurement oracle. The [agent guide](AI_MODELING.md),
 [tool reference](TOOL_REFERENCE.md) and [frozen provider corpus](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086a-frozen-provider-corpus.md)
 describe the supported commands and evaluation boundary. The retained local
-CPU profile is experimental, with no automatic model download or cloud fallback.
+CPU profile is experimental, with no quality guarantee, automatic model download
+or cloud fallback.
 
 ## Exchange and present a model
 
