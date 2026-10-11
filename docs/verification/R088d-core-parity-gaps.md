@@ -1,6 +1,13 @@
 # R088.d — Remaining Core parity gaps against main
 
 2026-10-10. Source revision `8534bb67bd1f003c140b6f5f7df6d6385fbc5dc7` (`main`).
+**Refreshed 2026-10-11.** Source revision `d4dcac19a00773cb57ee96698b194ab3bceb2333`
+(`main` after #298). The refresh re-checked every row that the evidence merged since
+(D01 [R084.r](R084r-display-precision.md), N05 [R084.q](R084q-visible-focus.md)/[s](R084s-keyboard-panel-tabs.md)/[R088.e](R088e-viewport-accessibility-limits.md),
+N03 [R085.p](R085p-keyboard-layouts.md)/[q](R085q-keypad-decimal.md), D06/N01 [R082.gg](R082gg-placement-limits.md),
+[R082.w v2](R082w-memory-budget-v2.md), [R082.hh](R082hh-far-inference.md)) touches.
+Rows D01, N03 and D06 left Gap. Rows N01, N04 and N05 stay Open with narrower open
+clauses. The clause text of every row is unchanged.
 This is a **gap analysis against `main`**, not the release-candidate parity report,
 an RC walkthrough or a release sign-off. It splits each of the **59 Core scope rows**
 into the individual clauses of its [acceptance text](../SCOPE.md) and records which
@@ -32,17 +39,17 @@ Evidenced. Release-candidate revalidation of every row under
 
 | Scope | Capability | Status | Missing or qualified clauses |
 | --- | --- | --- | --- |
-| N01 | Native desktop and viewport | Open | Clause text evidenced: Hyprland launch in [M4](M4.md) and [R085.i](R085i-assisted-output-transitions.md); no Electron/browser in `packaging/arch/PKGBUILD:9` depends; resize in `tests/interaction_tests.cpp:186`; rendering smoke `glError: 0` in [R085.b](R085b-native-surface-color.md). **Open:** R082 frame/edit budgets and the R085 supported GPU/driver matrix both list N01. |
+| N01 | Native desktop and viewport | Open | Clause text evidenced: Hyprland launch in [M4](M4.md) and [R085.i](R085i-assisted-output-transitions.md); no Electron/browser in `packaging/arch/PKGBUILD:9` depends; resize in `tests/interaction_tests.cpp:186`; rendering smoke `glError: 0` in [R085.b](R085b-native-surface-color.md). **Open:** R082 frame/edit budgets and the R085 supported GPU/driver matrix both list N01. The million-triangle, 10,000-placement fixture is now accepted by the public path ([R082.gg](R082gg-placement-limits.md), `document_limits`; software peak RSS 613 MB against the [R082.w v2](R082w-memory-budget-v2.md) 1.25 GiB class), so the earlier capacity gap is closed in software. The v2 budgets are declared, not accepted: Intel and AMD reruns ([M9 hardware session](../M9_HARDWARE_SESSION.md) sections 1 and 2) are pending. Far at 10,000 placements is measurable since [R082.hh](R082hh-far-inference.md) but has no recorded run. |
 | N02 | Build and package | Open | Clean build, install, upgrade, removal, desktop entry, MIME and icon evidenced by `packaging/arch/verify-package.sh:64-99,179-180` in CI and [R087.g](R087g-clean-current-package.md). **Open (R087):** current/reference Arch clean-machine checks. |
-| N03 | Native interaction | **Gap** | Shortcuts ([R084.e](R084e-shortcut-bindings.md)/[f](R084f-native-shortcut-editor.md)/[j](R084j-panel-shortcut-conflicts.md)/[m](R084m-filtered-shortcut-keyboard.md)), focus ([R084.d](R084d-keyboard-modeling.md), [R084.k](R084k-keyboard-outliner.md)) and tool-change lifecycle (`tool_lifecycle_tests`) evidenced. **Gap — keyboard layouts:** no test or record uses a non-US layout; ADR 0156 and the [support matrix](../SUPPORT_MATRIX.md) disclaim it. Only the build plan's platform matrix names it, and R085 lists only "input methods". **Partial — pointer capture:** [R002.c](R002-desktop.md) and [R021](R021-tool-lifecycle.md) cover synthetic out-of-bounds, grab-loss and focus-loss events only. Physical cross-window capture is untracked by M9. **Open (R084):** all-dialog access ([R084.o](R084o-native-dialog-controls.md)/[p](R084p-dialog-keyboard.md) cover named dialogs). **Open (R085):** input methods. |
-| N04 | Scaling and displays | Open | Client factors 1.5/1.75 are emulated in [R085.b](R085b-native-surface-color.md), with CI at 1×/2×. Physical Wayland outputs at 2 and 1.6 pass in [R085.h](R085h-physical-outputs.md)/[i](R085i-assisted-output-transitions.md); X11 reaches only scale 1, through a helper. Picking alignment is asserted (`tests/viewport_tests.cpp:229`). Overlay/text alignment is asserted only in individual fixtures (e.g. `tests/inference_input_tests.cpp:97`). **Open (R085):** a physical 150% output, automatic X11 placement, hotplug and final acceptance. |
-| N05 | Accessibility/preferences | Open | Labels ([R084.b](R084b-accessible-regions.md)/[n](R084n-assistant-preference-labels.md)/[o](R084o-native-dialog-controls.md)), scalable text ([R084.h](R084h-interface-text-size.md)), configurable shortcuts and persisted preferences ([R084.c](R084c-preference-compatibility.md)) evidenced. **Open (R084):** complete keyboard reachability. **Open (R084), likely implementation — visible focus:** [R084.a](R084a-local-accessibility-inventory.md) still lists it; no test asserts it. The stylesheet in `src/app/window.cpp:930-935` defines `:focus` only for line edits, trees, lists, toolbars and push buttons, not for tool buttons, combo boxes, check boxes or spin boxes. **Open (R088):** the viewport accessibility limits are documented only in the design doc ([UX_DESIGN §10](../UX_DESIGN.md)), not in the [user guide](../USER_GUIDE.md). |
-| D01 | Units and axes | **Gap** | Metric, fractional feet/inches, locale and coordinate entry evidenced (`tests/measurement_tests.cpp:26-48`). Unit persistence evidenced (`document_units_io`). Component local axes survive save/reopen (`tests/component_input_tests.cpp:171-193`). **Gap — decimal imperial entry:** no assertion of e.g. `2.5in` or `1.5'`. The parser accepts `in`/`ft` suffixes (`src/core/transform.cpp:90-104`), so this probably needs evidence only. **Limitation, inconsistent with tier — precision formatting:** [ADR 0018](../decisions/0018-document-units.md) fixes display precision, and `DisplayUnit` offers only `m`/`mm`/`ft-in` (`src/core/units.hpp:5`). No precision setting exists to persist, although UX_DESIGN §10 lists a "units and precision" preference. Custom drawing planes are session state (M3 record). |
-| D02 | Native document format | Evidenced | `native_format`, `persistence`, `parser_fault_corpus`, `saved_scenes_io`, `asset_io`; [ADR 0108](../decisions/0108-public-native-format.md) rejects future versions. R083/R087 revalidation pending. |
+| N03 | Native interaction | Open | Shortcuts ([R084.e](R084e-shortcut-bindings.md)/[f](R084f-native-shortcut-editor.md)/[j](R084j-panel-shortcut-conflicts.md)/[m](R084m-filtered-shortcut-keyboard.md)), focus ([R084.d](R084d-keyboard-modeling.md), [R084.k](R084k-keyboard-outliner.md)) and tool-change lifecycle (`tool_lifecycle_tests`) evidenced. **Evidenced — keyboard layouts (new):** `keyboard_layout_input_tests` sends physical keycodes through XTest for US, German and French AZERTY, on X11 and on Weston nested in Xvfb, and checks tool shortcuts, `Shift+Z`, view digits, `[0,0,0]`, `2'6",1.5`, axis locks, undo/redo and comma-decimal locale entry (54/54 local cases, `native.yml` step "Keyboard layouts through physical key input"; [R085.p](R085p-keyboard-layouts.md)). The run found and fixed a dropped leading locale decimal separator. The keypad decimal key types the locale separator ([R085.q](R085q-keypad-decimal.md): `numeric_input_tests`, `entity_info_input_tests`, evdev `KEY_KPDOT` per layout). **Qualification:** only us/de/fr; dead keys, Compose, variants, non-Latin layouts and real recording in the shortcut editor are not tested. **Open (physical) — pointer capture:** [R002.c](R002-desktop.md) and [R021](R021-tool-lifecycle.md) cover synthetic out-of-bounds, grab-loss and focus-loss events only. Physical cross-window capture on the primary compositor is scheduled in [M9 hardware session §6](../M9_HARDWARE_SESSION.md#6-n03-physical-pointer-capture-and-focus-about-20-min), which feeds R084/R085; neither roadmap status line names it yet. **Open (physical) — layouts on a real keyboard under Hyprland** are not run; §7 covers composition only. **Open (R084):** all-dialog access ([R084.o](R084o-native-dialog-controls.md)/[p](R084p-dialog-keyboard.md) cover named dialogs). **Open (R085):** input methods ([§7](../M9_HARDWARE_SESSION.md#7-r085-input-methods-about-30-min)). |
+| N04 | Scaling and displays | Open | Client factors 1.5/1.75 are emulated in [R085.b](R085b-native-surface-color.md), with CI at 1×/2×. Physical Wayland outputs at 2 and 1.6 pass in [R085.h](R085h-physical-outputs.md)/[i](R085i-assisted-output-transitions.md); X11 reaches only scale 1, through a helper. Picking alignment is asserted (`tests/viewport_tests.cpp:229`). Overlay/text alignment is asserted only in individual fixtures (e.g. `tests/inference_input_tests.cpp:97`). **Open (R085):** a physical 150% output ([M9 hardware session §5](../M9_HARDWARE_SESSION.md#5-n04-physical-150-scale-about-15-min)), automatic X11 placement ([§10](../M9_HARDWARE_SESSION.md#10-r085-automatic-x11-output-placement-about-10-min)), hotplug ([§3](../M9_HARDWARE_SESSION.md#3-r085-output-hotplug-about-20-min)), suspend/resume ([§4](../M9_HARDWARE_SESSION.md#4-r085-suspend-and-resume-about-25-min)) and final acceptance. |
+| N05 | Accessibility/preferences | Open | Labels ([R084.b](R084b-accessible-regions.md)/[n](R084n-assistant-preference-labels.md)/[o](R084o-native-dialog-controls.md)), scalable text ([R084.h](R084h-interface-text-size.md)), configurable shortcuts and persisted preferences ([R084.c](R084c-preference-compatibility.md)) evidenced. **Evidenced — visible focus (new):** `visible_focus_input_tests` measures painted 1 px accent rings on 421 controls (every focusable class in the main window and six dialogs) with no layout shift, in light and dark, at 100% and 200% text, X11 and Wayland, 1×/2× (4/4 cases; ≥ 4.65:1 outside and ≥ 3.93:1 inside; [R084.q](R084q-visible-focus.md)). Qualified by the recorded findings: the 3D canvas ring is 2.997:1 against dark chrome (not asserted) and the dark ring next to the light canvas is 1.64:1. **Evidenced — documented viewport limits (new):** [R088.e](R088e-viewport-accessibility-limits.md) adds the user-guide section; each claim is mapped to code or a fixture, and keyboard Freehand and screen-reader announcements are stated as limits. **Evidenced — keyboard panel tabs (new):** all twelve Model-panel tabs are reachable, entered and left by keyboard, and all twelve have View-menu and palette commands (`keyboard_panel_tabs_tests`, 68/68 cases; [R084.s](R084s-keyboard-panel-tabs.md)). **Open (R084):** complete keyboard reachability. Named dialogs only ([R084.o](R084o-native-dialog-controls.md)/[p](R084p-dialog-keyboard.md)); the individual tool-rail buttons are not Tab stops; Tab passes one or two tab-bar scroll buttons first; the Model/Render and Assistant side tabs are unexercised. **Open (physical):** no interactive screen-reader run; Orca is scheduled in [M9 hardware session §9](../M9_HARDWARE_SESSION.md#9-r084-screen-reader-with-orca-about-30-min). |
+| D01 | Units and axes | Evidenced | Metric, fractional feet/inches, locale and coordinate entry evidenced (`tests/measurement_tests.cpp:26-48`). Unit persistence evidenced (`document_units_io`). Component local axes survive save/reopen (`tests/component_input_tests.cpp:171-193`). **Decimal imperial entry (new):** `tests/display_precision_tests.cpp:176-186` asserts `2.5in`, `1.25ft`, `1.5'`, `-1.25ft` and German `2,5in`/`1,25ft`, with `3' 4.5"` and a bare `2.5` in feet-and-inches units, within 1e-12 ([R084.r](R084r-display-precision.md)). **Precision formatting (new):** each document stores a display precision (Full, or fixed decimals per unit; [ADR 0018](../decisions/0018-document-units.md#display-precision-r084r)) as an undoable edit and a required native field. `display_precision_io` round-trips every unit at Full, minimum and maximum precision and a golden schema fixture; `units_input_tests` drives the dialog by keyboard on X11 and Wayland, 1×/2×. Custom drawing planes are session state (M3 record). |
+| D02 | Native document format | Evidenced | `native_format`, `persistence`, `parser_fault_corpus`, `saved_scenes_io`, `asset_io`; [ADR 0108](../decisions/0108-public-native-format.md) rejects future versions. Local coverage-guided fuzzing of ten parsers found no application crash ([R083.e](R083e-parser-fuzzing.md); finding F1 open, see [D-022](R089a-defect-triage.md)). R083/R087 revalidation pending. |
 | D03 | Undo and transactions | Evidenced | Atomic batches (`history`, `transaction_sequence`). A new edit clears redo (`tests/core_tests.cpp:113`, `tests/scene_tests.cpp:134-137`). Cancel does not dirty (`tests/tool_lifecycle_tests.cpp:43-44,92`). |
 | D04 | Autosave and recovery | Evidenced | [M4](M4.md) killed-writer recovery with the explicit save byte-identical; `recovery`, `recovery_controller`, `new_file_faults`; [R083.b](R083b-integrated-publication-faults.md). |
 | D05 | Model templates | Evidenced | `tests/library_bundle_tests.cpp:69-85` (units, style, materials retained; the new model never mutates the template). Native save/open in `tests/library_input_tests.cpp:106-122,206`. |
-| D06 | Limits and diagnostics | **Gap** | Bounded corrupt/oversize errors evidenced (`parser_fault_corpus`, [R082.l](R082l-resource-limits.md), [R083.a](R083a-integrated-parser-corruption.md)). Geometry diagnostics name entities (`diagnostics`, E09). **Gap — memory diagnostics identifying offending entities:** limit rejections are generic strings, e.g. "Component placement exceeds document editing limits" (`src/core/components.cpp:233`) and "Document complexity exceeds editing limits" (`src/core/model.cpp:156`). They name neither the limit nor the entity. **Open (R082):** the memory budget campaign, and the 1M-triangle/10k-instance fixture, which exceeds public document limits ([R082.a](R082a-real-model-baseline.md)). |
+| D06 | Limits and diagnostics | Open | Bounded corrupt/oversize errors evidenced (`parser_fault_corpus`, [R082.l](R082l-resource-limits.md), [R083.a](R083a-integrated-parser-corruption.md), local fuzzing in [R083.e](R083e-parser-fuzzing.md)). Geometry diagnostics name entities (`diagnostics`, E09). **Limit diagnostics naming entities (new):** `document_limits` asserts that rejections name the operation, limit class, exceeded quantity with attempted and maximum values, and the offending definition, placement or body (for example `placing definition 'Triangle' #…`); `document_limits_io` covers load and save at the limits; `incremental_validation` checks that the incremental and full schemes report the same message ([R082.gg](R082gg-placement-limits.md)). The generic strings are gone. **Large fixture (new):** the 10,000-placement, million-triangle fixture is accepted through the public path (`document_limits`; 1,000 placements under sanitizers). **Open (R082):** memory-budget acceptance. [R082.w v2](R082w-memory-budget-v2.md) is declared from software measurements (613 MB peak) and no ceiling is accepted until the Intel and AMD reruns ([M9 hardware session](../M9_HARDWARE_SESSION.md) sections 1d and 2). Far at 10,000 placements is unmeasured. |
 | G01 | Editable edges/faces | Evidenced | [M2](M2.md): `topology`, `arrangements`, `planar`; [R016](R016-planar-faces.md). |
 | G02 | Face healing and deletion | Evidenced | [M2](M2.md), [R018](R018-erase-heal.md), `cleanup`. |
 | G03 | Line and freehand | Evidenced | [R023](R023-drawing-tools.md); `drawing`, `drawing_input_tests` (chained/disconnected, freehand cancel, tilted planes, typed lengths). |
@@ -92,41 +99,53 @@ Evidenced. Release-candidate revalidation of every row under
 | X05 | Public extension interface | Evidenced | [R080.a](R080a-extension-contract.md)–[d](R080d-native-extensions.md). |
 | X06 | Native-format migration | Evidenced | [R073](R073-public-native-format.md); 25 installed migrations in [R087.g](R087g-clean-current-package.md); [ADR 0108](../decisions/0108-public-native-format.md) documents the stored data. |
 
-Totals: **51 Evidenced, 5 Open (N01, N02, N04, N05, A05), 0 Partial,
-3 Gap (N03, D01, D06).** The Evidenced count means every clause has a cited
-assertion on `main`. It does not mean the row is accepted.
+Totals: **52 Evidenced, 7 Open (N01, N02, N03, N04, N05, D06, A05), 0 Partial,
+0 Gap.** Before the refresh: 51 Evidenced, 5 Open, 0 Partial, 3 Gap (N03, D01, D06).
+D01 moved Gap to Evidenced. N03 and D06 moved Gap to Open. The Evidenced count
+means every clause has a cited assertion on `main`. It does not mean the row is accepted.
 
 ## Implementation gaps
 
 Behaviour that is probably absent or incomplete in `src/`:
 
-- **D01 — display precision.** No precision setting exists (ADR 0018). A configurable,
-  persisted precision is needed, or a scope-change PR that narrows the clause.
-- **D06 — limit diagnostics.** Limit rejections need to name the limit and the
-  offending entity or definition.
-- **N05 — visible focus (R084).** Several widget classes have no focus style. This
-  needs confirmation by an audit before any styling change.
-- **N01/D06 — large-model capacity (R082).** The 1M-triangle/10k-instance build-plan scenario
-  exceeds public document limits ([R082.a](R082a-real-model-baseline.md)), so meeting
-  it needs document/instancing work.
+- **N05 — complete keyboard reachability (R084).** Visible focus, panel tabs and the
+  documented limits are done. What remains is access to every dialog (only named
+  dialogs are covered), the tool-rail buttons (not Tab stops, a UI decision), the
+  tab-bar scroll buttons in the Tab order and the unexercised Model/Render and
+  Assistant side tabs.
+
+Closed since the 2026-10-10 version: D01 display precision, D06 limit diagnostics,
+N05 visible focus, and the N01/D06 large-model capacity (all in software; the
+hardware reruns are listed below).
 
 ## Evidence-only gaps
 
 Behaviour that probably works but has no qualifying evidence:
 
-- **N03 — keyboard layouts.** Run shortcut, numeric and lock fixtures under at least
-  one non-US layout.
 - **N03 — pointer capture.** Physical cross-window drag and release on the primary
-  compositor; current tests inject synthetic events only.
-- **D01 — decimal imperial entry.** Parser and native assertions for decimal inch and
-  foot input.
+  compositor; current tests inject synthetic events only
+  ([M9 hardware session §6](../M9_HARDWARE_SESSION.md#6-n03-physical-pointer-capture-and-focus-about-20-min)).
+- **N03 — layouts on a physical keyboard and input methods (R085).** The layout
+  fixture uses injected keycodes through nested Weston; a real keyboard under
+  Hyprland, dead keys, Compose and an IME remain ([§7](../M9_HARDWARE_SESSION.md#7-r085-input-methods-about-30-min)).
+- **N05 — screen reader.** An interactive Orca session
+  ([§9](../M9_HARDWARE_SESSION.md#9-r084-screen-reader-with-orca-about-30-min)) and
+  the all-dialog keyboard audit.
+- **N04 — physical 150% (R085).** A physical 150% output
+  ([§5](../M9_HARDWARE_SESSION.md#5-n04-physical-150-scale-about-15-min)) plus automatic
+  X11 placement ([§10](../M9_HARDWARE_SESSION.md#10-r085-automatic-x11-output-placement-about-10-min)),
+  hotplug ([§3](../M9_HARDWARE_SESSION.md#3-r085-output-hotplug-about-20-min)) and
+  suspend/resume ([§4](../M9_HARDWARE_SESSION.md#4-r085-suspend-and-resume-about-25-min)).
+- **N01/D06 — hardware campaigns (R082).** Intel and AMD reruns of the five 100k
+  families, the 10,000-placement repeated, deep and textures families, the
+  sharing-off control and, once run, far at 10,000 placements, against
+  [R082.w v2](R082w-memory-budget-v2.md) and the frame budgets
+  ([§1](../M9_HARDWARE_SESSION.md#1-r082-intel-campaigns-about-80-min-unattended-10k-case-adds-about-45-min),
+  [§2](../M9_HARDWARE_SESSION.md#2-r082r085-amd-campaigns-about-70-min-unattended-run-during-sections-310)).
+  The Intel one-CPU frame miss (D-004) is part of this.
 - **A05 — remote release-candidate re-run (R086).** The remote OpenAI ChatGPT-plan
   profile must pass the frozen corpus again at the release candidate. The local
   profile is no longer a gate ([ADR 0160](../decisions/0160-provider-scope-for-1-0.md)).
-- **N05 — user-guide limits (R088).** Viewport accessibility limits in the installed
-  user guide.
-- **N04 — physical 150% (R085).** A physical 150% output plus the open placement and
-  hotplug cases.
 
 Extended F01–F07 and Investigate C01–C07 rows are outside this analysis and remain
 in [scope](../SCOPE.md). No SketchUp parity claim follows from these results.
