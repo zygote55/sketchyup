@@ -1,7 +1,7 @@
 # R082.dd — Share placement meshes in the viewport
 
-2026-10-10. Change `52097a22` on `build/r082dd-instanced-viewport`, based on `809bdbcf`
-and then merged with `origin/main` `c04aea04` (R082.cc, R084.r) without conflicts.
+2026-10-10. Change `52097a22` on `build/r082dd-instanced-viewport`, based on `809bdbcf`,
+merged with `origin/main` `c04aea04` (R082.cc, R084.r) and then `9769325f`.
 Only the viewport's caches and draw path change. Core still expands every
 placement into scene bodies; persistence, inference, construction and limits
 belong to R082.cc, .ee, .ff and .gg. [Raw reports and hashes](R082dd-instanced-viewport.json);
@@ -165,6 +165,13 @@ Counts are for the merged tree unless marked.
 | ASan/UBSan: 12 viewport fixtures, X11 and Wayland at scales 1 and 2 | 46 of 48 pass; the placement fixture exceeds Wayland's fixed 60 s limit under ASan at both scales, and passes on X11 |
 | Pre-merge: Wayland scales 1 and 2, 26 fixtures, plus fractional 1.5 and 1.75 | Scale 1 and fractional pass, except an earlier, larger placement fixture that hit the 60 s limit; scale-2 failures were window exposure, see above |
 | Pre-merge: ASan/UBSan, same set | 51 of 59 pass; seven Wayland scale-2 exposure failures and one Wayland timeout |
+
+After `origin/main` moved again (`9769325f`: R082.ee, R082.ff, R084.q), a second
+merge conflicted only in this roadmap line. On that tree `ctest --preset dev`
+passes 188 of 188, and 16 component and viewport fixtures pass at X11 scales 1 and 2
+(32 of 32), including identical placement picks. The repeated and far benchmarks pass
+with sharing on and off: one placement mesh, 89,266 B of vectors, 34,656 B of payload,
+3 differing pixels per frame, and sharing-off frames equal to the pre-change frames.
 
 No sanitizer reported an error or leak. The new
 `placement_viewport_tests` fixture takes about 30 s on the host, but more than 60 s

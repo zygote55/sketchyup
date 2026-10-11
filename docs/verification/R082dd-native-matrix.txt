@@ -452,3 +452,44 @@ solar_input_tests Wayland-2 exit 0: Native sun controls, history, scene capture,
 == Host ctest --preset dev -j3 on merged tree
 100% tests passed out of 185
 Total Test time (real) =  66.49 sec
+
+== Second merge (origin/main 9769325f): focused X11 recheck and benchmarks
+viewport_tests X11-1 exit 0: Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+viewport_tests X11-2 exit 0: Topology viewport: concavity, holes, stable edge/face IDs, clipping, occlusion, bounds and mirror checks passed
+placement_viewport_tests X11-1 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=1
+placement_viewport_tests X11-2 exit 0: Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=2
+material_viewport_tests X11-1 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=1
+material_viewport_tests X11-2 exit 0: Material sides, mixed opacity depth, reflection, cache invalidation, CPU/GPU picking, undo and reopen passed; DPR=2
+texture_viewport_tests X11-1 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=1
+texture_viewport_tests X11-2 exit 0: Native textures, independent sides, alpha picking, replacement, history, reflection, tint and relocation passed; DPR=2
+section_viewport_tests X11-1 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+section_viewport_tests X11-2 exit 0: Native scoped sections, caps, picking, Undo, reflection and UVs passed
+style_viewport_tests X11-1 exit 0: 
+style_viewport_tests X11-2 exit 0: 
+smooth_viewport_tests X11-1 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=1
+smooth_viewport_tests X11-2 exit 0: Native analytic smooth lighting, reflection, cache reuse, Undo and reopen passed; DPR=2
+viewport_precision_tests X11-1 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 1
+viewport_precision_tests X11-2 exit 0: Near/far projection, raster colors, CPU/GPU selection and clipping passed; DPR 2
+component_input_tests X11-1 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=1
+component_input_tests X11-2 exit 0: Native components, shared banner, mirrored editing, numeric amendment, unique, axes and persistence passed; DPR=2
+selection_input_tests X11-1 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=1
+selection_input_tests X11-2 exit 0: Native hover, typed/modifier/window/crossing selection, holes, occlusion, click expansion, view guards, keyboard/Outliner, framebuffer and atomic delete passed; DPR=2
+group_input_tests X11-1 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=1
+group_input_tests X11-2 exit 0: Native raw grouping, protected picking, nested editing, drawing/deletion isolation, breadcrumbs, locks, persistence and undo passed; DPR=2
+solar_input_tests X11-1 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+solar_input_tests X11-2 exit 0: Native sun controls, history, scene capture, lighting, shadows and picking passed
+hosted_input_tests X11-1 exit 0: Native glue, private attachment preview, exact amendment, mirrored placement, bind/detach/bake, Undo and locks passed; DPR 1
+hosted_input_tests X11-2 exit 0: Native glue, private attachment preview, exact amendment, mirrored placement, bind/detach/bake, Undo and locks passed; DPR 2
+array_input_tests X11-1 exit 0: Native linear/radial xN and /N arrays, exact spacing/counts, multi-turn sweep, selection and guarded one-step amendment passed; DPR=1
+array_input_tests X11-2 exit 0: Native linear/radial xN and /N arrays, exact spacing/counts, multi-turn sweep, selection and guarded one-step amendment passed; DPR=2
+diagnostics_input_tests X11-1 exit 0: Native diagnostic findings, selection/frame, explicit repairs, Undo and staleness passed; DPR 1
+diagnostics_input_tests X11-2 exit 0: Native diagnostic findings, selection/frame, explicit repairs, Undo and staleness passed; DPR 2
+organization_input_tests X11-1 exit 0: Native hierarchy, search, selection, keyboard/pointer metadata, tags, visibility, shared scope and persistence passed; DPR=1
+organization_input_tests X11-2 exit 0: Native hierarchy, search, selection, keyboard/pointer metadata, tags, visibility, shared scope and persistence passed; DPR=2
+274148e6f7ef4d6b0b3b98000ebd6da3f78bd01ace88f715ebbee6248499977c  build/dev/real_model_benchmark
+benchmark sharing=1 repeated exit 0
+benchmark sharing=0 repeated exit 0
+benchmark sharing=1 far exit 0
+benchmark sharing=0 far exit 0
+100% tests passed out of 188
+Total Test time (real) = 126.39 sec
