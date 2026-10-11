@@ -153,8 +153,12 @@ The destination must be new. Unknown future formats reject explicitly. See the
 ## Use the assistant
 
 Open **View → Assistant** or press **Ctrl+J**. Preferences offers the implemented
-OpenAI connections and an experimental numeric-loopback Ollama adapter. Choose
-an explicit model from the configured connection. Credential setup uses the OS
+OpenAI connections and an experimental numeric-loopback Ollama adapter. The
+supported provider for 1.0 is the remote OpenAI connection: choose **Continue with
+ChatGPT** to sign in with a ChatGPT plan (the subscription that includes Codex;
+SketchyUp does not use the Codex tool or its credentials). The local adapter is
+experimental and is not a 1.0 requirement ([provider scope](decisions/0160-provider-scope-for-1-0.md)).
+Choose an explicit model from the configured connection. Credential setup uses the OS
 credential facility; ordinary modeling and saving work without a provider.
 
 Review the context disclosure before sending a model. **Preview first** shows
@@ -166,7 +170,8 @@ before further editing or saving.
 Model prose is not the measurement oracle. The [agent guide](AI_MODELING.md),
 [tool reference](TOOL_REFERENCE.md) and [frozen provider corpus](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086a-frozen-provider-corpus.md)
 describe the supported commands and evaluation boundary. The retained local
-CPU profile is experimental, with no automatic model download or cloud fallback.
+CPU profile is experimental, with no quality guarantee, automatic model download
+or cloud fallback.
 
 ## Exchange and present a model
 

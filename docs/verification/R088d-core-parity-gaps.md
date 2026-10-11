@@ -81,7 +81,7 @@ Evidenced. Release-candidate revalidation of every row under
 | A02 | Queries and perception | Evidenced | `inspection`, `inspection_session`. |
 | A03 | Transactions and preview | Evidenced | `STALE_PROPOSAL` in `staging`; duplicate requests in `transaction_dispatch`/`transaction_coordinator`; preview and direct modes live in [M5](M5.md). |
 | A04 | Embedded assistant | Evidenced | [M5](M5.md), [R086.b](R086b-remote-evaluation.md), [R086 inspection batches](R086as-openai-inspection-batches.md) (remote). R086 release review pending. |
-| A05 | Provider independence | Open | Remote passes ([R086.b](R086b-remote-evaluation.md)). **Open (R086), likely implementation:** no local configuration passes. The frozen profile fails 0/3 on every live task ([R086.c](R086c-local-evaluation.md)), and a later local-guidance profile also fails ([review](R086al-local-guidance-failure-review.json)). |
+| A05 | Provider independence | Open | Remote passes ([R086.b](R086b-remote-evaluation.md), [R086.as](R086as-openai-inspection-batches.md)). **Limitation — local configuration:** by the 2026-10-11 owner decision ([ADR 0160](../decisions/0160-provider-scope-for-1-0.md)) a passing local configuration is not a 1.0 requirement, so the row's clause now asks for a remote provider only. The local profiles stay experimental; the frozen profile fails 0/3 on every live task ([R086.c](R086c-local-evaluation.md)) and a later local-guidance profile also fails ([review](R086al-local-guidance-failure-review.json)). **Open (R086):** the remote profile's release-candidate re-run and release review. |
 | A06 | External automation | Evidenced | `mcp`, `native_mcp_tests`, `automation_session`. |
 | A07 | Agent instructions/examples | Evidenced | `shipped_recipes`, `tool_reference_drift`; room, hosted-room, roof, stair, table and cabinet recipes in `examples/`. |
 | A08 | AI verification | Partial | Postconditions, preservation and injected-metadata tasks scored ([R086.a](R086a-frozen-provider-corpus.md)). **Partial — undo and recovery scoring:** the frozen corpus and `scripts/score-provider-release.py` score neither. Coverage comes from deterministic tests (`transaction_sequence`, `outcome_store`) and single M5 live Undo/Redo trials. **Open (R086):** the local profile never reached hostile metadata. |
@@ -106,7 +106,6 @@ Behaviour that is probably absent or incomplete in `src/`:
   offending entity or definition.
 - **N05 — visible focus (R084).** Several widget classes have no focus style. This
   needs confirmation by an audit before any styling change.
-- **A05 — local provider (R086).** No local configuration meets the frozen thresholds.
 - **N01/D06 — large-model capacity (R082).** The 1M-triangle/10k-instance build-plan scenario
   exceeds public document limits ([R082.a](R082a-real-model-baseline.md)), so meeting
   it needs document/instancing work.
@@ -121,6 +120,9 @@ Behaviour that probably works but has no qualifying evidence:
   compositor; current tests inject synthetic events only.
 - **D01 — decimal imperial entry.** Parser and native assertions for decimal inch and
   foot input.
+- **A05 — remote release-candidate re-run (R086).** The remote OpenAI ChatGPT-plan
+  profile must pass the frozen corpus again at the release candidate. The local
+  profile is no longer a gate ([ADR 0160](../decisions/0160-provider-scope-for-1-0.md)).
 - **A08 — undo and recovery scoring.** Undo and recovery postconditions in the
   provider corpus (a new corpus version) or an explicit release scoring step.
 - **N05 — user-guide limits (R088).** Viewport accessibility limits in the installed
