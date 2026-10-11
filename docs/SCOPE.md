@@ -94,7 +94,7 @@ is the minimum observable behavior, not a substitute for detailed test cases.
 | A02 | Queries and perception | Core | M5 | Selection, hierarchy, topology, units, measurements, semantic attributes and snapshots available with pagination/context limits |
 | A03 | Transactions and preview | Core | M5 | Preview/apply/discard and direct-edit modes work; one AI task is one undo step; stale revision and duplicate request tests pass |
 | A04 | Embedded assistant | Core | M5 | Natural-language creation and scoped modification work; progress, cancellation, failed provider requests and ambiguity are handled |
-| A05 | Provider independence | Core | M5/M9 | At least one remote provider and one documented local configuration pass a published capability/evaluation suite; credentials stay outside documents |
+| A05 | Provider independence | Core | M5/M9 | At least one remote provider passes a published capability/evaluation suite; credentials stay outside documents. Local configurations are documented and experimental, and are not a 1.0 gate ([ADR 0160](decisions/0160-provider-scope-for-1-0.md)) |
 | A06 | External automation | Core | M5/M8 | Documented local MCP and headless CLI interfaces use the same contracts; access and document targeting are explicit |
 | A07 | Agent instructions/examples | Core | M5/M8 | Versioned guide, generated schemas and executable recipes for rooms, roofs, stairs, openings and furniture; no undocumented required tools |
 | A08 | AI verification | Core | M5/M9 | Geometric postconditions, preservation of unrelated entities, undo and recovery are scored; tests cover injected instructions in model metadata |

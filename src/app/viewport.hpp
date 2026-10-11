@@ -21,6 +21,7 @@
 #include <QPointF>
 #include <functional>
 #include <optional>
+#include <tuple>
 class QTabBar;
 class QTimer;
 class QVariantAnimation;
@@ -212,11 +213,18 @@ class Viewport : public QOpenGLWidget {
     // Feasibility controls are view-only; they do not alter saved materials or topology.
     void setBodyOpacity(Id body, float opacity);
     void setClipPlane(std::optional<std::array<double, 4>> plane);
+    // Diagnostic control: when false, every body draws its own world-space mesh.
+    void setPlacementMeshSharing(bool enabled);
+    bool placementMeshSharing() const { return placementSharing_; }
     void benchmark(int triangles, bool instanced = false);
     struct RenderStats {
         std::uint64_t frames{}, geometryUploads{}, transparencyUploads{}, uploadedBytes{};
+        // Body counters count each body whose mesh, world placement or GPU mesh
+        // changed; tessellations and mesh uploads count the work, which bodies
+        // drawing one shared placement mesh perform once.
         std::uint64_t bodyMeshBuilds{}, bodyWorldUpdates{}, bodyUploads{};
-        size_t cachedBodies{};
+        std::uint64_t tessellations{}, meshUploads{};
+        size_t cachedBodies{}, placementMeshes{}, sharedPlacements{};
         unsigned contextGeneration{}, glError{};
         size_t meshTriangles{}, profileEdges{};
     };
@@ -374,32 +382,77 @@ class Viewport : public QOpenGLWidget {
     SelectionMode selectionMode(Qt::KeyboardModifiers modifiers) const;
     void selectionRelease(QPointF point);
     std::optional<SelectedEntity> pickEntity(QRgb color) const;
+    struct MeshEdge {
+        Vec3 a, b;
+        Id id;
+    };
+    // Body-local tessellation. Placements of one definition member share it.
+    struct BodyGeometry {
+        BodyPtr record;
+        std::vector<Triangle> localTriangles;
+        Adjacency adjacency;
+        std::vector<MeshEdge> localEdges;
+    };
+    // Display vertices and their GPU buffers. A placement mesh omits the
+    // placement translation, which each draw adds relative to the render origin;
+    // otherwise vertices are world positions, as for any unshared body.
+    struct BodyMesh {
+        bool placement{};
+        std::vector<Vertex> opaque, lines, hiddenLines;
+        std::vector<std::array<Vertex, 3>> transparent;
+        // Placement meshes record, per drawn triangle and edge, whether its
+        // placement-space value was degenerate (2) or kept (1); 0 is not drawn.
+        // Placements whose world values disagree use their own mesh instead.
+        std::vector<std::uint8_t> triangleFlags, edgeFlags;
+        GpuBatch opaqueGpu, linesGpu, hiddenLinesGpu;
+        size_t mappingFallbacks{};
+        MaterialRecords materials;
+        std::map<Id, std::shared_ptr<const TextureImage>> images;
+        std::uint64_t presentationRevision{}, pass{}, uploadPass{};
+    };
+    // Everything a placement mesh depends on besides document-wide inputs:
+    // the canonical member, the placement's linear part and its display state.
+    struct PlacementKey {
+        const Body *source{};
+        std::array<double, 9> linear{};
+        bool hidden{}, inactive{}, locked{};
+        bool operator<(const PlacementKey &other) const {
+            return std::tie(source, linear, hidden, inactive, locked) <
+                   std::tie(other.source, other.linear, other.hidden, other.inactive, other.locked);
+        }
+    };
     struct BodyCache {
         BodyPtr record;
         MaterialRecords materials;
         std::map<Id, std::shared_ptr<const TextureImage>> images;
         Transform world;
-        Adjacency adjacency;
-        std::vector<Triangle> localTriangles, worldTriangles;
-        struct MeshEdge {
-            Vec3 a, b;
-            Id id;
-        };
-        std::vector<MeshEdge> localEdges, worldEdges;
+        std::shared_ptr<BodyGeometry> geometry;
+        std::shared_ptr<BodyMesh> mesh;
+        // Canonical definition member this body projects, when it may share.
+        BodyPtr source;
+        Id owner{};
+        InstancePtr instance;
+        DefinitionPtr definition;
         Bounds bounds;
-        std::vector<Vertex> opaque, lines, hiddenLines;
-        std::vector<std::array<Vertex, 3>> transparent;
-        GpuBatch opaqueGpu, linesGpu, hiddenLinesGpu;
-        size_t mappingFallbacks{};
         std::vector<SectionCut> sectionCuts;
         SectionRecords sections;
         SectionMesh sectionMesh;
         std::vector<std::pair<Id, Triangle>> sectionCaps;
         QString sectionError;
         float alpha{1};
-        std::uint64_t presentationRevision{};
+        std::uint64_t presentationRevision{}, meshPass{};
     };
     std::map<Id, std::unique_ptr<BodyCache>> bodyCaches_;
+    // Registries hold their source records so raw keys are never reused.
+    std::map<const Body *, std::pair<BodyPtr, std::weak_ptr<BodyGeometry>>> sharedGeometry_;
+    std::map<PlacementKey, std::pair<BodyPtr, std::weak_ptr<BodyMesh>>> placementMeshes_;
+    ComponentDefinitions placementDefinitions_;
+    ComponentInstances placementInstances_;
+    std::uint64_t rebuildPass_{};
+    bool placementSharing_{true}, placementReset_{};
+    Triangle worldTriangle(const BodyCache &cache, size_t index) const;
+    MeshEdge worldEdge(const BodyCache &cache, size_t index) const;
+    QVector3D placementOffset(const BodyCache &cache) const;
     void prepareSections(Id body, BodyCache &cache);
     bool sectionOccludes(Vec3 origin, Vec3 direction, double target) const;
     static std::array<Vertex, 3> clippedVertices(const std::array<Vertex, 3> &source,
@@ -587,8 +640,9 @@ class Viewport : public QOpenGLWidget {
     qreal renderPixelRatio() const { return rasterSize_.isEmpty() ? devicePixelRatioF() : 1.; }
     void paintScene(QPaintDevice *device = nullptr);
     void cleanupGL();
-    void upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent = false);
-    void draw(GpuBatch &batch, GLenum mode, int instances = 1);
+    void upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent = false,
+                std::optional<Vec3> origin = std::nullopt);
+    void draw(GpuBatch &batch, GLenum mode, int instances = 1, QVector3D offset = {});
     void sortTransparent(const QMatrix4x4 &matrix);
     bool clipped(Vec3 point, Id body = 0) const;
     void finishShape(Vec3 end, std::optional<QJsonObject> command = std::nullopt);

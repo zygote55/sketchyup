@@ -1,0 +1,420 @@
+{
+ "task": "R084.s keyboard Model-panel tabs",
+ "image": "sketchyup-native-fonts-check:20261008",
+ "qt": "6.11.2",
+ "results": [
+  {
+   "case": "annotation_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 7.3,
+   "source": "first run"
+  },
+  {
+   "case": "annotation_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 25.8,
+   "source": "rerun: first Wayland 2x attempt timed out at window exposure/focus under host load"
+  },
+  {
+   "case": "annotation_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 6.1,
+   "source": "first run"
+  },
+  {
+   "case": "annotation_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 8.3,
+   "source": "first run"
+  },
+  {
+   "case": "audit-dialogs-wayland-1",
+   "exit": 0,
+   "seconds": 10.6,
+   "source": "first run"
+  },
+  {
+   "case": "audit-dialogs-wayland-2",
+   "exit": 0,
+   "seconds": 28.3,
+   "source": "first run"
+  },
+  {
+   "case": "audit-dialogs-x11-1",
+   "exit": 0,
+   "seconds": 7.8,
+   "source": "first run"
+  },
+  {
+   "case": "audit-dialogs-x11-2",
+   "exit": 0,
+   "seconds": 10.9,
+   "source": "first run"
+  },
+  {
+   "case": "audit-wayland-1",
+   "exit": 0,
+   "seconds": 7.9,
+   "source": "first run"
+  },
+  {
+   "case": "audit-wayland-2",
+   "exit": 0,
+   "seconds": 20.6,
+   "source": "rerun: first Wayland 2x attempt timed out at window exposure/focus under host load"
+  },
+  {
+   "case": "audit-x11-1",
+   "exit": 0,
+   "seconds": 7.2,
+   "source": "first run"
+  },
+  {
+   "case": "audit-x11-2",
+   "exit": 0,
+   "seconds": 12.3,
+   "source": "first run"
+  },
+  {
+   "case": "entity_info_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 5.7,
+   "source": "first run"
+  },
+  {
+   "case": "entity_info_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 12.2,
+   "source": "first run"
+  },
+  {
+   "case": "entity_info_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 6.8,
+   "source": "first run"
+  },
+  {
+   "case": "entity_info_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 8.6,
+   "source": "first run"
+  },
+  {
+   "case": "history_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 3.3,
+   "source": "first run"
+  },
+  {
+   "case": "history_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 9.0,
+   "source": "first run"
+  },
+  {
+   "case": "history_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 5.1,
+   "source": "first run"
+  },
+  {
+   "case": "history_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 6.3,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_modeling_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 3.7,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_modeling_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 9.3,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_modeling_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 5.4,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_modeling_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 6.8,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_outliner_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 5.3,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_outliner_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 16.7,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_outliner_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 6.4,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_outliner_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 9.0,
+   "source": "first run"
+  },
+  {
+   "case": "keyboard_panel_tabs_tests-wayland-1",
+   "exit": 0,
+   "seconds": 19.7,
+   "source": "final test revision (earlier revisions failed as recorded in R084s-keyboard-panel-tabs.md)"
+  },
+  {
+   "case": "keyboard_panel_tabs_tests-wayland-2",
+   "exit": 0,
+   "seconds": 24.2,
+   "source": "final test revision (earlier revisions failed as recorded in R084s-keyboard-panel-tabs.md)"
+  },
+  {
+   "case": "keyboard_panel_tabs_tests-x11-1",
+   "exit": 0,
+   "seconds": 14.1,
+   "source": "final test revision (earlier revisions failed as recorded in R084s-keyboard-panel-tabs.md)"
+  },
+  {
+   "case": "keyboard_panel_tabs_tests-x11-2",
+   "exit": 0,
+   "seconds": 25.4,
+   "source": "final test revision (earlier revisions failed as recorded in R084s-keyboard-panel-tabs.md)"
+  },
+  {
+   "case": "organization_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 7.4,
+   "source": "first run"
+  },
+  {
+   "case": "organization_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 23.7,
+   "source": "first run"
+  },
+  {
+   "case": "organization_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 6.4,
+   "source": "first run"
+  },
+  {
+   "case": "organization_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 9.4,
+   "source": "first run"
+  },
+  {
+   "case": "reference_image_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 20.9,
+   "source": "first run"
+  },
+  {
+   "case": "reference_image_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 49.1,
+   "source": "rerun: first Wayland 2x attempt timed out at window exposure/focus under host load"
+  },
+  {
+   "case": "reference_image_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 20.6,
+   "source": "first run"
+  },
+  {
+   "case": "reference_image_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 51.1,
+   "source": "first run"
+  },
+  {
+   "case": "scene_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 6.9,
+   "source": "first run"
+  },
+  {
+   "case": "scene_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 16.8,
+   "source": "first run"
+  },
+  {
+   "case": "scene_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 6.4,
+   "source": "first run"
+  },
+  {
+   "case": "scene_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 8.8,
+   "source": "first run"
+  },
+  {
+   "case": "section_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 5.1,
+   "source": "first run"
+  },
+  {
+   "case": "section_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 18.8,
+   "source": "first run"
+  },
+  {
+   "case": "section_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 5.5,
+   "source": "first run"
+  },
+  {
+   "case": "section_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 6.8,
+   "source": "first run"
+  },
+  {
+   "case": "shortcut_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 12.3,
+   "source": "first run"
+  },
+  {
+   "case": "shortcut_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 35.6,
+   "source": "first run"
+  },
+  {
+   "case": "shortcut_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 8.2,
+   "source": "first run"
+  },
+  {
+   "case": "shortcut_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 13.4,
+   "source": "first run"
+  },
+  {
+   "case": "solar_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 25.2,
+   "source": "first run"
+  },
+  {
+   "case": "solar_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 38.7,
+   "source": "rerun: first Wayland 2x attempt timed out at window exposure/focus under host load"
+  },
+  {
+   "case": "solar_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 24.4,
+   "source": "first run"
+  },
+  {
+   "case": "solar_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 39.6,
+   "source": "first run"
+  },
+  {
+   "case": "style_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 7.1,
+   "source": "first run"
+  },
+  {
+   "case": "style_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 20.3,
+   "source": "rerun: first Wayland 2x attempt timed out at window exposure/focus under host load"
+  },
+  {
+   "case": "style_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 6.4,
+   "source": "first run"
+  },
+  {
+   "case": "style_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 9.1,
+   "source": "first run"
+  },
+  {
+   "case": "text_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 21.9,
+   "source": "first run"
+  },
+  {
+   "case": "text_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 43.4,
+   "source": "first run"
+  },
+  {
+   "case": "text_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 18.1,
+   "source": "first run"
+  },
+  {
+   "case": "text_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 31.8,
+   "source": "first run"
+  },
+  {
+   "case": "units_input_tests-wayland-1",
+   "exit": 0,
+   "seconds": 6.0,
+   "source": "first run"
+  },
+  {
+   "case": "units_input_tests-wayland-2",
+   "exit": 0,
+   "seconds": 15.1,
+   "source": "first run"
+  },
+  {
+   "case": "units_input_tests-x11-1",
+   "exit": 0,
+   "seconds": 6.0,
+   "source": "first run"
+  },
+  {
+   "case": "units_input_tests-x11-2",
+   "exit": 0,
+   "seconds": 8.8,
+   "source": "first run"
+  }
+ ],
+ "passed": 68,
+ "total": 68,
+ "notBuiltOrRun": {
+  "accessibility_bridge_test.py": "libatspi.so.0 is missing from every local image; unchanged by this task"
+ }
+}

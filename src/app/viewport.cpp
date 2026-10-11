@@ -24,17 +24,25 @@ Viewport::GeometryCacheMemory Viewport::geometryCacheMemory() const {
     const auto capacity = [](const auto &values) {
         return values.capacity() * sizeof(values.front());
     };
+    // Shared geometry and placement meshes are counted once.
+    std::set<const void *> counted;
     for (const auto &[id, owned] : bodyCaches_) {
         (void)id;
         const auto &cache = *owned;
-        result.bodyVectorCapacityBytes +=
-            capacity(cache.localTriangles) + capacity(cache.worldTriangles) +
-            capacity(cache.localEdges) + capacity(cache.worldEdges) + capacity(cache.opaque) +
-            capacity(cache.lines) + capacity(cache.hiddenLines) + capacity(cache.transparent) +
-            capacity(cache.sectionCuts) + capacity(cache.sectionCaps);
-        result.bodyGpuPayloadBytes +=
-            size_t(cache.opaqueGpu.count + cache.linesGpu.count + cache.hiddenLinesGpu.count) *
-            sizeof(PackedVertex);
+        result.bodyVectorCapacityBytes += capacity(cache.sectionCuts) + capacity(cache.sectionCaps);
+        if (const auto &geometry = cache.geometry;
+            geometry && counted.insert(geometry.get()).second)
+            result.bodyVectorCapacityBytes +=
+                capacity(geometry->localTriangles) + capacity(geometry->localEdges);
+        if (const auto &mesh = cache.mesh; mesh && counted.insert(mesh.get()).second) {
+            result.bodyVectorCapacityBytes +=
+                capacity(mesh->opaque) + capacity(mesh->lines) + capacity(mesh->hiddenLines) +
+                capacity(mesh->transparent) + capacity(mesh->triangleFlags) +
+                capacity(mesh->edgeFlags);
+            result.bodyGpuPayloadBytes +=
+                size_t(mesh->opaqueGpu.count + mesh->linesGpu.count + mesh->hiddenLinesGpu.count) *
+                sizeof(PackedVertex);
+        }
     }
     return result;
 }
@@ -105,10 +113,12 @@ void Viewport::cleanupGL() {
             batch->count = 0;
         }
         for (auto &[id, cache] : bodyCaches_)
-            for (auto *batch : {&cache->opaqueGpu, &cache->linesGpu, &cache->hiddenLinesGpu}) {
-                batch->buffer.destroy();
-                batch->count = 0;
-            }
+            if (cache->mesh)
+                for (auto *batch : {&cache->mesh->opaqueGpu, &cache->mesh->linesGpu,
+                                    &cache->mesh->hiddenLinesGpu}) {
+                    batch->buffer.destroy();
+                    batch->count = 0;
+                }
         for (const auto &[id, name] : textureGpu_)
             gl_->glDeleteTextures(1, &name);
         cleanupSolarShadowMap();
@@ -147,6 +157,7 @@ layout(location=4) in vec4 shading;
 out vec4 uv;
 out vec4 previewShading;
 uniform mat4 mvp;
+uniform vec3 offset;
 uniform int instanced;
 uniform vec2 pixelOffset;
 uniform int screenStroke;
@@ -156,7 +167,7 @@ flat out vec2 faceOpacity;
 out vec3 worldPosition;
 void main() {
   uv=coordinates;previewShading=shading;
-  vec3 p=position;
+  vec3 p=position+offset;
   if(instanced!=0) p+=vec3(float(gl_InstanceID%1000)*1.2,float(gl_InstanceID/1000)*1.2,0);
   gl_Position=mvp*vec4(p,1.0);
   if(screenStroke!=0) gl_Position.xy+=coordinates.xy*gl_Position.w;
@@ -629,8 +640,9 @@ Viewport::FaceHit Viewport::nearestFace(QPointF p) const {
             }
             if (high < low || low > hit.distance + tolerance)
                 continue;
-            for (size_t i = 0; i < cache->worldTriangles.size(); ++i)
-                intersect(cache->worldTriangles[i], cache->localTriangles[i], id);
+            const auto &local = cache->geometry->localTriangles;
+            for (size_t i = 0; i < local.size(); ++i)
+                intersect(worldTriangle(*cache, i), local[i], id);
             if (!cache->record->referenceImage)
                 rememberCaps(id, cache->sectionMesh);
         }
@@ -779,10 +791,39 @@ std::pair<Id, Id> Viewport::pickEdge(QPointF point, double radius) const {
         for (const auto &[id, cache] : bodyCaches_) {
             if (cache->alpha == 0 || !cache->sectionError.isEmpty())
                 continue;
-            for (const auto &edge : cache->worldEdges)
+            for (size_t i = 0; i < cache->geometry->localEdges.size(); ++i) {
+                const auto edge = worldEdge(*cache, i);
                 candidate(id, edge.id, edge.a, edge.b);
+            }
         }
     return hit;
+}
+Triangle Viewport::worldTriangle(const BodyCache &cache, size_t index) const {
+    auto triangle = cache.geometry->localTriangles[index];
+    triangle.a = cache.world.point(triangle.a);
+    triangle.b = cache.world.point(triangle.b);
+    triangle.c = cache.world.point(triangle.c);
+    return triangle;
+}
+Viewport::MeshEdge Viewport::worldEdge(const BodyCache &cache, size_t index) const {
+    auto edge = cache.geometry->localEdges[index];
+    edge.a = cache.world.point(edge.a);
+    edge.b = cache.world.point(edge.b);
+    return edge;
+}
+QVector3D Viewport::placementOffset(const BodyCache &cache) const {
+    if (!cache.mesh || !cache.mesh->placement)
+        return {};
+    // Camera-relative in doubles, as world-space vertices are before upload.
+    return {float(cache.world.m[12] - renderOrigin_.x), float(cache.world.m[13] - renderOrigin_.y),
+            float(cache.world.m[14] - renderOrigin_.z)};
+}
+void Viewport::setPlacementMeshSharing(bool enabled) {
+    if (enabled == placementSharing_)
+        return;
+    placementSharing_ = enabled;
+    placementReset_ = cacheDirty_ = pickDirty_ = true;
+    update();
 }
 void Viewport::rebuild() {
     syncSelection();
@@ -798,11 +839,26 @@ void Viewport::rebuild() {
     }
     stats_.meshTriangles = 0;
     transparent_.clear();
-    if (cachedDocument_ != doc_.identity()) {
-        opacity_.clear();
+    if (cachedDocument_ != doc_.identity() || placementReset_) {
+        if (cachedDocument_ != doc_.identity())
+            opacity_.clear();
         bodyCaches_.clear(); // Rebuild runs with the owning GL context current.
+        sharedGeometry_.clear();
+        placementMeshes_.clear();
+        placementDefinitions_.clear();
+        placementInstances_.clear();
         cachedDocument_ = doc_.identity();
         transparentDirty_ = true;
+        placementReset_ = false;
+    }
+    ++rebuildPass_;
+    // Membership only selects candidates for sharing. Equal displayed content,
+    // compared below, is what allows a placement to draw a shared mesh.
+    const bool membershipChanged =
+        placementInstances_ != doc_.instances() || placementDefinitions_ != doc_.definitions();
+    if (membershipChanged) {
+        placementInstances_ = doc_.instances();
+        placementDefinitions_ = doc_.definitions();
     }
     syncTextures();
     textureMappingFallbacks_ = 0;
@@ -810,7 +866,7 @@ void Viewport::rebuild() {
     std::erase_if(bodyCaches_, [&](const auto &item) {
         if (doc_.bodies().contains(item.first))
             return false;
-        if (!item.second->transparent.empty())
+        if (item.second->mesh && !item.second->mesh->transparent.empty())
             transparentDirty_ = true;
         return true;
     });
@@ -839,6 +895,74 @@ void Viewport::rebuild() {
         upload(gridGpu_, grid);
         gridDirty_ = false;
     }
+    // Scene record -> canonical member, per owning placement, built on demand.
+    std::map<Id, std::map<Id, Id>> members;
+    auto placementSource = [&](Id id, const Body &body, BodyCache &cache,
+                               bool recordChanged) -> BodyPtr {
+        const bool stale =
+            recordChanged ||
+            (membershipChanged &&
+             (!cache.owner || !doc_.instances().contains(cache.owner) ||
+              doc_.instances().at(cache.owner) != cache.instance ||
+              !doc_.definitions().contains(cache.instance->definition) ||
+              doc_.definitions().at(cache.instance->definition) != cache.definition));
+        if (!stale)
+            return cache.source;
+        cache.owner = 0;
+        cache.instance.reset();
+        cache.definition.reset();
+        if (!placementSharing_ || body.kind != BodyKind::Geometry || body.referenceImage ||
+            body.surface.faces.empty())
+            return {};
+        // Every scene record of a placement belongs to its nearest placement root.
+        Id owner = body.parent;
+        while (owner && !doc_.instances().contains(owner)) {
+            const auto parent = doc_.bodies().find(owner);
+            owner = parent == doc_.bodies().end() ? 0 : parent->second->parent;
+        }
+        if (!owner)
+            return {};
+        const auto &instance = doc_.instances().at(owner);
+        const auto definition = doc_.definitions().find(instance->definition);
+        if (definition == doc_.definitions().end())
+            return {};
+        cache.owner = owner;
+        cache.instance = instance;
+        cache.definition = definition->second;
+        auto [reverse, inserted] = members.try_emplace(owner);
+        if (inserted)
+            for (const auto &[member, target] : instance->members)
+                reverse->second.emplace(target, member);
+        const auto member = reverse->second.find(id);
+        if (member == reverse->second.end() || member->second == definition->second->root ||
+            definition->second->references.contains(member->second))
+            return {};
+        const auto found = definition->second->members.find(member->second);
+        if (found == definition->second->members.end())
+            return {};
+        if (!recordChanged && found->second == cache.source)
+            return cache.source; // Already compared with this unchanged record.
+        const auto &source = *found->second;
+        // Allocator floors (nextId) may legitimately differ and are never displayed.
+        if (source.kind != body.kind || source.referenceImage ||
+            source.surface.vertices != body.surface.vertices ||
+            source.surface.faces != body.surface.faces ||
+            source.surface.wires != body.surface.wires ||
+            source.topology.edges != body.topology.edges ||
+            source.edgeAppearances != body.edgeAppearances || source.color != body.color ||
+            source.faceColors != body.faceColors || source.materials != body.materials ||
+            source.faceMaterials != body.faceMaterials ||
+            source.faceTextureMappings != body.faceTextureMappings)
+            return {};
+        return found->second;
+    };
+    auto entityHidden = [&](Id id) {
+        // Session hiding of single faces or edges is per placement.
+        const auto &hidden = selection_.hiddenEntities();
+        const auto found = hidden.lower_bound({id, SelectionKind::Face, 0});
+        return found != hidden.end() && found->body == id;
+    };
+    stats_.sharedPlacements = 0;
     for (const auto &[id, body] : doc_.bodies()) {
         if (!bodyCaches_.contains(id))
             bodyCaches_.emplace(id, std::make_unique<BodyCache>());
@@ -887,49 +1011,67 @@ void Viewport::rebuild() {
                               cache.record->faceMaterials != body->faceMaterials ||
                               cache.record->faceTextureMappings != body->faceTextureMappings ||
                               cache.record->edgeAppearances != body->edgeAppearances);
+        const auto previousSource = cache.source;
+        cache.source = placementSource(id, *body, cache, recordChanged);
         const bool appearanceChanged = cache.sectionCuts != cuts || cache.sections != sections ||
                                        worldChanged || topologyChanged || bodyAppearanceChanged ||
                                        cache.images != images || cache.materials != materials ||
                                        cache.alpha != alpha ||
-                                       cache.presentationRevision != presentationRevision_;
-        if (meshChanged) {
-            cache.localTriangles = displayTriangles(*body);
+                                       cache.presentationRevision != presentationRevision_ ||
+                                       cache.source != previousSource || !cache.mesh;
+        // Tessellation: shared by every body projecting the same canonical member.
+        std::shared_ptr<BodyGeometry> geometry;
+        if (cache.source)
+            if (const auto found = sharedGeometry_.find(cache.source.get());
+                found != sharedGeometry_.end())
+                geometry = found->second.second.lock();
+        if (!geometry) {
+            geometry = cache.geometry;
+            if (!geometry || meshChanged || topologyChanged) {
+                // Never mutate a tessellation that another body or registry entry may hold.
+                auto next = std::make_shared<BodyGeometry>();
+                next->record = body;
+                if (geometry && !meshChanged)
+                    next->localTriangles = geometry->localTriangles;
+                else {
+                    next->localTriangles = displayTriangles(*body);
+                    ++stats_.tessellations;
+                }
+                if (geometry && !topologyChanged) {
+                    next->adjacency = geometry->adjacency;
+                    next->localEdges = geometry->localEdges;
+                } else {
+                    next->adjacency = body->topology.adjacency(body->surface);
+                    for (const auto &[edge, record] : body->topology.edges)
+                        next->localEdges.push_back({body->surface.vertices.at(record.a),
+                                                    body->surface.vertices.at(record.b), edge});
+                }
+                geometry = std::move(next);
+            }
+            if (cache.source)
+                sharedGeometry_[cache.source.get()] = {cache.source, geometry};
+        }
+        if (meshChanged)
             ++stats_.bodyMeshBuilds;
-        }
-        if (topologyChanged) {
-            cache.adjacency = body->topology.adjacency(body->surface);
-            cache.localEdges.clear();
-            for (const auto &[edge, record] : body->topology.edges)
-                cache.localEdges.push_back({body->surface.vertices.at(record.a),
-                                            body->surface.vertices.at(record.b), edge});
-        }
+        cache.geometry = geometry;
+        cache.world = world;
         if (worldChanged) {
             cache.bounds = bodyBounds(id);
-            cache.worldTriangles = cache.localTriangles;
-            for (auto &triangle : cache.worldTriangles) {
-                triangle.a = world.point(triangle.a);
-                triangle.b = world.point(triangle.b);
-                triangle.c = world.point(triangle.c);
-            }
             ++stats_.bodyWorldUpdates;
         }
-        if (worldChanged || topologyChanged) {
-            cache.worldEdges = cache.localEdges;
-            for (auto &edge : cache.worldEdges) {
-                edge.a = world.point(edge.a);
-                edge.b = world.point(edge.b);
-            }
-        }
-        if (appearanceChanged) {
-            cache.sectionCuts = cuts;
-            cache.sections = std::move(sections);
-            prepareSections(id, cache);
-            transparentDirty_ = true;
-            cache.mappingFallbacks = 0;
-            cache.opaque.clear();
-            cache.lines.clear();
-            cache.hiddenLines.clear();
-            cache.transparent.clear();
+        const auto &local = geometry->localTriangles;
+        // Fill a mesh in world space, or in placement space (world without its
+        // translation) for a mesh shared by placements that differ only there.
+        auto buildMesh = [&](BodyMesh &mesh, bool placement) {
+            mesh.placement = placement;
+            mesh.mappingFallbacks = 0;
+            mesh.opaque.clear();
+            mesh.lines.clear();
+            mesh.hiddenLines.clear();
+            mesh.transparent.clear();
+            mesh.triangleFlags.assign(placement ? local.size() : 0, 0);
+            mesh.edgeFlags.assign(placement ? geometry->localEdges.size() : 0, 0);
+            auto position = [&](Vec3 p) { return placement ? world.vector(p) : world.point(p); };
             if (alpha > 0) {
                 const ShadingNormals shading(*body);
                 const auto inverse = world.inverse();
@@ -941,7 +1083,10 @@ void Viewport::rebuild() {
                     return transformed * (1 / length(transformed));
                 };
                 auto appendTriangle = [&](size_t triangleIndex, const SectionTriangle *cut) {
-                    const auto &triangle = cache.worldTriangles[triangleIndex];
+                    auto triangle = local[triangleIndex];
+                    triangle.a = position(triangle.a);
+                    triangle.b = position(triangle.b);
+                    triangle.c = position(triangle.c);
                     const SelectedEntity entity{
                         id, body->referenceImage ? SelectionKind::Body : SelectionKind::Face,
                         triangle.face};
@@ -952,7 +1097,7 @@ void Viewport::rebuild() {
                         size_t corner = 0;
                         for (auto point : {triangle.a, triangle.b, triangle.c})
                             vertices[corner++] = vertex(point, {1, 1, 1});
-                        referenceVertices(*body, cache.localTriangles[triangleIndex], vertices);
+                        referenceVertices(*body, local[triangleIndex], vertices);
                         for (auto &v : vertices) {
                             v.a *= alpha;
                             v.ba = v.a;
@@ -968,18 +1113,19 @@ void Viewport::rebuild() {
                         const auto &v = vertices[0];
                         if ((v.image && textureImages_.at(v.image)->hasTransparency()) ||
                             (v.a > 0 && v.a < 1))
-                            cache.transparent.push_back(vertices);
+                            mesh.transparent.push_back(vertices);
                         if (v.a == 1)
-                            cache.opaque.insert(cache.opaque.end(), vertices.begin(),
-                                                vertices.end());
+                            mesh.opaque.insert(mesh.opaque.end(), vertices.begin(), vertices.end());
                         return;
                     }
                     const auto crossProduct =
                         cross(triangle.b - triangle.a, triangle.c - triangle.a);
                     const auto magnitude = length(crossProduct);
+                    if (placement)
+                        mesh.triangleFlags[triangleIndex] = magnitude == 0 ? 2 : 1;
                     if (magnitude == 0)
                         return;
-                    const auto normals = shading.triangle(cache.localTriangles[triangleIndex]);
+                    const auto normals = shading.triangle(local[triangleIndex]);
                     auto front = surfaceAppearance(doc_.materials(), *body, triangle.face);
                     auto back = surfaceAppearance(doc_.materials(), *body, triangle.face, true);
                     if (doc_.style().mode == ModelStyleMode::Monochrome) {
@@ -1013,12 +1159,12 @@ void Viewport::rebuild() {
                             const auto normal = worldNormal(normals[index - 1]) * (world.determinant() < 0 ? -1 : 1);
                             v.light = solarLight(normal);
                             v.backLight = solarLight(normal * -1);
-                        } else v.light = v.backLight = light;
+                        } else
+                            v.light = v.backLight = light;
                         v.dim = !selection_.inActiveHierarchy(doc_, id) || selection_.locked(doc_, id)
                                     ? .35f : 1.f;
                     }
-                    textureVertices(*body, cache.localTriangles[triangleIndex],
-                                    world.determinant() < 0, vertices);
+                    textureVertices(*body, local[triangleIndex], world.determinant() < 0, vertices);
                     if (cut)
                         vertices = clippedVertices(vertices, *cut);
                     const auto &first = vertices[0];
@@ -1028,18 +1174,18 @@ void Viewport::rebuild() {
                         if (side.second)
                             imageTransparency |= textureImages_.at(side.second)->hasTransparency();
                         else if (side.first && images.contains(doc_.materials().at(side.first)->asset))
-                            ++cache.mappingFallbacks;
+                            ++mesh.mappingFallbacks;
                     }
                     // Mixed sides enter both passes; the shader discards the other side.
                     // Only the visible opaque side writes depth.
                     if (imageTransparency || (front.opacity > 0 && front.opacity < 1) ||
                         (back.opacity > 0 && back.opacity < 1))
-                        cache.transparent.push_back(vertices);
+                        mesh.transparent.push_back(vertices);
                     if (front.opacity == 1 || back.opacity == 1)
-                        cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
+                        mesh.opaque.insert(mesh.opaque.end(), vertices.begin(), vertices.end());
                 };
                 if (cache.sectionCuts.empty()) {
-                    for (size_t i = 0; i < cache.worldTriangles.size(); ++i)
+                    for (size_t i = 0; i < local.size(); ++i)
                         appendTriangle(i, nullptr);
                 } else if (cache.sectionError.isEmpty()) {
                     for (const auto &triangle : cache.sectionMesh.triangles) {
@@ -1048,18 +1194,22 @@ void Viewport::rebuild() {
                         } else if (cache.sections.at(triangle.section)->fill) {
                             const auto vertices = sectionCapVertices(id, triangle, alpha);
                             if (vertices[0].a == 1)
-                                cache.opaque.insert(cache.opaque.end(), vertices.begin(), vertices.end());
+                                mesh.opaque.insert(mesh.opaque.end(), vertices.begin(),
+                                                   vertices.end());
                             else if (vertices[0].a > 0)
-                                cache.transparent.push_back(vertices);
+                                mesh.transparent.push_back(vertices);
                         }
                     }
                     for (const auto &edge : cache.sectionMesh.edges)
                         if (cache.sections.at(edge.section)->edges) {
-                            cache.lines.push_back(vertex(edge.a, doc_.style().edge));
-                            cache.lines.push_back(vertex(edge.b, doc_.style().edge));
+                            mesh.lines.push_back(vertex(edge.a, doc_.style().edge));
+                            mesh.lines.push_back(vertex(edge.b, doc_.style().edge));
                         }
                 }
-                for (const auto &edge : cache.worldEdges) {
+                for (size_t i = 0; i < geometry->localEdges.size(); ++i) {
+                    auto edge = geometry->localEdges[i];
+                    edge.a = position(edge.a);
+                    edge.b = position(edge.b);
                     const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
                     if (!visible(entity))
                         continue;
@@ -1067,41 +1217,134 @@ void Viewport::rebuild() {
                         selection_.hidden(doc_, entity) || !selection_.inActiveHierarchy(doc_, id)
                             ? std::array<float, 3>{.56f, .58f, .60f}
                             : doc_.style().edge;
-                    auto &lines = selection_.hidden(doc_, entity) ? cache.hiddenLines : cache.lines;
+                    auto &lines = selection_.hidden(doc_, entity) ? mesh.hiddenLines : mesh.lines;
                     if (!cache.sectionError.isEmpty())
                         continue;
-                    if (const auto segment = sectionSegment(edge.a, edge.b, cache.sectionCuts)) {
+                    const auto segment = sectionSegment(edge.a, edge.b, cache.sectionCuts);
+                    if (placement)
+                        mesh.edgeFlags[i] = segment ? 1 : 2;
+                    if (segment) {
                         lines.push_back(vertex((*segment)[0], color));
                         lines.push_back(vertex((*segment)[1], color));
                     }
                 }
             }
+        };
+        // A shared mesh matches this placement exactly only if every drawn
+        // triangle and edge keeps its degenerate/short status in world space.
+        auto matchesPlacement = [&](const BodyMesh &mesh) {
+            for (size_t i = 0; i < mesh.triangleFlags.size(); ++i)
+                if (mesh.triangleFlags[i]) {
+                    const auto t = worldTriangle(cache, i);
+                    if ((length(cross(t.b - t.a, t.c - t.a)) == 0) != (mesh.triangleFlags[i] == 2))
+                        return false;
+                }
+            for (size_t i = 0; i < mesh.edgeFlags.size(); ++i)
+                if (mesh.edgeFlags[i]) {
+                    const auto e = worldEdge(cache, i);
+                    if (sectionSegment(e.a, e.b, {}).has_value() != (mesh.edgeFlags[i] == 1))
+                        return false;
+                }
+            return true;
+        };
+        bool rebuilt = false;
+        if (appearanceChanged) {
+            cache.sectionCuts = cuts;
+            cache.sections = std::move(sections);
+            prepareSections(id, cache);
+            transparentDirty_ = true;
+            std::shared_ptr<BodyMesh> mesh;
+            if (cache.source && cache.sectionCuts.empty() && alpha == 1.f && !entityHidden(id)) {
+                PlacementKey key{cache.source.get(),
+                                 {},
+                                 selection_.hidden(doc_, {id, SelectionKind::Body, 0}),
+                                 !selection_.inActiveHierarchy(doc_, id),
+                                 selection_.locked(doc_, id)};
+                for (size_t column = 0; column < 3; ++column)
+                    for (size_t row = 0; row < 3; ++row)
+                        key.linear[column * 3 + row] = world.m[column * 4 + row];
+                auto &entry = placementMeshes_[key];
+                mesh = entry.second.lock();
+                if (!mesh) {
+                    mesh = std::make_shared<BodyMesh>();
+                    entry = {cache.source, mesh};
+                }
+                // Document-wide inputs; equal keys imply equal member content.
+                if (!mesh->pass || mesh->materials != materials || mesh->images != images ||
+                    mesh->presentationRevision != presentationRevision_) {
+                    buildMesh(*mesh, true);
+                    mesh->materials = materials;
+                    mesh->images = images;
+                    mesh->presentationRevision = presentationRevision_;
+                    mesh->pass = rebuildPass_;
+                    rebuilt = true;
+                }
+                if (!matchesPlacement(*mesh)) {
+                    mesh.reset();
+                    rebuilt = false;
+                }
+            }
+            if (!mesh) {
+                mesh = cache.mesh && !cache.mesh->placement ? cache.mesh
+                                                            : std::make_shared<BodyMesh>();
+                buildMesh(*mesh, false);
+                rebuilt = true;
+            }
+            if (mesh != cache.mesh)
+                cache.meshPass = rebuildPass_;
+            cache.mesh = std::move(mesh);
         }
-        if (appearanceChanged || cache.opaqueGpu.origin != renderOrigin_ ||
-            !cache.opaqueGpu.buffer.isCreated() ||
-            !cache.linesGpu.buffer.isCreated() || !cache.hiddenLinesGpu.buffer.isCreated()) {
-            upload(cache.opaqueGpu, cache.opaque);
-            upload(cache.linesGpu, cache.lines);
-            upload(cache.hiddenLinesGpu, cache.hiddenLines);
-            ++stats_.bodyUploads;
+        auto &mesh = *cache.mesh;
+        const bool buffersMissing = !mesh.opaqueGpu.buffer.isCreated() ||
+                                    !mesh.linesGpu.buffer.isCreated() ||
+                                    !mesh.hiddenLinesGpu.buffer.isCreated();
+        if (mesh.placement
+                ? rebuilt || buffersMissing
+                : appearanceChanged || mesh.opaqueGpu.origin != renderOrigin_ || buffersMissing) {
+            const auto origin = mesh.placement ? std::optional<Vec3>{Vec3{}} : std::nullopt;
+            upload(mesh.opaqueGpu, mesh.opaque, false, origin);
+            upload(mesh.linesGpu, mesh.lines, false, origin);
+            upload(mesh.hiddenLinesGpu, mesh.hiddenLines, false, origin);
+            mesh.uploadPass = rebuildPass_;
+            ++stats_.meshUploads;
         }
         cache.record = body;
         cache.materials = std::move(materials);
         cache.images = std::move(images);
-        textureMappingFallbacks_ += cache.mappingFallbacks;
-        cache.world = world;
+        textureMappingFallbacks_ += mesh.mappingFallbacks;
         cache.alpha = alpha;
         cache.presentationRevision = presentationRevision_;
         if (alpha > 0)
-            stats_.meshTriangles += cache.worldTriangles.size();
-        transparent_.insert(transparent_.end(), cache.transparent.begin(), cache.transparent.end());
+            stats_.meshTriangles += local.size();
+        if (mesh.placement) {
+            ++stats_.sharedPlacements;
+            // World positions equal the unshared mesh's: vector(p) plus translation.
+            for (auto triangle : mesh.transparent) {
+                for (auto &v : triangle) {
+                    v.x += world.m[12];
+                    v.y += world.m[13];
+                    v.z += world.m[14];
+                }
+                transparent_.push_back(triangle);
+            }
+        } else
+            transparent_.insert(transparent_.end(), mesh.transparent.begin(),
+                                mesh.transparent.end());
     }
+    for (const auto &[id, cache] : bodyCaches_)
+        stats_.bodyUploads += cache->meshPass == rebuildPass_ ||
+                              (cache->mesh && cache->mesh->uploadPass == rebuildPass_);
+    std::erase_if(sharedGeometry_, [](const auto &item) { return item.second.second.expired(); });
+    std::erase_if(placementMeshes_, [](const auto &item) { return item.second.second.expired(); });
     stats_.cachedBodies = bodyCaches_.size();
+    stats_.placementMeshes = placementMeshes_.size();
 
     cachedRevision_ = doc_.revision();
     cacheDirty_ = false;
 }
-void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent) {
+void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool transparent,
+                      std::optional<Vec3> origin) {
+    const auto base = origin.value_or(renderOrigin_);
     if (vertices.size() > size_t(std::numeric_limits<int>::max()) / sizeof(PackedVertex))
         throw std::runtime_error("Viewport buffer exceeds the supported size");
     if (!batch.buffer.isCreated()) {
@@ -1117,13 +1360,13 @@ void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool
             batch.runs.back().back != v.backImage)
             batch.runs.push_back({int(packed.size()), 0, v.image, v.backImage});
         ++batch.runs.back().count;
-        packed.push_back({float(v.x - renderOrigin_.x), float(v.y - renderOrigin_.y),
-                          float(v.z - renderOrigin_.z), v.r, v.g, v.b, v.a, v.br, v.bg, v.bb, v.ba,
-                          v.u, v.v, v.bu, v.bv, v.light, v.dim, v.backLight, v.reference});
+        packed.push_back({float(v.x - base.x), float(v.y - base.y), float(v.z - base.z), v.r, v.g,
+                          v.b, v.a, v.br, v.bg, v.bb, v.ba, v.u, v.v, v.bu, v.bv, v.light, v.dim,
+                          v.backLight, v.reference});
     }
     batch.buffer.bind();
     batch.buffer.allocate(packed.data(), int(packed.size() * sizeof(PackedVertex)));
-    batch.origin = renderOrigin_;
+    batch.origin = base;
     batch.buffer.release();
     batch.count = int(vertices.size());
     stats_.uploadedBytes += vertices.size() * sizeof(PackedVertex);
@@ -1132,9 +1375,10 @@ void Viewport::upload(GpuBatch &batch, const std::vector<Vertex> &vertices, bool
     else
         ++stats_.geometryUploads;
 }
-void Viewport::draw(GpuBatch &batch, GLenum mode, int count) {
+void Viewport::draw(GpuBatch &batch, GLenum mode, int count, QVector3D offset) {
     if (batch.count == 0)
         return;
+    shader_->setUniformValue("offset", offset);
     vao_.bind();
     batch.buffer.bind();
     gl_->glEnableVertexAttribArray(0);
@@ -1277,7 +1521,8 @@ void Viewport::paintScene(QPaintDevice *device) {
             gl_->glPolygonOffset(1, 1);
             shader_->setUniformValue("surfacePass", 1);
             for (auto &[id, cache] : bodyCaches_)
-                draw(cache->opaqueGpu, GL_TRIANGLES);
+                if (cache->mesh)
+                    draw(cache->mesh->opaqueGpu, GL_TRIANGLES, 1, placementOffset(*cache));
             sortTransparent(transform);
             if (transparentGpu_.count) {
                 gl_->glEnable(GL_BLEND);
@@ -1296,10 +1541,12 @@ void Viewport::paintScene(QPaintDevice *device) {
         shader_->setUniformValue("surfacePass", 0);
         if (doc_.style().edgesVisible || doc_.style().mode == ModelStyleMode::Wireframe) {
             for (auto &[id, cache] : bodyCaches_)
-                draw(cache->linesGpu, GL_LINES);
+                if (cache->mesh)
+                    draw(cache->mesh->linesGpu, GL_LINES, 1, placementOffset(*cache));
             shader_->setUniformValue("stipple", 2);
             for (auto &[id, cache] : bodyCaches_)
-                draw(cache->hiddenLinesGpu, GL_LINES);
+                if (cache->mesh)
+                    draw(cache->mesh->hiddenLinesGpu, GL_LINES, 1, placementOffset(*cache));
             shader_->setUniformValue("stipple", 0);
         }
         drawStyleProfiles(transform);

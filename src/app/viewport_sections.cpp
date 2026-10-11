@@ -40,8 +40,8 @@ void Viewport::prepareSections(Id body, BodyCache &cache) {
     try {
         std::vector<Triangle> source;
         std::vector<size_t> indices;
-        for (size_t i = 0; i < cache.worldTriangles.size(); ++i) {
-            const auto &triangle = cache.worldTriangles[i];
+        for (size_t i = 0; i < cache.geometry->localTriangles.size(); ++i) {
+            const auto triangle = worldTriangle(cache, i);
             if (visible({body,
                          doc_.bodies().at(body)->referenceImage ? SelectionKind::Body
                                                                 : SelectionKind::Face,

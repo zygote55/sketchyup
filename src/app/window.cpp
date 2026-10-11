@@ -729,53 +729,38 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     viewport_->setTrackpadNavigation(trackpad);
     const auto fov = navigationSettings.value("fieldOfView", 45).toDouble();
     viewport_->setFieldOfView(std::isfinite(fov) && fov >= 5 && fov <= 120 ? fov : 45);
-    view->addAction(action("view.history", "History", {}, [this] {
-        tray_->show();
-        findChild<QAction *>("view.tray")->setChecked(true);
-        organization_->showHistory();
-    }));
-    view->addAction(action("view.scenes", "Saved scenes", {}, [this] {
+    // Every panel action reveals the Model panel, selects its tab and moves keyboard focus into
+    // that tab's content, so a menu or palette command is never a dead end for keyboard users.
+    auto showPanel = [this](void (OrganizationPanel::*show)()) {
         sideTabs_->show();
         sideTabs_->setCurrentWidget(tray_);
         tray_->show();
         findChild<QAction *>("view.tray")->setChecked(true);
-        organization_->showScenes();
-    }));
-    view->addAction(action("view.sections", "Section planes", {}, [this] {
-        sideTabs_->show();
-        sideTabs_->setCurrentWidget(tray_);
-        tray_->show();
-        findChild<QAction *>("view.tray")->setChecked(true);
-        organization_->showSections();
-    }));
-    view->addAction(action("view.annotations", "Dimensions and labels", {}, [this] {
-        sideTabs_->show();
-        sideTabs_->setCurrentWidget(tray_);
-        tray_->show();
-        findChild<QAction *>("view.tray")->setChecked(true);
-        organization_->showAnnotations();
-    }));
-    view->addAction(action("view.text", "3D text", {}, [this] {
-        sideTabs_->show();
-        sideTabs_->setCurrentWidget(tray_);
-        tray_->show();
-        findChild<QAction *>("view.tray")->setChecked(true);
-        organization_->showText();
-    }));
-    view->addAction(action("view.solar", "Sun and shadows", {}, [this] {
-        sideTabs_->show();
-        sideTabs_->setCurrentWidget(tray_);
-        tray_->show();
-        findChild<QAction *>("view.tray")->setChecked(true);
-        organization_->showSolar();
-    }));
-    view->addAction(action("view.reference_images", "Reference images", {}, [this] {
-        sideTabs_->show();
-        sideTabs_->setCurrentWidget(tray_);
-        tray_->show();
-        findChild<QAction *>("view.tray")->setChecked(true);
-        organization_->showReferenceImages();
-    }));
+        (organization_->*show)();
+        organization_->setFocus(Qt::ShortcutFocusReason);
+    };
+    view->addAction(action("view.outliner", "Outliner", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showOutliner); }));
+    view->addAction(action("view.tags", "Tags and folders", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showTags); }));
+    view->addAction(action("view.info", "Entity info", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showInfo); }));
+    view->addAction(action("view.materials", "Materials", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showMaterials); }));
+    view->addAction(action("view.history", "History", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showHistory); }));
+    view->addAction(action("view.scenes", "Saved scenes", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showScenes); }));
+    view->addAction(action("view.sections", "Section planes", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showSections); }));
+    view->addAction(action("view.annotations", "Dimensions and labels", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showAnnotations); }));
+    view->addAction(action("view.text", "3D text", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showText); }));
+    view->addAction(action("view.solar", "Sun and shadows", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showSolar); }));
+    view->addAction(action("view.reference_images", "Reference images", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showReferenceImages); }));
     auto *reducedMotion = action("view.reduced_motion", "Reduced camera motion", {}, [this] {
         const auto enabled = findChild<QAction *>("view.reduced_motion")->isChecked();
         QSettings().setValue("reducedMotion", enabled);
@@ -785,13 +770,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     reducedMotion->setChecked(navigationSettings.value("reducedMotion", false).toBool());
     viewport_->setReducedMotion(reducedMotion->isChecked());
     view->addAction(reducedMotion);
-    view->addAction(action("view.styles", "Model styles", {}, [this] {
-        sideTabs_->show();
-        sideTabs_->setCurrentWidget(tray_);
-        tray_->show();
-        findChild<QAction *>("view.tray")->setChecked(true);
-        organization_->showStyles();
-    }));
+    view->addAction(action("view.styles", "Model styles", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showStyles); }));
     view->addAction(action("view.assistant", "Assistant", QKeySequence("Ctrl+J"),
                            [this] { toggleAssistant(); }));
     auto *panel = action("view.tray", "Model panel", QKeySequence("Ctrl+Shift+T"), [this] {
