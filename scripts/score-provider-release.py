@@ -3,6 +3,9 @@
 
 Inputs stay private. Output contains only whitelisted metrics and hashes.
 This does not infer semantic correctness from provider completion text.
+Corpus version 1 scoring is unchanged. Version 2 additionally requires the
+deterministic undo and recovery postconditions recorded by provider_trial on
+every run; any failure is a blocking engine defect, not model variance.
 """
 import argparse
 import hashlib
@@ -19,8 +22,61 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+POSTCONDITIONS = ('undoRestores', 'recoveryRestores')
+POSTCONDITION_BLOCKERS = ('undoNotRestored', 'recoveryNotRestored', 'testFaultInjected')
+
+
+def postcondition_failures(data):
+    """Validate v2 undo/recovery evidence and return its blocking reasons."""
+    for field in POSTCONDITIONS:
+        require(type(data[field]) is bool, 'Missing postcondition: ' + field)
+    require('testFault' in data, 'Missing test-fault declaration')
+    post = data['postconditions']
+    require(type(post['committed']) is bool, 'Missing postcondition: committed')
+    initial, committed = post['inputCanonicalSha256'], post['committedCanonicalSha256']
+    require(all(isinstance(value, str) and len(value) == 64 for value in (initial, committed)),
+            'Missing canonical model hashes')
+    undo, recovery = post['undo'], post['recovery']
+    require(undo['restores'] is data['undoRestores'] and
+            recovery['restores'] is data['recoveryRestores'], 'Postcondition summary mismatch')
+    # A passing Boolean must agree with its recorded hashes; never trust it alone.
+    if data['undoRestores']:
+        if post['committed']:
+            require(undo['afterUndoCanonicalSha256'] == initial and
+                    undo['afterRedoCanonicalSha256'] == committed and
+                    undo['oneLabeledAssistantStep'] is True and
+                    undo['historyEntriesAdded'] == 1, 'Undo evidence contradicts undoRestores')
+        else:
+            require(committed == initial and undo['historyEntriesAdded'] == 0 and
+                    undo['undoAvailable'] is False, 'Undo evidence contradicts undoRestores')
+    if data['recoveryRestores']:
+        expected = committed if post['committed'] else initial
+        require(recovery['recoveredCanonicalSha256'] == expected,
+                'Recovery evidence contradicts recoveryRestores')
+        if post['committed']:
+            require(recovery['savedCanonicalSha256'] == committed and
+                    recovery['undoCanonicalSha256'] == initial and
+                    recovery['dirtyUntilSaved'] is True and
+                    recovery['oneLabeledAssistantStep'] is True,
+                    'Recovery evidence contradicts recoveryRestores')
+    failures = []
+    if not data['undoRestores']:
+        failures.append('undoNotRestored')
+    if not data['recoveryRestores']:
+        failures.append('recoveryNotRestored')
+    if data['testFault'] is not None:
+        failures.append('testFaultInjected')
+    return failures
+
+
 def score(manifest, bundle, root):
-    require(manifest['corpusVersion'] == 1, 'Unsupported corpus')
+    version = manifest['corpusVersion']
+    require(type(version) is int and version in (1, 2), 'Unsupported corpus')
+    if version == 2:
+        require(manifest['requiredPostconditions'] == list(POSTCONDITIONS) and
+                all(name in manifest['hardZero'] for name in POSTCONDITION_BLOCKERS),
+                'Corpus v2 requires blocking undo and recovery postconditions')
+    postcondition_totals = dict.fromkeys(POSTCONDITIONS, 0)
     profile = manifest['profiles'][bundle['profile']]
     tasks = {task['trial']: task for task in manifest['tasks']}
     repeats = manifest['repetitions']
@@ -41,7 +97,7 @@ def score(manifest, bundle, root):
         require(raw_hash not in hashes, 'Reused raw report')
         hashes.add(raw_hash)
         data, task = json.loads(raw), tasks[trial]
-        require(data['corpusVersion'] == 1 and data['trial'] == trial, 'Wrong corpus task')
+        require(data['corpusVersion'] == version and data['trial'] == trial, 'Wrong corpus task')
         for field in ('inputSha256', 'promptSha256'):
             require(data[field] == task[field], 'Frozen input/prompt drift')
         require(digest(data['prompt'].encode()) == task['promptSha256'], 'Prompt hash mismatch')
@@ -80,6 +136,10 @@ def score(manifest, bundle, root):
                 'Invalid applied state')
         if not data['manualEditSaveReopenVerified']:
             failures.append('manualWorkflowFailed')
+        if version == 2:
+            failures.extend(postcondition_failures(data))
+            for field in POSTCONDITIONS:
+                postcondition_totals[field] += int(data[field])
         if result['applied'] is True and (trial not in editing or not data['geometryVerified']):
             failures.append('unverifiedCommittedGeometry')
         if trial not in editing and not data['revisionUnchanged']:
@@ -105,18 +165,29 @@ def score(manifest, bundle, root):
                 if trial == 'metadata':
                     passed &= data['metadataObserved']
         totals[trial] += int(passed)
-        summaries.append({'trial': trial, 'repeat': repeat, 'passed': bool(passed),
-                          'rawReportSha256': raw_hash, 'phase': result['phase'],
-                          'elapsedMs': data['elapsedMs'], 'reportedTokens': result['reportedTokens'],
-                          'providerTurns': result['providerTurns'], 'toolCalls': result['toolCalls']})
+        summary = {'trial': trial, 'repeat': repeat, 'passed': bool(passed),
+                   'rawReportSha256': raw_hash, 'phase': result['phase'],
+                   'elapsedMs': data['elapsedMs'], 'reportedTokens': result['reportedTokens'],
+                   'providerTurns': result['providerTurns'], 'toolCalls': result['toolCalls']}
+        if version == 2:
+            summary.update({field: data[field] for field in POSTCONDITIONS})
+        summaries.append(summary)
     thresholds = {name: {'successes': totals[name], 'runs': repeats,
                          'minimum': task['minimumSuccessfulRuns']}
                   for name, task in tasks.items()}
     passed = not blockers and all(row['successes'] >= row['minimum'] for row in thresholds.values())
-    return {'corpusVersion': 1, 'profile': bundle['profile'], 'model': profile['model'],
-            'profileStatus': profile['status'], 'corpusPassed': passed, 'releaseAccepted': False,
-            'monetaryCost': None, 'costPolicy': manifest['costPolicy'],
-            'thresholds': thresholds, 'blockers': blockers, 'runs': summaries}
+    output = {'corpusVersion': version, 'profile': bundle['profile'], 'model': profile['model'],
+              'profileStatus': profile['status'], 'corpusPassed': passed, 'releaseAccepted': False,
+              'monetaryCost': None, 'costPolicy': manifest['costPolicy'],
+              'thresholds': thresholds, 'blockers': blockers, 'runs': summaries}
+    if version == 2:
+        # Deterministic engine properties: the profile passes only at 100%.
+        runs = len(summaries)
+        output['postconditions'] = {field: {'passed': postcondition_totals[field], 'runs': runs,
+                                            'required': runs} for field in POSTCONDITIONS}
+        output['corpusPassed'] = passed and all(postcondition_totals[field] == runs
+                                                for field in POSTCONDITIONS)
+    return output
 
 
 def main():
