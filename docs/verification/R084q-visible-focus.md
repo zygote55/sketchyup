@@ -90,8 +90,10 @@ All pairs are at least 3:1 in both themes, so the existing accent is kept and no
 ## Test
 
 `tests/visible_focus_input_tests.cpp` (`visible_focus_input_tests`, registered
-beside `theme_input_tests` in CMake and every native, X11 and sanitized Wayland
-list in `.github/workflows/native.yml`). In the real main window (every model-panel
+beside `theme_input_tests` in CMake and in the native X11 and Wayland 1×/2× lists
+in `.github/workflows/native.yml`). It is not in the sanitized list: unsanitized
+Wayland 2× already takes 25–44 s of the 60 s compositor limit, and the layer
+changes only style sheets and one widget attribute). In the real main window (every model-panel
 tab, tool rail) and the real Drawing plane, Keyboard shortcuts, Commands, Sun
 and shadows, New material and Assistant preferences dialogs, in light and dark at
 100% and 200% interface text, for the first two Tab-focusable controls of each
@@ -164,7 +166,8 @@ focused (right): [light](R084q-focus-light.png), [dark](R084q-focus-dark.png).
   contrasts with the dark interface inside it (8.05:1). The canvas is document
   content with a user-chosen colour, so the test excludes it from the outside
   background. A mid-tone `$focus` could not satisfy this and the checked-tool
-  case (3.93:1 against `$selected`) together.
+  case (3.93:1 against `$selected`) together. Accepted for this layer: every
+  ring keeps at least 3.93:1 against the colour directly inside it.
 * The 3D canvas ring is painted from document-derived colours; against the dark
   window chrome it is 2.997:1, just under 3:1.
 * Native scroll bars are not themed: in the dark theme they are light grey and
