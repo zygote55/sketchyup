@@ -28,7 +28,7 @@ states that the viewport is a rendered canvas.
 | Outliner F2, Space, Ctrl+Shift+L, Enter, Escape, undo/redo | [R084.k](R084k-keyboard-outliner.md), [0154](../decisions/0154-keyboard-outliner-workflow.md) |
 | Edit → Keyboard shortcuts…, text size 75–200%, themes, reduced camera motion | `src/app/window.cpp` actions; [R084.f](R084f-native-shortcut-editor.md), [R084.h](R084h-interface-text-size.md), [R084.c](R084c-preference-compatibility.md) |
 | Contrast above 4.5:1 for input, selected, button, hint and link text | [R084.g](R084g-selected-text-contrast.md), [R084.i](R084i-context-link-contrast.md) |
-| Focus indicators for text fields, buttons, lists, trees, tool rail, viewport only | `:focus` rules at `src/app/window.cpp` `applyTheme`; viewport ring in `Viewport::paintGL` (`hasFocus()`); the gap is the one R088.d records |
+| Focus indicators on every focusable control class; viewport ring | `:focus` rules at `src/app/window.cpp` `applyTheme`; [R084.q](R084q-visible-focus.md) measures 421 controls in light and dark; viewport ring in `Viewport::paintGL` (`hasFocus()`) |
 | No orbit/pan/zoom keys; standard views, Fit, Walk, Look around keys | `addTool` hints and `view.*` actions; `src/app/viewport_walk.cpp`; `tests/navigation_input_tests.cpp` (W walk, Look around) |
 | Snapping and parallel/perpendicular depend on pointer hover | `Viewport::event` Tab cycling uses `inferenceCount()`; `constraintKey` Down: "Hover an edge to use parallel or perpendicular" |
 | Push/pull by typed distance | R084.d fixture |
@@ -45,9 +45,6 @@ states that the viewport is a rendered canvas.
 - Whether any screen reader announces a selection change. The status line and
   description update, but there is no interactive Orca, speech or braille run
   and the code raises no accessibility alert events.
-- Visible focus on combo boxes, spin boxes, check boxes and tab bars after PR #286
-  ([R084.q](https://github.com/zygote55/sketchyup/pull/286)). It is not on `main`, so the guide describes the
-  current gap and needs a one-line update when that layer merges.
 - The behavior of Enter on a selected face in the Select tool (boundary selection).
 
 ## Checks

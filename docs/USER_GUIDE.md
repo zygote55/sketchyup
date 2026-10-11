@@ -85,10 +85,10 @@ Shortcuts are defaults; saved custom bindings take precedence.
   Dark) and View → Reduced camera motion. Measured text, selected-text, button, hint
   and breadcrumb-link contrast exceeds 4.5:1 in both themes; this is not a check of
   every state or dialog.
-- **Focus:** text fields, buttons, lists, trees, the tool rail and the viewport
-  (a 2 px accent border) show where keyboard focus is. Combo boxes, spin boxes,
-  check boxes and tab bars draw only what the platform style gives, which may be
-  nothing under the themed palette. Visible focus is not yet complete.
+- **Focus:** every focusable control (text fields, buttons, combo and spin boxes,
+  check boxes, lists, trees, tabs, the tool rail and the assistant panel) draws a
+  1 px accent ring when it has keyboard focus, in both themes; the viewport draws
+  a 2 px accent border.
 
 **The 3D viewport.** The viewport is a rendered canvas. Assistive technology finds
 it as "3D model viewport" and can read its selection summary, a count such as
