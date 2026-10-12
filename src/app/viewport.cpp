@@ -3,6 +3,7 @@
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/appearance.hpp"
+#include "core/hierarchy_changes.hpp"
 #include "core/shading_normals.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
@@ -865,8 +866,12 @@ void Viewport::rebuild() {
     syncTextures();
     textureMappingFallbacks_ = 0;
     std::erase_if(opacity_, [&](const auto &item) { return !doc_.bodies().contains(item.first); });
+    // Both maps are in ID order: walk them together instead of searching.
+    auto live = doc_.bodies().begin();
     std::erase_if(bodyCaches_, [&](const auto &item) {
-        if (doc_.bodies().contains(item.first))
+        while (live != doc_.bodies().end() && live->first < item.first)
+            ++live;
+        if (live != doc_.bodies().end() && live->first == item.first)
             return false;
         if (item.second->mesh && !item.second->mesh->transparent.empty())
             transparentDirty_ = true;
@@ -965,12 +970,62 @@ void Viewport::rebuild() {
         return found != hidden.end() && found->body == id;
     };
     stats_.sharedPlacements = 0;
+    // A cached world transform stays exact while the record and every ancestor's
+    // record are the ones it was composed from.
+    auto cached = bodyCaches_.begin();
+    const auto chainChanged = changedChains(doc_.bodies(), [&](Id id, const BodyPtr &body) {
+        // Both maps are in ID order and every cache belongs to a live record.
+        if (cached == bodyCaches_.end() || cached->first != id)
+            return true;
+        return (cached++)->second->record != body;
+    });
+    // Document-wide inputs of an unchanged body's mesh, as of the last complete
+    // rebuild. While they and the body's own inputs hold, the full pass below
+    // would rebuild, upload and replace nothing for it.
+    const bool inputsUnchanged = rebuiltInputsValid_ && !membershipChanged &&
+                                 doc_.activeSections().empty() &&
+                                 rebuiltMaterials_ == doc_.materials() &&
+                                 rebuiltImages_ == textureImages_;
+    rebuiltInputsValid_ = false; // Until this pass completes.
+    size_t index = 0;
+    auto slot = bodyCaches_.begin();
     for (const auto &[id, body] : doc_.bodies()) {
-        if (!bodyCaches_.contains(id))
-            bodyCaches_.emplace(id, std::make_unique<BodyCache>());
-        auto &cache = *bodyCaches_.at(id);
-        const auto world = doc_.worldTransform(id);
+        // Caches are in ID order and belong to live records; insert new ones in place.
+        while (slot != bodyCaches_.end() && slot->first < id)
+            ++slot;
+        if (slot == bodyCaches_.end() || slot->first != id)
+            slot = bodyCaches_.emplace_hint(slot, id, std::make_unique<BodyCache>());
+        auto &cache = *(slot++)->second;
+        const bool chainSame = !chainChanged[index++];
+        const auto world = chainSame ? cache.world : doc_.worldTransform(id);
         const float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
+        if (inputsUnchanged && chainSame && cache.mesh && cache.geometry &&
+            cache.alpha == alpha && cache.presentationRevision == presentationRevision_ &&
+            cache.sectionCuts.empty() && cache.sections.empty() &&
+            cache.mesh->opaqueGpu.buffer.isCreated() && cache.mesh->linesGpu.buffer.isCreated() &&
+            cache.mesh->hiddenLinesGpu.buffer.isCreated() &&
+            (cache.mesh->placement || cache.mesh->opaqueGpu.origin == renderOrigin_)) {
+            // The same record, world transform, materials, images, cuts, opacity,
+            // presentation and sharing source: only per-pass totals are collected.
+            const auto &mesh = *cache.mesh;
+            textureMappingFallbacks_ += mesh.mappingFallbacks;
+            if (alpha > 0)
+                stats_.meshTriangles += cache.geometry->localTriangles.size();
+            if (mesh.placement) {
+                ++stats_.sharedPlacements;
+                for (auto triangle : mesh.transparent) {
+                    for (auto &v : triangle) {
+                        v.x += world.m[12];
+                        v.y += world.m[13];
+                        v.z += world.m[14];
+                    }
+                    transparent_.push_back(triangle);
+                }
+            } else
+                transparent_.insert(transparent_.end(), mesh.transparent.begin(),
+                                    mesh.transparent.end());
+            continue;
+        }
 
         const bool recordChanged = cache.record != body;
         const bool meshChanged =
@@ -1340,6 +1395,9 @@ void Viewport::rebuild() {
     std::erase_if(placementMeshes_, [](const auto &item) { return item.second.second.expired(); });
     stats_.cachedBodies = bodyCaches_.size();
     stats_.placementMeshes = placementMeshes_.size();
+    rebuiltMaterials_ = doc_.materials();
+    rebuiltImages_ = textureImages_;
+    rebuiltInputsValid_ = true;
 
     cachedRevision_ = doc_.revision();
     cacheDirty_ = false;

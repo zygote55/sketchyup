@@ -16,7 +16,9 @@ void InferenceWorker::request(const Document &document) {
         document.isCurrentSnapshot(state->requestedSnapshot))
         return;
     state->requestedSnapshot = document.saveStamp();
-    state->pending = document;
+    // The index reads only scene records, bindings, identity and the snapshot
+    // stamp; undo/redo history need not be copied for the worker.
+    state->pending = document.readSnapshot();
     state->requestedIdentity = document.identity();
     state->requestedRevision = document.revision();
     if (state->running)

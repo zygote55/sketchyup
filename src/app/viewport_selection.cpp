@@ -31,14 +31,19 @@ void Viewport::syncSelection() {
     bool policyChanged =
         newSession || oldContext != selection_.context() || cachedTags_ != doc_.tags();
     cachedTags_ = doc_.tags();
+    // Both maps are in ID order: walk them together instead of searching.
+    auto found = doc_.bodies().begin();
     for (const auto &[id, cache] : bodyCaches_) {
         if (!cache->record)
             continue;
-        const auto found = doc_.bodies().find(id);
-        if (found == doc_.bodies().end()) {
+        while (found != doc_.bodies().end() && found->first < id)
+            ++found;
+        if (found == doc_.bodies().end() || found->first != id) {
             policyChanged |= cache->record->kind == BodyKind::Group;
             continue;
         }
+        if (found->second == cache->record)
+            continue; // The same immutable record: no policy field can differ.
         const auto &body = *found->second;
         policyChanged |= body.kind != cache->record->kind || body.parent != cache->record->parent ||
                          body.hidden != cache->record->hidden ||
