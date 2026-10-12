@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QInputDialog>
 #include <QLabel>
+#include <QPainter>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QTest>
@@ -17,6 +18,20 @@ namespace {
 void check(bool value, const QString &message) {
     if (!value)
         throw std::runtime_error(message.toStdString());
+}
+// Window.grab() omits the painted viewport overlay, so composite the framebuffer (which
+// carries the overlay text) and the context chips over the grabbed window chrome.
+QImage captureWindow(Window &window) {
+    auto *view = window.viewport();
+    QImage image = window.grab().toImage();
+    const QImage framebuffer = view->grabFramebuffer();
+    QPainter painter(&image);
+    painter.drawImage(QRectF(view->mapTo(&window, QPoint(0, 0)), QSizeF(view->size())),
+                      framebuffer);
+    for (const char *name : {"contextBreadcrumb", "componentScopeBanner"})
+        if (auto *chip = window.findChild<QLabel *>(name); chip && chip->isVisibleTo(view))
+            painter.drawPixmap(view->mapTo(&window, chip->pos()), chip->grab());
+    return image;
 }
 void chooseTextSize(Window &window, const QString &percent) {
     bool handled = false;
@@ -103,7 +118,6 @@ int main(int argc, char **argv) {
         window.activateWindow();
         check(QTest::qWaitForWindowActive(&window), "Overlap window active");
         view->setFocus();
-        view->standardView(1);
         view->fit();
         view->setSelection(1);
         view->makeComponent("Reception desk assembly with a deliberately long name");
@@ -160,12 +174,20 @@ int main(int argc, char **argv) {
         if (argc == 2) {
             const auto folder = QString::fromLocal8Bit(argv[1]);
             check(QDir().mkpath(folder), "Create capture directory");
-            check(window.grab().save(folder + "/701x418-model.png"), "Capture model context");
+            // Light theme, as in the hardware screenshot.
+            window.findChild<QAction *>("view.theme.1")->trigger();
+            verify(window, "701x418 light model", counters);
+            check(captureWindow(window).save(folder + "/701x418-model.png"),
+                  "Capture model context");
             view->enterContext(nested);
             verify(window, "701x418 nested", counters);
-            check(window.grab().save(folder + "/701x418-nested.png"), "Capture nested context");
+            check(captureWindow(window).save(folder + "/701x418-nested.png"),
+                  "Capture nested context");
             view->enterContext(0);
-            verify(window, "701x418 model again", counters);
+            window.findChild<QAction *>("view.theme.2")->trigger();
+            verify(window, "701x418 dark model", counters);
+            check(captureWindow(window).save(folder + "/701x418-model-dark.png"),
+                  "Capture dark model context");
         }
 
         // With no context chip the label keeps its original top-left position.
