@@ -1192,6 +1192,7 @@ install(FILES docs/decisions/0157-native-surface-color.md DESTINATION share/doc/
 install(FILES docs/decisions/0158-responsive-native-file-operations.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0159-instanced-component-storage.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0160-provider-scope-for-1-0.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/decisions/0161-m9-hardware-evidence-waiver.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0155-linux-accessibility-bridge.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0154-keyboard-outliner-workflow.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0153-panel-shortcut-reservations.md DESTINATION share/doc/sketchyup/decisions)

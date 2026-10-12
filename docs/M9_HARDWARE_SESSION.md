@@ -1,5 +1,16 @@
 # M9 hardware session runbook
 
+> **Status (2026-10-12): the session ran partially and the rest is waived.** On
+> 2026-10-11/12 the preflight, the section 2 AMD campaigns and a partial Wayland
+> hotplug run (section 3) were done, at revision `db68cd14`. The owner then decided
+> to skip the remaining checks and test them in daily use, so sections 1 (Intel), 3
+> (Xcb hotplug), 4, 5, 6, 7, 8, 9 and 10 are waived for the 1.0 gate. See
+> [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md). Results:
+> [R082.ii](verification/R082ii-amd-hardware-session.md) (AMD, with the JSON summary) and
+> [R085.r](verification/R085r-hotplug-owner-attested.md) (hotplug, owner-attested). The
+> runbook below is kept unchanged as a procedure for future use, for example if the
+> application gains other users.
+
 This runbook covers the M9 checks that need the owner's hardware and the owner in
 person: physical outputs, suspend, a real mouse and keyboard, input methods, a
 screen reader, and the reference GPUs. It is a procedure, not a result. Each
@@ -197,17 +208,14 @@ the v1 3.5 GiB experimental class:
 systemd-inhibit --what=idle scripts/session-benchmark-campaign.sh intel-1cpu capacity-10k
 ```
 
-The script's `capacity-10k` list runs only `repeated` at 10,000 placements, three
-times, five history cycles. R082.gg's remaining list also names the deep and textures
-families at 10,000, the sharing-off control and, since the R082.hh fixture fix, the
-far family. Those are not in the script. Before the day, add them to its
-`capacity-10k` case list (same arguments, `10000 deep 5`, `10000 textures 5`,
-`10000 far 5`) and run the control by hand with
+The script's `capacity-10k` list runs `repeated` at 10,000 placements three
+times, then `deep`, `textures` and `far` once each (`10000 deep 5`, `10000 textures 5`,
+`10000 far 5`; added for the 2026-10-11 session). R082.gg's remaining list also names
+the sharing-off control, which is run by hand with
 `SKETCHYUP_BENCHMARK_PLACEMENT_SHARING=0` and the same controls. R082.gg
 measured deep and textures at 10,000 with a test build that raised the limit scale,
 and only `repeated` with the public build, so a public-build rejection of another
-family is possible and is a finding. Without the added cases, section 1d covers
-`repeated` only and the rest stays open. The script flags
+family is possible and is a finding (none occurred on AMD). The script flags
 `viewportGpuCompleteP95Ms` above 16.7 ms for every case; for 10,000 placements the
 target is 33.3 ms ([BUILD_PLAN](BUILD_PLAN.md#initial-performance-budgets)), so judge
 that figure by hand and do not count a 16.7–33.3 ms flag here as a miss.

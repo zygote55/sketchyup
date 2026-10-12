@@ -78,7 +78,8 @@ case $kind in
     for s in "${scenarios[@]}"; do cases+=("$s-25-smoke|25 $s 5"); done
     for s in "${scenarios[@]}"; do cases+=("$s-1000-1|1000 $s 5"); done ;;
   capacity-10k)
-    for r in 1 2 3; do cases+=("repeated-10000-$r|10000 repeated 5"); done ;;
+    for r in 1 2 3; do cases+=("repeated-10000-$r|10000 repeated 5"); done
+    for s in deep textures far; do cases+=("$s-10000-1|10000 $s 5"); done ;;
   file)
     for r in 1 2 3; do cases+=("warm-$r|warm" "verified-cold-$r|verified-cold"); done ;;
 esac
