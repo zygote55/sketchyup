@@ -109,8 +109,9 @@ target of the 1M-triangle row (the script's `MISS` flag compares with 16.7 ms an
 not apply). Picking and inference queries stay under 1 ms.
 
 Far at 10,000 placements, which [R082.hh](R082hh-far-inference.md) made measurable, now
-has a recorded run and passes the memory and frame checks. The v2 declaration still
-excludes far from the 1M class; this record does not amend it.
+has a recorded run and passes the memory and frame checks (peak RSS 656 MB, complete-frame
+p95 20.8 ms). The frozen v2 declaration still excludes far from the 1M class and stays as is;
+this record does not amend it.
 
 Not run: the by-hand sharing-off control (3 GiB ceiling). It is waived by ADR 0161.
 

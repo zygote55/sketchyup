@@ -22,7 +22,7 @@ By runbook section:
 | Section | Check | Status |
 | --- | --- | --- |
 | 1 (1a-1d) | R082 Intel campaigns: frame, history, file, and the 10,000-placement case | Waived. Never run; no Intel result exists at the session revision. |
-| 1d, 2 | The by-hand sharing-off 10,000-placement control (modeled worst case, 3 GiB ceiling) | Waived. Not run on any hardware. Software measured 1.93 GB ([R082.gg](../verification/R082gg-placement-limits.md)). |
+| 1d, 2 | The sharing-off control: the by-hand 10,000-placement run with `SKETCHYUP_BENCHMARK_PLACEMENT_SHARING=0` (modeled worst case, 3 GiB ceiling), on Intel and AMD | Waived. Not run on any hardware. Software measured 1.93 GB ([R082.gg](../verification/R082gg-placement-limits.md)). |
 | 3 | R085 output hotplug on the Qt X11 fallback (Xcb) | Waived. Not run. |
 | 4 | R085 suspend and resume | Waived. Not run. |
 | 5 | N04 physical 150% scale | Waived. Not run. |
@@ -31,6 +31,7 @@ By runbook section:
 | 8 | D-020 on Hyprland (hidden window during a long open) | Waived. Not run. |
 | 9 | R084 interactive screen-reader session with Orca | Waived. Not run. |
 | 10 | R085 automatic X11 output placement | Waived. Not run. |
+| [Walkthrough](../M9_ACCEPTANCE.md#combined-release-candidate-walkthrough) | The manual pass on the installed RC: every user-guide workflow by hand on Omarchy/Hyprland and under Qt X11 at 1x and 2x, the keyboard-only pass, the save/recover/migrate cycle on real documents, and the assistant with and without a provider | Waived. The owner's statement covers manual testing. The automated walkthrough steps stay required (below). |
 
 ## What was measured
 
@@ -58,7 +59,9 @@ The waiver covers only the checks in the table above. Everything else in
   interoperability, sanitized builds, and Arch package acceptance (with the R087
   package, upgrade and migration checks it runs).
 - The complete regression suite and the dedicated ASan/UBSan tests, and the isolated
-  X11 and Weston native suites at 1x and 2x.
+  X11 and Weston native suites at 1x and 2x (the automated steps of the walkthrough:
+  the `dev` and `sanitize` presets, `ctest`, the native workflow invocations and the
+  integrated offline studies).
 - The frozen provider corpus re-run for the remote OpenAI ChatGPT-plan profile at the RC
   ([ADR 0160](0160-provider-scope-for-1-0.md)).
 - Every Core row's RC re-run and the evidence not named above, including the all-dialog
@@ -68,7 +71,7 @@ The waiver covers only the checks in the table above. Everything else in
 ## How the owner covers the waived behavior
 
 The owner is the project's only user and will test the waived behavior as the
-application is used: Intel graphics, output hotplug and suspend, scaling, pointer
+application is used: the user-guide workflows on the installed build, Intel graphics, output hotplug and suspend, scaling, pointer
 capture, input methods, the screen reader and X11 placement. Defects found that way
 enter the [triage list](../verification/R089a-defect-triage.md) like any other.
 

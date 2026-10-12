@@ -30,7 +30,9 @@ On 2026-10-12 the owner waived the physical and hardware checks of the
 owner is the only user and will test them in daily use ([ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)).
 The requirements below are kept as written. Each one the ADR waives is marked
 **Waived (ADR 0161)**; a waived requirement is not claimed to pass. Everything not
-marked is still required at the RC. The session that did run is recorded in
+marked is still required at the RC, including every automated check: all four CI
+jobs, the regression and sanitizer suites, the provider corpus and the Arch package
+acceptance job. The session that did run is recorded in
 [R082.ii](verification/R082ii-amd-hardware-session.md) (AMD discrete GPU) and
 [R085.r](verification/R085r-hotplug-owner-attested.md) (Wayland hotplug, owner-attested).
 
@@ -71,6 +73,8 @@ Then install the RC package and work through every user-guide workflow by hand o
 Omarchy/Hyprland and under Qt X11, each at 1× and 2×. Include a keyboard-only pass,
 a save/recover/migrate cycle on real documents, and the assistant with a supported
 provider and with none configured. Record each outcome, including failures.
+**Waived (ADR 0161):** this manual pass. The owner tests these workflows in daily use.
+The automated steps above stay required.
 
 ## Required evidence across the gate
 
