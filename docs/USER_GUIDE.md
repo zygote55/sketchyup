@@ -106,8 +106,8 @@ canvas exposes no geometry, positions or hover targets, so a screen reader canno
 read the model from it. Names and measurements come from the panels: the
 **Selection summary** label (its description adds the selected entity's name,
 editing context and face area), the Outliner and Entity info. No interactive
-screen-reader session has been run, so how a particular reader announces a change
-is unverified.
+screen-reader session has been run (waived for 1.0, [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)),
+so how a particular reader announces a change is unverified.
 
 Some interactions remain pointer-first:
 
@@ -127,7 +127,10 @@ layouts and interactive screen-reader workflows are not established.
 Tab traversal is checked for the Drawing plane, Keyboard shortcuts, Commands and
 Assistant preferences dialogs ([record](https://github.com/zygote55/sketchyup/blob/4d71fcd0d5eedc612827b644d86cdaaab4bcd98e/docs/verification/R084p-dialog-keyboard.md)), not every
 dialog. Physical keyboard layouts and input methods are untested, and no Orca,
-speech or braille session has been validated.
+speech or braille session has been validated. These physical checks, and the physical
+checks for displays (a 150% output, hotplug on X11, suspend/resume) and Intel graphics,
+were not run for 1.0 ([ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)); AMD discrete-GPU
+results are recorded (R082.ii).
 
 ## Save, recover and migrate
 
