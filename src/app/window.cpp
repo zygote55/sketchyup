@@ -227,6 +227,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     componentBanner_->setFocusPolicy(Qt::StrongFocus);
     connect(componentBanner_, &QLabel::linkActivated, this,
             [this] { run([this] { viewport_->makeComponentUnique(true); }); });
+    viewport_->setContextOverlay(breadcrumb_, componentBanner_);
     tray_ = new QWidget;
     tray_->setObjectName("tray");
     tray_->setMinimumWidth(220);
