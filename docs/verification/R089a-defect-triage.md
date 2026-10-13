@@ -19,6 +19,8 @@ hardware within the v2 budget, [R082.ii](R082ii-amd-hardware-session.md); Intel 
 D-004, D-005 and D-020 are now Limitations that are untested on the waived
 configurations, and D-024 (10,000-placement edit feedback) and D-025 (label overlap)
 are new. See the table and the counts.
+**Updated 2026-10-12 (R082.jj).** [R082.jj](R082jj-edit-feedback.md) fixes D-024: AMD edit
+feedback at 10,000 placements is now 37.6–40.6 ms p95 for deep and textures. See the counts.
 This is a working triage list of known defects against current `main`. It is not
 the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -60,7 +62,6 @@ problem. **Limitation** means a documented, intended boundary.
 
 | ID | Title | Sources | Scope | Evidence that it is still open | Class | Rationale | Fix owner |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| D-024 | Edit feedback p95 at 10,000 placements misses the 100 ms routine-edit target for deep and textures | [R082.ii](R082ii-amd-hardware-session.md), [R082.gg](R082gg-placement-limits.md), [R082.hh](R082hh-far-inference.md), [R082.w v2](R082w-memory-budget-v2.md), [BUILD_PLAN budgets](../BUILD_PLAN.md#initial-performance-budgets) | D06, N01 | **Open.** On the RX 6800 XT (X11, one CPU, public build) the first GPU-complete frame after an edit takes p95 209.3 ms for deep and 108.9 ms for textures at 10,000 placements (edit and readback 229.4 and 128.8 ms). Repeated (67–69 ms, three runs) and far (73.8 ms) pass; every 100k family passes at 3.6–16.4 ms. In deep, the inference update alone is 48.2 ms p95 against 11–13 ms elsewhere. One run each for deep and textures; no Intel run exists (waived). | Major | The row "Routine primitive edit: p95 feedback below 100 ms" in the budget table names no scenario, and the 1M-triangle row sets only a frame-time target, so nothing in the table exempts the 1M scenario. R082.gg moved the 10,000-placement fixture into the supported class (deep and textures are in the v2 1M class), so this is a performance miss on a supported configuration. It is not Minor, because the miss is 2.1× for deep, beyond "within tolerance". It is not release-blocking: edits complete, nothing is lost, and no Core acceptance text states a latency number. The M9 exit criterion "performance budgets pass" stays unmet until it is fixed or closed by a documented, reasoned budget decision (no fixture shrunk, no limit raised). Consistent with D-004's original class. | [R082](../PR_ROADMAP.md#r082): edit-path optimization (inference update, nested rebuild, texture path) or a written budget decision |
 | D-006 | Intermittent X11 viewport assertion "Camera movement only reorders transparency" | [R085.i](R085i-assisted-output-transitions.md#retained-attempts-and-validation), [R085k X11 log](R085i-r085k-xcb.txt) | N01, P02 | **Unverified.** R085.i retains it as "intermittent … remains unexplained". The assertion (`tests/viewport_tests.cpp`) is unchanged, and no later record explains it. | Minor | The failed check is a render-statistics assertion: either geometry was re-uploaded or transparency was not re-sorted after a camera move. The worst case is an extra upload or a transient blend-order glitch, with no document effect. | [R085](../PR_ROADMAP.md#r085) (viewport cache, with [R082](../PR_ROADMAP.md#r082)): investigation; possibly a code fix |
 | D-007 | Wayland native-test focus and activation races | [R015](R015-topology.md), [R035.a](R035a-entity-measurements.md), [R084.p](R084p-dialog-keyboard.md), [R087.t](R087t-native-ci-reproduction.md), [PR #273](https://github.com/zygote55/sketchyup/pull/273), [main run 38011483053](https://github.com/zygote55/sketchyup/actions/runs/38011483053) | N03 | **Unverified.** Recurring intermittent fixture failures where a window reports active before its native surface has focus. Examples: the R015 Extrude shortcut, the R087.t "Tab reaches shortcut control without assigning focus", and the entity-info Wayland 2× focus timeout on `main` before #273. Each received a fixture wait or re-request; none has a confirmed root cause. Three `main` runs have passed since #273. | Minor | These are test-infrastructure races in isolated Weston. No product focus defect has been shown. | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only) |
 | D-008 | Scene-transition native test timed out in CI under delayed events | [R085.d](R085d-scene-animation-fixture.md) | P03 | **Unverified.** CI waited 1.5 s for the saved pose and failed. The wait is now 5 s, and the cause is recorded as "not a confirmed root cause". Product timing is unchanged. | Minor | Eventual-correctness timing in a test fixture. Final-pose equality is still enforced. | [R085](../PR_ROADMAP.md#r085) (test-only) |
@@ -110,7 +111,19 @@ Closed by the 2026-10-12 hardware session:
   17.3–21.7 ms against 33.3 ms. Far at 10,000 placements now has a recorded run. Intel reruns and the
   sharing-off hardware control are waived ([ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md)),
   so the budget is hardware-accepted on AMD only. The inference-update growth with placements
-  noted under D-003 shows up as the edit-feedback miss D-024.
+  noted under D-003 showed up as the edit-feedback miss D-024, fixed by R082.jj (below).
+
+Closed by R082.jj:
+
+- **D-024** (edit feedback p95 at 10,000 placements missed the 100 ms routine-edit target for
+  deep and textures). Each placement edit did whole-document work: full validation of a moved
+  placement, an allocating hierarchy walk per record, a per-body viewport rebuild, per-face
+  texture visibility tests and a full inference-index recomposition
+  ([R082.jj](R082jj-edit-feedback.md)). On the RX 6800 XT (X11, one CPU, two campaigns) the
+  p95 is now 40.3 and 37.6 ms for deep (was 209.3 ms), 39.2 and 40.6 ms for textures (108.9 ms),
+  36.1–37.9 ms for repeated and 38.3–39.1 ms for far; edit and readback is 55.2–61.1 ms. Fixture
+  and framebuffer hashes, mesh and inference counters are unchanged, and the full-validation
+  oracle covers the new incremental path. Intel was not measured (waived).
 
 Closed by the 2026-10-11 layers:
 
@@ -150,19 +163,20 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | Class | Count | IDs |
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
-| Major | 1 | D-024 |
+| Major | 0 | None |
 | Minor | 9 | D-006–D-009, D-019, D-021–D-023, D-025 |
 | Limitation | 13 | D-001, D-004, D-005, D-010–D-018, D-020 |
-| **Total open** | **23** | |
-| Fixed since the previous refresh | 1 | D-003 |
+| **Total open** | **22** | |
+| Fixed since the previous refresh | 2 | D-003, D-024 (added and fixed 2026-10-12) |
 
 Before this refresh (2026-10-11): 22 (0 release-blocking, 1 Major, 11 Minor, 10 Limitation).
 D-003 is fixed. D-004 moved from Major to Limitation, and D-005 and D-020 from Minor to
-Limitation, by the owner's evidence waiver. D-024 (Major) and D-025 (Minor) were added.
+Limitation, by the owner's evidence waiver. D-024 (Major) and D-025 (Minor) were added;
+R082.jj then fixed D-024.
 
-No release-blocking defect remains; this is still not a release sign-off. D-024 is Major and
-open: the M9 exit criterion "performance budgets pass" is not met until it is fixed or closed
-by a documented budget decision. D-004, D-005 and D-020 are Limitations because the checks
+No release-blocking or Major defect remains; this is still not a release sign-off. D-024 is
+fixed on AMD, so the 10,000-placement edit-feedback miss no longer stands against the M9 exit
+criterion "performance budgets pass"; the criterion is not thereby accepted. D-004, D-005 and D-020 are Limitations because the checks
 that would settle them are waived, not because they were shown harmless. No known open critical
 security defect was found. No data-loss defect is confirmed open. D-002 was root-caused as a
 test-harness hang on a full CI disk ([R083.f](R083f-file-worker-hang.md)) and its

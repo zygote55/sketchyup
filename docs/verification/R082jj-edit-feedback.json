@@ -1,0 +1,1397 @@
+{
+ "record": "R082.jj edit feedback at 10,000 placements (D-024)",
+ "base": "fb3c9b7e (origin/main; code identical to db68cd14, the AMD session source)",
+ "amd": {
+  "controls": "scripts/session-benchmark-campaign.sh amd capacity-10k: X11, CPU 11 only, CPUQuota=100%, MemoryMax=4G, no swap, TasksMax=128, 900 s, fullscreen",
+  "before": {
+   "directory": "~/sketchyup-verification/m9-hardware-session/amd/bench-amd-capacity-10k-20261011-215857",
+   "realModelBenchmarkSha256": "9cc7999cf1af9bbb8daf8e8cce6f66550031ec77b40250e95971eef18d8d27e7",
+   "cases": {
+    "deep-10000-1": {
+     "editToViewportGpuCompleteP95Ms": 209.336772,
+     "editAndReadbackP95Ms": 229.432277,
+     "inferenceUpdateP95Ms": 48.221501,
+     "viewportGpuCompleteP95Ms": 18.34475,
+     "gpuCompleteFrameP95Ms": 16.964139,
+     "inferenceQueryP95Ms": 0.931499,
+     "pickP95Ms": 0.774681,
+     "fixtureSha256": "3c834c6986914f067f0b90487a5659f268d6e73f214d3daf4fc6b0355640f73e",
+     "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+     "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+     "bodyMeshBuilds": 20032,
+     "meshUploads": 21565,
+     "tessellations": 10033,
+     "inferenceFinalBodyBuilds": 23032,
+     "inferenceVisitedPrimitivesMax": 6755,
+     "inferenceIntersectionPairsMax": 32640,
+     "inferenceCandidatesMin": 32,
+     "inferenceTruncatedQueries": 61,
+     "placementMeshes": 1,
+     "sharedPlacements": 10000,
+     "bodyCacheVectorCapacityBytes": 89266,
+     "bodyCacheGpuPayloadBytes": 34656,
+     "retainedHistoryBytes": 1636500,
+     "finalPeakRssBytes": 654209024
+    },
+    "far-10000-1": {
+     "editToViewportGpuCompleteP95Ms": 73.770084,
+     "editAndReadbackP95Ms": 93.058713,
+     "inferenceUpdateP95Ms": 12.547626,
+     "viewportGpuCompleteP95Ms": 20.795784,
+     "gpuCompleteFrameP95Ms": 19.123374,
+     "inferenceQueryP95Ms": 0.911849,
+     "pickP95Ms": 0.649288,
+     "fixtureSha256": "a0467383e0b8c9a9cb95ca32e2872eefacabc51c984fa4bb94ffe03c0921d20d",
+     "warmFramebufferSha256": "004dca6a99a82fad2dcc9254d7d32e8487737e60beffdad23cc3b71322fd45b0",
+     "finalFramebufferSha256": "a83457c9ecf46f363e5168b97e563368286147f14d1900721d7c0fc4bc892ff9",
+     "bodyMeshBuilds": 20001,
+     "meshUploads": 21503,
+     "tessellations": 10002,
+     "inferenceFinalBodyBuilds": 23001,
+     "inferenceVisitedPrimitivesMax": 6755,
+     "inferenceIntersectionPairsMax": 32640,
+     "inferenceCandidatesMin": 32,
+     "inferenceTruncatedQueries": 61,
+     "placementMeshes": 1,
+     "sharedPlacements": 10000,
+     "bodyCacheVectorCapacityBytes": 89266,
+     "bodyCacheGpuPayloadBytes": 34656,
+     "retainedHistoryBytes": 1636500,
+     "finalPeakRssBytes": 656216064
+    },
+    "repeated-10000-1": {
+     "editToViewportGpuCompleteP95Ms": 68.161479,
+     "editAndReadbackP95Ms": 86.464013,
+     "inferenceUpdateP95Ms": 11.327904,
+     "viewportGpuCompleteP95Ms": 17.25783,
+     "gpuCompleteFrameP95Ms": 16.225732,
+     "inferenceQueryP95Ms": 0.899367,
+     "pickP95Ms": 0.42649,
+     "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+     "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+     "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+     "bodyMeshBuilds": 20000,
+     "meshUploads": 21501,
+     "tessellations": 10001,
+     "inferenceFinalBodyBuilds": 23000,
+     "inferenceVisitedPrimitivesMax": 6755,
+     "inferenceIntersectionPairsMax": 32640,
+     "inferenceCandidatesMin": 32,
+     "inferenceTruncatedQueries": 61,
+     "placementMeshes": 1,
+     "sharedPlacements": 10000,
+     "bodyCacheVectorCapacityBytes": 89266,
+     "bodyCacheGpuPayloadBytes": 34656,
+     "retainedHistoryBytes": 1636500,
+     "finalPeakRssBytes": 618438656
+    },
+    "repeated-10000-2": {
+     "editToViewportGpuCompleteP95Ms": 68.864873,
+     "editAndReadbackP95Ms": 87.217757,
+     "inferenceUpdateP95Ms": 11.391597,
+     "viewportGpuCompleteP95Ms": 17.753584,
+     "gpuCompleteFrameP95Ms": 16.780236,
+     "inferenceQueryP95Ms": 0.909206,
+     "pickP95Ms": 0.468218,
+     "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+     "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+     "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+     "bodyMeshBuilds": 20000,
+     "meshUploads": 21501,
+     "tessellations": 10001,
+     "inferenceFinalBodyBuilds": 23000,
+     "inferenceVisitedPrimitivesMax": 6755,
+     "inferenceIntersectionPairsMax": 32640,
+     "inferenceCandidatesMin": 32,
+     "inferenceTruncatedQueries": 61,
+     "placementMeshes": 1,
+     "sharedPlacements": 10000,
+     "bodyCacheVectorCapacityBytes": 89266,
+     "bodyCacheGpuPayloadBytes": 34656,
+     "retainedHistoryBytes": 1636500,
+     "finalPeakRssBytes": 616484864
+    },
+    "repeated-10000-3": {
+     "editToViewportGpuCompleteP95Ms": 67.202313,
+     "editAndReadbackP95Ms": 86.340035,
+     "inferenceUpdateP95Ms": 11.120353,
+     "viewportGpuCompleteP95Ms": 18.285507,
+     "gpuCompleteFrameP95Ms": 17.414332,
+     "inferenceQueryP95Ms": 0.906882,
+     "pickP95Ms": 0.393898,
+     "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+     "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+     "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+     "bodyMeshBuilds": 20000,
+     "meshUploads": 21501,
+     "tessellations": 10001,
+     "inferenceFinalBodyBuilds": 23000,
+     "inferenceVisitedPrimitivesMax": 6755,
+     "inferenceIntersectionPairsMax": 32640,
+     "inferenceCandidatesMin": 32,
+     "inferenceTruncatedQueries": 61,
+     "placementMeshes": 1,
+     "sharedPlacements": 10000,
+     "bodyCacheVectorCapacityBytes": 89266,
+     "bodyCacheGpuPayloadBytes": 34656,
+     "retainedHistoryBytes": 1636500,
+     "finalPeakRssBytes": 616534016
+    },
+    "textures-10000-1": {
+     "editToViewportGpuCompleteP95Ms": 108.915623,
+     "editAndReadbackP95Ms": 128.815071,
+     "inferenceUpdateP95Ms": 11.119201,
+     "viewportGpuCompleteP95Ms": 21.740652,
+     "gpuCompleteFrameP95Ms": 18.643717,
+     "inferenceQueryP95Ms": 0.931048,
+     "pickP95Ms": 0.539881,
+     "fixtureSha256": "69c547f1e2663559d6b5dd659e4211169b9fb66013d32ad59e59730b0e2856ab",
+     "warmFramebufferSha256": "c321da86c686d37985f08434447799e7fe3932a1ee4ecdd0a0fe211ef1b838af",
+     "finalFramebufferSha256": "74d319dd60c62f730ec2287c85d5a482e0083aea80459f22c3a82c787e5719c3",
+     "bodyMeshBuilds": 20000,
+     "meshUploads": 21502,
+     "tessellations": 10001,
+     "inferenceFinalBodyBuilds": 23000,
+     "inferenceVisitedPrimitivesMax": 6755,
+     "inferenceIntersectionPairsMax": 32640,
+     "inferenceCandidatesMin": 32,
+     "inferenceTruncatedQueries": 61,
+     "placementMeshes": 1,
+     "sharedPlacements": 10000,
+     "bodyCacheVectorCapacityBytes": 89266,
+     "bodyCacheGpuPayloadBytes": 34656,
+     "retainedHistoryBytes": 1636500,
+     "finalPeakRssBytes": 758738944
+    }
+   }
+  },
+  "after": [
+   {
+    "directory": "~/sketchyup-verification/m9-hardware-session/amd/r082jj/bench-amd-capacity-10k-20261012-131147",
+    "realModelBenchmarkSha256": "76929d0d9d8e19d9cded9d5813ae235d5232325eeaaceaec0cdcf2d4fdd7c157",
+    "cases": {
+     "deep-10000-1": {
+      "editToViewportGpuCompleteP95Ms": 40.296719,
+      "editAndReadbackP95Ms": 58.905399,
+      "inferenceUpdateP95Ms": 8.192018,
+      "viewportGpuCompleteP95Ms": 17.885497,
+      "gpuCompleteFrameP95Ms": 16.319203,
+      "inferenceQueryP95Ms": 0.939714,
+      "pickP95Ms": 0.612914,
+      "fixtureSha256": "3c834c6986914f067f0b90487a5659f268d6e73f214d3daf4fc6b0355640f73e",
+      "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+      "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+      "bodyMeshBuilds": 20032,
+      "meshUploads": 21565,
+      "tessellations": 10033,
+      "inferenceFinalBodyBuilds": 23032,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 657711104
+     },
+     "far-10000-1": {
+      "editToViewportGpuCompleteP95Ms": 39.111137,
+      "editAndReadbackP95Ms": 57.817953,
+      "inferenceUpdateP95Ms": 7.694913,
+      "viewportGpuCompleteP95Ms": 18.697018,
+      "gpuCompleteFrameP95Ms": 17.524071,
+      "inferenceQueryP95Ms": 0.924736,
+      "pickP95Ms": 0.583669,
+      "fixtureSha256": "a0467383e0b8c9a9cb95ca32e2872eefacabc51c984fa4bb94ffe03c0921d20d",
+      "warmFramebufferSha256": "004dca6a99a82fad2dcc9254d7d32e8487737e60beffdad23cc3b71322fd45b0",
+      "finalFramebufferSha256": "a83457c9ecf46f363e5168b97e563368286147f14d1900721d7c0fc4bc892ff9",
+      "bodyMeshBuilds": 20001,
+      "meshUploads": 21503,
+      "tessellations": 10002,
+      "inferenceFinalBodyBuilds": 23001,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 656953344
+     },
+     "repeated-10000-1": {
+      "editToViewportGpuCompleteP95Ms": 36.917381,
+      "editAndReadbackP95Ms": 55.231662,
+      "inferenceUpdateP95Ms": 7.390676,
+      "viewportGpuCompleteP95Ms": 18.601046,
+      "gpuCompleteFrameP95Ms": 17.292752,
+      "inferenceQueryP95Ms": 0.896091,
+      "pickP95Ms": 0.383058,
+      "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+      "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+      "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+      "bodyMeshBuilds": 20000,
+      "meshUploads": 21501,
+      "tessellations": 10001,
+      "inferenceFinalBodyBuilds": 23000,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 618926080
+     },
+     "repeated-10000-2": {
+      "editToViewportGpuCompleteP95Ms": 37.863087,
+      "editAndReadbackP95Ms": 56.329217,
+      "inferenceUpdateP95Ms": 7.741312,
+      "viewportGpuCompleteP95Ms": 17.357675,
+      "gpuCompleteFrameP95Ms": 15.975179,
+      "inferenceQueryP95Ms": 0.912863,
+      "pickP95Ms": 0.364592,
+      "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+      "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+      "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+      "bodyMeshBuilds": 20000,
+      "meshUploads": 21501,
+      "tessellations": 10001,
+      "inferenceFinalBodyBuilds": 23000,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 617091072
+     },
+     "repeated-10000-3": {
+      "editToViewportGpuCompleteP95Ms": 37.523893,
+      "editAndReadbackP95Ms": 56.32576,
+      "inferenceUpdateP95Ms": 7.447053,
+      "viewportGpuCompleteP95Ms": 18.28724,
+      "gpuCompleteFrameP95Ms": 16.929822,
+      "inferenceQueryP95Ms": 0.91096,
+      "pickP95Ms": 0.402785,
+      "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+      "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+      "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+      "bodyMeshBuilds": 20000,
+      "meshUploads": 21501,
+      "tessellations": 10001,
+      "inferenceFinalBodyBuilds": 23000,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 616853504
+     },
+     "textures-10000-1": {
+      "editToViewportGpuCompleteP95Ms": 39.195217,
+      "editAndReadbackP95Ms": 59.165323,
+      "inferenceUpdateP95Ms": 7.117637,
+      "viewportGpuCompleteP95Ms": 20.339057,
+      "gpuCompleteFrameP95Ms": 18.365819,
+      "inferenceQueryP95Ms": 0.925788,
+      "pickP95Ms": 0.471085,
+      "fixtureSha256": "69c547f1e2663559d6b5dd659e4211169b9fb66013d32ad59e59730b0e2856ab",
+      "warmFramebufferSha256": "c321da86c686d37985f08434447799e7fe3932a1ee4ecdd0a0fe211ef1b838af",
+      "finalFramebufferSha256": "74d319dd60c62f730ec2287c85d5a482e0083aea80459f22c3a82c787e5719c3",
+      "bodyMeshBuilds": 20000,
+      "meshUploads": 21502,
+      "tessellations": 10001,
+      "inferenceFinalBodyBuilds": 23000,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 759808000
+     }
+    }
+   },
+   {
+    "directory": "~/sketchyup-verification/m9-hardware-session/amd/r082jj/bench-amd-capacity-10k-20261012-132246",
+    "realModelBenchmarkSha256": "76929d0d9d8e19d9cded9d5813ae235d5232325eeaaceaec0cdcf2d4fdd7c157",
+    "cases": {
+     "deep-10000-1": {
+      "editToViewportGpuCompleteP95Ms": 37.60631,
+      "editAndReadbackP95Ms": 56.632532,
+      "inferenceUpdateP95Ms": 7.586728,
+      "viewportGpuCompleteP95Ms": 18.899422,
+      "gpuCompleteFrameP95Ms": 17.472022,
+      "inferenceQueryP95Ms": 0.931579,
+      "pickP95Ms": 0.683027,
+      "fixtureSha256": "3c834c6986914f067f0b90487a5659f268d6e73f214d3daf4fc6b0355640f73e",
+      "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+      "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+      "bodyMeshBuilds": 20032,
+      "meshUploads": 21565,
+      "tessellations": 10033,
+      "inferenceFinalBodyBuilds": 23032,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 656437248
+     },
+     "far-10000-1": {
+      "editToViewportGpuCompleteP95Ms": 38.329751,
+      "editAndReadbackP95Ms": 58.059793,
+      "inferenceUpdateP95Ms": 7.57594,
+      "viewportGpuCompleteP95Ms": 17.75531,
+      "gpuCompleteFrameP95Ms": 16.538979,
+      "inferenceQueryP95Ms": 0.926329,
+      "pickP95Ms": 0.47926,
+      "fixtureSha256": "a0467383e0b8c9a9cb95ca32e2872eefacabc51c984fa4bb94ffe03c0921d20d",
+      "warmFramebufferSha256": "004dca6a99a82fad2dcc9254d7d32e8487737e60beffdad23cc3b71322fd45b0",
+      "finalFramebufferSha256": "a83457c9ecf46f363e5168b97e563368286147f14d1900721d7c0fc4bc892ff9",
+      "bodyMeshBuilds": 20001,
+      "meshUploads": 21503,
+      "tessellations": 10002,
+      "inferenceFinalBodyBuilds": 23001,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 656625664
+     },
+     "repeated-10000-1": {
+      "editToViewportGpuCompleteP95Ms": 36.757717,
+      "editAndReadbackP95Ms": 55.775164,
+      "inferenceUpdateP95Ms": 7.127417,
+      "viewportGpuCompleteP95Ms": 17.362133,
+      "gpuCompleteFrameP95Ms": 16.361683,
+      "inferenceQueryP95Ms": 0.907323,
+      "pickP95Ms": 0.376064,
+      "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+      "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+      "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+      "bodyMeshBuilds": 20000,
+      "meshUploads": 21501,
+      "tessellations": 10001,
+      "inferenceFinalBodyBuilds": 23000,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 619241472
+     },
+     "repeated-10000-2": {
+      "editToViewportGpuCompleteP95Ms": 36.05352,
+      "editAndReadbackP95Ms": 55.168212,
+      "inferenceUpdateP95Ms": 7.107267,
+      "viewportGpuCompleteP95Ms": 18.046332,
+      "gpuCompleteFrameP95Ms": 16.305236,
+      "inferenceQueryP95Ms": 0.914718,
+      "pickP95Ms": 0.425929,
+      "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+      "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+      "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+      "bodyMeshBuilds": 20000,
+      "meshUploads": 21501,
+      "tessellations": 10001,
+      "inferenceFinalBodyBuilds": 23000,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 617488384
+     },
+     "repeated-10000-3": {
+      "editToViewportGpuCompleteP95Ms": 36.46404,
+      "editAndReadbackP95Ms": 55.454655,
+      "inferenceUpdateP95Ms": 7.470918,
+      "viewportGpuCompleteP95Ms": 18.299323,
+      "gpuCompleteFrameP95Ms": 17.111407,
+      "inferenceQueryP95Ms": 0.917022,
+      "pickP95Ms": 0.456447,
+      "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+      "warmFramebufferSha256": "c28f3e28be56ec2c5a3f9086dfc315553b62d7cf0d8b5bb554543ca49b07af29",
+      "finalFramebufferSha256": "7ec0a05198c664c5ea47f560b0d48e7418d393090c7c65379a1a0b3f14d4b4a7",
+      "bodyMeshBuilds": 20000,
+      "meshUploads": 21501,
+      "tessellations": 10001,
+      "inferenceFinalBodyBuilds": 23000,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 617570304
+     },
+     "textures-10000-1": {
+      "editToViewportGpuCompleteP95Ms": 40.58166,
+      "editAndReadbackP95Ms": 61.100828,
+      "inferenceUpdateP95Ms": 7.627756,
+      "viewportGpuCompleteP95Ms": 19.555278,
+      "gpuCompleteFrameP95Ms": 17.440421,
+      "inferenceQueryP95Ms": 0.908646,
+      "pickP95Ms": 0.43193,
+      "fixtureSha256": "69c547f1e2663559d6b5dd659e4211169b9fb66013d32ad59e59730b0e2856ab",
+      "warmFramebufferSha256": "c321da86c686d37985f08434447799e7fe3932a1ee4ecdd0a0fe211ef1b838af",
+      "finalFramebufferSha256": "74d319dd60c62f730ec2287c85d5a482e0083aea80459f22c3a82c787e5719c3",
+      "bodyMeshBuilds": 20000,
+      "meshUploads": 21502,
+      "tessellations": 10001,
+      "inferenceFinalBodyBuilds": 23000,
+      "inferenceVisitedPrimitivesMax": 6755,
+      "inferenceIntersectionPairsMax": 32640,
+      "inferenceCandidatesMin": 32,
+      "inferenceTruncatedQueries": 61,
+      "placementMeshes": 1,
+      "sharedPlacements": 10000,
+      "bodyCacheVectorCapacityBytes": 89266,
+      "bodyCacheGpuPayloadBytes": 34656,
+      "retainedHistoryBytes": 1636500,
+      "finalPeakRssBytes": 758050816
+     }
+    }
+   }
+  ]
+ },
+ "profiles": {
+  "method": "Temporary thread-CPU-time scopes (CLOCK_THREAD_CPUTIME_ID) in an instrumented Release -g build, 100 rendered edits, container one CPU (llvmpipe). Not committed. Worker scopes run on the inference worker thread, which shares the one CPU.",
+  "before": {
+   "deep": {
+    "bench.frame": {
+     "meanMs": 2516.958,
+     "count": 100
+    },
+    "bench.refresh": {
+     "meanMs": 39.321,
+     "count": 100
+    },
+    "bench.transform": {
+     "meanMs": 334.146,
+     "count": 100
+    },
+    "core.applyEdit": {
+     "meanMs": 334.093,
+     "count": 100
+    },
+    "core.copyInstances": {
+     "meanMs": 6.355,
+     "count": 100
+    },
+    "core.fullSize(copy+validateDocumentSize)": {
+     "meanMs": 240.207,
+     "count": 100
+    },
+    "core.tail(locks,floors,commit)": {
+     "meanMs": 0.121,
+     "count": 100
+    },
+    "core.validateComponentInstanceEdits+hosted": {
+     "meanMs": 50.575,
+     "count": 100
+    },
+    "vp.drawSelectionOverlay": {
+     "meanMs": 0.058,
+     "count": 200
+    },
+    "vp.drawStyleProfiles": {
+     "meanMs": 0.019,
+     "count": 200
+    },
+    "vp.paintScene": {
+     "meanMs": 1232.951,
+     "count": 200
+    },
+    "vp.painterTail": {
+     "meanMs": 7.256,
+     "count": 200
+    },
+    "vp.rebuild": {
+     "meanMs": 176.63,
+     "count": 100
+    },
+    "vp.rebuild.bodyLoop+tail": {
+     "meanMs": 160.937,
+     "count": 100
+    },
+    "vp.rebuild.syncTextures": {
+     "meanMs": 0.04,
+     "count": 100
+    },
+    "vp.refresh": {
+     "meanMs": 39.315,
+     "count": 100
+    },
+    "vp.refresh.inferenceRequest": {
+     "meanMs": 24.772,
+     "count": 100
+    },
+    "vp.refresh.syncSelection": {
+     "meanMs": 14.476,
+     "count": 100
+    },
+    "vp.sortTransparent1": {
+     "meanMs": 0.021,
+     "count": 200
+    },
+    "worker.copy+sync(thread)": {
+     "meanMs": 141.479,
+     "count": 100
+    },
+    "worker.sync(thread)": {
+     "meanMs": 137.566,
+     "count": 100
+    }
+   },
+   "textures": {
+    "bench.frame": {
+     "meanMs": 3202.018,
+     "count": 100
+    },
+    "bench.refresh": {
+     "meanMs": 33.418,
+     "count": 100
+    },
+    "bench.transform": {
+     "meanMs": 120.8,
+     "count": 100
+    },
+    "core.applyEdit": {
+     "meanMs": 120.756,
+     "count": 100
+    },
+    "core.copyInstances": {
+     "meanMs": 6.161,
+     "count": 100
+    },
+    "core.fullSize(copy+validateDocumentSize)": {
+     "meanMs": 39.233,
+     "count": 100
+    },
+    "core.tail(locks,floors,commit)": {
+     "meanMs": 0.066,
+     "count": 100
+    },
+    "core.validateComponentInstanceEdits+hosted": {
+     "meanMs": 44.498,
+     "count": 100
+    },
+    "vp.drawSelectionOverlay": {
+     "meanMs": 0.063,
+     "count": 200
+    },
+    "vp.drawStyleProfiles": {
+     "meanMs": 0.021,
+     "count": 200
+    },
+    "vp.paintScene": {
+     "meanMs": 1575.508,
+     "count": 200
+    },
+    "vp.painterTail": {
+     "meanMs": 5.428,
+     "count": 200
+    },
+    "vp.rebuild": {
+     "meanMs": 260.628,
+     "count": 100
+    },
+    "vp.rebuild.bodyLoop+tail": {
+     "meanMs": 63.668,
+     "count": 100
+    },
+    "vp.rebuild.syncTextures": {
+     "meanMs": 182.334,
+     "count": 100
+    },
+    "vp.refresh": {
+     "meanMs": 33.413,
+     "count": 100
+    },
+    "vp.refresh.inferenceRequest": {
+     "meanMs": 20.386,
+     "count": 100
+    },
+    "vp.refresh.syncSelection": {
+     "meanMs": 12.964,
+     "count": 100
+    },
+    "vp.sortTransparent1": {
+     "meanMs": 0.021,
+     "count": 200
+    },
+    "worker.copy+sync(thread)": {
+     "meanMs": 50.367,
+     "count": 100
+    },
+    "worker.sync(thread)": {
+     "meanMs": 46.469,
+     "count": 100
+    }
+   },
+   "repeated": {
+    "bench.frame": {
+     "meanMs": 2392.361,
+     "count": 100
+    },
+    "bench.refresh": {
+     "meanMs": 38.97,
+     "count": 100
+    },
+    "bench.transform": {
+     "meanMs": 132.03,
+     "count": 100
+    },
+    "core.applyEdit": {
+     "meanMs": 131.986,
+     "count": 100
+    },
+    "core.copyInstances": {
+     "meanMs": 6.178,
+     "count": 100
+    },
+    "core.fullSize(copy+validateDocumentSize)": {
+     "meanMs": 43.734,
+     "count": 100
+    },
+    "core.tail(locks,floors,commit)": {
+     "meanMs": 0.067,
+     "count": 100
+    },
+    "core.validateComponentInstanceEdits+hosted": {
+     "meanMs": 46.722,
+     "count": 100
+    },
+    "vp.drawSelectionOverlay": {
+     "meanMs": 0.059,
+     "count": 200
+    },
+    "vp.drawStyleProfiles": {
+     "meanMs": 0.021,
+     "count": 200
+    },
+    "vp.paintScene": {
+     "meanMs": 1170.569,
+     "count": 200
+    },
+    "vp.painterTail": {
+     "meanMs": 6.826,
+     "count": 200
+    },
+    "vp.rebuild": {
+     "meanMs": 66.001,
+     "count": 100
+    },
+    "vp.rebuild.bodyLoop+tail": {
+     "meanMs": 51.003,
+     "count": 100
+    },
+    "vp.rebuild.syncTextures": {
+     "meanMs": 0.038,
+     "count": 100
+    },
+    "vp.refresh": {
+     "meanMs": 38.965,
+     "count": 100
+    },
+    "vp.refresh.inferenceRequest": {
+     "meanMs": 25.219,
+     "count": 100
+    },
+    "vp.refresh.syncSelection": {
+     "meanMs": 13.68,
+     "count": 100
+    },
+    "vp.sortTransparent1": {
+     "meanMs": 0.021,
+     "count": 200
+    },
+    "worker.copy+sync(thread)": {
+     "meanMs": 50.549,
+     "count": 100
+    },
+    "worker.sync(thread)": {
+     "meanMs": 46.625,
+     "count": 100
+    }
+   }
+  },
+  "after": {
+   "deep": {
+    "bench.frame": {
+     "meanMs": 2426.855,
+     "count": 100
+    },
+    "bench.refresh": {
+     "meanMs": 32.798,
+     "count": 100
+    },
+    "bench.transform": {
+     "meanMs": 0.737,
+     "count": 100
+    },
+    "core.applyEdit": {
+     "meanMs": 0.701,
+     "count": 100
+    },
+    "core.tail(locks,floors,commit)": {
+     "meanMs": 0.034,
+     "count": 100
+    },
+    "inf.changedChains": {
+     "meanMs": 11.864,
+     "count": 100
+    },
+    "inf.copyPlacements": {
+     "meanMs": 4.358,
+     "count": 100
+    },
+    "inf.entries+bvh+commit": {
+     "meanMs": 7.823,
+     "count": 100
+    },
+    "inf.loop": {
+     "meanMs": 7.488,
+     "count": 100
+    },
+    "vp.drawSelectionOverlay": {
+     "meanMs": 0.059,
+     "count": 200
+    },
+    "vp.drawStyleProfiles": {
+     "meanMs": 0.018,
+     "count": 200
+    },
+    "vp.paintScene": {
+     "meanMs": 1187.96,
+     "count": 200
+    },
+    "vp.painterTail": {
+     "meanMs": 8.035,
+     "count": 200
+    },
+    "vp.rebuild": {
+     "meanMs": 55.609,
+     "count": 100
+    },
+    "vp.rebuild.changedChains": {
+     "meanMs": 13.622,
+     "count": 100
+    },
+    "vp.rebuild.head": {
+     "meanMs": 16.84,
+     "count": 100
+    },
+    "vp.rebuild.loop": {
+     "meanMs": 18.213,
+     "count": 100
+    },
+    "vp.rebuild.syncTextures": {
+     "meanMs": 0.037,
+     "count": 100
+    },
+    "vp.rebuild.tail": {
+     "meanMs": 6.907,
+     "count": 100
+    },
+    "vp.refresh": {
+     "meanMs": 32.792,
+     "count": 100
+    },
+    "vp.refresh.inferenceRequest": {
+     "meanMs": 23.78,
+     "count": 100
+    },
+    "vp.refresh.syncSelection": {
+     "meanMs": 8.946,
+     "count": 100
+    },
+    "vp.sortTransparent1": {
+     "meanMs": 0.019,
+     "count": 200
+    },
+    "worker.copy+sync(thread)": {
+     "meanMs": 44.247,
+     "count": 100
+    },
+    "worker.sync(thread)": {
+     "meanMs": 40.193,
+     "count": 100
+    }
+   },
+   "textures": {
+    "bench.frame": {
+     "meanMs": 2989.046,
+     "count": 100
+    },
+    "bench.refresh": {
+     "meanMs": 28.088,
+     "count": 100
+    },
+    "bench.transform": {
+     "meanMs": 0.641,
+     "count": 100
+    },
+    "core.applyEdit": {
+     "meanMs": 0.602,
+     "count": 100
+    },
+    "core.tail(locks,floors,commit)": {
+     "meanMs": 0.022,
+     "count": 100
+    },
+    "inf.changedChains": {
+     "meanMs": 8.252,
+     "count": 100
+    },
+    "inf.copyPlacements": {
+     "meanMs": 3.923,
+     "count": 100
+    },
+    "inf.entries+bvh+commit": {
+     "meanMs": 7.845,
+     "count": 100
+    },
+    "inf.loop": {
+     "meanMs": 4.912,
+     "count": 100
+    },
+    "vp.drawSelectionOverlay": {
+     "meanMs": 0.06,
+     "count": 200
+    },
+    "vp.drawStyleProfiles": {
+     "meanMs": 0.019,
+     "count": 200
+    },
+    "vp.paintScene": {
+     "meanMs": 1468.921,
+     "count": 200
+    },
+    "vp.painterTail": {
+     "meanMs": 7.561,
+     "count": 200
+    },
+    "vp.rebuild": {
+     "meanMs": 56.187,
+     "count": 100
+    },
+    "vp.rebuild.changedChains": {
+     "meanMs": 11.244,
+     "count": 100
+    },
+    "vp.rebuild.head": {
+     "meanMs": 23.198,
+     "count": 100
+    },
+    "vp.rebuild.loop": {
+     "meanMs": 16.016,
+     "count": 100
+    },
+    "vp.rebuild.syncTextures": {
+     "meanMs": 10.092,
+     "count": 100
+    },
+    "vp.rebuild.tail": {
+     "meanMs": 5.703,
+     "count": 100
+    },
+    "vp.refresh": {
+     "meanMs": 28.082,
+     "count": 100
+    },
+    "vp.refresh.inferenceRequest": {
+     "meanMs": 19.6,
+     "count": 100
+    },
+    "vp.refresh.syncSelection": {
+     "meanMs": 8.419,
+     "count": 100
+    },
+    "vp.sortTransparent1": {
+     "meanMs": 0.018,
+     "count": 200
+    },
+    "worker.copy+sync(thread)": {
+     "meanMs": 34.748,
+     "count": 100
+    },
+    "worker.sync(thread)": {
+     "meanMs": 30.921,
+     "count": 100
+    }
+   },
+   "repeated": {
+    "bench.frame": {
+     "meanMs": 2376.679,
+     "count": 100
+    },
+    "bench.refresh": {
+     "meanMs": 29.703,
+     "count": 100
+    },
+    "bench.transform": {
+     "meanMs": 0.564,
+     "count": 100
+    },
+    "core.applyEdit": {
+     "meanMs": 0.533,
+     "count": 100
+    },
+    "core.tail(locks,floors,commit)": {
+     "meanMs": 0.021,
+     "count": 100
+    },
+    "inf.changedChains": {
+     "meanMs": 9.407,
+     "count": 100
+    },
+    "inf.copyPlacements": {
+     "meanMs": 3.912,
+     "count": 100
+    },
+    "inf.entries+bvh+commit": {
+     "meanMs": 7.859,
+     "count": 100
+    },
+    "inf.loop": {
+     "meanMs": 6.796,
+     "count": 100
+    },
+    "vp.drawSelectionOverlay": {
+     "meanMs": 0.06,
+     "count": 200
+    },
+    "vp.drawStyleProfiles": {
+     "meanMs": 0.021,
+     "count": 200
+    },
+    "vp.paintScene": {
+     "meanMs": 1162.835,
+     "count": 200
+    },
+    "vp.painterTail": {
+     "meanMs": 6.617,
+     "count": 200
+    },
+    "vp.rebuild": {
+     "meanMs": 42.82,
+     "count": 100
+    },
+    "vp.rebuild.changedChains": {
+     "meanMs": 10.749,
+     "count": 100
+    },
+    "vp.rebuild.head": {
+     "meanMs": 12.131,
+     "count": 100
+    },
+    "vp.rebuild.loop": {
+     "meanMs": 15.09,
+     "count": 100
+    },
+    "vp.rebuild.syncTextures": {
+     "meanMs": 0.032,
+     "count": 100
+    },
+    "vp.rebuild.tail": {
+     "meanMs": 4.819,
+     "count": 100
+    },
+    "vp.refresh": {
+     "meanMs": 29.697,
+     "count": 100
+    },
+    "vp.refresh.inferenceRequest": {
+     "meanMs": 21.64,
+     "count": 100
+    },
+    "vp.refresh.syncSelection": {
+     "meanMs": 7.993,
+     "count": 100
+    },
+    "vp.sortTransparent1": {
+     "meanMs": 0.017,
+     "count": 200
+    },
+    "worker.copy+sync(thread)": {
+     "meanMs": 39.421,
+     "count": 100
+    },
+    "worker.sync(thread)": {
+     "meanMs": 35.542,
+     "count": 100
+    }
+   }
+  }
+ },
+ "software": {
+  "controls": "sketchyup-native-fonts-check:20261008, one CPU, 4 GiB, no swap, xvfb-run 1920x1080x24, QT_QPA_PLATFORM=xcb, LIBGL_ALWAYS_SOFTWARE=1 (llvmpipe), scripts/run-container-check.sh; real_model_benchmark COUNT FAMILY without the rendered-history argument: 100 rendered edits, undo/redo not rendered; base-rel = origin/main Release, fix-rel = this branch Release (P2 host build)",
+  "status": [
+   "base-rel-deep-1000 exit 0 in 71 s ",
+   "fix-rel-deep-1000 exit 0 in 65 s ",
+   "base-rel-textures-1000 exit 0 in 112 s ",
+   "fix-rel-textures-1000 exit 0 in 108 s ",
+   "base-rel-repeated-1000 exit 0 in 65 s ",
+   "fix-rel-repeated-1000 exit 0 in 63 s ",
+   "base-rel-deep-10000 exit 0 in 449 s ",
+   "fix-rel-deep-10000 exit 0 in 398 s ",
+   "base-rel-textures-10000 exit 0 in 480 s ",
+   "fix-rel-textures-10000 exit 0 in 444 s ",
+   "base-rel-repeated-10000 exit 0 in 379 s ",
+   "fix-rel-repeated-10000 exit 0 in 360 s "
+  ],
+  "runs": {
+   "base-rel-deep-1000": {
+    "editToViewportGpuCompleteP95Ms": 264.493035,
+    "editAndReadbackP95Ms": 525.266648,
+    "inferenceUpdateP95Ms": 16.291673,
+    "viewportGpuCompleteP95Ms": 208.987279,
+    "gpuCompleteFrameP95Ms": 207.135138,
+    "inferenceQueryP95Ms": 0.853033,
+    "pickP95Ms": 1.125724,
+    "fixtureSha256": "fdd0240d97e5638aa961dc7617d4f151a9429a4967c10279634317b03f9cea29",
+    "warmFramebufferSha256": "f68c8b82afa9410cf48e23c36da8747f13d021f6c530165e2890c24c801d1462",
+    "finalFramebufferSha256": "50d6d1bb8d753358fdf5a7c731d2f3e8aa022fbad9b26ec7f77351f13e0c88da",
+    "bodyMeshBuilds": 2032,
+    "meshUploads": 2165,
+    "tessellations": 1033,
+    "inferenceFinalBodyBuilds": 2232,
+    "inferenceVisitedPrimitivesMax": 1736,
+    "inferenceIntersectionPairsMax": 14365,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 1000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 289361920
+   },
+   "base-rel-deep-10000": {
+    "editToViewportGpuCompleteP95Ms": 2057.097936,
+    "editAndReadbackP95Ms": 3288.485097,
+    "inferenceUpdateP95Ms": 221.220252,
+    "viewportGpuCompleteP95Ms": 1210.688363,
+    "gpuCompleteFrameP95Ms": 1201.580323,
+    "inferenceQueryP95Ms": 2.69947,
+    "pickP95Ms": 9.012319,
+    "fixtureSha256": "3c834c6986914f067f0b90487a5659f268d6e73f214d3daf4fc6b0355640f73e",
+    "warmFramebufferSha256": "9b16499d72b6ddd6eb0cc6f0f9f72436ba15eef94b957cdb761310079399e05c",
+    "finalFramebufferSha256": "07532356c3173a24bd9cf965ab0e67c8e3791f6334d8f88257fba82a9ec9cb06",
+    "bodyMeshBuilds": 20032,
+    "meshUploads": 20165,
+    "tessellations": 10033,
+    "inferenceFinalBodyBuilds": 20232,
+    "inferenceVisitedPrimitivesMax": 6755,
+    "inferenceIntersectionPairsMax": 32640,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 10000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 627105792
+   },
+   "base-rel-repeated-1000": {
+    "editToViewportGpuCompleteP95Ms": 227.455606,
+    "editAndReadbackP95Ms": 487.296251,
+    "inferenceUpdateP95Ms": 4.809243,
+    "viewportGpuCompleteP95Ms": 204.149236,
+    "gpuCompleteFrameP95Ms": 202.319983,
+    "inferenceQueryP95Ms": 0.842855,
+    "pickP95Ms": 0.618613,
+    "fixtureSha256": "2bbf76b3fe9a5dc772d650fb0a8f171132636c96ea21a57a3bd824041b190f51",
+    "warmFramebufferSha256": "f68c8b82afa9410cf48e23c36da8747f13d021f6c530165e2890c24c801d1462",
+    "finalFramebufferSha256": "50d6d1bb8d753358fdf5a7c731d2f3e8aa022fbad9b26ec7f77351f13e0c88da",
+    "bodyMeshBuilds": 2000,
+    "meshUploads": 2101,
+    "tessellations": 1001,
+    "inferenceFinalBodyBuilds": 2200,
+    "inferenceVisitedPrimitivesMax": 1736,
+    "inferenceIntersectionPairsMax": 14365,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 1000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 276852736
+   },
+   "base-rel-repeated-10000": {
+    "editToViewportGpuCompleteP95Ms": 1505.952066,
+    "editAndReadbackP95Ms": 2742.477835,
+    "inferenceUpdateP95Ms": 76.375663,
+    "viewportGpuCompleteP95Ms": 1181.672893,
+    "gpuCompleteFrameP95Ms": 1175.627644,
+    "inferenceQueryP95Ms": 2.74385,
+    "pickP95Ms": 6.153541,
+    "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+    "warmFramebufferSha256": "9b16499d72b6ddd6eb0cc6f0f9f72436ba15eef94b957cdb761310079399e05c",
+    "finalFramebufferSha256": "07532356c3173a24bd9cf965ab0e67c8e3791f6334d8f88257fba82a9ec9cb06",
+    "bodyMeshBuilds": 20000,
+    "meshUploads": 20101,
+    "tessellations": 10001,
+    "inferenceFinalBodyBuilds": 20200,
+    "inferenceVisitedPrimitivesMax": 6755,
+    "inferenceIntersectionPairsMax": 32640,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 10000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 604971008
+   },
+   "base-rel-textures-1000": {
+    "editToViewportGpuCompleteP95Ms": 411.238622,
+    "editAndReadbackP95Ms": 834.725213,
+    "inferenceUpdateP95Ms": 5.072471,
+    "viewportGpuCompleteP95Ms": 377.63601,
+    "gpuCompleteFrameP95Ms": 375.459115,
+    "inferenceQueryP95Ms": 0.854154,
+    "pickP95Ms": 0.716544,
+    "fixtureSha256": "552f72db1a6eb8e38d4e14b607d5e41014cc6a67770ae8067f0e3f4eb64806b6",
+    "warmFramebufferSha256": "90026efdc8d14f1e80aa1512ae6039316e9a05b2b8d9bdbe94d1e03f8d1cafe5",
+    "finalFramebufferSha256": "62c57e0ca1bee15d7e5d6572bee44932fe597d5ed273ce274986276266938c2b",
+    "bodyMeshBuilds": 2000,
+    "meshUploads": 2102,
+    "tessellations": 1001,
+    "inferenceFinalBodyBuilds": 2200,
+    "inferenceVisitedPrimitivesMax": 1736,
+    "inferenceIntersectionPairsMax": 14365,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 1000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 554254336
+   },
+   "base-rel-textures-10000": {
+    "editToViewportGpuCompleteP95Ms": 1996.565323,
+    "editAndReadbackP95Ms": 3525.76951,
+    "inferenceUpdateP95Ms": 73.324691,
+    "viewportGpuCompleteP95Ms": 1487.392087,
+    "gpuCompleteFrameP95Ms": 1478.879632,
+    "inferenceQueryP95Ms": 2.691462,
+    "pickP95Ms": 6.774778,
+    "fixtureSha256": "69c547f1e2663559d6b5dd659e4211169b9fb66013d32ad59e59730b0e2856ab",
+    "warmFramebufferSha256": "bdaf8a4d6829e337b909aee39c119976cc7aad752d391137408f45b9ae9eef2f",
+    "finalFramebufferSha256": "20f396a51128a21e928d9e440543424483f15f8af62a7de40b5bf70227a7c4be",
+    "bodyMeshBuilds": 20000,
+    "meshUploads": 20102,
+    "tessellations": 10001,
+    "inferenceFinalBodyBuilds": 20200,
+    "inferenceVisitedPrimitivesMax": 6755,
+    "inferenceIntersectionPairsMax": 32640,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 10000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 871829504
+   },
+   "fix-rel-deep-1000": {
+    "editToViewportGpuCompleteP95Ms": 218.302853,
+    "editAndReadbackP95Ms": 479.241558,
+    "inferenceUpdateP95Ms": 3.868316,
+    "viewportGpuCompleteP95Ms": 204.950788,
+    "gpuCompleteFrameP95Ms": 202.850436,
+    "inferenceQueryP95Ms": 0.848672,
+    "pickP95Ms": 1.097748,
+    "fixtureSha256": "fdd0240d97e5638aa961dc7617d4f151a9429a4967c10279634317b03f9cea29",
+    "warmFramebufferSha256": "f68c8b82afa9410cf48e23c36da8747f13d021f6c530165e2890c24c801d1462",
+    "finalFramebufferSha256": "50d6d1bb8d753358fdf5a7c731d2f3e8aa022fbad9b26ec7f77351f13e0c88da",
+    "bodyMeshBuilds": 2032,
+    "meshUploads": 2165,
+    "tessellations": 1033,
+    "inferenceFinalBodyBuilds": 2232,
+    "inferenceVisitedPrimitivesMax": 1736,
+    "inferenceIntersectionPairsMax": 14365,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 1000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 274751488
+   },
+   "fix-rel-deep-10000": {
+    "editToViewportGpuCompleteP95Ms": 1561.739338,
+    "editAndReadbackP95Ms": 2974.761413,
+    "inferenceUpdateP95Ms": 67.590115,
+    "viewportGpuCompleteP95Ms": 1416.643198,
+    "gpuCompleteFrameP95Ms": 1405.61559,
+    "inferenceQueryP95Ms": 2.941511,
+    "pickP95Ms": 8.287174,
+    "fixtureSha256": "3c834c6986914f067f0b90487a5659f268d6e73f214d3daf4fc6b0355640f73e",
+    "warmFramebufferSha256": "9b16499d72b6ddd6eb0cc6f0f9f72436ba15eef94b957cdb761310079399e05c",
+    "finalFramebufferSha256": "07532356c3173a24bd9cf965ab0e67c8e3791f6334d8f88257fba82a9ec9cb06",
+    "bodyMeshBuilds": 20032,
+    "meshUploads": 20165,
+    "tessellations": 10033,
+    "inferenceFinalBodyBuilds": 20232,
+    "inferenceVisitedPrimitivesMax": 6755,
+    "inferenceIntersectionPairsMax": 32640,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 10000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 683249664
+   },
+   "fix-rel-repeated-1000": {
+    "editToViewportGpuCompleteP95Ms": 213.968036,
+    "editAndReadbackP95Ms": 470.69577,
+    "inferenceUpdateP95Ms": 3.519517,
+    "viewportGpuCompleteP95Ms": 200.515942,
+    "gpuCompleteFrameP95Ms": 198.561004,
+    "inferenceQueryP95Ms": 0.871444,
+    "pickP95Ms": 0.592949,
+    "fixtureSha256": "2bbf76b3fe9a5dc772d650fb0a8f171132636c96ea21a57a3bd824041b190f51",
+    "warmFramebufferSha256": "f68c8b82afa9410cf48e23c36da8747f13d021f6c530165e2890c24c801d1462",
+    "finalFramebufferSha256": "50d6d1bb8d753358fdf5a7c731d2f3e8aa022fbad9b26ec7f77351f13e0c88da",
+    "bodyMeshBuilds": 2000,
+    "meshUploads": 2101,
+    "tessellations": 1001,
+    "inferenceFinalBodyBuilds": 2200,
+    "inferenceVisitedPrimitivesMax": 1736,
+    "inferenceIntersectionPairsMax": 14365,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 1000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 279969792
+   },
+   "fix-rel-repeated-10000": {
+    "editToViewportGpuCompleteP95Ms": 1321.831312,
+    "editAndReadbackP95Ms": 2556.843335,
+    "inferenceUpdateP95Ms": 59.112912,
+    "viewportGpuCompleteP95Ms": 1182.69969,
+    "gpuCompleteFrameP95Ms": 1173.019749,
+    "inferenceQueryP95Ms": 2.681951,
+    "pickP95Ms": 7.043808,
+    "fixtureSha256": "5a0d89c38bcff4ff437a2238abcb53a9234c534e9ab5c6c4da405e7bf7a9c656",
+    "warmFramebufferSha256": "9b16499d72b6ddd6eb0cc6f0f9f72436ba15eef94b957cdb761310079399e05c",
+    "finalFramebufferSha256": "07532356c3173a24bd9cf965ab0e67c8e3791f6334d8f88257fba82a9ec9cb06",
+    "bodyMeshBuilds": 20000,
+    "meshUploads": 20101,
+    "tessellations": 10001,
+    "inferenceFinalBodyBuilds": 20200,
+    "inferenceVisitedPrimitivesMax": 6755,
+    "inferenceIntersectionPairsMax": 32640,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 10000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 608043008
+   },
+   "fix-rel-textures-1000": {
+    "editToViewportGpuCompleteP95Ms": 360.148081,
+    "editAndReadbackP95Ms": 762.680708,
+    "inferenceUpdateP95Ms": 3.524771,
+    "viewportGpuCompleteP95Ms": 372.488115,
+    "gpuCompleteFrameP95Ms": 370.448552,
+    "inferenceQueryP95Ms": 0.838922,
+    "pickP95Ms": 0.62835,
+    "fixtureSha256": "552f72db1a6eb8e38d4e14b607d5e41014cc6a67770ae8067f0e3f4eb64806b6",
+    "warmFramebufferSha256": "90026efdc8d14f1e80aa1512ae6039316e9a05b2b8d9bdbe94d1e03f8d1cafe5",
+    "finalFramebufferSha256": "62c57e0ca1bee15d7e5d6572bee44932fe597d5ed273ce274986276266938c2b",
+    "bodyMeshBuilds": 2000,
+    "meshUploads": 2102,
+    "tessellations": 1001,
+    "inferenceFinalBodyBuilds": 2200,
+    "inferenceVisitedPrimitivesMax": 1736,
+    "inferenceIntersectionPairsMax": 14365,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 1000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 548827136
+   },
+   "fix-rel-textures-10000": {
+    "editToViewportGpuCompleteP95Ms": 1641.533688,
+    "editAndReadbackP95Ms": 3190.97067,
+    "inferenceUpdateP95Ms": 52.738798,
+    "viewportGpuCompleteP95Ms": 1493.038862,
+    "gpuCompleteFrameP95Ms": 1485.399572,
+    "inferenceQueryP95Ms": 2.761547,
+    "pickP95Ms": 7.161942,
+    "fixtureSha256": "69c547f1e2663559d6b5dd659e4211169b9fb66013d32ad59e59730b0e2856ab",
+    "warmFramebufferSha256": "bdaf8a4d6829e337b909aee39c119976cc7aad752d391137408f45b9ae9eef2f",
+    "finalFramebufferSha256": "20f396a51128a21e928d9e440543424483f15f8af62a7de40b5bf70227a7c4be",
+    "bodyMeshBuilds": 20000,
+    "meshUploads": 20102,
+    "tessellations": 10001,
+    "inferenceFinalBodyBuilds": 20200,
+    "inferenceVisitedPrimitivesMax": 6755,
+    "inferenceIntersectionPairsMax": 32640,
+    "inferenceCandidatesMin": 32,
+    "inferenceTruncatedQueries": 61,
+    "placementMeshes": 1,
+    "sharedPlacements": 10000,
+    "bodyCacheVectorCapacityBytes": 89266,
+    "bodyCacheGpuPayloadBytes": 34656,
+    "retainedHistoryBytes": 327300,
+    "finalPeakRssBytes": 872980480
+   }
+  }
+ }
+}
