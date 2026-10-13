@@ -68,6 +68,10 @@ Shortcuts are defaults; saved custom bindings take precedence.
 
 - **Regions:** F6 / Shift+F6 cycles the Commands button, tool rail, viewport,
   model panel, assistant (when shown) and Measurements.
+- **Tool rail:** the rail is one Tab stop that lands on the active tool. Up/Down (or
+  Left/Right) move between tools and wrap, Home and End go to the ends, and Enter or
+  Space chooses the focused tool. Tools that do not fit are under the last button,
+  **More tools**, which opens a menu of them.
 - **Commands and objects:** Ctrl+K searches commands, objects, recent files and
   faces typed as `face 1/2` (body/face). Choosing an object selects it.
 - **Exact modeling:** choose a drawing tool by its letter and type digits in the viewport;

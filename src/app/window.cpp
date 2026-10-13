@@ -5,6 +5,7 @@
 #include "app/file_operation.hpp"
 #include "app/inspection_service.hpp"
 #include "app/interface_preferences.hpp"
+#include "app/keyboard_navigation.hpp"
 #include "app/render_panel.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
@@ -188,7 +189,6 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     auto *tools = new QToolBar;
     tools->setObjectName("toolRail");
     tools->setAccessibleName("Modeling tools");
-    tools->setFocusPolicy(Qt::StrongFocus);
     tools->setOrientation(Qt::Vertical);
     tools->setToolButtonStyle(Qt::ToolButtonTextOnly);
     tools->setFixedWidth(78);
@@ -230,6 +230,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     connect(componentBanner_, &QLabel::linkActivated, this,
             [this] { run([this] { viewport_->makeComponentUnique(true); }); });
     viewport_->setContextOverlay(breadcrumb_, componentBanner_);
+    backtabOutOfLinks(breadcrumb_);
+    backtabOutOfLinks(componentBanner_);
     tray_ = new QWidget;
     tray_->setObjectName("tray");
     tray_->setMinimumWidth(220);
@@ -660,6 +662,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
     addTool("Zoom", "Z", Viewport::Tool::Zoom, "Drag up to zoom in · Drag down to zoom out", false);
+    // One Tab stop on the active tool; arrows move between tools (R084.v).
+    installToolbarNavigation(tools, group);
     auto *cameraMenu = menuBar()->addMenu("&Camera");
     cameraMenu->addAction(addTool(
         "Look around", "", Viewport::Tool::LookAround,
@@ -902,6 +906,9 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         activateWindow();
         viewport_->setFocus();
     });
+    keyboardTabBars(this);
+    keepPagesAfterTabBar(modelTabs);
+    keepPagesAfterTabBar(sideTabs_);
     applyTheme();
     sync();
 }
