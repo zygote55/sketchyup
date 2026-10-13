@@ -15,7 +15,8 @@ archive extraction, executable content or host-path resolution.
 
 The manifest has exactly `documentId`, `epoch` (decimal string `1`), `revision`,
 `writer`, `units` (`m`), `up` (`Z`), `requiredFeatures`, `allocatorFloors`, `assets`
-and `chunks`. The current writer identifies itself as `SketchyUp/0.1.0`; readers
+and `chunks`. The writer identifies itself as `SketchyUp/<version>` (`SketchyUp/0.1.0` before
+1.0.0; see [ADR 0162](0162-release-versioning.md)); readers
 validate supported required features independently of that informational string.
 
 The first chunk has `kind: document`, `encoding: json-v24`, `offset: "0"`, `bytes`

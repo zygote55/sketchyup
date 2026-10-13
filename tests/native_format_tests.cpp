@@ -1,5 +1,6 @@
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
+#include "sketchyup/version.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -50,6 +51,8 @@ int main(int argc, char **argv) {
             const auto length = qFromLittleEndian<quint32>(container.constData() + 12);
             const auto manifest = QJsonDocument::fromJson(container.mid(16, length)).object();
             const auto payload = container.mid(16 + length);
+            check(manifest["writer"] == QStringLiteral(SKETCHYUP_WRITER),
+                  "Fresh saves name the current release as their writer");
             check(encodeDocument(decodeDocument(payload)) ==
                       encodeDocument(decodeContainer(container)),
                   "Raw and packaged paths apply the same native record decoder");
@@ -229,6 +232,23 @@ int main(int argc, char **argv) {
             chunks[0] = chunk;
             manifest["chunks"] = chunks;
         });
+        {
+            // The writer string is informational: documents from other releases still open.
+            auto bytes = read(valid);
+            const auto length = qFromLittleEndian<quint32>(bytes.constData() + 12);
+            auto manifest = QJsonDocument::fromJson(bytes.mid(16, length)).object();
+            check(manifest["writer"].isString() &&
+                      manifest["writer"] != QStringLiteral(SKETCHYUP_WRITER),
+                  "Retained fixture records an earlier writer");
+            manifest["writer"] = "AnotherWriter/9.9.9";
+            const auto encoded = QJsonDocument(manifest).toJson(QJsonDocument::Compact);
+            auto header = bytes.first(16);
+            qToLittleEndian<quint32>(encoded.size(), header.data() + 12);
+            const auto foreign = files.filePath("foreign-writer.sketchyup");
+            write(foreign, header + encoded + bytes.mid(16 + length));
+            check(encodeDocument(loadDocument(foreign)) == encodeDocument(loadDocument(valid)),
+                  "Readers accept any writer string");
+        }
         auto bytes = read(valid);
         qToLittleEndian<quint32>(999, bytes.data() + 8);
         write(bad, bytes);
@@ -282,6 +302,14 @@ int main(int argc, char **argv) {
             check(!object.empty(), "Native CLI reports structured JSON");
             return object;
         };
+        {
+            QProcess version;
+            version.start(CLI_PATH, {"--version"});
+            check(version.waitForFinished(15000) && version.exitStatus() == QProcess::NormalExit &&
+                      version.exitCode() == 0 &&
+                      version.readAllStandardOutput().trimmed().endsWith(" " SKETCHYUP_VERSION),
+                  "CLI --version reports the release version");
+        }
         check(cli({"--format-capabilities"}) == nativeFormatCapabilities(),
               "CLI describes exact format contract");
         check(cli({"--inspect-native", valid})["documentVersion"] == 11 &&

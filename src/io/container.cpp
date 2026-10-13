@@ -3,6 +3,7 @@
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
 #include "io/native_limits.hpp"
+#include "sketchyup/version.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -99,7 +100,7 @@ QByteArray encodeContainer(const Document &doc) {
         QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
                                   {"epoch", "1"},
                                   {"revision", QString::number(doc.revision())},
-                                  {"writer", "SketchyUp/0.1.0"},
+                                  {"writer", SKETCHYUP_WRITER},
                                   {"units", "m"},
                                   {"up", "Z"},
                                   {"requiredFeatures",

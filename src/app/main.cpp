@@ -3,6 +3,7 @@
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "io/model_style_io.hpp"
+#include "sketchyup/version.hpp"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QJsonDocument>
@@ -21,8 +22,10 @@ int main(int argc, char **argv) {
     QApplication::setApplicationName("SketchyUp");
     QGuiApplication::setDesktopFileName("io.sketchyup.SketchyUp");
     QApplication::setOrganizationName("SketchyUp");
+    QApplication::setApplicationVersion(SKETCHYUP_VERSION);
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addVersionOption();
     parser.addOption(
         {"mcp-inspection-capabilities", "Print native MCP inspection schemas and exit"});
     parser.addOption({"mcp-inspection-socket",
