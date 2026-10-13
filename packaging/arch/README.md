@@ -12,8 +12,15 @@ On an Arch workstation with the documented build dependencies installed:
 scripts/package-source.sh /absolute/path/to/package-output
 cd /absolute/path/to/package-output
 makepkg
-sudo pacman -U sketchyup-0.1.0-3-x86_64.pkg.tar.zst
+sudo pacman -U sketchyup-1.0.0-1-x86_64.pkg.tar.zst
 ```
+
+The version has one source: `project(SketchyUp VERSION ...)` in `CMakeLists.txt`
+([ADR 0162](../../docs/decisions/0162-release-versioning.md)). `pkgver` must match it;
+`scripts/release-version.sh` prints the version and fails if they differ, and
+`package-source.sh` runs it first. The source archive is deterministic for a commit:
+file order, owners and times (the commit time, or `SOURCE_DATE_EPOCH`) are fixed and
+gzip stores no timestamp.
 
 The source archive contains no Git credentials, build outputs or developer config.
 `package-source.sh` writes the exact archive checksum into PKGBUILD. Build parallelism
@@ -67,10 +74,12 @@ scripts/run-container-check.sh viewport-check sketchyup-build:20261002 \
 
 Do not reuse earlier containers that bind the host's `/tmp` to `/capture`.
 The lifecycle harness refuses execution outside a Docker container with its
-explicit test flag. It builds the preceding integer package release and then the
-current release from the same source
-to exercise clean install and upgrade hooks; this is a package lifecycle test, not
-proof of a historical format migration. It validates the installed desktop file,
+explicit test flag. It builds the preceding package and then the current release from
+the same source to exercise clean install and upgrade hooks. The preceding package is
+`pkgrel - 1` of the same version, or for a first `pkgrel` the last development package
+(`1.0.0-1` upgrades from `0.1.0-3`; `vercmp` must order them). After the upgrade it
+checks `pacman -Q` and `sketchyup-cli --version`. Both packages contain the current
+source, so this is a package lifecycle test, not proof of a historical format migration. It validates the installed desktop file,
 MIME glob/magic, real desktop `%f` argument expansion (including spaces), renderer
 startup, saved identity/revision, upgrade/reopen and uninstall. A PATH shim adds
 capture/exit behavior to the installed app without changing its desktop entry.
@@ -100,3 +109,24 @@ removal against the package manager's complete owned-file list. Its isolated
 build defaults to one job; override `CMAKE_BUILD_PARALLEL_LEVEL` when needed.
 Blender and Secret Service credential support are optional; core modeling and
 file operations do not require either service.
+
+## Release artifacts
+
+From a clean checkout of the commit to release:
+
+```sh
+scripts/release-artifacts.sh "$PWD/build/release-1.0.0"
+```
+
+The script refuses a dirty or untracked working tree. It writes, into the output
+directory, the source archive and PKGBUILD from `package-source.sh`; `THIRD_PARTY_NOTICES`
+with a header for each file `CMakeLists.txt` installs into `share/licenses/sketchyup`
+(the SketchyUp license, Clipper2, Manifold license and authors, cgltf); `SHA256SUMS`
+for the archive, the notices and any `sketchyup-VERSION-PKGREL-*.pkg.tar.zst` already
+in the directory; and `MANIFEST.json` with the version, `pkgver`/`pkgrel`, Git commit,
+SHA-256 values, the package job's pinned image digest from
+`.github/workflows/native.yml`, and the date (`SOURCE_DATE_EPOCH` if set). It does not
+build packages: build them in the pinned container as above or as CI's Arch package
+acceptance job does, and copy the packages into the directory before running it. It
+rejects packages of another version or pkgrel, and an existing archive that differs
+from the commit's archive. It creates no tags or releases.

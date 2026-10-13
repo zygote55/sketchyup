@@ -16,6 +16,7 @@
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
 #include "io/stl_export.hpp"
+#include "sketchyup/version.hpp"
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
@@ -46,8 +47,10 @@ int main(int argc, char **argv) {
     } else
         application = std::make_unique<QCoreApplication>(argc, argv);
     auto &app = *application;
+    QCoreApplication::setApplicationVersion(SKETCHYUP_VERSION);
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addVersionOption();
     parser.addOption({"optional-capabilities",
                       "Inspect optional dependency presence without executing helpers"});
     parser.addOption(
@@ -128,6 +131,8 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
+        if (parser.isSet("version"))
+            parser.showVersion();
         if (parser.isSet("optional-capabilities")) {
             if (parser.optionNames().size() != 1 || !parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",

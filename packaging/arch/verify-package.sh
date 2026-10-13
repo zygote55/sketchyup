@@ -17,15 +17,37 @@ done
 chown -R builder:builder /work/package
 cp PKGBUILD PKGBUILD.current
 trap 'if [[ -f PKGBUILD.current ]]; then mv PKGBUILD.current PKGBUILD; chown builder:builder PKGBUILD; fi' EXIT
+# PKGBUILD is this script's one version source; package-source.sh already checked it
+# against CMakeLists.txt, and the extracted source is checked again below.
+package_version=$(sed -n 's/^pkgver=\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$/\1/p' PKGBUILD)
 package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
-[[ $package_release =~ ^[1-9][0-9]*$ && $package_release -ge 2 ]] || {
-  echo 'Package acceptance requires an integer pkgrel of at least two.' >&2
+[[ -n $package_version && $package_release =~ ^[1-9][0-9]*$ ]] || {
+  echo 'Package acceptance requires an x.y.z pkgver and an integer pkgrel.' >&2
   exit 1
 }
-prior_release=$((package_release - 1))
-sed -i "s/^pkgrel=$package_release$/pkgrel=$prior_release/" PKGBUILD
+# Both packages build from the same source. A later pkgrel upgrades from the previous
+# pkgrel of the same version; the first pkgrel of a version upgrades from the last
+# development package, 0.1.0-3, which preceded the 1.0.0 release.
+if (( package_release >= 2 )); then
+  prior_version=$package_version prior_release=$((package_release - 1))
+else
+  prior_version=0.1.0 prior_release=3
+fi
+(( $(vercmp "$package_version-$package_release" "$prior_version-$prior_release") > 0 )) || {
+  echo "Package $package_version-$package_release is not newer than $prior_version-$prior_release." >&2
+  exit 1
+}
+source_dir=/work/package/src/sketchyup-$package_version
+sed -i -e "s/^pkgver=$package_version$/pkgver=$prior_version/" \
+  -e "s/^pkgrel=$package_release$/pkgrel=$prior_release/" \
+  -e "s/^_srcname=.*$/_srcname=sketchyup-$package_version/" PKGBUILD
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" makepkg --noconfirm --force
-pacman -U --noconfirm "sketchyup-0.1.0-$prior_release-x86_64.pkg.tar.zst"
+grep -qx "project(SketchyUp VERSION $package_version LANGUAGES CXX)" "$source_dir/CMakeLists.txt" || {
+  echo "CMakeLists.txt in the source archive does not declare version $package_version." >&2
+  exit 1
+}
+pacman -U --noconfirm "sketchyup-$prior_version-$prior_release-x86_64.pkg.tar.zst"
+[[ $(pacman -Q sketchyup) == "sketchyup $prior_version-$prior_release" ]]
 pacman -Qkk sketchyup
 test -s /usr/share/doc/sketchyup/decisions/0029-native-mcp.md
 QT_QPA_PLATFORM=offscreen sketchyup --mcp-inspection-capabilities | jq -S . > /work/package/mcp-native-installed.json
@@ -77,7 +99,7 @@ chmod 700 "$XDG_RUNTIME_DIR"
 printf '[General]\npackageSentinel=retain\ntheme=1\ninterfaceTextPercent=150\nreducedMotion=true\nrecoverySeconds=0\nfieldOfView=67\n' > "$XDG_CONFIG_HOME/SketchyUp/SketchyUp.conf"
 printf 'retain-data\n' > "$XDG_DATA_HOME/SketchyUp/sentinel"
 printf 'retain-cache\n' > "$XDG_CACHE_HOME/SketchyUp/sentinel"
-sketchyup-cli --script /work/package/src/sketchyup-0.1.0/examples/room-shell.json --output '/work/acceptance/Room model.sketchyup' > /work/acceptance/created.json
+sketchyup-cli --script "$SKETCHYUP_SOURCE_DIR/examples/room-shell.json" --output '/work/acceptance/Room model.sketchyup' > /work/acceptance/created.json
 sketchyup-cli --input '/work/acceptance/Room model.sketchyup' > /work/acceptance/expected.json
 [[ $(xdg-mime query filetype '/work/acceptance/Room model.sketchyup') == application/x-sketchyup ]]
 cp '/work/acceptance/Room model.sketchyup' /work/acceptance/no-extension
@@ -108,7 +130,7 @@ jq -e --slurpfile expected /work/acceptance/expected.json \
   /work/acceptance/launcher.json
 LAUNCH
 chmod +x /work/acceptance/launch.sh
-runuser -u builder -- xvfb-run -a /work/acceptance/launch.sh
+runuser -u builder -- env SKETCHYUP_SOURCE_DIR="$source_dir" xvfb-run -a /work/acceptance/launch.sh
 runuser -u builder -- env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
   sketchyup-cli --recipe /usr/share/doc/sketchyup/examples/transaction-face-recipe.json \
   --new --output /work/acceptance/recipe.sketchyup --outcomes /work/acceptance/recipe-outcomes \
@@ -136,13 +158,15 @@ mv PKGBUILD.current PKGBUILD
 chown builder:builder PKGBUILD
 cp /work/acceptance/config/SketchyUp/SketchyUp.conf /work/acceptance/preferences-before-upgrade.conf
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" makepkg --noconfirm --force --nocheck
-pacman -U --noconfirm "sketchyup-0.1.0-$package_release-x86_64.pkg.tar.zst"
+pacman -U --noconfirm "sketchyup-$package_version-$package_release-x86_64.pkg.tar.zst"
 pacman -Qkk sketchyup
+[[ $(pacman -Q sketchyup) == "sketchyup $package_version-$package_release" ]]
+[[ $(runuser -u builder -- sketchyup-cli --version) == "sketchyup-cli $package_version" ]]
 runuser -u builder -- sketchyup-cli --input '/work/acceptance/Room model.sketchyup' > /work/acceptance/reopened.json
 cmp /work/acceptance/expected.json /work/acceptance/reopened.json
-runuser -u builder -- python /work/package/src/sketchyup-0.1.0/scripts/verify-installed-migrations.py \
+runuser -u builder -- python "$source_dir/scripts/verify-installed-migrations.py" \
   --cli /usr/bin/sketchyup-cli \
-  --fixtures /work/package/src/sketchyup-0.1.0/tests/fixtures \
+  --fixtures "$source_dir/tests/fixtures" \
   --output /work/acceptance/migrations
 runuser -u builder -- env XDG_CONFIG_HOME=/work/acceptance/config \
   XDG_DATA_HOME=/work/acceptance/data XDG_CACHE_HOME=/work/acceptance/cache \

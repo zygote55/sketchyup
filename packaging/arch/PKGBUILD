@@ -1,7 +1,8 @@
-# Development archive package. Generate the source archive with scripts/package-source.sh.
+# Release archive package. Generate the source archive with scripts/package-source.sh.
 pkgname=sketchyup
-pkgver=0.1.0
-pkgrel=3
+# pkgver must equal CMakeLists.txt project(VERSION); scripts/release-version.sh checks it.
+pkgver=1.0.0
+pkgrel=1
 pkgdesc='Experimental native Linux face modeler'
 arch=('x86_64')
 url='https://github.com/zygote55/sketchyup'
@@ -14,7 +15,9 @@ makedepends=('cmake' 'ninja' 'gcc' 'pkgconf' 'python')
 # makepkg's default LTO re-optimizes the static core for each of ~200 linked
 # executables, turning a 15-minute build into hours. No debug split package ships.
 options=('!lto' '!debug')
-source=("$pkgname-$pkgver.tar.gz")
+# Source directory/archive name; package acceptance builds its prior package from it.
+_srcname=$pkgname-$pkgver
+source=("$_srcname.tar.gz")
 sha256sums=('REPLACE_WITH_SOURCE_SHA256') # Filled by package-source.sh.
 
 build() {
@@ -24,7 +27,7 @@ build() {
   if [[ "$CFLAGS $CXXFLAGS $LDFLAGS" == *-flto* ]]; then
     link_flags+=' -flto=1'
   fi
-  cmake -S "$srcdir/$pkgname-$pkgver" -B build -G Ninja \
+  cmake -S "$srcdir/$_srcname" -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_EXE_LINKER_FLAGS="$link_flags" \
     -DCMAKE_SHARED_LINKER_FLAGS="$link_flags" \

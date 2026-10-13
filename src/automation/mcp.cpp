@@ -1,4 +1,5 @@
 #include "automation/mcp.hpp"
+#include "sketchyup/version.hpp"
 #include <QFile>
 #include <QJsonDocument>
 #include <QUrl>
@@ -26,7 +27,7 @@ bool validId(const QJsonValue &id) {
 QString key(const QJsonValue &id) {
     return QString::fromUtf8(QJsonDocument(QJsonArray{id}).toJson(QJsonDocument::Compact));
 }
-QJsonObject info() { return {{"name", "sketchyup"}, {"version", "0.1.0"}}; }
+QJsonObject info() { return {{"name", "sketchyup"}, {"version", SKETCHYUP_VERSION}}; }
 QJsonObject complete(QJsonObject result = {}) {
     result["resultType"] = "complete";
     auto metadata = result["_meta"].toObject();

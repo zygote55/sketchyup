@@ -1,4 +1,5 @@
 #include "automation/mcp.hpp"
+#include "sketchyup/version.hpp"
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QFile>
@@ -192,8 +193,9 @@ int main(int argc, char **argv) {
             check(discovered["supportedVersions"].toArray() == QJsonArray{mcpProtocolVersion} &&
                       discovered["_meta"]
                               .toObject()["io.modelcontextprotocol/serverInfo"]
-                              .toObject()["name"] == "sketchyup",
-                  "MCP server discovery identifies current protocol");
+                              .toObject() == QJsonObject{{"name", "sketchyup"},
+                                                         {"version", SKETCHYUP_VERSION}},
+                  "MCP server discovery identifies current protocol and release");
             info =
                 cli.exchange(callRequest(2, "session.describe", op("session.describe")))["result"]
                     .toObject()["structuredContent"]
