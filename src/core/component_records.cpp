@@ -300,8 +300,11 @@ void validateInstances(const ComponentDefinitions &definitions, const ComponentI
 bool componentBound(const Document &doc, Id id) {
     if (!id || !doc.bodies().contains(id))
         return false;
-    if (doc.instances().contains(id))
-        return true;
+    return doc.instances().contains(id) || componentMemberBound(doc, id);
+}
+bool componentMemberBound(const Document &doc, Id id) {
+    if (!id || !doc.bodies().contains(id))
+        return false;
     // Every member target descends from its owning instance root, so only the
     // bounded ancestor chain can own this record.
     size_t depth = 0;
@@ -318,16 +321,30 @@ bool componentBound(const Document &doc, Id id) {
     }
     return false;
 }
+void collectPlacementDescendants(const ComponentInstances &instances, Id root,
+                                 std::set<Id> &descendants) {
+    // Only reference members target nested placement roots, and their bindings
+    // own the rest of the nested placement.
+    for (const auto &[member, target] : instances.at(root)->members)
+        if (target != root && descendants.insert(target).second && instances.contains(target))
+            collectPlacementDescendants(instances, target, descendants);
+}
 void validateComponentInstanceInsertions(const ComponentDefinitions &definitions,
                                          const ComponentInstances &added,
+                                         const std::set<Id> &changedRoots,
                                          const std::map<Id, BodyPtr> &changedBodies,
                                          const Document &baseline) {
     if (baseline.instances().size() + added.size() > DocumentLimits::materialized.placements)
         throw std::runtime_error("Too many component instances");
     const RecordOverlay<BodyPtr> scene{baseline.bodies(), changedBodies};
     const RecordOverlay<InstancePtr> instances{baseline.instances(), added};
+    // Unchanged bindings over unchanged records stay valid. A changed root keeps
+    // its binding, so only its own instance can fail; check in root ID order.
+    std::map<Id, InstancePtr> checked(added.begin(), added.end());
+    for (auto root : changedRoots)
+        checked.emplace(root, baseline.instances().at(root));
     std::set<Id> owned, roots;
-    for (const auto &[root, instance] : added) {
+    for (const auto &[root, instance] : checked) {
         validateInstance(definitions, instances, scene, &baseline, root, instance, owned);
         roots.insert(root);
     }

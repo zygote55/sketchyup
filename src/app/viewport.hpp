@@ -458,6 +458,10 @@ class Viewport : public QOpenGLWidget {
     ComponentInstances placementInstances_;
     std::uint64_t rebuildPass_{};
     bool placementSharing_{true}, placementReset_{};
+    // Document-wide mesh inputs at the end of the last complete rebuild.
+    MaterialRecords rebuiltMaterials_;
+    std::map<Id, std::shared_ptr<const TextureImage>> rebuiltImages_;
+    bool rebuiltInputsValid_{};
     Triangle worldTriangle(const BodyCache &cache, size_t index) const;
     MeshEdge worldEdge(const BodyCache &cache, size_t index) const;
     QVector3D placementOffset(const BodyCache &cache) const;
