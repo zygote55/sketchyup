@@ -1,10 +1,11 @@
-# Arch development package
+# Arch package
 
 The app links the system Qt libraries dynamically. Own code is MIT; the static
 Clipper2 retains BSL-1.0, Manifold Apache-2.0 and cgltf MIT. Third-party notices
 ship in `/usr/share/licenses/sketchyup`.
 Build inputs are pinned by `Dockerfile.build` and the dated Arch archive mirror.
-The resulting experimental package is not a stable-format or release promise.
+The 1.0 native format and versioning rules are in [ADR 0108](../../docs/decisions/0108-public-native-format.md)
+and [ADR 0162](../../docs/decisions/0162-release-versioning.md).
 
 On an Arch workstation with the documented build dependencies installed:
 
