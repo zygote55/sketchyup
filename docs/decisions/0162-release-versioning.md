@@ -48,3 +48,7 @@ informational: readers accept any writer string, and retained fixtures that reco
   `THIRD_PARTY_NOTICES` and `MANIFEST.json` from a clean checkout; packages still
   come from the pinned container. It creates no tags or releases.
 - Historical evidence records keep the package versions they verified.
+- The frozen provider corpus pins `inputSha256` over generated container bytes, so a
+  version change changes those eight values. They are regenerated with
+  `provider_trial --describe`, prompts unchanged, as R082.cc and R084.r did for
+  schema changes.
