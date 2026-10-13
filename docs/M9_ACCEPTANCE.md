@@ -23,6 +23,12 @@ build image or packaged files invalidates every check that depends on it. Re-run
 those checks, or name a new RC. A provider product or prompt change also requires
 a new corpus version and a complete new evaluation, as R086.a states.
 
+The `v1.0.0` tag points at the RC commit itself. Records written after the RC, such
+as verification records, the parity report and `docs/verification/M9.md`, are
+evidence about the RC, not part of its artifacts, so adding them does not
+invalidate it. The installed documentation, release notes and changelog are
+therefore fixed before the RC is named.
+
 ## Owner waiver of hardware evidence
 
 On 2026-10-12 the owner waived the physical and hardware checks of the
