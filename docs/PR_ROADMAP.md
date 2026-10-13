@@ -1281,7 +1281,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R089 — Close the 1.0 release gate and publish artifacts
 
-**Status:** Planned. [Gate procedure](M9_ACCEPTANCE.md) defined; M9 acceptance remains open. A [working open-defect triage list](verification/R089a-defect-triage.md) classifies the known defects on `main`; it is not the release-candidate triage. The [release version is 1.0.0 (package 1.0.0-1)](verification/R089b-release-version.md), set from one source with a reproducible artifact script ([ADR 0162](decisions/0162-release-versioning.md)). **Track:** Release. **Scope:** N02, D06, A08. **UX:** —.
+**Status:** Planned. [Gate procedure](M9_ACCEPTANCE.md) defined; M9 acceptance remains open. A [working open-defect triage list](verification/R089a-defect-triage.md) classifies the known defects on `main`; it is not the release-candidate triage. The [release version is 1.0.0 (package 1.0.0-1)](verification/R089b-release-version.md), set from one source with a reproducible artifact script ([ADR 0162](decisions/0162-release-versioning.md)). The [1.0.0 release notes](RELEASE_NOTES.md) and the published [support matrix](SUPPORT_MATRIX.md) are fixed before the release candidate is named. **Track:** Release. **Scope:** N02, D06, A08. **UX:** —.
 
 **Requires:** [R088](#r088); milestone gate rule above.
 

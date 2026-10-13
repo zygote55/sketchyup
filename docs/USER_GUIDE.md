@@ -1,8 +1,8 @@
-# SketchyUp development workflow guide
+# SketchyUp user guide
 
-This guide describes the native implementation in the current review stack.
-SketchyUp is still a development build. Check the [support matrix](SUPPORT_MATRIX.md)
-before choosing an exchange format or relying on a platform configuration.
+This guide describes SketchyUp 1.0.0. Check the [support matrix](SUPPORT_MATRIX.md)
+before choosing an exchange format or relying on a platform configuration, and the
+[release notes](RELEASE_NOTES.md) for upgrade notes and known limitations.
 
 ## Build a measured solid
 
@@ -152,7 +152,7 @@ file, or discard selected recovery data. Recovered work first saves to a new
 path. The status distinguishes a verified recovery copy from newer in-memory
 edits. See [recovery semantics](decisions/0016-native-recovery.md).
 
-The current document schema is **24**, inside container version **2**. The CLI
+The current document schema is **26**, inside container version **2**. The CLI
 can validate an older file and migrate it to a new destination without replacing
 the original:
 
