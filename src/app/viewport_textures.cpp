@@ -6,20 +6,38 @@ void Viewport::syncTextures() {
     AssetRecords assets;
     // Even an empty request must retire obsolete CPU and GPU images below.
     if (!doc_.assets().empty()) {
+        // The request is the set of assets drawn by visible faces and reference
+        // images. Visibility walks the hierarchy, so it is tested only for an
+        // entity that would add an asset not already requested.
+        std::vector<Id> added;
+        auto unrequested = [&](MaterialSides sides) {
+            added.clear();
+            for (auto material : {sides.front, sides.back})
+                if (material)
+                    if (const auto asset = doc_.materials().at(material)->asset;
+                        asset && !assets.contains(asset))
+                        added.push_back(asset);
+            return !added.empty();
+        };
+        auto request = [&] {
+            for (auto asset : added)
+                assets.emplace(asset, doc_.assets().at(asset));
+        };
         for (const auto &[id, body] : doc_.bodies()) {
             if (opacity_.contains(id) && opacity_.at(id) == 0)
                 continue;
-            if (body->referenceImage && visible({id, SelectionKind::Body, 0}))
+            if (body->referenceImage && !assets.contains(body->referenceImage->asset) &&
+                visible({id, SelectionKind::Body, 0}))
                 assets.emplace(body->referenceImage->asset,
                                doc_.assets().at(body->referenceImage->asset));
+            // Without per-face assignments every face draws the body's materials.
+            if (body->faceMaterials.empty() && !unrequested(body->materials))
+                continue;
             for (const auto &[face, record] : body->surface.faces) {
-                if (!visible({id, SelectionKind::Face, face}))
+                if (!unrequested(faceMaterials(*body, face)) ||
+                    !visible({id, SelectionKind::Face, face}))
                     continue;
-                const auto sides = faceMaterials(*body, face);
-                for (auto material : {sides.front, sides.back})
-                    if (material)
-                        if (const auto asset = doc_.materials().at(material)->asset)
-                            assets.emplace(asset, doc_.assets().at(asset));
+                request();
             }
         }
     }

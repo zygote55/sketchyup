@@ -1,4 +1,5 @@
 #include "geometry/inference.hpp"
+#include "core/hierarchy_changes.hpp"
 #include "geometry/inference_detail.hpp"
 #include "geometry/constraints.hpp"
 #include <algorithm>
@@ -308,9 +309,21 @@ void InferenceIndex::sync(const Document &doc, const std::function<bool()> &canc
         }
         return slot;
     };
+    // A placement whose record and ancestors' records are unchanged keeps its
+    // world transform, so only changed chains are composed again.
+    auto cursor = next.begin();
+    const auto changed = changedChains(doc.bodies(), [&](Id id, const BodyPtr &record) {
+        // Both maps are in ID order and every staged placement is a live record.
+        if (cursor == next.end() || cursor->first != id)
+            return true;
+        return (cursor++)->second->record != record;
+    });
+    size_t index = 0;
     for (const auto &[id, record] : doc.bodies()) {
         if (canceled && canceled())
             throw std::runtime_error("Inference preparation canceled");
+        if (!changed[index++])
+            continue;
         const auto world = doc.worldTransform(id);
         const auto found = next.find(id);
         const auto *previous = found == next.end() ? nullptr : found->second.get();

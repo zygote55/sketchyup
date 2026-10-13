@@ -452,6 +452,73 @@ void restoreAndSnapshots() {
     placeComponent(doc, definition, Transform::translation({0, 20, 0}));
     checkTotals(doc, "after locked checks");
 }
+// R082.jj: a top-level placement root may change its transform and parent under
+// the incremental scheme; every record it owns, through nested placements, is
+// checked again. Each apply also runs the full scheme (oracle), which must agree
+// on acceptance, the first error and the resulting state.
+void placementRootMoves() {
+    Document doc;
+    const auto leaf = createComponent(doc, prism(doc, 6), "Leaf");
+    const auto inner = placeComponent(doc, leaf.definition, Transform::translation({0, 5, 0}));
+    const auto loose = prism(doc, 4, 1, {3, 5, 0});
+    const auto nested = createComponent(doc, createGroup(doc, {inner.instance, loose}, "Outer"),
+                                        "Nested");
+    const auto other = placeComponent(doc, leaf.definition, Transform::translation({9, 0, 0}));
+    const auto group = createGroup(doc, {prism(doc, 5, 1, {0, -9, 0})}, "Group");
+    checkTotals(doc, "root moves setup");
+    const auto nestedRoot = doc.instances().at(nested.instance)->members;
+    Id nestedLeaf = 0, nestedMember = 0;
+    for (const auto &[member, target] : nestedRoot)
+        if (target != nested.instance)
+            (doc.instances().contains(target) ? nestedLeaf : nestedMember) = target;
+    check(nestedLeaf && nestedMember, "Nested fixture has a nested placement and a member");
+    auto incremental = [&](const std::function<void()> &operation, const std::string &expected,
+                           bool viaIncremental, const std::string &context) {
+        const auto before = fingerprint(doc);
+        const auto count = Document::incrementalValidationCount();
+        const auto message = rejection(operation);
+        check(message == expected, context + ": expected '" + expected + "', got '" + message + "'");
+        check((Document::incrementalValidationCount() > count) == viaIncremental,
+              context + ": unexpected validation scheme");
+        if (!expected.empty())
+            check(fingerprint(doc) == before, context + ": rejected edit changed the document");
+        checkTotals(doc, context);
+    };
+    const auto parentOf = [&](Id id) { return doc.bodies().at(id)->parent; };
+    const auto local = [&](Id id) { return doc.bodies().at(id)->transform; };
+    // Moving the nested placement moves its nested placement and members.
+    incremental([&] { doc.move(nested.instance, {2, 0, 1}); }, {}, true, "move nested root");
+    incremental([&] { doc.transform(other.instance, local(other.instance), group); }, {}, true,
+                "reparent root into a group");
+    incremental([&] { doc.transform(other.instance, local(other.instance), 0); }, {}, true,
+                "reparent root to the model");
+    incremental([&] { setEntityState(doc, nested.instance, true, {}); }, {}, true,
+                "hide a placement root");
+    // Owned records leave the model bounds.
+    incremental(
+        [&] {
+            doc.transform(nested.instance,
+                          Transform::translation({999999.5, 0, 0}) * local(nested.instance),
+                          parentOf(nested.instance));
+        },
+        "Coordinates must be finite and within one million meters", true, "root out of bounds");
+    // A root moved into another placement's member is unbound geometry inside it.
+    incremental([&] { doc.transform(other.instance, local(other.instance), nestedMember); },
+                "Unbound geometry inside a component instance", true, "root into a placement");
+    // A root moved under its own nested placement forms a cycle.
+    incremental([&] { doc.transform(nested.instance, local(nested.instance), nestedLeaf); },
+                "Cyclic or excessively deep hierarchy", true, "root under its own descendant");
+    // A nested placement root is bound by its enclosing placement: full scheme.
+    incremental([&] { doc.move(nestedLeaf, {1, 0, 0}); },
+                "Resolved component member disagrees with its definition", false,
+                "nested root move");
+    // Undo and redo restore moved roots exactly.
+    const auto moved = doc.worldTransform(nestedLeaf);
+    doc.undo();
+    doc.redo();
+    check(doc.worldTransform(nestedLeaf) == moved, "Redo restores a moved nested placement");
+    checkTotals(doc, "root moves undo/redo");
+}
 } // namespace
 int main() {
     try {
@@ -465,6 +532,7 @@ int main() {
             placementBoundary();
         bodyBoundary();
         restoreAndSnapshots();
+        placementRootMoves();
         // The serial sanitized CI job runs one randomized seed; unsanitized
         // builds run all three.
         const std::vector<std::uint32_t> seeds =

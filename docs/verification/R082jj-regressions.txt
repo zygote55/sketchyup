@@ -1,0 +1,365 @@
+# R082.jj regression logs (branch perf/r082jj-edit-feedback, 7ce22dcb on origin/main fb3c9b7e)
+
+## ctest --preset dev -j3 (Debug, host, CPUs 0,1,3,6,8,10)
+  1/190 Test  #87: provider_release_corpus ..........   Passed   42.51 sec
+  2/190 Test  #14: document_limits ..................   Passed   52.88 sec
+  3/190 Test  #47: inference_equivalence ............   Passed   11.54 sec
+  4/190 Test #188: recovery_controller ..............   Passed   10.46 sec
+  5/190 Test #122: document_limits_io ...............   Passed   10.37 sec
+  6/190 Test #134: furniture_recipe .................   Passed    9.19 sec
+  7/190 Test #129: texture_export ...................   Passed    9.19 sec
+  8/190 Test #133: site_recipe ......................   Passed    5.52 sec
+  9/190 Test #154: instanced_storage ................   Passed    7.29 sec
+ 10/190 Test #186: shipped_recipes ..................   Passed    5.07 sec
+ 11/190 Test #142: recipes ..........................   Passed    4.56 sec
+ 12/190 Test #119: gltf_import ......................   Passed    2.94 sec
+ 13/190 Test   #9: hosted_copies ....................   Passed    3.39 sec
+ 14/190 Test  #54: geometry_fuzz ....................   Passed    2.35 sec
+ 15/190 Test  #90: openai_provider ..................   Passed    2.80 sec
+ 16/190 Test #145: transaction_sequence .............   Passed    1.90 sec
+ 17/190 Test #135: stair_recipe .....................   Passed    2.38 sec
+ 18/190 Test #147: outcome_store ....................   Passed    1.08 sec
+ 19/190 Test #132: m6_workflow ......................   Passed    1.82 sec
+ 20/190 Test #123: native_format ....................   Passed    1.82 sec
+ 21/190 Test  #79: text_commands ....................   Passed    1.89 sec
+ 22/190 Test #136: roof_recipe ......................   Passed    1.51 sec
+ 23/190 Test  #91: blender_job ......................   Passed    1.41 sec
+ 24/190 Test #140: assistant ........................   Passed    1.33 sec
+ 25/190 Test #138: recipe_hosted ....................   Passed    1.31 sec
+ 26/190 Test #126: model_recipes ....................   Passed    1.26 sec
+ 27/190 Test  #68: parser_fault_corpus ..............   Passed    1.16 sec
+ 28/190 Test #171: commands .........................   Passed    1.17 sec
+ 29/190 Test #130: texture_image ....................   Passed    1.08 sec
+ 30/190 Test  #88: ollama_provider ..................   Passed    1.00 sec
+ 31/190 Test #180: recovery .........................   Passed    0.92 sec
+ 32/190 Test  #85: text_worker ......................   Passed    0.95 sec
+ 33/190 Test  #25: history ..........................   Passed    0.91 sec
+ 34/190 Test  #16: diagnostics ......................   Passed    0.89 sec
+ 35/190 Test  #89: chatgpt_auth .....................   Passed    0.85 sec
+ 36/190 Test  #48: curves ...........................   Passed    0.81 sec
+ 37/190 Test #170: hosted_commands ..................   Passed    0.86 sec
+ 38/190 Test  #10: hosted_components ................   Passed    0.61 sec
+ 39/190 Test  #46: inference ........................   Passed    0.80 sec
+ 40/190 Test #174: solid_commands ...................   Passed    0.61 sec
+ 41/190 Test  #33: solids ...........................   Passed    0.59 sec
+ 42/190 Test  #29: booleans .........................   Passed    0.50 sec
+ 43/190 Test  #61: topology .........................   Passed    0.50 sec
+ 44/190 Test #106: dxf_import .......................   Passed    0.50 sec
+ 45/190 Test #150: inspection .......................   Passed    0.43 sec
+ 46/190 Test #144: transaction_dispatch .............   Passed    0.42 sec
+ 47/190 Test  #31: solid_operations .................   Passed    0.43 sec
+ 48/190 Test  #96: blender_handoff ..................   Passed    0.38 sec
+ 49/190 Test #156: geometry_sequence ................   Passed    0.37 sec
+ 50/190 Test  #99: render_queue .....................   Passed    0.38 sec
+ 51/190 Test #146: transaction_coordinator ..........   Passed    0.40 sec
+ 52/190 Test  #94: animation_export .................   Passed    0.38 sec
+ 53/190 Test  #74: measured_cli .....................   Passed    0.34 sec
+ 54/190 Test #184: persistence ......................   Passed    0.27 sec
+ 55/190 Test #139: native_assistant_session .........   Passed    0.28 sec
+ 56/190 Test  #66: text_geometry ....................   Passed    0.24 sec
+ 57/190 Test  #70: extension_worker .................   Passed    0.29 sec
+ 58/190 Test #143: automation_session ...............   Passed    0.28 sec
+ 59/190 Test  #86: provider_release_score ...........   Passed    0.27 sec
+ 60/190 Test #168: display_precision_io .............   Passed    0.23 sec
+ 61/190 Test #185: optional_capabilities ............   Passed    0.37 sec
+ 62/190 Test #152: hosted_components_io .............   Passed    0.22 sec
+ 63/190 Test #141: mcp ..............................   Passed    0.22 sec
+ 64/190 Test #110: stl_import .......................   Passed    0.23 sec
+ 65/190 Test #187: tool_reference_drift .............   Passed    0.20 sec
+ 66/190 Test #115: obj_import .......................   Passed    0.19 sec
+ 67/190 Test #175: boolean_commands .................   Passed    0.20 sec
+ 68/190 Test #179: recovery_cli .....................   Passed    0.15 sec
+ 69/190 Test  #32: solid_shells .....................   Passed    0.15 sec
+ 70/190 Test #148: staging ..........................   Passed    0.15 sec
+ 71/190 Test #127: texture_commands .................   Passed    0.15 sec
+ 72/190 Test  #69: m8_exchange ......................   Passed    0.14 sec
+ 73/190 Test  #75: measured_export ..................   Passed    0.14 sec
+ 74/190 Test  #98: render_store .....................   Passed    0.13 sec
+ 75/190 Test  #92: m7_presentation ..................   Passed    0.13 sec
+ 76/190 Test  #11: host_regeneration ................   Passed    0.13 sec
+ 77/190 Test #137: measurement_assertions ...........   Passed    0.13 sec
+ 78/190 Test  #30: orientation ......................   Passed    0.12 sec
+ 79/190 Test #182: formline .........................   Passed    0.13 sec
+ 80/190 Test #172: diagnostic_inspection ............   Passed    0.12 sec
+ 81/190 Test  #52: scene ............................   Passed    0.13 sec
+ 82/190 Test #125: glb_export .......................   Passed    0.13 sec
+ 83/190 Test #190: desktop ..........................   Passed    0.12 sec
+ 84/190 Test  #22: saved_scenes .....................   Passed    0.11 sec
+ 85/190 Test  #83: solar_io .........................   Passed    0.13 sec
+ 86/190 Test #183: asset_io .........................   Passed    0.12 sec
+ 87/190 Test #155: inference_instanced_io ...........   Passed    0.10 sec
+ 88/190 Test #131: face_textures ....................   Passed    0.10 sec
+ 89/190 Test #165: model_style_io ...................   Passed    0.09 sec
+ 90/190 Test #173: orientation_commands .............   Passed    0.10 sec
+ 91/190 Test #151: component_scope ..................   Passed    0.11 sec
+ 92/190 Test  #72: extension_manifest ...............   Passed    0.08 sec
+ 93/190 Test  #73: library_bundle ...................   Passed    0.10 sec
+ 94/190 Test  #58: sweep ............................   Passed    0.06 sec
+ 95/190 Test #112: stl_source .......................   Passed    0.08 sec
+ 96/190 Test   #6: section_records ..................   Passed    0.08 sec
+ 97/190 Test #118: obj_source .......................   Passed    0.07 sec
+ 98/190 Test  #71: extension_store ..................   Passed    0.06 sec
+ 99/190 Test #169: history_commands .................   Passed    0.08 sec
+100/190 Test #177: sweep_commands ...................   Passed    0.07 sec
+101/190 Test  #13: hosted_openings ..................   Passed    0.06 sec
+102/190 Test #181: m4_persistence ...................   Passed    0.05 sec
+103/190 Test  #55: push_pull ........................   Passed    0.05 sec
+104/190 Test #153: component_glue_io ................   Passed    0.05 sec
+105/190 Test #149: inspection_session ...............   Passed    0.05 sec
+106/190 Test  #35: components .......................   Passed    0.05 sec
+107/190 Test #163: saved_scenes_io ..................   Passed    0.06 sec
+108/190 Test #102: edge_commands ....................   Passed    0.05 sec
+109/190 Test #176: intersection_commands ............   Passed    0.05 sec
+110/190 Test #166: document_units_io ................   Passed    0.05 sec
+111/190 Test #159: annotation_commands ..............   Passed    0.05 sec
+112/190 Test #178: offset_commands ..................   Passed    0.05 sec
+113/190 Test   #1: measured_view ....................   Passed    0.05 sec
+114/190 Test #104: dxf_export .......................   Passed    0.05 sec
+115/190 Test  #26: assets ...........................   Passed    0.05 sec
+116/190 Test #103: edge_appearance ..................   Passed    0.04 sec
+117/190 Test   #7: section_geometry .................   Passed    0.05 sec
+118/190 Test #101: smooth_export ....................   Passed    0.04 sec
+119/190 Test  #62: arrangements .....................   Passed    0.04 sec
+120/190 Test  #80: reference_image_commands .........   Passed    0.04 sec
+121/190 Test  #84: text_source_io ...................   Passed    0.05 sec
+122/190 Test #162: sections_io ......................   Passed    0.04 sec
+123/190 Test #158: saved_scene_commands .............   Passed    0.05 sec
+124/190 Test #160: section_commands .................   Passed    0.04 sec
+125/190 Test  #81: reference_image_io ...............   Passed    0.04 sec
+126/190 Test #128: section_export ...................   Passed    0.04 sec
+127/190 Test #113: obj_export .......................   Passed    0.04 sec
+128/190 Test #164: model_style_commands .............   Passed    0.04 sec
+129/190 Test #161: annotations_io ...................   Passed    0.03 sec
+130/190 Test  #51: core .............................   Passed    0.04 sec
+131/190 Test #108: stl_export .......................   Passed    0.04 sec
+132/190 Test #157: measurements .....................   Passed    0.03 sec
+133/190 Test  #27: materials ........................   Passed    0.03 sec
+134/190 Test  #60: planar ...........................   Passed    0.03 sec
+135/190 Test  #37: component_records ................   Passed    0.03 sec
+136/190 Test  #82: solar_commands ...................   Passed    0.04 sec
+137/190 Test  #43: selection ........................   Passed    0.03 sec
+138/190 Test #121: gltf_package .....................   Passed    0.02 sec
+139/190 Test  #44: guides ...........................   Passed    0.02 sec
+140/190 Test  #77: measured_drawing .................   Passed    0.03 sec
+141/190 Test #124: animation_capture ................   Passed    0.03 sec
+142/190 Test  #49: drawing ..........................   Passed    0.03 sec
+143/190 Test #189: texture_cache ....................   Passed    0.01 sec
+144/190 Test  #78: render_environment_export ........   Passed    0.03 sec
+145/190 Test #107: dxf_source .......................   Passed    0.03 sec
+146/190 Test  #42: transform_selection ..............   Passed    0.03 sec
+147/190 Test  #12: component_glue ...................   Passed    0.02 sec
+148/190 Test  #40: groups ...........................   Passed    0.02 sec
+149/190 Test #117: obj_material .....................   Passed    0.02 sec
+150/190 Test #167: display_precision ................   Passed    0.02 sec
+151/190 Test  #28: entity_measure ...................   Passed    0.02 sec
+152/190 Test  #41: copy_array .......................   Passed    0.02 sec
+153/190 Test  #67: new_file_faults ..................   Passed    0.02 sec
+154/190 Test  #59: offset ...........................   Passed    0.02 sec
+155/190 Test  #56: cleanup ..........................   Passed    0.02 sec
+156/190 Test  #38: consolidation ....................   Passed    0.02 sec
+157/190 Test  #64: shortcut_bindings ................   Passed    0.02 sec
+158/190 Test  #65: render_environment ...............   Passed    0.01 sec
+159/190 Test   #5: annotation_anchors ...............   Passed    0.02 sec
+160/190 Test  #34: tags .............................   Passed    0.02 sec
+161/190 Test  #39: appearance .......................   Passed    0.02 sec
+162/190 Test  #45: constraints ......................   Passed    0.01 sec
+163/190 Test  #24: document_units ...................   Passed    0.01 sec
+164/190 Test  #57: intersections ....................   Passed    0.01 sec
+165/190 Test   #4: annotation_records ...............   Passed    0.01 sec
+166/190 Test  #23: model_style ......................   Passed    0.01 sec
+167/190 Test  #17: edge_visibility ..................   Passed    0.01 sec
+168/190 Test  #63: drm_memory .......................   Passed    0.01 sec
+169/190 Test  #20: document_snapshot ................   Passed    0.01 sec
+170/190 Test  #19: prepared_edit ....................   Passed    0.01 sec
+171/190 Test  #50: amend ............................   Passed    0.01 sec
+172/190 Test  #53: tolerance ........................   Passed    0.01 sec
+173/190 Test  #18: shading_normals ..................   Passed    0.01 sec
+174/190 Test  #15: component_placement ..............   Passed    0.01 sec
+175/190 Test   #3: solar ............................   Passed    0.01 sec
+176/190 Test  #21: camera_motion ....................   Passed    0.01 sec
+177/190 Test   #8: texture_mapping ..................   Passed    0.01 sec
+178/190 Test   #2: reference_image ..................   Passed    0.00 sec
+179/190 Test  #93: m7_presentation_real .............***Skipped   0.01 sec
+180/190 Test  #95: animation_export_real ............***Skipped   0.01 sec
+181/190 Test  #76: measured_export_real .............***Skipped   0.03 sec
+182/190 Test  #97: blender_handoff_real .............***Skipped   0.02 sec
+183/190 Test #100: blender_real .....................***Skipped   0.02 sec
+184/190 Test #109: stl_export_real ..................***Skipped   0.01 sec
+185/190 Test #111: stl_import_real ..................***Skipped   0.01 sec
+186/190 Test #105: dxf_export_real ..................***Skipped   0.04 sec
+187/190 Test #114: obj_export_real ..................***Skipped   0.01 sec
+188/190 Test #116: obj_import_real ..................***Skipped   0.01 sec
+189/190 Test #120: gltf_import_real .................***Skipped   0.01 sec
+190/190 Test  #36: incremental_validation ...........   Passed  138.26 sec
+100% tests passed out of 190
+Total Test time (real) = 138.27 sec
+
+## ctest --preset headless -j3
+ 1/62 Test  #2: reference_image ..................   Passed    0.01 sec
+ 2/62 Test  #3: solar ............................   Passed    0.01 sec
+ 3/62 Test  #4: annotation_records ...............   Passed    0.01 sec
+ 4/62 Test  #5: annotation_anchors ...............   Passed    0.01 sec
+ 5/62 Test  #1: measured_view ....................   Passed    0.06 sec
+ 6/62 Test  #8: texture_mapping ..................   Passed    0.00 sec
+ 7/62 Test  #7: section_geometry .................   Passed    0.06 sec
+ 8/62 Test  #6: section_records ..................   Passed    0.09 sec
+ 9/62 Test #11: host_regeneration ................   Passed    0.13 sec
+10/62 Test #12: component_glue ...................   Passed    0.03 sec
+11/62 Test #13: hosted_openings ..................   Passed    0.07 sec
+12/62 Test #10: hosted_components ................   Passed    0.61 sec
+13/62 Test #15: component_placement ..............   Passed    0.01 sec
+14/62 Test #16: diagnostics ......................   Passed    0.87 sec
+15/62 Test #17: edge_visibility ..................   Passed    0.02 sec
+16/62 Test #18: shading_normals ..................   Passed    0.01 sec
+17/62 Test #19: prepared_edit ....................   Passed    0.01 sec
+18/62 Test #20: document_snapshot ................   Passed    0.01 sec
+19/62 Test #21: camera_motion ....................   Passed    0.01 sec
+20/62 Test #22: saved_scenes .....................   Passed    0.13 sec
+21/62 Test #23: model_style ......................   Passed    0.01 sec
+22/62 Test #24: document_units ...................   Passed    0.01 sec
+23/62 Test #25: history ..........................   Passed    0.90 sec
+24/62 Test #26: assets ...........................   Passed    0.07 sec
+25/62 Test #27: materials ........................   Passed    0.03 sec
+26/62 Test #28: entity_measure ...................   Passed    0.02 sec
+27/62 Test #29: booleans .........................   Passed    0.50 sec
+28/62 Test #30: orientation ......................   Passed    0.12 sec
+29/62 Test  #9: hosted_copies ....................   Passed    3.38 sec
+30/62 Test #32: solid_shells .....................   Passed    0.18 sec
+31/62 Test #31: solid_operations .................   Passed    0.44 sec
+32/62 Test #34: tags .............................   Passed    0.02 sec
+33/62 Test #35: components .......................   Passed    0.05 sec
+34/62 Test #33: solids ...........................   Passed    0.61 sec
+35/62 Test #37: component_records ................   Passed    0.03 sec
+36/62 Test #38: consolidation ....................   Passed    0.02 sec
+37/62 Test #39: appearance .......................   Passed    0.02 sec
+38/62 Test #40: groups ...........................   Passed    0.03 sec
+39/62 Test #41: copy_array .......................   Passed    0.03 sec
+40/62 Test #42: transform_selection ..............   Passed    0.03 sec
+41/62 Test #43: selection ........................   Passed    0.03 sec
+42/62 Test #44: guides ...........................   Passed    0.02 sec
+43/62 Test #45: constraints ......................   Passed    0.01 sec
+44/62 Test #46: inference ........................   Passed    0.81 sec
+45/62 Test #47: inference_equivalence ............   Passed   10.99 sec
+46/62 Test #48: curves ...........................   Passed    0.81 sec
+47/62 Test #49: drawing ..........................   Passed    0.03 sec
+48/62 Test #50: amend ............................   Passed    0.01 sec
+49/62 Test #51: core .............................   Passed    0.04 sec
+50/62 Test #52: scene ............................   Passed    0.12 sec
+51/62 Test #53: tolerance ........................   Passed    0.02 sec
+52/62 Test #54: geometry_fuzz ....................   Passed    2.31 sec
+53/62 Test #55: push_pull ........................   Passed    0.06 sec
+54/62 Test #56: cleanup ..........................   Passed    0.02 sec
+55/62 Test #57: intersections ....................   Passed    0.01 sec
+56/62 Test #58: sweep ............................   Passed    0.06 sec
+57/62 Test #59: offset ...........................   Passed    0.02 sec
+58/62 Test #60: planar ...........................   Passed    0.03 sec
+59/62 Test #61: topology .........................   Passed    0.52 sec
+60/62 Test #62: arrangements .....................   Passed    0.04 sec
+61/62 Test #14: document_limits ..................   Passed   52.76 sec
+62/62 Test #36: incremental_validation ...........   Passed  139.01 sec
+100% tests passed out of 62
+Total Test time (real) = 142.97 sec
+
+## ctest --preset sanitize -j3 (ASan/UBSan)
+ 1/62 Test  #2: reference_image ..................   Passed    0.03 sec
+ 2/62 Test  #3: solar ............................   Passed    0.03 sec
+ 3/62 Test  #1: measured_view ....................   Passed    0.22 sec
+ 4/62 Test  #4: annotation_records ...............   Passed    0.20 sec
+ 5/62 Test  #5: annotation_anchors ...............   Passed    0.20 sec
+ 6/62 Test  #8: texture_mapping ..................   Passed    0.03 sec
+ 7/62 Test  #7: section_geometry .................   Passed    0.36 sec
+ 8/62 Test  #6: section_records ..................   Passed    0.55 sec
+ 9/62 Test #11: host_regeneration ................   Passed    1.04 sec
+10/62 Test #12: component_glue ...................   Passed    0.25 sec
+11/62 Test #13: hosted_openings ..................   Passed    0.49 sec
+12/62 Test #10: hosted_components ................   Passed    4.91 sec
+13/62 Test #15: component_placement ..............   Passed    0.05 sec
+14/62 Test #16: diagnostics ......................   Passed    4.83 sec
+15/62 Test #17: edge_visibility ..................   Passed    0.15 sec
+16/62 Test #18: shading_normals ..................   Passed    0.06 sec
+17/62 Test #19: prepared_edit ....................   Passed    0.15 sec
+18/62 Test #20: document_snapshot ................   Passed    0.20 sec
+19/62 Test #21: camera_motion ....................   Passed    0.12 sec
+20/62 Test #22: saved_scenes .....................   Passed    0.69 sec
+21/62 Test #23: model_style ......................   Passed    0.16 sec
+22/62 Test #24: document_units ...................   Passed    0.16 sec
+23/62 Test #25: history ..........................   Passed    6.46 sec
+24/62 Test #26: assets ...........................   Passed    0.23 sec
+25/62 Test #27: materials ........................   Passed    0.31 sec
+26/62 Test #28: entity_measure ...................   Passed    0.24 sec
+27/62 Test #29: booleans .........................   Passed    3.47 sec
+28/62 Test #30: orientation ......................   Passed    0.80 sec
+29/62 Test  #9: hosted_copies ....................   Passed   24.99 sec
+30/62 Test #32: solid_shells .....................   Passed    1.03 sec
+31/62 Test #31: solid_operations .................   Passed    2.96 sec
+32/62 Test #34: tags .............................   Passed    0.19 sec
+33/62 Test #35: components .......................   Passed    0.46 sec
+34/62 Test #33: solids ...........................   Passed    3.99 sec
+35/62 Test #37: component_records ................   Passed    0.29 sec
+36/62 Test #38: consolidation ....................   Passed    0.24 sec
+37/62 Test #39: appearance .......................   Passed    0.21 sec
+38/62 Test #40: groups ...........................   Passed    0.25 sec
+39/62 Test #41: copy_array .......................   Passed    0.23 sec
+40/62 Test #42: transform_selection ..............   Passed    0.25 sec
+41/62 Test #43: selection ........................   Passed    0.26 sec
+42/62 Test #44: guides ...........................   Passed    0.25 sec
+43/62 Test #45: constraints ......................   Passed    0.18 sec
+44/62 Test #46: inference ........................   Passed    4.16 sec
+45/62 Test #47: inference_equivalence ............   Passed   50.46 sec
+46/62 Test #48: curves ...........................   Passed    3.74 sec
+47/62 Test #49: drawing ..........................   Passed    0.29 sec
+48/62 Test #50: amend ............................   Passed    0.17 sec
+49/62 Test #51: core .............................   Passed    0.32 sec
+50/62 Test #52: scene ............................   Passed    0.67 sec
+51/62 Test #53: tolerance ........................   Passed    0.07 sec
+52/62 Test #14: document_limits ..................   Passed   99.17 sec
+53/62 Test #55: push_pull ........................   Passed    0.47 sec
+54/62 Test #56: cleanup ..........................   Passed    0.21 sec
+55/62 Test #57: intersections ....................   Passed    0.08 sec
+56/62 Test #58: sweep ............................   Passed    0.44 sec
+57/62 Test #59: offset ...........................   Passed    0.17 sec
+58/62 Test #60: planar ...........................   Passed    0.23 sec
+59/62 Test #36: incremental_validation ...........   Passed   76.35 sec
+60/62 Test #62: arrangements .....................   Passed    0.34 sec
+61/62 Test #61: topology .........................   Passed    2.89 sec
+62/62 Test #54: geometry_fuzz ....................   Passed   16.12 sec
+100% tests passed out of 62
+Total Test time (real) = 108.46 sec
+Sanitizer reports (AddressSanitizer / runtime error): 0
+
+## Native, container sketchyup-native-fonts-check:20261008 (one CPU, 4 GiB), build/dev
+x11-1x-placement_viewport_tests exit 0 in 47 s
+x11-1x-viewport_tests exit 0 in 7 s
+x11-1x-viewport_precision_tests exit 0 in 4 s
+x11-1x-inference_input_tests exit 0 in 5 s
+x11-1x-selection_input_tests exit 0 in 6 s
+x11-1x-component_input_tests exit 0 in 5 s
+x11-1x-group_input_tests exit 0 in 5 s
+x11-1x-transform_input_tests exit 0 in 5 s
+x11-1x-texture_viewport_tests exit 0 in 10 s
+x11-1x-material_viewport_tests exit 0 in 5 s
+x11-1x-section_viewport_tests exit 0 in 5 s
+x11-1x-style_viewport_tests exit 0 in 7 s
+x11-1x-smooth_viewport_tests exit 0 in 5 s
+x11-1x-guide_input_tests exit 0 in 4 s
+x11-1x-constraint_input_tests exit 0 in 6 s
+x11-1x-drawing_input_tests exit 0 in 5 s
+wayland-1x-placement_viewport_tests exit 0 in 44 s
+wayland-1x-viewport_tests exit 0 in 5 s
+wayland-1x-inference_input_tests exit 0 in 3 s
+wayland-1x-selection_input_tests exit 0 in 4 s
+wayland-1x-component_input_tests exit 0 in 3 s
+wayland-1x-texture_viewport_tests exit 0 in 8 s
+
+### placement_viewport_tests (X11 1x) final line
+Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=1
+### placement_viewport_tests (Wayland 1x) final line
+Shared placement meshes pick identically to per-body meshes across styles, shadows, visibility, context, sections, linear and distant placements and textures; pixel differences reported above; DPR=1
+
+## build/dev/incremental_validation_tests (direct run, full mode, oracle on)
+seed 33535: 168 accepted, 52 rejected (12 at limits, 9 failed batches)
+seed 4660: 139 accepted, 81 rejected (14 at limits, 17 failed batches)
+seed 48879: 137 accepted, 83 rejected (16 at limits, 5 failed batches)
+full mode: materialized vertex/edge boundary, 3 seeds of 220 steps
+incremental validations: 1024
+exit 0

@@ -114,17 +114,27 @@ size_t bytes(const BodyPtr &b) {
     }
     return n;
 }
+// A chain longer than 128 records is rejected, so a step count detects every
+// cycle as well: a cycle never reaches a missing record and fails at step 129
+// with the same message a visited set would give at its first repeat.
 template <class Bodies> Transform worldTransformIn(const Bodies &bodies, Id id) {
     Transform result;
-    std::set<Id> visited;
-    while (id) {
-        if (!visited.insert(id).second || visited.size() > 128)
+    for (size_t depth = 0; id;) {
+        if (++depth > 128)
             throw std::runtime_error("Cyclic or excessively deep hierarchy");
-        if (!bodies.contains(id))
-            throw std::runtime_error("Missing parent entity");
-        const auto &found = bodies.at(id);
-        result = found->transform * result;
-        id = found->parent;
+        const BodyPtr *found;
+        if constexpr (requires { bodies.find(id) == bodies.end(); }) {
+            const auto it = bodies.find(id);
+            if (it == bodies.end())
+                throw std::runtime_error("Missing parent entity");
+            found = &it->second;
+        } else {
+            if (!bodies.contains(id))
+                throw std::runtime_error("Missing parent entity");
+            found = &bodies.at(id);
+        }
+        result = (*found)->transform * result;
+        id = (*found)->parent;
     }
     return result;
 }
@@ -324,22 +334,35 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies, const Edit *edit,
     }
     checkDocumentLimits(totals, edit, definitions);
 }
-// Incremental form. Precondition: the baseline document is valid and no changed
-// record that existed before alters its parent, transform or reference-image
-// ownership, or is erased. Unchanged records then keep their valid parent chain
-// and world transform, so only changed records can fail, in the same ID order
-// as the full scan. Totals are the running totals after the edit.
+// Incremental form. Precondition: the baseline document is valid, no changed
+// record that existed before is erased or alters its reference-image ownership,
+// and only placement roots no enclosing placement binds alter their parent or
+// transform. `moved` holds every record those roots own: in a valid baseline a
+// placement's descendants are exactly the records its bindings own. Other
+// unchanged records keep their valid parent chain and world transform, so only
+// changed and moved records can fail, checked in the same ID order as the full
+// scan. Totals are the running totals after the edit.
 void validateChangedDocumentSize(const RecordOverlay<BodyPtr> &bodies,
                                  const std::map<Id, BodyPtr> &changed,
-                                 const DocumentTotals &totals, const Edit &edit,
-                                 const ComponentDefinitions &definitions) {
-    for (const auto &[id, b] : changed) {
-        if (!b)
-            continue;
+                                 const std::set<Id> &moved, const DocumentTotals &totals,
+                                 const Edit &edit, const ComponentDefinitions &definitions) {
+    auto check = [&](Id id, const BodyPtr &b) {
         if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
             throw std::runtime_error("Reference images cannot own child entities");
         checkWorldBounds(*b, worldTransformIn(bodies, id));
+    };
+    // Merge both ID-ordered sequences so the first failure is the full scan's.
+    auto next = moved.begin();
+    for (const auto &[id, b] : changed) {
+        for (; next != moved.end() && *next < id; ++next)
+            check(*next, bodies.at(*next));
+        if (next != moved.end() && *next == id)
+            ++next;
+        if (b)
+            check(id, b);
     }
+    for (; next != moved.end(); ++next)
+        check(*next, bodies.at(*next));
     checkDocumentLimits(totals, &edit, definitions);
 }
 void validate(const Body &b) {
@@ -1055,6 +1078,10 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     // and record check below runs identically in both schemes; the incremental one
     // replaces whole-document scans with checks of the changed records, valid
     // because the current document already satisfies every invariant.
+    // Existing placement roots the incremental scheme revalidates, and those whose
+    // parent or transform changes, which moves every record they own.
+    std::set<Id> changedRoots;
+    std::vector<Id> movedRoots;
     const bool incremental = [&] {
         if (fullValidation || !edit.definitions.empty() || !edit.tags.empty() ||
             !edit.materials.empty() || !edit.assets.empty() || !edit.scenes.empty() ||
@@ -1068,11 +1095,24 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
                     inserted.insert(c.id);
                 continue;
             }
+            if (!c.after ||
+                c.after->referenceImage.has_value() != c.before->referenceImage.has_value())
+                return false;
+            // A placement root that no enclosing placement binds may change, including
+            // its parent and transform: its binding is revalidated, and its descendants
+            // are exactly the records its binding (and nested bindings) owns.
+            if (instances_.contains(c.id)) {
+                if (componentMemberBound(*this, c.id))
+                    return false;
+                changedRoots.insert(c.id);
+                if (c.after->parent != c.before->parent ||
+                    c.after->transform != c.before->transform)
+                    movedRoots.push_back(c.id);
+                continue;
+            }
             // Unchanged descendants keep their parent chain, world transform and
             // reference-image ownership only while this record keeps them.
-            if (!c.after || c.after->parent != c.before->parent ||
-                c.after->transform != c.before->transform ||
-                c.after->referenceImage.has_value() != c.before->referenceImage.has_value() ||
+            if (c.after->parent != c.before->parent || c.after->transform != c.before->transform ||
                 componentBound(*this, c.id))
                 return false;
         }
@@ -1321,8 +1361,13 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     const RecordOverlay<BodyPtr> candidate{bodies_, changedBodies};
     // The full scheme materializes the complete candidate map for its oracles.
     std::map<Id, BodyPtr> updated;
-    if (incremental)
-        validateChangedDocumentSize(candidate, changedBodies, totals, edit, definitions);
+    if (incremental) {
+        // Unchanged records owned by a moved placement get new world positions.
+        std::set<Id> moved;
+        for (auto root : movedRoots)
+            collectPlacementDescendants(instances_, root, moved);
+        validateChangedDocumentSize(candidate, changedBodies, moved, totals, edit, definitions);
+    }
     else {
         updated = bodies_;
         for (const auto &c : edit.changes) {
@@ -1406,7 +1451,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
                                  nextMaterial, assets, nextAsset);
     if (incremental) {
-        validateComponentInstanceInsertions(definitions, addedInstances, changedBodies, *this);
+        validateComponentInstanceInsertions(definitions, addedInstances, changedRoots,
+                                            changedBodies, *this);
         // No hosted records exist, so this checks only their bounds.
         validateHostedComponents(*hosted, bodies_, definitions, instances_);
     } else {
