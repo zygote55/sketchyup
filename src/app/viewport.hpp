@@ -19,6 +19,8 @@
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLWidget>
 #include <QPointF>
+#include <QPointer>
+#include <QRect>
 #include <functional>
 #include <optional>
 #include <tuple>
@@ -238,6 +240,11 @@ class Viewport : public QOpenGLWidget {
     void setSynchronousFrameTiming(bool enabled) { synchronousFrameTiming_ = enabled; }
     bool texturesPending() const { return textureCache_.pending(); }
     QString textureSummary() const;
+    // The projection/units label never overlaps the editing-context chips. The
+    // owner registers them; geometry is read from them whenever the label is placed.
+    void setContextOverlay(QWidget *breadcrumb, QWidget *banner);
+    // Rect (viewport coordinates) the label was last painted at; empty before the first frame.
+    QRect paintedProjectionLabelRect() const { return projectionLabelPainted_; }
     // Orthographic projection in the current view direction, at physical page scale.
     MeasuredExport renderMeasuredView(MeasuredPage page, MeasuredFormat format, bool raster,
                                       int dpi = 150);
@@ -259,6 +266,7 @@ class Viewport : public QOpenGLWidget {
 
   protected:
     bool event(QEvent *) override;
+    bool eventFilter(QObject *, QEvent *) override;
     void initializeGL() override;
     void paintGL() override;
     void resizeEvent(QResizeEvent *) override;
@@ -589,6 +597,9 @@ class Viewport : public QOpenGLWidget {
     int instances_{0}, benchmarkTriangles_{0};
     double frameMs_{};
     bool synchronousFrameTiming_{};
+    QPointer<QWidget> contextBreadcrumb_;
+    QPointer<QWidget> contextBanner_;
+    QRect projectionLabelPainted_;
     QString graphics_;
     QMatrix4x4 matrix() const;
     std::pair<Vec3, Vec3> ray(QPointF p) const;

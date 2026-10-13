@@ -112,6 +112,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/viewport_label_overlap_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/shortcut_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/measured_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/raster_export_input_tests
@@ -134,6 +135,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/viewport_label_overlap_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/shortcut_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/measured_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/raster_export_input_tests
@@ -282,6 +284,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/theme_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/visible_focus_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/text_size_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/viewport_label_overlap_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/shortcut_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/measured_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/raster_export_input_tests
@@ -305,6 +308,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/theme_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/visible_focus_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/text_size_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/viewport_label_overlap_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/shortcut_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/measured_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/raster_export_input_tests

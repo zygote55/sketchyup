@@ -1640,13 +1640,31 @@ void Viewport::paintScene(QPaintDevice *device) {
         p.drawRect(rect().adjusted(1, 1, -1, -1));
     }
     p.setPen(colors_.ink);
-    p.drawText(20, 28,
-               (ortho_ ? "ORTHOGRAPHIC  /  " : "PERSPECTIVE  /  ") +
-                   unitName(doc_.displayUnits()).toUpper());
+    const auto projection = (ortho_ ? QString("ORTHOGRAPHIC  /  ") : QString("PERSPECTIVE  /  ")) +
+                            unitName(doc_.displayUnits()).toUpper();
+    // Default: top-left on the 28 px baseline. Beside a visible breadcrumb it starts one
+    // gap after it; when that leaves no room it drops to a line below the context chips.
+    const QFontMetrics metrics = p.fontMetrics();
+    const int labelWidth = metrics.horizontalAdvance(projection);
+    int labelX = 20, labelBaseline = 28;
+    if (contextBreadcrumb_ && contextBreadcrumb_->isVisibleTo(this)) {
+        const QRect chip = contextBreadcrumb_->geometry();
+        labelX = chip.right() + 1 + 8;
+        if (labelX + labelWidth > width() - 20) {
+            int bottom = chip.bottom() + 1;
+            if (contextBanner_ && contextBanner_->isVisibleTo(this))
+                bottom = std::max(bottom, contextBanner_->geometry().bottom() + 1);
+            labelX = chip.left();
+            labelBaseline = bottom + metrics.lineSpacing();
+        }
+    }
+    projectionLabelPainted_ =
+        QRect(labelX, labelBaseline - metrics.ascent(), labelWidth, metrics.height());
+    p.drawText(labelX, labelBaseline, projection);
     p.setPen(colors_.muted);
     const auto textures = textureSummary();
     if (!textures.isEmpty())
-        p.drawText(QRect(20, 38, width() - 40, 40), Qt::TextWordWrap, textures);
+        p.drawText(QRect(20, labelBaseline + 10, width() - 40, 40), Qt::TextWordWrap, textures);
     const int hudBottom = height() - (sceneTabs_->isVisible() ? sceneTabs_->height() + 12 : 0);
     p.drawText(20, hudBottom - 22,
                "Z up   ·   Inference 8 px   ·   Grid fallback " +
@@ -1867,6 +1885,31 @@ void Viewport::paintScene(QPaintDevice *device) {
         p.setPen(colors_.ink);
         p.drawText(box, Qt::AlignCenter, label);
     }
+}
+void Viewport::setContextOverlay(QWidget *breadcrumb, QWidget *banner) {
+    for (auto *chip : {contextBreadcrumb_.data(), contextBanner_.data()})
+        if (chip)
+            chip->removeEventFilter(this);
+    contextBreadcrumb_ = breadcrumb;
+    contextBanner_ = banner;
+    for (auto *chip : {breadcrumb, banner})
+        if (chip)
+            chip->installEventFilter(this);
+    update();
+}
+bool Viewport::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == contextBreadcrumb_ || watched == contextBanner_)
+        switch (event->type()) {
+        case QEvent::Move:
+        case QEvent::Resize:
+        case QEvent::Show:
+        case QEvent::Hide:
+            update();
+            break;
+        default:
+            break;
+        }
+    return QOpenGLWidget::eventFilter(watched, event);
 }
 void Viewport::resizeEvent(QResizeEvent *event) {
     QOpenGLWidget::resizeEvent(event);
@@ -2628,6 +2671,9 @@ bool Viewport::measurements(const QString &text) {
     return doc_.revision() != revision || measurementCompleted_;
 }
 bool Viewport::event(QEvent *event) {
+    if (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange ||
+        event->type() == QEvent::PaletteChange)
+        update(); // The overlay label is measured with the current font.
     if (walkNavigation(event))
         return true;
     if (nativeNavigation(event))
