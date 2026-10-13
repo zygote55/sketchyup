@@ -1,4 +1,5 @@
 #include "app/styles_panel.hpp"
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
@@ -128,10 +129,12 @@ void StylesPanel::customize() {
                      std::array<float, 3> ModelStyle::*field) {
         auto *button = new QPushButton;
         button->setObjectName(name);
+        button->setAccessibleName(label + " color");
         auto update = [&, button, field] {
             const auto &rgb = candidate.*field;
             const auto value = QColor::fromRgbF(rgb[0], rgb[1], rgb[2]);
             button->setText(value.name(QColor::HexRgb));
+            button->setAccessibleDescription(button->text());
             QPixmap swatch(24, 16);
             swatch.fill(value);
             button->setIcon(QIcon(swatch));
@@ -143,6 +146,7 @@ void StylesPanel::customize() {
             QColorDialog picker(QColor::fromRgbF(rgb[0], rgb[1], rgb[2]), &dialog);
             picker.setWindowTitle(label);
             picker.setOption(QColorDialog::DontUseNativeDialog);
+            nameColorDialog(picker);
             // Qt initializes this chooser at 8-bit channel precision. An unchanged
             // acceptance must preserve the original document's float channels.
             const auto baseline = picker.currentColor();

@@ -1,4 +1,5 @@
 #include "app/sections_panel.hpp"
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
@@ -240,9 +241,11 @@ void SectionsPanel::edit(bool create) {
     form->addRow(edges);
     auto *color = new QPushButton;
     color->setObjectName("sectionColor");
+    color->setAccessibleName("Fill color");
     auto showColor = [&] {
         color->setText(
             QColor::fromRgbF(candidate.color[0], candidate.color[1], candidate.color[2]).name());
+        color->setAccessibleDescription(color->text());
     };
     showColor();
     form->addRow("Fill color", color);
@@ -250,6 +253,7 @@ void SectionsPanel::edit(bool create) {
         QColorDialog picker(
             QColor::fromRgbF(candidate.color[0], candidate.color[1], candidate.color[2]), &dialog);
         picker.setOption(QColorDialog::DontUseNativeDialog);
+        nameColorDialog(picker);
         const auto baseline = picker.currentColor();
         if (picker.exec() == QDialog::Accepted && picker.currentColor() != baseline) {
             const auto chosen = picker.currentColor();

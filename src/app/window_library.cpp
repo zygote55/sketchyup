@@ -220,6 +220,8 @@ void Window::saveLibraryDialog(bool component) {
     auto *description = new QPlainTextEdit;
     description->setObjectName("libraryDescription");
     description->setAccessibleName("Description");
+    // Tab moves to the next field; a keyboard user could not otherwise leave the editor.
+    description->setTabChangesFocus(true);
     description->setMaximumHeight(100);
     form.addRow("&Description", description);
     auto *labels = new QLineEdit;

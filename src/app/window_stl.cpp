@@ -1,3 +1,4 @@
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/report_sheet.hpp"
 #include "app/window.hpp"
@@ -89,6 +90,7 @@ std::optional<StlOptions> options(QWidget *parent, bool exporting) {
     form.addRow(buttons);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    nameInternalEditors(&dialog);
     if (dialog.exec() != QDialog::Accepted)
         return {};
     return StlOptions{
@@ -141,6 +143,7 @@ void report(QWidget *parent, const QJsonObject &data, StlCoordinateOptions optio
     }
     auto *details = new QPlainTextEdit;
     details->setObjectName("stlDetails");
+    details->setAccessibleName("STL conversion details");
     details->setReadOnly(true);
     details->setPlainText(text);
     sheet.body->addWidget(details, 1);

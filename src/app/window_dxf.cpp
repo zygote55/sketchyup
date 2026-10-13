@@ -1,3 +1,4 @@
+#include "app/accessible_names.hpp"
 #include "app/report_sheet.hpp"
 #include "app/window.hpp"
 #include "io/dxf_export.hpp"
@@ -56,6 +57,7 @@ std::optional<Options> options(QWidget *parent, bool exporting) {
     form.addRow(buttons);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    nameInternalEditors(&dialog);
     if (dialog.exec() != QDialog::Accepted)
         return {};
     DxfOptions unit;
@@ -104,6 +106,7 @@ void report(QWidget *parent, const QJsonObject &data, bool exported) {
         text += QString("\n• %1: %2").arg(describe(i.key())).arg(i.value().toInt());
     auto *details = new QPlainTextEdit;
     details->setObjectName("dxfDetails");
+    details->setAccessibleName("DXF conversion details");
     details->setReadOnly(true);
     details->setPlainText(text);
     sheet.body->addWidget(details, 1);

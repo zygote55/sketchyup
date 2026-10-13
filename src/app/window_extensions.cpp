@@ -1,3 +1,4 @@
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/window.hpp"
 #include "automation/extension_store.hpp"
@@ -79,6 +80,7 @@ void Window::extensionsDialog() {
     auto *parameterScroll = new QScrollArea;
     parameterScroll->setWidgetResizable(true);
     parameterScroll->setWidget(parameterBox);
+    parameterScroll->setAccessibleName("Action parameters");
     parameterScroll->setMinimumHeight(80);
     parameterScroll->setMaximumHeight(240);
     layout.addWidget(parameterScroll, 1);
@@ -123,6 +125,7 @@ void Window::extensionsDialog() {
             actions->currentIndex() >= 0) {
             const auto action =
                 store.entries().at(id).manifest->actions[actions->currentIndex()].toObject();
+            QWidget *previous = parameterScroll;
             for (const auto &value : action["parameters"].toArray()) {
                 const auto spec = value.toObject();
                 const auto name = spec["name"].toString();
@@ -153,7 +156,11 @@ void Window::extensionsDialog() {
                 label->setBuddy(editor);
                 parameters->addRow(label, editor);
                 editors[name] = editor;
+                // New editors join the end of the Tab chain; keep them before the buttons.
+                QWidget::setTabOrder(previous, editor);
+                previous = editor;
             }
+            nameInternalEditors(parameterBox);
         }
         state();
     };

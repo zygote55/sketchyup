@@ -34,6 +34,7 @@ void Window::importGltfPath(const QString &path) {
     report.summary->setWordWrap(true);
     auto *details = new QPlainTextEdit;
     details->setObjectName("gltfImportDetails");
+    details->setAccessibleName("glTF import details");
     details->setReadOnly(true);
     QString text =
         "Preserved: mesh instances, hierarchy, placement, base colors and supported image "
@@ -81,6 +82,7 @@ void Window::importFormlinePath(const QString &path) {
     summary->setWordWrap(true);
     auto *details = new QPlainTextEdit;
     details->setObjectName("formlineImportDetails");
+    details->setAccessibleName("Formline import details");
     details->setReadOnly(true);
     QString text = QString("Boxes: %1\nCylinders: %2\nIn-model colors: %3\n\n"
                            "Preserved: names, visibility, position, rotation and source identity.")

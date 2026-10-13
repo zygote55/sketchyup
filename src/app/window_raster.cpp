@@ -1,3 +1,4 @@
+#include "app/accessible_names.hpp"
 #include "app/window.hpp"
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -52,6 +53,7 @@ void Window::exportRasterDialog() {
             error->setText(QString::fromUtf8(failure.what()));
         }
     });
+    nameInternalEditors(&dialog);
     dialog.exec();
 }
 } // namespace sketchy

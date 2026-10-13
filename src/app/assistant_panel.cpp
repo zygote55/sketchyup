@@ -115,6 +115,7 @@ struct AssistantPanel::Impl {
             chatgpt.setCredentialExecutable(this->services.credentialExecutable);
         }
         owner.setObjectName("assistantContainer");
+        owner.setAccessibleName("Assistant");
         owner.setMinimumWidth(240);
         owner.setFocusPolicy(Qt::StrongFocus);
         owner.setAttribute(Qt::WA_StyledBackground); // Draw the themed focus border.
@@ -138,6 +139,7 @@ struct AssistantPanel::Impl {
         QObject::connect(settings, &QPushButton::clicked, &owner,
                          [this] { safe([this] { showSetup(); }); });
         auto *scroll = new QScrollArea;
+        scroll->setAccessibleName("Assistant task");
         scroll->setWidgetResizable(true);
         scroll->setFrameShape(QFrame::NoFrame);
         auto *body = new QWidget;
@@ -254,6 +256,8 @@ struct AssistantPanel::Impl {
         composer->setObjectName("assistantComposer");
         composer->setPlaceholderText("Ask or describe a change…");
         composer->setAccessibleName("Assistant request");
+        // Tab moves on to the request options and Send; it would otherwise stay in the editor.
+        composer->setTabChangesFocus(true);
         composer->setMinimumHeight(48);
         composer->setMaximumHeight(80);
         layout->addWidget(composer);
@@ -653,6 +657,8 @@ struct AssistantPanel::Impl {
             QObject::connect(dialog, &QDialog::rejected, &owner, [this] {
                 pending.reset();
                 refresh();
+                // Send was disabled while permission was pending; return focus to it.
+                send->setFocus(Qt::OtherFocusReason);
             });
         }
         QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);

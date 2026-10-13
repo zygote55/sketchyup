@@ -1,4 +1,5 @@
 #include "app/materials_panel.hpp"
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/texture_editor.hpp"
 #include "core/face_textures.hpp"
@@ -227,6 +228,7 @@ void MaterialsPanel::edit(bool create) {
         create ? std::array<float, 3>{.73f, .79f, .73f} : doc_.materials().at(id)->color;
     auto *color = new QLineEdit(QColor::fromRgbF(rgb[0], rgb[1], rgb[2]).name());
     color->setObjectName("materialColor");
+    color->setAccessibleName("Color");
     auto *opacity = new QDoubleSpinBox;
     acceptKeypadDecimal(opacity);
     opacity->setObjectName("materialOpacity");
@@ -281,8 +283,10 @@ void MaterialsPanel::edit(bool create) {
     choose->setObjectName("materialChooseColor");
     colorRow->addWidget(choose);
     connect(choose, &QPushButton::clicked, &dialog, [&] {
-        const auto chosen =
-            QColorDialog::getColor(QColor(color->text()), &dialog, "Material color");
+        QColorDialog picker(QColor(color->text()), &dialog);
+        picker.setWindowTitle("Material color");
+        nameColorDialog(picker);
+        const auto chosen = picker.exec() == QDialog::Accepted ? picker.selectedColor() : QColor{};
         if (chosen.isValid()) {
             color->setText(chosen.name());
             color->setModified(true);
@@ -317,6 +321,14 @@ void MaterialsPanel::edit(bool create) {
             const auto next = doc_.nextMaterialId();
             if (!create)
                 command["material"] = sid(id);
+            // OK without a change closes, as in the other editors, instead of reporting an
+            // empty edit.
+            if (!create && !command.contains("color") && !command.contains("opacity") &&
+                name->text().toStdString() == doc_.materials().at(id)->name &&
+                asset->currentData().toString() == sid(doc_.materials().at(id)->asset)) {
+                dialog.accept();
+                return;
+            }
             view_.editMaterials({command});
             view_.setPaintMaterial(create ? next : id, view_.paintSide());
             dialog.accept();
@@ -324,6 +336,7 @@ void MaterialsPanel::edit(bool create) {
             error->setText(failure.what());
         }
     });
+    nameInternalEditors(&dialog);
     dialog.exec();
 }
 void MaterialsPanel::attach(bool replace) {

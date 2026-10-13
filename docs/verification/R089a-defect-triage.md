@@ -70,7 +70,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-021 | Wayland test-window exposure timeouts under host load | [R083.g](R083g-unexpected-modal-guard.md), [R084.r](R084r-display-precision.md), [R084.s](R084s-keyboard-panel-tabs.md), [R085.q](R085q-keypad-decimal.md) | N03, N01 (test harness) | **Unverified.** In local bounded-container Wayland 2× runs, fixtures fail in `qWaitForWindowExposed` before any test step: 2 of 4 `units_input_tests` runs (load average about 28), 3 of 6 `file_operation_input_tests` runs (load above 30; 6/6 passed at about 15), five Wayland 2× cases in the R084.s matrix (style, solar, reference image, annotation, audit) and one `numeric_input_tests` run. Identical reruns pass without a changed wait. These records attribute none to CI. The cause is not established beyond host load. | Minor | Test infrastructure. The failure precedes any product code in the test and is not a focus defect, so it is distinct from D-007 (focus lost after exposure). | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only): load gating or a bounded retry |
 | D-022 | Parser fuzz targets abort on their first seed under ASan with Qt 6.11.2 JSON parsing (F1) | [R083.e](R083e-parser-fuzzing.md) | D02, D06 (test tooling) | **Unverified.** Six of ten libFuzzer targets (native JSON, container, GLB, template, component, extension) abort on an unmodified valid seed with an alloc-dealloc mismatch whose stacks lie inside `libQt6Core.so.6` under `QJsonDocument::fromJson`. A three-line program that calls only `fromJson` reproduces it. `parser_fuzz_seeds` passes every seed through the instrumented parsers, and the six targets show no crash, leak or hang with that one check disabled. The record states that the root cause is not established and the finding stays open. | Minor | The evidence points to a Qt/libFuzzer/ASan interaction, not application code, but the six targets do not meet the documented fuzz options and the campaign is not in CI. | [R083](../PR_ROADMAP.md#r083): resolve F1 or document the option; continuous fuzzing |
 | D-023 | Focus-ring contrast residuals next to the 3D canvas and native scroll bars | [R084.q](R084q-visible-focus.md), [R084.s](R084s-keyboard-panel-tabs.md) | N05 | **Open.** R084.q records that the dark-theme ring has 1.64:1 contrast against the light default canvas where the tool rail, breadcrumb and assistant container touch it; the canvas's own ring is 2.997:1 against dark chrome; native scroll bars are not themed; 14 controls per run are wider than their scroll area at 200% text. R084.s leaves one or two tab-bar scroll buttons in the Tab order between the tab bar and its page. | Minor | Cosmetic and keyboard-friction issues. Every ring keeps at least 3.93:1 against the colour directly inside it, and no control is unreachable. A mid-tone ring cannot satisfy all cases, so the next step is a design decision. | [R084](../PR_ROADMAP.md#r084) (UX decision) |
-| D-025 | "Model" breadcrumb overlaps the viewport's "PERSPECTIVE / METERS" label at a small window | [R085.r](R085r-hotplug-owner-attested.md) | N01 | **Open, fix in progress.** At a 701×418 window the breadcrumb is drawn over the label, which reads "Model ECTIVE / METERS". Found in the Wayland hotplug screenshots on 2026-10-12. The branch `fix/viewport-label-overlap` addresses it. | Minor | Cosmetic. The viewport, picking and every control still work; only a label is partly covered at a small window. | Branch `fix/viewport-label-overlap` (in progress) |
+| D-026 | Reopened "Render with Blender" keeps focus on Jobs…, so Enter opens Jobs instead of rendering | [R084.u](R084u-all-dialog-keyboard.md) | N03, N05 | **Open.** Render is disabled while a job starts, Qt moves focus to Jobs…, and the non-modal sheet keeps that focus when reopened. The first opening, which the audit covers, defaults to Render. | Minor | Keyboard-only users can still Tab to Render; nothing is edited by mistake, since Jobs only lists jobs. | Unassigned |
 | D-010 | System Wayland 1.26 client leaks a destroyed-proxy reference | [R062.b proxy](R062b-wayland-proxy.md), [R058.c](R058c-native-diagnostics.md) | N01 | **Open (external).** The leak is reproduced standalone without Qt or SketchyUp. Only sanitized CI uses the patched private client (`scripts/ci-wayland-client.sh`); users get the system library. | Limitation | A 96-byte leak per affected dialog event, in a third-party library. Disclosed in R062.b as "a documented external limitation until a fixed distribution library is available". | [R085](../PR_ROADMAP.md#r085): track the distribution fix |
 | D-011 | Qt Wayland client-decoration framebuffer leak | [R050](R050-native-render-ui.md) | N01 | **Open (external).** Sanitized Wayland steps still set `QT_WAYLAND_DISABLE_WINDOWDECORATION=1` (`.github/workflows/native.yml`). | Limitation | Upstream Qt allocation, with no application frame in the stack. Disclosed in R050 as a test-environment workaround. | [R085](../PR_ROADMAP.md#r085): track upstream |
 | D-012 | Compositor crash with RGB565/odd-stride surfaces at fractional scale | [R085.a](R085a-current-platform-validation.md), [R085.b](R085b-native-surface-color.md), [support matrix](../SUPPORT_MATRIX.md#runtime-and-services) | N01, N04 | **Mitigated.** The application now requests eight-bit surfaces and all 20 fractional cases pass. The external Weston/Mesa defect is not shown to be fixed. | Limitation | External defect, avoided by the surface-color policy ([ADR 0157](../decisions/0157-native-surface-color.md)). Disclosed in the support matrix. | [R085](../PR_ROADMAP.md#r085) |
@@ -112,6 +112,12 @@ Closed by the 2026-10-12 hardware session:
   sharing-off hardware control are waived ([ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md)),
   so the budget is hardware-accepted on AMD only. The inference-update growth with placements
   noted under D-003 showed up as the edit-feedback miss D-024, fixed by R082.jj (below).
+
+Closed by R084.t (#301):
+
+- **D-025** ("Model" breadcrumb drawn over the "PERSPECTIVE / METERS" label at a 701×418
+  window). [R084.t](R084t-viewport-label-overlap.md) places the projection label beside or
+  below the breadcrumb; `viewport_label_overlap_tests` asserts no overlap.
 
 Closed by R082.jj:
 
@@ -164,15 +170,15 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 9 | D-006–D-009, D-019, D-021–D-023, D-025 |
+| Minor | 9 | D-006–D-009, D-019, D-021–D-023, D-026 |
 | Limitation | 13 | D-001, D-004, D-005, D-010–D-018, D-020 |
 | **Total open** | **22** | |
-| Fixed since the previous refresh | 2 | D-003, D-024 (added and fixed 2026-10-12) |
+| Fixed since the previous refresh | 3 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301) |
 
 Before this refresh (2026-10-11): 22 (0 release-blocking, 1 Major, 11 Minor, 10 Limitation).
 D-003 is fixed. D-004 moved from Major to Limitation, and D-005 and D-020 from Minor to
 Limitation, by the owner's evidence waiver. D-024 (Major) and D-025 (Minor) were added;
-R082.jj then fixed D-024.
+R082.jj then fixed D-024. **2026-10-13:** #301 fixed D-025, and R084.u added D-026 (Minor).
 
 No release-blocking or Major defect remains; this is still not a release sign-off. D-024 is
 fixed on AMD, so the 10,000-placement edit-feedback miss no longer stands against the M9 exit

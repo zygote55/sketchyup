@@ -3,6 +3,7 @@
 #include <QAction>
 #include <QDialog>
 #include <QHBoxLayout>
+#include <QPushButton>
 #include <QShortcut>
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -76,6 +77,10 @@ void Window::layoutAssistant() {
             });
         }
         assistantSheet_->layout()->addWidget(assistant_);
+        // In a dialog Qt would make the panel's first button the default, so Enter in a field
+        // would press it. Keep Enter as in the docked panel.
+        for (auto *button : assistant_->findChildren<QPushButton *>())
+            button->setAutoDefault(false);
         assistantSheet_->resize(std::min(interfaceExtent(400, textPercent), width() - 32),
                                 std::max(420, height() - 64));
         assistantSheet_->show();

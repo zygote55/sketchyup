@@ -1,4 +1,5 @@
 #include "app/solar_panel.hpp"
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include <QCheckBox>
 #include <QDateEdit>
@@ -165,6 +166,7 @@ void SolarPanel::edit() {
             error->setText(QString::fromUtf8(failure.what()));
         }
     });
+    nameInternalEditors(&dialog);
     dialog.exec();
 }
 } // namespace sketchy
