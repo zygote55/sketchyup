@@ -56,7 +56,7 @@ notices=$output/THIRD_PARTY_NOTICES
 {
   printf 'SketchyUp %s third-party notices\n' "$version"
   printf 'Collected from the files installed to /usr/share/licenses/sketchyup.\n'
-  sed -n 's,^install(FILES \([^ ]*\) DESTINATION share/licenses/sketchyup\( RENAME \([^ )]*\)\)\{0,1\})$,\1 \3,p' \
+  sed -n 's|^install(FILES \([^ ]*\) DESTINATION share/licenses/sketchyup\( RENAME \([^ )]*\)\)\{0,1\})$|\1 \3|p' \
     "$root/CMakeLists.txt" |
     while read -r source installed; do
       [[ -f $root/$source ]] || fail "license file $source is missing"
