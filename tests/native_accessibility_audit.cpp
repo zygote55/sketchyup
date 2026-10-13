@@ -1,11 +1,13 @@
 #include "app/window.hpp"
 #include "io/document_io.hpp"
+#include "native_dialog_cases.hpp"
 #include <QAbstractSpinBox>
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QKeySequenceEdit>
@@ -111,6 +113,82 @@ QJsonObject inspectKeyboard(QDialog &dialog) {
             {"unreachableControls", missing},
             {"steps", qint64(steps)}};
 }
+// R084.u: every dialog in one inventory group, keyboard only; see native_dialog_audit.hpp.
+int auditDialogGroup(Window &window, const QString &group, const QString &files) {
+    using namespace dialog_audit;
+    Context context{window, files};
+    const auto all = cases(context);
+    QJsonArray results;
+    QStringList failed;
+    QStringList groups;
+    for (const auto &c : all)
+        if (!groups.contains(c.group))
+            groups << c.group;
+    check(group == "all" || group == "inventory" || groups.contains(group), "Unknown dialog group");
+    // Completeness: every public command that ends in an ellipsis opens a dialog, so it
+    // must be the keyboard path of at least one case.
+    QJsonArray uncovered;
+    for (auto *action : window.findChildren<QAction *>()) {
+        if (!action->property("category").isValid() || !action->text().endsWith(QChar(0x2026)))
+            continue;
+        bool covered{};
+        for (const auto &c : all)
+            covered |= c.opener.contains(action->text());
+        if (!covered)
+            uncovered.append(action->objectName() + ": " + action->text());
+    }
+    if (group == "inventory") {
+        QJsonArray inventory;
+        for (const auto &c : all)
+            inventory.append(QJsonObject{{"id", c.id},
+                                         {"group", c.group},
+                                         {"title", c.title},
+                                         {"keyboardPath", c.opener},
+                                         {"note", c.note}});
+        std::cout << QJsonDocument(QJsonObject{{"dialogs", inventory},
+                                               {"unexercised", unexercised()},
+                                               {"groups", QJsonArray::fromStringList(groups)},
+                                               {"uncoveredEllipsisActions", uncovered}})
+                         .toJson()
+                         .toStdString();
+        return uncovered.isEmpty() ? 0 : 1;
+    }
+    QElapsedTimer clock;
+    clock.start();
+    for (const auto &c : all) {
+        if (group != "all" && c.group != group)
+            continue;
+        // Local diagnosis only: restrict a run to one case.
+        if (const auto only = qEnvironmentVariable("SKETCHYUP_AUDIT_CASE");
+            !only.isEmpty() && only != c.id)
+            continue;
+        std::cerr << "[audit] " << c.id.toStdString() << std::endl;
+        QElapsedTimer caseClock;
+        caseClock.start();
+        auto result = run(context, c);
+        result.json["milliseconds"] = qint64(caseClock.elapsed());
+        if (!result.findings.isEmpty()) {
+            failed << c.id;
+            std::cerr << c.id.toStdString() << ":\n";
+            for (const auto &finding : result.findings)
+                std::cerr << "  " << finding.toStdString() << '\n';
+        }
+        results.append(result.json);
+    }
+    QJsonObject report{{"auditVersion", 3},
+                       {"group", group},
+                       {"platform", QGuiApplication::platformName()},
+                       {"qtVersion", qVersion()},
+                       {"scale", window.devicePixelRatioF()},
+                       {"dialogs", results},
+                       {"failedDialogs", QJsonArray::fromStringList(failed)},
+                       {"uncoveredEllipsisActions", uncovered},
+                       {"milliseconds", qint64(clock.elapsed())},
+                       {"releaseAcceptance", false}};
+    std::cout << QJsonDocument(report).toJson().toStdString();
+    window.document().markSaved();
+    return failed.isEmpty() && uncovered.isEmpty() ? 0 : 1;
+}
 } // namespace
 int main(int argc, char **argv) {
     QTemporaryDir settings;
@@ -127,12 +205,24 @@ int main(int argc, char **argv) {
     QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
     Window window(nullptr, services);
     try {
+        if (app.arguments().size() == 2 && app.arguments()[1].startsWith("--dialogs-keyboard=")) {
+            window.resize(dialog_audit::kAuditWindow);
+            window.demo();
+            window.document().markSaved();
+            window.show();
+            check(QTest::qWaitForWindowExposed(&window), "Audit window exposed");
+            window.activateWindow();
+            check(QTest::qWaitForWindowActive(&window), "Audit window owns keyboard focus");
+            QTemporaryDir files(settings.filePath("audit-files-XXXXXX"));
+            check(files.isValid(), "Audit scratch directory");
+            return auditDialogGroup(window, app.arguments()[1].section('=', 1), files.path());
+        }
         check(app.arguments().size() == 1 ||
                   (app.arguments().size() == 2 && (app.arguments()[1] == "--inventory-only" ||
                                                    app.arguments()[1] == "--dialogs-only" ||
                                                    app.arguments()[1] == "--dialogs-keyboard")),
               "Usage: native_accessibility_audit "
-              "[--inventory-only|--dialogs-only|--dialogs-keyboard]");
+              "[--inventory-only|--dialogs-only|--dialogs-keyboard|--dialogs-keyboard=GROUP]");
         const bool keyboardDialogs = app.arguments().contains("--dialogs-keyboard");
         const bool dialogsOnly = keyboardDialogs || app.arguments().contains("--dialogs-only");
         const bool keyboard = !dialogsOnly && !app.arguments().contains("--inventory-only");

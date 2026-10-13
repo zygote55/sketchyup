@@ -6,6 +6,7 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QKeyEvent>
 #include <QKeySequenceEdit>
 #include <QLockFile>
 #include <QPushButton>
@@ -14,6 +15,21 @@
 #include <algorithm>
 namespace sketchy {
 namespace {
+// QKeySequenceEdit lets Tab move focus on but records Shift+Tab as a key combination. Tab keys
+// are reserved for focus (ShortcutBindings rejects them), so Shift+Tab moves focus back too.
+class BacktabLeavesEditor final : public QObject {
+  public:
+    using QObject::QObject;
+
+  protected:
+    bool eventFilter(QObject *object, QEvent *event) override {
+        if (event->type() != QEvent::KeyPress ||
+            static_cast<QKeyEvent *>(event)->key() != Qt::Key_Backtab)
+            return false;
+        // The window moves focus to the previous control in the Tab chain.
+        return QCoreApplication::sendEvent(static_cast<QWidget *>(object)->window(), event);
+    }
+};
 constexpr auto settingsKey = "shortcuts/v1";
 bool viewportShortcut(QAction *action, const QKeySequence &sequence) {
     const bool plain =
@@ -121,6 +137,10 @@ void Window::shortcutSettings() {
     editor->setAccessibleName("New key combination");
     if (auto *input = editor->findChild<QLineEdit *>())
         input->setAccessibleName("New key combination");
+    auto *backtab = new BacktabLeavesEditor(editor);
+    editor->installEventFilter(backtab);
+    if (auto *input = editor->findChild<QLineEdit *>())
+        input->installEventFilter(backtab);
     editor->setMaximumSequenceLength(1);
     layout.addWidget(editor);
     auto *error = new QLabel;

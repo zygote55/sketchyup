@@ -1,4 +1,5 @@
 #include "app/render_panel.hpp"
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/render_jobs.hpp"
 #include "core/scenes.hpp"
@@ -325,6 +326,7 @@ struct RenderPanel::Impl {
         dialog->resize(460, 640);
         auto *outer = new QVBoxLayout(dialog);
         auto *scroll = new QScrollArea;
+        scroll->setAccessibleName("Render settings");
         scroll->setWidgetResizable(true);
         scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         auto *contents = new QWidget;
@@ -447,6 +449,7 @@ struct RenderPanel::Impl {
         layout->addWidget(jobStatus);
         logs = new QPlainTextEdit;
         logs->setObjectName("renderLogs");
+        logs->setAccessibleName("Worker diagnostics");
         logs->setReadOnly(true);
         logs->setMaximumBlockCount(2000);
         logs->setMaximumHeight(130);
@@ -515,6 +518,7 @@ struct RenderPanel::Impl {
                 publish();
             }
         });
+        nameInternalEditors(dialog);
         publish();
         dialog->show();
         if (!active())
@@ -932,6 +936,7 @@ struct RenderPanel::Impl {
                 error->setText(QString::fromUtf8(failure.what()));
             }
         });
+        nameInternalEditors(&sheet);
         sheet.exec();
     }
     void chooseHandoff(const QString &id) {

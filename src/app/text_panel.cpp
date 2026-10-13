@@ -1,4 +1,5 @@
 #include "app/text_panel.hpp"
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/commands.hpp"
@@ -224,6 +225,8 @@ void TextPanel::edit(bool creating) {
     const auto originalName = name->text();
     auto *text = new QPlainTextEdit(QString::fromStdString(original.text));
     text->setObjectName("textContent");
+    // Tab moves to the next field; a keyboard user could not otherwise leave the editor.
+    text->setTabChangesFocus(true);
     text->setMaximumHeight(110);
     form->addRow("Text", text);
     auto *family = new QComboBox;
@@ -271,6 +274,7 @@ void TextPanel::edit(bool creating) {
             position[i] = new QLineEdit("0");
             acceptKeypadDecimal(position[i]);
             position[i]->setObjectName("textPosition" + QString::number(i));
+            position[i]->setAccessibleName(QString("Position %1").arg(QChar("XYZ"[i])));
             layout->addWidget(position[i]);
         }
         form->addRow("Position in editing context", row);
@@ -428,6 +432,7 @@ void TextPanel::edit(bool creating) {
             error->setText(QString::fromUtf8(failure.what()));
         }
     });
+    nameInternalEditors(&dialog);
     dialog.exec();
 }
 } // namespace sketchy

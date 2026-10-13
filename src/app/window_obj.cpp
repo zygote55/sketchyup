@@ -85,6 +85,7 @@ void report(QWidget *parent, const QJsonObject &data, ObjImportOptions options, 
     }
     auto *details = new QPlainTextEdit;
     details->setObjectName("objDetails");
+    details->setAccessibleName("OBJ conversion details");
     details->setReadOnly(true);
     details->setPlainText(text);
     sheet.body->addWidget(details, 1);

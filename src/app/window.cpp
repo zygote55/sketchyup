@@ -1,4 +1,5 @@
 #include "app/window.hpp"
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/context_label.hpp"
 #include "app/file_operation.hpp"
@@ -15,6 +16,7 @@
 #include <QColorDialog>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -440,7 +442,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         auto id = viewport_->selectedBody();
         if (!id)
             return;
-        auto c = QColorDialog::getColor(Qt::white, this, "Material color");
+        QColorDialog picker(Qt::white, this);
+        picker.setWindowTitle("Material color");
+        nameColorDialog(picker);
+        const auto c = picker.exec() == QDialog::Accepted ? picker.selectedColor() : QColor{};
         if (c.isValid()) {
             viewport_->paintSelection({float(c.redF()), float(c.greenF()), float(c.blueF())});
             sync();
@@ -696,11 +701,18 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                                             {"view.isometric", "Isometric", 7}})
         view->addAction(action(id, label, {}, [this, preset] { viewport_->standardView(preset); }));
     view->addAction(action("view.fov", "Field of view…", {}, [this] {
-        bool ok = false;
-        const auto degrees =
-            QInputDialog::getDouble(this, "Field of view", "Vertical angle in degrees",
-                                    viewport_->fieldOfView(), 5, 120, 1, &ok);
-        if (ok) {
+        QInputDialog input(this);
+        input.setWindowTitle("Field of view");
+        input.setLabelText("Vertical angle in degrees");
+        input.setInputMode(QInputDialog::DoubleInput);
+        input.setDoubleRange(5, 120);
+        input.setDoubleDecimals(1);
+        input.setDoubleValue(viewport_->fieldOfView());
+        if (auto *angle = input.findChild<QDoubleSpinBox *>())
+            angle->setAccessibleName(input.labelText());
+        nameInternalEditors(&input);
+        if (input.exec() == QDialog::Accepted) {
+            const auto degrees = input.doubleValue();
             viewport_->setFieldOfView(degrees);
             QSettings("SketchyUp", "SketchyUp").setValue("fieldOfView", degrees);
         }

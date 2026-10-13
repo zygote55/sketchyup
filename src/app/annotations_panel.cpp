@@ -1,4 +1,5 @@
 #include "app/annotations_panel.hpp"
+#include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/annotation_display.hpp"
 #include "automation/annotation_commands.hpp"
@@ -227,6 +228,8 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
     form->addRow("Name", name);
     auto *text = new QPlainTextEdit(QString::fromStdString(original.text));
     text->setObjectName("annotationText");
+    // Tab moves to the next field; a keyboard user could not otherwise leave the editor.
+    text->setTabChangesFocus(true);
     text->setMaximumHeight(75);
     form->addRow(original.kind == AnnotationKind::Distance ? "Text prefix" : "Label text", text);
     auto *binding = new QComboBox;
@@ -245,7 +248,7 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
     }
     std::array<std::array<QLineEdit *, 3>, 2> pointFields{};
     const auto count = original.kind == AnnotationKind::Distance ? 2 : 1;
-    auto vectorFields = [&](const QString &prefix, Vec3 value) {
+    auto vectorFields = [&](const QString &prefix, const QString &label, Vec3 value) {
         auto *row = new QWidget;
         auto *layout = new QHBoxLayout(row);
         layout->setContentsMargins(0, 0, 0, 0);
@@ -256,19 +259,21 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
             fields[i] = new QLineEdit(displayLength(xyz[i], doc_.displayUnits(), fullDisplayPrecision));
             acceptKeypadDecimal(fields[i]);
             fields[i]->setObjectName(prefix + QString::number(i));
+            fields[i]->setAccessibleName(label + ' ' + QChar("XYZ"[i]));
             layout->addWidget(fields[i]);
         }
         return std::pair{row, fields};
     };
     for (int i = 0; i < count; ++i) {
-        auto [row, fields] = vectorFields("annotationPoint" + QString::number(i), points[i]);
+        auto [row, fields] = vectorFields("annotationPoint" + QString::number(i),
+                                          "World point " + QString::number(i + 1), points[i]);
         pointFields[i] = fields;
         form->addRow("World point " + QString::number(i + 1), row);
         auto enabled = [=] { row->setEnabled(binding->currentData() == "fixed"); };
         connect(binding, &QComboBox::currentIndexChanged, &dialog, enabled);
         enabled();
     }
-    auto [offsetRow, offset] = vectorFields("annotationOffset", original.offset);
+    auto [offsetRow, offset] = vectorFields("annotationOffset", "Text offset", original.offset);
     form->addRow("Text offset (world)", offsetRow);
     auto *leader = new QCheckBox("Show leader / extension lines");
     leader->setObjectName("annotationLeader");
@@ -283,9 +288,11 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
     form->addRow("Text size (pixels)", size);
     auto *color = new QPushButton;
     color->setObjectName("annotationColor");
+    color->setAccessibleName("Color");
     auto showColor = [&] {
         color->setText(
             QColor::fromRgbF(candidate.color[0], candidate.color[1], candidate.color[2]).name());
+        color->setAccessibleDescription(color->text());
     };
     showColor();
     form->addRow("Color", color);
@@ -293,6 +300,7 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
         QColorDialog picker(
             QColor::fromRgbF(candidate.color[0], candidate.color[1], candidate.color[2]), &dialog);
         picker.setOption(QColorDialog::DontUseNativeDialog);
+        nameColorDialog(picker);
         const auto baseline = picker.currentColor();
         if (picker.exec() == QDialog::Accepted && picker.currentColor() != baseline) {
             const auto chosen = picker.currentColor();
@@ -370,6 +378,7 @@ void AnnotationsPanel::edit(std::optional<AnnotationKind> create) {
         }
     });
     name->selectAll();
+    nameInternalEditors(&dialog);
     dialog.exec();
 }
 } // namespace sketchy

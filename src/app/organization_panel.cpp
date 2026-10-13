@@ -244,8 +244,12 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
             [this] { attempt([&] { moveDialog(false); }); });
     control(entities, buttons, 2, "outliner.tag", "Tag", QKeySequence("Ctrl+Alt+T"),
             [this] { attempt([&] { assignTag(); }); });
-    control(entities, buttons, 3, "outliner.hide", "Hide/show", Qt::Key_Space,
-            [this] { attempt([&] { state(false); }); });
+    auto *hide = control(entities, buttons, 3, "outliner.hide", "Hide/show", Qt::Key_Space,
+                         [this] { attempt([&] { state(false); }); });
+    // Space toggles visibility from the tree only, so it still presses a focused button.
+    entities->removeAction(hide);
+    hide->setShortcutContext(Qt::WidgetShortcut);
+    outliner_->addAction(hide);
     control(entities, buttons, 4, "outliner.lock", "Lock", QKeySequence("Ctrl+Shift+L"),
             [this] { attempt([&] { state(true); }); });
     control(entities, buttons, 5, "outliner.open", "Open", {}, [this] { enter(); });

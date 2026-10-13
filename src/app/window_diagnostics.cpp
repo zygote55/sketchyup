@@ -430,6 +430,7 @@ class DiagnosticsReport final : public ReportSheet {
         summary->setObjectName("diagnosticsSummary");
         rows_ = new QTreeWidget;
         rows_->setObjectName("diagnosticsFindings");
+        rows_->setAccessibleName("Diagnostic findings");
         rows_->setHeaderLabels({"Severity", "Finding", "Count"});
         rows_->setRootIsDecorated(false);
         rows_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -440,10 +441,12 @@ class DiagnosticsReport final : public ReportSheet {
         body->addWidget(rows_, 2);
         details_ = new QPlainTextEdit;
         details_->setObjectName("diagnosticsDetails");
+        details_->setAccessibleName("Finding details");
         details_->setReadOnly(true);
         body->addWidget(details_, 2);
         reference_ = new QComboBox;
         reference_->setObjectName("diagnosticsReference");
+        reference_->setAccessibleName("Orientation reference face");
         body->addWidget(reference_);
         notice_ = new QLabel;
         notice_->setObjectName("diagnosticsNotice");

@@ -1,3 +1,4 @@
+#include "app/accessible_names.hpp"
 #include "app/inspection_service.hpp"
 #include "app/render_panel.hpp"
 #include "app/window.hpp"
@@ -96,6 +97,7 @@ void Window::recoverySettings() {
     layout->addWidget(enabled);
     auto *interval = new QSpinBox;
     interval->setObjectName("recoveryInterval");
+    interval->setAccessibleName("Recovery copy interval");
     interval->setRange(5, 3600);
     interval->setSuffix(" seconds");
     interval->setValue(recovery_->interval() ? recovery_->interval() : 30);
@@ -111,6 +113,7 @@ void Window::recoverySettings() {
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
+    nameInternalEditors(&dialog);
     if (dialog.exec() == QDialog::Accepted) {
         const int seconds = enabled->isChecked() ? interval->value() : 0;
         QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", seconds);
@@ -134,6 +137,7 @@ void Window::showRecovery(bool onlyIfPresent) {
     layout->addWidget(summary);
     auto *list = new QTreeWidget;
     list->setObjectName("recoveryList");
+    list->setAccessibleName("Recovery copies");
     list->setHeaderLabels({"Model", "Last explicit save", "Recovery copy", "Changes"});
     list->setRootIsDecorated(false);
     list->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -141,6 +145,7 @@ void Window::showRecovery(bool onlyIfPresent) {
     layout->addWidget(list, 1);
     auto *details = new QPlainTextEdit;
     details->setObjectName("recoveryDetails");
+    details->setAccessibleName("Recovery copy details");
     details->setReadOnly(true);
     details->setMaximumHeight(130);
     layout->addWidget(details);
@@ -151,6 +156,8 @@ void Window::showRecovery(bool onlyIfPresent) {
     open->setObjectName("openRecovered");
     saved->setObjectName("openLastSaved");
     discard->setObjectName("discardRecovery");
+    // Enter must never discard recovery data; Qt otherwise makes the first button default.
+    discard->setAutoDefault(false);
     buttons->addButton(QDialogButtonBox::Close);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);

@@ -366,6 +366,19 @@ jobs:
           scripts/test-wayland.sh build/dev/array_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/array_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sketchyup --smoke
+      - name: All-dialog keyboard audit
+        run: |
+          # The inventory fails if a "…" command has no audited dialog; it also lists the
+          # groups, each sized to stay well inside test-wayland.sh's 60 s cap at 2x.
+          mkdir -p build/dialog-keyboard
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/native_accessibility_audit --dialogs-keyboard=inventory > build/dialog-keyboard/inventory.json
+          groups=$(python -c 'import json; print(" ".join(json.load(open("build/dialog-keyboard/inventory.json"))["groups"]))')
+          for group in $groups; do
+            for scale in 1 2; do
+              xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=$scale LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/x11-$scale-$group.json
+              SKETCHYUP_TEST_SCALE=$scale scripts/test-wayland.sh build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/wayland-$scale-$group.json
+            done
+          done
       - name: Reproducible M5 offline acceptance and recordings
         run: scripts/verify-m5-offline.sh build/dev "$PWD/build/m5-evidence" /usr/bin/blender
       - uses: actions/upload-artifact@v6

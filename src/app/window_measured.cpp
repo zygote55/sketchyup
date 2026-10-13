@@ -1,3 +1,4 @@
+#include "app/accessible_names.hpp"
 #include "app/window.hpp"
 #include <QCheckBox>
 #include <QComboBox>
@@ -108,6 +109,7 @@ void Window::exportMeasuredDialog() {
             layout.addWidget(summary);
             auto *details = new QPlainTextEdit;
             details->setObjectName("measuredExportDetails");
+            details->setAccessibleName("Measured export details");
             details->setReadOnly(true);
             QString explanation;
             if (mode->currentIndex() == 1) {
@@ -149,6 +151,7 @@ void Window::exportMeasuredDialog() {
             error->setText(QString::fromUtf8(failure.what()));
         }
     });
+    nameInternalEditors(&dialog);
     dialog.exec();
 }
 } // namespace sketchy
