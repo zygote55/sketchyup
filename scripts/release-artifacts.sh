@@ -46,7 +46,7 @@ if [[ -n $previous && $previous != "$archive_sha" ]]; then
   fail "existing $archive differs from HEAD's archive; packages there were built from other source"
 fi
 # Every archived file must be tracked at HEAD; ignored files must not leak into a release.
-untracked=$(comm -23 \
+untracked=$(LC_ALL=C comm -23 \
   <(tar -tzf "$output/$archive" | grep -v '/$' | sed "s,^sketchyup-$version/,," | LC_ALL=C sort) \
   <(git -C "$root" ls-files | LC_ALL=C sort))
 [[ -z $untracked ]] || fail "the archive would include untracked files: $(head -n 5 <<< "$untracked" | tr '\n' ' ')"
