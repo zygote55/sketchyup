@@ -55,13 +55,25 @@ void check(bool value, const char *message) {
     if (!value)
         throw std::runtime_error(message);
 }
-// Widget classes whose focus indicator the audit requires to be exercised.
-const char *const kFamilies[] = {"QLineEdit",        "QPushButton", "QComboBox",
-                                 "QCheckBox",        "QSpinBox",    "QDoubleSpinBox",
-                                 "QPlainTextEdit",   "QListWidget", "QTreeWidget",
-                                 "QTabBar",          "QToolButton", "QToolBar",
-                                 "QTimeEdit",        "QDateEdit",   "QKeySequenceEdit",
-                                 "QScrollArea",      "QLabel",      "sketchy::AssistantPanel",
+// Widget classes whose focus indicator the audit requires to be exercised. The tool rail
+// itself is no longer a focus target (R084.v); its buttons are QToolButtons.
+const char *const kFamilies[] = {"QLineEdit",
+                                 "QPushButton",
+                                 "QComboBox",
+                                 "QCheckBox",
+                                 "QSpinBox",
+                                 "QDoubleSpinBox",
+                                 "QPlainTextEdit",
+                                 "QListWidget",
+                                 "QTreeWidget",
+                                 "QTabBar",
+                                 "QToolButton",
+                                 "QTimeEdit",
+                                 "QDateEdit",
+                                 "QKeySequenceEdit",
+                                 "QScrollArea",
+                                 "QLabel",
+                                 "sketchy::AssistantPanel",
                                  "sketchy::Viewport"};
 QString family(const QWidget *widget) {
     if (qobject_cast<const QKeySequenceEdit *>(widget))
@@ -465,8 +477,8 @@ int main(int argc, char **argv) {
                     QTest::qWait(30);
                     sweep(window, "Main window / " + tabs->tabText(page));
                 }
-                // The tool rail's buttons are not keyboard stops in Qt, so prove the rule on
-                // a button that is: temporarily allow Tab focus on one rail button.
+                // Only the active tool's rail button is a Tab stop (R084.v); temporarily allow
+                // Tab focus on one checked and one unchecked button to prove the rule on both.
                 auto *rail = window.findChild<QToolBar *>("toolRail");
                 check(rail, "Tool rail exists");
                 if (!captureDir.isEmpty())

@@ -315,6 +315,10 @@ struct RenderPanel::Impl {
     void show() {
         checkOwner();
         if (dialog) {
+            // D-026: a job start disables Render and Qt moves focus to Jobs…; reopening makes
+            // Render the focus and default again. While a job runs, focus is left alone.
+            if (renderButton->isEnabled())
+                renderButton->setFocus(Qt::OtherFocusReason);
             dialog->show();
             dialog->raise();
             dialog->activateWindow();

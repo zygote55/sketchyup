@@ -198,13 +198,13 @@ int main(int argc, char **argv) {
         check(QApplication::focusWidget() == window.findChild<QWidget *>("commandSearch"),
               "F6 wraps from Measurements to command search");
         QTest::keyClick(QApplication::focusWidget(), Qt::Key_F6);
-        check(QApplication::focusWidget() == window.findChild<QWidget *>("toolRail"),
-              "F6 reaches tool rail");
+        // R084.v: the rail forwards focus to its single Tab stop, the active tool's button.
+        auto *rail = window.findChild<QWidget *>("toolRail");
+        check(rail->isAncestorOf(QApplication::focusWidget()), "F6 reaches tool rail");
         QTest::keyClick(QApplication::focusWidget(), Qt::Key_F6);
         check(view->hasFocus(), "F6 reaches viewport");
         QTest::keyClick(view, Qt::Key_F6, Qt::ShiftModifier);
-        check(QApplication::focusWidget() == window.findChild<QWidget *>("toolRail"),
-              "Shift F6 reverses region order");
+        check(rail->isAncestorOf(QApplication::focusWidget()), "Shift F6 reverses region order");
         check(encodeDocument(window.document()) == saved, "Focus navigation never edits model");
         view->setSelection(0);
         check(!window.findChild<QAction *>("edit.move")->isEnabled(), "Move requires selection");
