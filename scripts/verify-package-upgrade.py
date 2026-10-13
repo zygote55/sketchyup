@@ -17,6 +17,28 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+# Customized bindings, including one for a command this build does not know; the
+# application must keep both. Stored as QSettings writes a QByteArray value.
+SHORTCUTS = {"apiVersion": 1, "bindings": {"file.importDxf": "Ctrl+Alt+K",
+             "edit.shortcuts": "Ctrl+Alt+J", "future.command": "Ctrl+Shift+F9"}}
+
+
+def qsettings_bytes(value):
+    text = json.dumps(value, separators=(",", ":"))
+    return '"@ByteArray(' + text.replace("\\", "\\\\").replace('"', '\\"') + ')"'
+
+
+def shortcut_bindings(values):
+    raw = values.get("shortcuts", {}).get("v1")
+    if raw is None:
+        return None
+    if raw.startswith('"') and raw.endswith('"'):
+        raw = raw[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+    if not (raw.startswith("@ByteArray(") and raw.endswith(")")):
+        raise RuntimeError("shortcut bindings are no longer a byte-array setting")
+    return json.loads(raw[len("@ByteArray("):-1])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prior-package", type=Path, required=True)
@@ -57,7 +79,8 @@ def main():
     preferences.write_text("[General]\npackageSentinel=retain\ntheme=1\n"
                            "interfaceTextPercent=150\nreducedMotion=true\n"
                            "trackpadNavigation=true\nrecoverySeconds=0\nfieldOfView=67\n"
-                           "\n[futureNamespace]\ndata=opaque-upgrade-sentinel\n")
+                           "\n[futureNamespace]\ndata=opaque-upgrade-sentinel\n"
+                           "\n[shortcuts]\nv1=" + qsettings_bytes(SHORTCUTS) + "\n")
     own(preferences)
     for kind in ("data", "cache"):
         sentinel = root / kind / "sentinel"
@@ -138,10 +161,18 @@ def main():
         if report["candidateExecutables"] == report["priorExecutables"]:
             raise RuntimeError("no application executable changed across the upgrade")
         actual = run("candidate-inspect", ["sketchyup-cli", "--input", document], user=True)
-        if json.loads(actual) != expected:
+        actual = json.loads(actual)
+        # A newer application may report additional top-level fields (for example
+        # a setting the earlier format did not have); every earlier field must match.
+        if {key: actual.get(key) for key in expected} != expected:
             raise RuntimeError("upgrade changed public model inspection")
+        report["addedInspectionFields"] = {key: actual[key] for key in actual
+                                           if key not in expected}
         capture("candidate-desktop")
         after = read_preferences()
+        if not (shortcut_bindings(before) == shortcut_bindings(after) == SHORTCUTS):
+            raise RuntimeError("upgrade changed the saved shortcut bindings")
+        report["retainedShortcutBindings"] = shortcut_bindings(after)
         for section, keys in before.items():
             # Opening the same document can legitimately update window/recent state.
             for key in ("packagesentinel", "theme", "interfacetextpercent", "reducedmotion",
