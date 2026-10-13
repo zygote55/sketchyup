@@ -126,6 +126,7 @@ and the diagnostics orientation reference (shown only for orientation findings).
 - **Render with Blender, reopened after a render.** Render is disabled while the job
   starts, Qt moves focus to **Jobs…**, and the sheet keeps that focus when reopened, so
   Enter then opens Jobs instead of Render. The first opening (audited) defaults to Render.
+  Recorded as defect [D-026](R089a-defect-triage.md) (Minor).
 - **Default buttons chosen by Qt in dialogs without an apply action.** Extensions
   (**Install…**), Render jobs (**Open image**), Geometry diagnostics (**Refresh**) and
   Recover work (now **Open recovered version**) take Qt's first auto-default button. None
@@ -229,11 +230,12 @@ The headless suite (`ctest --preset headless`) passed 62/62.
 ## CI
 
 `native.yml` gains the step "All-dialog keyboard audit": the inventory, then every group
-on X11 and Wayland at 1× and 2× (64 audit invocations). The groups are sized from the
-local Wayland 2× runs, the slowest configuration, to fit `test-wayland.sh`'s 60 s cap: at
-most 50.2 s per group on the one-CPU runner, comparable to `diagnostics_input_tests` at
-53.0 s in the same run. That margin is thin on a loaded one-CPU host; a CI timeout would
-call for smaller groups. The main window is 1100 × 560 during the audit: wide enough for
+on X11 at 2× and on Wayland at 1× (32 audit invocations, about 26 s per group locally).
+Together these cover both platforms and both scales in about 8 minutes. The full four-way
+matrix above is the local evidence and is not repeated in CI. Wayland 2× is the slowest
+configuration: up to 50.2 s per group against `test-wayland.sh`'s 60 s cap, comparable to
+`diagnostics_input_tests` at 53.0 s in the same run. That margin is too thin for a loaded
+one-CPU CI host; adding Wayland 2× to CI would first need smaller groups. The main window is 1100 × 560 during the audit: wide enough for
 the docked Assistant, and small enough that software rendering of the 2× window does not
 dominate. The JSON reports land in `build/dialog-keyboard/`.
 
