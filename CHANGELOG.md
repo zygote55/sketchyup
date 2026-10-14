@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 — 2026-10-14
+
+Patch release from `release/1.0.x` ([GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.0.1)).
+
+- Fixes D-030: `annotation.create` sent through MCP `transaction.apply`, a headless
+  `--session` or a recipe step was always rejected, because the request validator ignored
+  the rules of `oneOf` choices without a `type`. No format, schema or API change; the
+  package upgrades from 1.0.0-1 and keeps preferences.
+- The same fix reached `main` in R090.e (#314).
+
 ## 1.0.0 — 2026-10-13
 
 The first release of SketchyUp, a native Linux face modeler. Earlier builds were
