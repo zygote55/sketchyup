@@ -164,7 +164,21 @@ class Window : public QMainWindow {
     void themeSheets(const ThemeColors &colors);
     void syncWorkspaceActions();
     void sheetTool(int tool);
-    void sheetCommands(const QJsonArray &commands, const QString &label);
+    QJsonObject sheetCommands(const QJsonArray &commands, const QString &label);
+    // R091.f: the canvas's commits. One labelled sheet-only entry, or an amendment of the
+    // previous one when the amend key repeats and nothing changed since (ADR 0164 §5).
+    QJsonObject sheetCommit(const QJsonArray &commands, const QString &label,
+                            const QString &amendKey);
+    QString sheetAmendKey_, sheetCommitError_, sheetInstruction_;
+    Document::AmendStamp sheetAmendStamp_;
+    QLabel *measurementStep_{};
+    void refreshSheetStep();
+    // Enables the sheet actions for the page, the selection and edit-view.
+    void syncSheetActions();
+    void refreshPlacement();
+    void chooseViewScene(Id view);
+    void saveViewScene(Id view);
+    void showViewScene(Id view);
     void addSheetPage();
     void moveSheetPage(Id sheet, int delta);
     void focusWorkspace();

@@ -171,6 +171,9 @@ class Viewport : public QOpenGLWidget {
     void applyPreparedEdit(const Document::PreparedEdit &edit);
     void applyTextEdit(const Document::PreparedEdit &edit) { applyPreparedEdit(edit); }
     void recallSavedScene(Id scene, bool animate = true);
+    // Applies a saved scene's camera only, never its style, visibility or sections (ADR 0164
+    // decision 9: "Show scene in model"). A camera change is view state, not an edit.
+    void showSceneCamera(Id scene);
     void insertLibrary(const struct ComponentBundle &bundle, Vec3 worldPosition);
     void setReducedMotion(bool enabled);
     void setAssistantPreview(std::shared_ptr<const Document::PreparedEdit> edit);

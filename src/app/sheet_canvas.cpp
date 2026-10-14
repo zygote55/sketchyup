@@ -3,8 +3,11 @@
 #include "core/drawing_sheets.hpp"
 #include <QAccessible>
 #include <QAccessibleWidget>
+#include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QPainter>
+#include <QPushButton>
 #include <QPainterPath>
 #include <QRegularExpression>
 #include <QWheelEvent>
@@ -166,10 +169,46 @@ SheetCanvas::SheetCanvas(const Document &doc, DrawingViewRenderCache &cache, QWi
     setFocusPolicy(Qt::StrongFocus);
     setMinimumSize(160, 120);
     setAttribute(Qt::WA_OpaquePaintEvent);
-    setMouseTracking(false);
+    // Hover previews the Model view frame and a Move pick-up between clicks.
+    setMouseTracking(true);
     rasterTimer_.setSingleShot(true);
     rasterTimer_.setInterval(120);
     connect(&rasterTimer_, &QTimer::timeout, this, &SheetCanvas::renderRasters);
+    // The edit-view banner (design §7): real buttons, so Tab reaches them after the canvas.
+    banner_ = new QWidget(this);
+    banner_->setObjectName("sheetEditBanner");
+    banner_->setAttribute(Qt::WA_StyledBackground);
+    banner_->setAccessibleName("Editing a view");
+    auto *bannerLayout = new QHBoxLayout(banner_);
+    bannerLayout->setContentsMargins(12, 6, 12, 6);
+    bannerLayout->setSpacing(10);
+    bannerText_ = new QLabel("Pan and zoom inside the frame. Changes stay on this sheet; the "
+                             "model and its scene don't change.");
+    bannerText_->setObjectName("sheetEditBannerText");
+    bannerText_->setWordWrap(true);
+    bannerLayout->addWidget(bannerText_, 1);
+    saveScene_ = new QPushButton("Save as new scene…");
+    saveScene_->setObjectName("sheetSaveScene");
+    saveScene_->setAutoDefault(false);
+    saveScene_->setAccessibleName("Save as new scene…");
+    saveScene_->setToolTip("Save this view's framing as a new scene in the model");
+    bannerLayout->addWidget(saveScene_);
+    done_ = new QPushButton("Done · Esc");
+    done_->setObjectName("sheetEditDone");
+    done_->setAutoDefault(false);
+    done_->setAccessibleName("Done editing the view");
+    done_->setToolTip("Leave edit-view (Esc)");
+    bannerLayout->addWidget(done_);
+    connect(saveScene_, &QPushButton::clicked, this, [this] {
+        if (editView_)
+            emit saveSceneRequested(editView_);
+    });
+    connect(done_, &QPushButton::clicked, this, [this] {
+        leaveEditView();
+        setFocus(Qt::OtherFocusReason);
+    });
+    banner_->hide();
+    themeBanner();
     announce();
 }
 SheetCanvas::~SheetCanvas() { dropChildren(this, {}); }
@@ -178,8 +217,11 @@ const DrawingSheetRecord *SheetCanvas::record() const {
     return found == doc_.drawingSheets().end() ? nullptr : found->second.get();
 }
 void SheetCanvas::setSheet(Id sheet) {
-    if (sheet == sheet_ && record())
+    if (sheet == sheet_ && (record() || !sheet))
         return;
+    cancelOperation();
+    leaveEditView();
+    endRevision();
     sheet_ = sheet;
     selectedView_ = 0;
     fitPage();
@@ -188,6 +230,7 @@ void SheetCanvas::setSheet(Id sheet) {
 }
 void SheetCanvas::setTheme(const ThemeColors &colors) {
     colors_ = colors;
+    themeBanner();
     update();
 }
 void SheetCanvas::setGrid(bool shown) {
@@ -197,12 +240,17 @@ void SheetCanvas::setGrid(bool shown) {
 void SheetCanvas::setTool(Tool tool) {
     if (tool_ == tool)
         return;
+    cancelOperation();
+    leaveEditView();
+    endRevision();
     tool_ = tool;
     drag_ = Drag::None;
     setCursor(tool == Tool::Pan    ? Qt::OpenHandCursor
               : tool == Tool::Zoom ? Qt::SizeVerCursor
+              : tool == Tool::View ? Qt::CrossCursor
                                    : Qt::ArrowCursor);
     emit toolChanged(int(tool));
+    emit stepChanged();
 }
 QRectF SheetCanvas::paperRect() const {
     const auto *sheet = record();
@@ -268,20 +316,28 @@ void SheetCanvas::setSelectedView(Id view) {
         view = 0;
     if (view == selectedView_)
         return;
+    if (editView_)
+        leaveEditView();
+    endRevision();
     selectedView_ = view;
     update();
     announce();
     emit selectionChanged(view);
+    emit stepChanged();
 }
 std::vector<Id> SheetCanvas::views() const {
     return record() ? drawingViewsOnSheet(doc_, sheet_) : std::vector<Id>{};
 }
 QRectF SheetCanvas::viewRect(Id view) const {
-    const auto found = doc_.drawingViews().find(view);
-    if (found == doc_.drawingViews().end() || found->second->sheet != sheet_)
+    const auto *live = liveView(view);
+    if (!live)
         return {};
-    const auto &frame = found->second->frame;
+    const auto frame = effectiveView(view).frame;
     return paperToWidget().mapRect(QRectF(frame.xMm, frame.yMm, frame.widthMm, frame.heightMm));
+}
+QRectF SheetCanvas::chooseSceneButton(Id view) const {
+    const auto found = chooseButtons_.find(view);
+    return found == chooseButtons_.end() ? QRectF() : found->second;
 }
 QString SheetCanvas::pageName() const {
     const auto *sheet = record();
@@ -338,7 +394,8 @@ QString SheetCanvas::describeView(Id view) const {
 void SheetCanvas::announce() {
     setAccessibleName(pageName());
     const auto views = this->views();
-    setAccessibleDescription(selectedView_   ? describeView(selectedView_)
+    setAccessibleDescription(editView_       ? "Editing " + describeView(editView_)
+                             : selectedView_ ? describeView(selectedView_)
                              : views.empty() ? QString("No views on this page")
                                              : QString("%1 view%2 · none selected")
                                                    .arg(views.size())
@@ -347,10 +404,15 @@ void SheetCanvas::announce() {
 void SheetCanvas::contentChanged() {
     if (fitted_)
         fitPage();
+    if (preview_ && !liveView(preview_->id))
+        cancelOperation();
+    if (editView_ && !liveView(editView_))
+        leaveEditView();
     if (selectedView_ && (!doc_.drawingViews().contains(selectedView_) ||
                           doc_.drawingViews().at(selectedView_)->sheet != sheet_)) {
         selectedView_ = 0;
         emit selectionChanged(0);
+        emit stepChanged();
     }
     dropChildren(this, views());
     announce();
@@ -443,10 +505,15 @@ void SheetCanvas::paintEvent(QPaintEvent *) {
             painter.restore();
         }
         painted_ = cache_.sheet(sheet_);
+        chooseButtons_.clear();
         if (painted_ && painted_->error.empty()) {
+            // The last evaluation, moved to the views' current frames and to a drag in
+            // progress, so a committed or previewed change never jumps back.
+            const auto moved = adjusted(painted_->prepared);
+            const auto &shown = moved ? *moved : painted_->prepared;
             DrawingSheetPaintOptions options;
             options.paperToDevice = transform;
-            for (const auto &view : painted_->prepared.views)
+            for (const auto &view : shown.views)
                 if (view.raster && !view.evaluation.status.fingerprint.empty()) {
                     auto image = cache_.raster(view.record.id, view.evaluation.status.fingerprint);
                     if (!image.isNull()) {
@@ -455,9 +522,9 @@ void SheetCanvas::paintEvent(QPaintEvent *) {
                     }
                 }
             painter.save();
-            paintDrawingSheet(painter, painted_->prepared, options);
+            paintDrawingSheet(painter, shown, options);
             painter.restore();
-            for (const auto &view : painted_->prepared.views)
+            for (const auto &view : shown.views)
                 if (doc_.drawingViews().contains(view.record.id))
                     paintDecorations(painter, view);
         } else if (sheet->marginMm > 0) {
@@ -470,14 +537,9 @@ void SheetCanvas::paintEvent(QPaintEvent *) {
                 QRectF(sheet->marginMm, sheet->marginMm, sheet->paper.widthMm - 2 * sheet->marginMm,
                        sheet->paper.heightMm - 2 * sheet->marginMm)));
         }
-        if (selectedView_) {
-            // Selection: blue-violet outline offset from the frame (screen only).
-            const auto paperColors = themeColors(false);
-            QPen pen(paperColors.selectionStroke, 2);
-            painter.setPen(pen);
-            painter.setBrush(Qt::NoBrush);
-            painter.drawRect(viewRect(selectedView_).adjusted(-3, -3, 3, 3));
-        }
+        // Selection, handles, snapping guides and hints, the placement frame and the
+        // edit-view surround (sheet_tools.cpp).
+        paintEditing(painter);
     }
     if (hasFocus()) {
         QPen ring(colors_.accent, 2);
@@ -585,15 +647,16 @@ void SheetCanvas::paintDecorations(QPainter &painter, const PreparedDrawingView 
             y += detailRect.height();
         }
         if (choose) {
-            // Relinking arrives in R091.f; until then the button is shown disabled.
+            // Choose scene… relinks the view (R091.f); a click on it selects the view first.
             y += 6;
             QRectF buttonRect(0, y, buttonSize.width(), buttonSize.height());
             buttonRect.moveLeft(card.center().x() - buttonSize.width() / 2);
             painter.setPen(QPen(paper.border, 1));
             painter.setBrush(paper.paper);
             painter.drawRoundedRect(buttonRect, 6, 6);
-            painter.setPen(paper.muted);
+            painter.setPen(paper.ink);
             painter.drawText(buttonRect, Qt::AlignCenter, button);
+            chooseButtons_[view.record.id] = buttonRect;
         }
     }
     painter.restore();
@@ -602,6 +665,7 @@ void SheetCanvas::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
     if (fitted_)
         fitPage();
+    layoutBanner();
 }
 void SheetCanvas::wheelEvent(QWheelEvent *event) {
     if (!record())
@@ -610,6 +674,12 @@ void SheetCanvas::wheelEvent(QWheelEvent *event) {
     if (steps == 0) {
         // Horizontal trackpad scrolling pans.
         panBy(QPointF(event->pixelDelta().x(), 0));
+        event->accept();
+        return;
+    }
+    if (editView_ && !(event->modifiers() & Qt::ControlModifier)) {
+        // In edit-view the wheel zooms the view: the crop changes and the scale stays.
+        zoomCrop(std::pow(1.1, -steps), toPaper(event->position()));
         event->accept();
         return;
     }
@@ -626,19 +696,8 @@ void SheetCanvas::mousePressEvent(QMouseEvent *event) {
     } else if (event->button() == Qt::LeftButton && tool_ == Tool::Zoom) {
         drag_ = Drag::Zoom;
         dragZoom_ = pixelsPerMm_;
-    } else if (event->button() == Qt::LeftButton && tool_ == Tool::Select) {
-        const auto paperPoint = paperToWidget().inverted().map(event->position());
-        const auto tolerance = hitTolerancePixels / pixelsPerMm_;
-        Id hit = 0;
-        for (const auto view : views()) {
-            const auto &frame = doc_.drawingViews().at(view)->frame;
-            if (QRectF(frame.xMm, frame.yMm, frame.widthMm, frame.heightMm)
-                    .adjusted(-tolerance, -tolerance, tolerance, tolerance)
-                    .contains(paperPoint))
-                hit = view; // Later views paint on top.
-        }
-        setSelectedView(hit);
-    }
+    } else if (event->button() == Qt::LeftButton)
+        pressEditing(event);
     event->accept();
 }
 void SheetCanvas::mouseMoveEvent(QMouseEvent *event) {
@@ -648,29 +707,64 @@ void SheetCanvas::mouseMoveEvent(QMouseEvent *event) {
         // Drag up to zoom in, down to zoom out, about the press point.
         setPixelsPerMm(dragZoom_ * std::pow(1.01, dragStart_.y() - event->position().y()),
                        dragStart_);
-    }
+    } else
+        moveEditing(event);
     dragLast_ = event->position();
     event->accept();
 }
 void SheetCanvas::mouseReleaseEvent(QMouseEvent *event) {
-    if (drag_ == Drag::Pan)
+    if (drag_ == Drag::Pan || drag_ == Drag::Zoom) {
         setCursor(tool_ == Tool::Pan    ? Qt::OpenHandCursor
                   : tool_ == Tool::Zoom ? Qt::SizeVerCursor
+                  : tool_ == Tool::View ? Qt::CrossCursor
                                         : Qt::ArrowCursor);
-    if (drag_ != Drag::None)
         rasterTimer_.start();
-    drag_ = Drag::None;
+        drag_ = Drag::None;
+    } else
+        releaseEditing(event);
     event->accept();
+}
+bool SheetCanvas::event(QEvent *event) {
+    if (event->type() == QEvent::KeyPress) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        // With Select, Tab and Shift+Tab cycle the page's views, as the viewport cycles
+        // entities (ADR 0164 §4); F6 leaves the canvas. An empty page lets Tab move on.
+        if ((key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) &&
+            !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
+            tool_ == Tool::Select && !editView_ && !views().empty() && !operationActive()) {
+            cycleSelection(key->key() == Qt::Key_Backtab ||
+                           key->modifiers().testFlag(Qt::ShiftModifier));
+            event->accept();
+            return true;
+        }
+    }
+    if (event->type() == QEvent::ShortcutOverride) {
+        // In edit-view, + and - zoom the crop; they are the canvas's, not a shortcut's.
+        auto *key = static_cast<QKeyEvent *>(event);
+        if (editView_ && (key->key() == Qt::Key_Plus || key->key() == Qt::Key_Minus ||
+                          key->key() == Qt::Key_Equal)) {
+            event->accept();
+            return true;
+        }
+    }
+    return QWidget::event(event);
 }
 void SheetCanvas::keyPressEvent(QKeyEvent *event) {
     const auto key = event->key();
     const bool shift = event->modifiers() & Qt::ShiftModifier;
+    if (keyEditing(event)) {
+        event->accept();
+        return;
+    }
     if (key == Qt::Key_Escape) {
-        // Back out one step: cancel a drag, then leave the tool, then clear the selection.
-        if (drag_ != Drag::None)
-            drag_ = Drag::None;
+        // Back out one step: cancel a drag, then leave the tool, then leave edit-view, then
+        // clear the selection (UX_DESIGN §4.1).
+        if (drag_ != Drag::None || anchored_)
+            cancelOperation();
         else if (tool_ != Tool::Select)
             emit escapeToSelect();
+        else if (editView_)
+            leaveEditView();
         else
             setSelectedView(0);
         event->accept();
@@ -696,34 +790,15 @@ void SheetCanvas::keyPressEvent(QKeyEvent *event) {
         event->accept();
         return;
     }
-    if (tool_ == Tool::Zoom && !event->text().isEmpty() &&
-        QRegularExpression("^[0-9.,%]$").match(event->text()).hasMatch()) {
+    if (!measurementLabel().isEmpty() && !event->text().isEmpty() &&
+        !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
+        QRegularExpression(R"(^[0-9.,;:%<\[]$)").match(event->text()).hasMatch()) {
         // Typing starts the Measurements box, as in the model.
         emit measurementsRequested(event->text());
         event->accept();
         return;
     }
     QWidget::keyPressEvent(event);
-}
-bool SheetCanvas::measurements(const QString &text, QString &error) {
-    if (tool_ != Tool::Zoom) {
-        error = "Choose Zoom (Z) to type a zoom level";
-        return false;
-    }
-    const auto match = QRegularExpression(R"(^\s*([0-9]+(?:[.,][0-9]+)?)\s*(%?)\s*$)").match(text);
-    if (!match.hasMatch()) {
-        error = "Type a zoom level such as 150% or 1.5";
-        return false;
-    }
-    auto value = match.captured(1).replace(',', '.').toDouble();
-    if (!match.captured(2).isEmpty())
-        value /= 100;
-    if (!(value >= minimumZoom && value <= maximumZoom)) {
-        error = "Zoom must be between 5% and 1600%";
-        return false;
-    }
-    setZoom(value);
-    return true;
 }
 void SheetCanvas::focusInEvent(QFocusEvent *event) {
     QWidget::focusInEvent(event);

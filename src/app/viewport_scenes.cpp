@@ -146,6 +146,17 @@ void Viewport::applySceneCamera(const SceneCamera &camera) {
     ortho_ = camera.orthographic;
     cameraChanged();
 }
+void Viewport::showSceneCamera(Id id) {
+    const auto found = doc_.scenes().find(id);
+    if (found == doc_.scenes().end())
+        throw std::runtime_error("Saved scene no longer exists");
+    if (!found->second->snapshot.camera)
+        throw std::runtime_error("This scene has no camera to show");
+    cancel();
+    stopSceneTransition();
+    applySceneCamera(*found->second->snapshot.camera);
+    refresh();
+}
 void Viewport::recallSavedScene(Id id, bool animate) {
     if (!doc_.scenes().contains(id))
         throw std::runtime_error("Saved scene no longer exists");

@@ -7,13 +7,18 @@
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "core/drawing_sheets.hpp"
+#include "core/scenes.hpp"
+#include "integrations/render_snapshot.hpp"
+#include "io/scenes_io.hpp"
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QComboBox>
 #include <QIconEngine>
+#include <QInputDialog>
 #include <QJsonArray>
 #include <QMenuBar>
 #include <QPainter>
@@ -99,17 +104,44 @@ QPainterPath zoomIcon() {
     path.lineTo(16, 16);
     return path;
 }
-const char *instruction(SheetCanvas::Tool tool) {
-    switch (tool) {
-    case SheetCanvas::Tool::Pan:
-        return "Drag to pan · Arrows pan · Esc returns to Select";
-    case SheetCanvas::Tool::Zoom:
-        return "Drag up to zoom in, down to zoom out · Type a zoom such as 150% · Esc returns to "
-               "Select";
-    case SheetCanvas::Tool::Select:
-        break;
+QPainterPath modelViewIcon() {
+    QPainterPath path;
+    path.addRoundedRect(QRectF(2, 3, 14, 12), 1, 1);
+    path.moveTo(5, 12);
+    path.lineTo(8, 8);
+    path.lineTo(10, 10);
+    path.lineTo(13, 6);
+    return path;
+}
+QPainterPath moveIcon() {
+    QPainterPath path;
+    path.moveTo(9, 2);
+    path.lineTo(9, 16);
+    path.moveTo(2, 9);
+    path.lineTo(16, 9);
+    for (const auto &[tip, a, b] :
+         {std::tuple{QPointF(9, 2), QPointF(7, 4), QPointF(11, 4)},
+          std::tuple{QPointF(9, 16), QPointF(7, 14), QPointF(11, 14)},
+          std::tuple{QPointF(2, 9), QPointF(4, 7), QPointF(4, 11)},
+          std::tuple{QPointF(16, 9), QPointF(14, 7), QPointF(14, 11)}}) {
+        path.moveTo(a);
+        path.lineTo(tip);
+        path.lineTo(b);
     }
-    return "Click a view to select it · Wheel zooms · Middle drag pans · Shift+Z fits the page";
+    return path;
+}
+// The scale a new view gets: the scale every measurable view on the page shares, else the
+// first view's, else 1:50. True when it comes from the page.
+std::pair<double, bool> pageScale(const Document &doc, DrawingViewRenderCache &cache, Id sheet) {
+    std::optional<double> found;
+    for (const auto view : drawingViewsOnSheet(doc, sheet)) {
+        const auto status = cache.status(view);
+        if (status && status->notToScale)
+            continue;
+        if (!found)
+            found = doc.drawingViews().at(view)->scaleDenominator;
+    }
+    return found ? std::pair{*found, true} : std::pair{50., false};
 }
 } // namespace
 bool Window::sheetsWorkspaceEnabled() {
@@ -184,7 +216,9 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
         return entry;
     };
     addTool("sheet.tool.select", "Select", "Space", SheetCanvas::Tool::Select)->setChecked(true);
+    addTool("sheet.tool.view", "Model view", "W", SheetCanvas::Tool::View);
     sheetRail_->addSeparator();
+    addTool("sheet.tool.move", "Move", "M", SheetCanvas::Tool::Move);
     addTool("sheet.tool.pan", "Pan", "H", SheetCanvas::Tool::Pan);
     addTool("sheet.tool.zoom", "Zoom", "Z", SheetCanvas::Tool::Zoom);
     installToolbarNavigation(sheetRail_, tools);
@@ -236,6 +270,31 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
                 QString("Accept %1 %2").arg(changed).arg(changed == 1 ? "view" : "views"));
         },
         ShortcutScope::Sheets));
+    // Views (R091.f).
+    page->addAction(action(
+        "sheet.view.accept", "Accept view", QKeySequence("U"),
+        [this] {
+            if (const auto view = sheets_->canvas()->selectedView())
+                run([&] {
+                    sheetCommands({QJsonObject{{"command", "drawing_view.accept"},
+                                               {"view", QString::number(view)}}},
+                                  "Accept 1 view");
+                });
+        },
+        ShortcutScope::Sheets));
+    page->addAction(action(
+        "sheet.view.edit", "Edit view", {}, [this] { sheets_->canvas()->enterEditView(); },
+        ShortcutScope::Sheets));
+    page->addAction(action(
+        "sheet.view.chooseScene", "Choose scene…", {},
+        [this] { chooseViewScene(sheets_->canvas()->selectedView()); }, ShortcutScope::Sheets));
+    page->addAction(action(
+        "sheet.view.saveScene", "Save as new scene…", {},
+        [this] { saveViewScene(sheets_->canvas()->editView()); }, ShortcutScope::Sheets));
+    page->addAction(action(
+        "sheet.view.showScene", "Show scene in model", {},
+        [this] { showViewScene(sheets_->canvas()->selectedView()); }, ShortcutScope::Sheets));
+    page->addSeparator();
     auto *grid = action(
         "sheet.grid", "Snap to grid 5 mm", {},
         [this] {
@@ -271,14 +330,88 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
             [this] { sheetsTray_->pages()->setFocus(Qt::ShortcutFocusReason); });
     connect(canvas, &SheetCanvas::selectionChanged, this, [this](qulonglong) {
         sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView());
+        syncSheetActions();
     });
+    canvas->setCommitter([this](const QJsonArray &commands, const QString &label,
+                                const QString &amendKey) {
+        return sheetCommit(commands, label, amendKey);
+    });
+    connect(canvas, &SheetCanvas::stepChanged, this, [this] { refreshSheetStep(); });
+    connect(canvas, &SheetCanvas::message, this, [this](const QString &text) {
+        if (workspace_ == Workspace::Sheets)
+            status_->setText(text);
+    });
+    connect(canvas, &SheetCanvas::editViewChanged, this, [this](qulonglong view) {
+        sheets_->setEditView(view);
+        syncSheetActions();
+    });
+    connect(canvas, &SheetCanvas::chooseSceneRequested, this,
+            [this](qulonglong view) { chooseViewScene(view); });
+    connect(canvas, &SheetCanvas::saveSceneRequested, this,
+            [this](qulonglong view) { saveViewScene(view); });
+    connect(sheets_, &SheetWorkspace::leaveEditViewRequested, this, [this] {
+        sheets_->canvas()->leaveEditView();
+        sheets_->canvas()->setFocus(Qt::OtherFocusReason);
+    });
+    auto *place = sheetsTray_->placePanel();
+    connect(place, &SheetPlacePanel::placementChanged, this, [this] { refreshPlacement(); });
+    connect(place, &SheetPlacePanel::placeRequested, this, [this] {
+        refreshPlacement();
+        sheets_->canvas()->placeView();
+        sheets_->canvas()->setFocus(Qt::OtherFocusReason);
+    });
+    connect(place, &SheetPlacePanel::cancelRequested, this, [this] {
+        auto *canvas = sheets_->canvas();
+        if (canvas->operationActive())
+            canvas->cancelOperation();
+        else
+            findChild<QAction *>("sheet.tool.select")->trigger();
+        canvas->setFocus(Qt::OtherFocusReason);
+    });
+    connect(sheetsTray_, &SheetsTray::renameView, this,
+            [this](qulonglong view, const QString &name) {
+                if (name.isEmpty()) {
+                    status_->setText("A view title cannot be empty.");
+                    syncSheets();
+                    return;
+                }
+                run([&] {
+                    sheetCommands({QJsonObject{{"command", "drawing_view.update"},
+                                               {"view", QString::number(view)},
+                                               {"name", name}}},
+                                  "Rename view");
+                });
+            });
+    connect(sheetsTray_, &SheetsTray::setViewScale, this, [this](qulonglong view, double scale) {
+        run([&] {
+            sheetCommands({QJsonObject{{"command", "drawing_view.update"},
+                                       {"view", QString::number(view)},
+                                       {"scaleDenominator", scale}}},
+                          "Change scale");
+        });
+    });
+    connect(sheetsTray_, &SheetsTray::setViewStyle, this,
+            [this](qulonglong view, int content, bool hidden) {
+                run([&] {
+                    sheetCommands({QJsonObject{{"command", "drawing_view.update"},
+                                               {"view", QString::number(view)},
+                                               {"content", content == 1 ? "rasterAppearance"
+                                                                        : "technicalLines"},
+                                               {"hiddenLines", hidden}}},
+                                  "Change style");
+                });
+            });
+    connect(sheetsTray_, &SheetsTray::editViewRequested, this, [this] {
+        sheets_->canvas()->setFocus(Qt::OtherFocusReason);
+        sheets_->canvas()->enterEditView();
+    });
+    connect(sheetsTray_, &SheetsTray::showSceneRequested, this,
+            [this](qulonglong view) { showViewScene(view); });
+    connect(sheetsTray_, &SheetsTray::chooseSceneRequested, this,
+            [this](qulonglong view) { chooseViewScene(view); });
     connect(canvas, &SheetCanvas::escapeToSelect, this,
             [this] { findChild<QAction *>("sheet.tool.select")->trigger(); });
-    connect(canvas, &SheetCanvas::zoomChanged, this, [this](double zoom) {
-        if (workspace_ == Workspace::Sheets &&
-            sheets_->canvas()->tool() == SheetCanvas::Tool::Zoom && !measurements_->hasFocus())
-            measurements_->setText(QString::number(qRound(zoom * 100)) + "%");
-    });
+    connect(canvas, &SheetCanvas::zoomChanged, this, [this](double) { refreshSheetStep(); });
     connect(canvas, &SheetCanvas::measurementsRequested, this, [this](const QString &text) {
         measurements_->setFocus();
         measurements_->setText(text);
@@ -346,6 +479,8 @@ void Window::themeSheets(const ThemeColors &colors) {
     sheetsTray_->setTheme(colors);
     for (const auto &[id, path] :
          std::vector<std::pair<const char *, QPainterPath>>{{"sheet.tool.select", selectIcon()},
+                                                            {"sheet.tool.view", modelViewIcon()},
+                                                            {"sheet.tool.move", moveIcon()},
                                                             {"sheet.tool.pan", panIcon()},
                                                             {"sheet.tool.zoom", zoomIcon()}})
         findChild<QAction *>(id)->setIcon(
@@ -359,39 +494,261 @@ void Window::sheetTool(int value) {
     for (auto *entry : sheetRail_->actions())
         if (entry->property("sheetTool").isValid() && entry->property("sheetTool").toInt() == value)
             entry->setChecked(true);
+    // The Model view tool shows the "New model view" panel in the Tray.
+    sheetsTray_->setPlacing(tool == SheetCanvas::Tool::View);
     if (workspace_ != Workspace::Sheets)
         return;
-    activeTool_->setText(tool == SheetCanvas::Tool::Pan    ? "Pan"
-                         : tool == SheetCanvas::Tool::Zoom ? "Zoom"
-                                                           : "Select");
-    status_->setText(instruction(tool));
-    const bool zoom = tool == SheetCanvas::Tool::Zoom;
-    measurements_->setEnabled(zoom && !assistantFenced_);
-    measurements_->setPlaceholderText(zoom ? "150% or 1.5" : "");
-    measurements_->setText(zoom ? QString::number(qRound(sheets_->canvas()->zoom() * 100)) + "%"
-                                : QString{});
+    if (tool == SheetCanvas::Tool::View) {
+        sideTabs_->show();
+        sideTabs_->setCurrentWidget(tray_);
+        refreshPlacement();
+    }
+    sheetInstruction_.clear();
     measurementError(false);
+    measurements_->clear();
+    refreshSheetStep();
     sheets_->canvas()->setFocus(Qt::OtherFocusReason);
+}
+void Window::refreshSheetStep() {
+    if (!sheets_ || workspace_ != Workspace::Sheets)
+        return;
+    auto *canvas = sheets_->canvas();
+    activeTool_->setText(canvas->toolName());
+    // A message stays until the instruction changes.
+    if (const auto instruction = canvas->instruction(); instruction != sheetInstruction_) {
+        sheetInstruction_ = instruction;
+        status_->setText(instruction);
+    }
+    const auto label = canvas->measurementLabel();
+    measurementStep_->setText(label);
+    measurementStep_->setVisible(!label.isEmpty());
+    measurements_->setEnabled(!label.isEmpty() && !assistantFenced_);
+    measurements_->setPlaceholderText(label == "Zoom"       ? "150% or 1.5"
+                                      : label == "Size"     ? "width,height"
+                                      : label == "Scale"    ? "1:50 or width,height"
+                                      : label == "Distance" ? "dx,dy"
+                                                            : QString{});
+    if (!measurements_->hasFocus())
+        measurements_->setText(canvas->measurementValue());
+}
+void Window::refreshPlacement() {
+    if (!sheets_)
+        return;
+    auto *panel = sheetsTray_->placePanel();
+    const auto sheet = sheets_->currentSheet();
+    const auto [scale, fromPage] = pageScale(doc_, *sheetCache_, sheet);
+    const auto name = path_.isEmpty()
+                          ? (recoveredName_.isEmpty() ? QString("Untitled") : recoveredName_)
+                          : QFileInfo(path_).fileName();
+    panel->refresh(name, sheet, scale, fromPage);
+    try {
+        sheets_->canvas()->setPlacement(sheetPlacement(doc_, panel->scene(), panel->scale()));
+    } catch (const std::exception &error) {
+        status_->setText(error.what());
+    }
 }
 bool Window::sheetMeasurements(const QString &text) {
     QString error;
-    if (sheets_->canvas()->measurements(text, error))
+    sheetCommitError_.clear();
+    if (sheets_->canvas()->measurements(text, error)) {
+        refreshSheetStep();
         return true;
-    status_->setText(error);
+    }
+    // A refused command explains itself better than the generic reason.
+    status_->setText(sheetCommitError_.isEmpty() ? error : sheetCommitError_);
     return false;
 }
-void Window::sheetCommands(const QJsonArray &commands, const QString &label) {
+QJsonObject Window::sheetCommands(const QJsonArray &commands, const QString &label) {
     if (assistant_ && assistant_->uncertain()) {
         status_->setText("Reconcile the assistant outcome before editing this model.");
-        return;
+        return {};
     }
     viewport_->cancel();
-    executeBatch(doc_, {{"apiVersion", 1},
-                        {"documentId", QString::fromStdString(doc_.identity())},
-                        {"expectedRevision", QString::number(doc_.revision())},
-                        {"commands", commands},
-                        {"history", QJsonObject{{"label", label}}}});
+    sheetAmendKey_.clear();
+    auto result = executeBatch(doc_, {{"apiVersion", 1},
+                                      {"documentId", QString::fromStdString(doc_.identity())},
+                                      {"expectedRevision", QString::number(doc_.revision())},
+                                      {"commands", commands},
+                                      {"history", QJsonObject{{"label", label}}}});
     sync();
+    return result;
+}
+QJsonObject Window::sheetCommit(const QJsonArray &commands, const QString &label,
+                                const QString &amendKey) {
+    if (assistant_ && assistant_->uncertain()) {
+        sheetCommitError_ = "Reconcile the assistant outcome before editing this model.";
+        status_->setText(sheetCommitError_);
+        return {};
+    }
+    try {
+        viewport_->cancel();
+        const QJsonObject request{{"apiVersion", 1},
+                                  {"documentId", QString::fromStdString(doc_.identity())},
+                                  {"expectedRevision", QString::number(doc_.revision())},
+                                  {"commands", commands},
+                                  {"history", QJsonObject{{"label", label}}}};
+        // Re-entry and consecutive nudges amend the entry they continue.
+        auto result = !amendKey.isEmpty() && amendKey == sheetAmendKey_ &&
+                              doc_.canAmend(sheetAmendStamp_)
+                          ? executeAmend(doc_, sheetAmendStamp_, request)
+                          : executeBatch(doc_, request);
+        sheetAmendKey_ = amendKey;
+        sheetAmendStamp_ = doc_.amendmentStamp();
+        sync();
+        if (result.isEmpty())
+            result["status"] = "committed";
+        return result;
+    } catch (const std::exception &error) {
+        sheetAmendKey_.clear();
+        sheetCommitError_ = QString::fromUtf8(error.what());
+        status_->setText(sheetCommitError_);
+        sync();
+        return {};
+    }
+}
+void Window::chooseViewScene(Id view) {
+    const auto found = doc_.drawingViews().find(view);
+    if (found == doc_.drawingViews().end()) {
+        status_->setText("Select a view to choose its scene.");
+        return;
+    }
+    const auto record = *found->second;
+    QStringList items;
+    std::vector<Id> ids;
+    for (const auto id : orderedScenes(doc_)) {
+        const auto &scene = *doc_.scenes().at(id);
+        if (!scene.snapshot.camera)
+            continue;
+        items << QString::fromStdString(scene.name) + " · " + sceneProjection(doc_, id);
+        ids.push_back(id);
+    }
+    if (items.isEmpty()) {
+        status_->setText("This model has no scenes with a camera. Save a scene in the Model "
+                         "workspace first.");
+        return;
+    }
+    QInputDialog dialog(this);
+    dialog.setObjectName("chooseSceneDialog");
+    dialog.setWindowTitle("Choose scene");
+    dialog.setInputMode(QInputDialog::TextInput);
+    dialog.setComboBoxEditable(false);
+    dialog.setComboBoxItems(items);
+    dialog.setLabelText("Scene for “" + QString::fromStdString(record.name) +
+                        "”. The view keeps its frame and scale.");
+    dialog.setOkButtonText("Choose");
+    const auto current = std::find(ids.begin(), ids.end(), record.source.scene);
+    if (current != ids.end())
+        dialog.setTextValue(items[int(current - ids.begin())]);
+    if (auto *combo = dialog.findChild<QComboBox *>()) {
+        combo->setObjectName("chooseSceneList");
+        combo->setAccessibleName("Scene");
+    }
+    if (dialog.exec() != QDialog::Accepted) {
+        focusWorkspace();
+        return;
+    }
+    const auto index = items.indexOf(dialog.textValue());
+    if (index < 0 || !doc_.drawingViews().contains(view))
+        return;
+    run([&] {
+        sheetCommands({QJsonObject{{"command", "drawing_view.update"},
+                                   {"view", QString::number(view)},
+                                   {"source", QJsonObject{{"kind", "scene"},
+                                                          {"scene", QString::number(
+                                                                        ids[size_t(index)])}}}}},
+                      "Choose scene");
+    });
+    focusWorkspace();
+}
+void Window::saveViewScene(Id view) {
+    const auto found = doc_.drawingViews().find(view);
+    if (found == doc_.drawingViews().end()) {
+        status_->setText("Open a view with Enter to save its framing as a scene.");
+        return;
+    }
+    const auto record = *found->second;
+    const auto scene = doc_.scenes().find(record.source.scene);
+    if (scene == doc_.scenes().end() || !scene->second->snapshot.camera ||
+        !scene->second->snapshot.camera->orthographic) {
+        status_->setText("Only a view drawn from an orthographic scene can be saved as a scene.");
+        return;
+    }
+    std::set<std::string> names;
+    for (const auto &[id, saved] : doc_.scenes())
+        names.insert(saved->name);
+    const auto &sheet = *doc_.drawingSheets().at(record.sheet);
+    const auto base = QString::fromStdString(scene->second->name) + " (" +
+                      QString::fromStdString(sheet.number.empty() ? sheet.name : sheet.number) +
+                      ")";
+    auto proposed = base;
+    for (int n = 2; names.contains(proposed.toStdString()); ++n)
+        proposed = base + " " + QString::number(n);
+    QInputDialog dialog(this);
+    dialog.setObjectName("saveViewSceneDialog");
+    dialog.setWindowTitle("Save as new scene");
+    dialog.setInputMode(QInputDialog::TextInput);
+    dialog.setLabelText("Scene name. The new scene keeps this view's framing in the model, and "
+                        "the view then uses it.");
+    dialog.setTextValue(proposed);
+    dialog.setOkButtonText("Save scene");
+    if (auto *edit = dialog.findChild<QLineEdit *>()) {
+        edit->setObjectName("saveViewSceneName");
+        edit->setAccessibleName("Scene name");
+    }
+    if (dialog.exec() != QDialog::Accepted) {
+        focusWorkspace();
+        return;
+    }
+    const auto name = dialog.textValue().trimmed();
+    if (name.isEmpty()) {
+        status_->setText("A scene name cannot be empty.");
+        return;
+    }
+    run([&] {
+        // The new scene's target is the point drawn at the frame centre, so the view draws the
+        // same with no offset. Decision 8: two entries, the model edit first, because one
+        // history entry cannot change both the model and the sheets.
+        auto snapshot = scene->second->snapshot;
+        const auto projection =
+            drawingViewProjection(record, renderSceneCamera(*snapshot.camera));
+        snapshot.camera->target = projection.page.origin;
+        const auto created = sheetCommands(
+            {QJsonObject{{"command", "saved_scene.create"},
+                         {"name", name},
+                         {"snapshot", encodeSceneSnapshot(snapshot)}}},
+            "Save as new scene");
+        const auto scenes = created["createdScenes"].toArray();
+        if (scenes.isEmpty())
+            throw std::runtime_error("The scene was not created");
+        sheetCommands({QJsonObject{{"command", "drawing_view.update"},
+                                   {"view", QString::number(view)},
+                                   {"source", QJsonObject{{"kind", "scene"},
+                                                          {"scene", scenes.first().toString()}}},
+                                   {"offsetMm", QJsonArray{0, 0}}}},
+                      "Use new scene");
+        status_->setText("Saved scene “" + name + "”; the view now uses it.");
+    });
+    focusWorkspace();
+}
+void Window::showViewScene(Id view) {
+    const auto found = doc_.drawingViews().find(view);
+    if (found == doc_.drawingViews().end())
+        return;
+    const auto scene = found->second->source.scene;
+    if (!doc_.scenes().contains(scene)) {
+        status_->setText("This view's scene was deleted.");
+        return;
+    }
+    const auto name = QString::fromStdString(doc_.scenes().at(scene)->name);
+    run(
+        [&] {
+            // Decision 9: the camera only, never a full recall of style or visibility.
+            setWorkspace(Workspace::Model);
+            viewport_->showSceneCamera(scene);
+            viewport_->setFocus();
+            status_->setText("Showing the camera of scene “" + name + "”.");
+        },
+        true);
 }
 void Window::addSheetPage() {
     DrawingPaper paper;
@@ -485,8 +842,10 @@ void Window::setWorkspace(Workspace workspace) {
     sync();
     if (sheets) {
         sheetCache_->refresh(sheets_->currentSheet());
+        sheetInstruction_.clear();
         sheetTool(int(sheets_->canvas()->tool()));
     } else {
+        measurementStep_->hide();
         status_->setText(modelStatus_);
         measurements_->setPlaceholderText(modelPlaceholder_);
         measurements_->clear();
@@ -524,6 +883,14 @@ void Window::syncSheets() {
     sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView());
     const auto key = [this](const char *id) { return findChild<QAction *>(id)->shortcut(); };
     sheets_->setShortcutHints(key("sheet.view.fit"), key("sheet.page.add"));
+    syncSheetActions();
+    if (sheetsTray_->placing())
+        refreshPlacement();
+    refreshSheetStep();
+}
+void Window::syncSheetActions() {
+    if (!sheets_)
+        return;
     const bool page = doc_.drawingSheets().contains(sheets_->currentSheet());
     const auto order = orderedDrawingSheets(doc_);
     const auto at = std::find(order.begin(), order.end(), sheets_->currentSheet());
@@ -535,8 +902,25 @@ void Window::syncSheets() {
             status && status->state == DrawingViewState::Stale)
             ++changed;
     }
+    auto *canvas = sheets_->canvas();
+    const auto selected = canvas->selectedView();
+    const auto selectedStatus = selected ? sheetCache_->status(selected) : std::nullopt;
+    const bool hasCamera = selected && doc_.drawingViews().contains(selected) &&
+                           doc_.scenes().contains(doc_.drawingViews().at(selected)->source.scene) &&
+                           doc_.scenes()
+                               .at(doc_.drawingViews().at(selected)->source.scene)
+                               ->snapshot.camera;
     const std::vector<std::pair<const char *, bool>> states{
         {"sheet.view.fit", page},
+        {"sheet.view.accept",
+         selectedStatus && selectedStatus->state == DrawingViewState::Stale},
+        {"sheet.view.edit", hasCamera && !(selectedStatus && selectedStatus->notToScale) &&
+                                !canvas->editView()},
+        {"sheet.view.chooseScene", selected != 0},
+        {"sheet.view.saveScene", canvas->editView() != 0},
+        {"sheet.view.showScene", hasCamera},
+        {"sheet.tool.view", page},
+        {"sheet.tool.move", true},
         {"sheet.page.rename", page},
         {"sheet.page.delete", page},
         {"sheet.page.moveEarlier", page && index > 0},

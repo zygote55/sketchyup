@@ -24,6 +24,10 @@ class SheetWorkspace : public QWidget {
     Id currentSheet() const { return canvas_->sheet(); }
     void setCurrentSheet(Id sheet);
     void setTheme(const ThemeColors &colors);
+    // Edit-view (R091.f): the breadcrumb reads "Sheets › A-101 › View 1 · Ground floor plan",
+    // and its page crumb leaves edit-view.
+    void setEditView(Id view);
+    Id editView() const { return editView_; }
     // The current bindings shown on Fit page and + Page.
     void setShortcutHints(const QKeySequence &fit, const QKeySequence &addPage);
 
@@ -32,6 +36,7 @@ class SheetWorkspace : public QWidget {
     void addPageRequested();
     void fitRequested();
     void pagesRequested();
+    void leaveEditViewRequested();
 
   private:
     const Document &doc_;
@@ -42,6 +47,7 @@ class SheetWorkspace : public QWidget {
     QLabel *breadcrumb_{}, *paper_{};
     std::vector<Id> order_;
     int lastPosition_{};
+    Id editView_{};
     bool syncing_{};
     ThemeColors colors_{themeColors(false)};
     void refreshLabels();
