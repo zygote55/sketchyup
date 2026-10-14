@@ -7,6 +7,13 @@ R090.a–e. Roadmap [R090](../PR_ROADMAP.md#r090) (M10, scope row
 The R091 interaction design is the
 [R091 UX design (canvas; private to the owner)](https://claude.ai/artifact/ByrL3RtnQihKV9zx5DiYyQ).
 
+Implementation: R090.a–e are complete. PRs
+[#310](https://github.com/zygote55/sketchyup/pull/310) (R090.a),
+[#311](https://github.com/zygote55/sketchyup/pull/311) (R090.b),
+[#312](https://github.com/zygote55/sketchyup/pull/312) (R090.c),
+[#313](https://github.com/zygote55/sketchyup/pull/313) (R090.d) and the R090.e pull
+request; acceptance in [R090.e](../verification/R090e-drawing-sheets.md).
+
 ## Context
 
 F01 asks for LayOut-style documentation: multi-page sheets, title blocks, scaled
