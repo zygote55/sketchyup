@@ -56,7 +56,9 @@ QJsonObject describe(const QByteArray &bytes, const Document &doc) {
             {"containerVersion", container ? nativeContainerVersion : 0},
             {"documentVersion", tree["version"]},
             {"currentDocumentVersion", nativeDocumentVersion},
-            {"migrationNeeded", !container || tree["version"].toInt() != nativeDocumentVersion},
+            // Sheet-free documents are current at schema 26 (ADR 0163 decision 2).
+            {"migrationNeeded",
+             !container || tree["version"].toInt() != nativeDocumentVersionFor(doc)},
             {"documentId", QString::fromStdString(doc.identity())},
             {"revision", QString::number(doc.revision())},
             {"bytes", QString::number(bytes.size())},
@@ -96,7 +98,7 @@ QJsonObject migrateNativeFile(const QString &input, const QString &output) {
     auto result = describe(original, document);
     publishNewFile(output, encoded);
     result["status"] = "migrated";
-    result["outputDocumentVersion"] = nativeDocumentVersion;
+    result["outputDocumentVersion"] = nativeDocumentVersionFor(document);
     result["outputContainerVersion"] = nativeContainerVersion;
     result["outputBytes"] = QString::number(encoded.size());
     result["outputSha256"] = hash(encoded);
@@ -106,11 +108,11 @@ QJsonObject migrateNativeFile(const QString &input, const QString &output) {
 QJsonObject nativeFormatCapabilities() {
     return {{"apiVersion", 1},
             {"format", "sketchyup"},
-            {"publicSchema", "sketchyup-document-v26"},
+            {"publicSchema", "sketchyup-document-v27"},
             {"documentVersion", nativeDocumentVersion},
             {"containerVersion", nativeContainerVersion},
             {"readDocumentVersions", QJsonArray{1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
-                                                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}},
+                                                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}},
             {"fileLimitBytes", QString::number(fileLimit)},
             {"migrationReplacesFiles", false},
             {"unknownRequiredRecords", "reject"},

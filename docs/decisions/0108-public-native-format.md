@@ -137,3 +137,48 @@ file is rejected with a diagnostic naming the member, component instance and
 definition, leaving the source unchanged. Acceptance adds the retained
 `instances-v24.sketchyup` and `instances-v25.sketchyup` writer fixtures to the
 historical corpus.
+
+## Schema 27: drawing sheets (R090.b)
+
+2026-10-13. The public schema advances to **sketchyup-document-v27** under the same
+container version 2; see [documentation sheets](0163-documentation-sheets.md). The
+schema-27 document chunk uses `json-v27`, and `requiredFeatures` appends
+`drawing-sheets-v1` after `instanced-placements-v1`. The document root adds four
+required fields, and `allocatorFloors` adds the two allocators, which must equal the
+root's:
+
+- `drawingSheets`: records `{id, name, position, paper: {widthMm, heightMm}}`.
+- `nextDrawingSheetId`.
+- `drawingViews`: records `{id, name, sheet, source: {kind: "scene", scene},
+  frame: {xMm, yMm, widthMm, heightMm}, offsetMm: [x, y], scaleDenominator,
+  content: "technicalLines" | "rasterAppearance", hiddenLines,
+  accepted: null | {revision, fingerprint}}`.
+- `nextDrawingViewId`.
+
+IDs, sheet and scene links, allocators and the accepted revision are canonical
+decimal strings, and IDs are nonzero. Records are stored once each in ascending ID
+order. Every field is required and unknown fields are rejected. The fingerprint is
+64 lowercase hexadecimal digits. Names, paper and frame bounds, the scale range,
+sheet order and the per-sheet and table limits are those of ADR 0163. A view whose
+scene no longer exists is kept as a diagnosed broken link.
+
+**The writer emits the lowest schema the content needs** (ADR 0163 decision 2). A
+document with no drawing sheets and no drawing views is written as schema 26 in
+exactly the 1.0 shape: `json-v26`, no `drawing-sheets-v1`, and none of the fields
+above. Only the manifest's informational `writer` string names the newer release. SketchyUp 1.0 therefore still opens it. Any sheet or view makes the
+file schema 27, which 1.0 refuses before reading it (its manifest check reports
+`Unsupported container field`) without changing the file. Deleting every sheet
+writes schema 26 again. Schema 26 does not store the drawing-sheet allocators, so
+reopening such a file starts them at 1; no record or link can refer to a retired
+sheet or view ID by then. `--inspect-native` reports `migrationNeeded: false` for a
+sheet-free schema-26 container, and `--migrate-native` reports the schema it wrote
+as `outputDocumentVersion`.
+
+Readers accept raw document versions 1–27. Schemas 1–26 migrate with empty sheet
+tables and allocators 1. Acceptance adds the retained `release-1.0.0-v26.sketchyup`
+(unmodified 1.0.0 output) and `drawing-sheets-v27.sketchyup` writer fixtures.
+When `SKETCHYUP_PRIOR_RELEASE_PACKAGE` names a released package (CI downloads
+1.0.0-1 and checks its pinned SHA-256), package acceptance unpacks it beside the
+lifecycle test. Its CLI must refuse, unchanged, every retained fixture newer than the
+schemas it reads, and must accept a sheet-free save from the new package; the
+package's `drawing_sheet_io` test also drives it through `SKETCHYUP_PRIOR_CLI`.

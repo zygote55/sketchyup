@@ -2121,13 +2121,17 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        ModelStyle style, SceneRecords scenes, Id nextSceneId, SectionRecords sections,
                        Id nextSectionId, ActiveSections activeSections,
                        AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar,
-                       int displayPrecision) {
+                       int displayPrecision, DrawingSheetRecords drawingSheets,
+                       Id nextDrawingSheetId, DrawingViewRecords drawingViews,
+                       Id nextDrawingViewId) {
     restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
                    std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
                    nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
                    units, std::move(hosted), style, std::move(scenes), nextSceneId,
                    std::move(sections), nextSectionId, std::move(activeSections),
-                   std::move(annotations), nextAnnotationId, solar, displayPrecision);
+                   std::move(annotations), nextAnnotationId, solar, displayPrecision,
+                   std::move(drawingSheets), nextDrawingSheetId, std::move(drawingViews),
+                   nextDrawingViewId);
 }
 void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
                               std::map<Id, BodyPtr> bodies, std::uint64_t revision,
@@ -2138,7 +2142,9 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
                               SceneRecords scenes, Id nextSceneId, SectionRecords sections,
                               Id nextSectionId, ActiveSections activeSections,
                               AnnotationRecords annotations, Id nextAnnotationId,
-                              SolarSettings solar, int displayPrecision) {
+                              SolarSettings solar, int displayPrecision,
+                              DrawingSheetRecords drawingSheets, Id nextDrawingSheetId,
+                              DrawingViewRecords drawingViews, Id nextDrawingViewId) {
     requireDisplayPrecision(units, displayPrecision);
     style.validate();
     solar.validate();
@@ -2174,6 +2180,9 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     validateSceneRecords(scenes, nextSceneId);
     validateSectionRecords(sections, nextSectionId, activeSections);
     validateAnnotationRecords(annotations, nextAnnotationId);
+    // Views whose scene is missing stay valid: they are diagnosed broken links.
+    validateDrawingSheetRecords(drawingSheets, nextDrawingSheetId, drawingViews,
+                                nextDrawingViewId);
     {
         Document candidate;
         candidate.bodies_ = bodies;
@@ -2226,6 +2235,10 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
         section = std::make_shared<SectionRecord>(*section);
     for (auto &[id, annotation] : annotations)
         annotation = std::make_shared<AnnotationRecord>(*annotation);
+    for (auto &[id, sheet] : drawingSheets)
+        sheet = std::make_shared<DrawingSheetRecord>(*sheet);
+    for (auto &[id, view] : drawingViews)
+        view = std::make_shared<DrawingViewRecord>(*view);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -2253,10 +2266,10 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     activeSections_ = std::move(activeSections);
     annotations_ = std::move(annotations);
     nextAnnotationId_ = nextAnnotationId;
-    drawingSheets_.clear();
-    nextDrawingSheetId_ = 1;
-    drawingViews_.clear();
-    nextDrawingViewId_ = 1;
+    drawingSheets_ = std::move(drawingSheets);
+    nextDrawingSheetId_ = nextDrawingSheetId;
+    drawingViews_ = std::move(drawingViews);
+    nextDrawingViewId_ = nextDrawingViewId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     totals_ = totals;

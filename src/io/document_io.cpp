@@ -4,6 +4,7 @@
 #include "io/annotations_io.hpp"
 #include "io/assets.hpp"
 #include "io/document_decode_p.hpp"
+#include "io/drawing_sheets_io.hpp"
 #include "io/hosted_components_io.hpp"
 #include "io/model_style_io.hpp"
 #include "io/native_format.hpp"
@@ -415,11 +416,10 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
                                      {"members", members},
                                      {"floors", placementFloors(doc, root, *instance)}});
     }
-    auto bytes =
-        QJsonDocument(
-            QJsonObject{
+    const auto version = nativeDocumentVersionFor(doc);
+    QJsonObject root{
                 {"format", "sketchyup"},
-                {"version", nativeDocumentVersion},
+                {"version", version},
                 {"solar", encodeSolarSettings(doc.solar())},
                 {"annotations", encodeAnnotations(doc.annotations())},
                 {"nextAnnotationId", sid(doc.nextAnnotationId())},
@@ -447,8 +447,14 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
                 {"nextMaterialId", sid(doc.nextMaterialId())},
                 {"assets", assets},
                 {"nextAssetId", sid(doc.nextAssetId())},
-                {"assetStorage", assetStorage == AssetStorage::Inline ? "inline" : "external"}})
-            .toJson(QJsonDocument::Compact);
+                {"assetStorage", assetStorage == AssetStorage::Inline ? "inline" : "external"}};
+    if (version >= 27) {
+        root["drawingSheets"] = encodeDrawingSheets(doc.drawingSheets());
+        root["nextDrawingSheetId"] = sid(doc.nextDrawingSheetId());
+        root["drawingViews"] = encodeDrawingViews(doc.drawingViews());
+        root["nextDrawingViewId"] = sid(doc.nextDrawingViewId());
+    }
+    auto bytes = QJsonDocument(root).toJson(QJsonDocument::Compact);
     if (bytes.size() > (assetStorage == AssetStorage::Inline ? fileLimit : modelLimit))
         throw std::runtime_error("Document exceeds its JSON storage limit");
     return bytes;
@@ -773,6 +779,9 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     if (root["version"].toInt() >= 23) rootFields.append("solar");
     // Display precision (R084.r); older schemas migrate to Full.
     if (root["version"].toInt() >= 25) rootFields.append("displayPrecision");
+    // Drawing sheets (ADR 0163); older schemas migrate to empty tables.
+    if (root["version"].toInt() >= 27)
+        rootFields += {"drawingSheets", "nextDrawingSheetId", "drawingViews", "nextDrawingViewId"};
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         inputBytes > modelLimit)
@@ -972,6 +981,13 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     }
     if (!root["documentId"].isString())
         throw std::runtime_error("Missing document ID");
+    const bool sheets = root["version"].toInt() >= 27;
+    const Id nextDrawingSheetId = sheets ? readId(root["nextDrawingSheetId"]) : 1,
+             nextDrawingViewId = sheets ? readId(root["nextDrawingViewId"]) : 1;
+    auto drawingSheets =
+        sheets ? decodeDrawingSheets(root["drawingSheets"], nextDrawingSheetId,
+                                     root["drawingViews"], nextDrawingViewId)
+               : std::pair<DrawingSheetRecords, DrawingViewRecords>{};
     Document doc;
     DocumentDecodeAccess::restore(
         doc, root["documentId"].toString().toStdString(), readId(root["nextId"]), std::move(bodies),
@@ -1001,7 +1017,9 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         root["version"].toInt() >= 21 ? readId(root["nextAnnotationId"]) : 1,
         root["version"].toInt() >= 23 ? decodeSolarSettings(root["solar"]) : SolarSettings{},
         root["version"].toInt() >= 25 ? storedDisplayPrecision(root["displayPrecision"])
-                                      : fullDisplayPrecision);
+                                      : fullDisplayPrecision,
+        std::move(drawingSheets.first), nextDrawingSheetId, std::move(drawingSheets.second),
+        nextDrawingViewId);
     return doc;
 }
 } // namespace sketchy
