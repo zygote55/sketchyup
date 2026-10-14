@@ -1,7 +1,11 @@
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include "core/tags.hpp"
+#include "io/drawing_items.hpp"
 #include "io/drawing_view.hpp"
+#include "core/drawing_item_records.hpp"
+#include "core/annotation_anchors.hpp"
+#include <thread>
 #include <QCoreApplication>
 #include <cmath>
 #include <iostream>
@@ -364,6 +368,13 @@ void workLimits() {
               status.detail.find("one million") != std::string::npos && status.fingerprint.empty(),
           "Work-limit overrun is failed: " + status.detail);
     check(*doc.drawingViews().at(view) == record, "Failure leaves the record unchanged");
+    // The worker half reports the same failure from the owner-thread capture.
+    DrawingViewStatus worker;
+    std::thread thread([&, input = captureDrawingViewEvaluation(doc, view)] {
+        worker = computeDrawingViewEvaluation(input).status;
+    });
+    thread.join();
+    check(worker == status, "Worker failure equals the single-thread failure");
     std::cout << "work limits: ok\n";
 }
 
@@ -437,6 +448,139 @@ void statusCache() {
     rejects([&] { evaluateDrawingView(f.doc, f.view); }, "evaluating a deleted view");
     std::cout << "status cache: ok\n";
 }
+
+bool sameDrawing(const MeasuredDrawing &a, const MeasuredDrawing &b) {
+    const auto &pa = a.page, &pb = b.page;
+    if (pa.widthMm != pb.widthMm || pa.heightMm != pb.heightMm || pa.marginMm != pb.marginMm ||
+        pa.scaleDenominator != pb.scaleDenominator || pa.includeHidden != pb.includeHidden ||
+        length(pa.origin - pb.origin) != 0 || a.units != b.units || a.precision != b.precision ||
+        a.report != b.report || a.geometry.lines.size() != b.geometry.lines.size() ||
+        a.sources.size() != b.sources.size() || a.annotations.size() != b.annotations.size())
+        return false;
+    for (size_t i = 0; i < a.geometry.lines.size(); ++i) {
+        const auto &x = a.geometry.lines[i], &y = b.geometry.lines[i];
+        if (length(x.a - y.a) != 0 || length(x.b - y.b) != 0 || x.hidden != y.hidden ||
+            x.source != y.source)
+            return false;
+    }
+    for (size_t i = 0; i < a.sources.size(); ++i)
+        if (a.sources[i].body != b.sources[i].body || a.sources[i].edge != b.sources[i].edge ||
+            a.sources[i].section != b.sources[i].section)
+            return false;
+    return true;
+}
+bool sameEvaluation(const DrawingViewEvaluation &a, const DrawingViewEvaluation &b) {
+    if (!(a.status == b.status) || a.projection.has_value() != b.projection.has_value() ||
+        a.drawing.has_value() != b.drawing.has_value())
+        return false;
+    if (a.projection && (!(a.projection->frame == b.projection->frame) ||
+                         length(a.projection->page.origin - b.projection->page.origin) != 0 ||
+                         length(a.projection->page.right - b.projection->page.right) != 0 ||
+                         length(a.projection->page.up - b.projection->page.up) != 0))
+        return false;
+    return !a.drawing || sameDrawing(*a.drawing, *b.drawing);
+}
+bool sameItem(const DrawingItemEvaluation &a, const DrawingItemEvaluation &b) {
+    if (a.item != b.item || a.revision != b.revision || a.state != b.state ||
+        a.reasons != b.reasons || a.text != b.text || a.measuredMm != b.measuredMm ||
+        a.lineMm != b.lineMm || a.textMm != b.textMm || a.paperLengthMm != b.paperLengthMm ||
+        a.valueMetres != b.valueMetres || a.tipMm != b.tipMm ||
+        a.anchors.size() != b.anchors.size() || a.titleBlock.has_value() != b.titleBlock.has_value())
+        return false;
+    for (size_t i = 0; i < a.anchors.size(); ++i)
+        if (a.anchors[i].state != b.anchors[i].state || a.anchors[i].paper != b.anchors[i].paper ||
+            length(a.anchors[i].world - b.anchors[i].world) != 0)
+            return false;
+    return !a.titleBlock || (a.titleBlock->scale == b.titleBlock->scale &&
+                             a.titleBlock->page == b.titleBlock->page &&
+                             a.titleBlock->sheetNumber == b.titleBlock->sheetNumber);
+}
+
+// ADR 0164 §2: the owner-thread capture plus the pure worker computation equals the
+// single-thread evaluation, fingerprints included, and the capture is isolated from
+// later edits of the live document.
+void captureAndWorker() {
+    Fixture f;
+    accept(f.doc, f.view);
+    auto raster = viewRecord(f.sheet, f.scene, "Rendered");
+    raster.content = DrawingViewContent::RasterAppearance;
+    const auto rasterView = createDrawingView(f.doc, raster);
+    const auto perspectiveView = createDrawingView(
+        f.doc, viewRecord(f.sheet, createScene(f.doc, "Eye", planScene({1, .5, 0}, false)),
+                          "Perspective"));
+    const auto goneScene = createScene(f.doc, "Gone", planScene());
+    const auto brokenView = createDrawingView(f.doc, viewRecord(f.sheet, goneScene, "Broken"));
+    eraseScene(f.doc, goneScene);
+    const std::vector<Id> views{f.view, rasterView, perspectiveView, brokenView};
+    // A dimension and a title block, evaluated from a read snapshot on the worker.
+    const auto &body = f.doc.bodies().at(f.face)->surface.vertices;
+    Id v0{}, v1{};
+    for (const auto &[id, p] : body) {
+        if (length(p - Vec3{0, 0, 0}) < 1e-9)
+            v0 = id;
+        if (length(p - Vec3{2, 0, 0}) < 1e-9)
+            v1 = id;
+    }
+    DrawingDimensionItem dimension;
+    dimension.view = f.view;
+    dimension.anchors = {vertexAnchor(f.doc, f.face, v0), vertexAnchor(f.doc, f.face, v1)};
+    dimension.offsetMm = 8;
+    const auto dimensionItem = createDrawingItem(f.doc, f.sheet, dimension);
+    DrawingTitleBlockItem block;
+    block.frame = {300, 230, 100, 50};
+    const auto blockItem = createDrawingItem(f.doc, f.sheet, block);
+    const std::vector<Id> items{dimensionItem, blockItem};
+
+    std::vector<DrawingViewEvaluation> single;
+    std::vector<DrawingItemEvaluation> singleItems;
+    for (auto view : views)
+        single.push_back(evaluateDrawingViewDrawing(f.doc, view));
+    for (auto item : items)
+        singleItems.push_back(evaluateDrawingItem(f.doc, item));
+    check(single[0].status.state == DrawingViewState::Current &&
+              single[1].status.fingerprint.size() == 64 && single[2].status.notToScale &&
+              single[3].status.state == DrawingViewState::Broken,
+          "Fixture covers current, raster, perspective and broken views");
+    check(singleItems[0].state == DrawingItemState::Current && singleItems[0].valueMetres,
+          "Fixture dimension resolves");
+
+    // Owner thread: capture. Then edit the live document before the worker runs.
+    std::vector<DrawingViewEvaluationInput> inputs;
+    for (auto view : views)
+        inputs.push_back(captureDrawingViewEvaluation(f.doc, view));
+    const auto itemSnapshot = f.doc.readSnapshot();
+    const auto revision = f.doc.revision();
+    f.doc.move(f.face, {.5, 0, 0});
+    check(evaluateDrawingView(f.doc, f.view).state == DrawingViewState::Stale,
+          "The live edit changes the live evaluation");
+
+    std::vector<DrawingViewEvaluation> worker(views.size());
+    std::vector<DrawingItemEvaluation> workerItems(items.size());
+    std::thread thread([&] {
+        for (size_t i = 0; i < views.size(); ++i)
+            worker[i] = computeDrawingViewEvaluation(inputs[i]);
+        for (size_t i = 0; i < items.size(); ++i)
+            workerItems[i] = evaluateDrawingItem(itemSnapshot, items[i]);
+    });
+    thread.join();
+    for (size_t i = 0; i < views.size(); ++i) {
+        check(worker[i].status.revision == revision, "Worker result keeps the capture revision");
+        check(sameEvaluation(worker[i], single[i]),
+              "Worker evaluation equals the single-thread path for view " +
+                  std::to_string(views[i]));
+    }
+    check(worker[0].status.fingerprint == goldenFingerprint, "Worker golden fingerprint");
+    for (size_t i = 0; i < items.size(); ++i)
+        check(sameItem(workerItems[i], singleItems[i]),
+              "Worker item evaluation equals the single-thread path");
+    // The composition is the single-thread path itself.
+    f.doc.undo();
+    check(sameEvaluation(computeDrawingViewEvaluation(captureDrawingViewEvaluation(f.doc, f.view)),
+                         evaluateDrawingViewDrawing(f.doc, f.view)),
+          "Composition equals evaluateDrawingViewDrawing");
+    rejects([&] { captureDrawingViewEvaluation(f.doc, 999); }, "capturing a missing view");
+    std::cout << "capture and worker: ok\n";
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -450,6 +594,7 @@ int main(int argc, char **argv) {
         perspectiveViews();
         fingerprints();
         statusCache();
+        captureAndWorker();
         Document::setFullValidationOracle(false);
         workLimits();
     } catch (const std::exception &error) {

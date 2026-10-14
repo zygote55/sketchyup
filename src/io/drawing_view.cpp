@@ -315,14 +315,14 @@ const char *drawingViewStateName(DrawingViewState state) {
     }
     return "?";
 }
-DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id id) {
+DrawingViewEvaluationInput captureDrawingViewEvaluation(const Document &doc, Id id) {
     const auto it = doc.drawingViews().find(id);
     require(it != doc.drawingViews().end(), "Drawing view does not exist");
-    const auto &view = *it->second;
-    DrawingViewEvaluation result;
-    auto &status = result.status;
-    status.view = id;
-    status.revision = doc.revision();
+    DrawingViewEvaluationInput input;
+    input.view = id;
+    input.revision = doc.revision();
+    input.record = *it->second;
+    const auto &view = input.record;
     const auto scene = view.source.scene;
     try {
         RenderOptions options;
@@ -330,27 +330,57 @@ DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id id) {
             saved != doc.scenes().end() && saved->second->snapshot.camera) {
             auto camera = renderSceneCamera(*saved->second->snapshot.camera);
             if (camera.orthographic) {
-                result.projection = drawingViewProjection(view, camera);
+                input.projection = drawingViewProjection(view, camera);
                 // Pan the camera so captureMeasuredDrawing centres the frame on the
                 // projection origin; the view direction and scale are unchanged.
-                const auto pan = result.projection->page.origin - camera.target;
+                const auto pan = input.projection->page.origin - camera.target;
                 camera.target = camera.target + pan;
                 camera.position = camera.position + pan;
             }
             options.camera = camera;
         }
-        auto capture = RenderSnapshot::captureDrawingView(doc, scene, std::move(options));
+        input.capture = RenderSnapshot::captureDrawingView(doc, scene, std::move(options));
+    } catch (const ValidationOracleMismatch &) {
+        throw;
+    } catch (const std::exception &error) {
+        input.captureError = error.what();
+    }
+    return input;
+}
+DrawingViewEvaluation computeDrawingViewEvaluation(const DrawingViewEvaluationInput &input) {
+    const auto &view = input.record;
+    DrawingViewEvaluation result;
+    auto &status = result.status;
+    status.view = input.view;
+    status.revision = input.revision;
+    auto fail = [&](const char *detail) {
+        status.state = DrawingViewState::Failed;
+        status.reasons = {"captureFailed"};
+        status.detail = detail;
+        status.fingerprint.clear();
+        status.notToScale = false;
+        result.projection.reset();
+        result.drawing.reset();
+        return result;
+    };
+    if (input.captureError)
+        return fail(input.captureError->c_str());
+    result.projection = input.projection;
+    const auto &capture = input.capture;
+    try {
         status.warnings = capture.missingReferences;
         if (!capture.broken.empty()) {
             status.state = DrawingViewState::Broken;
-            status.reasons = std::move(capture.broken);
+            status.reasons = capture.broken;
             result.projection.reset();
             return result;
         }
+        require(capture.snapshot.has_value(), "Drawing view capture has no snapshot");
         if (capture.perspective) {
             status.notToScale = true;
             status.fingerprint = drawingIllustrationFingerprint(*capture.snapshot, view);
         } else {
+            require(result.projection.has_value(), "Orthographic drawing view has no projection");
             auto drawing = captureMeasuredDrawing(*capture.snapshot, result.projection->page);
             status.fingerprint = drawingFingerprint(
                 drawing, view.content == DrawingViewContent::RasterAppearance
@@ -361,14 +391,7 @@ DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id id) {
     } catch (const ValidationOracleMismatch &) {
         throw;
     } catch (const std::exception &error) {
-        status.state = DrawingViewState::Failed;
-        status.reasons = {"captureFailed"};
-        status.detail = error.what();
-        status.fingerprint.clear();
-        status.notToScale = false;
-        result.projection.reset();
-        result.drawing.reset();
-        return result;
+        return fail(error.what());
     }
     if (!view.accepted) {
         status.state = DrawingViewState::Stale;
@@ -380,6 +403,9 @@ DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id id) {
         status.state = DrawingViewState::Current;
     }
     return result;
+}
+DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id id) {
+    return computeDrawingViewEvaluation(captureDrawingViewEvaluation(doc, id));
 }
 DrawingViewStatus evaluateDrawingView(const Document &doc, Id view) {
     return evaluateDrawingViewDrawing(doc, view).status;
