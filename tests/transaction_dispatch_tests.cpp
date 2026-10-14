@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/inspection_validation.hpp"
 #include "automation/transactions.hpp"
 #include "core/assets.hpp"
 #include <QCoreApplication>
@@ -382,6 +383,65 @@ int main(int argc, char **argv) {
             check(!actor.uncertain() && !actor.retainedStagingBytes() && doc.revision() == 0,
                   "Expiry during durable sealing retires accepted proposal without publication");
             begin(api, doc);
+        }
+        {
+            // oneOf choices without "type" constrain the enclosing value's properties.
+            const QJsonObject schema{
+                {"type", "object"},
+                {"properties", QJsonObject{{"kind", QJsonObject{{"type", "string"}}}}},
+                {"oneOf",
+                 QJsonArray{QJsonObject{{"properties",
+                                         QJsonObject{{"kind", QJsonObject{{"const", "a"}}}}}},
+                            QJsonObject{{"properties",
+                                         QJsonObject{{"kind", QJsonObject{{"const", "b"}}}}}}}}};
+            inspection_detail::validateParameters({{"kind", "a"}}, schema);
+            inspection_detail::validateParameters({{"kind", "b"}}, schema);
+            rejects("INVALID_REQUEST",
+                    [&] { inspection_detail::validateParameters({{"kind", "c"}}, schema); });
+            const QJsonObject required{
+                {"type", "object"},
+                {"oneOf", QJsonArray{QJsonObject{{"required", QJsonArray{"a"}}},
+                                     QJsonObject{{"required", QJsonArray{"b"}}}}}};
+            inspection_detail::validateParameters({{"a", 1}}, required);
+            rejects("INVALID_REQUEST",
+                    [&] { inspection_detail::validateParameters({{"a", 1}, {"b", 1}}, required); });
+            rejects("INVALID_REQUEST",
+                    [&] { inspection_detail::validateParameters({{"c", 1}}, required); });
+
+            // The shipped annotation.create schema through transaction.apply.
+            Document annotated;
+            TransactionCoordinator actor(annotated, files.path() + "/annotation-oneof");
+            TransactionDispatcher api(actor);
+            const auto &doc = actor.document();
+            const auto id = begin(api, doc)["transactionId"].toString();
+            auto anchor = [](double x) {
+                return QJsonObject{{"kind", "point"},
+                                   {"space", "world"},
+                                   {"point", QJsonArray{x, 0, 0}}};
+            };
+            const QJsonObject distance{{"command", "annotation.create"},
+                                       {"name", "Span"},
+                                       {"kind", "distance"},
+                                       {"anchors", QJsonArray{anchor(0), anchor(2)}}};
+            const QJsonObject label{{"command", "annotation.create"},
+                                    {"name", "Note"},
+                                    {"kind", "label"},
+                                    {"text", "Joint"},
+                                    {"anchors", QJsonArray{anchor(1)}}};
+            auto shortDistance = distance;
+            shortDistance["anchors"] = QJsonArray{anchor(0)};
+            auto emptyLabel = label;
+            emptyLabel["text"] = "";
+            auto untitledLabel = label;
+            untitledLabel.remove("text");
+            for (const auto &bad : {shortDistance, emptyLabel, untitledLabel})
+                rejects("INVALID_REQUEST", [&] {
+                    api.execute(applyRequest(doc, id, 0, "bad-annotation", {bad}));
+                });
+            const auto applied =
+                api.execute(applyRequest(doc, id, 0, "annotations", {distance, label}));
+            check(applied["stageVersion"] == 1 && applied["commandCount"] == 2,
+                  "Transaction apply accepts annotation.create distance and label requests");
         }
         std::cout << "Incremental transactions, immutable seals, retry receipts, schemas, expiry "
                      "and limits passed\n";

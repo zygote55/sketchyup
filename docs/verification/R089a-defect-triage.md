@@ -124,6 +124,25 @@ Closed by the 2026-10-12 hardware session:
   so the budget is hardware-accepted on AMD only. The inference-update growth with placements
   noted under D-003 showed up as the edit-feedback miss D-024, fixed by R082.jj (below).
 
+Closed by R090.e:
+
+- **D-030** (`annotation.create` always rejected through `transaction.apply`). Class: **Major**
+  (a broken workflow with a workaround). Found 2026-10-14; present since the command was added
+  (`7d3ba13b`, 2026-10-06) and in the 1.0.0 release. The shared schema validator
+  (`src/automation/inspection.cpp`) applied `properties`, `required` and the length and item
+  bounds only under an explicit `type`. The two `oneOf` choices of the `annotation.create`
+  schema (distance or label) have no `type`, so both matched every request and the
+  "exactly one" count failed. Every `annotation.create` through a headless `--session`,
+  stdio MCP `transaction.apply` or a recipe step returned `INVALID_REQUEST` "Parameter must
+  match exactly one supported schema"; the 1.0.0 CLI and the R090.d build both did. The
+  batch path (`--script`, batch requests) and the desktop Annotations panel do not use this
+  validator and were unaffected; the desktop assistant does not offer annotation commands.
+  No other shipped schema has a `oneOf` choice without `type` that constrains anything.
+  Fix: a schema without `type` now applies its keywords to the kind of value it meets, as
+  JSON Schema does. `transaction_dispatch_tests` covers typeless `oneOf` choices directly
+  and the real `annotation.create` distance and label requests through `transaction.apply`,
+  including three that must still be rejected ([R090.e](R090e-drawing-sheets.md)).
+
 Closed by R084.v:
 
 - **D-026** (reopened "Render with Blender" kept focus on Jobs…, so Enter opened Jobs instead of
