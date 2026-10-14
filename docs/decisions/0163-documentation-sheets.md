@@ -1,9 +1,11 @@
 # Documentation sheets and linked views
 
-Status: **Proposed**. Date: 2026-10-13. Roadmap [R090](../PR_ROADMAP.md#r090)
-(M10, scope row [F01](../SCOPE.md)); shapes [R091](../PR_ROADMAP.md#r091) and
-[R092](../PR_ROADMAP.md#r092). Nothing here is implemented. The owner decides the
-points listed under "Owner decisions" before R090.a starts.
+Status: **Accepted (2026-10-13)** for the decision; the layers are implemented by
+R090.a–e. Roadmap [R090](../PR_ROADMAP.md#r090) (M10, scope row
+[F01](../SCOPE.md)); shapes [R091](../PR_ROADMAP.md#r091) and
+[R092](../PR_ROADMAP.md#r092). The owner's choices are recorded under "Decisions".
+The R091 interaction design is the
+[R091 UX design (canvas; private to the owner)](https://claude.ai/artifact/ByrL3RtnQihKV9zx5DiYyQ).
 
 ## Context
 
@@ -86,9 +88,9 @@ tables.
 - **Compatibility.** ADR 0162 explicitly allows this in a minor release (1.1.0).
   A 1.0.0 build rejects any v27 file at `decodeContainer`, because the feature set
   is unknown. It reports the error and does not touch the file, so no data is
-  silently dropped. Because the encoder always writes the current schema, *every*
-  file saved by 1.1, even one without sheets, becomes unreadable to 1.0.0 (see
-  owner decision 2).
+  silently dropped. Under decision 2 the writer emits the lowest schema the
+  content needs, so a file without drawing sheets stays schema 26 and 1.0.0 still
+  opens it.
 - **Atomic save and recovery.** No new code. Sheets travel in the document chunk,
   so `saveSnapshot`, `.bak`, `RecoveryWriter`, `--migrate-native` and the
   round-trip verification in `createNativeFile` cover them. Title-block images
@@ -100,7 +102,7 @@ tables.
   Undoing a scene deletion relinks the view automatically.
 - **Undo.** Sheet edits are ordinary `Edit`s, one history entry per command, on
   the document's single stack, as scene edits already are. The cost: Undo while
-  looking at a sheet can undo an earlier model edit (owner decision 3).
+  looking at a sheet can undo an earlier model edit (decision 3).
 - **"Page editing never modifies source geometry".** Enforced in code, not by file
   separation: sheet commands may only fill the new sheet fields of `Edit`, and a
   sheet-only predicate rejects anything else (see Decision). Model edits never
@@ -160,7 +162,7 @@ referenced model container. Links are by path and identity, and an explicit
   means only "the embedded copy differs from the file on disk". It never reflects
   unsaved edits.
 
-## Decision (recommended)
+## Decision
 
 **Adopt (a): drawing-sheet records inside the native document, schema 27.** Design
 the view's source as a field, so that (c)-style external model references can be
@@ -228,7 +230,8 @@ States are derived and never persisted:
 | --- | --- |
 | `current` | Accepted fingerprint equals the fingerprint at the current revision |
 | `stale` | Accepted fingerprint differs: the model or scene changed what the view draws |
-| `broken` | Scene missing, scene has no camera, perspective camera, temporary clip plane, or show-hidden enabled; each is a named reason |
+| `notToScale` | The scene camera is perspective: the view draws as an unscaled raster illustration, Dimension refuses to measure it and the scale field reads "Not to scale" (decision 5) |
+| `broken` | Scene missing, scene has no camera, temporary clip plane, or show-hidden enabled; each is a named reason |
 | `failed` | Capture exceeded the R078 work bounds; reason reported, record unchanged |
 
 Missing references *inside* a scene, such as a deleted body that the scene hid, are
@@ -257,12 +260,15 @@ changes a view's frame, offset, scale or mode re-stamps `accepted`, because the 
 made that change. Model edits never re-stamp. **Accept** (`drawing_view.accept`) is
 an undoable sheet edit.
 
-Proposed default semantics (owner decision 4):
+Semantics (decision 4):
 
-- Display and export always draw the *current* model (live update).
-- `stale` means "changed since last accepted".
-- R092 refuses to publish stale, broken or failed views unless the user accepts
-  them or explicitly acknowledges them in the reconciliation report.
+- Display and export always draw the *current* model (live update). No cached
+  drawings are stored in the file.
+- `stale` means "changed since accepted" and is shown until the user accepts the
+  view (`U`, or Accept all).
+- The R092 export preflight lists unaccepted views; R092 refuses to publish stale,
+  broken or failed views unless the user accepts them or explicitly acknowledges
+  them in the reconciliation report.
 
 ### Enforcing "page editing never modifies source model geometry"
 
@@ -327,8 +333,9 @@ allows in a minor version:
 ### Consequences
 
 - The public schema advances once, to `sketchyup-document-v27`, and ADR 0108 gets a
-  "Schema 27" section. Files saved by the release that ships sheets cannot be opened
-  by 1.0.0. The open fails cleanly and the file is not modified.
+  "Schema 27" section. Files that contain drawing sheets cannot be opened by 1.0.0.
+  The open fails cleanly and the file is not modified. Files without sheets stay
+  schema 26 (decision 2).
 - The frozen provider corpus `inputSha256` values change and are regenerated, as in
   ADR 0162.
 - Multi-model sheet sets are out of scope until an external-reference feature is
@@ -338,28 +345,39 @@ allows in a minor version:
 - Live evaluation costs a bounded capture per view per changed revision. That work
   runs on a worker from immutable snapshots, never on the editing thread.
 
-## Owner decisions
+## Decisions
 
-1. **Single model per sheet set (a), or multi-model sets now ((c)).** Choose (c) if
-   one sheet set must combine several model files in the first release.
-2. **Downgrade window.** Always write v27 (recommended: consistent with every
-   earlier schema bump and simplest to verify), or write v26 while a document has no
-   sheets so 1.0.0 can still open it. That would be new writer policy in
-   `encodeContainer`. A third choice is a "Save copy without sheets (v26)" command.
-3. **Undo scope.** One shared stack (recommended, matching scenes), or a separate
-   stack for sheet edits, which would need a second history in `Document`.
-4. **Live or frozen views.** Live drawing with an accepted-fingerprint review state
-   (recommended), or frozen views that keep showing cached content until
-   **Update**, as LayOut does. Frozen views need cached drawing records in the file.
-5. **Perspective views.** Treated as `broken` (recommended: a declared scale is
-   meaningless in perspective), or allowed as unscaled raster illustrations.
-6. **Schema numbering during F01.** Keep schema 27 open on `main` until the F01
-   release, so R091 can add page items to it, or bump per layer (27 for R090,
-   28 for R091) as before 1.0. Recommended: open until release. No release writes it
-   before then, and the retained-fixture rule applies from the first release that
-   writes it.
-7. **Naming.** "Drawing sheet" in code and schema, to avoid the existing
-   dialog-"sheet" term. User-facing wording belongs to R091 UX.
+The owner decided these points on 2026-10-13.
+
+1. **One model per sheet set.** Sheets are records inside the model's `.sketchyup`
+   (option (a)). The view `source` stays a tagged field, so external models can
+   become a later feature.
+2. **Downgrade window.** A document with **no** drawing sheets keeps the 1.0
+   format: schema 26, without the `drawing-sheets-v1` feature. The first sheet makes
+   the file schema 27, and 1.0.0 then refuses it with its normal unsupported-version
+   error. This is new writer policy: the writer emits the lowest schema the content
+   needs. R090.b tests three things:
+   - a sheet-free document saved by the new build is accepted by the 1.0.0 reader
+     (the `release-1.0.0-v26` fixture rules);
+   - adding a sheet writes 27;
+   - deleting every sheet writes 26 again.
+
+   The writer string still changes with the version.
+3. **One shared undo history.** Sheet edits are labeled entries in the document's
+   single history, matching scenes.
+4. **Live views with an accepted stamp,** as proposed above. A view always draws the
+   current model. "Changed since accepted" (the derived `stale` state) is shown until
+   the user accepts it (`U` / Accept all). The export preflight lists unaccepted
+   views. There are no cached drawings in the file.
+5. **Perspective scenes are allowed** as unscaled views. They give the derived
+   `notToScale` condition rather than `broken`: they draw as raster illustrations,
+   Dimension refuses to measure them, and the scale field reads "Not to scale".
+6. **Schema 27 stays open on `main` until the F01 release.** R091 may add page-item
+   records to it, and no release writes it before then. The retained-fixture rule
+   applies from the first release that writes it.
+7. **Naming.** "Drawing sheet" in code and the file format, to avoid the existing
+   dialog-"sheet" term. The UI says "sheet"/"page" per the
+   [R091 UX design (canvas; private to the owner)](https://claude.ai/artifact/ByrL3RtnQihKV9zx5DiYyQ).
 
 ## Layer plan for R090
 
@@ -391,6 +409,7 @@ allows in a minor version:
   - the feature, encoding and floors in `src/io/container.cpp`;
   - `nativeDocumentVersion = 27`, capabilities, and
     `docs/api/native-format-v1.json`;
+  - the lowest-schema writer policy of decision 2 (26 without sheets, 27 with);
   - the ADR 0108 "Schema 27" section;
   - a new `drawing-sheets-v27.sketchyup` writer fixture.
 - Tests: `tests/drawing_sheet_io_tests.cpp` and `native_format_tests.cpp`:
@@ -400,6 +419,9 @@ allows in a minor version:
   - unknown, missing or noncanonical fields and allocator disagreement are
     rejected;
   - a broken scene link survives the round trip;
+  - decision 2: a sheet-free document saved by the new build is accepted by the
+    1.0.0 reader (the `release-1.0.0-v26` fixture rules), adding a sheet writes 27,
+    and deleting every sheet writes 26 again;
   - save, `.bak` and recovery round trip with sheets.
 - Fuzz: seed documents with sheets in `tests/fuzz/parser_seeds.cpp`, with
   `parser_fault_corpus_tests` counts updated.
@@ -423,7 +445,8 @@ allows in a minor version:
   - a scene update makes the view `stale`;
   - deleting the scene gives `broken` (`sceneMissing`), and undo returns it to
     `current`;
-  - perspective, show-hidden and temporary-plane reasons;
+  - a perspective scene gives `notToScale`, not `broken`;
+  - show-hidden and temporary-plane `broken` reasons;
   - work limits give `failed`;
   - 40 mm for 2 m at 1:50 at a frame offset;
   - fingerprints equal under normal and sanitizer builds;
@@ -448,7 +471,7 @@ allows in a minor version:
 - `docs/verification/R090e-drawing-sheets.md`.
 - Installed smoke, plus the normal and sanitized Wayland/X11 matrix.
 - Roadmap status and the F01 evidence link.
-- This ADR moves to Accepted.
+- The ADR's implementation note records that R090.a–e are complete.
 
 ## What R091 and R092 need from R090
 
