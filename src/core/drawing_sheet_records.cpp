@@ -1,4 +1,5 @@
 #include "core/drawing_sheet_records.hpp"
+#include "core/drawing_item_records.hpp"
 #include "core/model.hpp"
 #include <algorithm>
 #include <cmath>
@@ -10,6 +11,11 @@ bool validName(const std::string &name) {
                         [](unsigned char c) { return c < 32 || c == 127; });
 }
 bool paperLength(double value) { return std::isfinite(value) && value >= 10 && value <= 2000; }
+bool validNumber(const std::string &number) {
+    return number.size() <= drawingSheetNumberLimit &&
+           std::none_of(number.begin(), number.end(),
+                        [](unsigned char c) { return c < 32 || c == 127; });
+}
 } // namespace
 void DrawingPaper::validate() const {
     if (!paperLength(widthMm) || !paperLength(heightMm))
@@ -41,7 +47,10 @@ void DrawingViewAcceptance::validate() const {
             "Drawing view acceptance requires a lowercase SHA-256 fingerprint");
 }
 size_t drawingSheetBytes(const DrawingSheetPtr &sheet) {
-    return sheet ? sizeof(DrawingSheetRecord) + sheet->name.size() + 64 : 0;
+    return sheet ? sizeof(DrawingSheetRecord) + sheet->name.size() + sheet->number.size() + 64 : 0;
+}
+double defaultDrawingSheetMarginMm(const DrawingPaper &paper) {
+    return std::min(drawingSheetDefaultMarginMm, std::min(paper.widthMm, paper.heightMm) / 4);
 }
 size_t drawingViewBytes(const DrawingViewPtr &view) {
     return view ? sizeof(DrawingViewRecord) + view->name.size() +
@@ -49,11 +58,12 @@ size_t drawingViewBytes(const DrawingViewPtr &view) {
                 : 0;
 }
 void validateDrawingSheetRecords(const DrawingSheetRecords &sheets, Id nextSheet,
-                                 const DrawingViewRecords &views, Id nextView) {
+                                 const DrawingViewRecords &views, Id nextView,
+                                 const DrawingItemRecords &items, Id nextItem) {
     if (!nextSheet || !nextView || sheets.size() > drawingSheetCountLimit ||
         views.size() > drawingViewCountLimit)
         throw std::runtime_error("Invalid drawing sheet allocator or count");
-    std::set<std::string> names;
+    std::set<std::string> names, numbers;
     std::set<std::uint32_t> positions;
     size_t bytes = 0;
     for (const auto &[id, sheet] : sheets) {
@@ -64,6 +74,16 @@ void validateDrawingSheetRecords(const DrawingSheetRecords &sheets, Id nextSheet
         if (sheet->position >= sheets.size() || !positions.insert(sheet->position).second)
             throw std::runtime_error("Drawing sheet order must contain each position exactly once");
         sheet->paper.validate();
+        if (!validNumber(sheet->number))
+            throw std::runtime_error(
+                "Drawing sheet number must be at most 32 bytes without control characters");
+        if (!sheet->number.empty() && !numbers.insert(sheet->number).second)
+            throw std::runtime_error("Drawing sheet numbers must be unique");
+        if (!std::isfinite(sheet->marginMm) || sheet->marginMm < 0 ||
+            sheet->marginMm > drawingSheetMarginLimitMm ||
+            sheet->marginMm > std::min(sheet->paper.widthMm, sheet->paper.heightMm) / 4)
+            throw std::runtime_error("Drawing sheet margin must be from 0 to 50 millimetres and at "
+                                     "most a quarter of the shorter paper side");
         bytes += drawingSheetBytes(sheet);
     }
     names.clear();
@@ -97,6 +117,7 @@ void validateDrawingSheetRecords(const DrawingSheetRecords &sheets, Id nextSheet
             view->accepted->validate();
         bytes += drawingViewBytes(view);
     }
+    bytes += validateDrawingItemRecords(sheets, views, items, nextItem);
     if (bytes > drawingSheetBytesLimit)
         throw std::runtime_error("Drawing sheets exceed the eight MiB record budget");
 }
@@ -111,11 +132,12 @@ std::set<Id> drawingViewsWithMissingSource(const Document &doc) {
     return missing;
 }
 bool isDrawingSheetOnlyEdit(const Edit &edit) {
-    return (!edit.drawingSheets.empty() || !edit.drawingViews.empty()) && edit.changes.empty() &&
-           edit.definitions.empty() && edit.instances.empty() && edit.tags.empty() &&
-           edit.materials.empty() && edit.assets.empty() && edit.scenes.empty() &&
-           edit.sections.empty() && edit.annotations.empty() && !edit.displayUnits &&
-           !edit.displayPrecision && !edit.hosted && !edit.style && !edit.activeSections &&
-           !edit.solar;
+    return (!edit.drawingSheets.empty() || !edit.drawingViews.empty() ||
+            !edit.drawingItems.empty()) &&
+           edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
+           edit.tags.empty() && edit.materials.empty() && edit.assets.empty() &&
+           edit.scenes.empty() && edit.sections.empty() && edit.annotations.empty() &&
+           !edit.displayUnits && !edit.displayPrecision && !edit.hosted && !edit.style &&
+           !edit.activeSections && !edit.solar;
 }
 } // namespace sketchy

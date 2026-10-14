@@ -45,6 +45,8 @@ Document Document::readSnapshot() const {
     result.nextDrawingSheetId_ = nextDrawingSheetId_;
     result.drawingViews_ = drawingViews_;
     result.nextDrawingViewId_ = nextDrawingViewId_;
+    result.drawingItems_ = drawingItems_;
+    result.nextDrawingItemId_ = nextDrawingItemId_;
     result.definitionFloors_ = definitionFloors_;
     result.surfaceFloors_ = surfaceFloors_;
     result.edgeFloors_ = edgeFloors_;
@@ -452,6 +454,8 @@ size_t Document::readSnapshotBytes() const {
         result += drawingSheetBytes(sheet) + 64;
     for (const auto &[id, view] : drawingViews_)
         result += drawingViewBytes(view) + 64;
+    for (const auto &[id, item] : drawingItems_)
+        result += drawingItemBytes(item) + 64;
     result += (surfaceFloors_.size() + edgeFloors_.size()) * 96;
     for (const auto &[id, floor] : definitionFloors_)
         result += sizeof(DefinitionFloor) + 64 + floor.geometry.size() * 96;
@@ -804,6 +808,14 @@ void Document::update(Edit edit, bool forward) {
         else
             drawingViews.erase(change.id);
     }
+    auto drawingItems = drawingItems_;
+    for (const auto &change : edit.drawingItems) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            drawingItems[change.id] = target;
+        else
+            drawingItems.erase(change.id);
+    }
     if (edit.activeSections)
         activeSections = forward ? edit.activeSections->second : edit.activeSections->first;
     for (const auto &change : edit.annotations) {
@@ -918,6 +930,7 @@ void Document::update(Edit edit, bool forward) {
     activeSections_.swap(activeSections);
     drawingSheets_.swap(drawingSheets);
     drawingViews_.swap(drawingViews);
+    drawingItems_.swap(drawingItems);
     if (edit.hosted)
         hosted_ = forward ? edit.hosted->after : edit.hosted->before;
     if (edit.displayUnits)
@@ -946,11 +959,13 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
         !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar &&
         edit.scenes.empty() && edit.sections.empty() && !edit.activeSections &&
-        edit.annotations.empty() && edit.drawingSheets.empty() && edit.drawingViews.empty())
+        edit.annotations.empty() && edit.drawingSheets.empty() && edit.drawingViews.empty() &&
+        edit.drawingItems.empty())
         throw std::runtime_error("Empty edit");
     // Page editing never modifies the source model, and model edits never write
     // drawing sheets (ADR 0163). Floors may restate, but not raise, model allocators.
-    if ((edit.drawingSheetScope || !edit.drawingSheets.empty() || !edit.drawingViews.empty()) &&
+    if ((edit.drawingSheetScope || !edit.drawingSheets.empty() || !edit.drawingViews.empty() ||
+         !edit.drawingItems.empty()) &&
         (!isDrawingSheetOnlyEdit(edit) || edit.nextIdFloor > nextId_ ||
          edit.nextDefinitionFloor > nextDefinitionId_ || edit.nextTagFloor > nextTagId_ ||
          edit.nextMaterialFloor > nextMaterialId_ || edit.nextAssetFloor > nextAssetId_ ||
@@ -1095,7 +1110,27 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         } else
             drawingViews.erase(change.id);
     }
-    validateDrawingSheetRecords(drawingSheets, nextDrawingSheet, drawingViews, nextDrawingView);
+    auto drawingItems = drawingItems_;
+    Id nextDrawingItem = std::max(nextDrawingItemId_, edit.nextDrawingItemFloor);
+    std::set<Id> drawingItemIds;
+    for (auto &change : edit.drawingItems) {
+        if (!change.id || change.id == UINT64_MAX || !drawingItemIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (drawingItems_.contains(change.id) ? drawingItems_.at(change.id) : nullptr) !=
+                change.before ||
+            (change.before && change.after && *change.before == *change.after))
+            throw std::runtime_error("Invalid or stale drawing item change");
+        if (!change.before && change.id < nextDrawingItemId_)
+            throw std::runtime_error("Retired drawing item ID cannot be reused");
+        if (change.after) {
+            change.after = std::make_shared<DrawingItemRecord>(*change.after);
+            drawingItems[change.id] = change.after;
+            nextDrawingItem = std::max(nextDrawingItem, change.id + 1);
+        } else
+            drawingItems.erase(change.id);
+    }
+    validateDrawingSheetRecords(drawingSheets, nextDrawingSheet, drawingViews, nextDrawingView,
+                                drawingItems, nextDrawingItem);
     // A view keeps a diagnosed broken link after its scene is deleted; creating a
     // view or changing its source requires the scene to exist.
     for (const auto &change : edit.drawingViews)
@@ -1496,6 +1531,9 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     for (const auto &change : edit.drawingViews)
         edit.bytes += sizeof(DrawingViewChange) + drawingViewBytes(change.before) +
                       drawingViewBytes(change.after);
+    for (const auto &change : edit.drawingItems)
+        edit.bytes += sizeof(DrawingItemChange) + drawingItemBytes(change.before) +
+                      drawingItemBytes(change.after);
     if (edit.activeSections)
         edit.bytes += sizeof(ActiveSections) * 2 +
                       (edit.activeSections->first.size() + edit.activeSections->second.size()) * 64;
@@ -1728,6 +1766,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     activeSections_.swap(activeSections);
     drawingSheets_.swap(drawingSheets);
     drawingViews_.swap(drawingViews);
+    drawingItems_.swap(drawingItems);
     hosted_ = std::move(hosted);
     nextTagId_ = nextTag;
     nextMaterialId_ = nextMaterial;
@@ -1737,6 +1776,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     nextAnnotationId_ = nextAnnotation;
     nextDrawingSheetId_ = nextDrawingSheet;
     nextDrawingViewId_ = nextDrawingView;
+    nextDrawingItemId_ = nextDrawingItem;
     nextId_ = next;
     commitSparse(surfaceFloors_, floorUpdates);
     commitSparse(edgeFloors_, edgeFloorUpdates);
@@ -1854,6 +1894,13 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!change.before && change.after)
             ++createdDrawingViews;
     }
+    std::set<Id> drawingItemContexts;
+    size_t createdDrawingItems = 0;
+    for (const auto &change : undo_.back().edit.drawingItems) {
+        drawingItemContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdDrawingItems;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
@@ -1867,6 +1914,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineAnnotations = staged.annotations_;
     const auto baselineDrawingSheets = staged.drawingSheets_;
     const auto baselineDrawingViews = staged.drawingViews_;
+    const auto baselineDrawingItems = staged.drawingItems_;
     const auto baselineActiveSections = staged.activeSections_;
     const auto baselineUnits = staged.displayUnits_;
     const auto baselinePrecision = staged.displayPrecision_;
@@ -1986,6 +2034,15 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         newDrawingViews += !baselineDrawingViews.contains(id);
     if (newDrawingViews != createdDrawingViews)
         throw std::runtime_error("Replacement must preserve drawing view creation count");
+    for (const auto &[id, item] : baselineDrawingItems)
+        if (!drawingItemContexts.contains(id) &&
+            (!staged.drawingItems_.contains(id) || staged.drawingItems_.at(id) != item))
+            throw std::runtime_error("Replacement cannot change another drawing item");
+    size_t newDrawingItems = 0;
+    for (const auto &[id, item] : staged.drawingItems_)
+        newDrawingItems += !baselineDrawingItems.contains(id);
+    if (newDrawingItems != createdDrawingItems)
+        throw std::runtime_error("Replacement must preserve drawing item creation count");
     for (const auto &[id, asset] : baselineAssets)
         if (!assetContexts.contains(id) &&
             (!staged.assets_.contains(id) || staged.assets_.at(id) != asset))
@@ -2270,6 +2327,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     nextDrawingSheetId_ = nextDrawingSheetId;
     drawingViews_ = std::move(drawingViews);
     nextDrawingViewId_ = nextDrawingViewId;
+    drawingItems_.clear();
+    nextDrawingItemId_ = 1;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     totals_ = totals;
@@ -2400,7 +2459,8 @@ std::string Document::stateMismatch(const Document &other) const {
               nextSectionId_ == other.nextSectionId_ &&
               nextAnnotationId_ == other.nextAnnotationId_ &&
               nextDrawingSheetId_ == other.nextDrawingSheetId_ &&
-              nextDrawingViewId_ == other.nextDrawingViewId_,
+              nextDrawingViewId_ == other.nextDrawingViewId_ &&
+              nextDrawingItemId_ == other.nextDrawingItemId_,
           "allocators");
     check(revision_ == other.revision_ && undo_.size() == other.undo_.size() &&
               redo_.size() == other.redo_.size() && historyBytes_ == other.historyBytes_ &&
