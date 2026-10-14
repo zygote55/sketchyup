@@ -67,6 +67,8 @@ QJsonObject describe(const QByteArray &bytes, const Document &doc) {
             {"up", "Z"},
             {"bodies", int(doc.bodies().size())},
             {"scenes", int(doc.scenes().size())},
+            {"drawingSheets", int(doc.drawingSheets().size())},
+            {"drawingViews", int(doc.drawingViews().size())},
             {"assets", int(doc.assets().size())},
             {"assetBytes", QString::number(assetBytes)},
             {"missingAssets", missing},

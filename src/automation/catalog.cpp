@@ -4,6 +4,7 @@
 #include "automation/text_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "automation/scene_commands.hpp"
+#include "automation/drawing_sheet_commands.hpp"
 #include "automation/section_commands.hpp"
 #include "core/copy_array.hpp"
 namespace sketchy {
@@ -132,6 +133,43 @@ QJsonObject annotationUpdateSpec() {
     entry["parameters"] = parameters;
     return entry;
 }
+QJsonObject drawingViewUpdateSpec() {
+    auto entry = spec("drawing_view.update",
+                      "Change a sheet view's name, source scene, frame, offset, scale, content or "
+                      "hidden lines",
+                      "Drawing sheets",
+                      {{"view", stableId()},
+                       {"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
+                       {"source", drawingViewSourceSchema()},
+                       {"frame", drawingFrameSchema()},
+                       {"offsetMm", drawingViewOffsetSchema()},
+                       {"scaleDenominator", drawingViewScaleSchema()},
+                       {"content", drawingViewContentSchema()},
+                       {"hiddenLines", QJsonObject{{"type", "boolean"}}}},
+                      {"view"});
+    auto parameters = entry["parameters"].toObject();
+    parameters["minProperties"] = 3;
+    parameters["description"] =
+        "Change a sheet view. A change to what a current view draws re-stamps its acceptance; "
+        "a stale, broken or never-accepted view keeps its stamp";
+    entry["parameters"] = parameters;
+    return entry;
+}
+QJsonObject drawingViewAcceptSpec() {
+    auto entry = spec("drawing_view.accept",
+                      "Accept sheet views as reviewed at the current model", "Drawing sheets",
+                      {{"view", stableId()}, {"sheet", stableId()},
+                       {"all", QJsonObject{{"const", true}}}},
+                      {});
+    auto parameters = entry["parameters"].toObject();
+    parameters["minProperties"] = 2;
+    parameters["maxProperties"] = 2;
+    parameters["description"] =
+        "Accept one view, every view on one sheet, or every view (all: true). A named broken "
+        "or failed view is refused with DRAWING_VIEW_NOT_ACCEPTABLE; sheet and all skip them";
+    entry["parameters"] = parameters;
+    return entry;
+}
 QJsonObject edgeAppearanceSpec() {
     auto entry = spec(
         "geometry.edge_appearance", "Set independent edge hide, soften and smooth flags",
@@ -257,6 +295,32 @@ QJsonArray commandCatalog() {
              {{"scene", stableId()}}, {"scene"}),
         spec("saved_scene.recall", "Recall saved model style, sun study, visibility and named sections", "Saved scenes",
              {{"scene", stableId()}}, {"scene"}),
+        spec("drawing_sheet.create", "Create a drawing sheet", "Drawing sheets",
+             {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}}, {"paper", drawingPaperSchema()}}, {"name", "paper"}),
+        spec("drawing_sheet.rename", "Rename a drawing sheet", "Drawing sheets",
+             {{"sheet", stableId()}, {"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}}}, {"sheet", "name"}),
+        spec("drawing_sheet.resize", "Change a drawing sheet's paper size", "Drawing sheets",
+             {{"sheet", stableId()}, {"paper", drawingPaperSchema()}}, {"sheet", "paper"}),
+        spec("drawing_sheet.reorder", "Order all drawing sheets", "Drawing sheets",
+             {{"order", list(stableId(), 0, 256)}}, {"order"}),
+        spec("drawing_sheet.delete", "Delete a drawing sheet and its views", "Drawing sheets",
+             {{"sheet", stableId()}}, {"sheet"}),
+        spec("drawing_view.create", "Place a scaled view of a saved scene on a sheet",
+             "Drawing sheets",
+             {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}}, {"sheet", stableId()},
+              {"source", drawingViewSourceSchema()}, {"frame", drawingFrameSchema()},
+              {"offsetMm", drawingViewOffsetSchema()},
+              {"scaleDenominator", drawingViewScaleSchema()},
+              {"content", drawingViewContentSchema()},
+              {"hiddenLines", QJsonObject{{"type", "boolean"}}}},
+             {"name", "sheet", "source", "frame", "scaleDenominator"}),
+        drawingViewUpdateSpec(),
+        spec("drawing_view.move", "Move a sheet view to another sheet", "Drawing sheets",
+             {{"view", stableId()}, {"sheet", stableId()}, {"frame", drawingFrameSchema()}},
+             {"view", "sheet"}),
+        spec("drawing_view.delete", "Delete a sheet view", "Drawing sheets",
+             {{"view", stableId()}}, {"view"}),
+        drawingViewAcceptSpec(),
         spec("document.solar", "Change offline sun study", "Document",
              {{"solar", solarSettingsSchema()}}, {"solar"}),
         spec("document.style", "Change model style", "Document",

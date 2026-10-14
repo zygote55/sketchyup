@@ -4,6 +4,7 @@
 #include "io/solar_io.hpp"
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
+#include "core/drawing_sheets.hpp"
 #include "core/sections.hpp"
 #include "core/annotations.hpp"
 #include "core/assets.hpp"
@@ -782,6 +783,20 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "saved_scene.reorder"}, {"order", QJsonArray{"2", "1"}}},
             QJsonObject{{"command", "saved_scene.delete"}, {"scene", "1"}},
             QJsonObject{{"command", "saved_scene.recall"}, {"scene", "1"}},
+            QJsonObject{{"command", "drawing_sheet.create"}, {"name", "Sheet"}, {"paper", QJsonObject{{"widthMm", 420}, {"heightMm", 297}}}},
+            QJsonObject{{"command", "drawing_sheet.rename"}, {"sheet", "1"}, {"name", "Renamed"}},
+            QJsonObject{{"command", "drawing_sheet.resize"}, {"sheet", "1"},
+                        {"paper", QJsonObject{{"widthMm", 594}, {"heightMm", 420}}}},
+            QJsonObject{{"command", "drawing_sheet.reorder"}, {"order", QJsonArray{"2", "1"}}},
+            QJsonObject{{"command", "drawing_sheet.delete"}, {"sheet", "1"}},
+            QJsonObject{{"command", "drawing_view.create"}, {"name", "Plan"}, {"sheet", "1"},
+                        {"source", QJsonObject{{"kind", "scene"}, {"scene", "1"}}},
+                        {"frame", QJsonObject{{"xMm", 10}, {"yMm", 10}, {"widthMm", 200}, {"heightMm", 150}}},
+                        {"scaleDenominator", 50}},
+            QJsonObject{{"command", "drawing_view.update"}, {"view", "1"}, {"scaleDenominator", 20}},
+            QJsonObject{{"command", "drawing_view.move"}, {"view", "1"}, {"sheet", "2"}},
+            QJsonObject{{"command", "drawing_view.delete"}, {"view", "1"}},
+            QJsonObject{{"command", "drawing_view.accept"}, {"view", "1"}},
             QJsonObject{{"command", "document.style"}, {"style", encodeModelStyle(wireframeStyle)}},
             QJsonObject{{"command", "document.units"}, {"units", "mm"}},
             QJsonObject{{"command", "asset.import"},
@@ -1113,6 +1128,27 @@ int main(int argc, char **argv) {
                 savedStyle.style = wireframeStyle;
                 createScene(doc, "First", savedStyle);
                 createScene(doc, "Second", savedStyle);
+            }
+            if (command["command"].toString().startsWith("drawing_")) {
+                SceneSnapshot plan;
+                plan.camera = SceneCamera{};
+                plan.camera->pitch = 90;
+                plan.camera->orthographic = true;
+                const auto scene = createScene(doc, "Plan", plan);
+                if (command.contains("source"))
+                    command["source"] = QJsonObject{{"kind", "scene"}, {"scene", QString::number(scene)}};
+                if (command["command"] != "drawing_sheet.create") {
+                    createDrawingSheet(doc, "First", {420, 297});
+                    createDrawingSheet(doc, "Second", {420, 297});
+                }
+                if (command["command"].toString().startsWith("drawing_view.") &&
+                    command["command"] != "drawing_view.create") {
+                    DrawingViewRecord view;
+                    view.name = "Existing";
+                    view.sheet = 1;
+                    view.source = {DrawingViewSourceKind::Scene, scene};
+                    createDrawingView(doc, view);
+                }
             }
             if (command["command"].toString().startsWith("assembly.")) {
                 doc = command["command"] == "assembly.site_place" ? source : Document{};

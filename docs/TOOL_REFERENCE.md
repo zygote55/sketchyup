@@ -37,6 +37,16 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scene.reorder` | Order all saved scenes | `order`, `command` |
 | `saved_scene.delete` | Delete a saved scene | `scene`, `command` |
 | `saved_scene.recall` | Recall saved model style, sun study, visibility and named sections | `scene`, `command` |
+| `drawing_sheet.create` | Create a drawing sheet | `name`, `paper`, `command` |
+| `drawing_sheet.rename` | Rename a drawing sheet | `sheet`, `name`, `command` |
+| `drawing_sheet.resize` | Change a drawing sheet's paper size | `sheet`, `paper`, `command` |
+| `drawing_sheet.reorder` | Order all drawing sheets | `order`, `command` |
+| `drawing_sheet.delete` | Delete a drawing sheet and its views | `sheet`, `command` |
+| `drawing_view.create` | Place a scaled view of a saved scene on a sheet | `name`, `sheet`, `source`, `frame`, `scaleDenominator`, `command` |
+| `drawing_view.update` | Change a sheet view's name, source scene, frame, offset, scale, content or hidden lines | `view`, `command` |
+| `drawing_view.move` | Move a sheet view to another sheet | `view`, `sheet`, `command` |
+| `drawing_view.delete` | Delete a sheet view | `view`, `command` |
+| `drawing_view.accept` | Accept sheet views as reviewed at the current model | `command` |
 | `document.solar` | Change offline sun study | `solar`, `command` |
 | `document.style` | Change model style | `style`, `command` |
 | `document.units` | Change document units | `units`, `command` |
@@ -144,6 +154,10 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scenes.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `saved_scene.describe` |  | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `saved_scene.visibility` |  | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_sheets.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_sheet.describe` |  | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_views.status` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_view.describe` |  | `view`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `selection.get` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entities.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entity.describe` |  | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -203,6 +217,10 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scenes.query` | saved_scenes.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `saved_scene.describe` | saved_scene.describe: shared versioned SketchyUp operation | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `saved_scene.visibility` | saved_scene.visibility: shared versioned SketchyUp operation | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_sheets.query` | drawing_sheets.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_sheet.describe` | drawing_sheet.describe: shared versioned SketchyUp operation | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_views.status` | drawing_views.status: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_view.describe` | drawing_view.describe: shared versioned SketchyUp operation | `view`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `selection.get` | selection.get: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entities.query` | entities.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entity.describe` | entity.describe: shared versioned SketchyUp operation | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |

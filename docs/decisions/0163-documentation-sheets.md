@@ -303,6 +303,35 @@ Semantics (decision 4):
   broken or failed views unless the user accepts them or explicitly acknowledges
   them in the reconciliation report.
 
+Implementation conventions (R090.d):
+
+- **Accepted stamp.** `drawing_view.accept` stamps `{revision, fingerprint}`. The
+  revision is the batch's base revision, the document revision whose model content
+  was evaluated. Accepting a view that is already `current` changes nothing and is
+  reported as a no-op.
+- **Re-stamp rule.** `drawing_view.update` and `drawing_view.move` re-stamp a view
+  only when it was `current` just before the change and the change alters what it
+  draws (source, frame, offset, scale, content or hidden lines). A view that was
+  `stale`, `broken`, `failed` or never accepted keeps its stamp unchanged, so a frame
+  edit never silently accepts an unreviewed model change (decision 4). If the changed
+  view cannot be evaluated (`broken` or `failed`), the old stamp is kept and the
+  state reports why. A name change or a move without a new frame keeps the stamp.
+  A new view starts with `accepted: null`; create and accept can share one batch.
+- **Broken views.** Accepting a named `broken` or `failed` view is refused with
+  `DRAWING_VIEW_NOT_ACCEPTABLE`, and the whole batch rolls back.
+  `drawing_view.accept` with `sheet` or `all: true` (Accept all) skips such views;
+  they remain listed by `drawing_views.status`.
+- **Batches.** A batch that contains any `drawing_sheet.*` or `drawing_view.*`
+  operation must contain only those operations; it publishes one edit tagged with
+  the sheet scope. A mixed batch is refused before any work, because one history
+  entry cannot both change the model and the sheets. Batch results add
+  `createdDrawingSheets` and `createdDrawingViews` beside `createdScenes`.
+- **Queries.** Besides `drawing_sheets.query`, `drawing_sheet.describe` and
+  `drawing_views.status`, R090.d adds `drawing_view.describe` (the record, its
+  status and, for a measurable view, the world↔sheet projection). Status rows are
+  evaluated lazily, only for the requested page. `--inspect-native` adds
+  `drawingSheets` and `drawingViews` counts; `document.describe` is unchanged.
+
 ### Enforcing "page editing never modifies source model geometry"
 
 - `Edit` gains `drawingSheets`/`drawingViews` change vectors and floors.

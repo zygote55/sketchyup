@@ -10,6 +10,7 @@
 #include "automation/model_recipes.hpp"
 #include "automation/reference_image_commands.hpp"
 #include "automation/scene_commands.hpp"
+#include "automation/drawing_sheet_commands.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/texture_commands.hpp"
@@ -611,6 +612,19 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
              (historyMetadata.taskId.empty() || historyMetadata.request.empty())))
             throw std::runtime_error("History task metadata is incomplete");
     }
+    // Page editing never modifies the source model (ADR 0163): a batch with any
+    // drawing-sheet operation contains only drawing-sheet operations and publishes one
+    // sheet-scoped edit.
+    bool sheetBatch = false;
+    for (const auto &value : commands)
+        if (isDrawingSheetCommand(value.toObject()["command"].toString()))
+            sheetBatch = true;
+    if (sheetBatch)
+        for (const auto &value : commands)
+            if (!isDrawingSheetCommand(value.toObject()["command"].toString()))
+                throw std::runtime_error("Drawing sheet operations cannot share a batch with "
+                                         "model operations; submit them separately");
+    const auto baseRevision = doc.revision();
     Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans,
         solidOperations, assertionCommands;
@@ -704,6 +718,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             executeSectionCommand(staged, command);
         } else if (isSavedSceneCommand(name)) {
             executeSavedSceneCommand(staged, command);
+        } else if (isDrawingSheetCommand(name)) {
+            executeDrawingSheetCommand(staged, command, baseRevision);
         } else if (name == "document.solar") {
             staged.setSolar(decodeSolarSettings(command["solar"]));
         } else if (name == "document.style") {
@@ -1447,6 +1463,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                     if (isHostedCommand(nested.toString()) ||
                         nested.toString().startsWith("assembly.") ||
                         nested.toString().startsWith("saved_scene.") ||
+                        nested.toString().startsWith("drawing_sheet.") ||
+                        nested.toString().startsWith("drawing_view.") ||
                         nested.toString().startsWith("section.") ||
                         nested.toString().startsWith("annotation.") || nested == "component.edit" ||
                         nested == "component.edit_instance" || nested == "component.axes" ||
@@ -1650,8 +1668,14 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty())
+        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
+        edit.drawingSheets.empty() && edit.drawingViews.empty())
         throw std::runtime_error("Batch has no committed changes");
+    if (sheetBatch) {
+        edit.drawingSheetScope = true;
+        if (!isDrawingSheetOnlyEdit(edit))
+            throw std::runtime_error("Drawing sheet operations cannot change model records");
+    }
     edit.nextIdFloor = staged.nextId();
     created = QJsonArray();
     for (const auto &change : edit.changes)
@@ -1669,6 +1693,13 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     for (const auto &change : edit.scenes)
         if (!change.before && change.after)
             createdScenes.append(QString::number(change.id));
+    QJsonArray createdDrawingSheets, createdDrawingViews;
+    for (const auto &change : edit.drawingSheets)
+        if (!change.before && change.after)
+            createdDrawingSheets.append(QString::number(change.id));
+    for (const auto &change : edit.drawingViews)
+        if (!change.before && change.after)
+            createdDrawingViews.append(QString::number(change.id));
     QJsonArray createdDefinitions;
     for (const auto &change : edit.definitions)
         if (!change.before && change.after)
@@ -1751,6 +1782,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdScenes", createdScenes},
                 {"createdSections", createdSections},
                 {"createdAnnotations", createdAnnotations},
+                {"createdDrawingSheets", createdDrawingSheets},
+                {"createdDrawingViews", createdDrawingViews},
                 {"recipeOperations", recipeOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
@@ -1813,6 +1846,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdScenes", createdScenes},
                 {"createdSections", createdSections},
                 {"createdAnnotations", createdAnnotations},
+                {"createdDrawingSheets", createdDrawingSheets},
+                {"createdDrawingViews", createdDrawingViews},
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
                        {"assertions", assertions},

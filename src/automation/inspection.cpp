@@ -3,6 +3,7 @@
 #include "automation/inspection.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/scene_commands.hpp"
+#include "automation/drawing_sheet_commands.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "io/display_precision_io.hpp"
@@ -64,6 +65,10 @@ enum class Operation {
     SavedScenes,
     SavedScene,
     SavedSceneVisibility,
+    DrawingSheets,
+    DrawingSheet,
+    DrawingViewsStatus,
+    DrawingView,
     Selection,
     Entities,
     Entity,
@@ -123,6 +128,10 @@ const std::vector<Spec> &registry() {
             spec("saved_scenes.query", Operation::SavedScenes, {}, {}, true),
             spec("saved_scene.describe", Operation::SavedScene, {{"scene", idSchema()}}, {"scene"}),
             spec("saved_scene.visibility", Operation::SavedSceneVisibility, {{"scene", idSchema()}}, {"scene"}, true),
+            spec("drawing_sheets.query", Operation::DrawingSheets, {}, {}, true),
+            spec("drawing_sheet.describe", Operation::DrawingSheet, {{"sheet", idSchema()}}, {"sheet"}),
+            spec("drawing_views.status", Operation::DrawingViewsStatus, {{"sheet", idSchema()}}, {}, true),
+            spec("drawing_view.describe", Operation::DrawingView, {{"view", idSchema()}}, {"view"}),
             spec("selection.get", Operation::Selection, {}, {}, true),
             spec("entities.query", Operation::Entities,
                  {{"parent", ref},
@@ -652,6 +661,36 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         }
         data = page.finish();
         data["showHidden"] = visibility.showHidden;
+        break;
+    }
+    case Operation::DrawingSheets:
+        for (const auto id : orderedDrawingSheets(doc))
+            page.append([&] { return drawingSheetSummary(doc, id); });
+        data = page.finish();
+        break;
+    case Operation::DrawingSheet: {
+        const auto id = decimal(request["sheet"]);
+        if (!doc.drawingSheets().contains(id))
+            fail("NOT_FOUND", "Drawing sheet does not exist");
+        data = drawingSheetDescription(doc, id);
+        break;
+    }
+    case Operation::DrawingViewsStatus: {
+        // Status is derived at this revision; only the requested page is evaluated.
+        const auto sheet = request.contains("sheet") ? decimal(request["sheet"]) : Id{};
+        if (sheet && !doc.drawingSheets().contains(sheet))
+            fail("NOT_FOUND", "Drawing sheet does not exist");
+        for (const auto id : orderedDrawingViews(doc, sheet))
+            page.append([&] { return drawingViewStatusDescription(doc, id); });
+        data = page.finish();
+        data["revision"] = QString::number(doc.revision());
+        break;
+    }
+    case Operation::DrawingView: {
+        const auto id = decimal(request["view"]);
+        if (!doc.drawingViews().contains(id))
+            fail("NOT_FOUND", "Drawing view does not exist");
+        data = drawingViewDescription(doc, id);
         break;
     }
     case Operation::Selection:
