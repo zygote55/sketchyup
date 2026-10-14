@@ -1,13 +1,13 @@
 # Sheet layout interface
 
-Status: **Proposed (2026-10-14).** Roadmap [R091](../PR_ROADMAP.md#r091) (M10, scope
+Status: **Accepted (2026-10-14)**; the layers are implemented by R091.a–h. Roadmap [R091](../PR_ROADMAP.md#r091) (M10, scope
 row [F01](../SCOPE.md)). This builds on [ADR 0163](0163-documentation-sheets.md)
 (R090) and shapes [R092](../PR_ROADMAP.md#r092). The interaction design is the
 owner-approved
 [R091 UX design (canvas; private to the owner)](https://claude.ai/artifact/ByrL3RtnQihKV9zx5DiYyQ).
 This ADR does not repeat that design. It decides how the code delivers it, names
 where the design meets the code or [UX_DESIGN](../UX_DESIGN.md) awkwardly, and
-splits the work into layers. Questions for the owner are under "Open questions".
+splits the work into layers. The owner's choices are recorded under "Decisions".
 
 ## Context
 
@@ -399,7 +399,9 @@ schema 27.
     it.
   - Its text reads "[Missing reference]", as `annotationText` already does.
   - Entity info offers **Reattach**, which runs the Dimension tool on that item
-    and commits a `drawing_item.update`.
+    and commits a `drawing_item.update`. For each broken anchor it proposes the
+    nearest vertex or edge in the view at the old anchor's paper position
+    (`lastMm`); the user confirms or picks another before anything is committed.
   - `drawing_items.query` lists broken items with reasons, for R092's preflight.
 - **Why lazy resolution, not lineage remap.**
   - Model annotations survive splits and merges because each model edit rewrites
@@ -414,8 +416,8 @@ schema 27.
       that broken).
   - Per-body ID allocators are monotonic and history is linear, so a missing ID
     is never silently re-bound.
-  - R091.c records which common edits keep paper dimensions associated. See open
-    question 1 for the alternative.
+  - R091.c records which common edits keep paper dimensions associated. The
+    owner chose this over a lineage remap (Decisions, item 2).
 - **Leader labels with a view target** use the same binding and states. The
   label text stays put; only the leader tip follows or breaks.
 - **Creation refusals.** A dimension cannot be created on a `notToScale`,
@@ -474,8 +476,12 @@ schema 27.
   - Arrows nudge 1 mm; Shift+Arrows nudge 10 mm.
   - Alt held during a drag ignores snapping.
   - Delete erases.
-  - Enter on a view opens edit-view (§7 of the design). Enter on text, a label or
-    a title block focuses its Entity info text field (open question 4).
+  - Enter on a view opens edit-view (§7 of the design). Enter on a selected
+    text, label or title-block field edits it in place on the canvas; Esc or a
+    click outside ends editing and commits one history entry. Typing alone never
+    starts editing, because plain keys stay tool shortcuts (UX_DESIGN keyboard
+    ownership rule). Entity info keeps the same text as a labelled field for
+    screen readers.
   - Esc backs out one step: cancel the operation, then leave the tool, then
     leave edit-view, then clear the selection (UX_DESIGN §4.1).
   - Ctrl+PgUp and Ctrl+PgDn switch pages. These are new; no current action uses
@@ -598,7 +604,13 @@ schema 27.
 - **Toggle.** The Model | Sheets toggle is two checkable buttons in an exclusive
   group in the header, backed by `view.workspace.model` and
   `view.workspace.sheets`. They also appear in the View menu and the palette.
-  The title reads "house · Sheets • Edited", following the code's existing "•".
+  - A third, `global`-scope action, `view.workspace.toggle`, switches between
+    Model and Sheets. Its default is `Ctrl+Alt+S`, and it is configurable like
+    any other binding. No existing default binds `Ctrl+Alt+S`: the only
+    `Ctrl+Alt` defaults are `Ctrl+Alt+T`, `Ctrl+Alt+N`, `Ctrl+Alt+F` and
+    `Ctrl+Alt+Shift+T`, all panel actions, and no `QKeySequence` standard key
+    the code uses maps to it.
+  - The title reads "house · Sheets • Edited", following the code's existing "•".
 - **Theme tokens.** `ThemeColors` gains `selectionStroke`, `warning`, `failure`,
   `paper` and `pasteboard`.
   - The first three start from today's literals (`#6354d4`, `#b9762f`,
@@ -637,45 +649,56 @@ Build R091 as:
   existing results do not change for documents without items.
 - The shortcut system gains scopes. Saved bindings keep their meaning; an old
   saved binding that now conflicts only across workspaces becomes active again.
-- Paper dimensions break in some edits where model dimensions survive (§3),
-  unless open question 1 is decided the other way.
+- Paper dimensions break in some edits where model dimensions survive (§3);
+  Reattach repairs them.
 - One more surface needs the native matrix: three new suites and extensions to
   five existing ones.
 
-## Open questions (owner)
+## Decisions
 
-1. **Lineage for paper anchors.** Accept lazy ID resolution, where some
-   topology edits break paper dimensions and Reattach fixes them? Or approve a
-   narrow exception to ADR 0163, where model edits remap paper-dimension
-   anchors in the same edit, as model annotations already are, and the reverse
-   test exempts anchors? Recommendation: lazy, revisited with the R091.c
-   lineage table.
-2. **Measurements box.** The design shows "Scale [1:50]" and "Size [176,112
-   mm]". UX_DESIGN §4.3 has one box whose label follows the step. Proposal: one
-   box, where `1:N` is a scale and `w,h` is a size (§4 table). Does the design
-   intend two fields?
-3. **Pages section as the accessible tree.** The design lists pages only. The
-   proposal expands each page to its items (§4). Confirm.
-4. **Editing text.** The design does not say how text, label and title-block
-   text is typed. Proposal: Entity info multi-line field (Enter or F2 from the
-   canvas, Ctrl+Enter commits, Esc returns), with no in-place editor in R091.
-   Confirm or supply a design.
-5. **Workspace shortcut.** None is designed. Proposal: none by default. The
-   toggle is reachable by F6 to the header, the View menu and the palette.
-6. **"Save as new scene…"** creates a scene, which is a model edit, then relinks
-   the view, which is a sheet edit. Mixed batches are refused, so this is
-   **two** history entries. Accept, or drop the button from R091?
-7. **"Show scene in model"** switches workspace and applies the scene *camera*
-   only. A full scene recall can commit a model edit (`saved_scene.recall`).
-   Confirm camera-only.
-8. **"Other model file…"** is omitted, not disabled, per UX_DESIGN §11 ("no
-   gate ships controls for capabilities that do not exist yet").
-9. **Leader label text** like "W2 · 1200 × 1350" is static text in R091.
-   Auto-filled fields from model entities would come later.
-10. **Templates carrying sheets** (ADR 0163's open question) stay out of R091.
-    "+ Page" copies the current page's title block in the same edit.
-11. **Paper units** are millimetres only in R091. An inch preference would come
-    later.
+The owner decided these points on 2026-10-14. The interaction design is the
+[R091 UX design (canvas; private to the owner)](https://claude.ai/artifact/ByrL3RtnQihKV9zx5DiYyQ).
+
+1. **Canvas.** The QWidget + QPainter `SheetCanvas` (§1, option (a)), over a
+   Qt-Gui-only compositor `paintDrawingSheet(QPainter&, …)` that R092 also uses
+   to write PDF. Editor-only decorations (selection, handles, grid, the broken
+   hatch and the "⟳ Changed" chip) are painted by the canvas after the
+   compositor and never print.
+2. **Dimension lineage.**
+   - Lazy resolution by ID, plus a derived broken state with **Reattach** (§3).
+   - Model edits never write sheet records; ADR 0163 stands.
+   - Reattach offers the nearest vertex or edge in the view at the old anchor's
+     paper position, and the user confirms.
+3. **Shortcuts.** New per-workspace shortcut scopes in `Window::action` and
+   `ShortcutBindings` (§4). The same key may bind in Model and in Sheets.
+   - The workspace toggle is `Ctrl+Alt+S` (`view.workspace.toggle`, global
+     scope). It switches between Model and Sheets and is configurable. It was
+     checked against every existing default binding and conflicts with none
+     (§7).
+4. **Tray.** A separate `SheetsTray` is swapped in while Sheets is active.
+5. **Theme tokens.** Warning (amber), failure (red) and selection (blue-violet)
+   tokens are added to both themes, with contrast checked against WCAG AA. The
+   Sheets status bar gains an active-tool label (§7).
+6. **Measurements box.** A single box, where `1:N` sets the scale and `w,h` sets
+   the size. Paper units are millimetres (§4).
+7. **Pulled forward from R092.** The public `measuredDrawingPaths` and the
+   scene-scoped raster capture move into R091 (§2).
+8. **Save as new scene** is two history entries, a model edit then a sheet edit,
+   because mixed model and sheet batches are refused.
+9. **Show scene in model** applies the scene camera only, never a full recall.
+10. **"Other model file…"** is omitted until the external-model feature exists
+    (UX_DESIGN §11).
+11. **Text editing.** Enter on a selected text, label or title-block field edits
+    it in place. Esc or a click outside ends editing as one history entry.
+    Typing never starts editing by itself, because plain keys stay tool
+    shortcuts (UX_DESIGN keyboard ownership rule).
+12. **Feature flag.** The UI stays behind `SKETCHYUP_SHEETS_WORKSPACE=1` until
+    R091.h enables it.
+
+The remaining proposals in the body stand as written and were not separately
+decided: the Pages tree expands each page to its views and items (§4), leader
+label text is static in R091, and templates carrying sheets stay out of R091
+("+ Page" copies the current page's title block in the same edit).
 
 ## Layer plan for R091
 
@@ -803,8 +826,7 @@ design §§1, 2, 4, 6.
   - the `visible_focus` and audit sweeps;
   - the acceptance record `docs/verification/R091h-sheet-layout.md` (the §6
     script, the X11 and Wayland 1× and 2× matrix, installed smoke);
-  - the roadmap status;
-  - this ADR moves to Accepted.
+  - the roadmap status.
 
 R091.a–d are headless and can be reviewed in parallel with design follow-ups.
 R091.e depends on a–d. R091.f and R091.g both depend on e and touch the same
