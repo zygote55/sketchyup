@@ -1,12 +1,15 @@
 #include "app/window.hpp"
 #include "app/accessible_names.hpp"
-#include "app/keypad_decimal.hpp"
 #include "app/context_label.hpp"
 #include "app/file_operation.hpp"
 #include "app/inspection_service.hpp"
 #include "app/interface_preferences.hpp"
 #include "app/keyboard_navigation.hpp"
+#include "app/keypad_decimal.hpp"
 #include "app/render_panel.hpp"
+#include "app/sheet_evaluation.hpp"
+#include "app/sheet_workspace.hpp"
+#include "app/sheets_tray.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "io/document_io.hpp"
@@ -33,6 +36,7 @@
 #include <QScopedValueRollback>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QStackedWidget>
 #include <QStyle>
 #include <QStyleHints>
 #include <QTabBar>
@@ -119,14 +123,25 @@ class WindowUnmapBarrier final : public QObject {
 };
 } // namespace
 QAction *Window::action(const QString &id, const QString &title, const QKeySequence &shortcut,
-                        const std::function<void()> &fn) {
+                        const std::function<void()> &fn, std::optional<ShortcutScope> scope) {
+    // Model tools and viewport-only keys (plain and Shift-only) belong to the Model workspace;
+    // everything else is global unless the caller names a scope (ADR 0164 §4).
+    const bool viewportKey =
+        !shortcut.isEmpty() &&
+        !(shortcut[0].keyboardModifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
+        !(shortcut[0].key() >= Qt::Key_F1 && shortcut[0].key() <= Qt::Key_F35);
+    const auto resolved = scope.value_or(
+        id.startsWith("tool.") || viewportKey ? ShortcutScope::Model : ShortcutScope::Global);
     for (auto *existing : publicActions_) {
         if (existing->objectName() == id ||
-            (!shortcut.isEmpty() && existing->shortcut() == shortcut))
+            (!shortcut.isEmpty() && existing->shortcut() == shortcut &&
+             shortcutScopesOverlap(actionScope(existing), resolved)))
             throw std::logic_error("Duplicate public action identity or shortcut");
     }
     auto *a = new QAction(title, this);
     a->setObjectName(id);
+    a->setProperty("shortcutScope", int(resolved));
+    a->setProperty("shortcutScopeExplicit", scope.has_value());
     a->setProperty("category", id.section('.', 0, 0));
     a->setShortcut(shortcut);
     a->setProperty("defaultShortcut", QVariant::fromValue(shortcut));
@@ -192,7 +207,16 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     tools->setOrientation(Qt::Vertical);
     tools->setToolButtonStyle(Qt::ToolButtonTextOnly);
     tools->setFixedWidth(78);
-    content->addWidget(tools);
+    modelRail_ = tools;
+    const bool sheetsWorkspace = sheetsWorkspaceEnabled();
+    if (sheetsWorkspace) {
+        // ADR 0164 §7: stacks are built here, so the GL viewport is never reparented later.
+        railStack_ = new QStackedWidget;
+        railStack_->setObjectName("toolRailStack");
+        railStack_->addWidget(tools);
+        content->addWidget(railStack_);
+    } else
+        content->addWidget(tools);
     viewport_ = new Viewport(doc_);
     inspection_ = std::make_unique<DesktopInspection>(*viewport_);
     auto *modelTabs = new QTabWidget;
@@ -203,7 +227,17 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     modelTabs->addTab(viewport_, "Model");
     modelTabs->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
     modelTabs->tabBar()->setTabButton(0, QTabBar::LeftSide, nullptr);
-    content->addWidget(modelTabs, 1);
+    modelTabs_ = modelTabs;
+    if (sheetsWorkspace) {
+        sheetCache_ = std::make_unique<DrawingViewRenderCache>(doc_);
+        workspaceStack_ = new QStackedWidget;
+        workspaceStack_->setObjectName("workspaceStack");
+        workspaceStack_->addWidget(modelTabs);
+        sheets_ = new SheetWorkspace(doc_, *sheetCache_);
+        workspaceStack_->addWidget(sheets_);
+        content->addWidget(workspaceStack_, 1);
+    } else
+        content->addWidget(modelTabs, 1);
     breadcrumb_ = new QLabel(viewport_);
     breadcrumb_->setObjectName("contextBreadcrumb");
     breadcrumb_->setAccessibleName("Editing context breadcrumb");
@@ -251,6 +285,12 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     hint->setWordWrap(true);
     hint->setObjectName("hint");
     trayLayout->addWidget(hint);
+    if (sheetsWorkspace) {
+        modelTrayWidgets_ = {heading, info_, organization_, hint};
+        sheetsTray_ = new SheetsTray(doc_, *viewport_, *sheetCache_);
+        sheetsTray_->hide();
+        trayLayout->addWidget(sheetsTray_, 1);
+    }
     sideTabs_ = new QTabWidget;
     sideTabs_->setObjectName("assistantSideTabs");
     sideTabs_->setAccessibleName("Model panels and assistant");
@@ -264,6 +304,11 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     auto *bottom = new QWidget;
     bottom->setObjectName("footer");
     auto *bottomLayout = new QHBoxLayout(bottom);
+    activeTool_ = new QLabel;
+    activeTool_->setObjectName("activeToolLabel");
+    activeTool_->setAccessibleName("Active tool");
+    activeTool_->hide();
+    bottomLayout->addWidget(activeTool_);
     status_ = new ElidedLabel("Select a tool to begin");
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
@@ -357,13 +402,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         viewport_->cancel();
         doc_.undo();
         sync();
-        viewport_->setFocus();
+        focusWorkspace();
     });
     redo_ = action("edit.redo", "Redo", QKeySequence::Redo, [this] {
         viewport_->cancel();
         doc_.redo();
         sync();
-        viewport_->setFocus();
+        focusWorkspace();
     });
     edit->addAction(undo_);
     edit->addAction(redo_);
@@ -753,6 +798,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     // Every panel action reveals the Model panel, selects its tab and moves keyboard focus into
     // that tab's content, so a menu or palette command is never a dead end for keyboard users.
     auto showPanel = [this](void (OrganizationPanel::*show)()) {
+        // Model panels live in the Model workspace's Tray.
+        setWorkspace(Workspace::Model);
         sideTabs_->show();
         sideTabs_->setCurrentWidget(tray_);
         tray_->show();
@@ -838,7 +885,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             applyTheme();
     });
     action("view.commands", "Commands…", QKeySequence("Ctrl+K"), [this] { palette(); });
-    focusRegions_ = {search, tools, viewport_, organization_, assistant_, measurements_};
+    modelRegions_ = {search, tools, viewport_, organization_, assistant_, measurements_};
+    focusRegions_ = modelRegions_;
+    if (sheets_)
+        setupSheets(header, view);
     for (const auto &binding :
          std::vector<std::pair<QString, QString>>{{"edit.move", "geometry.transform_selection"},
                                                   {"edit.paint", "material.color"},
@@ -857,17 +907,22 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     action("view.nextRegion", "Next region", QKeySequence("F6"), [this] { focusRegion(); });
     action("view.previousRegion", "Previous region", QKeySequence("Shift+F6"),
            [this] { focusRegion(true); });
-    // Single-letter modeling shortcuts must never consume typing in text fields.
+    // Single-letter modeling shortcuts must never consume typing in text fields. Sheet tools
+    // are scoped to the page canvas the same way.
     for (auto *a : publicActions_)
         if (a->shortcut().count() == 1 && a->shortcut()[0].keyboardModifiers() == Qt::NoModifier &&
             a->shortcut()[0].key() != Qt::Key_F6) {
             a->setShortcutContext(Qt::WidgetShortcut);
             removeAction(a);
-            viewport_->addAction(a);
+            if (actionScope(a) == ShortcutScope::Sheets)
+                sheets_->canvas()->addAction(a);
+            else
+                viewport_->addAction(a);
         }
     initializeShortcuts();
     connect(viewport_, &Viewport::toolChanged, this, [this](int mode) {
-        measurements_->setEnabled(mode != int(Viewport::Tool::Paint));
+        if (workspace_ == Workspace::Model)
+            measurements_->setEnabled(mode != int(Viewport::Tool::Paint));
         if (mode == int(Viewport::Tool::Paint))
             organization_->showMaterials();
         if (auto *toolAction = findChild<QAction *>("tool." + QString::number(mode)))
@@ -888,6 +943,16 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     connect(measurements_, &QLineEdit::returnPressed, this, [this] {
         if (assistant_ && assistant_->uncertain())
             return;
+        if (workspace_ == Workspace::Sheets) {
+            if (sheetMeasurements(measurements_->text())) {
+                measurementError(false);
+                focusWorkspace();
+            } else {
+                measurementError(true);
+                measurements_->selectAll();
+            }
+            return;
+        }
         if (viewport_->measurements(measurements_->text())) {
             measurementError(false);
             measurements_->clear();
@@ -904,7 +969,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (assistantSheet_ && assistantSheet_->isVisible())
             assistantSheet_->reject();
         activateWindow();
-        viewport_->setFocus();
+        focusWorkspace();
     });
     keyboardTabBars(this);
     keepPagesAfterTabBar(modelTabs);
@@ -950,12 +1015,32 @@ QTreeWidget::item:selected {background:$selected;color:$ink;}
 QListWidget::item {padding:9px 5px;} QListWidget::item:selected {background:$selected;color:$ink;}
 QLineEdit:focus,QComboBox:focus,QAbstractSpinBox:focus,QPlainTextEdit:focus,QTextEdit:focus,QCheckBox:focus,QRadioButton:focus,QToolButton:focus,QTabBar::tab:selected:focus,QSlider:focus,QScrollArea:focus,#assistantContainer:focus,#contextBreadcrumb:focus,#componentScopeBanner:focus,QListWidget:focus,QTreeWidget:focus,QToolBar:focus,QPushButton:focus {border:1px solid $accent;}
 QLineEdit[invalid="true"] {border:2px solid #bc4343;}
+#workspaceToggle QPushButton {border:1px solid $border;border-radius:0;padding:4px 14px;background:$input;}
+#workspaceModel {border-top-left-radius:6px;border-bottom-left-radius:6px;border-right:0;}
+#workspaceSheets {border-top-right-radius:6px;border-bottom-right-radius:6px;}
+#workspaceToggle QPushButton:checked {background:$accent;color:$onAccent;font-weight:600;}
+#workspaceToggle QPushButton:focus {border:1px solid $ink;}
+#sheetTopBar {border-bottom:1px solid $border;} #sheetPageBar {border-top:1px solid $border;}
+#sheetTraySeparator {background:$border;}
+#sectionHeader {text-align:left;font-weight:600;border:1px solid transparent;border-radius:4px;padding:4px 8px;background:transparent;}
+#sectionHeader:hover {background:$hover;} #sectionHeader:focus {border:1px solid $accent;}
+#sheetInfoCaption,#sheetPaperLine,#sheetInfoEmpty {color:$muted;}
+#activeToolLabel {font-weight:600;}
+#sheetRail QToolButton {padding:6px;border-radius:6px;}
+#sheetPageTabs::tab {border:1px solid $border;border-radius:6px;padding:3px 10px;background:$input;margin-right:4px;}
+#sheetPageTabs::tab:selected {border:1px solid $accent;background:$selected;}
+#sheetPageTabs::tab:selected:focus {border:2px solid $accent;}
+#sheetAddPage {border:1px dashed $border;background:transparent;padding:3px 10px;border-radius:6px;}
+#sheetAddPage:focus,#sheetFitPage:focus,#sheetBreadcrumb:focus {border:1px solid $accent;}
+#sheetFitPage {padding:3px 10px;border-radius:6px;background:$input;}
+#sheetBreadcrumb {border:1px solid transparent;border-radius:4px;padding:2px 4px;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
     style.replace("$hintPx", QString::number(interfaceExtent(11, textPercent)) + "px");
     style.replace("$arrowTheme", dark ? "dark" : "light");
     style.replace("$selectionInk", dark ? colors.surface.name() : colors.input.name());
+    style.replace("$onAccent", dark ? "#172019" : "#ffffff");
     style.replace("$surface", colors.surface.name());
     style.replace("$ink", colors.ink.name());
     style.replace("$border", colors.border.name());
@@ -966,6 +1051,10 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
     style.replace("$accent", colors.accent.name());
     setStyleSheet(style);
     findChild<QToolBar *>("toolRail")->setFixedWidth(interfaceExtent(78, textPercent));
+    if (railStack_) {
+        sheetRail_->setFixedWidth(interfaceExtent(46, textPercent));
+        railStack_->setFixedWidth(railStack_->currentWidget()->maximumWidth());
+    }
     measurements_->setFixedWidth(interfaceExtent(150, textPercent));
     if (property("interfaceTextPercent").toInt() != textPercent) {
         setProperty("interfaceTextPercent", textPercent);
@@ -976,6 +1065,8 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
     viewport_->setTheme(colors);
     setContextLabelColor(breadcrumb_, colors.accent);
     setContextLabelColor(componentBanner_, colors.accent);
+    if (sheets_)
+        themeSheets(colors);
 }
 void Window::run(const std::function<void()> &fn, bool viewOnly) {
     if (!viewOnly && assistant_ && assistant_->uncertain()) {
@@ -998,9 +1089,10 @@ void Window::measurementError(bool invalid) {
 bool Window::eventFilter(QObject *object, QEvent *event) {
     if (object == measurements_ && event->type() == QEvent::KeyPress &&
         static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
-        measurements_->clear();
+        if (workspace_ == Workspace::Model)
+            measurements_->clear();
         measurementError(false);
-        viewport_->setFocus();
+        focusWorkspace();
         return true;
     }
     return QMainWindow::eventFilter(object, event);
@@ -1037,13 +1129,21 @@ void Window::sync() {
         assistant_->refresh();
     if (render_)
         render_->refreshProvenance();
-    measurementUnits_->setText("Measurements · " +
-                               QString::fromLatin1(unitCode(doc_.displayUnits()).data()));
-    measurements_->setAccessibleName("Measurements in " + unitName(doc_.displayUnits()).toLower());
+    if (workspace_ == Workspace::Sheets) {
+        // Bare numbers are paper millimetres in Sheets (ADR 0164 §4).
+        measurementUnits_->setText("Paper units: mm");
+        measurements_->setAccessibleName("Measurements in paper millimetres");
+    } else {
+        measurementUnits_->setText("Measurements · " +
+                                   QString::fromLatin1(unitCode(doc_.displayUnits()).data()));
+        measurements_->setAccessibleName("Measurements in " +
+                                         unitName(doc_.displayUnits()).toLower());
+    }
     viewport_->refresh();
     title_->setText(
         (path_.isEmpty() ? (recoveredName_.isEmpty() ? QString("Untitled") : recoveredName_)
                          : QFileInfo(path_).fileName()) +
+        (workspace_ == Workspace::Sheets ? "  ·  Sheets" : "") +
         (!saveFailure_.isEmpty()
              ? "  ⚠  Not saved"
              : (path_.isEmpty() ? (recoveredName_.isEmpty() ? "  ·  Not saved" : "  •  Edited")
@@ -1122,6 +1222,8 @@ void Window::sync() {
     }
     info_->setText(text);
     info_->setAccessibleDescription(text);
+    syncSheets();
+    syncWorkspaceActions();
     if (assistantFenced_) {
         for (auto &[action, wasEnabled] : assistantActionStates_)
             action->setEnabled(false);
@@ -1393,6 +1495,8 @@ void Window::palette() {
             const auto body = value.toULongLong();
             const auto face = item->data(Qt::UserRole + 2).toULongLong();
             chosen = [this, body, face] {
+                // Model objects are selected in the Model workspace.
+                setWorkspace(Workspace::Model);
                 viewport_->setSelection(body, face);
                 viewport_->setFocus();
             };

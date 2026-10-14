@@ -9,6 +9,7 @@
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
 #include "integrations/render_snapshot.hpp"
+#include "io/drawing_view.hpp"
 #include "io/measured_export.hpp"
 #include <QElapsedTimer>
 #include <QImage>
@@ -248,7 +249,14 @@ class Viewport : public QOpenGLWidget {
     // Orthographic projection in the current view direction, at physical page scale.
     MeasuredExport renderMeasuredView(MeasuredPage page, MeasuredFormat format, bool raster,
                                       int dpi = 150);
-    QImage renderRaster(QSize pixels);
+    // hiddenAllowed: the Sheets workspace hides this widget but its context stays initialized.
+    QImage renderRaster(QSize pixels, bool hiddenAllowed = false);
+    // Scene-scoped raster capture of a drawing view (ADR 0164 §2, R091.e): the model drawn from
+    // the view's scene camera into an offscreen image. Orthographic views use their paper
+    // mapping (scale, offset and frame), perspective views the scene camera with the frame's
+    // aspect. GUI thread only; works while the Sheets workspace hides the viewport. The input
+    // must be captured at the document's current revision.
+    QImage renderDrawingViewRaster(const DrawingViewEvaluationInput &view, QSize pixels);
     void exportRaster(const QString &path, QSize pixels);
   signals:
     void materialChanged();
@@ -649,6 +657,7 @@ class Viewport : public QOpenGLWidget {
     void rebuild();
     QSize rasterSize_;
     std::optional<QMatrix4x4> measuredRasterMatrix_;
+    bool drawingViewRaster_{}; // renderDrawingViewRaster is drawing a sheet view.
     double measuredAnnotationScale_{1};
     int renderWidth() const { return rasterSize_.isEmpty() ? width() : rasterSize_.width(); }
     int renderHeight() const { return rasterSize_.isEmpty() ? height() : rasterSize_.height(); }

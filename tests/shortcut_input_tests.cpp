@@ -14,6 +14,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTreeWidget>
 #include <iostream>
 using namespace sketchy;
 namespace {
@@ -37,14 +38,14 @@ void click(QDialog &dialog, const char *name) {
           "Keyboard activates shortcut operation");
 }
 void choose(QDialog &dialog, const char *id, const char *sequence) {
-    auto *list = dialog.findChild<QListWidget *>("shortcutActions");
+    auto *list = dialog.findChild<QTreeWidget *>("shortcutActions");
     check(list, "Command list exists");
-    int row = -1;
-    for (int i = 0; i < list->count(); ++i)
-        if (list->item(i)->data(Qt::UserRole).toString() == id)
-            row = i;
-    check(row >= 0, "Requested command appears in editor");
-    list->setCurrentRow(row);
+    QTreeWidgetItem *row{};
+    for (int i = 0; i < list->topLevelItemCount(); ++i)
+        if (list->topLevelItem(i)->data(0, Qt::UserRole).toString() == id)
+            row = list->topLevelItem(i);
+    check(row, "Requested command appears in editor");
+    list->setCurrentItem(row);
     dialog.findChild<QKeySequenceEdit *>("shortcutSequence")
         ->setKeySequence(QKeySequence(sequence));
 }
@@ -145,16 +146,17 @@ void keyboardShortcutTask(Window &window) {
                         check(search && QTest::qWaitFor([&] { return search->hasFocus(); }),
                               "Editor search initially focused");
                         QTest::keyClicks(search, "Rectangle");
-                        auto *list = dialog->findChild<QListWidget *>("shortcutActions");
+                        auto *list = dialog->findChild<QTreeWidget *>("shortcutActions");
                         tabTo(list);
                         focusedKey(Qt::Key_Home);
                         if (!list->currentItem() ||
-                            list->currentItem()->data(Qt::UserRole).toString() != "tool.1")
+                            list->currentItem()->data(0, Qt::UserRole).toString() != "tool.1")
                             throw std::runtime_error(
                                 QString(
                                     "Keyboard Rectangle selection: query=%1 current=%2 focus=%3")
                                     .arg(search->text(),
-                                         list->currentItem() ? list->currentItem()->text() : "none",
+                                         list->currentItem() ? list->currentItem()->text(0)
+                                                             : "none",
                                          QApplication::focusWidget()->objectName())
                                     .toStdString());
                         auto *sequence = dialog->findChild<QKeySequenceEdit *>("shortcutSequence");
@@ -413,6 +415,78 @@ int main(int argc, char **argv) {
         settings.sync();
         check(settings.value("futureNamespace/data").toByteArray() == unknown,
               "Unrelated typed settings preserved");
+        // ADR 0164 §4: workspace scopes in the editor and in live keys (R091.e).
+        qputenv("SKETCHYUP_SHEETS_WORKSPACE", "1");
+        {
+            Window window;
+            window.show();
+            check(QTest::qWaitForWindowExposed(&window), "Sheets-enabled window exposed");
+            window.activateWindow();
+            check(QTest::qWaitForWindowActive(&window), "Sheets-enabled window active");
+            window.viewport()->setFocus();
+            check(action(window, "sheet.tool.pan")->shortcut() == QKeySequence("H") &&
+                      action(window, "tool.5")->shortcut() == QKeySequence("H") &&
+                      action(window, "sheet.view.fit")->shortcut() == QKeySequence("Shift+Z") &&
+                      action(window, "view.fit")->shortcut() == QKeySequence("Shift+Z") &&
+                      action(window, "view.workspace.toggle")->shortcut() ==
+                          QKeySequence("Ctrl+Alt+S"),
+                  "Model and Sheets defaults share keys; the toggle is Ctrl+Alt+S");
+            editor(window, [&](QDialog &dialog) {
+                auto *list = dialog.findChild<QTreeWidget *>("shortcutActions");
+                check(list && !list->isColumnHidden(2) &&
+                          list->headerItem()->text(2) == "Workspace",
+                      "The editor shows a Workspace column");
+                auto workspaceOf = [&](const char *id) {
+                    for (int i = 0; i < list->topLevelItemCount(); ++i)
+                        if (list->topLevelItem(i)->data(0, Qt::UserRole).toString() == id)
+                            return list->topLevelItem(i)->text(2);
+                    return QString{};
+                };
+                check(workspaceOf("sheet.tool.pan") == "Sheets" &&
+                          workspaceOf("tool.6") == "Model" && workspaceOf("view.commands") == "All",
+                      "Workspace column names each command's scope");
+                choose(dialog, "sheet.tool.zoom", "L");
+                check(error(dialog).isEmpty(), "L for a sheet tool shows no conflict");
+                click(dialog, "shortcutAssign");
+                check(error(dialog).isEmpty(),
+                      "L for a sheet tool does not conflict with model Line");
+                choose(dialog, "sheet.tool.select", "Ctrl+K");
+                check(error(dialog).contains("Commands") && error(dialog).contains("(All)"),
+                      ("A global key conflicts across workspaces: " + error(dialog).toStdString())
+                          .c_str());
+                click(dialog, "shortcutAssign");
+                check(error(dialog).contains("already assigned"),
+                      "Assigning a global key to a sheet tool is refused");
+                choose(dialog, "sheet.tool.select", "Space");
+                save(dialog);
+                check(!dialog.isVisible(), "Scoped assignment saves");
+            });
+            check(action(window, "sheet.tool.zoom")->shortcut() == QKeySequence("L") &&
+                      action(window, "tool.6")->shortcut() == QKeySequence("L"),
+                  "Both L bindings are live");
+            QTest::keyClick(window.viewport(), Qt::Key_L);
+            check(window.viewport()->tool() == Viewport::Tool::Line, "L selects Line in Model");
+            QTest::keyClick(window.viewport(), Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
+            check(window.workspace() == Window::Workspace::Sheets, "Ctrl+Alt+S shows Sheets");
+            auto *canvas = window.findChild<QWidget *>("sheetCanvas");
+            check(QTest::qWaitFor([&] { return canvas->hasFocus(); }), "Canvas focused");
+            QTest::keyClick(canvas, Qt::Key_L);
+            check(window.findChild<QLabel *>("activeToolLabel")->text() == "Zoom" &&
+                      window.viewport()->tool() == Viewport::Tool::Line,
+                  "L selects the sheet Zoom tool in Sheets and leaves the model tool alone");
+            QTest::keyClick(canvas, Qt::Key_H);
+            check(window.findChild<QLabel *>("activeToolLabel")->text() == "Pan" &&
+                      window.viewport()->tool() == Viewport::Tool::Line,
+                  "H selects sheet Pan, not model Pan, in Sheets");
+            QTest::keyClick(canvas, Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
+            check(window.workspace() == Window::Workspace::Model &&
+                      QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),
+                  "Ctrl+Alt+S returns to Model");
+            editor(window, [&](QDialog &dialog) {
+                click(dialog, "shortcutReset");
+                save(dialog);
+            });
+        }
         std::cout << "Native shortcuts: draft/cancel/save, live keys, conflicts, typing, restart, "
                      "reset and stale-save rejection passed\n";
     } catch (const std::exception &error) {

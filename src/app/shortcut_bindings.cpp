@@ -35,15 +35,18 @@ void ShortcutBindings::validate(const QKeySequence &sequence) {
                 key != Qt::Key_Meta && key != Qt::Key_AltGr,
             "This key is reserved for focus, tool completion or inference");
 }
-ShortcutBindings::ShortcutBindings(ShortcutMap defaults, const QByteArray &saved, Guard guard)
-    : defaults_(std::move(defaults)), guard_(std::move(guard)) {
+ShortcutBindings::ShortcutBindings(ShortcutMap defaults, const QByteArray &saved, Guard guard,
+                                   ShortcutScopes scopes)
+    : defaults_(std::move(defaults)), scopes_(std::move(scopes)), guard_(std::move(guard)) {
     require(defaults_.size() <= 1024, "Too many shortcut actions");
     for (auto it = defaults_.cbegin(); it != defaults_.cend(); ++it) {
         require(validId(it.key()), "Invalid shortcut action identity");
         validate(it.value());
         if (!it.value().isEmpty())
             for (auto other = defaults_.cbegin(); other != it; ++other)
-                require(other.value() != it.value(), "Duplicate default shortcut");
+                require(other.value() != it.value() ||
+                            !shortcutScopesOverlap(scope(other.key()), scope(it.key())),
+                        "Duplicate default shortcut");
     }
     envelope_ = {{"apiVersion", 1}, {"bindings", QJsonObject{}}};
     if (!saved.isEmpty()) {
@@ -76,7 +79,16 @@ ShortcutBindings::ShortcutBindings(ShortcutMap defaults, const QByteArray &saved
 void ShortcutBindings::resolve() {
     effective_.clear();
     notices_.clear();
-    QMap<QString, QString> owners;
+    // Every action holding a key, saved or default, in resolution order. A key conflicts only
+    // between actions whose scopes overlap (ADR 0164 §4).
+    QMap<QString, QStringList> owners;
+    auto blocking = [&](const QString &portable, const QString &id) {
+        QStringList result;
+        for (const auto &owner : owners.value(portable))
+            if (owner != id && shortcutScopesOverlap(scope(owner), scope(id)))
+                result << owner;
+        return result;
+    };
     // Explicit choices win over new defaults after an upgrade. Conflicting saved choices
     // are preserved on disk but disabled as a group until the user resolves them.
     QMap<QString, QStringList> savedOwners;
@@ -89,27 +101,31 @@ void ShortcutBindings::resolve() {
                 savedOwners[sequence.toString(QKeySequence::PortableText)].append(it.key());
         }
     for (auto it = savedOwners.cbegin(); it != savedOwners.cend(); ++it) {
-        owners[it.key()] = it.value().join(", ");
-        if (it.value().size() > 1) {
-            for (const auto &id : it.value())
-                effective_[id] = {};
-            notices_ << QString(
-                            "Saved shortcut %1 conflicts between %2; those bindings are inactive")
-                            .arg(it.key(), owners[it.key()]);
-        }
+        owners[it.key()] = it.value();
+        QStringList conflicted;
+        for (const auto &id : it.value())
+            if (!blocking(it.key(), id).isEmpty())
+                conflicted << id;
+        if (conflicted.isEmpty())
+            continue;
+        for (const auto &id : conflicted)
+            effective_[id] = {};
+        notices_ << QString("Saved shortcut %1 conflicts between %2; those bindings are inactive")
+                        .arg(it.key(), conflicted.join(", "));
     }
     for (auto it = defaults_.cbegin(); it != defaults_.cend(); ++it) {
         if (effective_.contains(it.key()))
             continue;
         const auto portable = it.value().toString(QKeySequence::PortableText);
-        if (!portable.isEmpty() && owners.contains(portable)) {
+        const auto blockers = portable.isEmpty() ? QStringList{} : blocking(portable, it.key());
+        if (!blockers.isEmpty()) {
             effective_[it.key()] = {};
             notices_ << QString("Default shortcut for %1 is inactive because %2 uses %3")
-                            .arg(it.key(), owners[portable], portable);
+                            .arg(it.key(), blockers.join(", "), portable);
         } else {
             effective_[it.key()] = it.value();
             if (!portable.isEmpty())
-                owners[portable] = it.key();
+                owners[portable].append(it.key());
         }
     }
     if (guard_)
@@ -138,7 +154,8 @@ QStringList ShortcutBindings::conflicts(const QString &id, const QKeySequence &s
                                        ? QKeySequence::fromString(overrides_[it.key()].toString(),
                                                                   QKeySequence::PortableText)
                                        : it.value();
-            if (it.key() != id && requested == sequence)
+            if (it.key() != id && requested == sequence &&
+                shortcutScopesOverlap(scope(it.key()), scope(id)))
                 result << it.key();
         }
     return result;

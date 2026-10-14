@@ -1572,7 +1572,9 @@ void Viewport::paintScene(QPaintDevice *device) {
         drawStyleGround(transform);
         // Reference grid does not write depth or shine through coplanar opaque faces.
         gl_->glDepthMask(GL_FALSE);
-        draw(gridGpu_, GL_LINES);
+        // Sheet views show the model, not the editor's reference grid and axes.
+        if (!drawingViewRaster_)
+            draw(gridGpu_, GL_LINES);
         gl_->glDepthMask(GL_TRUE);
         {
             shader_->setUniformValue("styleTextureColor",

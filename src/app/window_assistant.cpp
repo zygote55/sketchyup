@@ -5,6 +5,7 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QShortcut>
+#include <QStackedWidget>
 #include <QTabWidget>
 #include <QVBoxLayout>
 namespace sketchy {
@@ -18,7 +19,7 @@ void Window::toggleAssistant() {
         assistant_->focusComposer();
     } else {
         activateWindow();
-        viewport_->setFocus();
+        focusWorkspace();
     }
 }
 void Window::layoutAssistant() {
@@ -73,7 +74,7 @@ void Window::layoutAssistant() {
             connect(assistantSheet_, &QDialog::rejected, this, [this] {
                 assistantShown_ = false;
                 assistant_->hide();
-                viewport_->setFocus();
+                focusWorkspace();
             });
         }
         assistantSheet_->layout()->addWidget(assistant_);
@@ -105,6 +106,12 @@ void Window::assistantFence(bool uncertain) {
         for (auto *widget : std::initializer_list<QWidget *>{viewport_, tray_, measurements_}) {
             assistantWidgetStates_.emplace_back(widget, widget->isEnabled());
             widget->setEnabled(false);
+        }
+        if (workspaceStack_) {
+            // The Sheets page (canvas, page tabs) is fenced like the viewport.
+            auto *sheets = workspaceStack_->widget(1);
+            assistantWidgetStates_.emplace_back(sheets, sheets->isEnabled());
+            sheets->setEnabled(false);
         }
         if (recovery_) {
             assistantRecoveryInterval_ = recovery_->interval();
