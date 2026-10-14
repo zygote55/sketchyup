@@ -1,0 +1,673 @@
+{
+ "layer": "R089.d",
+ "date": "2026-10-13",
+ "rc": {
+  "commit": "7b01bb7a1d3fa19b6b5cc7f1a4c27a2ad5cd03a2",
+  "tree": "a8a95ad9e1140c72038525acf543dcd6bac2ef08",
+  "sourceArchive": {
+   "file": "sketchyup-1.0.0.tar.gz",
+   "sha256": "c3cef6a9870b69dfc55fc82189d212bb44c73a057e834fa46dbbb936303b24ed",
+   "files": 1124
+  },
+  "package": {
+   "file": "sketchyup-1.0.0-1-x86_64.pkg.tar.zst",
+   "name": "sketchyup",
+   "version": "1.0.0-1",
+   "sha256": "9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7"
+  },
+  "thirdPartyNotices": {
+   "file": "THIRD_PARTY_NOTICES",
+   "sha256": "af2bcca99c0b80740c3b811af410196d938cba684608cbe8995af7ec394cf10a"
+  },
+  "manifest": {
+   "name": "sketchyup",
+   "version": "1.0.0",
+   "pkgver": "1.0.0",
+   "pkgrel": 1,
+   "gitCommit": "7b01bb7a1d3fa19b6b5cc7f1a4c27a2ad5cd03a2",
+   "date": "2026-10-13T19:18:32Z",
+   "buildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+   "sourceArchive": {
+    "file": "sketchyup-1.0.0.tar.gz",
+    "sha256": "c3cef6a9870b69dfc55fc82189d212bb44c73a057e834fa46dbbb936303b24ed"
+   },
+   "packages": [
+    {
+     "file": "sketchyup-1.0.0-1-x86_64.pkg.tar.zst",
+     "sha256": "9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7"
+    }
+   ],
+   "thirdPartyNotices": {
+    "file": "THIRD_PARTY_NOTICES",
+    "sha256": "af2bcca99c0b80740c3b811af410196d938cba684608cbe8995af7ec394cf10a"
+   }
+  },
+  "sha256sums": [
+   "c3cef6a9870b69dfc55fc82189d212bb44c73a057e834fa46dbbb936303b24ed  sketchyup-1.0.0.tar.gz",
+   "af2bcca99c0b80740c3b811af410196d938cba684608cbe8995af7ec394cf10a  THIRD_PARTY_NOTICES",
+   "9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7  sketchyup-1.0.0-1-x86_64.pkg.tar.zst"
+  ]
+ },
+ "images": {
+  "pinnedCi": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+  "packageBuild": {
+   "tag": "sketchyup-build:20261002",
+   "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+  },
+  "nativeTests": {
+   "tag": "sketchyup-native-fonts-check:20261008",
+   "id": "sha256:873ba0787bccd851a46f068e265f7d2922f90df0857e782bbf6d441f0c51bd08"
+  },
+  "fresh": "archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1",
+  "reference": "archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2"
+ },
+ "toolVersions": {
+  "native": {
+   "gcc": "16.2.1+r23+gd564253eb6c8-1",
+   "cmake": "4.4.3-2",
+   "ninja": "1.13.2-3",
+   "qt6-base": "6.11.2-3",
+   "qt6-wayland": "6.11.2-1",
+   "mesa": "1:26.2.3-2",
+   "weston": "15.0.1-3",
+   "xorg-server-xvfb": "21.1.24-1",
+   "wayland": "1.26.0-1",
+   "at-spi2-core": "2.60.7-1",
+   "python": "3.14.7-1",
+   "ffmpeg": "2:9.0.2-1"
+  },
+  "referenceBuild": {
+   "gcc": "14.2.1+r134+gab884fffe3fc-1",
+   "cmake": "3.30.5-1",
+   "qt6-base": "6.8.0-1",
+   "qt6-wayland": "6.8.0-1",
+   "mesa": "1:24.2.4-1",
+   "pacman": "7.0.0.r3.g7736133-1"
+  }
+ },
+ "checks": {
+  "packageAcceptance": {
+   "run": "rc101",
+   "runner": "standard",
+   "exit": 0,
+   "ctest": "190/190",
+   "logSha256": "df066a62c406965681392054c7576a6b83da00592c770f9ba1d263612f6cdea8",
+   "stoppedAttempt": {
+    "run": "rc100",
+    "reason": "runner pinned to low-power CPU 21; stopped at build step 438/643 and restarted",
+    "exit": 143,
+    "logSha256": "5209e94dc812b86aac3629e5ab79ccad6a008e2316f7ac4a15edd2956b7bf404"
+   }
+  },
+  "cleanMachines": {
+   "passed": true,
+   "environments": [
+    {
+     "name": "pinned",
+     "role": "current (pinned CI image)",
+     "image": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+     "archiveDate": "2026-10-02",
+     "packageBuiltIn": "pinned (sketchyup-build:20261002, package acceptance rc101)",
+     "priorPackageOrigin": "R087.u 0.1.0-3 (source da68089648bbdf5ae71b30cadd604975d3400917, built on the 2026-10-02 snapshot)",
+     "steps": {
+      "network-isolated": "true",
+      "install-and-closure": "pass",
+      "cli-open-save": "pass",
+      "offscreen-launch": "pass",
+      "xvfb-launch": "pass",
+      "migrations": "28",
+      "remove-clean": "pass",
+      "upgrade-preferences-remove": "pass",
+      "lifecycle": "pass"
+     },
+     "passed": true,
+     "installedVersions": {
+      "pacman": "7.1.0.r9.g54d9411-2",
+      "glibc": "2.44+r50+g1848099f063e-1",
+      "qt6-base": "6.11.2-3",
+      "qt6-wayland": "6.11.2-1",
+      "mesa": "1:26.2.3-2"
+     },
+     "testToolVersions": {
+      "xorg-server-xvfb": "21.1.24-1",
+      "python": "3.14.7-1",
+      "jq": "1.8.2-1"
+     },
+     "packages": {
+      "sketchyup-1.0.0-1-x86_64.pkg.tar.zst": "9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7",
+      "sketchyup-0.1.0-3-x86_64.pkg.tar.zst": "e6f9cce862f868c02809eef464034a3282df1c69d98467083e5c143fe6512434"
+     },
+     "networkInterfaces": [
+      "lo"
+     ],
+     "migrations": {
+      "passed": true,
+      "fixtures": 28
+     },
+     "usrLeftovers": {
+      "afterRemove": [],
+      "afterUpgradeRemove": []
+     },
+     "dependencyClosure": {
+      "newPackages": 60,
+      "directElfNeeded": [
+       "libQt6Core.so.6",
+       "libQt6Gui.so.6",
+       "libQt6Network.so.6",
+       "libQt6OpenGL.so.6",
+       "libQt6OpenGLWidgets.so.6",
+       "libQt6Widgets.so.6",
+       "libc.so.6",
+       "libcrypto.so.3",
+       "libgcc_s.so.1",
+       "libm.so.6",
+       "libstdc++.so.6",
+       "libwayland-client.so.0"
+      ],
+      "forbiddenPresent": [],
+      "closureSha256": "0ad64445bf05d2f1368dd0f08f32409f91e0142ed7bc1b60b38936d41d119ec0"
+     },
+     "upgrade": {
+      "passed": true,
+      "versions": [
+       "0.1.0-3",
+       "1.0.0-1"
+      ],
+      "executablesChanged": true,
+      "addedInspectionFields": {},
+      "retainedPreferences": {
+       "General": {
+        "fieldofview": "67",
+        "interfacetextpercent": "150",
+        "packagesentinel": "retain",
+        "recoveryseconds": "0",
+        "reducedmotion": "true",
+        "theme": "1",
+        "trackpadnavigation": "true"
+       },
+       "futureNamespace": {
+        "data": "opaque-upgrade-sentinel"
+       },
+       "shortcuts": {}
+      },
+      "retainedShortcutBindings": {
+       "apiVersion": 1,
+       "bindings": {
+        "file.importDxf": "Ctrl+Alt+K",
+        "edit.shortcuts": "Ctrl+Alt+J",
+        "future.command": "Ctrl+Shift+F9"
+       }
+      }
+     }
+    },
+    {
+     "name": "fresh",
+     "role": "current (fresh archlinux:base-devel, created 2026-10-12)",
+     "image": "archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1",
+     "archiveDate": "2026-10-12",
+     "packageBuiltIn": "pinned (sketchyup-build:20261002, package acceptance rc101)",
+     "priorPackageOrigin": "R087.u 0.1.0-3 (source da68089648bbdf5ae71b30cadd604975d3400917, built on the 2026-10-02 snapshot)",
+     "steps": {
+      "network-isolated": "true",
+      "install-and-closure": "pass",
+      "cli-open-save": "pass",
+      "offscreen-launch": "pass",
+      "xvfb-launch": "pass",
+      "migrations": "28",
+      "remove-clean": "pass",
+      "upgrade-preferences-remove": "pass",
+      "lifecycle": "pass"
+     },
+     "passed": true,
+     "installedVersions": {
+      "pacman": "7.1.0.r9.g54d9411-2",
+      "glibc": "2.44+r50+g1848099f063e-1",
+      "qt6-base": "6.12.0-2",
+      "qt6-wayland": "6.12.0-1",
+      "mesa": "1:26.2.4-1"
+     },
+     "testToolVersions": {
+      "xorg-server-xvfb": "21.1.25-1",
+      "python": "3.14.8-1",
+      "jq": "1.8.2-1"
+     },
+     "packages": {
+      "sketchyup-1.0.0-1-x86_64.pkg.tar.zst": "9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7",
+      "sketchyup-0.1.0-3-x86_64.pkg.tar.zst": "e6f9cce862f868c02809eef464034a3282df1c69d98467083e5c143fe6512434"
+     },
+     "networkInterfaces": [
+      "lo"
+     ],
+     "migrations": {
+      "passed": true,
+      "fixtures": 28
+     },
+     "usrLeftovers": {
+      "afterRemove": [],
+      "afterUpgradeRemove": []
+     },
+     "dependencyClosure": {
+      "newPackages": 60,
+      "directElfNeeded": [
+       "libQt6Core.so.6",
+       "libQt6Gui.so.6",
+       "libQt6Network.so.6",
+       "libQt6OpenGL.so.6",
+       "libQt6OpenGLWidgets.so.6",
+       "libQt6Widgets.so.6",
+       "libc.so.6",
+       "libcrypto.so.3",
+       "libgcc_s.so.1",
+       "libm.so.6",
+       "libstdc++.so.6",
+       "libwayland-client.so.0"
+      ],
+      "forbiddenPresent": [],
+      "closureSha256": "a6368a731ce913023ba14bfad75bca3d48fd8f4626153e6f7f3c6c3015ee331d"
+     },
+     "upgrade": {
+      "passed": true,
+      "versions": [
+       "0.1.0-3",
+       "1.0.0-1"
+      ],
+      "executablesChanged": true,
+      "addedInspectionFields": {},
+      "retainedPreferences": {
+       "General": {
+        "fieldofview": "67",
+        "interfacetextpercent": "150",
+        "packagesentinel": "retain",
+        "recoveryseconds": "0",
+        "reducedmotion": "true",
+        "theme": "1",
+        "trackpadnavigation": "true"
+       },
+       "futureNamespace": {
+        "data": "opaque-upgrade-sentinel"
+       },
+       "shortcuts": {}
+      },
+      "retainedShortcutBindings": {
+       "apiVersion": 1,
+       "bindings": {
+        "file.importDxf": "Ctrl+Alt+K",
+        "edit.shortcuts": "Ctrl+Alt+J",
+        "future.command": "Ctrl+Shift+F9"
+       }
+      }
+     }
+    },
+    {
+     "name": "reference",
+     "role": "reference (declared minimum Qt 6.8)",
+     "image": "archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+     "archiveDate": "2024-10-15",
+     "packageBuiltIn": "reference (RC source archive on the 2024-10-15 snapshot)",
+     "priorPackageOrigin": "R087.u reference 0.1.0-3 (source da68089648bbdf5ae71b30cadd604975d3400917, built on the 2024-10-15 snapshot)",
+     "steps": {
+      "network-isolated": "true",
+      "install-and-closure": "pass",
+      "cli-open-save": "pass",
+      "offscreen-launch": "pass",
+      "xvfb-launch": "pass",
+      "migrations": "28",
+      "remove-clean": "pass",
+      "upgrade-preferences-remove": "pass",
+      "lifecycle": "pass"
+     },
+     "passed": true,
+     "installedVersions": {
+      "pacman": "7.0.0.r3.g7736133-1",
+      "glibc": "2.40+r16+gaa533d58ff-2",
+      "qt6-base": "6.8.0-1",
+      "qt6-wayland": "6.8.0-1",
+      "mesa": "1:24.2.4-1"
+     },
+     "testToolVersions": {
+      "xorg-server-xvfb": "21.1.13-1",
+      "python": "3.12.7-1",
+      "jq": "1.7.1-2"
+     },
+     "packages": {
+      "sketchyup-1.0.0-1-x86_64.pkg.tar.zst": "25a0b0dc366556dd7f77e9793e93bf331de040d38f501e0bccff80b256758c5a",
+      "sketchyup-0.1.0-3-x86_64.pkg.tar.zst": "5754e7a74a8355c698531162159ce2ddb9718a0975a7101661fbdc4f58d1875f"
+     },
+     "networkInterfaces": [
+      "lo"
+     ],
+     "migrations": {
+      "passed": true,
+      "fixtures": 28
+     },
+     "usrLeftovers": {
+      "afterRemove": [],
+      "afterUpgradeRemove": []
+     },
+     "dependencyClosure": {
+      "newPackages": 64,
+      "directElfNeeded": [
+       "libQt6Core.so.6",
+       "libQt6Gui.so.6",
+       "libQt6Network.so.6",
+       "libQt6OpenGL.so.6",
+       "libQt6OpenGLWidgets.so.6",
+       "libQt6Widgets.so.6",
+       "libc.so.6",
+       "libcrypto.so.3",
+       "libgcc_s.so.1",
+       "libm.so.6",
+       "libstdc++.so.6",
+       "libwayland-client.so.0"
+      ],
+      "forbiddenPresent": [],
+      "closureSha256": "7b74d0865d168d49742a91e0528f8a58018c64649601c173f7f815554374159d"
+     },
+     "upgrade": {
+      "passed": true,
+      "versions": [
+       "0.1.0-3",
+       "1.0.0-1"
+      ],
+      "executablesChanged": true,
+      "addedInspectionFields": {},
+      "retainedPreferences": {
+       "General": {
+        "fieldofview": "67",
+        "interfacetextpercent": "150",
+        "packagesentinel": "retain",
+        "recoveryseconds": "0",
+        "reducedmotion": "true",
+        "theme": "1",
+        "trackpadnavigation": "true"
+       },
+       "futureNamespace": {
+        "data": "opaque-upgrade-sentinel"
+       },
+       "shortcuts": {}
+      },
+      "retainedShortcutBindings": {
+       "apiVersion": 1,
+       "bindings": {
+        "file.importDxf": "Ctrl+Alt+K",
+        "edit.shortcuts": "Ctrl+Alt+J",
+        "future.command": "Ctrl+Shift+F9"
+       }
+      }
+     }
+    }
+   ],
+   "summarySha256": "737e17cf320d356936cb4dd3966bf6e74d20a6a8f5ee5fd8696a26788a20b2bf",
+   "referenceBuild": {
+    "seconds": 1267,
+    "cpus": 4,
+    "jobs": 2,
+    "packageSha256": "25a0b0dc366556dd7f77e9793e93bf331de040d38f501e0bccff80b256758c5a",
+    "logSha256": "e7cd7fbe341d321948417c8a38201bbbb9831dbc3e58de7e128317a141f2b0ac"
+   }
+  },
+  "devBuild": {
+   "runner": "standard",
+   "exit": 0,
+   "seconds": 3792,
+   "logSha256": "4af1c24acd3734aae0e273ef9161210a76be2d0541ea321564bda4e7c8a0cb48",
+   "configureDesktopNoCli": 0
+  },
+  "ctestDev": {
+   "passed": 190,
+   "total": 190,
+   "skippedOptIn": 11,
+   "logSha256": "d31992554c84e372dfcbe1942ecd26f08163883f3c37cea142ff4bd2321ad838"
+  },
+  "nativeDevX11": {
+   "cases": 168,
+   "firstPassPassed": 168,
+   "retried": [],
+   "resultsSha256": "7aa92ab1c03a4f06044afc38a24a70d223f4430d4c60e7aa2da1a8f164c4b434",
+   "runner": "standard"
+  },
+  "nativeDevWayland": {
+   "cases": 168,
+   "firstPassPassed": 165,
+   "retried": [
+    {
+     "case": "visible_focus_input_tests",
+     "backend": "wayland",
+     "scale": "2",
+     "attempts": [
+      {
+       "attempt": 1,
+       "exit": 1,
+       "duration": "60159ms"
+      },
+      {
+       "attempt": 2,
+       "exit": 1,
+       "duration": "60333ms"
+      },
+      {
+       "attempt": 3,
+       "exit": 1,
+       "duration": "60263ms"
+      }
+     ]
+    },
+    {
+     "case": "annotation_input_tests",
+     "backend": "wayland",
+     "scale": "2",
+     "attempts": [
+      {
+       "attempt": 1,
+       "exit": 1,
+       "duration": "6291ms"
+      },
+      {
+       "attempt": 2,
+       "exit": 0,
+       "duration": "12463ms"
+      }
+     ]
+    },
+    {
+     "case": "interaction_tests",
+     "backend": "wayland",
+     "scale": "2",
+     "attempts": [
+      {
+       "attempt": 1,
+       "exit": 2,
+       "duration": "6624ms"
+      },
+      {
+       "attempt": 2,
+       "exit": 0,
+       "duration": "7618ms"
+      }
+     ]
+    }
+   ],
+   "resultsSha256": "f3355d1b9794421269007b6816de178806ec50c72130013e02aaa397c5815549",
+   "runner": "standard"
+  },
+  "accessibilityBridge": {
+   "x11-1": true,
+   "x11-2": true,
+   "wayland-1": true,
+   "wayland-2": true,
+   "accessibleNodes": 565
+  },
+  "dialogAuditLayoutsFractional": {
+   "cases": 90,
+   "firstPassPassed": 90,
+   "retried": [],
+   "resultsSha256": "418d0b5bde91d90ffcf71543937dc81fc46b9ffcebdcd79b8656fc7ac9a0a2f7",
+   "runner": "standard",
+   "auditRuns": 64,
+   "dialogs": 102,
+   "dialogChecks": 408,
+   "failedDialogs": 0,
+   "layoutRuns": 6,
+   "fractionalRuns": 20
+  },
+  "sanitizeCtest": {
+   "presetSanitize": "62/62",
+   "boundedInspectionCli": "97/97",
+   "recipesDiscovery": "7/7",
+   "textureCache": "1/1",
+   "waylandClientFix": "pass",
+   "runners": {
+    "standard": [
+     "steps 01-09 and part of 11 (run rc-san-build, stopped intentionally, exit 143)"
+    ],
+    "wide": [
+     "steps 10-12 resumed (run rc-san-build-2)"
+    ]
+   },
+   "logSha256": {
+    "work/native/results/sanitize-03-core.log": "b2fc38383549db378e39f438b77c2304537649b2d204d16999fa7dc6fe113050",
+    "work/native/results/sanitize-06-cli.log": "cd613f0663474e7b4c007fd84311f00ddfa0dce4257b3846bb32b47b174bef26",
+    "work/native/results/sanitize-08-recipes.log": "d56a0ffe49619ed30f4519b288febf71cb2389c18890f9742df2f70d788f4a7c",
+    "work/native/results/sanitize-09-wayland-client.log": "23cf885b5c444e987a24802a98e66c696c6c9f5f7e7725de039672119f5e035d",
+    "work/native/results/sanitize-12r-native-build.log": "ef88f4057ea1dc459cb83a4ecfc22ef265894b5b50daa34a585740a1961a091f"
+   }
+  },
+  "nativeSanitizeWayland": {
+   "cases": 92,
+   "firstPassPassed": 92,
+   "retried": [],
+   "resultsSha256": "471ab97838029fdc52ed2cc4e552707e96d6d3b228cd68aa256286659005b65f",
+   "runner": "wide"
+  },
+  "nativeSanitizeX11": {
+   "cases": 92,
+   "firstPassPassed": 92,
+   "retried": [],
+   "resultsSha256": "c7ace41c65f72629e465fff67d8d44d93771359fdf99b68bc5798dd02250e35f",
+   "runner": "wide"
+  },
+  "studies": {
+   "m5": {
+    "exit": 0,
+    "runner": "standard",
+    "acceptanceSha256": "0cf251ca65273ff0795a6da3828c1c36ef0ad321ef7775062d77151769394f6a"
+   },
+   "m6": {
+    "attempts": [
+     {
+      "attempt": 1,
+      "exit": 1,
+      "runner": "standard",
+      "error": "FileNotFoundError: [Errno 2] No such file or directory: 'git'",
+      "regression": "190/190",
+      "logSha256": "1ca99e89704074135ec51321d83102516371a4251011f86e5f013d75ee96e08c"
+     },
+     {
+      "attempt": 2,
+      "exit": 0,
+      "runner": "wide",
+      "note": "git installed from the pinned archive",
+      "acceptanceSha256": "6f698035d8777bcb19b6d3bc8648d14af2655a43a46c2509f51c9ac08cbd45c9"
+     }
+    ],
+    "classification": "deterministic without git; local environment gap"
+   },
+   "m7": {
+    "headless": "1/1",
+    "native": {
+     "x11-1": 0,
+     "x11-2": 0,
+     "wayland-1": 0,
+     "wayland-2": 0
+    },
+    "logSha256": "85b37150d475c857c488b033a80b8614232cc00b97ccb6e65aea2614085b3cf4"
+   },
+   "m8": {
+    "exit": 0,
+    "logSha256": "95be3a8a5d336e4ade78d2a9f59c8f43788461a7cc8946b3084fe85b07c257d7"
+   }
+  }
+ },
+ "failures": [
+  {
+   "case": "visible_focus_input_tests",
+   "backend": "wayland",
+   "scale": 2,
+   "origin": "ci",
+   "attempts": 3,
+   "result": "Timed out after 60 s in test-wayland.sh on every attempt",
+   "classification": "resource limit of the one-CPU local runner: passed in CI run 38435734443 and in the wide runner (6 CPUs) at the RC",
+   "logSha256": "363e248ac4caeaa5b3562299e96181e81441d26556f08b3766f06590534bcc7d",
+   "wideRunnerRerun": {
+    "run": "rc-vf-wide",
+    "limits": "6 CPUs (6-11), 10 GiB, -j4",
+    "cases": [
+     {
+      "scale": 1,
+      "exit": 0,
+      "ms": 14369,
+      "logSha256": "d5658115329f6952a22295490a295ca5c4dde5d373a6fb1b8d56dc8405296d18"
+     },
+     {
+      "scale": 2,
+      "exit": 0,
+      "ms": 28412,
+      "logSha256": "d5658115329f6952a22295490a295ca5c4dde5d373a6fb1b8d56dc8405296d18"
+     }
+    ]
+   }
+  },
+  {
+   "case": "annotation_input_tests",
+   "backend": "wayland",
+   "scale": 2,
+   "origin": "ci",
+   "attempts": 2,
+   "result": "attempt 1 failed check \"Annotation window exposed\"; attempt 2 passed",
+   "classification": "flaky",
+   "logSha256": "33e7ff817ed91750f83772a65d0aa0140b5a92a12deece8ef554c86fbc45330e"
+  },
+  {
+   "case": "interaction_tests",
+   "backend": "wayland",
+   "scale": 2,
+   "origin": "pattern",
+   "attempts": 2,
+   "result": "attempt 1 exit 2 (window not exposed and active within 5 s); attempt 2 passed",
+   "classification": "flaky",
+   "logSha256": "0bc09377e2049a645c0c2954552ddb743f5765bcfda45309b942ae5d38ae7a4c"
+  },
+  {
+   "case": "verify-m6-offline.sh",
+   "attempts": 2,
+   "result": "attempt 1 failed in the final summary: no git in the image; attempt 2 passed",
+   "classification": "deterministic without git; local environment gap"
+  }
+ ],
+ "ciAtRc": {
+  "run": 38435734443,
+  "url": "https://github.com/zygote55/sketchyup/actions/runs/38435734443",
+  "conclusion": "success",
+  "jobs": {
+   "Development build and native tests": 115429089337,
+   "Blender interoperability": 115429089419,
+   "Sanitized builds": 115429089089,
+   "Arch package acceptance": 115429089468
+  }
+ },
+ "runners": {
+  "standard": "scripts/run-container-check.sh: 1 CPU (P-core 4 via caller affinity), 4 GiB, no extra swap, -j1",
+  "wide": {
+   "description": "copy outside the repository: 6 CPUs (6-11), 10 GiB, no extra swap, -j4, 10 GiB free-memory precondition",
+   "sha256": "11f6cbb71a76d7846c18bacb52ad0bad0589872eab2af632979843559f1e178a"
+  },
+  "timingChecks": false
+ },
+ "notCovered": [
+  "manual user-guide pass (waived, ADR 0161)",
+  "hardware checks (waived, ADR 0161)",
+  "Blender-dependent steps locally (covered by CI at the RC)"
+ ],
+ "queueLogSha256": "63a9898d28fefc02c08e8fd215d9e8683cfa1c0f92c38fc894cec3a6781a3b84",
+ "evidenceRoot": "~/sketchyup-verification/rc-1.0.0 (private)"
+}

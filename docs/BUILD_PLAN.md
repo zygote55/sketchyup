@@ -1,6 +1,6 @@
 # SketchyUp native Linux build plan
 
-Status: M0–M8 gates are accepted and M9 hardening is in progress; delivered entries, evidence and remaining gates are recorded in [the roadmap](PR_ROADMAP.md). Updated: 2026-10-10.
+Status: M0–M9 gates are accepted; M9 is accepted at the 1.0.0 release candidate ([record](verification/M9.md)). Delivered entries, evidence and remaining gates are recorded in [the roadmap](PR_ROADMAP.md). Updated: 2026-10-13.
 
 This document defines intended behavior and acceptance gates. It does not claim
 that the native application, proposed commands, packages, or integrations exist.

@@ -15,7 +15,7 @@ color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retai
 editable loops and holes. A headless driver uses the same core operations.
 
 The [108-entry roadmap](docs/PR_ROADMAP.md) has passed its M0 feasibility and
-M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. The M7 presentation and rendering checkpoint is [accepted](docs/verification/M7-accepted.md). The [M8 exchange and extensibility gate](docs/verification/M8.md) is accepted, and M9 hardening is in progress. Shared components support native editing.
+M1 native foundation, M2 editable geometry, M3 manual drawing, M4 editing/recovery, M5 automation and M6 advanced-modeling gates. The M7 presentation and rendering checkpoint is [accepted](docs/verification/M7-accepted.md). The [M8 exchange and extensibility gate](docs/verification/M8.md) is accepted, and the [M9 release-hardening gate](docs/verification/M9.md) is accepted at the 1.0.0 release candidate. Shared components support native editing.
 OpenAI and experimental loopback Ollama adapters, transactional previews and optional
 Blender rendering are implemented. Live OpenAI acceptance passed the M5 and M6
 workflow gates; the measured local CPU Ollama profile timed out on the initial
@@ -217,7 +217,7 @@ as PNG. Blender is optional. See [render evidence](docs/verification/R050-native
 
 The [M5 acceptance procedure](docs/M5_ACCEPTANCE.md) describes the reproducible
 room/window workflow, retained evidence, live provider corpus and package setup.
-The [M5 gate](docs/verification/M5.md) and [M6 gate](docs/verification/M6.md) are complete, and the [M7 checkpoint](docs/verification/M7-accepted.md) is accepted. The [M8 gate](docs/verification/M8.md) is accepted.
+The [M5 gate](docs/verification/M5.md) and [M6 gate](docs/verification/M6.md) are complete, and the [M7 checkpoint](docs/verification/M7-accepted.md) is accepted. The [M8 gate](docs/verification/M8.md) and the [M9 gate](docs/verification/M9.md) are accepted.
 The [M6 acceptance procedure](docs/M6_ACCEPTANCE.md) reproduces the integrated
 roof/stair/joinery/furniture study, site placement and live assistant checks.
 

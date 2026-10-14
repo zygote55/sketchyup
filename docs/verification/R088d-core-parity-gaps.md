@@ -1,5 +1,10 @@
 # R088.d — Remaining Core parity gaps against main
 
+**Release-candidate report (2026-10-13).** The Core parity report at the 1.0.0 release candidate
+`7b01bb7a` is [R088.f](R088f-core-parity-report.md). It links every row to RC evidence and
+records where that evidence is thinner than this analysis. A05 is Evidenced there by
+[R086.ca](R086ca-rc-remote-evaluation.md). The analysis below is kept as the pre-RC history.
+
 2026-10-10. Source revision `8534bb67bd1f003c140b6f5f7df6d6385fbc5dc7` (`main`).
 **Refreshed 2026-10-11.** Source revision `d4dcac19a00773cb57ee96698b194ab3bceb2333`
 (`main` after #298). The refresh re-checked every row that the evidence merged since
