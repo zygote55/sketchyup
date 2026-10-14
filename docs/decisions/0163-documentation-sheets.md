@@ -229,10 +229,16 @@ States are derived and never persisted:
 | State | Meaning |
 | --- | --- |
 | `current` | Accepted fingerprint equals the fingerprint at the current revision |
-| `stale` | Accepted fingerprint differs: the model or scene changed what the view draws |
-| `notToScale` | The scene camera is perspective: the view draws as an unscaled raster illustration, Dimension refuses to measure it and the scale field reads "Not to scale" (decision 5) |
+| `stale` | Accepted fingerprint differs: the model or scene changed what the view draws (reason `changedSinceAccepted`), or the view has never been accepted (`accepted` is `null`, reason `notAccepted`) |
 | `broken` | Scene missing, scene has no camera, temporary clip plane, or show-hidden enabled; each is a named reason |
-| `failed` | Capture exceeded the R078 work bounds; reason reported, record unchanged |
+| `failed` | Capture threw, typically because it exceeded the R078 work bounds. Every capture exception gives reason `captureFailed` with the message as detail; the record is unchanged |
+
+`notToScale` is a condition alongside the state, not a state of its own (decision 5).
+It holds when the scene camera is perspective. Such a view is still `current` or
+`stale` like any other, using the illustration fingerprint below. It draws as an
+unscaled raster illustration, has no measured mapping (no `MeasuredPage`, no
+world↔sheet projection), Dimension refuses to measure it, and the scale field reads
+"Not to scale".
 
 Missing references *inside* a scene, such as a deleted body that the scene hid, are
 a warning count, not `broken`.
@@ -249,6 +255,29 @@ Quantization keeps the hash stable across builds and the normal/sanitizer
 configurations. For `rasterAppearance` views the hash also covers a digest of the
 appearance inputs: the style, the materials and texture asset SHA-256s of visible
 bodies, and the reference-image assets.
+
+Implementation conventions (R090.c):
+
+- **Offset.** `offsetMm` is in paper millimetres, x right and y down, like the frame.
+  The scene camera target is drawn at the frame centre plus `offsetMm`. The page
+  origin, the world point at the frame centre, is therefore
+  `target − right × offsetMm[0] × scale/1000 + up × offsetMm[1] × scale/1000`.
+- **Annotations.** The fingerprint counts only annotations whose bounds (anchors and
+  text point, in frame millimetres) reach the frame. `captureMeasuredDrawing` does
+  not crop annotations; clipping their rendering to the frame is R092's compositor
+  work.
+- **Perspective views.** These have no measured drawing. They hash the captured
+  snapshot inputs the illustration depends on, never rendered pixels:
+  - the camera and the frame size;
+  - the model style;
+  - for every visible face, its world triangles quantized to 0.001 mm, colour,
+    opacity and texture-asset SHA-256;
+  - every visible edge, with its soft, smooth and wire flags;
+  - every section cut and visible reference image.
+
+  The items are sorted, so IDs and map order do not matter. The whole scene counts,
+  not only what falls inside the frame. The hash is bounded at 200,000 items, and an
+  overrun gives `failed`.
 
 **Cheap detection.** An in-memory cache maps `(view, revision)` to a fingerprint.
 At an unchanged revision, status costs nothing. When the revision changes, views

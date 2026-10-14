@@ -1,7 +1,9 @@
 #include "io/drawing_view.hpp"
+#include "core/edge_appearance.hpp"
 #include "core/material_records.hpp"
 #include "core/model.hpp"
 #include "core/reference_image.hpp"
+#include "core/section_records.hpp"
 #include "core/units.hpp"
 #include "io/model_style_io.hpp"
 #include <QCryptographicHash>
@@ -211,14 +213,101 @@ std::string drawingAppearanceDigest(const RenderSnapshot &snapshot, const Measur
         text += "image " + item + '\n';
     return sha256(text);
 }
+std::string drawingIllustrationFingerprint(const RenderSnapshot &snapshot,
+                                           const DrawingViewRecord &view) {
+    const auto &doc = snapshot.document();
+    const auto &camera = snapshot.camera();
+    auto point = [](Vec3 p) {
+        // World metres quantized to 0.001 mm.
+        return integer(millionths(p.x)) + ' ' + integer(millionths(p.y)) + ' ' +
+               integer(millionths(p.z));
+    };
+    std::string text = "sketchyup-drawing-illustration-v1\n";
+    text += "camera " + std::string(camera.orthographic ? "orthographic " : "perspective ") +
+            point(camera.position) + ' ' + point(camera.target) + ' ' + point(camera.up) + ' ' +
+            integer(millionths(camera.verticalFov)) + ' ' + integer(millionths(camera.yMag)) + '\n';
+    text += "frame " + integer(thousandths(view.frame.widthMm)) + ' ' +
+            integer(thousandths(view.frame.heightMm)) + '\n';
+    text +=
+        "style " +
+        QJsonDocument(encodeModelStyle(doc.style())).toJson(QJsonDocument::Compact).toStdString() +
+        '\n';
+    std::vector<std::string> items;
+    // Same order of work as the R078 measured bounds; exceeding it is a failed view.
+    constexpr size_t itemLimit = 200000;
+    auto add = [&](std::string item) {
+        require(items.size() < itemLimit, "Drawing illustration exceeds 200000 fingerprint items");
+        items.push_back(std::move(item));
+    };
+    for (const auto &[id, body] : doc.bodies()) {
+        if (!snapshot.visible(id) || body->kind == BodyKind::Group)
+            continue;
+        const auto world = doc.worldTransform(id);
+        if (body->referenceImage) {
+            const auto &image = *body->referenceImage;
+            std::string item =
+                "image " + assetSha(doc, image.asset) + ' ' + integer(millionths(image.opacity));
+            for (auto corner : referenceImageCorners(image, world))
+                item += ' ' + point(corner);
+            add(std::move(item));
+            continue;
+        }
+        for (const auto &cut : effectiveSectionCuts(doc, id)) {
+            std::string item =
+                "cut " + point(cut.plane.normal) + ' ' + integer(millionths(cut.plane.offset));
+            if (const auto section = doc.sections().find(cut.id); section != doc.sections().end()) {
+                item += section->second->fill ? " fill" : " open";
+                item += section->second->edges ? " edges" : " plain";
+                for (auto c : section->second->color)
+                    item += ' ' + integer(millionths(c));
+            }
+            add(std::move(item));
+        }
+        for (const auto &[face, record] : body->surface.faces) {
+            (void)record;
+            if (!snapshot.visible(id, face))
+                continue;
+            std::string appearance;
+            for (bool back : {false, true}) {
+                const auto a = surfaceAppearance(doc.materials(), *body, face, back);
+                for (auto c : a.color)
+                    appearance += ' ' + integer(millionths(c));
+                appearance += ' ' + integer(millionths(a.opacity)) + ' ' +
+                              (a.material ? assetSha(doc, doc.materials().at(a.material)->asset)
+                                          : std::string("none"));
+            }
+            for (const auto &t : body->surface.triangulate(face)) {
+                std::array<std::string, 3> v{point(world.point(t.a)), point(world.point(t.b)),
+                                             point(world.point(t.c))};
+                // Keep the winding; start from the smallest vertex text.
+                std::rotate(v.begin(), std::min_element(v.begin(), v.end()), v.end());
+                add("triangle " + v[0] + ' ' + v[1] + ' ' + v[2] + appearance);
+            }
+        }
+        for (const auto &[edge, record] : body->topology.edges) {
+            const auto appearance = edgeAppearance(*body, edge);
+            if (appearance.hidden || !snapshot.edgeVisible(id, edge))
+                continue;
+            auto a = point(world.point(body->surface.vertices.at(record.a))),
+                 b = point(world.point(body->surface.vertices.at(record.b)));
+            if (b < a)
+                std::swap(a, b);
+            add("edge " + a + ' ' + b + (appearance.soft ? " soft" : "") +
+                (appearance.smooth ? " smooth" : "") + (record.wire ? " wire" : ""));
+        }
+    }
+    std::sort(items.begin(), items.end());
+    text += "items " + std::to_string(items.size()) + '\n';
+    for (const auto &item : items)
+        text += item + '\n';
+    return sha256(text);
+}
 const char *drawingViewStateName(DrawingViewState state) {
     switch (state) {
     case DrawingViewState::Current:
         return "current";
     case DrawingViewState::Stale:
         return "stale";
-    case DrawingViewState::NotToScale:
-        return "notToScale";
     case DrawingViewState::Broken:
         return "broken";
     case DrawingViewState::Failed:
@@ -259,16 +348,16 @@ DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id id) {
             return result;
         }
         if (capture.perspective) {
-            status.state = DrawingViewState::NotToScale;
-            status.reasons = {"perspectiveCamera"};
-            return result;
+            status.notToScale = true;
+            status.fingerprint = drawingIllustrationFingerprint(*capture.snapshot, view);
+        } else {
+            auto drawing = captureMeasuredDrawing(*capture.snapshot, result.projection->page);
+            status.fingerprint = drawingFingerprint(
+                drawing, view.content == DrawingViewContent::RasterAppearance
+                             ? drawingAppearanceDigest(*capture.snapshot, drawing.page)
+                             : std::string{});
+            result.drawing = std::move(drawing);
         }
-        auto drawing = captureMeasuredDrawing(*capture.snapshot, result.projection->page);
-        status.fingerprint = drawingFingerprint(
-            drawing, view.content == DrawingViewContent::RasterAppearance
-                         ? drawingAppearanceDigest(*capture.snapshot, drawing.page)
-                         : std::string{});
-        result.drawing = std::move(drawing);
     } catch (const ValidationOracleMismatch &) {
         throw;
     } catch (const std::exception &error) {
@@ -276,6 +365,7 @@ DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id id) {
         status.reasons = {"captureFailed"};
         status.detail = error.what();
         status.fingerprint.clear();
+        status.notToScale = false;
         result.projection.reset();
         result.drawing.reset();
         return result;

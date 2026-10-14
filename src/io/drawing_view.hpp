@@ -45,19 +45,32 @@ std::string drawingFingerprint(const MeasuredDrawing &drawing,
 // appearance (colour, opacity, texture asset SHA-256) of visible faces, and the
 // visible reference images (asset SHA-256, opacity, quantized sheet corners).
 std::string drawingAppearanceDigest(const RenderSnapshot &snapshot, const MeasuredPage &page);
+// Fingerprint of a perspective (not-to-scale) view, which has no measured drawing.
+// SHA-256 over the captured snapshot inputs the illustration depends on, never over
+// rendered pixels: the camera, the frame size, the model style, and every visible
+// face (world triangles quantized to 0.001 mm, colour, opacity, texture asset
+// SHA-256), visible edge (endpoint-ordered segment, soft/smooth flags), section cut
+// and reference image of the scene. Items are sorted, so record IDs and map order do
+// not matter. The whole scene counts, not only what falls inside the frame.
+std::string drawingIllustrationFingerprint(const RenderSnapshot &snapshot,
+                                           const DrawingViewRecord &view);
 
-enum class DrawingViewState { Current, Stale, NotToScale, Broken, Failed };
+enum class DrawingViewState { Current, Stale, Broken, Failed };
 const char *drawingViewStateName(DrawingViewState state);
 struct DrawingViewStatus {
     Id view{};
     std::uint64_t revision{}; // Document revision the status was evaluated at.
     DrawingViewState state{DrawingViewState::Current};
     // Stable reason codes. broken: sceneMissing, sceneHasNoCamera, temporaryClipPlane,
-    // showHidden. stale: notAccepted or changedSinceAccepted. notToScale:
-    // perspectiveCamera. failed: captureFailed (detail holds the message).
+    // showHidden. stale: notAccepted or changedSinceAccepted. failed: captureFailed
+    // (detail holds the message). current has none.
     std::vector<std::string> reasons;
+    // The scene camera is perspective: the view is current or stale like any other,
+    // but draws as an unscaled illustration with no measured mapping (no projection,
+    // no measured drawing, no dimensions). ADR 0163 decision 5.
+    bool notToScale{};
     size_t warnings{};       // Missing references inside the scene.
-    std::string fingerprint; // Empty unless the measured drawing was captured.
+    std::string fingerprint; // Empty for broken and failed views.
     std::string detail;
     bool operator==(const DrawingViewStatus &) const = default;
 };
@@ -68,7 +81,7 @@ struct DrawingViewEvaluation {
     std::optional<DrawingViewProjection> projection;
     std::optional<MeasuredDrawing> drawing;
 };
-// Precedence: broken, then failed, then notToScale, then stale/current. Throws only
+// Precedence: broken, then failed, then stale/current. Throws only
 // when the view record does not exist.
 DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id view);
 DrawingViewStatus evaluateDrawingView(const Document &doc, Id view);

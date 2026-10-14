@@ -27,6 +27,8 @@ template <class F> void rejects(F f, const std::string &what) {
     throw std::runtime_error("Expected rejection: " + what);
 }
 // Recorded from the dev build; the sanitize build must produce the same digest.
+const std::string goldenPerspectiveFingerprint =
+    "01ccf7a9736d87ba2e16b8319f07b10a400f053e256b76a2641a33a1a99b6978";
 const std::string goldenFingerprint =
     "2979d0391bf8426b5ee74adbd67c053ac4a06fc22ef6e8384dda2b3dc4b5e487";
 SceneCamera planCamera(Vec3 target = {1, .5, 0}, bool orthographic = true) {
@@ -193,9 +195,10 @@ void brokenAndNotToScale() {
     const auto perspectiveView =
         createDrawingView(f.doc, viewRecord(f.sheet, perspectiveScene, "Perspective"));
     const auto perspective = evaluateDrawingViewDrawing(f.doc, perspectiveView);
-    check(perspective.status.state == DrawingViewState::NotToScale &&
-              perspective.status.reasons == std::vector<std::string>{"perspectiveCamera"} &&
-              !perspective.projection && !perspective.drawing,
+    check(perspective.status.notToScale && perspective.status.state == DrawingViewState::Stale &&
+              perspective.status.reasons == std::vector<std::string>{"notAccepted"} &&
+              perspective.status.fingerprint.size() == 64 && !perspective.projection &&
+              !perspective.drawing,
           "Perspective scene is not to scale, not broken, with no measured mapping");
 
     auto showHidden = planScene();
@@ -249,6 +252,76 @@ void brokenAndNotToScale() {
     rejects([&] { RenderSnapshot::captureSavedScene(f.doc, hidingScene); },
             "captureSavedScene keeps rejecting missing references");
     std::cout << "broken reasons, notToScale and warnings: ok\n";
+}
+
+void perspectiveViews() {
+    Fixture f;
+    const auto scene = createScene(f.doc, "Eye level", planScene({1, .5, 0}, false));
+    const auto view = createDrawingView(f.doc, viewRecord(f.sheet, scene, "Perspective"));
+    const auto initial = evaluateDrawingView(f.doc, view);
+    std::cout << "golden perspective fingerprint: " << initial.fingerprint << '\n';
+    check(initial.fingerprint == goldenPerspectiveFingerprint,
+          "Golden perspective fingerprint changed: " + initial.fingerprint);
+    check(initial.notToScale && initial.state == DrawingViewState::Stale &&
+              initial.reasons == std::vector<std::string>{"notAccepted"},
+          "Unaccepted perspective view is stale and not to scale");
+    accept(f.doc, view);
+    auto status = evaluateDrawingView(f.doc, view);
+    check(status.notToScale && status.state == DrawingViewState::Current && status.reasons.empty(),
+          "Accepting a perspective view makes it current");
+    // Geometry moved in view: changed since accepted.
+    f.doc.move(f.face, {.25, 0, 0});
+    status = evaluateDrawingView(f.doc, view);
+    check(status.notToScale && status.state == DrawingViewState::Stale &&
+              status.reasons == std::vector<std::string>{"changedSinceAccepted"},
+          "Moved geometry makes a perspective view stale");
+    f.doc.undo();
+    status = evaluateDrawingView(f.doc, view);
+    check(status.state == DrawingViewState::Current && status.fingerprint == initial.fingerprint,
+          "Undo returns the perspective view to current");
+    // Accepting the changed content makes it current again.
+    f.doc.move(f.face, {.25, 0, 0});
+    accept(f.doc, view);
+    check(evaluateDrawingView(f.doc, view).state == DrawingViewState::Current,
+          "Accepting changed content makes the perspective view current");
+    // Colour, camera and hidden state are inputs; the declared scale is not used.
+    const auto accepted = evaluateDrawingView(f.doc, view).fingerprint;
+    f.doc.paint(f.face, {.9F, .1F, .1F});
+    check(evaluateDrawingView(f.doc, view).fingerprint != accepted, "Colour is an input");
+    f.doc.undo();
+    auto moved = planScene({1, .5, 0}, false);
+    moved.camera->yaw = 30;
+    moved.camera->pitch = 30;
+    updateScene(f.doc, scene, moved);
+    check(evaluateDrawingView(f.doc, view).state == DrawingViewState::Stale, "Camera is an input");
+    f.doc.undo();
+    auto hiding = planScene({1, .5, 0}, false);
+    hiding.visibility = SceneVisibility{};
+    hiding.visibility->bodyVisible = {{f.face, false}};
+    updateScene(f.doc, scene, hiding);
+    check(evaluateDrawingView(f.doc, view).state == DrawingViewState::Stale,
+          "Hidden state is an input");
+    f.doc.undo();
+    check(evaluateDrawingView(f.doc, view).state == DrawingViewState::Current, "Back to accepted");
+    // Measured mapping and dimensions stay refused.
+    const auto evaluation = evaluateDrawingViewDrawing(f.doc, view);
+    check(!evaluation.projection && !evaluation.drawing, "No measured mapping");
+    rejects(
+        [&] {
+            drawingViewProjection(*f.doc.drawingViews().at(view),
+                                  renderSceneCamera(*f.doc.scenes().at(scene)->snapshot.camera));
+        },
+        "perspective projection");
+    // Order and ID independence.
+    Document other;
+    createTag(other, "Shift the allocators");
+    other.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}}, "Slab");
+    const auto otherView = createDrawingView(
+        other, viewRecord(createDrawingSheet(other, "A3", {420, 297}),
+                          createScene(other, "Eye level", planScene({1, .5, 0}, false))));
+    check(evaluateDrawingView(other, otherView).fingerprint == initial.fingerprint,
+          "Perspective fingerprint independent of IDs");
+    std::cout << "perspective views: ok\n";
 }
 
 void hiddenEdges() {
@@ -374,6 +447,7 @@ int main(int argc, char **argv) {
         staleAndCurrent();
         brokenAndNotToScale();
         hiddenEdges();
+        perspectiveViews();
         fingerprints();
         statusCache();
         Document::setFullValidationOracle(false);
