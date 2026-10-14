@@ -217,9 +217,8 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     pages_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     pages_->setUniformRowHeights(true);
     pages_->installEventFilter(this);
-    connect(pages_->itemDelegate(), &QAbstractItemDelegate::closeEditor, this, [this] {
-        QTimer::singleShot(0, this, [this] { refresh(sheet_, view_); });
-    });
+    connect(pages_->itemDelegate(), &QAbstractItemDelegate::closeEditor, this,
+            [this] { QTimer::singleShot(0, this, [this] { refresh(sheet_, view_); }); });
     // F6 into the Tray lands in Pages, the keyboard alternative to the canvas.
     setFocusProxy(pages_);
     connect(pages_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *item) {
