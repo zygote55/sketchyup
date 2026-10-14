@@ -177,5 +177,8 @@ as `outputDocumentVersion`.
 Readers accept raw document versions 1–27. Schemas 1–26 migrate with empty sheet
 tables and allocators 1. Acceptance adds the retained `release-1.0.0-v26.sketchyup`
 (unmodified 1.0.0 output) and `drawing-sheets-v27.sketchyup` writer fixtures.
-Package acceptance has the prior package's CLI refuse, unchanged, every retained
-fixture newer than the schemas it reads.
+When `SKETCHYUP_PRIOR_RELEASE_PACKAGE` names a released package (CI downloads
+1.0.0-1 and checks its pinned SHA-256), package acceptance unpacks it beside the
+lifecycle test. Its CLI must refuse, unchanged, every retained fixture newer than the
+schemas it reads, and must accept a sheet-free save from the new package; the
+package's `drawing_sheet_io` test also drives it through `SKETCHYUP_PRIOR_CLI`.

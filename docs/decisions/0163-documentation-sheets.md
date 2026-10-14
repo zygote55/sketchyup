@@ -25,7 +25,10 @@ What the code and contracts give us:
   v2. The current document schema is v26 (`nativeDocumentVersion = 26` in
   `src/io/native_format.hpp`; `docs/api/native-format-v1.json`). `decodeContainer`
   (`src/io/container.cpp`) accepts only the exact historical `requiredFeatures`
-  sets. Any other set fails with "Unsupported required document features". Unknown
+  sets. Any other set is refused: because a newer set is not recognised, the
+  manifest-field check runs first and 1.0.0 reports "Unsupported container field"
+  (ADR 0108, schema 27) before its "Unsupported required document features"
+  check. Unknown
   root fields, record fields and chunk kinds are rejected. The encoder always writes
   the current schema. `tests/fixtures` keeps writer output for v24 and v25 but has
   **no retained v26 (1.0.0) writer fixture**.
@@ -87,8 +90,9 @@ tables.
 
 - **Compatibility.** ADR 0162 explicitly allows this in a minor release (1.1.0).
   A 1.0.0 build rejects any v27 file at `decodeContainer`, because the feature set
-  is unknown. It reports the error and does not touch the file, so no data is
-  silently dropped. Under decision 2 the writer emits the lowest schema the
+  is unknown. It reports "Unsupported container field" (its manifest check runs
+  before the feature check) and does not touch the file, so no data is silently
+  dropped. Under decision 2 the writer emits the lowest schema the
   content needs, so a file without drawing sheets stays schema 26 and 1.0.0 still
   opens it.
 - **Atomic save and recovery.** No new code. Sheets travel in the document chunk,
@@ -336,8 +340,12 @@ allows in a minor version:
   "Schema 27" section. Files that contain drawing sheets cannot be opened by 1.0.0.
   The open fails cleanly and the file is not modified. Files without sheets stay
   schema 26 (decision 2).
-- The frozen provider corpus `inputSha256` values change and are regenerated, as in
-  ADR 0162.
+- The frozen provider corpus `inputSha256` values do not change. Its inputs have no
+  drawing sheets, so under decision 2 they are still written as schema 26 with an
+  unchanged writer string (R090.b verified this; nothing was regenerated).
+- A document that returns to schema 26 (every sheet deleted) does not store the
+  drawing-sheet allocators, so they restart at 1 when the file is reopened. No
+  record or link can refer to a retired sheet or view ID by then.
 - Multi-model sheet sets are out of scope until an external-reference feature is
   approved.
 - Sheet edits share the model's undo stack and dirty state. Saving the model saves
@@ -354,15 +362,17 @@ The owner decided these points on 2026-10-13.
    become a later feature.
 2. **Downgrade window.** A document with **no** drawing sheets keeps the 1.0
    format: schema 26, without the `drawing-sheets-v1` feature. The first sheet makes
-   the file schema 27, and 1.0.0 then refuses it with its normal unsupported-version
-   error. This is new writer policy: the writer emits the lowest schema the content
+   the file schema 27, and 1.0.0 then refuses it with its normal error for a newer
+   format ("Unsupported container field"). This is new writer policy: the writer emits the lowest schema the content
    needs. R090.b tests three things:
    - a sheet-free document saved by the new build is accepted by the 1.0.0 reader
      (the `release-1.0.0-v26` fixture rules);
    - adding a sheet writes 27;
    - deleting every sheet writes 26 again.
 
-   The writer string still changes with the version.
+   The writer string still changes with the version: that happens at the next
+   version bump, not with schema 27. A sheet-free save from a 1.0.x build has the
+   same writer string as 1.0.0.
 3. **One shared undo history.** Sheet edits are labeled entries in the document's
    single history, matching scenes.
 4. **Live views with an accepted stamp,** as proposed above. A view always draws the
@@ -426,8 +436,11 @@ The owner decided these points on 2026-10-13.
 - Fuzz: seed documents with sheets in `tests/fuzz/parser_seeds.cpp`, with
   `parser_fault_corpus_tests` counts updated.
 - Package acceptance: the previous (1.0.0-1) CLI rejects the v27 fixture through
-  `--validate-native` and leaves it unchanged.
-- Regenerate the provider corpus hashes.
+  `--validate-native` and leaves it unchanged. The real release package is
+  downloaded, checked against its pinned SHA-256 and unpacked beside the package
+  lifecycle (`SKETCHYUP_PRIOR_RELEASE_PACKAGE`); it must also accept a sheet-free
+  save from the new package.
+- The provider corpus hashes stay unchanged (sheet-free inputs remain schema 26).
 
 **R090.c: linked-view evaluation and staleness.**
 - Scope:
@@ -484,6 +497,10 @@ The owner decided these points on 2026-10-13.
   - A page-item table (title blocks with field text, text, dimensions, images that
     reference document assets) added to schema 27 under decision 6.
   - The single history, for keyboard-accessible undo.
+  - Open question: should templates carry drawing sheets? `instantiateTemplate`
+    (`src/io/library_bundle.cpp`) restores a new document without the sheet tables,
+    so a template saved from a document with sheets is schema 27 but its sheets are
+    dropped on instantiation. A title-block template workflow would need them.
 - **R092.**
   - `measuredDrawingPaths` and a multi-page writer.
   - Scene-scoped raster capture.

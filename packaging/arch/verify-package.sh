@@ -38,10 +38,40 @@ fi
   exit 1
 }
 source_dir=/work/package/src/sketchyup-$package_version
+# Optional released-package format check (ADR 0163 downgrade window). The real
+# previous release is unpacked into a private directory, never installed through
+# pacman, so the package lifecycle below is unchanged. Its own Qt libraries come
+# from this pinned image, the snapshot the release was built on.
+declare -A known_release_sha256=(
+  [sketchyup-1.0.0-1-x86_64.pkg.tar.zst]=9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7
+)
+prior_release_cli=
+if [[ -n ${SKETCHYUP_PRIOR_RELEASE_PACKAGE:-} ]]; then
+  release_package=$SKETCHYUP_PRIOR_RELEASE_PACKAGE
+  release_name=$(basename "$release_package")
+  release_sha256=${SKETCHYUP_PRIOR_RELEASE_SHA256:-${known_release_sha256[$release_name]:-}}
+  [[ -f $release_package && -n $release_sha256 ]] || {
+    echo "Prior release package $release_package is missing or has no pinned SHA-256." >&2
+    exit 1
+  }
+  [[ $(sha256sum "$release_package" | cut -d' ' -f1) == "$release_sha256" ]] || {
+    echo "Prior release package $release_name does not match its pinned SHA-256." >&2
+    exit 1
+  }
+  rm -rf /work/prior-release
+  install -d /work/prior-release
+  bsdtar -xf "$release_package" -C /work/prior-release --exclude '.*'
+  prior_release_cli=/work/prior-release/usr/bin/sketchyup-cli
+  printf 'Prior release %s: %s\n' "$release_name" "$("$prior_release_cli" --version)"
+else
+  printf 'Prior-release format check skipped: SKETCHYUP_PRIOR_RELEASE_PACKAGE is unset.\n'
+fi
 sed -i -e "s/^pkgver=$package_version$/pkgver=$prior_version/" \
   -e "s/^pkgrel=$package_release$/pkgrel=$prior_release/" \
   -e "s/^_srcname=.*$/_srcname=sketchyup-$package_version/" PKGBUILD
-runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" makepkg --noconfirm --force
+# check() runs ctest; drawing_sheet_io_tests also drives the released CLI when set.
+runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" \
+  SKETCHYUP_PRIOR_CLI="$prior_release_cli" makepkg --noconfirm --force
 grep -qx "project(SketchyUp VERSION $package_version LANGUAGES CXX)" "$source_dir/CMakeLists.txt" || {
   echo "CMakeLists.txt in the source archive does not declare version $package_version." >&2
   exit 1
@@ -49,33 +79,6 @@ grep -qx "project(SketchyUp VERSION $package_version LANGUAGES CXX)" "$source_di
 pacman -U --noconfirm "sketchyup-$prior_version-$prior_release-x86_64.pkg.tar.zst"
 [[ $(pacman -Q sketchyup) == "sketchyup $prior_version-$prior_release" ]]
 pacman -Qkk sketchyup
-# Downgrade window (ADR 0163): the prior package must refuse every retained fixture
-# newer than the schemas it reads, through its normal error, without touching it.
-prior_reads=$(sketchyup-cli --format-capabilities | jq -e '.readDocumentVersions | max')
-install -d /work/acceptance-newer
-newer_fixtures=0
-for fixture in "$source_dir"/tests/fixtures/*.sketchyup; do
-  fixture_version=$(python - "$fixture" <<'PYVERSION'
-import json, struct, sys
-data = open(sys.argv[1], 'rb').read()
-length = struct.unpack_from('<I', data, 12)[0]
-encoding = json.loads(data[16:16 + length])['chunks'][0]['encoding']
-print(int(encoding.removeprefix('json-v')))
-PYVERSION
-)
-  (( fixture_version > prior_reads )) || continue
-  copy=/work/acceptance-newer/$(basename "$fixture")
-  cp "$fixture" "$copy"
-  if sketchyup-cli --validate-native "$copy" > /dev/null 2> "$copy.stderr"; then
-    echo "Prior package accepted newer schema $fixture_version: $fixture" >&2
-    exit 1
-  fi
-  jq -e '.status == "failed"' "$copy.stderr" > /dev/null
-  cmp "$fixture" "$copy"
-  newer_fixtures=$((newer_fixtures + 1))
-done
-printf 'Prior package reads schemas up to %s and refused %s newer fixtures unchanged.\n' \
-  "$prior_reads" "$newer_fixtures"
 test -s /usr/share/doc/sketchyup/decisions/0029-native-mcp.md
 QT_QPA_PLATFORM=offscreen sketchyup --mcp-inspection-capabilities | jq -S . > /work/package/mcp-native-installed.json
 jq -S . /usr/share/doc/sketchyup/api/mcp-native-2026-07-28.json > /work/package/mcp-native-schema.json
@@ -189,6 +192,40 @@ pacman -U --noconfirm "sketchyup-$package_version-$package_release-x86_64.pkg.ta
 pacman -Qkk sketchyup
 [[ $(pacman -Q sketchyup) == "sketchyup $package_version-$package_release" ]]
 [[ $(runuser -u builder -- sketchyup-cli --version) == "sketchyup-cli $package_version" ]]
+if [[ -n $prior_release_cli ]]; then
+  # The released CLI refuses, unchanged, every retained fixture newer than it reads,
+  # and accepts a sheet-free document saved by this package.
+  prior_reads=$("$prior_release_cli" --format-capabilities | jq -e '.readDocumentVersions | max')
+  install -d -o builder -g builder /work/acceptance/prior-release
+  newer_fixtures=0
+  for fixture in "$source_dir"/tests/fixtures/*.sketchyup; do
+    fixture_version=$(python - "$fixture" <<'PYVERSION'
+import json, struct, sys
+data = open(sys.argv[1], 'rb').read()
+length = struct.unpack_from('<I', data, 12)[0]
+encoding = json.loads(data[16:16 + length])['chunks'][0]['encoding']
+print(int(encoding.removeprefix('json-v')))
+PYVERSION
+)
+    (( fixture_version > prior_reads )) || continue
+    copy=/work/acceptance/prior-release/$(basename "$fixture")
+    cp "$fixture" "$copy"
+    if runuser -u builder -- "$prior_release_cli" --validate-native "$copy" > /dev/null 2> "$copy.stderr"; then
+      echo "Prior release accepted newer schema $fixture_version: $fixture" >&2
+      exit 1
+    fi
+    jq -e '.status == "failed"' "$copy.stderr" > /dev/null
+    cmp "$fixture" "$copy"
+    newer_fixtures=$((newer_fixtures + 1))
+  done
+  sheet_free=/work/acceptance/prior-release/sheet-free.sketchyup
+  runuser -u builder -- sketchyup-cli --script "$source_dir/examples/saved-scenes.json" \
+    --output "$sheet_free" > /dev/null
+  runuser -u builder -- "$prior_release_cli" --validate-native "$sheet_free" |
+    jq -e --argjson reads "$prior_reads" '.valid and .documentVersion <= $reads' > /dev/null
+  printf 'Prior release reads schemas up to %s: refused %s newer fixtures unchanged and accepted this package'"'"'s sheet-free save.\n' \
+    "$prior_reads" "$newer_fixtures"
+fi
 runuser -u builder -- sketchyup-cli --input '/work/acceptance/Room model.sketchyup' > /work/acceptance/reopened.json
 cmp /work/acceptance/expected.json /work/acceptance/reopened.json
 runuser -u builder -- python "$source_dir/scripts/verify-installed-migrations.py" \
