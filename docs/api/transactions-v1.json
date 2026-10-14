@@ -2222,9 +2222,20 @@
                                         "command": {
                                             "const": "drawing_sheet.create"
                                         },
+                                        "marginMm": {
+                                            "description": "Page-margin frame in millimetres, at most a quarter of the shorter paper side; defaults to 10",
+                                            "maximum": 50,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        },
                                         "name": {
                                             "maxLength": 1024,
                                             "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "number": {
+                                            "description": "Sheet number such as A-101; at most 32 bytes, unique among sheets when nonempty",
+                                            "maxLength": 32,
                                             "type": "string"
                                         },
                                         "paper": {
@@ -2693,6 +2704,1383 @@
                                         }
                                     },
                                     "required": [
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Change a drawing sheet's number or page margin",
+                                    "minProperties": 3,
+                                    "properties": {
+                                        "command": {
+                                            "const": "drawing_sheet.update"
+                                        },
+                                        "marginMm": {
+                                            "description": "Page-margin frame in millimetres, at most a quarter of the shorter paper side; defaults to 10",
+                                            "maximum": 50,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        },
+                                        "number": {
+                                            "description": "Sheet number such as A-101; at most 32 bytes, unique among sheets when nonempty",
+                                            "maxLength": 32,
+                                            "type": "string"
+                                        },
+                                        "sheet": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "sheet",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Add a text, label, dimension, line, rectangle or title block on top of a sheet's z order. Paper millimetres from the top-left corner, x right and y down. A dimension binds two model vertices or edge points in a view drawn to scale and measures paper length x scale; a view that is broken, failed or not to scale is refused with DRAWING_ITEM_NOT_MEASURABLE",
+                                    "oneOf": [
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "align": {
+                                                            "enum": [
+                                                                "left",
+                                                                "center",
+                                                                "right"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "font": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "family": {
+                                                                    "maxLength": 128,
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "sizePt": {
+                                                                    "maximum": 72,
+                                                                    "minimum": 4,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "family",
+                                                                "sizePt"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "frame": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "heightMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "widthMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "xMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "yMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "heightMm",
+                                                                "widthMm",
+                                                                "xMm",
+                                                                "yMm"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "text": {
+                                                            "maxLength": 4096,
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "frame",
+                                                        "text"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "text"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "font": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "family": {
+                                                                    "maxLength": 128,
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "sizePt": {
+                                                                    "maximum": 72,
+                                                                    "minimum": 4,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "family",
+                                                                "sizePt"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "leader": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "target": {
+                                                            "oneOf": [
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "kind": {
+                                                                            "const": "paper"
+                                                                        },
+                                                                        "xMm": {
+                                                                            "maximum": 2000,
+                                                                            "minimum": 0,
+                                                                            "type": "number"
+                                                                        },
+                                                                        "yMm": {
+                                                                            "maximum": 2000,
+                                                                            "minimum": 0,
+                                                                            "type": "number"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "kind",
+                                                                        "xMm",
+                                                                        "yMm"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "anchor": {
+                                                                            "description": "A model vertex, or a point on a model edge at a fraction from its canonical a endpoint to b",
+                                                                            "oneOf": [
+                                                                                {
+                                                                                    "additionalProperties": false,
+                                                                                    "properties": {
+                                                                                        "body": {
+                                                                                            "maxLength": 20,
+                                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "kind": {
+                                                                                            "const": "vertex"
+                                                                                        },
+                                                                                        "vertex": {
+                                                                                            "maxLength": 20,
+                                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    },
+                                                                                    "required": [
+                                                                                        "body",
+                                                                                        "kind",
+                                                                                        "vertex"
+                                                                                    ],
+                                                                                    "type": "object"
+                                                                                },
+                                                                                {
+                                                                                    "additionalProperties": false,
+                                                                                    "properties": {
+                                                                                        "body": {
+                                                                                            "maxLength": 20,
+                                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "edge": {
+                                                                                            "maxLength": 20,
+                                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "fraction": {
+                                                                                            "maximum": 1,
+                                                                                            "minimum": 0,
+                                                                                            "type": "number"
+                                                                                        },
+                                                                                        "kind": {
+                                                                                            "const": "edge"
+                                                                                        }
+                                                                                    },
+                                                                                    "required": [
+                                                                                        "body",
+                                                                                        "edge",
+                                                                                        "fraction",
+                                                                                        "kind"
+                                                                                    ],
+                                                                                    "type": "object"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        "kind": {
+                                                                            "const": "view"
+                                                                        },
+                                                                        "view": {
+                                                                            "maxLength": 20,
+                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "anchor",
+                                                                        "kind",
+                                                                        "view"
+                                                                    ],
+                                                                    "type": "object"
+                                                                }
+                                                            ]
+                                                        },
+                                                        "text": {
+                                                            "maxLength": 4096,
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        },
+                                                        "textAt": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "xMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "yMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "xMm",
+                                                                "yMm"
+                                                            ],
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "text",
+                                                        "textAt",
+                                                        "target"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "label"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "anchors": {
+                                                            "items": {
+                                                                "description": "A model vertex, or a point on a model edge at a fraction from its canonical a endpoint to b",
+                                                                "oneOf": [
+                                                                    {
+                                                                        "additionalProperties": false,
+                                                                        "properties": {
+                                                                            "body": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "kind": {
+                                                                                "const": "vertex"
+                                                                            },
+                                                                            "vertex": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "body",
+                                                                            "kind",
+                                                                            "vertex"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    {
+                                                                        "additionalProperties": false,
+                                                                        "properties": {
+                                                                            "body": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "edge": {
+                                                                                "maxLength": 20,
+                                                                                "pattern": "^[1-9][0-9]*$",
+                                                                                "type": "string"
+                                                                            },
+                                                                            "fraction": {
+                                                                                "maximum": 1,
+                                                                                "minimum": 0,
+                                                                                "type": "number"
+                                                                            },
+                                                                            "kind": {
+                                                                                "const": "edge"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "body",
+                                                                            "edge",
+                                                                            "fraction",
+                                                                            "kind"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    }
+                                                                ]
+                                                            },
+                                                            "maxItems": 2,
+                                                            "minItems": 2,
+                                                            "type": "array"
+                                                        },
+                                                        "font": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "family": {
+                                                                    "maxLength": 128,
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "sizePt": {
+                                                                    "maximum": 72,
+                                                                    "minimum": 4,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "family",
+                                                                "sizePt"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "offsetMm": {
+                                                            "maximum": 1000000,
+                                                            "minimum": -1000000,
+                                                            "type": "number"
+                                                        },
+                                                        "orientation": {
+                                                            "enum": [
+                                                                "aligned",
+                                                                "horizontal",
+                                                                "vertical"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "prefix": {
+                                                            "maxLength": 256,
+                                                            "minLength": 0,
+                                                            "type": "string"
+                                                        },
+                                                        "view": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "view",
+                                                        "anchors"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "dimension"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "dash": {
+                                                            "enum": [
+                                                                "solid",
+                                                                "dashed"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "from": {
+                                                            "items": {
+                                                                "maximum": 2000,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 2,
+                                                            "minItems": 2,
+                                                            "type": "array"
+                                                        },
+                                                        "strokeMm": {
+                                                            "maximum": 2,
+                                                            "minimum": 0.1,
+                                                            "type": "number"
+                                                        },
+                                                        "to": {
+                                                            "items": {
+                                                                "maximum": 2000,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 2,
+                                                            "minItems": 2,
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "from",
+                                                        "to"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "line"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "dash": {
+                                                            "enum": [
+                                                                "solid",
+                                                                "dashed"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "frame": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "heightMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "widthMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "xMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "yMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "heightMm",
+                                                                "widthMm",
+                                                                "xMm",
+                                                                "yMm"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "strokeMm": {
+                                                            "maximum": 2,
+                                                            "minimum": 0.1,
+                                                            "type": "number"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "frame"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "rectangle"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "fields": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "date": {
+                                                                    "maxLength": 256,
+                                                                    "minLength": 0,
+                                                                    "type": "string"
+                                                                },
+                                                                "drawingTitle": {
+                                                                    "maxLength": 256,
+                                                                    "minLength": 0,
+                                                                    "type": "string"
+                                                                },
+                                                                "project": {
+                                                                    "maxLength": 256,
+                                                                    "minLength": 0,
+                                                                    "type": "string"
+                                                                },
+                                                                "revision": {
+                                                                    "maxLength": 256,
+                                                                    "minLength": 0,
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "font": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "family": {
+                                                                    "maxLength": 128,
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "sizePt": {
+                                                                    "maximum": 72,
+                                                                    "minimum": 4,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "family",
+                                                                "sizePt"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "frame": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "heightMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "widthMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "xMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "yMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "heightMm",
+                                                                "widthMm",
+                                                                "xMm",
+                                                                "yMm"
+                                                            ],
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "frame"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "titleBlock"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "properties": {
+                                        "command": {
+                                            "const": "drawing_item.create"
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        },
+                                        "kind": {
+                                            "enum": [
+                                                "text",
+                                                "label",
+                                                "dimension",
+                                                "line",
+                                                "rectangle",
+                                                "titleBlock"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "sheet": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "sheet",
+                                        "kind",
+                                        "data",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Edit a page item's data; kind must name the item's kind. Omitted fields keep their values. A dimension's view and anchors change only through drawing_item.reattach",
+                                    "oneOf": [
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "align": {
+                                                            "enum": [
+                                                                "left",
+                                                                "center",
+                                                                "right"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "font": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "family": {
+                                                                    "maxLength": 128,
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "sizePt": {
+                                                                    "maximum": 72,
+                                                                    "minimum": 4,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "family",
+                                                                "sizePt"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "frame": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "heightMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "widthMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "xMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "yMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "heightMm",
+                                                                "widthMm",
+                                                                "xMm",
+                                                                "yMm"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "text": {
+                                                            "maxLength": 4096,
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "text"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "font": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "family": {
+                                                                    "maxLength": 128,
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "sizePt": {
+                                                                    "maximum": 72,
+                                                                    "minimum": 4,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "family",
+                                                                "sizePt"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "leader": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "target": {
+                                                            "oneOf": [
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "kind": {
+                                                                            "const": "paper"
+                                                                        },
+                                                                        "xMm": {
+                                                                            "maximum": 2000,
+                                                                            "minimum": 0,
+                                                                            "type": "number"
+                                                                        },
+                                                                        "yMm": {
+                                                                            "maximum": 2000,
+                                                                            "minimum": 0,
+                                                                            "type": "number"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "kind",
+                                                                        "xMm",
+                                                                        "yMm"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "anchor": {
+                                                                            "description": "A model vertex, or a point on a model edge at a fraction from its canonical a endpoint to b",
+                                                                            "oneOf": [
+                                                                                {
+                                                                                    "additionalProperties": false,
+                                                                                    "properties": {
+                                                                                        "body": {
+                                                                                            "maxLength": 20,
+                                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "kind": {
+                                                                                            "const": "vertex"
+                                                                                        },
+                                                                                        "vertex": {
+                                                                                            "maxLength": 20,
+                                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    },
+                                                                                    "required": [
+                                                                                        "body",
+                                                                                        "kind",
+                                                                                        "vertex"
+                                                                                    ],
+                                                                                    "type": "object"
+                                                                                },
+                                                                                {
+                                                                                    "additionalProperties": false,
+                                                                                    "properties": {
+                                                                                        "body": {
+                                                                                            "maxLength": 20,
+                                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "edge": {
+                                                                                            "maxLength": 20,
+                                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "fraction": {
+                                                                                            "maximum": 1,
+                                                                                            "minimum": 0,
+                                                                                            "type": "number"
+                                                                                        },
+                                                                                        "kind": {
+                                                                                            "const": "edge"
+                                                                                        }
+                                                                                    },
+                                                                                    "required": [
+                                                                                        "body",
+                                                                                        "edge",
+                                                                                        "fraction",
+                                                                                        "kind"
+                                                                                    ],
+                                                                                    "type": "object"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        "kind": {
+                                                                            "const": "view"
+                                                                        },
+                                                                        "view": {
+                                                                            "maxLength": 20,
+                                                                            "pattern": "^[1-9][0-9]*$",
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "anchor",
+                                                                        "kind",
+                                                                        "view"
+                                                                    ],
+                                                                    "type": "object"
+                                                                }
+                                                            ]
+                                                        },
+                                                        "text": {
+                                                            "maxLength": 4096,
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        },
+                                                        "textAt": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "xMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "yMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "xMm",
+                                                                "yMm"
+                                                            ],
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "label"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "font": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "family": {
+                                                                    "maxLength": 128,
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "sizePt": {
+                                                                    "maximum": 72,
+                                                                    "minimum": 4,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "family",
+                                                                "sizePt"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "offsetMm": {
+                                                            "maximum": 1000000,
+                                                            "minimum": -1000000,
+                                                            "type": "number"
+                                                        },
+                                                        "orientation": {
+                                                            "enum": [
+                                                                "aligned",
+                                                                "horizontal",
+                                                                "vertical"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "prefix": {
+                                                            "maxLength": 256,
+                                                            "minLength": 0,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "dimension"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "dash": {
+                                                            "enum": [
+                                                                "solid",
+                                                                "dashed"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "from": {
+                                                            "items": {
+                                                                "maximum": 2000,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 2,
+                                                            "minItems": 2,
+                                                            "type": "array"
+                                                        },
+                                                        "strokeMm": {
+                                                            "maximum": 2,
+                                                            "minimum": 0.1,
+                                                            "type": "number"
+                                                        },
+                                                        "to": {
+                                                            "items": {
+                                                                "maximum": 2000,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "maxItems": 2,
+                                                            "minItems": 2,
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "line"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "dash": {
+                                                            "enum": [
+                                                                "solid",
+                                                                "dashed"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "frame": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "heightMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "widthMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "xMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "yMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "heightMm",
+                                                                "widthMm",
+                                                                "xMm",
+                                                                "yMm"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "strokeMm": {
+                                                            "maximum": 2,
+                                                            "minimum": 0.1,
+                                                            "type": "number"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "rectangle"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "additionalProperties": false,
+                                                    "minProperties": 1,
+                                                    "properties": {
+                                                        "fields": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "date": {
+                                                                    "maxLength": 256,
+                                                                    "minLength": 0,
+                                                                    "type": "string"
+                                                                },
+                                                                "drawingTitle": {
+                                                                    "maxLength": 256,
+                                                                    "minLength": 0,
+                                                                    "type": "string"
+                                                                },
+                                                                "project": {
+                                                                    "maxLength": 256,
+                                                                    "minLength": 0,
+                                                                    "type": "string"
+                                                                },
+                                                                "revision": {
+                                                                    "maxLength": 256,
+                                                                    "minLength": 0,
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "font": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "family": {
+                                                                    "maxLength": 128,
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "sizePt": {
+                                                                    "maximum": 72,
+                                                                    "minimum": 4,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "family",
+                                                                "sizePt"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "frame": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "heightMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "widthMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "xMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                },
+                                                                "yMm": {
+                                                                    "maximum": 2000,
+                                                                    "minimum": 0,
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "heightMm",
+                                                                "widthMm",
+                                                                "xMm",
+                                                                "yMm"
+                                                            ],
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "const": "titleBlock"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "properties": {
+                                        "command": {
+                                            "const": "drawing_item.update"
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        },
+                                        "item": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "enum": [
+                                                "text",
+                                                "label",
+                                                "dimension",
+                                                "line",
+                                                "rectangle",
+                                                "titleBlock"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "item",
+                                        "kind",
+                                        "data",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Move a page item to another sheet",
+                                    "properties": {
+                                        "command": {
+                                            "const": "drawing_item.move"
+                                        },
+                                        "item": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "sheet": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "item",
+                                        "sheet",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Order a sheet's page items",
+                                    "properties": {
+                                        "command": {
+                                            "const": "drawing_item.reorder"
+                                        },
+                                        "order": {
+                                            "items": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "maxItems": 512,
+                                            "minItems": 0,
+                                            "type": "array"
+                                        },
+                                        "sheet": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "sheet",
+                                        "order",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Delete a page item",
+                                    "properties": {
+                                        "command": {
+                                            "const": "drawing_item.delete"
+                                        },
+                                        "item": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "item",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Rebind a dimension's two anchors or a view-target label's one anchor to explicit model topology, as confirmed from drawing_item.reattach_candidates. The view must be drawn to scale (DRAWING_ITEM_NOT_MEASURABLE otherwise)",
+                                    "properties": {
+                                        "anchors": {
+                                            "items": {
+                                                "description": "A model vertex, or a point on a model edge at a fraction from its canonical a endpoint to b",
+                                                "oneOf": [
+                                                    {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "body": {
+                                                                "maxLength": 20,
+                                                                "pattern": "^[1-9][0-9]*$",
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "const": "vertex"
+                                                            },
+                                                            "vertex": {
+                                                                "maxLength": 20,
+                                                                "pattern": "^[1-9][0-9]*$",
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "body",
+                                                            "kind",
+                                                            "vertex"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "body": {
+                                                                "maxLength": 20,
+                                                                "pattern": "^[1-9][0-9]*$",
+                                                                "type": "string"
+                                                            },
+                                                            "edge": {
+                                                                "maxLength": 20,
+                                                                "pattern": "^[1-9][0-9]*$",
+                                                                "type": "string"
+                                                            },
+                                                            "fraction": {
+                                                                "maximum": 1,
+                                                                "minimum": 0,
+                                                                "type": "number"
+                                                            },
+                                                            "kind": {
+                                                                "const": "edge"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "body",
+                                                            "edge",
+                                                            "fraction",
+                                                            "kind"
+                                                        ],
+                                                        "type": "object"
+                                                    }
+                                                ]
+                                            },
+                                            "maxItems": 2,
+                                            "minItems": 1,
+                                            "type": "array"
+                                        },
+                                        "command": {
+                                            "const": "drawing_item.reattach"
+                                        },
+                                        "item": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "item",
+                                        "anchors",
                                         "command"
                                     ],
                                     "type": "object"
@@ -7608,6 +8996,116 @@
                                 },
                                 "required": [
                                     "view",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "cursor": {
+                                        "maxLength": 512,
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "limit": {
+                                        "maximum": 100,
+                                        "minimum": 1,
+                                        "type": "integer"
+                                    },
+                                    "query": {
+                                        "const": "drawing_items.query"
+                                    },
+                                    "sheet": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "item": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "drawing_item.describe"
+                                    }
+                                },
+                                "required": [
+                                    "item",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "item": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "drawing_item.reattach_candidates"
+                                    }
+                                },
+                                "required": [
+                                    "item",
                                     "apiVersion",
                                     "documentId",
                                     "expectedRevision",

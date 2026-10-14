@@ -47,6 +47,13 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `drawing_view.move` | Move a sheet view to another sheet | `view`, `sheet`, `command` |
 | `drawing_view.delete` | Delete a sheet view | `view`, `command` |
 | `drawing_view.accept` | Accept sheet views as reviewed at the current model | `command` |
+| `drawing_sheet.update` | Change a drawing sheet's number or page margin | `sheet`, `command` |
+| `drawing_item.create` | Add a page item | `sheet`, `kind`, `data`, `command` |
+| `drawing_item.update` | Edit a page item | `item`, `kind`, `data`, `command` |
+| `drawing_item.move` | Move a page item to another sheet | `item`, `sheet`, `command` |
+| `drawing_item.reorder` | Order a sheet's page items | `sheet`, `order`, `command` |
+| `drawing_item.delete` | Delete a page item | `item`, `command` |
+| `drawing_item.reattach` | Reattach a page item to model geometry | `item`, `anchors`, `command` |
 | `document.solar` | Change offline sun study | `solar`, `command` |
 | `document.style` | Change model style | `style`, `command` |
 | `document.units` | Change document units | `units`, `command` |
@@ -158,6 +165,9 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `drawing_sheet.describe` |  | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_views.status` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_view.describe` |  | `view`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_items.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_item.describe` |  | `item`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_item.reattach_candidates` |  | `item`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `selection.get` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entities.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entity.describe` |  | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -221,6 +231,9 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `drawing_sheet.describe` | drawing_sheet.describe: shared versioned SketchyUp operation | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_views.status` | drawing_views.status: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_view.describe` | drawing_view.describe: shared versioned SketchyUp operation | `view`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_items.query` | drawing_items.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_item.describe` | drawing_item.describe: shared versioned SketchyUp operation | `item`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_item.reattach_candidates` | drawing_item.reattach_candidates: shared versioned SketchyUp operation | `item`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `selection.get` | selection.get: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entities.query` | entities.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entity.describe` | entity.describe: shared versioned SketchyUp operation | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |

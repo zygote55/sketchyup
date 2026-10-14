@@ -1465,6 +1465,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                         nested.toString().startsWith("saved_scene.") ||
                         nested.toString().startsWith("drawing_sheet.") ||
                         nested.toString().startsWith("drawing_view.") ||
+                        nested.toString().startsWith("drawing_item.") ||
                         nested.toString().startsWith("section.") ||
                         nested.toString().startsWith("annotation.") || nested == "component.edit" ||
                         nested == "component.edit_instance" || nested == "component.axes" ||
@@ -1669,7 +1670,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
         !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
-        edit.drawingSheets.empty() && edit.drawingViews.empty())
+        edit.drawingSheets.empty() && edit.drawingViews.empty() && edit.drawingItems.empty())
         throw std::runtime_error("Batch has no committed changes");
     if (sheetBatch) {
         edit.drawingSheetScope = true;
@@ -1693,7 +1694,10 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     for (const auto &change : edit.scenes)
         if (!change.before && change.after)
             createdScenes.append(QString::number(change.id));
-    QJsonArray createdDrawingSheets, createdDrawingViews;
+    QJsonArray createdDrawingSheets, createdDrawingViews, createdDrawingItems;
+    for (const auto &change : edit.drawingItems)
+        if (!change.before && change.after)
+            createdDrawingItems.append(QString::number(change.id));
     for (const auto &change : edit.drawingSheets)
         if (!change.before && change.after)
             createdDrawingSheets.append(QString::number(change.id));
@@ -1784,6 +1788,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdAnnotations", createdAnnotations},
                 {"createdDrawingSheets", createdDrawingSheets},
                 {"createdDrawingViews", createdDrawingViews},
+                {"createdDrawingItems", createdDrawingItems},
                 {"recipeOperations", recipeOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
@@ -1848,6 +1853,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdAnnotations", createdAnnotations},
                 {"createdDrawingSheets", createdDrawingSheets},
                 {"createdDrawingViews", createdDrawingViews},
+                {"createdDrawingItems", createdDrawingItems},
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
                        {"assertions", assertions},

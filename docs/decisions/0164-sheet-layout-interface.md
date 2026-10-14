@@ -441,6 +441,92 @@ schema 27.
 - **Invariant tests.** The pointer-identity and reverse tests extend to
   `drawingItems`.
 
+### Implementation conventions (R091.c)
+
+- **Operations.** `drawing_item.create {sheet, kind, data}`,
+  `drawing_item.update {item, kind, data}` (kind must name the item's kind; omitted
+  data fields keep their values; title-block `fields` merge one by one),
+  `drawing_item.move {item, sheet}` (to another sheet, on top; items bound to a view
+  move only with `drawing_view.move`), `drawing_item.reorder {sheet, order}`,
+  `drawing_item.delete {item}` and `drawing_item.reattach {item, anchors}`.
+  `drawing_sheet.update {sheet, number?, marginMm?}`; `drawing_sheet.create` takes
+  optional `number` and `marginMm`. Batch results add `createdDrawingItems`; staging
+  names `drawing_item` changes; `--inspect-native` adds `drawingItems`.
+- **Command anchors** use the annotation command forms, `{kind: "vertex", body,
+  vertex}` and `{kind: "edge", body, edge, fraction}`. The stored ADR 0080 anchor,
+  its world `fallback` and `lastMm` are derived by the command. A dimension's view
+  and anchors are set at creation and change only through `drawing_item.reattach`.
+  Every `drawing_item.*` command that writes a bound item rewrites `lastMm` and the
+  fallbacks when the anchors resolve and the view projects; a broken item keeps its
+  old values.
+- **`lastMm` follows the view.** A `drawing_view.update` or `drawing_view.move` that
+  changes the view's source, frame, offset or scale (its world↔sheet mapping)
+  rewrites `lastMm` for every item bound to the view in the same sheet-only edit.
+  Each position goes through the old mapping's `sheetToWorld`, at the depth of the
+  anchor's last resolved world point, and then the new mapping's `worldToSheet`. If
+  either mapping is unavailable (broken or not to scale), `lastMm` stays as it is. A
+  rename writes no item records. Undo restores the view and its items together, so
+  Reattach always searches where a broken anchor is drawn now.
+- **Not measurable.** Creating a dimension or a view-target label, or reattaching
+  one, evaluates the view synchronously (one capture, as `replaceView` does) and is
+  refused with `DRAWING_ITEM_NOT_MEASURABLE` when the view is broken, failed or not
+  to scale.
+- **Placement.** Aligned: the line is offset along n = (d.y, −d.x) for the
+  measured direction d with paper y down, so a positive offset is above a
+  left-to-right pair. Horizontal: a positive offset is above both points, a negative
+  one below. Vertical: a positive offset is right of both points, a negative one
+  left. The text point is the line's midpoint. Broken text is "[Missing reference]",
+  followed by the prefix when there is one.
+- **Title-block scale** names A0–A5, Letter, Legal and Tabloid within 0.5 mm in
+  either orientation. Views whose scene is missing or has no camera do not count.
+- **Queries.** `drawing_items.query {sheet?}` (paged, revision-bound, record plus
+  `state` and `reasons`, no capture); `drawing_item.describe {item}` (record plus
+  `evaluation`: anchors, `measuredMm`, `lineMm`, `textMm`, `tipMm`, `paperLengthMm`,
+  `valueMetres`, `text`, `titleBlock`); `drawing_item.reattach_candidates {item}`
+  (one capture). For each missing anchor, the query proposes the nearest model vertex or edge point
+  drawn in the view (section-cut lines excluded) to `lastMm`. It prefers a vertex
+  within 2 mm. Proposals use the command anchor form and are never applied.
+- **Pure translation.** `drawsDifferently` compares the frame's size, not its
+  position.
+- **Amend.** `executeAmend` amends a sheet-scoped entry (for example, consecutive
+  nudges labelled "Nudge"). An amendment cannot touch other items or model
+  records.
+- **Lineage table** (`drawing_dimension_tests`). The last column is a model
+  annotation (ADR 0080) on the same edge points, for comparison:
+
+  | Model edit | Vertex anchors | Edge anchors | Model annotation |
+  | --- | --- | --- | --- |
+  | Move, rotate or scale the body | kept | kept | kept |
+  | Move one vertex or one edge | kept, value updates | kept, value updates | kept |
+  | Push/pull the face | kept | kept | kept |
+  | Group the body | kept | kept | kept |
+  | Split the anchored edge (away from the anchor) | kept | broken | kept |
+  | Erase the anchored edge | kept | broken | broken |
+  | Erase the body | broken | broken | broken |
+  | Make a component (consolidation) | broken | broken | broken |
+
+  Undo of each edit restores the item. No model edit writes item records.
+- **Known limitation: edge splits.** Edge splits are the only edits in the table
+  where paper dimensions break and model annotations survive. Model annotations
+  survive because `Document::apply` rewrites the annotation records inside the
+  model edit (`resolveAnnotationEdit` → `remapAnnotationAnchor`), using the edit's
+  `TopologyChanges` descendants. ADR 0163 forbids the same write to sheet records.
+  That lineage exists only in the history entry. It is not persisted, and it is lost
+  when history is trimmed or the file is reopened. Paper resolution that consulted it
+  would therefore give different answers before and after a save, so R091.c does
+  not use it.
+  - Make component breaks model annotations as well. ADR 0078 leaves cross-context
+    consolidation without published lineage. Paper dimensions are no worse there.
+  - Rebinding by geometry (finding the edge that now contains the fallback point)
+    would silently re-bind a missing ID, which §3 rules out.
+  - **Follow-up.** A persisted, append-only lineage journal would fix this. Model
+    edits would maintain it as a model record: retired edge ID → descendant edges
+    with their parameter ranges, per body, bounded and compacted. It would also need
+    a schema 27 field and a cross-context entry for make component (a new ADR 0078
+    contract). Resolution would consult it read-only.
+  - Estimate: about 600–900 lines plus tests, beyond R091.c. Until then, Reattach is
+    the repair.
+
 ## 4. Keyboard model
 
 - **Workspace-scoped shortcuts.**

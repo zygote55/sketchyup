@@ -155,6 +155,63 @@ QJsonObject drawingViewUpdateSpec() {
     entry["parameters"] = parameters;
     return entry;
 }
+QJsonObject drawingSheetUpdateSpec() {
+    auto entry = spec("drawing_sheet.update", "Change a drawing sheet's number or page margin",
+                      "Drawing sheets",
+                      {{"sheet", stableId()},
+                       {"number", drawingSheetNumberSchema()},
+                       {"marginMm", drawingSheetMarginSchema()}},
+                      {"sheet"});
+    auto parameters = entry["parameters"].toObject();
+    parameters["minProperties"] = 3;
+    entry["parameters"] = parameters;
+    return entry;
+}
+QJsonObject drawingItemSpec(bool creating) {
+    auto entry =
+        creating
+            ? spec("drawing_item.create", "Add a page item", "Drawing sheets",
+                   {{"sheet", stableId()},
+                    {"kind", drawingItemKindSchema()},
+                    {"data", QJsonObject{{"type", "object"}}}},
+                   {"sheet", "kind", "data"})
+            : spec("drawing_item.update", "Edit a page item", "Drawing sheets",
+                   {{"item", stableId()},
+                    {"kind", drawingItemKindSchema()},
+                    {"data", QJsonObject{{"type", "object"}}}},
+                   {"item", "kind", "data"});
+    auto parameters = entry["parameters"].toObject();
+    parameters["oneOf"] = drawingItemDataSchemas(creating);
+    parameters["description"] =
+        creating
+            ? "Add a text, label, dimension, line, rectangle or title block on top of a sheet's "
+              "z order. Paper millimetres from the top-left corner, x right and y down. A "
+              "dimension binds two model vertices or edge points in a view drawn to scale and "
+              "measures paper length x scale; a view that is broken, failed or not to scale is "
+              "refused with DRAWING_ITEM_NOT_MEASURABLE"
+            : "Edit a page item's data; kind must name the item's kind. Omitted fields keep "
+              "their values. A dimension's view and anchors change only through "
+              "drawing_item.reattach";
+    entry["parameters"] = parameters;
+    return entry;
+}
+QJsonObject drawingItemReattachSpec() {
+    auto entry = spec("drawing_item.reattach", "Reattach a page item to model geometry",
+                      "Drawing sheets",
+                      {{"item", stableId()},
+                       {"anchors", QJsonObject{{"type", "array"},
+                                               {"items", drawingItemAnchorSchema()},
+                                               {"minItems", 1},
+                                               {"maxItems", 2}}}},
+                      {"item", "anchors"});
+    auto parameters = entry["parameters"].toObject();
+    parameters["description"] =
+        "Rebind a dimension's two anchors or a view-target label's one anchor to explicit "
+        "model topology, as confirmed from drawing_item.reattach_candidates. The view must "
+        "be drawn to scale (DRAWING_ITEM_NOT_MEASURABLE otherwise)";
+    entry["parameters"] = parameters;
+    return entry;
+}
 QJsonObject drawingViewAcceptSpec() {
     auto entry = spec("drawing_view.accept",
                       "Accept sheet views as reviewed at the current model", "Drawing sheets",
@@ -296,7 +353,8 @@ QJsonArray commandCatalog() {
         spec("saved_scene.recall", "Recall saved model style, sun study, visibility and named sections", "Saved scenes",
              {{"scene", stableId()}}, {"scene"}),
         spec("drawing_sheet.create", "Create a drawing sheet", "Drawing sheets",
-             {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}}, {"paper", drawingPaperSchema()}}, {"name", "paper"}),
+             {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}}, {"paper", drawingPaperSchema()},
+              {"number", drawingSheetNumberSchema()}, {"marginMm", drawingSheetMarginSchema()}}, {"name", "paper"}),
         spec("drawing_sheet.rename", "Rename a drawing sheet", "Drawing sheets",
              {{"sheet", stableId()}, {"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}}}, {"sheet", "name"}),
         spec("drawing_sheet.resize", "Change a drawing sheet's paper size", "Drawing sheets",
@@ -321,6 +379,16 @@ QJsonArray commandCatalog() {
         spec("drawing_view.delete", "Delete a sheet view", "Drawing sheets",
              {{"view", stableId()}}, {"view"}),
         drawingViewAcceptSpec(),
+        drawingSheetUpdateSpec(),
+        drawingItemSpec(true),
+        drawingItemSpec(false),
+        spec("drawing_item.move", "Move a page item to another sheet", "Drawing sheets",
+             {{"item", stableId()}, {"sheet", stableId()}}, {"item", "sheet"}),
+        spec("drawing_item.reorder", "Order a sheet's page items", "Drawing sheets",
+             {{"sheet", stableId()}, {"order", list(stableId(), 0, 512)}}, {"sheet", "order"}),
+        spec("drawing_item.delete", "Delete a page item", "Drawing sheets",
+             {{"item", stableId()}}, {"item"}),
+        drawingItemReattachSpec(),
         spec("document.solar", "Change offline sun study", "Document",
              {{"solar", solarSettingsSchema()}}, {"solar"}),
         spec("document.style", "Change model style", "Document",
