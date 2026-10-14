@@ -56,6 +56,11 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
         return change.before && change.after && *change.before == *change.after;
     });
     edit.nextDrawingViewFloor = after.nextDrawingViewId();
+    difference(before.drawingItems(), after.drawingItems(), edit.drawingItems);
+    std::erase_if(edit.drawingItems, [](const auto &change) {
+        return change.before && change.after && *change.before == *change.after;
+    });
+    edit.nextDrawingItemFloor = after.nextDrawingItemId();
     if (before.activeSections() != after.activeSections())
         edit.activeSections = std::pair{before.activeSections(), after.activeSections()};
     if (before.hostedComponents() != after.hostedComponents())

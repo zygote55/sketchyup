@@ -1,7 +1,8 @@
 #pragma once
-#include "core/asset_records.hpp"
 #include "core/annotation_records.hpp"
+#include "core/asset_records.hpp"
 #include "core/component_records.hpp"
+#include "core/drawing_item_records.hpp"
 #include "core/drawing_sheet_records.hpp"
 #include "core/hosted_components.hpp"
 #include "core/material_records.hpp"
@@ -54,6 +55,10 @@ struct DrawingSheetChange {
 struct DrawingViewChange {
     Id id{};
     DrawingViewPtr before, after;
+};
+struct DrawingItemChange {
+    Id id{};
+    DrawingItemPtr before, after;
 };
 struct SectionChange {
     Id id{};
@@ -115,6 +120,9 @@ struct Edit {
     Id nextDrawingSheetFloor{};
     std::vector<DrawingViewChange> drawingViews{};
     Id nextDrawingViewFloor{};
+    // Page items (ADR 0164) follow the same rule.
+    std::vector<DrawingItemChange> drawingItems{};
+    Id nextDrawingItemFloor{};
     bool drawingSheetScope{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
@@ -182,6 +190,8 @@ class Document {
     Id nextDrawingSheetId() const { return nextDrawingSheetId_; }
     const DrawingViewRecords &drawingViews() const { return drawingViews_; }
     Id nextDrawingViewId() const { return nextDrawingViewId_; }
+    const DrawingItemRecords &drawingItems() const { return drawingItems_; }
+    Id nextDrawingItemId() const { return nextDrawingItemId_; }
     std::uint64_t revision() const { return revision_; }
     // Maintained incrementally by apply, undo/redo, amendment and restore.
     const DocumentTotals &materializedTotals() const { return totals_; }
@@ -323,6 +333,9 @@ class Document {
     Id nextDrawingSheetId_{1};
     DrawingViewRecords drawingViews_;
     Id nextDrawingViewId_{1};
+    // Not persisted until R091.b; restore starts with an empty item table.
+    DrawingItemRecords drawingItems_;
+    Id nextDrawingItemId_{1};
     struct DefinitionFloor {
         Id nextMemberId{1};
         std::map<Id, std::pair<Id, Id>> geometry;

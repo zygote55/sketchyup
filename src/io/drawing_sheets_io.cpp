@@ -120,9 +120,15 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
         if (position < 0 || position >= double(drawingSheetCountLimit) ||
             position != std::floor(position))
             throw std::runtime_error("Invalid drawing sheet order position");
-        auto sheet = std::make_shared<DrawingSheetRecord>(DrawingSheetRecord{
-            id(record["id"]), name(record["name"]), static_cast<std::uint32_t>(position),
-            DrawingPaper{number(paper["widthMm"]), number(paper["heightMm"])}});
+        const DrawingPaper size{number(paper["widthMm"]), number(paper["heightMm"])};
+        // The sheet number and margin are not stored until R091.b; restore the defaults.
+        auto sheet = std::make_shared<DrawingSheetRecord>(
+            DrawingSheetRecord{id(record["id"]),
+                               name(record["name"]),
+                               static_cast<std::uint32_t>(position),
+                               size,
+                               {},
+                               defaultDrawingSheetMarginMm(size)});
         // Canonical tables are written in ascending ID order.
         if (!sheets.empty() && sheet->id <= sheets.rbegin()->first)
             throw std::runtime_error("Drawing sheets must be stored once each in ID order");

@@ -532,7 +532,8 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     // The draft starts with empty drawing-sheet tables; sheet edits are never part
     // of a shared component scope (ADR 0163).
     if (!draft.drawingSheets().empty() || !draft.drawingViews().empty() ||
-        draft.nextDrawingSheetId() != 1 || draft.nextDrawingViewId() != 1)
+        !draft.drawingItems().empty() || draft.nextDrawingSheetId() != 1 ||
+        draft.nextDrawingViewId() != 1 || draft.nextDrawingItemId() != 1)
         throw std::runtime_error("Shared component edits cannot modify drawing sheets");
     if (draft.assets() != baselineAssets)
         throw std::runtime_error("Edit document assets outside a shared geometry scope");

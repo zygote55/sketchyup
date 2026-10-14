@@ -21,6 +21,10 @@ struct DrawingSheetRecord {
     std::string name;
     std::uint32_t position{};
     DrawingPaper paper;
+    // ADR 0164: the sheet number ("A-101"), 0–32 bytes and unique when nonempty,
+    // and the page-margin frame, 0–50 mm and at most a quarter of the shorter side.
+    std::string number;
+    double marginMm{10};
     bool operator==(const DrawingSheetRecord &) const = default;
 };
 // A tagged source. R090 has only saved-scene sources; a future external-model kind
@@ -64,15 +68,24 @@ using DrawingSheetPtr = std::shared_ptr<const DrawingSheetRecord>;
 using DrawingSheetRecords = std::map<Id, DrawingSheetPtr>;
 using DrawingViewPtr = std::shared_ptr<const DrawingViewRecord>;
 using DrawingViewRecords = std::map<Id, DrawingViewPtr>;
+// Page items (ADR 0164), declared in core/drawing_item_records.hpp.
+struct DrawingItemRecord;
+using DrawingItemPtr = std::shared_ptr<const DrawingItemRecord>;
+using DrawingItemRecords = std::map<Id, DrawingItemPtr>;
 inline constexpr size_t drawingSheetCountLimit = 256, drawingViewCountLimit = 1024,
                         drawingViewsPerSheetLimit = 64, drawingSheetBytesLimit = 8 * 1024 * 1024;
 inline constexpr double drawingViewOffsetLimitMm = 1e6;
 size_t drawingSheetBytes(const DrawingSheetPtr &sheet);
 size_t drawingViewBytes(const DrawingViewPtr &view);
-// Validates both tables together: views name a live sheet and fit its paper.
-// A view whose scene no longer exists stays valid (a diagnosed broken view).
+// The default page margin: 10 mm, reduced to a quarter of the shorter paper side
+// on small paper so that every valid paper has a valid default.
+double defaultDrawingSheetMarginMm(const DrawingPaper &paper);
+// Validates the tables together: views name a live sheet and fit its paper, and
+// items (ADR 0164) name a live sheet and fit it. All records share the eight MiB
+// budget. A view whose scene no longer exists stays valid (a diagnosed broken view).
 void validateDrawingSheetRecords(const DrawingSheetRecords &sheets, Id nextSheet,
-                                 const DrawingViewRecords &views, Id nextView);
+                                 const DrawingViewRecords &views, Id nextView,
+                                 const DrawingItemRecords &items = {}, Id nextItem = 1);
 // Creating a view, or changing its source, requires the source scene to exist.
 bool drawingViewSourceExists(const SceneRecords &scenes, const DrawingViewSource &source);
 class Document;
