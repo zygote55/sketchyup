@@ -161,7 +161,11 @@ int main(int argc, char **argv) {
             check(inspected["valid"] == true && inspected["documentVersion"].toInt() >= 1,
                   "Historical file fully validates");
             const auto report = migrateNativeFile(source, output);
-            check(report["sourceUnmodified"] == true && report["outputDocumentVersion"] == nativeDocumentVersion,
+            // The writer emits the lowest schema the content needs (ADR 0163 decision 2).
+            const auto sheets = !loadDocument(source).drawingSheets().empty();
+            check(report["sourceUnmodified"] == true &&
+                      report["outputDocumentVersion"] ==
+                          (sheets ? nativeDocumentVersion : nativeSheetFreeDocumentVersion),
                   "Migration report identifies public schema");
             check(read(source) == before && encodeDocument(loadDocument(output)) == model,
                   "Migration preserves source bytes and all model records");
@@ -193,6 +197,12 @@ int main(int argc, char **argv) {
                 if (version < introduced)
                     for (const auto &field : fields)
                         tree.remove(field);
+            if (version >= 27) {
+                tree["drawingSheets"] = QJsonArray{};
+                tree["nextDrawingSheetId"] = "1";
+                tree["drawingViews"] = QJsonArray{};
+                tree["nextDrawingViewId"] = "1";
+            }
             if (version == 1)
                 tree.remove("revision");
             const auto source = files.filePath(QString("raw-v%1.json").arg(version));

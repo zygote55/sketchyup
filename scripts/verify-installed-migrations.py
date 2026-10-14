@@ -58,7 +58,11 @@ def main():
             after = run("--inspect-native", target)
             require(before["valid"] and after["valid"] and not after["migrationNeeded"],
                     f"Migration did not produce a valid current container: {source.name}")
-            require(after["documentVersion"] == capabilities["documentVersion"] and
+            # The writer emits the lowest schema the content needs (ADR 0163), so a
+            # sheet-free document stays at an older schema than documentVersion.
+            require(after["documentVersion"] == migrated["outputDocumentVersion"] and
+                    before["documentVersion"] <= after["documentVersion"] <=
+                    capabilities["documentVersion"] and
                     after["containerVersion"] == capabilities["containerVersion"],
                     f"Unexpected output format: {source.name}")
             require(migrated["status"] == "migrated" and migrated["sourceUnmodified"] and

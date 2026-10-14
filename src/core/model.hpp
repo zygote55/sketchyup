@@ -274,7 +274,9 @@ class Document {
                  ModelStyle style = {}, SceneRecords scenes = {}, Id nextSceneId = 1,
                  SectionRecords sections = {}, Id nextSectionId = 1, ActiveSections activeSections = {},
                  AnnotationRecords annotations = {}, Id nextAnnotationId = 1, SolarSettings solar = {},
-                 int displayPrecision = fullDisplayPrecision);
+                 int displayPrecision = fullDisplayPrecision,
+                 DrawingSheetRecords drawingSheets = {}, Id nextDrawingSheetId = 1,
+                 DrawingViewRecords drawingViews = {}, Id nextDrawingViewId = 1);
 
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
@@ -288,7 +290,9 @@ class Document {
                         SceneRecords scenes, Id nextSceneId, SectionRecords sections,
                         Id nextSectionId, ActiveSections activeSections,
                         AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar,
-                        int displayPrecision);
+                        int displayPrecision, DrawingSheetRecords drawingSheets = {},
+                        Id nextDrawingSheetId = 1, DrawingViewRecords drawingViews = {},
+                        Id nextDrawingViewId = 1);
 
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};
@@ -314,7 +318,7 @@ class Document {
     ActiveSections activeSections_;
     AnnotationRecords annotations_;
     Id nextAnnotationId_{1};
-    // Not persisted until schema 27 (R090.b); restore starts with empty tables.
+    // Persisted from schema 27 (R090.b); older schemas restore empty tables.
     DrawingSheetRecords drawingSheets_;
     Id nextDrawingSheetId_{1};
     DrawingViewRecords drawingViews_;
