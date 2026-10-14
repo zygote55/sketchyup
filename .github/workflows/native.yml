@@ -55,6 +55,8 @@ jobs:
         run: python scripts/verify-shipped-recipes.py --cli build/dev/sketchyup-cli --examples examples
       - name: Generated reference matches live registries
         run: python scripts/generate-tool-reference.py --cli build/dev/sketchyup-cli --root . --check
+      - name: Generated API schemas match live registries
+        run: python scripts/generate-api-schemas.py --cli build/dev/sketchyup-cli --app build/dev/sketchyup --root . --check
       - name: Install the glTF validator
         run: |
           mkdir -p build/gltf-validator

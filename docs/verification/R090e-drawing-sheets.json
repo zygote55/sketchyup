@@ -1,0 +1,210 @@
+{
+ "layer": "R090.e",
+ "date": "2026-10-14",
+ "branch": "build/r090e-sheets-verification",
+ "sourceCommit": "ac61cceed8d08d733e3fe40b3da05ac5e50d0ba5",
+ "base": {
+  "pr": 313,
+  "head": "ababdaf2"
+ },
+ "host": {
+  "qt6-base": "6.11.2-3",
+  "gcc": "16.2.1",
+  "parallel": 6
+ },
+ "ctest": {
+  "dev": {
+   "total": 194,
+   "passed": 194,
+   "skipped": 11
+  },
+  "headless": {
+   "total": 63,
+   "passed": 63,
+   "skipped": 0
+  },
+  "sanitize": {
+   "total": 63,
+   "passed": 63,
+   "skipped": 0
+  },
+  "sanitizeR090Suites": {
+   "configuration": "-DSKETCHYUP_BUILD_CLI=ON",
+   "tests": [
+    "drawing_sheet_records",
+    "drawing_views",
+    "transaction_dispatch",
+    "drawing_sheet_commands",
+    "drawing_sheet_io"
+   ],
+   "passed": 5
+  }
+ },
+ "generatedSchemas": {
+  "script": "scripts/generate-api-schemas.py",
+  "files": 10,
+  "check": "match",
+  "toolReference": {
+   "files": 2,
+   "check": "match"
+  }
+ },
+ "goldenFingerprints": {
+  "orthographic": "2979d0391bf8426b5ee74adbd67c053ac4a06fc22ef6e8384dda2b3dc4b5e487",
+  "perspective": "01ccf7a9736d87ba2e16b8319f07b10a400f053e256b76a2641a33a1a99b6978",
+  "devEqualsSanitize": true
+ },
+ "defect": {
+  "id": "D-030",
+  "class": "Major",
+  "before": {
+   "cli-1.0.0": [
+    "distance {\"ok\": false, \"error\": {\"code\": \"INVALID_REQUEST\", \"message\": \"Parameter must match exactly one supported schema\"}}",
+    "label {\"ok\": false, \"error\": {\"code\": \"INVALID_REQUEST\", \"message\": \"Parameter must match exactly one supported schema\"}}"
+   ],
+   "cli-r090d": [
+    "distance {\"ok\": false, \"error\": {\"code\": \"INVALID_REQUEST\", \"message\": \"Parameter must match exactly one supported schema\"}}",
+    "label {\"ok\": false, \"error\": {\"code\": \"INVALID_REQUEST\", \"message\": \"Parameter must match exactly one supported schema\"}}"
+   ]
+  },
+  "after": [
+   "distance {\"ok\": true, \"stageVersion\": 1}"
+  ]
+ },
+ "downgradeWindow": {
+  "ci": {
+   "run": 38517673211,
+   "job": 115700028489,
+   "pr": 311,
+   "line": "Prior release reads schemas up to 26: refused 1 newer fixtures unchanged and accepted this package's sheet-free save."
+  },
+  "local": {
+   "priorCli": ".local/wt-v100/build/headless/sketchyup-cli (v1.0.0)",
+   "output": [
+    "old: sketchyup-cli 1.0.0  new: sketchyup-cli 1.0.0",
+    "1.0.0 reads up to schema 26",
+    "refused schema 27 drawing-sheets-v27.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+    "  unchanged: 3a08d8b61223b634",
+    "refused schema 27 view.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+    "  unchanged: 4c99bb86e386abf2",
+    "refused schema 27 moved.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+    "  unchanged: 369c4d059729fce8",
+    "1.0.0 on sheet-free save: {\"valid\":true,\"documentVersion\":26}",
+    "1.0.0 on smoke model (no sheets): {\"valid\":true,\"documentVersion\":26}"
+   ]
+  }
+ },
+ "nativeSmoke": {
+  "image": "sketchyup-native-fonts-check:20261008",
+  "run": "r090e-native",
+  "limits": {
+   "cpus": 6,
+   "memoryGiB": 10
+  },
+  "cases": {
+   "file_operation_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.9
+   },
+   "file_operation_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.7
+   },
+   "recovery_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.3
+   },
+   "recovery_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.9
+   }
+  }
+ },
+ "installed": {
+  "run": "r090e-package",
+  "image": "sketchyup-build:20261002",
+  "imageId": "sha256:a4f0465cd5526",
+  "limits": {
+   "cpus": 6,
+   "memoryGiB": 10,
+   "buildParallel": 4
+  },
+  "started": "2026-10-14T08:12:26Z",
+  "finished": "2026-10-14T08:28:37Z",
+  "exitCode": 0,
+  "sourceArchiveSha256": "25a97e989c4f781899100de219d67eb075b43ea94e889458f12d4ed84c530d40",
+  "packageSha256": "82558a04245647b9b76f095c730cfa3400e41416854c04265e62704c5a7b1c18",
+  "priorReleasePackageSha256": "9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7",
+  "checkPhase": {
+   "total": 194,
+   "passed": 194,
+   "skipped": 11,
+   "priorCliSet": true
+  },
+  "lifecycle": "pass",
+  "lines": [
+   "Prior release sketchyup-1.0.0-1-x86_64.pkg.tar.zst: sketchyup-cli 1.0.0",
+   "Prior release reads schemas up to 26: refused 1 newer fixtures unchanged and accepted this package's sheet-free save.",
+   "Installed CLI migrated 30 historical fixtures; all preservation checks passed.",
+   "Install, desktop launch, MIME, upgrade, reopen and removal acceptance passed.",
+   "1.0.0 reads up to schema 26",
+   "refused schema 27 drawing-sheets-v27.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+   "  unchanged: 3a08d8b61223b634",
+   "refused schema 27 view.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+   "  unchanged: aa0935fad975e8cb",
+   "refused schema 27 moved.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+   "  unchanged: 19c15dcd0210cfbc",
+   "1.0.0 on sheet-free save: {\"valid\":true,\"documentVersion\":26}",
+   "1.0.0 on smoke model (no sheets): {\"valid\":true,\"documentVersion\":26}",
+   "R090.e acceptance passed."
+  ],
+  "sheetSmoke": {
+   "documentVersions": {
+    "accepted": 27,
+    "model": 26,
+    "moved": 27,
+    "sheet": 27,
+    "view": 27
+   },
+   "sheet": {
+    "id": "1",
+    "name": "A3 plan",
+    "paper": {
+     "heightMm": 297,
+     "widthMm": 420
+    },
+    "position": 0,
+    "views": 1
+   },
+   "states": {
+    "neverAccepted": {
+     "state": "stale",
+     "reasons": [
+      "notAccepted"
+     ],
+     "fingerprint": "3342858eb5417561e4fa47b39f29b455e21d50d2a6e54803e8d9ad080ce06079"
+    },
+    "accepted": {
+     "state": "current",
+     "reasons": [],
+     "fingerprint": "3342858eb5417561e4fa47b39f29b455e21d50d2a6e54803e8d9ad080ce06079"
+    },
+    "afterMove": {
+     "state": "stale",
+     "reasons": [
+      "changedSinceAccepted"
+     ],
+     "fingerprint": "b114cba35e9c385fdf0705b9682a0f50b99e7cb80f3b8829e95c3268888c64c0"
+    }
+   },
+   "declaredScale": {
+    "accepted": 50,
+    "afterMove": 50
+   },
+   "acceptedStamp": {
+    "fingerprint": "3342858eb5417561e4fa47b39f29b455e21d50d2a6e54803e8d9ad080ce06079",
+    "revision": "3"
+   }
+  }
+ }
+}

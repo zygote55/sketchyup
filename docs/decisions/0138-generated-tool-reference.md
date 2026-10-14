@@ -15,6 +15,14 @@ and never contacts providers. Python is a verification dependency, not an
 application runtime dependency. Artifacts are included in installed documentation
 and the source archive. Changing a registry requires intentional regeneration.
 
+R090.e, 2026-10-14. Every other file in `docs/api` is generated as well; none is
+maintained by hand. `scripts/generate-api-schemas.py --cli build/dev/sketchyup-cli
+--app build/dev/sketchyup --root .` rewrites the transaction, inspection, inspection
+session, headless session, MCP, recipe, extension, native-format, desktop inspection
+and native MCP schemas from the binaries' discovery options, each byte for byte in
+its file's existing layout. CI runs it with `--check`; the per-file CTest
+comparisons stay.
+
 Reference version 1 is independent of command API version 1 and the advertised
 MCP protocol version. No registry entry proves that an external helper is present,
 a provider is configured, or a particular operation is appropriate for the current
