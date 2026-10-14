@@ -25,13 +25,21 @@ package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
   echo 'Package acceptance requires an x.y.z pkgver and an integer pkgrel.' >&2
   exit 1
 }
-# Both packages build from the same source. A later pkgrel upgrades from the previous
-# pkgrel of the same version; the first pkgrel of a version upgrades from the last
-# development package, 0.1.0-3, which preceded the 1.0.0 release.
+# Both packages build from the same source. The prior package is the previous release
+# in this series: a later pkgrel upgrades from the previous pkgrel of the same version;
+# the first pkgrel of a patch version x.y.z (z >= 1) upgrades from x.y.(z-1)-1; and
+# 1.0.0-1 upgrades from the last development package, 0.1.0-3. The previous release of
+# any other x.y.0 is not implied by its version, so this script refuses to guess it.
+IFS=. read -r version_major version_minor version_patch <<< "$package_version"
 if (( package_release >= 2 )); then
   prior_version=$package_version prior_release=$((package_release - 1))
-else
+elif (( version_patch >= 1 )); then
+  prior_version=$version_major.$version_minor.$((version_patch - 1)) prior_release=1
+elif [[ $package_version == 1.0.0 ]]; then
   prior_version=0.1.0 prior_release=3
+else
+  echo "No prior release is defined for $package_version-$package_release; extend verify-package.sh." >&2
+  exit 1
 fi
 (( $(vercmp "$package_version-$package_release" "$prior_version-$prior_release") > 0 )) || {
   echo "Package $package_version-$package_release is not newer than $prior_version-$prior_release." >&2

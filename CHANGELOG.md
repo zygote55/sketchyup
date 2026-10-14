@@ -1,6 +1,19 @@
 # Changelog
 
-## 1.0.0 — unreleased
+## 1.0.1 — unreleased
+
+A patch release for one defect in 1.0.0. No format, schema or API change.
+
+- Fixed D-030: `annotation.create` was always rejected with `INVALID_REQUEST`
+  "Parameter must match exactly one supported schema" when sent through MCP
+  `transaction.apply`, a headless `--session` or a recipe step. The shared request
+  validator ignored `properties`, `required` and bounds in a schema without `type`,
+  so both `annotation.create` choices (distance and label) matched every request.
+  A schema without `type` now applies its keywords to the value it meets. The
+  desktop Annotations panel and `--script` batches were not affected.
+- Package: Arch `sketchyup` 1.0.1-1, upgrading from 1.0.0-1.
+
+## 1.0.0 — 2026-10-13
 
 The first release of SketchyUp, a native Linux face modeler. Earlier builds were
 the 0.1.0 development version and Arch development packages 0.1.0-1 through 0.1.0-3.

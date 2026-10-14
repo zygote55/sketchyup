@@ -13,7 +13,7 @@ On an Arch workstation with the documented build dependencies installed:
 scripts/package-source.sh /absolute/path/to/package-output
 cd /absolute/path/to/package-output
 makepkg
-sudo pacman -U sketchyup-1.0.0-1-x86_64.pkg.tar.zst
+sudo pacman -U sketchyup-1.0.1-1-x86_64.pkg.tar.zst
 ```
 
 The version has one source: `project(SketchyUp VERSION ...)` in `CMakeLists.txt`
@@ -77,8 +77,10 @@ Do not reuse earlier containers that bind the host's `/tmp` to `/capture`.
 The lifecycle harness refuses execution outside a Docker container with its
 explicit test flag. It builds the preceding package and then the current release from
 the same source to exercise clean install and upgrade hooks. The preceding package is
-`pkgrel - 1` of the same version, or for a first `pkgrel` the last development package
-(`1.0.0-1` upgrades from `0.1.0-3`; `vercmp` must order them). After the upgrade it
+the previous release in the series: `pkgrel - 1` of the same version; for the first
+`pkgrel` of a patch version, the previous patch at `pkgrel` 1 (`1.0.1-1` upgrades from
+`1.0.0-1`); and for `1.0.0-1`, the last development package `0.1.0-3`. `vercmp` must
+order them. Any other `x.y.0` needs its prior release added to the script. After the upgrade it
 checks `pacman -Q` and `sketchyup-cli --version`. Both packages contain the current
 source, so this is a package lifecycle test, not proof of a historical format migration. It validates the installed desktop file,
 MIME glob/magic, real desktop `%f` argument expansion (including spaces), renderer
@@ -116,7 +118,7 @@ file operations do not require either service.
 From a clean checkout of the commit to release:
 
 ```sh
-scripts/release-artifacts.sh "$PWD/build/release-1.0.0"
+scripts/release-artifacts.sh "$PWD/build/release-1.0.1"
 ```
 
 The script refuses a dirty or untracked working tree. It writes, into the output
