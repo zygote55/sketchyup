@@ -5,6 +5,7 @@
 #include "core/reference_images.hpp"
 #include "core/scenes.hpp"
 #include "core/drawing_sheets.hpp"
+#include "core/drawing_item_records.hpp"
 #include "core/sections.hpp"
 #include "core/annotations.hpp"
 #include "core/entity_measure.hpp"
@@ -369,6 +370,31 @@ int main(int argc, char **argv) {
                       {{"view", QString::number(drawingViewId)}})["status"].toObject()["state"] ==
                       "stale",
               "Drawing view status is derived");
+        const auto drawingItem = createDrawingItem(sceneDocument, drawingSheet, DrawingTextItem{});
+        check(all(sceneDocument, "drawing_items.query").size() == 1 &&
+                  run(sceneDocument, "drawing_item.describe",
+                      {{"item", QString::number(drawingItem)}})["evaluation"]
+                          .toObject()["state"] == "current" &&
+                  run(sceneDocument, "drawing_sheet.describe",
+                      {{"sheet", QString::number(drawingSheet)}})["items"] == 1,
+              "Drawing items are listed and described");
+        sceneDocument.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}}}, "Dimensioned");
+        for (const auto &[bodyId, body] : sceneDocument.bodies())
+            if (body->surface.vertices.size() >= 2) {
+                DrawingDimensionItem dimension;
+                dimension.view = drawingViewId;
+                dimension.anchors = {
+                    vertexAnchor(sceneDocument, bodyId, body->surface.vertices.begin()->first),
+                    vertexAnchor(sceneDocument, bodyId,
+                                 std::next(body->surface.vertices.begin())->first)};
+                const auto bound = createDrawingItem(sceneDocument, drawingSheet, dimension);
+                check(run(sceneDocument, "drawing_item.reattach_candidates",
+                          {{"item", QString::number(bound)}})["anchors"]
+                              .toArray()
+                              .size() == 2,
+                      "Reattach candidates are listed per anchor");
+                break;
+            }
         const auto section = createSection(sceneDocument, "Section", 0, {});
         setActiveSection(sceneDocument, 0, section);
         check(all(sceneDocument, "sections.query").size() == 1, "Bounded section list");

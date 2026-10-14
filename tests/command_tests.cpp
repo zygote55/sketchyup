@@ -5,6 +5,7 @@
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
 #include "core/drawing_sheets.hpp"
+#include "core/drawing_item_records.hpp"
 #include "core/sections.hpp"
 #include "core/annotations.hpp"
 #include "core/assets.hpp"
@@ -797,6 +798,16 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "drawing_view.move"}, {"view", "1"}, {"sheet", "2"}},
             QJsonObject{{"command", "drawing_view.delete"}, {"view", "1"}},
             QJsonObject{{"command", "drawing_view.accept"}, {"view", "1"}},
+            QJsonObject{{"command", "drawing_sheet.update"}, {"sheet", "1"}, {"number", "A-1"}},
+            QJsonObject{{"command", "drawing_item.create"}, {"sheet", "1"}, {"kind", "text"},
+                        {"data", QJsonObject{{"frame", QJsonObject{{"xMm", 10}, {"yMm", 10}, {"widthMm", 50}, {"heightMm", 10}}},
+                                             {"text", "Note"}}}},
+            QJsonObject{{"command", "drawing_item.update"}, {"item", "1"}, {"kind", "text"},
+                        {"data", QJsonObject{{"text", "Revised"}}}},
+            QJsonObject{{"command", "drawing_item.move"}, {"item", "1"}, {"sheet", "2"}},
+            QJsonObject{{"command", "drawing_item.reorder"}, {"sheet", "1"}, {"order", QJsonArray{"2", "1"}}},
+            QJsonObject{{"command", "drawing_item.delete"}, {"item", "1"}},
+            QJsonObject{{"command", "drawing_item.reattach"}, {"item", "1"}, {"anchors", QJsonArray{}}},
             QJsonObject{{"command", "document.style"}, {"style", encodeModelStyle(wireframeStyle)}},
             QJsonObject{{"command", "document.units"}, {"units", "mm"}},
             QJsonObject{{"command", "asset.import"},
@@ -1141,13 +1152,29 @@ int main(int argc, char **argv) {
                     createDrawingSheet(doc, "First", {420, 297});
                     createDrawingSheet(doc, "Second", {420, 297});
                 }
-                if (command["command"].toString().startsWith("drawing_view.") &&
-                    command["command"] != "drawing_view.create") {
+                if ((command["command"].toString().startsWith("drawing_view.") &&
+                     command["command"] != "drawing_view.create") ||
+                    command["command"] == "drawing_item.reattach") {
                     DrawingViewRecord view;
                     view.name = "Existing";
                     view.sheet = 1;
                     view.source = {DrawingViewSourceKind::Scene, scene};
                     createDrawingView(doc, view);
+                }
+                if (command["command"] == "drawing_item.reattach") {
+                    const auto &vertices = doc.bodies().at(1)->surface.vertices;
+                    const auto a = vertices.begin()->first, b = std::next(vertices.begin())->first;
+                    DrawingDimensionItem dimension;
+                    dimension.view = 1;
+                    dimension.anchors = {vertexAnchor(doc, 1, a), vertexAnchor(doc, 1, b)};
+                    createDrawingItem(doc, 1, dimension);
+                    command["anchors"] = QJsonArray{
+                        QJsonObject{{"kind", "vertex"}, {"body", "1"}, {"vertex", QString::number(b)}},
+                        QJsonObject{{"kind", "vertex"}, {"body", "1"}, {"vertex", QString::number(a)}}};
+                } else if (command["command"].toString().startsWith("drawing_item.") &&
+                           command["command"] != "drawing_item.create") {
+                    createDrawingItem(doc, 1, DrawingTextItem{});
+                    createDrawingItem(doc, 1, DrawingTextItem{});
                 }
             }
             if (command["command"].toString().startsWith("assembly.")) {

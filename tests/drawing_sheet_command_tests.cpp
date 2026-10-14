@@ -192,10 +192,14 @@ void everyOperationIsSheetOnly() {
           "Deleting a sheet deletes its views in the same entry");
     for (const auto &entry : commandCatalog()) {
         const auto name = entry.toObject()["name"].toString();
-        if (isDrawingSheetCommand(name))
+        // drawing_sheet.update and drawing_item.* (R091.c) are covered by
+        // drawing_item_command_tests.
+        if (isDrawingSheetCommand(name) && !isDrawingItemCommand(name) &&
+            name != "drawing_sheet.update")
             check(covered.contains(name), "Covered sheet operation " + name.toStdString());
         check(isDrawingSheetCommand(name) ==
-                  (name.startsWith("drawing_sheet.") || name.startsWith("drawing_view.")),
+                  (name.startsWith("drawing_sheet.") || name.startsWith("drawing_view.") ||
+                   name.startsWith("drawing_item.")),
               "Sheet command predicate matches the catalogue");
     }
     check(covered.size() == 10, "Ten sheet operations are registered");

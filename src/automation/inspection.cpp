@@ -69,6 +69,9 @@ enum class Operation {
     DrawingSheet,
     DrawingViewsStatus,
     DrawingView,
+    DrawingItems,
+    DrawingItem,
+    DrawingItemReattach,
     Selection,
     Entities,
     Entity,
@@ -132,6 +135,10 @@ const std::vector<Spec> &registry() {
             spec("drawing_sheet.describe", Operation::DrawingSheet, {{"sheet", idSchema()}}, {"sheet"}),
             spec("drawing_views.status", Operation::DrawingViewsStatus, {{"sheet", idSchema()}}, {}, true),
             spec("drawing_view.describe", Operation::DrawingView, {{"view", idSchema()}}, {"view"}),
+            spec("drawing_items.query", Operation::DrawingItems, {{"sheet", idSchema()}}, {}, true),
+            spec("drawing_item.describe", Operation::DrawingItem, {{"item", idSchema()}}, {"item"}),
+            spec("drawing_item.reattach_candidates", Operation::DrawingItemReattach,
+                 {{"item", idSchema()}}, {"item"}),
             spec("selection.get", Operation::Selection, {}, {}, true),
             spec("entities.query", Operation::Entities,
                  {{"parent", ref},
@@ -700,6 +707,31 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         if (!doc.drawingViews().contains(id))
             fail("NOT_FOUND", "Drawing view does not exist");
         data = drawingViewDescription(doc, id);
+        break;
+    }
+    case Operation::DrawingItems: {
+        // State and reasons are derived at this revision without a capture.
+        const auto sheet = request.contains("sheet") ? decimal(request["sheet"]) : Id{};
+        if (sheet && !doc.drawingSheets().contains(sheet))
+            fail("NOT_FOUND", "Drawing sheet does not exist");
+        for (const auto id : orderedDrawingItems(doc, sheet))
+            page.append([&] { return drawingItemSummary(doc, id); });
+        data = page.finish();
+        data["revision"] = QString::number(doc.revision());
+        break;
+    }
+    case Operation::DrawingItem: {
+        const auto id = decimal(request["item"]);
+        if (!doc.drawingItems().contains(id))
+            fail("NOT_FOUND", "Drawing item does not exist");
+        data = drawingItemDescription(doc, id);
+        break;
+    }
+    case Operation::DrawingItemReattach: {
+        const auto id = decimal(request["item"]);
+        if (!doc.drawingItems().contains(id))
+            fail("NOT_FOUND", "Drawing item does not exist");
+        data = drawingItemReattachDescription(doc, id);
         break;
     }
     case Operation::Selection:
