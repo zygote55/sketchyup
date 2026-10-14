@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
                           !reopened.canUndo(),
                       "Every unit roundtrips at Full, minimum and maximum precision");
                 const auto raw = QJsonDocument::fromJson(encodeDocument(doc)).object();
-                check(raw["version"] == nativeDocumentVersion &&
+                check(raw["version"] == nativeSheetFreeDocumentVersion &&
                           raw["displayPrecision"] == precision &&
                           decodeDocument(encodeDocument(doc)).displayPrecision() == precision,
                       "Raw schema stores the integer precision (-1 is Full)");
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
         const auto features = head["requiredFeatures"].toArray();
         check(features.contains("display-precision-v1") &&
                   head["chunks"].toArray()[0].toObject()["encoding"] ==
-                      QString("json-v%1").arg(nativeDocumentVersion),
+                      QString("json-v%1").arg(nativeSheetFreeDocumentVersion),
               "Container requires display-precision-v1 with the current encoding");
         auto withoutFeature = head;
         QJsonArray reduced;

@@ -49,6 +49,33 @@ grep -qx "project(SketchyUp VERSION $package_version LANGUAGES CXX)" "$source_di
 pacman -U --noconfirm "sketchyup-$prior_version-$prior_release-x86_64.pkg.tar.zst"
 [[ $(pacman -Q sketchyup) == "sketchyup $prior_version-$prior_release" ]]
 pacman -Qkk sketchyup
+# Downgrade window (ADR 0163): the prior package must refuse every retained fixture
+# newer than the schemas it reads, through its normal error, without touching it.
+prior_reads=$(sketchyup-cli --format-capabilities | jq -e '.readDocumentVersions | max')
+install -d /work/acceptance-newer
+newer_fixtures=0
+for fixture in "$source_dir"/tests/fixtures/*.sketchyup; do
+  fixture_version=$(python - "$fixture" <<'PYVERSION'
+import json, struct, sys
+data = open(sys.argv[1], 'rb').read()
+length = struct.unpack_from('<I', data, 12)[0]
+encoding = json.loads(data[16:16 + length])['chunks'][0]['encoding']
+print(int(encoding.removeprefix('json-v')))
+PYVERSION
+)
+  (( fixture_version > prior_reads )) || continue
+  copy=/work/acceptance-newer/$(basename "$fixture")
+  cp "$fixture" "$copy"
+  if sketchyup-cli --validate-native "$copy" > /dev/null 2> "$copy.stderr"; then
+    echo "Prior package accepted newer schema $fixture_version: $fixture" >&2
+    exit 1
+  fi
+  jq -e '.status == "failed"' "$copy.stderr" > /dev/null
+  cmp "$fixture" "$copy"
+  newer_fixtures=$((newer_fixtures + 1))
+done
+printf 'Prior package reads schemas up to %s and refused %s newer fixtures unchanged.\n' \
+  "$prior_reads" "$newer_fixtures"
 test -s /usr/share/doc/sketchyup/decisions/0029-native-mcp.md
 QT_QPA_PLATFORM=offscreen sketchyup --mcp-inspection-capabilities | jq -S . > /work/package/mcp-native-installed.json
 jq -S . /usr/share/doc/sketchyup/api/mcp-native-2026-07-28.json > /work/package/mcp-native-schema.json

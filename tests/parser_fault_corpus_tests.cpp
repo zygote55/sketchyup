@@ -1,5 +1,7 @@
 #include "automation/extension.hpp"
 #include "core/components.hpp"
+#include "core/drawing_sheets.hpp"
+#include "core/scenes.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
 #include "io/gltf_import.hpp"
@@ -153,6 +155,48 @@ int main(int argc, char **argv) {
             parsed = true;
             roundtrip(document);
         }));
+        // Schema 27 (R090.b): drawing sheets and views, one of them a broken scene link.
+        Document sheets;
+        {
+            sheets.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});
+            SceneSnapshot snapshot;
+            snapshot.camera = SceneCamera{};
+            snapshot.camera->orthographic = true;
+            const auto plan = createScene(sheets, "Plan", snapshot);
+            const auto gone = createScene(sheets, "Removed", snapshot);
+            const auto sheet = createDrawingSheet(sheets, "Sheet 1", {420, 297});
+            DrawingViewRecord view;
+            view.name = "Plan view";
+            view.sheet = sheet;
+            view.source = {DrawingViewSourceKind::Scene, plan};
+            view.frame = {20, 20, 200, 150};
+            view.scaleDenominator = 50;
+            view.accepted = DrawingViewAcceptance{sheets.revision(), std::string(64, 'a')};
+            createDrawingView(sheets, view);
+            view.name = "Broken view";
+            view.source.scene = gone;
+            view.frame = {230, 20, 150, 150};
+            view.content = DrawingViewContent::RasterAppearance;
+            view.accepted.reset();
+            createDrawingView(sheets, view);
+            eraseScene(sheets, gone);
+            auto tree = QJsonDocument::fromJson(encodeDocument(sheets)).object();
+            tree["documentId"] = "0000000000000000000000000000083d";
+            sheets = decodeDocument(QJsonDocument(tree).toJson(QJsonDocument::Compact));
+        }
+        const auto sheetContainer = encodeContainer(sheets);
+        results.append(exercise("native-json-drawing-sheets", encodeDocument(sheets),
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto document = decodeDocument(bytes);
+                                    parsed = true;
+                                    roundtrip(document);
+                                }));
+        results.append(exercise("native-container-drawing-sheets", sheetContainer,
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto document = decodeContainer(bytes);
+                                    parsed = true;
+                                    roundtrip(document);
+                                }));
         const auto glb = exportGlb(RenderSnapshot::capture(source)).glb;
         const auto glbPath = temporary.filePath("mutated.glb");
         results.append(exercise("glb", glb, [&](const auto &bytes, bool &parsed) {
@@ -223,10 +267,12 @@ int main(int argc, char **argv) {
                 check(manifest.source == bytes, "Extension retains exact validated source");
             }));
         check(encodeContainer(source) == original, "Corpus never mutates its source model");
+        check(encodeContainer(sheets) == sheetContainer, "Corpus never mutates its sheet model");
+        check(results.size() == 12, "Corpus covers ten formats plus the two schema-27 seeds");
         std::cout << QJsonDocument(QJsonObject{{"corpusVersion", 1},
                                                {"seed", "0x83a5c0de"},
                                                {"formats", results},
-                                               {"mutations", 5120},
+                                               {"mutations", 6144},
                                                {"sourcePreserved", true}})
                          .toJson()
                          .toStdString();

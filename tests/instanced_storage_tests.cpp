@@ -182,7 +182,7 @@ int measure(int count, const QString &phase, const QString &output = {}) {
     const auto buildMs = timer.elapsed();
     QJsonObject report{{"count", count},
                        {"phase", phase},
-                       {"documentVersion", nativeDocumentVersion},
+                       {"documentVersion", nativeSheetFreeDocumentVersion},
                        {"bodies", int(doc.bodies().size())},
                        {"buildMs", buildMs},
                        {"buildPeakKiB", qint64(built)}};
@@ -280,7 +280,7 @@ size_t storedMembers(const QJsonObject &tree) {
 void roundTrip(const Document &doc, const std::string &label) {
     const auto container = encodeContainer(doc);
     const auto tree = documentTree(container);
-    check(tree["version"] == nativeDocumentVersion && storedMembers(tree) == 0,
+    check(tree["version"] == nativeSheetFreeDocumentVersion && storedMembers(tree) == 0,
           label + ": current schema writes no projected member bodies");
     const auto reopened = decodeContainer(container);
     identical(doc, reopened, label);
@@ -415,7 +415,7 @@ int main(int argc, char **argv) {
             roundTrip(legacy, label);
             const auto output = files.filePath("migrated-" + name);
             const auto report = migrateNativeFile(source, output);
-            check(report["outputDocumentVersion"] == nativeDocumentVersion &&
+            check(report["outputDocumentVersion"] == nativeSheetFreeDocumentVersion &&
                       read(source) == original,
                   label + ": migration leaves the original unchanged");
             const auto migrated = loadDocument(output);
@@ -583,7 +583,7 @@ int main(int argc, char **argv) {
                                                });
             rejection([&] { (void)decodeContainer(withoutFeature); });
             auto previous = documentTree(container);
-            previous["version"] = nativeDocumentVersion - 1;
+            previous["version"] = nativeSheetFreeDocumentVersion - 1;
             rejection([&] { (void)decodeContainer(repack(container, compact(previous))); });
         }
         // R082.ff: a compact (schema 26) load rebuilds projected members before
@@ -610,8 +610,8 @@ int main(int argc, char **argv) {
                 placeComponent(source, source.instances().begin()->second->definition,
                                Transform::translation({20.0 + 3 * i, 0, 0}));
             const auto container = encodeContainer(source);
-            check(documentTree(container)["version"] == nativeDocumentVersion &&
-                      nativeDocumentVersion == 26 && storedMembers(documentTree(container)) == 0,
+            check(documentTree(container)["version"] == nativeSheetFreeDocumentVersion &&
+                      nativeSheetFreeDocumentVersion == 26 && storedMembers(documentTree(container)) == 0,
                   "Totals fixture saves compact schema 26 placements");
             auto doc = decodeContainer(container);
             doc.verifyIncrementalState();
