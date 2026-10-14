@@ -8,7 +8,9 @@ Arch/Omarchy is the primary development environment.
 
 ## Current build
 
-**Working native editor foundation, not a complete editor or release.** Draw lines,
+**[SketchyUp 1.0.0](https://github.com/zygote55/sketchyup/releases/tag/v1.0.0) is released**
+([release notes](docs/RELEASE_NOTES.md)). It covers the 1.0 Core scope, not full SketchUp
+parity; see the [support matrix](docs/SUPPORT_MATRIX.md). Draw lines,
 freehand strokes, rectangles, polygons, circles, arcs and pie sectors on explicit or hovered planes, select
 faces, push/pull planar regions, move/rotate/scale/flip selected geometry, copy and
 color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain
@@ -46,9 +48,8 @@ conversion details; the original file stays unchanged. See the
 
 ## Build and run
 
-Start with the [user workflow guide](docs/USER_GUIDE.md) and
-[development support matrix](docs/SUPPORT_MATRIX.md) for tested behavior and
-remaining release gates.
+Start with the [user guide](docs/USER_GUIDE.md) and the
+[support matrix](docs/SUPPORT_MATRIX.md) for supported and untested configurations.
 
 Requires CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ base/Wayland development
 packages, OpenSSL 3 development headers and OpenGL 3.3. Python 3 is required
