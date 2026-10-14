@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 — unreleased
+## 1.0.0 — 2026-10-13
 
 The first release of SketchyUp, a native Linux face modeler. Earlier builds were
 the 0.1.0 development version and Arch development packages 0.1.0-1 through 0.1.0-3.
@@ -16,6 +16,8 @@ the 0.1.0 development version and Arch development packages 0.1.0-1 through 0.1.
 - Assistant: OpenAI through a ChatGPT-plan sign-in is supported; local Ollama is
   experimental.
 - Package: Arch `sketchyup` 1.0.0-1, upgrading from 0.1.0-3.
+
+Tag `v1.0.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.0.0).
 
 Versions, upgrade and rollback notes and known limitations:
 [release notes](docs/RELEASE_NOTES.md). Support boundaries:
