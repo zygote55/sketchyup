@@ -672,6 +672,197 @@
                 "sideEffects": "none"
             },
             {
+                "name": "drawing_sheets.query",
+                "paged": true,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "cursor": {
+                            "maxLength": 512,
+                            "type": "string"
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "limit": {
+                            "maximum": 100,
+                            "minimum": 1,
+                            "type": "integer"
+                        },
+                        "query": {
+                            "const": "drawing_sheets.query"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
+                "name": "drawing_sheet.describe",
+                "paged": false,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "query": {
+                            "const": "drawing_sheet.describe"
+                        },
+                        "sheet": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "sheet",
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
+                "name": "drawing_views.status",
+                "paged": true,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "cursor": {
+                            "maxLength": 512,
+                            "type": "string"
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "limit": {
+                            "maximum": 100,
+                            "minimum": 1,
+                            "type": "integer"
+                        },
+                        "query": {
+                            "const": "drawing_views.status"
+                        },
+                        "sheet": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
+                "name": "drawing_view.describe",
+                "paged": false,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "query": {
+                            "const": "drawing_view.describe"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        },
+                        "view": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "view",
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
                 "name": "selection.get",
                 "paged": true,
                 "parameters": {
@@ -4331,6 +4522,489 @@
                                         },
                                         "required": [
                                             "scene",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Create a drawing sheet",
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_sheet.create"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "paper": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "heightMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    },
+                                                    "widthMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "heightMm",
+                                                    "widthMm"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        },
+                                        "required": [
+                                            "name",
+                                            "paper",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Rename a drawing sheet",
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_sheet.rename"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "sheet": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "sheet",
+                                            "name",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Change a drawing sheet's paper size",
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_sheet.resize"
+                                            },
+                                            "paper": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "heightMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    },
+                                                    "widthMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "heightMm",
+                                                    "widthMm"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "sheet": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "sheet",
+                                            "paper",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Order all drawing sheets",
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_sheet.reorder"
+                                            },
+                                            "order": {
+                                                "items": {
+                                                    "description": "Canonical uint64 decimal string",
+                                                    "maxLength": 20,
+                                                    "pattern": "^[1-9][0-9]*$",
+                                                    "type": "string"
+                                                },
+                                                "maxItems": 256,
+                                                "minItems": 0,
+                                                "type": "array"
+                                            }
+                                        },
+                                        "required": [
+                                            "order",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Delete a drawing sheet and its views",
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_sheet.delete"
+                                            },
+                                            "sheet": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "sheet",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Place a scaled view of a saved scene on a sheet",
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_view.create"
+                                            },
+                                            "content": {
+                                                "enum": [
+                                                    "technicalLines",
+                                                    "rasterAppearance"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "frame": {
+                                                "additionalProperties": false,
+                                                "description": "Viewport and crop rectangle in paper millimetres from the top-left corner, x right and y down; it must lie inside the sheet paper",
+                                                "properties": {
+                                                    "heightMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    },
+                                                    "widthMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    },
+                                                    "xMm": {
+                                                        "maximum": 1990,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "yMm": {
+                                                        "maximum": 1990,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "heightMm",
+                                                    "widthMm",
+                                                    "xMm",
+                                                    "yMm"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "hiddenLines": {
+                                                "type": "boolean"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "offsetMm": {
+                                                "description": "Paper-millimetre pan of the scene camera target from the frame centre, x right and y down",
+                                                "items": {
+                                                    "maximum": 1000000,
+                                                    "minimum": -1000000,
+                                                    "type": "number"
+                                                },
+                                                "maxItems": 2,
+                                                "minItems": 2,
+                                                "type": "array"
+                                            },
+                                            "scaleDenominator": {
+                                                "description": "Declared scale denominator (1:N); never derived from camera zoom or geometry",
+                                                "maximum": 1000000000,
+                                                "minimum": 0.001,
+                                                "type": "number"
+                                            },
+                                            "sheet": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "source": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "kind": {
+                                                        "const": "scene"
+                                                    },
+                                                    "scene": {
+                                                        "maxLength": 20,
+                                                        "pattern": "^[1-9][0-9]*$",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "scene"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        },
+                                        "required": [
+                                            "name",
+                                            "sheet",
+                                            "source",
+                                            "frame",
+                                            "scaleDenominator",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Change a sheet view. A change to what a current view draws re-stamps its acceptance; a stale, broken or never-accepted view keeps its stamp",
+                                        "minProperties": 3,
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_view.update"
+                                            },
+                                            "content": {
+                                                "enum": [
+                                                    "technicalLines",
+                                                    "rasterAppearance"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "frame": {
+                                                "additionalProperties": false,
+                                                "description": "Viewport and crop rectangle in paper millimetres from the top-left corner, x right and y down; it must lie inside the sheet paper",
+                                                "properties": {
+                                                    "heightMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    },
+                                                    "widthMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    },
+                                                    "xMm": {
+                                                        "maximum": 1990,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "yMm": {
+                                                        "maximum": 1990,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "heightMm",
+                                                    "widthMm",
+                                                    "xMm",
+                                                    "yMm"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "hiddenLines": {
+                                                "type": "boolean"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "offsetMm": {
+                                                "description": "Paper-millimetre pan of the scene camera target from the frame centre, x right and y down",
+                                                "items": {
+                                                    "maximum": 1000000,
+                                                    "minimum": -1000000,
+                                                    "type": "number"
+                                                },
+                                                "maxItems": 2,
+                                                "minItems": 2,
+                                                "type": "array"
+                                            },
+                                            "scaleDenominator": {
+                                                "description": "Declared scale denominator (1:N); never derived from camera zoom or geometry",
+                                                "maximum": 1000000000,
+                                                "minimum": 0.001,
+                                                "type": "number"
+                                            },
+                                            "source": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "kind": {
+                                                        "const": "scene"
+                                                    },
+                                                    "scene": {
+                                                        "maxLength": 20,
+                                                        "pattern": "^[1-9][0-9]*$",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind",
+                                                    "scene"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "view": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "view",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Move a sheet view to another sheet",
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_view.move"
+                                            },
+                                            "frame": {
+                                                "additionalProperties": false,
+                                                "description": "Viewport and crop rectangle in paper millimetres from the top-left corner, x right and y down; it must lie inside the sheet paper",
+                                                "properties": {
+                                                    "heightMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    },
+                                                    "widthMm": {
+                                                        "maximum": 2000,
+                                                        "minimum": 10,
+                                                        "type": "number"
+                                                    },
+                                                    "xMm": {
+                                                        "maximum": 1990,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "yMm": {
+                                                        "maximum": 1990,
+                                                        "minimum": 0,
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "heightMm",
+                                                    "widthMm",
+                                                    "xMm",
+                                                    "yMm"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "sheet": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "view": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "view",
+                                            "sheet",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Delete a sheet view",
+                                        "properties": {
+                                            "command": {
+                                                "const": "drawing_view.delete"
+                                            },
+                                            "view": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "view",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Accept one view, every view on one sheet, or every view (all: true). A named broken or failed view is refused with DRAWING_VIEW_NOT_ACCEPTABLE; sheet and all skip them",
+                                        "maxProperties": 2,
+                                        "minProperties": 2,
+                                        "properties": {
+                                            "all": {
+                                                "const": true
+                                            },
+                                            "command": {
+                                                "const": "drawing_view.accept"
+                                            },
+                                            "sheet": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "view": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
                                             "command"
                                         ],
                                         "type": "object"
@@ -9099,6 +9773,153 @@
                                     },
                                     "required": [
                                         "scene",
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "cursor": {
+                                            "maxLength": 512,
+                                            "type": "string"
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "limit": {
+                                            "maximum": 100,
+                                            "minimum": 1,
+                                            "type": "integer"
+                                        },
+                                        "query": {
+                                            "const": "drawing_sheets.query"
+                                        }
+                                    },
+                                    "required": [
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "query": {
+                                            "const": "drawing_sheet.describe"
+                                        },
+                                        "sheet": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "sheet",
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "cursor": {
+                                            "maxLength": 512,
+                                            "type": "string"
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "limit": {
+                                            "maximum": 100,
+                                            "minimum": 1,
+                                            "type": "integer"
+                                        },
+                                        "query": {
+                                            "const": "drawing_views.status"
+                                        },
+                                        "sheet": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "query": {
+                                            "const": "drawing_view.describe"
+                                        },
+                                        "view": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "view",
                                         "apiVersion",
                                         "documentId",
                                         "expectedRevision",

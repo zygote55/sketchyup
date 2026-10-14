@@ -4,6 +4,7 @@
 #include "core/assets.hpp"
 #include "core/reference_images.hpp"
 #include "core/scenes.hpp"
+#include "core/drawing_sheets.hpp"
 #include "core/sections.hpp"
 #include "core/annotations.hpp"
 #include "core/entity_measure.hpp"
@@ -353,6 +354,21 @@ int main(int argc, char **argv) {
                   ["snapshot"].toObject().contains("camera"), "Saved scene property inspection");
         check(all(sceneDocument, "saved_scene.visibility", {{"scene", QString::number(savedScene)}}).empty(),
               "Empty scene visibility query is a valid bounded page");
+        const auto drawingSheet = createDrawingSheet(sceneDocument, "Sheet", {420, 297});
+        DrawingViewRecord drawingView;
+        drawingView.name = "View";
+        drawingView.sheet = drawingSheet;
+        drawingView.source = {DrawingViewSourceKind::Scene, savedScene};
+        const auto drawingViewId = createDrawingView(sceneDocument, drawingView);
+        check(all(sceneDocument, "drawing_sheets.query").size() == 1 &&
+                  run(sceneDocument, "drawing_sheet.describe",
+                      {{"sheet", QString::number(drawingSheet)}})["views"].toArray().size() == 1,
+              "Drawing sheets are listed and described");
+        check(all(sceneDocument, "drawing_views.status").size() == 1 &&
+                  run(sceneDocument, "drawing_view.describe",
+                      {{"view", QString::number(drawingViewId)}})["status"].toObject()["state"] ==
+                      "stale",
+              "Drawing view status is derived");
         const auto section = createSection(sceneDocument, "Section", 0, {});
         setActiveSection(sceneDocument, 0, section);
         check(all(sceneDocument, "sections.query").size() == 1, "Bounded section list");
