@@ -166,8 +166,10 @@ model space, and one transform maps millimetres to logical pixels.
   `QPaintDevice`: the widget, a `QImage`, or the existing `QPdfWriter`. R092 calls
   the same function per page, and the CLI can too, because it needs no Widgets.
   Screen-only decorations are painted by the canvas *after* the compositor: the
-  "⟳ Changed" chip, selection, handles, grid, margin frame, broken hatch and the
-  dimmed edit-view surround. So the decision 4 rule that "the chip never prints"
+  "⟳ Changed" chip, selection, handles, grid, broken hatch and the dimmed
+  edit-view surround. The margin frame is part of the drawing: it is the printed
+  drawing border the title block attaches to, so the compositor paints it
+  (`marginFrame`, on by default; R091.d). So the decision 4 rule that "the chip never prints"
   holds by construction.
 - **Cost.** We write the item model, z-order, selection and handles ourselves.
   That code is small and is the same code the compositor and the commands need
