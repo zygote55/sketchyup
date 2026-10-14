@@ -2180,7 +2180,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar,
                        int displayPrecision, DrawingSheetRecords drawingSheets,
                        Id nextDrawingSheetId, DrawingViewRecords drawingViews,
-                       Id nextDrawingViewId) {
+                       Id nextDrawingViewId, DrawingItemRecords drawingItems,
+                       Id nextDrawingItemId) {
     restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
                    std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
                    nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
@@ -2188,7 +2189,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                    std::move(sections), nextSectionId, std::move(activeSections),
                    std::move(annotations), nextAnnotationId, solar, displayPrecision,
                    std::move(drawingSheets), nextDrawingSheetId, std::move(drawingViews),
-                   nextDrawingViewId);
+                   nextDrawingViewId, std::move(drawingItems), nextDrawingItemId);
 }
 void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
                               std::map<Id, BodyPtr> bodies, std::uint64_t revision,
@@ -2201,7 +2202,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
                               AnnotationRecords annotations, Id nextAnnotationId,
                               SolarSettings solar, int displayPrecision,
                               DrawingSheetRecords drawingSheets, Id nextDrawingSheetId,
-                              DrawingViewRecords drawingViews, Id nextDrawingViewId) {
+                              DrawingViewRecords drawingViews, Id nextDrawingViewId,
+                              DrawingItemRecords drawingItems, Id nextDrawingItemId) {
     requireDisplayPrecision(units, displayPrecision);
     style.validate();
     solar.validate();
@@ -2239,7 +2241,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     validateAnnotationRecords(annotations, nextAnnotationId);
     // Views whose scene is missing stay valid: they are diagnosed broken links.
     validateDrawingSheetRecords(drawingSheets, nextDrawingSheetId, drawingViews,
-                                nextDrawingViewId);
+                                nextDrawingViewId, drawingItems, nextDrawingItemId);
     {
         Document candidate;
         candidate.bodies_ = bodies;
@@ -2296,6 +2298,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
         sheet = std::make_shared<DrawingSheetRecord>(*sheet);
     for (auto &[id, view] : drawingViews)
         view = std::make_shared<DrawingViewRecord>(*view);
+    for (auto &[id, item] : drawingItems)
+        item = std::make_shared<DrawingItemRecord>(*item);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -2327,8 +2331,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     nextDrawingSheetId_ = nextDrawingSheetId;
     drawingViews_ = std::move(drawingViews);
     nextDrawingViewId_ = nextDrawingViewId;
-    drawingItems_.clear();
-    nextDrawingItemId_ = 1;
+    drawingItems_ = std::move(drawingItems);
+    nextDrawingItemId_ = nextDrawingItemId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     totals_ = totals;

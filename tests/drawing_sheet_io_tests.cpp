@@ -1,5 +1,6 @@
 // R090.b: schema-27 drawing-sheet persistence, migration and the downgrade window
 // of ADR 0163 decision 2.
+#include "core/annotation_anchors.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include "io/document_io.hpp"
@@ -108,17 +109,26 @@ DrawingViewRecord viewRecord(std::string name, Id sheet, Id scene) {
     record.hiddenLines = true;
     return record;
 }
+DrawingFont font(std::string family, double sizePt) {
+    DrawingFont result;
+    result.family = std::move(family);
+    result.sizePt = sizePt;
+    return result;
+}
 // The retained drawing-sheets-v27 fixture. It exercises every stored field, both
 // content modes, a null and a present acceptance stamp, nondefault order, retired
-// sheet and view IDs, and a view whose scene was deleted (a diagnosed broken link).
+// sheet, view and item IDs, a view whose scene was deleted (a diagnosed broken link),
+// a sheet number and nondefault margin, every item kind (R091.b) in a nondefault z
+// order, and a dimension whose anchor body was deleted.
 Document sheetFixture() {
     Document doc;
-    doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});
+    const auto body = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});
+    const auto removed = doc.addFace({{{5, 0, 0}, {6, 0, 0}, {6, 1, 0}}}, "Removed");
     const auto plan = createScene(doc, "Plan", orthographicScene(-90));
     const auto front = createScene(doc, "Front", orthographicScene(0));
     const auto detail = createScene(doc, "Detail", orthographicScene(45));
     const auto cover = createDrawingSheet(doc, "Cover", {420, 297});
-    const auto plans = createDrawingSheet(doc, "Plans", {297, 420.5});
+    const auto plans = createDrawingSheet(doc, "Plans", {297, 420.5}, "A-101", 12.5);
     const auto scratch = createDrawingSheet(doc, "Scratch", {210, 297});
     auto temporary = viewRecord("Temporary", scratch, plan);
     temporary.frame = {10, 10, 100, 100};
@@ -136,13 +146,86 @@ Document sheetFixture() {
     frontView.hiddenLines = false;
     frontView.offsetMm = {0, 0};
     frontView.scaleDenominator = 0.5;
-    createDrawingView(doc, frontView);
+    const auto frontId = createDrawingView(doc, frontView);
     auto detailView = viewRecord("Detail A", cover, detail);
     detailView.frame = {300, 180, 100, 100};
     detailView.scaleDenominator = 2.5;
-    createDrawingView(doc, detailView);
+    const auto detailId = createDrawingView(doc, detailView);
     acceptDrawingViews(doc, {{planId, {doc.revision(), fingerprintA}}});
+
+    // Page items: one of each kind, with every enumeration value used at least once.
+    const auto &face = *doc.bodies().at(body);
+    const auto vertex = vertexAnchor(doc, body, face.surface.vertices.begin()->first);
+    const auto edge = edgeAnchor(doc, body, face.topology.edges.begin()->first, .375);
+    const auto &gone = *doc.bodies().at(removed);
+    const auto goneVertex = vertexAnchor(doc, removed, gone.surface.vertices.begin()->first);
+    const auto goneEdge = edgeAnchor(doc, removed, gone.topology.edges.rbegin()->first, .25);
+    DrawingTextItem text;
+    text.frame = {15, 15, 120.5, 30.25};
+    text.text = "General notes:\n\t1. Dimensions in mm — verify on site";
+    text.font = font("Liberation Serif", 12.5);
+    text.align = DrawingTextAlign::Center;
+    const auto textId = createDrawingItem(doc, plans, text);
+    DrawingLineItem line;
+    line.from = {12.5, 400};
+    line.to = {284.5, 400};
+    line.strokeMm = .25;
+    const auto lineId = createDrawingItem(doc, plans, line);
+    // A retired item ID: the allocator stays above it.
+    const auto retired = createDrawingItem(doc, plans, line);
+    eraseDrawingItem(doc, retired);
+    DrawingRectangleItem rectangle;
+    rectangle.frame = {12.5, 12.5, 272, 395.5};
+    rectangle.strokeMm = 2;
+    rectangle.dash = DrawingStrokeDash::Dashed;
+    const auto rectangleId = createDrawingItem(doc, plans, rectangle);
+    DrawingTitleBlockItem block;
+    block.frame = {137, 360, 147.5, 47.5};
+    block.font = font("DejaVu Sans", 8);
+    block.fields = {"House \"Larch\"", "Ground floor plan", "2026-10-14", ""};
+    const auto blockId = createDrawingItem(doc, plans, block);
+    DrawingDimensionItem width;
+    width.view = planId;
+    width.anchors = {vertex, edge};
+    width.orientation = DrawingDimensionOrientation::Horizontal;
+    width.offsetMm = -7.5;
+    width.prefix = "≈ ";
+    width.font = font("DejaVu Sans Mono", 9);
+    width.lastMm = {DrawingPointMm{60.125, 120}, DrawingPointMm{100, -3.5}};
+    const auto widthId = createDrawingItem(doc, plans, width);
+    DrawingLabelItem tag;
+    tag.text = "W2";
+    tag.textAt = {200, 250};
+    tag.leader = false;
+    tag.target.kind = DrawingLabelTargetKind::View;
+    tag.target.view = frontId;
+    tag.target.anchor = edge;
+    tag.target.lastMm = {80.5, 260.25};
+    const auto tagId = createDrawingItem(doc, plans, tag);
+    DrawingLabelItem north;
+    north.text = "North";
+    north.textAt = {380, 30};
+    north.target.pointMm = {400, 45.5};
+    createDrawingItem(doc, cover, north);
+    // Bound to the broken detail view, with anchors whose body is deleted below.
+    DrawingDimensionItem lost;
+    lost.view = detailId;
+    lost.anchors = {goneVertex, goneEdge};
+    lost.orientation = DrawingDimensionOrientation::Vertical;
+    lost.offsetMm = 12;
+    lost.lastMm = {DrawingPointMm{320, 200}, DrawingPointMm{320, 260}};
+    createDrawingItem(doc, cover, lost);
+    DrawingDimensionItem aligned = width;
+    aligned.orientation = DrawingDimensionOrientation::Aligned;
+    aligned.prefix.clear();
+    aligned.anchors = {edge, vertex};
+    aligned.offsetMm = 0;
+    const auto alignedId = createDrawingItem(doc, plans, aligned);
+    // A nondefault stacking order on the plans sheet.
+    reorderDrawingItems(doc, plans,
+                        {rectangleId, blockId, alignedId, lineId, widthId, textId, tagId});
     eraseScene(doc, detail);
+    doc.erase(removed);
     return doc;
 }
 void sameSheets(const Document &a, const Document &b, const std::string &label) {
@@ -156,8 +239,10 @@ void sameSheets(const Document &a, const Document &b, const std::string &label) 
     };
     check(equal(a.drawingSheets(), b.drawingSheets()) &&
               equal(a.drawingViews(), b.drawingViews()) &&
+              equal(a.drawingItems(), b.drawingItems()) &&
               a.nextDrawingSheetId() == b.nextDrawingSheetId() &&
-              a.nextDrawingViewId() == b.nextDrawingViewId(),
+              a.nextDrawingViewId() == b.nextDrawingViewId() &&
+              a.nextDrawingItemId() == b.nextDrawingItemId(),
           label + ": drawing-sheet tables and allocators round-trip exactly");
 }
 // Root fields, required features, chunk encoding and allocator floors match the
@@ -254,8 +339,106 @@ int main(int argc, char **argv) {
             check(sheet == QJsonObject{{"id", "2"},
                                        {"name", "Plans"},
                                        {"position", 0},
-                                       {"paper", QJsonObject{{"widthMm", 297}, {"heightMm", 420.5}}}},
-                  "Sheet record stores id, name, position and paper");
+                                       {"paper", QJsonObject{{"widthMm", 297}, {"heightMm", 420.5}}},
+                                       {"number", "A-101"},
+                                       {"marginMm", 12.5}},
+                  "Sheet record stores id, name, position, paper, number and margin");
+            check(tree["drawingSheets"].toArray()[0].toObject()["number"] == "" &&
+                      tree["drawingSheets"].toArray()[0].toObject()["marginMm"] == 10,
+                  "An empty sheet number and the default margin are stored explicitly");
+
+            // R091.b: the item table, its allocator and its floor.
+            check(floors["nextDrawingItemId"] == "11" && tree["nextDrawingItemId"] == "11",
+                  "Container and root record the drawing-item allocator");
+            const auto items = tree["drawingItems"].toArray();
+            check(items.size() == 9, "Document root stores the item table");
+            QStringList ids, kinds;
+            for (const auto &entry : items) {
+                const auto item = entry.toObject();
+                check(keys(item) == std::set<QString>{"id", "sheet", "z", "kind", "data"},
+                      "Item record stores id, sheet, z, kind and data");
+                ids.append(item["id"].toString());
+                kinds.append(item["kind"].toString());
+            }
+            check(ids == QStringList{"1", "2", "4", "5", "6", "7", "8", "9", "10"},
+                  "Items are stored once each in ascending ID order");
+            check(kinds == QStringList{"text", "line", "rectangle", "titleBlock", "dimension",
+                                       "label", "label", "dimension", "dimension"},
+                  "Item kinds use their documented codes");
+            check(items[0].toObject() ==
+                      QJsonObject{{"id", "1"},
+                                  {"sheet", "2"},
+                                  {"z", 5},
+                                  {"kind", "text"},
+                                  {"data",
+                                   QJsonObject{{"frame", QJsonObject{{"xMm", 15},
+                                                                     {"yMm", 15},
+                                                                     {"widthMm", 120.5},
+                                                                     {"heightMm", 30.25}}},
+                                               {"text", QString::fromUtf8(
+                                                            "General notes:\n\t1. Dimensions in "
+                                                            "mm — verify on site")},
+                                               {"font", QJsonObject{{"family", "Liberation Serif"},
+                                                                    {"sizePt", 12.5}}},
+                                               {"align", "center"}}}},
+                  "Text item stores every field in its documented shape");
+            check(items[1].toObject()["data"] ==
+                      QJsonObject{{"from", QJsonArray{12.5, 400}},
+                                  {"to", QJsonArray{284.5, 400}},
+                                  {"strokeMm", .25},
+                                  {"dash", "solid"}},
+                  "Line item shape");
+            check(items[2].toObject()["data"] ==
+                      QJsonObject{{"frame", QJsonObject{{"xMm", 12.5},
+                                                        {"yMm", 12.5},
+                                                        {"widthMm", 272},
+                                                        {"heightMm", 395.5}}},
+                                  {"strokeMm", 2},
+                                  {"dash", "dashed"}},
+                  "Rectangle item shape");
+            check(items[3].toObject()["data"].toObject()["fields"] ==
+                      QJsonObject{{"project", "House \"Larch\""},
+                                  {"drawingTitle", "Ground floor plan"},
+                                  {"date", "2026-10-14"},
+                                  {"revision", ""}} &&
+                      keys(items[3].toObject()["data"].toObject()) ==
+                          std::set<QString>{"frame", "font", "fields"},
+                  "Title block stores its four fields, not the derived ones");
+            const auto width = items[4].toObject()["data"].toObject();
+            check(keys(width) == std::set<QString>{"view", "anchors", "orientation", "offsetMm",
+                                                   "prefix", "font", "lastMm"} &&
+                      width["view"] == "2" && width["orientation"] == "horizontal" &&
+                      width["offsetMm"] == -7.5 &&
+                      width["prefix"] == QString::fromUtf8("≈ ") &&
+                      width["lastMm"] ==
+                          QJsonArray{QJsonArray{60.125, 120}, QJsonArray{100, -3.5}} &&
+                      width["anchors"].toArray().size() == 2 &&
+                      width["anchors"].toArray()[0].toObject()["kind"] == "vertex" &&
+                      width["anchors"].toArray()[1].toObject()["kind"] == "edge" &&
+                      width["anchors"].toArray()[1].toObject()["parameter"] == .375,
+                  "Dimension item stores its view, anchors and placement");
+            const auto tagData = items[5].toObject()["data"].toObject();
+            check(keys(tagData) ==
+                          std::set<QString>{"text", "font", "textAt", "leader", "target"} &&
+                      tagData["leader"] == false &&
+                      tagData["textAt"] == QJsonObject{{"xMm", 200}, {"yMm", 250}} &&
+                      keys(tagData["target"].toObject()) ==
+                          std::set<QString>{"kind", "view", "anchor", "lastMm"} &&
+                      tagData["target"].toObject()["view"] == "3" &&
+                      tagData["target"].toObject().value("lastMm") == QJsonArray{80.5, 260.25},
+                  "View-target label shape");
+            check(items[6].toObject()["data"].toObject()["target"] ==
+                          QJsonObject{{"kind", "paper"}, {"xMm", 400}, {"yMm", 45.5}} &&
+                      items[6].toObject()["data"].toObject()["leader"] == true,
+                  "Paper-target label shape");
+            check(items[7].toObject()["data"].toObject()["orientation"] == "vertical" &&
+                      items[8].toObject()["data"].toObject()["orientation"] == "aligned",
+                  "Every dimension orientation is stored");
+            QStringList zs;
+            for (const auto &entry : items)
+                zs.append(QString::number(entry.toObject()["z"].toInt()));
+            check(zs == QStringList{"5", "3", "0", "1", "4", "6", "0", "1", "2"},
+                  "Items store their per-sheet z order");
         }
         const auto reopened = decodeContainer(container);
         sameSheets(doc, reopened, "container");
@@ -264,6 +447,24 @@ int main(int argc, char **argv) {
         check(drawingViewsWithMissingSource(reopened) == std::set<Id>{4} &&
                   reopened.drawingViews().at(4)->source.scene == 3 && !reopened.scenes().contains(3),
               "A broken scene link survives the round trip");
+        {
+            // A dimension whose anchor body was deleted is kept as stored; it is broken
+            // only when evaluated (ADR 0164 §3).
+            const auto &lost = std::get<DrawingDimensionItem>(reopened.drawingItems().at(9)->data);
+            check(!reopened.bodies().contains(lost.anchors[0].body) &&
+                      !reopened.bodies().contains(lost.anchors[1].body) &&
+                      lost.anchors[0].state == AnchorState::Resolved && lost.view == 4,
+                  "A dimension whose anchor target is missing survives the round trip");
+            check(reopened.drawingItems().at(9)->sheet == 1 &&
+                      drawingItemsOnSheet(reopened, 2) ==
+                          std::vector<Id>{4, 5, 10, 2, 6, 1, 7},
+                  "Sheets and z order survive the round trip");
+            // Every kind round-trips through a second, independent document.
+            std::set<DrawingItemKind> seen;
+            for (const auto &[id, item] : reopened.drawingItems())
+                seen.insert(item->kind());
+            check(seen.size() == 6, "The fixture covers every item kind");
+        }
         {
             const auto path = files.filePath("created.sketchyup");
             const auto created = createNativeFile(doc, path);
@@ -466,12 +667,245 @@ int main(int argc, char **argv) {
                     root["drawingViews"] = views;
                 },
                 "repeated view");
+            // R091.b: the sheet number and margin are required fields.
+            for (const auto &field : {"number", "marginMm"})
+                rawRejects(onSheet(1, [&](QJsonObject &sheet) { sheet.remove(field); }),
+                           std::string("missing sheet ") + field);
+            rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["number"] = 101; }),
+                       "numeric sheet number");
+            rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["number"] = QJsonValue(); }),
+                       "null sheet number");
+            rawRejects(onSheet(0, [](QJsonObject &sheet) { sheet["number"] = "A-101"; }),
+                       "duplicate sheet number");
+            rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["number"] = "A\n101"; }),
+                       "control character in sheet number");
+            rawRejects(onSheet(1,
+                               [](QJsonObject &sheet) {
+                                   sheet["number"] = QString(33, QChar('A'));
+                               }),
+                       "sheet number over 32 bytes");
+            rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["marginMm"] = "10"; }),
+                       "string margin");
+            rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["marginMm"] = -1; }),
+                       "negative margin");
+            rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["marginMm"] = 50.5; }),
+                       "margin over 50 mm");
+
+            // R091.b: the item table. Every field at every level is required and unknown
+            // fields are rejected.
+            auto onItem = [&](int index, const std::function<void(QJsonObject &)> &mutate) {
+                return [=](QJsonObject &root) {
+                    auto items = root["drawingItems"].toArray();
+                    auto item = items[index].toObject();
+                    mutate(item);
+                    items[index] = item;
+                    root["drawingItems"] = items;
+                };
+            };
+            // Applies mutate to the object at a path of keys and array indices in an item.
+            auto onItemPath = [&](int index, const QStringList &path,
+                                  const std::function<void(QJsonObject &)> &mutate) {
+                return onItem(index, [=](QJsonObject &item) {
+                    std::function<QJsonValue(QJsonValue, int)> descend =
+                        [&](QJsonValue value, int depth) -> QJsonValue {
+                        if (depth == path.size()) {
+                            auto object = value.toObject();
+                            mutate(object);
+                            return object;
+                        }
+                        bool numeric{};
+                        const auto position = path[depth].toInt(&numeric);
+                        if (numeric) {
+                            auto array = value.toArray();
+                            array[position] = descend(array[position], depth + 1);
+                            return array;
+                        }
+                        auto object = value.toObject();
+                        object[path[depth]] = descend(object[path[depth]], depth + 1);
+                        return object;
+                    };
+                    item = descend(item, 0).toObject();
+                });
+            };
+            for (const auto &field : {"drawingItems", "nextDrawingItemId"})
+                rawRejects([&](QJsonObject &root) { root.remove(field); },
+                           std::string("missing root ") + field);
+            rawRejects([](QJsonObject &root) { root["drawingItems"] = QJsonObject{}; },
+                       "non-array item table");
+            // Every object in every item, by path: each field missing, and one unknown.
+            const std::vector<std::pair<int, QStringList>> paths{
+                {0, {}},
+                {0, {"data"}},
+                {0, {"data", "frame"}},
+                {0, {"data", "font"}},
+                {1, {"data"}},
+                {2, {"data"}},
+                {2, {"data", "frame"}},
+                {3, {"data"}},
+                {3, {"data", "fields"}},
+                {3, {"data", "font"}},
+                {4, {"data"}},
+                {4, {"data", "font"}},
+                {4, {"data", "anchors", "0"}},
+                {4, {"data", "anchors", "1"}},
+                {5, {"data"}},
+                {5, {"data", "textAt"}},
+                {5, {"data", "target"}},
+                {5, {"data", "target", "anchor"}},
+                {6, {"data", "target"}},
+            };
+            int fieldCases{};
+            for (const auto &[index, path] : paths) {
+                auto probe = documentTree(container);
+                QJsonValue node = probe["drawingItems"].toArray()[index];
+                for (const auto &step : path) {
+                    bool numeric{};
+                    const auto position = step.toInt(&numeric);
+                    node = numeric ? node.toArray()[position] : node.toObject()[step];
+                }
+                check(node.isObject(), "Item path names an object");
+                const auto label = QString("item %1 /%2").arg(index).arg(path.join('/'));
+                for (const auto &field : node.toObject().keys()) {
+                    rawRejects(onItemPath(index, path,
+                                          [&](QJsonObject &object) { object.remove(field); }),
+                               "missing field " + field.toStdString() + " at " +
+                                   label.toStdString());
+                    ++fieldCases;
+                }
+                rawRejects(onItemPath(index, path,
+                                      [](QJsonObject &object) { object["extra"] = true; }),
+                           "unknown field at " + label.toStdString());
+            }
+            check(fieldCases >= 60, "Every stored item field has a missing-field case");
+            // Kinds, enumerations and value shapes.
+            rawRejects(onItem(0, [](QJsonObject &item) { item["kind"] = "Text"; }),
+                       "noncanonical item kind");
+            rawRejects(onItem(0, [](QJsonObject &item) { item["kind"] = "image"; }),
+                       "unknown item kind");
+            rawRejects(onItem(1, [](QJsonObject &item) { item["kind"] = "rectangle"; }),
+                       "kind that does not match its data");
+            rawRejects(onItemPath(0, {"data"}, [](QJsonObject &d) { d["align"] = "justify"; }),
+                       "unknown alignment");
+            rawRejects(onItemPath(1, {"data"}, [](QJsonObject &d) { d["dash"] = "dotted"; }),
+                       "unknown dash");
+            rawRejects(onItemPath(4, {"data"},
+                                  [](QJsonObject &d) { d["orientation"] = "Horizontal"; }),
+                       "noncanonical orientation");
+            rawRejects(onItemPath(5, {"data", "target"},
+                                  [](QJsonObject &t) { t["kind"] = "model"; }),
+                       "unknown label target kind");
+            rawRejects(onItemPath(6, {"data", "target"},
+                                  [](QJsonObject &t) {
+                                      t["kind"] = "view";
+                                  }),
+                       "paper target fields under a view kind");
+            rawRejects(onItemPath(5, {"data"}, [](QJsonObject &d) { d["leader"] = 0; }),
+                       "numeric leader flag");
+            rawRejects(onItemPath(1, {"data"}, [](QJsonObject &d) { d["from"] = QJsonArray{1}; }),
+                       "short point");
+            rawRejects(onItemPath(1, {"data"},
+                                  [](QJsonObject &d) { d["to"] = QJsonArray{1, 2, 3}; }),
+                       "long point");
+            rawRejects(onItemPath(4, {"data"},
+                                  [](QJsonObject &d) {
+                                      auto anchors = d["anchors"].toArray();
+                                      anchors.removeLast();
+                                      d["anchors"] = anchors;
+                                  }),
+                       "one dimension anchor");
+            rawRejects(onItemPath(4, {"data"},
+                                  [](QJsonObject &d) {
+                                      auto last = d["lastMm"].toArray();
+                                      last.append(QJsonArray{0, 0});
+                                      d["lastMm"] = last;
+                                  }),
+                       "three dimension positions");
+            rawRejects(onItemPath(4, {"data", "anchors", "0"},
+                                  [](QJsonObject &a) { a["kind"] = "face"; }),
+                       "face anchor on a paper dimension");
+            rawRejects(onItemPath(4, {"data", "anchors", "0"},
+                                  [](QJsonObject &a) { a["state"] = "missing"; }),
+                       "stored broken anchor state");
+            rawRejects(onItemPath(0, {"data"}, [](QJsonObject &d) { d["text"] = ""; }),
+                       "empty text");
+            rawRejects(onItemPath(0, {"data"}, [](QJsonObject &d) { d["text"] = 7; }),
+                       "numeric text");
+            rawRejects(onItemPath(0, {"data", "font"},
+                                  [](QJsonObject &f) { f["family"] = "/usr/share/fonts/x.ttf"; }),
+                       "font path");
+            rawRejects(onItemPath(0, {"data", "font"}, [](QJsonObject &f) { f["sizePt"] = 3; }),
+                       "font below 4 pt");
+            rawRejects(onItemPath(2, {"data"}, [](QJsonObject &d) { d["strokeMm"] = 2.5; }),
+                       "stroke over 2 mm");
+            rawRejects(onItemPath(2, {"data", "frame"}, [](QJsonObject &f) { f["xMm"] = 30; }),
+                       "frame outside paper");
+            rawRejects(onItemPath(3, {"data", "fields"},
+                                  [](QJsonObject &f) { f["revision"] = QString(257, QChar('B')); }),
+                       "title-block field over 256 bytes");
+            rawRejects(onItemPath(3, {"data", "fields"},
+                                  [](QJsonObject &f) { f["sheetNumber"] = "A-101"; }),
+                       "stored derived title-block field");
+            // Identities, z order and canonical ID order.
+            for (const auto &bad : {QJsonValue("01"), QJsonValue("0"), QJsonValue(1),
+                                    QJsonValue("+1"), QJsonValue(" 1")}) {
+                rawRejects(onItem(0, [&](QJsonObject &item) { item["id"] = bad; }),
+                           "noncanonical item id");
+                rawRejects(onItem(0, [&](QJsonObject &item) { item["sheet"] = bad; }),
+                           "noncanonical item sheet");
+                rawRejects(onItemPath(4, {"data"}, [&](QJsonObject &d) { d["view"] = bad; }),
+                           "noncanonical dimension view");
+                rawRejects([&](QJsonObject &root) { root["nextDrawingItemId"] = bad; },
+                           "noncanonical item allocator");
+            }
+            rawRejects(onItem(0, [](QJsonObject &item) { item["z"] = 1.5; }), "fractional z");
+            rawRejects(onItem(0, [](QJsonObject &item) { item["z"] = "5"; }), "string z");
+            rawRejects(onItem(0, [](QJsonObject &item) { item["z"] = -1; }), "negative z");
+            rawRejects(onItem(0, [](QJsonObject &item) { item["z"] = 3; }), "repeated z");
+            rawRejects(onItem(0, [](QJsonObject &item) { item["z"] = 7; }), "z gap");
+            rawRejects(
+                [](QJsonObject &root) {
+                    auto items = root["drawingItems"].toArray();
+                    const auto first = items[0];
+                    items[0] = items[1];
+                    items[1] = first;
+                    root["drawingItems"] = items;
+                },
+                "items out of ID order");
+            rawRejects(
+                [](QJsonObject &root) {
+                    auto items = root["drawingItems"].toArray();
+                    items.append(items[8]);
+                    root["drawingItems"] = items;
+                },
+                "repeated item");
+            rawRejects(onItem(6, [](QJsonObject &item) { item["sheet"] = "3"; }),
+                       "item on a retired sheet");
+            rawRejects(onItem(6, [](QJsonObject &item) { item["sheet"] = "2"; }),
+                       "item moved without its z order");
+            rawRejects(onItemPath(4, {"data"}, [](QJsonObject &d) { d["view"] = "4"; }),
+                       "dimension bound to a view on another sheet");
+            rawRejects(onItemPath(4, {"data"}, [](QJsonObject &d) { d["view"] = "1"; }),
+                       "dimension bound to a retired view");
+            rawRejects(onItemPath(5, {"data", "target"},
+                                  [](QJsonObject &t) { t["view"] = "9"; }),
+                       "label bound to a missing view");
+            rawRejects([](QJsonObject &root) { root["nextDrawingItemId"] = "10"; },
+                       "item allocator at a live ID");
+            {
+                // Removing every item leaves a valid table; the allocator is kept.
+                auto empty = documentTree(container);
+                empty["drawingItems"] = QJsonArray{};
+                const auto decoded = decodeDocument(compact(empty));
+                check(decoded.drawingItems().empty() && decoded.nextDrawingItemId() == 11,
+                      "An empty item table with a raised allocator decodes");
+            }
             // Allocator disagreement: below a live ID, or not matching the manifest floor.
             rawRejects([](QJsonObject &root) { root["nextDrawingSheetId"] = "2"; },
                        "sheet allocator at a live ID");
             rawRejects([](QJsonObject &root) { root["nextDrawingViewId"] = "4"; },
                        "view allocator at a live ID");
-            for (const auto &floor : {"nextDrawingSheetId", "nextDrawingViewId"}) {
+            for (const auto &floor :
+                 {"nextDrawingSheetId", "nextDrawingViewId", "nextDrawingItemId"}) {
                 auto changed = head;
                 auto floors = changed["allocatorFloors"].toObject();
                 floors[floor] = "9";
@@ -496,6 +930,17 @@ int main(int argc, char **argv) {
                 check(decodeContainer(repack(container, changed, compact(raised)))
                               .nextDrawingSheetId() == 9,
                       "Consistent raised sheet allocator decodes");
+            }
+            {
+                auto raised = documentTree(container);
+                raised["nextDrawingItemId"] = "40";
+                auto changed = head;
+                auto floors = changed["allocatorFloors"].toObject();
+                floors["nextDrawingItemId"] = "40";
+                changed["allocatorFloors"] = floors;
+                check(decodeContainer(repack(container, changed, compact(raised)))
+                              .nextDrawingItemId() == 40,
+                      "Consistent raised item allocator decodes");
             }
             // The feature, the encoding and the payload version must agree.
             auto withoutFeature = head;
@@ -558,25 +1003,48 @@ int main(int argc, char **argv) {
             eraseDrawingView(plain, view);
             saveDocument(plain, path);
             check(documentTree(read(path))["version"] == 27, "A sheet alone keeps schema 27");
-            // 3. Deleting every sheet writes 26 again. The allocators are not stored at
-            // schema 26, so a reopened sheet-free file starts them at 1 again.
+            // R091.b: sheets with items write 27 and store the items.
+            DrawingTextItem note;
+            note.frame = {20, 20, 100, 20};
+            note.text = "Window schedule";
+            createDrawingItem(plain, sheet, note);
+            DrawingTitleBlockItem block;
+            block.frame = {250, 240, 160, 47};
+            block.fields = {"Box", "Plan", "2026-10-14", "A"};
+            createDrawingItem(plain, sheet, block);
+            saveDocument(plain, path);
+            check(documentTree(read(path))["version"] == 27 &&
+                      documentTree(read(path))["drawingItems"].toArray().size() == 2 &&
+                      manifest(read(path))["allocatorFloors"].toObject()["nextDrawingItemId"] ==
+                          "3",
+                  "Sheets with items write schema 27");
+            check(loadDocument(path).drawingItems().size() == 2, "Saved items reopen");
+            // 3. Deleting every sheet, and with it every item, writes 26 again. The
+            // allocators are not stored at schema 26, so a reopened sheet-free file
+            // starts them at 1 again.
             eraseDrawingSheet(plain, sheet);
-            check(plain.nextDrawingSheetId() == 2 && plain.nextDrawingViewId() == 2,
+            check(plain.drawingItems().empty(), "Deleting the sheet deletes its items");
+            check(plain.nextDrawingSheetId() == 2 && plain.nextDrawingViewId() == 2 &&
+                      plain.nextDrawingItemId() == 3,
                   "In-memory allocators never rewind");
             saveDocument(plain, path);
             const auto again = read(path);
             matchesRelease(again, release, "after deleting every sheet");
             const auto reloaded = loadDocument(path);
-            check(reloaded.nextDrawingSheetId() == 1 && reloaded.nextDrawingViewId() == 1,
+            check(reloaded.nextDrawingSheetId() == 1 && reloaded.nextDrawingViewId() == 1 &&
+                      reloaded.nextDrawingItemId() == 1 && reloaded.drawingItems().empty(),
                   "Schema 26 does not store drawing-sheet allocators");
             check(QFileInfo::exists(path + ".bak") &&
                       documentTree(read(path + ".bak"))["version"] == 27,
                   "The previous schema-27 save is kept as the backup");
             // Undo brings the sheet back, and the next save is schema 27 again.
             plain.undo();
-            check(plain.drawingSheets().size() == 1, "Undo restores the sheet");
+            check(plain.drawingSheets().size() == 1 && plain.drawingItems().size() == 2,
+                  "Undo restores the sheet and its items");
             saveDocument(plain, path);
-            check(documentTree(read(path))["version"] == 27, "Undo re-enters schema 27");
+            check(documentTree(read(path))["version"] == 27 &&
+                      documentTree(read(path))["drawingItems"].toArray().size() == 2,
+                  "Undo re-enters schema 27 with the items");
 
             // The opt-in release check: SKETCHYUP_PRIOR_CLI names a previous release's
             // sketchyup-cli (the R090.b scripted check uses it). SketchyUp 1.0.0 reports
@@ -596,7 +1064,16 @@ int main(int argc, char **argv) {
                           error.contains("\"status\":\"failed\"") &&
                           error.contains("Unsupported") &&
                           read(sheetPath) == sheetBytes,
-                      "The prior release rejects schema 27 and leaves the file unchanged");
+                      "The prior release rejects schema 27 with items and leaves the file "
+                      "unchanged");
+                const auto fixturePath = files.filePath("prior-fixture.sketchyup");
+                const auto fixtureBytes =
+                    read(fixtures.filePath("drawing-sheets-v27.sketchyup"));
+                write(fixturePath, fixtureBytes);
+                check(runPriorCli(prior, fixturePath, error) != 0 &&
+                          error.contains("\"status\":\"failed\"") &&
+                          read(fixturePath) == fixtureBytes,
+                      "The prior release rejects the v27 item fixture unchanged");
                 std::cout << "prior release CLI checked: " << prior.toStdString() << '\n';
             }
         }
@@ -616,11 +1093,31 @@ int main(int argc, char **argv) {
             const auto saved = loadDocument(path);
             check(saved.drawingSheets().at(1)->name == "Title", "Second save has the rename");
             sameSheets(edited, saved, "second save");
+            // R091.b: an item edit saves, and the backup keeps the previous items.
+            const auto beforeItem = read(path);
+            auto text = std::get<DrawingTextItem>(edited.drawingItems().at(1)->data);
+            text.text = "Revised notes";
+            updateDrawingItem(edited, 1, text);
+            reorderDrawingItems(edited, 1, {9, 8});
+            saveDocument(edited, path);
+            check(read(path + ".bak") == beforeItem, "Backup keeps the items before the edit");
+            sameSheets(edited, loadDocument(path), "item edit save");
+            check(std::get<DrawingTextItem>(loadDocument(path + ".bak").drawingItems().at(1)->data)
+                          .text != "Revised notes",
+                  "The backup has the previous item text");
             const auto snapshot = captureSave(edited);
             moveDrawingView(edited, 3, 1);
             saveSnapshot(edited, snapshot, path);
             check(loadDocument(path).drawingViews().at(3)->sheet == 2 && edited.dirty(),
                   "A captured snapshot saves the captured sheets, not later edits");
+            check(loadDocument(path).drawingItems().at(7)->sheet == 2 &&
+                      edited.drawingItems().at(7)->sheet == 1,
+                  "The snapshot keeps the view's label on its captured sheet");
+            eraseDrawingItem(edited, 2);
+            DrawingRectangleItem border;
+            border.frame = {10, 10, 400, 277};
+            const auto border11 = createDrawingItem(edited, 1, border);
+            check(border11 == 11, "New items use the never-rewinding allocator");
 
             const auto root = files.filePath("recovery");
             QString key;
@@ -636,6 +1133,11 @@ int main(int argc, char **argv) {
             sameSheets(edited, *recovered.document, "recovery");
             check(recovered.document->drawingViews().at(3)->sheet == 1,
                   "Recovery keeps the unsaved view move");
+            check(recovered.document->drawingItems().at(7)->sheet == 1 &&
+                      !recovered.document->drawingItems().contains(2) &&
+                      recovered.document->drawingItems().contains(11) &&
+                      recovered.document->nextDrawingItemId() == 12,
+                  "Recovery keeps the unsaved item edits");
         }
 
         // Migration: every v1-26 fixture opens with empty sheet tables, its original
@@ -651,7 +1153,8 @@ int main(int argc, char **argv) {
                 const auto original = read(source);
                 const auto loaded = loadDocument(source);
                 check(loaded.drawingSheets().empty() && loaded.drawingViews().empty() &&
-                          loaded.nextDrawingSheetId() == 1 && loaded.nextDrawingViewId() == 1,
+                          loaded.drawingItems().empty() && loaded.nextDrawingSheetId() == 1 &&
+                          loaded.nextDrawingViewId() == 1 && loaded.nextDrawingItemId() == 1,
                       name.toStdString() + " migrates with empty drawing-sheet tables");
                 const auto output = files.filePath("migrated-" + name + ".sketchyup");
                 const auto report = migrateNativeFile(source, output);

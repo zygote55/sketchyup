@@ -1,4 +1,5 @@
 #include "automation/extension.hpp"
+#include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
@@ -129,6 +130,54 @@ QJsonObject exercise(const QString &name, const QByteArray &seed,
         {"seedSha256",
          QString::fromLatin1(QCryptographicHash::hash(seed, QCryptographicHash::Sha256).toHex())}};
 }
+// Schema 27 page items (R091.b): every kind on one sheet, bound to the plan view and,
+// for one label, to the broken view.
+Document withDrawingItems(Document doc) {
+    const auto sheet = doc.drawingSheets().begin()->first;
+    const auto plan = doc.drawingViews().begin()->first;
+    const auto broken = doc.drawingViews().rbegin()->first;
+    const auto body = doc.bodies().begin()->first;
+    const auto &record = *doc.bodies().at(body);
+    const auto vertex = vertexAnchor(doc, body, record.surface.vertices.begin()->first);
+    const auto edge = edgeAnchor(doc, body, record.topology.edges.begin()->first, .5);
+    DrawingTextItem text;
+    text.frame = {20, 180, 120, 20};
+    text.text = "Notes";
+    createDrawingItem(doc, sheet, text);
+    DrawingLineItem line;
+    line.from = {10, 287};
+    line.to = {410, 287};
+    createDrawingItem(doc, sheet, line);
+    DrawingRectangleItem rectangle;
+    rectangle.frame = {10, 10, 400, 277};
+    rectangle.dash = DrawingStrokeDash::Dashed;
+    createDrawingItem(doc, sheet, rectangle);
+    DrawingTitleBlockItem block;
+    block.frame = {250, 230, 150, 47};
+    block.fields = {"Corpus", "Plan", "2026-10-14", "A"};
+    createDrawingItem(doc, sheet, block);
+    DrawingDimensionItem dimension;
+    dimension.view = plan;
+    dimension.anchors = {vertex, edge};
+    dimension.orientation = DrawingDimensionOrientation::Horizontal;
+    dimension.offsetMm = -8;
+    dimension.lastMm = {DrawingPointMm{60, 120}, DrawingPointMm{100, 120}};
+    createDrawingItem(doc, sheet, dimension);
+    DrawingLabelItem label;
+    label.text = "W2";
+    label.textAt = {300, 200};
+    label.target.kind = DrawingLabelTargetKind::View;
+    label.target.view = broken;
+    label.target.anchor = vertex;
+    label.target.lastMm = {260, 90};
+    createDrawingItem(doc, sheet, label);
+    DrawingLabelItem north;
+    north.text = "North";
+    north.textAt = {380, 30};
+    north.target.pointMm = {400, 40};
+    createDrawingItem(doc, sheet, north);
+    return doc;
+}
 } // namespace
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -192,6 +241,26 @@ int main(int argc, char **argv) {
                                     roundtrip(document);
                                 }));
         results.append(exercise("native-container-drawing-sheets", sheetContainer,
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto document = decodeContainer(bytes);
+                                    parsed = true;
+                                    roundtrip(document);
+                                }));
+        // Schema 27 (R091.b): the same sheets with every page-item kind.
+        Document items;
+        {
+            auto tree = QJsonDocument::fromJson(encodeDocument(withDrawingItems(sheets))).object();
+            tree["documentId"] = "0000000000000000000000000000083e";
+            items = decodeDocument(QJsonDocument(tree).toJson(QJsonDocument::Compact));
+        }
+        const auto itemContainer = encodeContainer(items);
+        results.append(exercise("native-json-drawing-items", encodeDocument(items),
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto document = decodeDocument(bytes);
+                                    parsed = true;
+                                    roundtrip(document);
+                                }));
+        results.append(exercise("native-container-drawing-items", itemContainer,
                                 [](const auto &bytes, bool &parsed) {
                                     const auto document = decodeContainer(bytes);
                                     parsed = true;
@@ -268,11 +337,12 @@ int main(int argc, char **argv) {
             }));
         check(encodeContainer(source) == original, "Corpus never mutates its source model");
         check(encodeContainer(sheets) == sheetContainer, "Corpus never mutates its sheet model");
-        check(results.size() == 12, "Corpus covers ten formats plus the two schema-27 seeds");
+        check(encodeContainer(items) == itemContainer, "Corpus never mutates its item model");
+        check(results.size() == 14, "Corpus covers ten formats plus the four schema-27 seeds");
         std::cout << QJsonDocument(QJsonObject{{"corpusVersion", 1},
                                                {"seed", "0x83a5c0de"},
                                                {"formats", results},
-                                               {"mutations", 6144},
+                                               {"mutations", 7168},
                                                {"sourcePreserved", true}})
                          .toJson()
                          .toStdString();

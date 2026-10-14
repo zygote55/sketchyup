@@ -202,6 +202,8 @@ int main(int argc, char **argv) {
                 tree["nextDrawingSheetId"] = "1";
                 tree["drawingViews"] = QJsonArray{};
                 tree["nextDrawingViewId"] = "1";
+                tree["drawingItems"] = QJsonArray{};
+                tree["nextDrawingItemId"] = "1";
             }
             if (version == 1)
                 tree.remove("revision");

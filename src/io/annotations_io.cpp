@@ -113,6 +113,8 @@ AnnotationAnchor decode(const QJsonValue &value) {
     return a;
 }
 } // namespace
+QJsonObject encodeAnnotationAnchor(const AnnotationAnchor &anchor) { return encode(anchor); }
+AnnotationAnchor decodeAnnotationAnchor(const QJsonValue &value) { return decode(value); }
 QJsonArray encodeAnnotations(const AnnotationRecords &records) {
     QJsonArray result;
     for (const auto &[id, record] : records) {
