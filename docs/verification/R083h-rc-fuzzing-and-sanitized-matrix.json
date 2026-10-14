@@ -1,0 +1,439 @@
+{
+  "record": "R083.h",
+  "date": "2026-10-14T00:26Z/2026-10-14T01:01Z",
+  "sourceCommit": "7b01bb7a1d3fa19b6b5cc7f1a4c27a2ad5cd03a2",
+  "releaseAcceptanceEvidence": true,
+  "sanitizedMatrix": {
+    "build": "sanitize preset from the R089.d walkthrough work tree, reused; five missing suite executables built (24 s)",
+    "image": "sketchyup-native-fonts-check:20261008",
+    "imageId": "sha256:873ba0787bccd851a46f068e265f7d2922f90df0857e782bbf6d441f0c51bd08",
+    "limits": {
+      "cpus": 6,
+      "memoryGiB": 10,
+      "buildJobs": 4
+    },
+    "toolchain": {
+      "gcc": "16.2.1+r23+gd564253eb6c8-1",
+      "qt6-base": "6.11.2-3",
+      "cmake": "4.4.3-2",
+      "ninja": "1.13.2-3"
+    },
+    "environment": {
+      "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:abort_on_error=1",
+      "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+    },
+    "commands": [
+      "cmake --build --preset sanitize --target geometry_sequence_tests persistence_tests m4_persistence_tests recovery_tests recovery_cli_tests geometry_fuzz_tests new_file_fault_tests parser_fault_corpus_tests native_format_tests transaction_sequence_tests transaction_coordinator_tests outcome_store_tests staging_tests sketchyup-cli --parallel 4",
+      "ctest --test-dir build/sanitize -R '^(geometry_fuzz|new_file_faults|parser_fault_corpus|native_format|transaction_sequence|transaction_coordinator|outcome_store|staging|geometry_sequence|recovery_cli|recovery|m4_persistence|persistence)$' --output-on-failure --timeout 1500"
+    ],
+    "localRunName": "rc-r083f-matrix",
+    "jobScript": "harness/job-r083f-matrix.sh",
+    "passed": 13,
+    "total": 13,
+    "totalSeconds": 200.96,
+    "reruns": 0,
+    "suites": [
+      {
+        "name": "geometry_fuzz",
+        "seconds": 16.12,
+        "passed": true,
+        "sanitizedAtRcBefore": true
+      },
+      {
+        "name": "new_file_faults",
+        "seconds": 0.08,
+        "passed": true,
+        "sanitizedAtRcBefore": true
+      },
+      {
+        "name": "parser_fault_corpus",
+        "seconds": 19.82,
+        "passed": true,
+        "sanitizedAtRcBefore": true
+      },
+      {
+        "name": "native_format",
+        "seconds": 18.51,
+        "passed": true,
+        "sanitizedAtRcBefore": true
+      },
+      {
+        "name": "transaction_sequence",
+        "seconds": 16.92,
+        "passed": true,
+        "sanitizedAtRcBefore": true
+      },
+      {
+        "name": "transaction_coordinator",
+        "seconds": 3.25,
+        "passed": true,
+        "sanitizedAtRcBefore": true
+      },
+      {
+        "name": "outcome_store",
+        "seconds": 93.18,
+        "passed": true,
+        "sanitizedAtRcBefore": true
+      },
+      {
+        "name": "staging",
+        "seconds": 1.3,
+        "passed": true,
+        "sanitizedAtRcBefore": true
+      },
+      {
+        "name": "geometry_sequence",
+        "seconds": 4.65,
+        "passed": true,
+        "sanitizedAtRcBefore": false
+      },
+      {
+        "name": "recovery_cli",
+        "seconds": 4.05,
+        "passed": true,
+        "sanitizedAtRcBefore": false
+      },
+      {
+        "name": "recovery",
+        "seconds": 20.41,
+        "passed": true,
+        "sanitizedAtRcBefore": false
+      },
+      {
+        "name": "m4_persistence",
+        "seconds": 0.47,
+        "passed": true,
+        "sanitizedAtRcBefore": false
+      },
+      {
+        "name": "persistence",
+        "seconds": 2.21,
+        "passed": true,
+        "sanitizedAtRcBefore": false
+      }
+    ],
+    "comparison": {
+      "record": "R083.d",
+      "sourceCommit": "7563bbed8d7e9ce3302141d6df1efcab518ab967",
+      "passed": 13,
+      "totalSeconds": 296.33
+    }
+  },
+  "parserFuzzing": {
+    "host": {
+      "os": "Omarchy (Arch)",
+      "kernel": "7.2.5-3-omarchy",
+      "clang": "22.1.8-1",
+      "compiler-rt": "22.1.8-1",
+      "qt6-base": "6.11.2-3",
+      "cmake": "4.4.3",
+      "ninja": "1.13.2"
+    },
+    "buildDir": ".local/wt-rc/build/fuzz-rc",
+    "campaignDir": ".local/fuzz-rc",
+    "buildParallel": 6,
+    "buildSeconds": 256,
+    "maxConcurrentTargets": 2,
+    "rssLimitMb": 2048,
+    "maxTotalTimeSeconds": 300,
+    "maxLen": 1048576,
+    "timeoutSeconds": 10,
+    "asanOptions": "detect_leaks=1:abort_on_error=1",
+    "supplementaryAsanOptions": "detect_leaks=1:abort_on_error=1:alloc_dealloc_mismatch=0",
+    "ubsanOptions": "halt_on_error=1:print_stacktrace=1",
+    "mainRun": {
+      "start": "2026-10-13T17:35:42-07:00",
+      "end": "2026-10-13T17:45:50-07:00"
+    },
+    "supplementaryRun": {
+      "start": "2026-10-13T17:46:18-07:00",
+      "end": "2026-10-13T18:01:22-07:00"
+    },
+    "validSeeds": 12,
+    "nativeSeedSchema": 26,
+    "r083eNativeSeedSchema": 24,
+    "seeds": [
+      {
+        "format": "native-json",
+        "count": 2,
+        "seedSetSha256": "2b3663ab754c300a2da091c5f705f9ba004447ce6a065103e3450d7d005044a2",
+        "sameAsR083e": false
+      },
+      {
+        "format": "native-container",
+        "count": 2,
+        "seedSetSha256": "c11b658d554e739a2d73a38a1ba174dd968eda387270249a0d6fe2fd292345c7",
+        "sameAsR083e": false
+      },
+      {
+        "format": "glb",
+        "count": 1,
+        "seedSetSha256": "672d8b3a4e72ac0d52fb91bbfc8ff6f0154748570ff885da749c5b60d0fe0380",
+        "sameAsR083e": true
+      },
+      {
+        "format": "stl-binary",
+        "count": 1,
+        "seedSetSha256": "6b30f10cd9b74297b7aa51a1be9f9ff88c44de274cc8e97001096855dbef58fd",
+        "sameAsR083e": true
+      },
+      {
+        "format": "stl-ascii",
+        "count": 1,
+        "seedSetSha256": "0930c147e524735246f6a13ea6b78553f606f0f764843cadf19cbc8a97702a6c",
+        "sameAsR083e": true
+      },
+      {
+        "format": "obj",
+        "count": 1,
+        "seedSetSha256": "ce660cddf1ee4efffdbfee8cb8d7442d54703369687fe342cce3c68ae74543b6",
+        "sameAsR083e": true
+      },
+      {
+        "format": "dxf",
+        "count": 1,
+        "seedSetSha256": "77b3a7667050a722ea74eddc7d6b4e595e2b0f9413529ba23da2a0d18fc42fe5",
+        "sameAsR083e": true
+      },
+      {
+        "format": "template",
+        "count": 1,
+        "seedSetSha256": "fecf1f64f8bf113af84ee427254a87901aea02862ba33d48d345ccc05a83a8fe",
+        "sameAsR083e": false
+      },
+      {
+        "format": "component",
+        "count": 1,
+        "seedSetSha256": "a46c2efc85296ea352321aa40c73ec9a71b5d5c66c9f3397d17f9dc8ee6ac23d",
+        "sameAsR083e": false
+      },
+      {
+        "format": "extension",
+        "count": 1,
+        "seedSetSha256": "ec13f723b3e23da6c06ae8e23928fa9a376288db767ada5033ef88c3d118a7db",
+        "sameAsR083e": true
+      }
+    ],
+    "runs": [
+      {
+        "target": "native-json",
+        "supplementary": false,
+        "exitCode": 134,
+        "elapsedSeconds": 2,
+        "executions": 2,
+        "execPerSecond": null,
+        "cov": null,
+        "ft": null,
+        "peakRssMb": 59,
+        "corpusFiles": 2,
+        "findings": "F1 on seed"
+      },
+      {
+        "target": "native-json",
+        "supplementary": true,
+        "exitCode": 0,
+        "elapsedSeconds": 301,
+        "executions": 1715678,
+        "execPerSecond": 5699,
+        "cov": 7717,
+        "ft": 23741,
+        "peakRssMb": 507,
+        "corpusFiles": 367,
+        "findings": "none"
+      },
+      {
+        "target": "native-container",
+        "supplementary": false,
+        "exitCode": 134,
+        "elapsedSeconds": 2,
+        "executions": 2,
+        "execPerSecond": null,
+        "cov": null,
+        "ft": null,
+        "peakRssMb": 59,
+        "corpusFiles": 2,
+        "findings": "F1 on seed"
+      },
+      {
+        "target": "native-container",
+        "supplementary": true,
+        "exitCode": 0,
+        "elapsedSeconds": 301,
+        "executions": 2020714,
+        "execPerSecond": 6713,
+        "cov": 7429,
+        "ft": 14581,
+        "peakRssMb": 542,
+        "corpusFiles": 90,
+        "findings": "none"
+      },
+      {
+        "target": "glb",
+        "supplementary": false,
+        "exitCode": 134,
+        "elapsedSeconds": 2,
+        "executions": 2,
+        "execPerSecond": null,
+        "cov": null,
+        "ft": null,
+        "peakRssMb": 89,
+        "corpusFiles": 1,
+        "findings": "F1 on seed"
+      },
+      {
+        "target": "glb",
+        "supplementary": true,
+        "exitCode": 0,
+        "elapsedSeconds": 301,
+        "executions": 12637,
+        "execPerSecond": 41,
+        "cov": 13743,
+        "ft": 20886,
+        "peakRssMb": 132,
+        "corpusFiles": 154,
+        "findings": "none"
+      },
+      {
+        "target": "stl-binary",
+        "supplementary": false,
+        "exitCode": 0,
+        "elapsedSeconds": 301,
+        "executions": 4909505,
+        "execPerSecond": 16310,
+        "cov": 326,
+        "ft": 753,
+        "peakRssMb": 522,
+        "corpusFiles": 77,
+        "findings": "none"
+      },
+      {
+        "target": "stl-ascii",
+        "supplementary": false,
+        "exitCode": 0,
+        "elapsedSeconds": 301,
+        "executions": 1454528,
+        "execPerSecond": 4832,
+        "cov": 574,
+        "ft": 2366,
+        "peakRssMb": 568,
+        "corpusFiles": 147,
+        "findings": "none"
+      },
+      {
+        "target": "obj",
+        "supplementary": false,
+        "exitCode": 0,
+        "elapsedSeconds": 302,
+        "executions": 1468262,
+        "execPerSecond": 4877,
+        "cov": 877,
+        "ft": 4583,
+        "peakRssMb": 569,
+        "corpusFiles": 481,
+        "findings": "none"
+      },
+      {
+        "target": "dxf",
+        "supplementary": false,
+        "exitCode": 0,
+        "elapsedSeconds": 301,
+        "executions": 2438921,
+        "execPerSecond": 8102,
+        "cov": 1341,
+        "ft": 5600,
+        "peakRssMb": 589,
+        "corpusFiles": 463,
+        "findings": "none"
+      },
+      {
+        "target": "template",
+        "supplementary": false,
+        "exitCode": 134,
+        "elapsedSeconds": 2,
+        "executions": 2,
+        "execPerSecond": null,
+        "cov": null,
+        "ft": null,
+        "peakRssMb": 59,
+        "corpusFiles": 1,
+        "findings": "F1 on seed"
+      },
+      {
+        "target": "template",
+        "supplementary": true,
+        "exitCode": 0,
+        "elapsedSeconds": 302,
+        "executions": 2355411,
+        "execPerSecond": 7825,
+        "cov": 7447,
+        "ft": 13174,
+        "peakRssMb": 560,
+        "corpusFiles": 40,
+        "findings": "none"
+      },
+      {
+        "target": "component",
+        "supplementary": false,
+        "exitCode": 134,
+        "elapsedSeconds": 1,
+        "executions": 2,
+        "execPerSecond": null,
+        "cov": null,
+        "ft": null,
+        "peakRssMb": 59,
+        "corpusFiles": 1,
+        "findings": "F1 on seed"
+      },
+      {
+        "target": "component",
+        "supplementary": true,
+        "exitCode": 0,
+        "elapsedSeconds": 302,
+        "executions": 1814164,
+        "execPerSecond": 6027,
+        "cov": 9562,
+        "ft": 15461,
+        "peakRssMb": 543,
+        "corpusFiles": 42,
+        "findings": "none"
+      },
+      {
+        "target": "extension",
+        "supplementary": false,
+        "exitCode": 134,
+        "elapsedSeconds": 2,
+        "executions": 2,
+        "execPerSecond": null,
+        "cov": null,
+        "ft": null,
+        "peakRssMb": 59,
+        "corpusFiles": 1,
+        "findings": "F1 on seed"
+      },
+      {
+        "target": "extension",
+        "supplementary": true,
+        "exitCode": 0,
+        "elapsedSeconds": 301,
+        "executions": 118512,
+        "execPerSecond": 393,
+        "cov": 3048,
+        "ft": 3935,
+        "peakRssMb": 522,
+        "corpusFiles": 79,
+        "findings": "none"
+      }
+    ],
+    "f1": {
+      "defect": "D-022",
+      "status": "reproduces unchanged; open",
+      "artifactsEqualSeeds": true,
+      "allocatedAt": "libQt6Core.so.6+0x241dc1",
+      "freedAt": "libQt6Core.so.6+0x241f16",
+      "minimizedInputSha256": "cfd6d63ed693596ba47f553c434fd852b232b903dfc952811ba3def019660d1c",
+      "minimizedReproductions": 2,
+      "minimizedExitCode": 134
+    },
+    "newFindings": 0
+  }
+}
