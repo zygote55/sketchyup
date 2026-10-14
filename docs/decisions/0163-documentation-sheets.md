@@ -11,8 +11,8 @@ Implementation: R090.a–e are complete. PRs
 [#310](https://github.com/zygote55/sketchyup/pull/310) (R090.a),
 [#311](https://github.com/zygote55/sketchyup/pull/311) (R090.b),
 [#312](https://github.com/zygote55/sketchyup/pull/312) (R090.c),
-[#313](https://github.com/zygote55/sketchyup/pull/313) (R090.d) and the R090.e pull
-request; acceptance in [R090.e](../verification/R090e-drawing-sheets.md).
+[#313](https://github.com/zygote55/sketchyup/pull/313) (R090.d) and
+[#314](https://github.com/zygote55/sketchyup/pull/314) (R090.e); acceptance in [R090.e](../verification/R090e-drawing-sheets.md).
 
 ## Context
 
