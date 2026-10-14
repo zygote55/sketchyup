@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "automation/drawing_sheet_commands.hpp"
 #include "automation/inspection.hpp"
+#include "core/annotations.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
 #include "core/drawing_item_records.hpp"
@@ -343,6 +344,68 @@ void pureTranslation() {
     std::cout << "pure frame translation keeps the fingerprint: ok\n";
 }
 
+// View edits that change the world <-> sheet mapping carry the bound items' lastMm
+// caches in the same sheet-only edit, so Reattach searches where the broken anchor
+// is now drawn; Undo restores the view and the caches together.
+void lastMmFollowsTheView() {
+    Fixture f;
+    auto &doc = f.doc;
+    doc.splitEdge(f.body, edgeBetween(doc, f.body, {0, 0, 0}, {2, 0, 0}), .25);
+    check(eval(doc, 2).state == DrawingItemState::Broken, "The edge dimension is broken");
+    auto last = [&](Id item) { return std::get<DrawingDimensionItem>(doc.drawingItems().at(item)->data).lastMm; };
+    const auto before = last(2), resolvedBefore = last(1);
+    const auto total = doc.history().total;
+    run(doc, {QJsonObject{{"command", "drawing_view.update"}, {"view", "1"},
+                          {"frame", frame(50, 40, 200, 150)}}});
+    check(doc.history().total == total + 1, "A frame move with bound items is one entry");
+    check(near(last(2)[0][0], before[0][0] + 30) && near(last(2)[0][1], before[0][1] + 20) &&
+              near(last(2)[1][0], before[1][0] + 30) && near(last(1)[0][0], resolvedBefore[0][0] + 30),
+          "A frame move carries lastMm");
+    auto candidateDistance = [&] {
+        const auto proposal = inspect(doc, "drawing_item.reattach_candidates", {{"item", "2"}});
+        const auto anchor = proposal["anchors"].toArray()[0].toObject();
+        check(anchor["candidate"].toObject()["kind"] == "edge",
+              "A candidate is found: " + QJsonDocument(proposal).toJson().toStdString());
+        return anchor["distanceMm"].toDouble();
+    };
+    check(candidateDistance() < 1e-6, "The candidate lies at the anchor's new paper position");
+    // Pan and rescale: the cache follows the mapping.
+    run(doc, {QJsonObject{{"command", "drawing_view.update"}, {"view", "1"},
+                          {"offsetMm", QJsonArray{-12, 7}}, {"scaleDenominator", 25}}});
+    check(candidateDistance() < 1e-6, "Pan and scale changes carry lastMm");
+    // Move to another sheet with a new frame.
+    run(doc, {QJsonObject{{"command", "drawing_sheet.create"}, {"name", "Second"},
+                          {"paper", QJsonObject{{"widthMm", 420}, {"heightMm", 297}}}}});
+    const auto moved = last(2);
+    run(doc, {QJsonObject{{"command", "drawing_view.move"}, {"view", "1"}, {"sheet", "2"},
+                          {"frame", frame(10, 10, 200, 150)}}});
+    check(doc.drawingItems().at(2)->sheet == 2 && near(last(2)[0][0], moved[0][0] - 40) &&
+              candidateDistance() < 1e-6,
+          "A move to another sheet carries lastMm");
+    // A rename does not touch the cache.
+    const auto items = doc.drawingItems();
+    run(doc, {QJsonObject{{"command", "drawing_view.update"}, {"view", "1"}, {"name", "Renamed"}}});
+    check(doc.drawingItems() == items, "A rename writes no item records");
+    // Undo restores the view and the cache together.
+    doc.undo();
+    doc.undo();
+    check(doc.drawingViews().at(1)->sheet == 1 && doc.drawingItems().at(2)->sheet == 1 &&
+              last(2) == moved,
+          "Undo restores the view and its items together");
+    doc.undo();
+    doc.undo();
+    doc.undo();
+    check(last(2) == before && doc.drawingViews().at(1)->frame.xMm == 20,
+          "Undo of every view edit restores the original cache");
+    // An unavailable mapping (perspective) leaves the cache as it is.
+    doc.redo();
+    updateScene(doc, f.plan, planScene(false));
+    const auto kept = last(2);
+    run(doc, {QJsonObject{{"command", "drawing_view.update"}, {"view", "1"},
+                          {"frame", frame(60, 60, 200, 150)}}});
+    check(last(2) == kept, "A view without a mapping keeps lastMm");
+    std::cout << "lastMm follows view mapping changes: ok\n";
+}
 // The lineage table (ADR 0164 §3): which common model edits keep a paper
 // dimension associated. Vertex anchors (item 1) and edge anchors (item 2) are
 // recorded separately. Each row starts from a fresh fixture.
@@ -351,6 +414,7 @@ void lineageTable() {
         const char *edit;
         std::function<void(Fixture &)> apply;
         DrawingItemState vertex, edge;
+        bool annotation{true}; // Whether a model annotation on the edge points survives.
     };
     const auto current = DrawingItemState::Current, broken = DrawingItemState::Broken;
     QJsonArray matrix;
@@ -397,34 +461,47 @@ void lineageTable() {
          current},
         {"split the bottom edge",
          [](Fixture &f) {
-             f.doc.splitEdge(f.body, edgeBetween(f.doc, f.body, {0, 0, 0}, {2, 0, 0}), .5);
+             f.doc.splitEdge(f.body, edgeBetween(f.doc, f.body, {0, 0, 0}, {2, 0, 0}), .25);
          },
-         current, broken},
+         current, broken, true},
         {"erase the bottom edge",
          [](Fixture &f) {
              f.doc.eraseEdge(f.body, edgeBetween(f.doc, f.body, {0, 0, 0}, {2, 0, 0}));
          },
-         current, broken},
-        {"erase the body", [](Fixture &f) { f.doc.erase(f.body); }, broken, broken},
+         current, broken, false},
+        {"erase the body", [](Fixture &f) { f.doc.erase(f.body); }, broken, broken, false},
         {"group the body", [](Fixture &f) { createGroup(f.doc, {f.body}); }, current, current},
         {"make a component", [](Fixture &f) { createComponent(f.doc, f.body, "Slab"); }, broken,
-         broken},
+         broken, false},
     };
     std::cout << "lineage table (vertex anchors | edge anchors):\n";
     for (const auto &row : rows) {
         Fixture f;
+        // A model annotation (ADR 0080) on the same edge points, for comparison: model
+        // edits remap annotation records inside the edit through topology lineage.
+        AnnotationRecord annotation;
+        annotation.name = "Model depth";
+        annotation.anchors = {
+            edgeAnchor(f.doc, f.body, edgeBetween(f.doc, f.body, {0, 0, 0}, {2, 0, 0}), .5),
+            edgeAnchor(f.doc, f.body, edgeBetween(f.doc, f.body, {0, 1, 0}, {2, 1, 0}), .5)};
+        const auto model = createAnnotation(f.doc, annotation);
         const auto items = f.doc.drawingItems();
         row.apply(f);
+        const auto annotationState =
+            measureAnnotation(f.doc, *f.doc.annotations().at(model)).state;
         check(f.doc.drawingItems() == items,
               std::string(row.edit) + " never writes item records");
         const auto vertexState = eval(f.doc, 1), edgeState = eval(f.doc, 2);
         std::cout << "  " << std::left << std::setw(24) << row.edit << describe(vertexState)
-                  << " | " << describe(edgeState) << '\n';
+                  << " | " << std::setw(26) << describe(edgeState) << " | model annotation "
+                  << (annotationState == AnchorState::Resolved ? "kept" : "broken") << '\n';
         check(vertexState.state == row.vertex && edgeState.state == row.edge,
               std::string("Lineage row: ") + row.edit);
         if (vertexState.state == DrawingItemState::Broken)
             check(vertexState.reasons == std::vector<std::string>{"referenceMissing"},
                   std::string(row.edit) + " names the missing reference");
+        check((annotationState == AnchorState::Resolved) == row.annotation,
+              std::string("Model annotation row: ") + row.edit);
         f.doc.undo();
         check(eval(f.doc, 1).state == DrawingItemState::Current &&
                   eval(f.doc, 2).state == DrawingItemState::Current,
@@ -440,6 +517,7 @@ int main(int argc, char **argv) {
         brokenAndReattach();
         notToScale();
         pureTranslation();
+        lastMmFollowsTheView();
         lineageTable();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';

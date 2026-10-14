@@ -97,13 +97,22 @@ bool drawsDifferently(const DrawingViewRecord &a, const DrawingViewRecord &b) {
 // that was stale, broken, failed or never accepted keeps its stamp, so the change
 // never silently accepts unreviewed model edits. If the changed view cannot be
 // evaluated (broken or failed) the old stamp is kept and the state says why.
+void remapBoundItems(Document &doc, Id view, const DrawingViewProjection &from);
 void replaceView(Document &doc, Id view, DrawingViewRecord record, std::uint64_t revision) {
     const auto before = requireView(doc, view);
     record.id = view;
     record.accepted = before->accepted;
     const bool restamp = record.accepted && drawsDifferently(*before, record) &&
                          evaluateDrawingView(doc, view).state == DrawingViewState::Current;
+    // Any change to the world <-> sheet mapping carries the bound items' lastMm
+    // caches with it, in the same edit (ADR 0164, R091.c).
+    const bool remaps = before->source != record.source || before->frame != record.frame ||
+                        before->offsetMm != record.offsetMm ||
+                        before->scaleDenominator != record.scaleDenominator;
+    const auto mapping = remaps ? drawingViewMapping(doc, view) : DrawingViewMapping{};
     updateDrawingView(doc, view, std::move(record));
+    if (mapping.projection)
+        remapBoundItems(doc, view, *mapping.projection);
     if (!restamp)
         return;
     const auto after = evaluateDrawingView(doc, view);
@@ -279,6 +288,34 @@ std::vector<AnnotationAnchor *> boundAnchors(DrawingItemData &data, Id &view,
         last.push_back(&label->target.lastMm);
     }
     return result;
+}
+// Carries each bound item's lastMm from the view's old mapping to its new one:
+// sheetToWorld through the old projection, at the depth of the anchor's last
+// resolved world point, then worldToSheet through the new one. When either mapping
+// is unavailable (broken or not to scale) lastMm is left as it is.
+void remapBoundItems(Document &doc, Id view, const DrawingViewProjection &from) {
+    const auto to = drawingViewMapping(doc, view);
+    if (!to.projection)
+        return;
+    std::vector<std::pair<Id, DrawingItemData>> changed;
+    for (const auto &[id, item] : doc.drawingItems()) {
+        if (drawingItemView(*item) != view)
+            continue;
+        auto data = item->data;
+        Id bound{};
+        std::vector<DrawingPointMm *> last;
+        const auto anchors = boundAnchors(data, bound, last);
+        for (size_t i = 0; i < anchors.size(); ++i) {
+            const auto depth = from.worldToSheet(anchors[i]->fallback).z;
+            const auto world = from.sheetToWorld({(*last[i])[0], (*last[i])[1], depth});
+            const auto sheet = to.projection->worldToSheet(world);
+            *last[i] = {sheet.x, sheet.y};
+        }
+        if (data != item->data)
+            changed.emplace_back(id, std::move(data));
+    }
+    for (auto &[id, data] : changed)
+        updateDrawingItem(doc, id, std::move(data));
 }
 // Writes the derived paper positions (lastMm) and world fallbacks of the bound
 // anchors when every anchor resolves and the view projects; otherwise the item is

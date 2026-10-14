@@ -458,8 +458,15 @@ schema 27.
   and anchors are set at creation and change only through `drawing_item.reattach`.
   Every `drawing_item.*` command that writes a bound item rewrites `lastMm` and the
   fallbacks when the anchors resolve and the view projects; a broken item keeps its
-  old values. View edits (`drawing_view.update`, `drawing_view.move`) do not rewrite
-  them.
+  old values.
+- **`lastMm` follows the view.** A `drawing_view.update` or `drawing_view.move` that
+  changes the view's source, frame, offset or scale (its world↔sheet mapping)
+  rewrites `lastMm` for every item bound to the view in the same sheet-only edit.
+  Each position goes through the old mapping's `sheetToWorld`, at the depth of the
+  anchor's last resolved world point, and then the new mapping's `worldToSheet`. If
+  either mapping is unavailable (broken or not to scale), `lastMm` stays as it is. A
+  rename writes no item records. Undo restores the view and its items together, so
+  Reattach always searches where a broken anchor is drawn now.
 - **Not measurable.** Creating a dimension or a view-target label, or reattaching
   one, evaluates the view synchronously (one capture, as `replaceView` does) and is
   refused with `DRAWING_ITEM_NOT_MEASURABLE` when the view is broken, failed or not
@@ -484,20 +491,41 @@ schema 27.
 - **Amend.** `executeAmend` amends a sheet-scoped entry (for example, consecutive
   nudges labelled "Nudge"). An amendment cannot touch other items or model
   records.
-- **Lineage table** (`drawing_dimension_tests`; vertex anchors | edge anchors):
+- **Lineage table** (`drawing_dimension_tests`). The last column is a model
+  annotation (ADR 0080) on the same edge points, for comparison:
 
-  | Model edit | Vertex anchors | Edge anchors |
-  | --- | --- | --- |
-  | Move, rotate or scale the body | kept | kept |
-  | Move one vertex or one edge | kept, value updates | kept, value updates |
-  | Push/pull the face | kept | kept |
-  | Group the body | kept | kept |
-  | Split the anchored edge | kept | broken |
-  | Erase the anchored edge | kept | broken |
-  | Erase the body | broken | broken |
-  | Make a component (consolidation) | broken | broken |
+  | Model edit | Vertex anchors | Edge anchors | Model annotation |
+  | --- | --- | --- | --- |
+  | Move, rotate or scale the body | kept | kept | kept |
+  | Move one vertex or one edge | kept, value updates | kept, value updates | kept |
+  | Push/pull the face | kept | kept | kept |
+  | Group the body | kept | kept | kept |
+  | Split the anchored edge (away from the anchor) | kept | broken | kept |
+  | Erase the anchored edge | kept | broken | broken |
+  | Erase the body | broken | broken | broken |
+  | Make a component (consolidation) | broken | broken | broken |
 
   Undo of each edit restores the item. No model edit writes item records.
+- **Known limitation: edge splits.** Edge splits are the only edits in the table
+  where paper dimensions break and model annotations survive. Model annotations
+  survive because `Document::apply` rewrites the annotation records inside the
+  model edit (`resolveAnnotationEdit` → `remapAnnotationAnchor`), using the edit's
+  `TopologyChanges` descendants. ADR 0163 forbids the same write to sheet records.
+  That lineage exists only in the history entry. It is not persisted, and it is lost
+  when history is trimmed or the file is reopened. Paper resolution that consulted it
+  would therefore give different answers before and after a save, so R091.c does
+  not use it.
+  - Make component breaks model annotations as well. ADR 0078 leaves cross-context
+    consolidation without published lineage. Paper dimensions are no worse there.
+  - Rebinding by geometry (finding the edge that now contains the fallback point)
+    would silently re-bind a missing ID, which §3 rules out.
+  - **Follow-up.** A persisted, append-only lineage journal would fix this. Model
+    edits would maintain it as a model record: retired edge ID → descendant edges
+    with their parameter ranges, per body, bounded and compacted. It would also need
+    a schema 27 field and a cross-context entry for make component (a new ADR 0078
+    contract). Resolution would consult it read-only.
+  - Estimate: about 600–900 lines plus tests, beyond R091.c. Until then, Reattach is
+    the repair.
 
 ## 4. Keyboard model
 
