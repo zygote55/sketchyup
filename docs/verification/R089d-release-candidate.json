@@ -596,8 +596,26 @@
    "origin": "ci",
    "attempts": 3,
    "result": "Timed out after 60 s in test-wayland.sh on every attempt",
-   "classification": "deterministic in the one-CPU local runner; passed in CI run 38435734443",
-   "logSha256": "363e248ac4caeaa5b3562299e96181e81441d26556f08b3766f06590534bcc7d"
+   "classification": "resource limit of the one-CPU local runner: passed in CI run 38435734443 and in the wide runner (6 CPUs) at the RC",
+   "logSha256": "363e248ac4caeaa5b3562299e96181e81441d26556f08b3766f06590534bcc7d",
+   "wideRunnerRerun": {
+    "run": "rc-vf-wide",
+    "limits": "6 CPUs (6-11), 10 GiB, -j4",
+    "cases": [
+     {
+      "scale": 1,
+      "exit": 0,
+      "ms": 14369,
+      "logSha256": "d5658115329f6952a22295490a295ca5c4dde5d373a6fb1b8d56dc8405296d18"
+     },
+     {
+      "scale": 2,
+      "exit": 0,
+      "ms": 28412,
+      "logSha256": "d5658115329f6952a22295490a295ca5c4dde5d373a6fb1b8d56dc8405296d18"
+     }
+    ]
+   }
   },
   {
    "case": "annotation_input_tests",

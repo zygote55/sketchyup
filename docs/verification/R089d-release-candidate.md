@@ -35,7 +35,7 @@ the second run produced the same archive hash and added the package to
 | Clean machine, fresh image | Same, `archlinux:base-devel` `sha256:061679925e5d…14ef1`, 2026-10-12 archive (Qt 6.12.0, Mesa 26.2.4) | Pass, same package file |
 | Clean machine, reference | Same, `base-devel-20241013.0.269705` `sha256:291198370afb…14c2`, 2024-10-15 archive (Qt 6.8.0, Mesa 24.2.4) | Pass, with a package built there from the RC archive |
 | Development build and tests | `cmake --preset dev`, `cmake --build --preset dev`, `ctest --preset dev` | 190/190 pass; 11 opt-in `*_real` tests skip. The desktop-without-CLI configure also succeeds |
-| Native suites, development build | 84 suites from `native.yml`, each on X11 and Wayland at 1× and 2× (336 cases) | 333 pass on the first attempt. Two fail once and pass on re-run. One fails three times. See Failures |
+| Native suites, development build | 84 suites from `native.yml`, each on X11 and Wayland at 1× and 2× (336 cases) | 333 pass on the first attempt. Two fail once and pass on re-run. One times out three times on one CPU and passes with six. See Failures |
 | AT-SPI bridge | `tests/accessibility_bridge_test.py` on X11 and Wayland at 1× and 2× | All four pass, 565 accessible nodes each |
 | All-dialog keyboard audit | Inventory, then 16 groups on X11 and Wayland at 1× and 2× | 64/64 runs pass. 102 dialogs, 408 dialog checks, none failed; no uncovered "…" action |
 | Keyboard layouts and fractional scale | `us`, `de`, `fr` on both platforms; 1.5 and 1.75 on five suites, both platforms | 26/26 pass |
@@ -82,9 +82,11 @@ covered by the CI run at the RC below.
    Three attempts each end with `Timed out after 60 s: build/dev/visible_focus_input_tests`
    from `test-wayland.sh` (60.2, 60.3 and 60.3 s). The test printed no failed check.
    Locally the same suite takes 29 s on Wayland 1× and 48 s on X11 2×. The runner gave
-   it one CPU. The CI run at the RC passed the same line. Classification:
-   deterministic in the one-CPU local runner. No longer run or other resource was
-   tried, so the record does not show whether this is only a resource limit.
+   it one CPU. The CI run at the RC passed the same line. After the matrix, the
+   same CI lines ran once more on the wide runner (six CPUs) with the same build
+   (run `rc-vf-wide`): Wayland 1× passed in 14.4 s and Wayland 2× in 28.4 s,
+   under the 60 s limit. Classification: a resource limit of the one-CPU local
+   runner, not an application failure.
 2. **`annotation_input_tests`, Wayland, 2×** (CI line). Attempt 1 failed the
    check "Annotation window exposed" (exit 1). Attempt 2 passed. Classification: flaky.
 3. **`interaction_tests`, Wayland, 2×** (pattern cell; CI runs this suite on X11
@@ -110,8 +112,8 @@ The runs used two runners. None of them are timing checks.
   the caller's CPU affinity.
 - **Wide runner** (a copy of that script outside the repository: six CPUs 6–11,
   10 GiB, no extra swap, `-j4`, a 10 GiB free-memory precondition): the rest of the
-  sanitized native build and `texture_cache`, the sanitized native matrix and M6
-  attempt 2. The owner asked for more CPU. The sanitize run was stopped on purpose
+  sanitized native build and `texture_cache`, the sanitized native matrix, M6
+  attempt 2 and the `visible_focus_input_tests` Wayland re-run. The owner asked for more CPU. The sanitize run was stopped on purpose
   during the native build, then resumed from the same build directory. Steps that
   had already finished were not re-run. The copy still prints the standard
   "one CPU, 4 GiB" banner; the recorded container limits show the wide values.
