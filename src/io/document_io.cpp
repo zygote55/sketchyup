@@ -4,6 +4,7 @@
 #include "io/annotations_io.hpp"
 #include "io/assets.hpp"
 #include "io/document_decode_p.hpp"
+#include "io/drawing_items_io.hpp"
 #include "io/drawing_sheets_io.hpp"
 #include "io/hosted_components_io.hpp"
 #include "io/model_style_io.hpp"
@@ -453,6 +454,8 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         root["nextDrawingSheetId"] = sid(doc.nextDrawingSheetId());
         root["drawingViews"] = encodeDrawingViews(doc.drawingViews());
         root["nextDrawingViewId"] = sid(doc.nextDrawingViewId());
+        root["drawingItems"] = encodeDrawingItems(doc.drawingItems());
+        root["nextDrawingItemId"] = sid(doc.nextDrawingItemId());
     }
     auto bytes = QJsonDocument(root).toJson(QJsonDocument::Compact);
     if (bytes.size() > (assetStorage == AssetStorage::Inline ? fileLimit : modelLimit))
@@ -781,7 +784,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     if (root["version"].toInt() >= 25) rootFields.append("displayPrecision");
     // Drawing sheets (ADR 0163); older schemas migrate to empty tables.
     if (root["version"].toInt() >= 27)
-        rootFields += {"drawingSheets", "nextDrawingSheetId", "drawingViews", "nextDrawingViewId"};
+        rootFields += {"drawingSheets", "nextDrawingSheetId", "drawingViews", "nextDrawingViewId",
+                       "drawingItems", "nextDrawingItemId"};
     supportedFields(root, rootFields);
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         inputBytes > modelLimit)
@@ -983,11 +987,14 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         throw std::runtime_error("Missing document ID");
     const bool sheets = root["version"].toInt() >= 27;
     const Id nextDrawingSheetId = sheets ? readId(root["nextDrawingSheetId"]) : 1,
-             nextDrawingViewId = sheets ? readId(root["nextDrawingViewId"]) : 1;
+             nextDrawingViewId = sheets ? readId(root["nextDrawingViewId"]) : 1,
+             nextDrawingItemId = sheets ? readId(root["nextDrawingItemId"]) : 1;
     auto drawingSheets =
         sheets ? decodeDrawingSheets(root["drawingSheets"], nextDrawingSheetId,
                                      root["drawingViews"], nextDrawingViewId)
                : std::pair<DrawingSheetRecords, DrawingViewRecords>{};
+    // Items are validated against the sheets, views and allocator on restore.
+    auto drawingItems = sheets ? decodeDrawingItems(root["drawingItems"]) : DrawingItemRecords{};
     Document doc;
     DocumentDecodeAccess::restore(
         doc, root["documentId"].toString().toStdString(), readId(root["nextId"]), std::move(bodies),
@@ -1019,7 +1026,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         root["version"].toInt() >= 25 ? storedDisplayPrecision(root["displayPrecision"])
                                       : fullDisplayPrecision,
         std::move(drawingSheets.first), nextDrawingSheetId, std::move(drawingSheets.second),
-        nextDrawingViewId);
+        nextDrawingViewId, std::move(drawingItems), nextDrawingItemId);
     return doc;
 }
 } // namespace sketchy

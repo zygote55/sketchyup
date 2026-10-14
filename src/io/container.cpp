@@ -48,6 +48,7 @@ QJsonObject floors(const Document &doc, bool topology = true, bool components = 
     if (drawingSheets) {
         result["nextDrawingSheetId"] = QString::number(doc.nextDrawingSheetId());
         result["nextDrawingViewId"] = QString::number(doc.nextDrawingViewId());
+        result["nextDrawingItemId"] = QString::number(doc.nextDrawingItemId());
     }
     if (sections)
         result["nextSectionId"] = QString::number(doc.nextSectionId());

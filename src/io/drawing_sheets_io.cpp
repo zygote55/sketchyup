@@ -79,6 +79,8 @@ QJsonArray encodeDrawingSheets(const DrawingSheetRecords &sheets) {
             {"id", QString::number(key)},
             {"name", QString::fromStdString(sheet->name)},
             {"position", int(sheet->position)},
+            {"number", QString::fromStdString(sheet->number)},
+            {"marginMm", sheet->marginMm},
             {"paper",
              QJsonObject{{"widthMm", sheet->paper.widthMm}, {"heightMm", sheet->paper.heightMm}}}});
     return result;
@@ -114,21 +116,21 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
                     Id nextView) {
     DrawingSheetRecords sheets;
     for (const auto &entry : array(sheetsValue, drawingSheetCountLimit)) {
-        const auto record = object(entry, {"id", "name", "position", "paper"});
+        const auto record =
+            object(entry, {"id", "name", "position", "paper", "number", "marginMm"});
         const auto paper = object(record["paper"], {"widthMm", "heightMm"});
         const auto position = number(record["position"]);
         if (position < 0 || position >= double(drawingSheetCountLimit) ||
             position != std::floor(position))
             throw std::runtime_error("Invalid drawing sheet order position");
         const DrawingPaper size{number(paper["widthMm"]), number(paper["heightMm"])};
-        // The sheet number and margin are not stored until R091.b; restore the defaults.
+        if (!record["number"].isString())
+            throw std::runtime_error("Drawing sheet number requires text");
         auto sheet = std::make_shared<DrawingSheetRecord>(
-            DrawingSheetRecord{id(record["id"]),
-                               name(record["name"]),
-                               static_cast<std::uint32_t>(position),
-                               size,
-                               {},
-                               defaultDrawingSheetMarginMm(size)});
+            DrawingSheetRecord{id(record["id"]), name(record["name"]),
+                               static_cast<std::uint32_t>(position), size,
+                               record["number"].toString().toStdString(),
+                               number(record["marginMm"])});
         // Canonical tables are written in ascending ID order.
         if (!sheets.empty() && sheet->id <= sheets.rbegin()->first)
             throw std::runtime_error("Drawing sheets must be stored once each in ID order");
@@ -174,7 +176,8 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
     return {std::move(sheets), std::move(views)};
 }
 int nativeDocumentVersionFor(const Document &document) {
-    return document.drawingSheets().empty() && document.drawingViews().empty()
+    return document.drawingSheets().empty() && document.drawingViews().empty() &&
+                   document.drawingItems().empty()
                ? nativeSheetFreeDocumentVersion
                : nativeDocumentVersion;
 }

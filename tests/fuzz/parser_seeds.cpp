@@ -1,3 +1,4 @@
+#include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
@@ -41,6 +42,54 @@ QByteArray stableComponent(QByteArray bytes) {
     qToLittleEndian<quint32>(quint32(encoded.size()), bytes.data() + 8);
     qToLittleEndian<quint64>(quint64(model.size()), bytes.data() + 12);
     return bytes + encoded + model + thumbnail;
+}
+// Schema 27 page items (R091.b): every kind on one sheet, bound to the plan view and,
+// for one label, to the broken view.
+Document withDrawingItems(Document doc) {
+    const auto sheet = doc.drawingSheets().begin()->first;
+    const auto plan = doc.drawingViews().begin()->first;
+    const auto broken = doc.drawingViews().rbegin()->first;
+    const auto body = doc.bodies().begin()->first;
+    const auto &record = *doc.bodies().at(body);
+    const auto vertex = vertexAnchor(doc, body, record.surface.vertices.begin()->first);
+    const auto edge = edgeAnchor(doc, body, record.topology.edges.begin()->first, .5);
+    DrawingTextItem text;
+    text.frame = {20, 180, 120, 20};
+    text.text = "Notes";
+    createDrawingItem(doc, sheet, text);
+    DrawingLineItem line;
+    line.from = {10, 287};
+    line.to = {410, 287};
+    createDrawingItem(doc, sheet, line);
+    DrawingRectangleItem rectangle;
+    rectangle.frame = {10, 10, 400, 277};
+    rectangle.dash = DrawingStrokeDash::Dashed;
+    createDrawingItem(doc, sheet, rectangle);
+    DrawingTitleBlockItem block;
+    block.frame = {250, 230, 150, 47};
+    block.fields = {"Corpus", "Plan", "2026-10-14", "A"};
+    createDrawingItem(doc, sheet, block);
+    DrawingDimensionItem dimension;
+    dimension.view = plan;
+    dimension.anchors = {vertex, edge};
+    dimension.orientation = DrawingDimensionOrientation::Horizontal;
+    dimension.offsetMm = -8;
+    dimension.lastMm = {DrawingPointMm{60, 120}, DrawingPointMm{100, 120}};
+    createDrawingItem(doc, sheet, dimension);
+    DrawingLabelItem label;
+    label.text = "W2";
+    label.textAt = {300, 200};
+    label.target.kind = DrawingLabelTargetKind::View;
+    label.target.view = broken;
+    label.target.anchor = vertex;
+    label.target.lastMm = {260, 90};
+    createDrawingItem(doc, sheet, label);
+    DrawingLabelItem north;
+    north.text = "North";
+    north.textAt = {380, 30};
+    north.target.pointMm = {400, 40};
+    createDrawingItem(doc, sheet, north);
+    return doc;
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -132,6 +181,10 @@ int main(int argc, char **argv) {
         sheets = stableIdentity(sheets, QStringLiteral("0000000000000000000000000000083d"));
         publish("native-json", encodeDocument(sheets), "drawing-sheets");
         publish("native-container", encodeContainer(sheets), "drawing-sheets");
+        const auto items = stableIdentity(withDrawingItems(sheets),
+                                          QStringLiteral("0000000000000000000000000000083e"));
+        publish("native-json", encodeDocument(items), "drawing-items");
+        publish("native-container", encodeContainer(items), "drawing-items");
         std::cout << QJsonDocument(QJsonObject{{"validSeeds", rows},
                                                {"formats", 10},
                                                {"inputLimitBytes", qint64(fuzz::inputLimit)},

@@ -286,7 +286,8 @@ class Document {
                  AnnotationRecords annotations = {}, Id nextAnnotationId = 1, SolarSettings solar = {},
                  int displayPrecision = fullDisplayPrecision,
                  DrawingSheetRecords drawingSheets = {}, Id nextDrawingSheetId = 1,
-                 DrawingViewRecords drawingViews = {}, Id nextDrawingViewId = 1);
+                 DrawingViewRecords drawingViews = {}, Id nextDrawingViewId = 1,
+                 DrawingItemRecords drawingItems = {}, Id nextDrawingItemId = 1);
 
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
@@ -302,7 +303,8 @@ class Document {
                         AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar,
                         int displayPrecision, DrawingSheetRecords drawingSheets = {},
                         Id nextDrawingSheetId = 1, DrawingViewRecords drawingViews = {},
-                        Id nextDrawingViewId = 1);
+                        Id nextDrawingViewId = 1, DrawingItemRecords drawingItems = {},
+                        Id nextDrawingItemId = 1);
 
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};

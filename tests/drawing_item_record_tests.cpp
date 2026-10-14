@@ -697,7 +697,7 @@ void identitiesHistoryAndAllocators() {
           "History navigation unwinds items with everything else");
     doc.navigateHistory(total, doc.revision());
     check(doc.drawingItems().size() == 2, "History navigation replays items");
-    // Items are not persisted until R091.b: restore starts with an empty table.
+    // Restore replaces the item table; restoring without tables leaves it empty.
     Document restored = doc;
     restored.restore(doc.identity(), doc.nextId(), doc.bodies());
     check(restored.drawingItems().empty() && restored.nextDrawingItemId() == 1,
