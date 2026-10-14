@@ -13,6 +13,7 @@
 #include <QPainterPath>
 #include <QRegularExpression>
 #include <QScopedValueRollback>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <set>
 namespace sketchy {
@@ -216,6 +217,9 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     pages_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     pages_->setUniformRowHeights(true);
     pages_->installEventFilter(this);
+    connect(pages_->itemDelegate(), &QAbstractItemDelegate::closeEditor, this, [this] {
+        QTimer::singleShot(0, this, [this] { refresh(sheet_, view_); });
+    });
     // F6 into the Tray lands in Pages, the keyboard alternative to the canvas.
     setFocusProxy(pages_);
     connect(pages_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *item) {
@@ -414,6 +418,10 @@ void SheetsTray::refreshPages() {
                         QString::number(doc_.revision()) + ":" +
                         QString::number(cache_.evaluations()) + ":" + documentName_ + ":" +
                         QString::number(colors_.dark);
+    // Never rebuild under the in-place name editor; refresh once it closes.
+    if (auto *focus = QApplication::focusWidget();
+        focus && focus != pages_ && pages_->isAncestorOf(focus))
+        return;
     QScopedValueRollback guard(syncing_, true);
     if (signature != signature_) {
         signature_ = signature;

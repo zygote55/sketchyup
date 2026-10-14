@@ -450,8 +450,8 @@ int main(int argc, char **argv) {
                 click(dialog, "shortcutAssign");
                 check(error(dialog).isEmpty(),
                       "L for a sheet tool does not conflict with model Line");
-                choose(dialog, "sheet.tool.select", "Ctrl+K");
-                check(error(dialog).contains("Commands") && error(dialog).contains("(All)"),
+                choose(dialog, "sheet.tool.select", "Ctrl+S");
+                check(error(dialog).contains("Save") && error(dialog).contains("(All)"),
                       ("A global key conflicts across workspaces: " + error(dialog).toStdString())
                           .c_str());
                 click(dialog, "shortcutAssign");

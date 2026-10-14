@@ -583,9 +583,12 @@ void sheetsWorkspace() {
     check(tabs->currentIndex() == 1, "Right shows the next page");
     pages->setFocus(Qt::TabFocusReason);
     check(QTest::qWaitFor([&] { return pages->hasFocus(); }), "Pages tree focus");
-    key(Qt::Key_Up);
+    key(Qt::Key_Home);
     check(pages->currentItem() && pages->currentItem()->text(0) == "A-101",
-          "Up moves to the first page in the Pages tree");
+          "Home moves to the first page in the Pages tree");
+    key(Qt::Key_Down);
+    check(pages->currentItem() && pages->currentItem() != pages->topLevelItem(0),
+          "Down moves through the Pages tree");
     (void)second;
     key(Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
     check(window.workspace() == Window::Workspace::Model &&
