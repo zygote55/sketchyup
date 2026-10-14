@@ -1,0 +1,158 @@
+{
+  "layer": "R089.g",
+  "date": "2026-10-14",
+  "patch": {
+    "branch": "fix/d030-1.0.1",
+    "base": "release/1.0.x",
+    "baseTag": "v1.0.0",
+    "baseCommit": "7b01bb7a1d3fa19b6b5cc7f1a4c27a2ad5cd03a2",
+    "commit": "e11c9b0b0c436b7e1c39cbc33291baa23a09b1ee",
+    "tree": "6609d6ebbbcafe59aa6a07d791943efe0c81513e",
+    "cherryPick": {
+      "from": "ac61cceed8d08d733e3fe40b3da05ac5e50d0ba5",
+      "pullRequest": 314,
+      "defect": "D-030"
+    },
+    "version": "1.0.1",
+    "pkgrel": 1
+  },
+  "artifacts": {
+    "sourceArchive": {
+      "file": "sketchyup-1.0.1.tar.gz",
+      "sha256": "dbf3a7a76d1c6b61eff690e889fa8a5397accdcf94ae7e6a3a8809bacb451819",
+      "files": 1124
+    },
+    "package": {
+      "file": "sketchyup-1.0.1-1-x86_64.pkg.tar.zst",
+      "version": "1.0.1-1",
+      "sha256": "ab09c418eb6100b8fb9e28bb348f1bb1af7f0ac9f981a285186bf5c707f5f198"
+    },
+    "thirdPartyNotices": {
+      "file": "THIRD_PARTY_NOTICES",
+      "sha256": "578c78e73ee85781fb417e79668f96ba3401a5764bfd0c2f5964eddec4247729"
+    },
+    "manifestSha256": "6a953fded8f99283a8171c85d19464d7aa5374f3ec38865ed598644f4450cba2",
+    "sha256sumsSha256": "29ab9ac1343f0537b820d504ed2a1aac4bab2d4369aad39dd2516d88fcaf5b36",
+    "releaseArtifactsRuns": 2,
+    "archiveStableAcrossRuns": true
+  },
+  "priorPackage": {
+    "file": "sketchyup-1.0.0-1-x86_64.pkg.tar.zst",
+    "source": "GitHub release v1.0.0",
+    "sha256": "9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7",
+    "verified": true
+  },
+  "images": {
+    "packageBuild": {
+      "tag": "sketchyup-build:20261002",
+      "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+    }
+  },
+  "hostToolchain": {
+    "gcc": "16.2.1",
+    "cmake": "4.4.3",
+    "qt6-base": "6.11.2-3"
+  },
+  "checks": {
+    "devCtest": {
+      "result": "190/190 pass, 11 *_real skipped",
+      "exit": 0,
+      "logSha256": "8644599dbde14fefa268b8915f7380c5ee89ac1ad55cc92da79f327db5b3c8bd"
+    },
+    "headlessCtest": {
+      "result": "62/62 pass",
+      "exit": 0,
+      "logSha256": "1bbc6723dc6cbe3bd94e03719895efbba7644492a6250bd91a8d80937e68f216"
+    },
+    "sanitizeSubset": {
+      "configure": "cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON",
+      "tests": [
+        "transaction_dispatch",
+        "inspection",
+        "inspection_session",
+        "mcp",
+        "annotation_commands",
+        "annotation_records",
+        "annotations_io",
+        "annotation_anchors",
+        "recipes"
+      ],
+      "result": "9/9 pass",
+      "exit": 0,
+      "logSha256": "2d622ea34e4e8de950a459d7c029b721231dd0a65b7d053a174087775fd2abd1",
+      "discardedAttempts": [
+        "configured without the CLI, so mcp and recipes were undefined",
+        "build exit 135 with an overlapping build in the same directory; no test ran"
+      ]
+    },
+    "packageAcceptance": {
+      "run": "p101-package",
+      "runner": "wide (6 CPUs 6-11, 10 GiB)",
+      "exit": 0,
+      "priorLabel": "1.0.0-1",
+      "ctest": "190/190",
+      "logSha256": "0f377286881edf468208dfb22e09a3ecdd331cda0108ab14b541f58b276d307e"
+    },
+    "upgradeFromPublished": {
+      "run": "p101-upgrade",
+      "runner": "standard (1 CPU, 4 GiB)",
+      "exit": 0,
+      "from": "1.0.0-1 (published)",
+      "to": "1.0.1-1",
+      "preferencesKept": true,
+      "dataAndCacheKept": true,
+      "versionAfter": "1.0.1",
+      "document100Opens": true,
+      "document100Saves": true,
+      "document100Sha256": "800a8632b96c761ef8ad38ddd0154546df359c1ddae3f74f6abca5f1e03334ce",
+      "savedBy101Sha256": "1eed6b18984d7c68aa35b65207d494437b03cb52e5f30b7fad9bd5e139d0f701",
+      "logSha256": "0b8449b81c83b3e84f2ab5553d3c275dcfd54963fbd13cbcf0f11fbafade6739",
+      "scriptSha256": "d08ceb038a846d346e76d4ba98fd77f02a118c3f77b764e9cd6be1c5443e0a1c",
+      "driverSha256": "2853d853cb0d2ba15b214dc8e3d7db7209156ef348451c30efdf0284a75fe653"
+    },
+    "d030EndToEnd": {
+      "interface": "sketchyup-cli --session transaction.apply",
+      "commands": [
+        "annotation.create distance",
+        "annotation.create label"
+      ],
+      "installed100": {
+        "result": "rejected",
+        "error": {
+          "code": "INVALID_REQUEST",
+          "message": "Parameter must match exactly one supported schema"
+        },
+        "reportSha256": "e2fd9803301fadcc55ffa4f5e2e5f8d7aa536d7c80a8ae1a568f5d2b6c435a99"
+      },
+      "installed101": {
+        "result": "committed and saved",
+        "annotations": 2,
+        "reportSha256": "a3a47ccedf9ee134c305e08f84e381e93469547049a821c077f921a475d156cb"
+      }
+    },
+    "providerCorpus": {
+      "offlineTests": [
+        "provider_release_corpus",
+        "provider_release_score",
+        "openai_provider",
+        "ollama_provider",
+        "chatgpt_auth",
+        "assistant",
+        "native_assistant_session"
+      ],
+      "result": "pass",
+      "inputSha256Regenerated": 8,
+      "promptSha256Changed": 0,
+      "liveRun": false,
+      "validatorScope": "only annotation.create oneOf choices are typeless schemas the validator evaluates"
+    }
+  },
+  "notRepeated": [
+    "native suites",
+    "AT-SPI and dialog audits",
+    "M5-M8 studies",
+    "clean machines",
+    "hardware"
+  ],
+  "tagOrReleaseCreated": false
+}
