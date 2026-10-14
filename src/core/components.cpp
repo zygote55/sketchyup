@@ -529,6 +529,11 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         throw std::runtime_error("Shared component edits cannot modify document annotations");
     if (draft.scenes() != baselineScenes || draft.nextSceneId() != doc.nextSceneId())
         throw std::runtime_error("Shared component edits cannot modify document scenes");
+    // The draft starts with empty drawing-sheet tables; sheet edits are never part
+    // of a shared component scope (ADR 0163).
+    if (!draft.drawingSheets().empty() || !draft.drawingViews().empty() ||
+        draft.nextDrawingSheetId() != 1 || draft.nextDrawingViewId() != 1)
+        throw std::runtime_error("Shared component edits cannot modify drawing sheets");
     if (draft.assets() != baselineAssets)
         throw std::runtime_error("Edit document assets outside a shared geometry scope");
     if (draft.materials() != baselineMaterials)

@@ -2,6 +2,7 @@
 #include "core/asset_records.hpp"
 #include "core/annotation_records.hpp"
 #include "core/component_records.hpp"
+#include "core/drawing_sheet_records.hpp"
 #include "core/hosted_components.hpp"
 #include "core/material_records.hpp"
 #include "core/model_style.hpp"
@@ -45,6 +46,14 @@ struct AssetChange {
 struct SceneChange {
     Id id{};
     ScenePtr before, after;
+};
+struct DrawingSheetChange {
+    Id id{};
+    DrawingSheetPtr before, after;
+};
+struct DrawingViewChange {
+    Id id{};
+    DrawingViewPtr before, after;
 };
 struct SectionChange {
     Id id{};
@@ -99,6 +108,14 @@ struct Edit {
     Id nextAnnotationFloor{};
     bool annotationsResolved{};
     std::optional<std::pair<SolarSettings, SolarSettings>> solar{};
+    // Drawing-sheet edits (ADR 0163) change only these tables. An edit that changes
+    // them, or that is tagged with the drawing-sheet scope, must satisfy
+    // isDrawingSheetOnlyEdit and must not raise a model allocator floor.
+    std::vector<DrawingSheetChange> drawingSheets{};
+    Id nextDrawingSheetFloor{};
+    std::vector<DrawingViewChange> drawingViews{};
+    Id nextDrawingViewFloor{};
+    bool drawingSheetScope{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 // Running materialized-record totals compared with DocumentLimits::materialized.
@@ -161,6 +178,10 @@ class Document {
     const ActiveSections &activeSections() const { return activeSections_; }
     const AnnotationRecords &annotations() const { return annotations_; }
     Id nextAnnotationId() const { return nextAnnotationId_; }
+    const DrawingSheetRecords &drawingSheets() const { return drawingSheets_; }
+    Id nextDrawingSheetId() const { return nextDrawingSheetId_; }
+    const DrawingViewRecords &drawingViews() const { return drawingViews_; }
+    Id nextDrawingViewId() const { return nextDrawingViewId_; }
     std::uint64_t revision() const { return revision_; }
     // Maintained incrementally by apply, undo/redo, amendment and restore.
     const DocumentTotals &materializedTotals() const { return totals_; }
@@ -293,6 +314,11 @@ class Document {
     ActiveSections activeSections_;
     AnnotationRecords annotations_;
     Id nextAnnotationId_{1};
+    // Not persisted until schema 27 (R090.b); restore starts with empty tables.
+    DrawingSheetRecords drawingSheets_;
+    Id nextDrawingSheetId_{1};
+    DrawingViewRecords drawingViews_;
+    Id nextDrawingViewId_{1};
     struct DefinitionFloor {
         Id nextMemberId{1};
         std::map<Id, std::pair<Id, Id>> geometry;
