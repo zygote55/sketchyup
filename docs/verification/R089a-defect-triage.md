@@ -138,6 +138,8 @@ Closed by R090.e:
   batch path (`--script`, batch requests) and the desktop Annotations panel do not use this
   validator and were unaffected; the desktop assistant does not offer annotation commands.
   No other shipped schema has a `oneOf` choice without `type` that constrains anything.
+  Released as a fix for users in [1.0.1](https://github.com/zygote55/sketchyup/releases/tag/v1.0.1)
+  (2026-10-14, `release/1.0.x`; release check [R089.g](https://github.com/zygote55/sketchyup/blob/v1.0.1/docs/verification/R089g-1.0.1-patch.md)).
   Fix: a schema without `type` now applies its keywords to the kind of value it meets, as
   JSON Schema does. `transaction_dispatch_tests` covers typeless `oneOf` choices directly
   and the real `annotation.create` distance and label requests through `transaction.apply`,
