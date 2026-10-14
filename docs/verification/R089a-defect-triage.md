@@ -23,6 +23,9 @@ are new. See the table and the counts.
 feedback at 10,000 placements is now 37.6–40.6 ms p95 for deep and textures. See the counts.
 **Updated 2026-10-13 (R084.v).** [R084.v](R084v-keyboard-reachability.md) fixes D-026, added by
 R084.u the same day. See the counts.
+**Updated 2026-10-14 (1.0.1).** D-030 (`annotation.create` rejected by `transaction.apply`,
+Major, shipped in 1.0.0) was found and is fixed by the 1.0.1 patch
+([R089.g](R089g-1.0.1-patch.md)). See the counts.
 This is a working triage list of known defects against current `main`. It is not
 the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -114,6 +117,26 @@ Closed by the 2026-10-12 hardware session:
   so the budget is hardware-accepted on AMD only. The inference-update growth with placements
   noted under D-003 showed up as the edit-feedback miss D-024, fixed by R082.jj (below).
 
+Closed by the 1.0.1 patch release:
+
+- **D-030** (`annotation.create` always rejected through `transaction.apply`). Class: **Major**
+  (a broken workflow with a workaround). Found 2026-10-14; present since the command was added
+  (`7d3ba13b`, 2026-10-06) and in the 1.0.0 release. The shared schema validator
+  (`src/automation/inspection.cpp`) applied `properties`, `required` and the length and item
+  bounds only under an explicit `type`. The two `oneOf` choices of the `annotation.create`
+  schema (distance or label) have no `type`, so both matched every request and the
+  "exactly one" count failed. Every `annotation.create` through a headless `--session`,
+  stdio MCP `transaction.apply` or a recipe step returned `INVALID_REQUEST` "Parameter must
+  match exactly one supported schema"; the 1.0.0 CLI did. The
+  batch path (`--script`, batch requests) and the desktop Annotations panel do not use this
+  validator and were unaffected; the desktop assistant does not offer annotation commands.
+  No other shipped schema has a `oneOf` choice without `type` that constrains anything.
+  Fix: a schema without `type` now applies its keywords to the kind of value it meets, as
+  JSON Schema does. `transaction_dispatch_tests` covers typeless `oneOf` choices directly
+  and the real `annotation.create` distance and label requests through `transaction.apply`,
+  including three that must still be rejected. Shipped in 1.0.1
+  ([R089.g](R089g-1.0.1-patch.md)).
+
 Closed by R084.v:
 
 - **D-026** (reopened "Render with Blender" kept focus on Jobs…, so Enter opened Jobs instead of
@@ -182,13 +205,13 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | Minor | 8 | D-006–D-009, D-019, D-021–D-023 |
 | Limitation | 13 | D-001, D-004, D-005, D-010–D-018, D-020 |
 | **Total open** | **21** | |
-| Fixed since the previous refresh | 4 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13) |
+| Fixed since the previous refresh | 5 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-030 (added 2026-10-14 and fixed by 1.0.1) |
 
 Before this refresh (2026-10-11): 22 (0 release-blocking, 1 Major, 11 Minor, 10 Limitation).
 D-003 is fixed. D-004 moved from Major to Limitation, and D-005 and D-020 from Minor to
 Limitation, by the owner's evidence waiver. D-024 (Major) and D-025 (Minor) were added;
 R082.jj then fixed D-024. **2026-10-13:** #301 fixed D-025, and R084.u added D-026 (Minor),
-which R084.v then fixed.
+which R084.v then fixed. **2026-10-14:** D-030 (Major) was added and is fixed by 1.0.1.
 
 No release-blocking or Major defect remains; this is still not a release sign-off. D-024 is
 fixed on AMD, so the 10,000-placement edit-feedback miss no longer stands against the M9 exit
