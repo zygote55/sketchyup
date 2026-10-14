@@ -24,6 +24,9 @@ Transform renderCameraTransform(const RenderCamera &camera);
 QJsonObject describeRenderSettings(const RenderSettings &settings);
 QJsonObject describeRenderCamera(const RenderCamera &camera);
 RenderOptions parseRenderOptions(const QJsonObject &json);
+// Result of RenderSnapshot::captureDrawingView. A broken capture has named reasons
+// and no snapshot; it never throws for a missing scene or an unsupported scene setting.
+struct DrawingViewCapture;
 class RenderSnapshot {
   public:
     // Capture on the document's owner thread. Export may run on a worker using
@@ -32,6 +35,15 @@ class RenderSnapshot {
                                   SelectionSet hidden = {});
     static RenderSnapshot captureSavedScene(const Document &document, Id scene,
                                             RenderOptions options = {});
+    // Scene-based capture for drawing-sheet views (ADR 0163). Unlike
+    // captureSavedScene it tolerates and counts missing scene references, reports a
+    // missing scene, a scene without a camera, a temporary clip plane and show-hidden
+    // as broken reasons instead of throwing, and honours hidden edges as well as
+    // hidden bodies and faces. options.camera, when given, replaces the scene camera
+    // (the drawing-view mapping uses it to apply the paper-space pan); the scene must
+    // still have a camera. Work-limit failures still throw.
+    static DrawingViewCapture captureDrawingView(const Document &document, Id scene,
+                                                 RenderOptions options = {});
     const std::string &sourceIdentity() const { return sourceIdentity_; }
     std::uint64_t sourceRevision() const { return sourceRevision_; }
     std::optional<Id> sourceScene() const { return sourceScene_; }
@@ -53,5 +65,13 @@ class RenderSnapshot {
     RenderCamera camera_;
     std::optional<RenderEnvironment> environment_;
     SelectionSet hidden_;
+};
+struct DrawingViewCapture {
+    std::optional<RenderSnapshot> snapshot; // Absent when broken.
+    // Stable broken-reason codes, in this order when present: sceneMissing,
+    // sceneHasNoCamera, temporaryClipPlane, showHidden.
+    std::vector<std::string> broken;
+    size_t missingReferences{}; // Warnings: references the scene names that are gone.
+    bool perspective{};         // The scene camera is perspective (not to scale).
 };
 } // namespace sketchy

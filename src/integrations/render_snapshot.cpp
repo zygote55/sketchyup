@@ -186,6 +186,51 @@ RenderSnapshot RenderSnapshot::captureSavedScene(const Document &document, Id sc
     result.sourceScene_ = scene;
     return result;
 }
+DrawingViewCapture RenderSnapshot::captureDrawingView(const Document &document, Id scene,
+                                                      RenderOptions options) {
+    DrawingViewCapture result;
+    if (!document.scenes().contains(scene)) {
+        result.broken.push_back("sceneMissing");
+        return result;
+    }
+    const auto &saved = document.scenes().at(scene)->snapshot;
+    if (!saved.camera)
+        result.broken.push_back("sceneHasNoCamera");
+    if (saved.section && saved.section->plane)
+        result.broken.push_back("temporaryClipPlane");
+    if (saved.visibility && saved.visibility->showHidden)
+        result.broken.push_back("showHidden");
+    result.missingReferences = missingSceneReferences(document, saved).size();
+    if (!result.broken.empty())
+        return result;
+    if (!options.camera)
+        options.camera = renderSceneCamera(*saved.camera);
+    result.perspective = !options.camera->orthographic;
+    auto view = document.readSnapshot();
+    recallSceneModel(view, scene);
+    SelectionSet hidden;
+    if (saved.visibility)
+        for (const auto &entity : saved.visibility->hiddenEntities) {
+            // Missing references are counted above and skipped here.
+            const auto body = view.bodies().find(entity.body);
+            if (body == view.bodies().end())
+                continue;
+            if (entity.kind == SceneEntityKind::Body)
+                hidden.insert({entity.body, SelectionKind::Body, 0});
+            else if (entity.kind == SceneEntityKind::Face &&
+                     body->second->surface.faces.contains(entity.entity))
+                hidden.insert({entity.body, SelectionKind::Face, entity.entity});
+            else if (entity.kind == SceneEntityKind::Edge &&
+                     body->second->topology.edges.contains(entity.entity))
+                hidden.insert({entity.body, SelectionKind::Edge, entity.entity});
+        }
+    auto snapshot = capture(view, std::move(options), std::move(hidden));
+    snapshot.sourceIdentity_ = document.identity();
+    snapshot.sourceRevision_ = document.revision();
+    snapshot.sourceScene_ = scene;
+    result.snapshot = std::move(snapshot);
+    return result;
+}
 RenderSnapshot::RenderSnapshot(Document document, RenderSettings settings, RenderCamera camera,
                                SelectionSet hidden)
     : document_(std::move(document)), sourceIdentity_(document_.identity()),
