@@ -23,8 +23,15 @@ are new. See the table and the counts.
 feedback at 10,000 placements is now 37.6–40.6 ms p95 for deep and textures. See the counts.
 **Updated 2026-10-13 (R084.v).** [R084.v](R084v-keyboard-reachability.md) fixes D-026, added by
 R084.u the same day. See the counts.
-This is a working triage list of known defects against current `main`. It is not
-the release-candidate triage, and it is not a release sign-off: it does not accept
+**Release-candidate triage (2026-10-13).** The release candidate (RC) is `main` at
+`7b01bb7a1d3fa19b6b5cc7f1a4c27a2ad5cd03a2`. The update re-read the RC walkthrough
+[R089.d](R089d-release-candidate.md), the RC provider run [R086.ca](R086ca-rc-remote-evaluation.md),
+CI run [38435734443](https://github.com/zygote55/sketchyup/actions/runs/38435734443) and the
+[R088.f parity report](R088f-core-parity-report.md). It adds D-027–D-029 and extends D-021;
+see [Release-candidate triage](#release-candidate-triage-2026-10-13). From this update the
+list is the release-candidate triage. The gate decision is in [M9](M9.md).
+Before the RC update, this was a working triage list of known defects against `main`. It was
+not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
 the evidence, because the repository has no issue tracker entries for them.
 
@@ -69,9 +76,11 @@ problem. **Limitation** means a documented, intended boundary.
 | D-008 | Scene-transition native test timed out in CI under delayed events | [R085.d](R085d-scene-animation-fixture.md) | P03 | **Unverified.** CI waited 1.5 s for the saved pose and failed. The wait is now 5 s, and the cause is recorded as "not a confirmed root cause". Product timing is unchanged. | Minor | Eventual-correctness timing in a test fixture. Final-pose equality is still enforced. | [R085](../PR_ROADMAP.md#r085) (test-only) |
 | D-009 | X11 hardware fixture cannot place its window on a requested output without a compositor helper | [R085.h](R085h-physical-outputs.md), [R085.i](R085i-assisted-output-transitions.md) | N04 | **Open.** Both Qt-only X11 placement attempts fail the requested-output assertion. X11 transitions qualify only through the Hyprland-specific helper. | Minor | Test infrastructure: the placement is of the fixture's own window, as Qt documents for `setScreen`. Rendering on both outputs passes once placed. | [R085](../PR_ROADMAP.md#r085) (test-only) |
 | D-019 | Qt Wayland protocol error when re-showing a window hidden during a file operation | [R083.f](R083f-file-worker-hang.md) | N01 | **Open.** Observed in 6 of 8 probe runs at 1×: the probe hid the window, ran a file operation, then showed the window again. The application never hides its main window during a file operation. | Minor | The path is not reachable from current product code. Recorded so a future hide/restore feature retests it. | [R085](../PR_ROADMAP.md#r085) |
-| D-021 | Wayland test-window exposure timeouts under host load | [R083.g](R083g-unexpected-modal-guard.md), [R084.r](R084r-display-precision.md), [R084.s](R084s-keyboard-panel-tabs.md), [R085.q](R085q-keypad-decimal.md) | N03, N01 (test harness) | **Unverified.** In local bounded-container Wayland 2× runs, fixtures fail in `qWaitForWindowExposed` before any test step: 2 of 4 `units_input_tests` runs (load average about 28), 3 of 6 `file_operation_input_tests` runs (load above 30; 6/6 passed at about 15), five Wayland 2× cases in the R084.s matrix (style, solar, reference image, annotation, audit) and one `numeric_input_tests` run. Identical reruns pass without a changed wait. These records attribute none to CI. The cause is not established beyond host load. | Minor | Test infrastructure. The failure precedes any product code in the test and is not a focus defect, so it is distinct from D-007 (focus lost after exposure). | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only): load gating or a bounded retry |
-| D-022 | Parser fuzz targets abort on their first seed under ASan with Qt 6.11.2 JSON parsing (F1) | [R083.e](R083e-parser-fuzzing.md) | D02, D06 (test tooling) | **Unverified.** Six of ten libFuzzer targets (native JSON, container, GLB, template, component, extension) abort on an unmodified valid seed with an alloc-dealloc mismatch whose stacks lie inside `libQt6Core.so.6` under `QJsonDocument::fromJson`. A three-line program that calls only `fromJson` reproduces it. `parser_fuzz_seeds` passes every seed through the instrumented parsers, and the six targets show no crash, leak or hang with that one check disabled. The record states that the root cause is not established and the finding stays open. | Minor | The evidence points to a Qt/libFuzzer/ASan interaction, not application code, but the six targets do not meet the documented fuzz options and the campaign is not in CI. | [R083](../PR_ROADMAP.md#r083): resolve F1 or document the option; continuous fuzzing |
+| D-021 | Wayland test-window exposure timeouts under host load | [R083.g](R083g-unexpected-modal-guard.md), [R084.r](R084r-display-precision.md), [R084.s](R084s-keyboard-panel-tabs.md), [R085.q](R085q-keypad-decimal.md), [R089.d](R089d-release-candidate.md#failures) | N03, N01, P05 (test harness) | **Unverified.** In local bounded-container Wayland 2× runs, fixtures fail in `qWaitForWindowExposed` before any test step: 2 of 4 `units_input_tests` runs (load average about 28), 3 of 6 `file_operation_input_tests` runs (load above 30; 6/6 passed at about 15), five Wayland 2× cases in the R084.s matrix (style, solar, reference image, annotation, audit) and one `numeric_input_tests` run. Identical reruns pass without a changed wait. These records attribute none to CI. The cause is not established beyond host load. **At the RC (2026-10-13)**, on the one-CPU runner: `annotation_input_tests` Wayland 2× failed its "Annotation window exposed" check once, and `interaction_tests` Wayland 2× exited 2 once (window not exposed and active within 5 s; the "active" part overlaps D-007). Both passed on re-run. CI run 38435734443 passed the annotation line; CI runs `interaction_tests` on X11 only. | Minor | Test infrastructure. The failure precedes any product code in the test and is not a focus defect, so it is distinct from D-007 (focus lost after exposure). | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only): load gating or a bounded retry |
+| D-022 | Parser fuzz targets abort on their first seed under ASan with Qt 6.11.2 JSON parsing (F1) | [R083.e](R083e-parser-fuzzing.md) | D02, D06 (test tooling) | **Unverified.** Six of ten libFuzzer targets (native JSON, container, GLB, template, component, extension) abort on an unmodified valid seed with an alloc-dealloc mismatch whose stacks lie inside `libQt6Core.so.6` under `QJsonDocument::fromJson`. A three-line program that calls only `fromJson` reproduces it. `parser_fuzz_seeds` passes every seed through the instrumented parsers, and the six targets show no crash, leak or hang with that one check disabled. The record states that the root cause is not established and the finding stays open. The campaign was not re-run at the RC ([R088.f](R088f-core-parity-report.md#rc-evidence-thinner-than-r088d-claimed)). | Minor | The evidence points to a Qt/libFuzzer/ASan interaction, not application code, but the six targets do not meet the documented fuzz options and the campaign is not in CI. | [R083](../PR_ROADMAP.md#r083): resolve F1 or document the option; continuous fuzzing |
 | D-023 | Focus-ring contrast residuals next to the 3D canvas and native scroll bars | [R084.q](R084q-visible-focus.md), [R084.s](R084s-keyboard-panel-tabs.md) | N05 | **Open.** R084.q records that the dark-theme ring has 1.64:1 contrast against the light default canvas where the tool rail, breadcrumb and assistant container touch it; the canvas's own ring is 2.997:1 against dark chrome; native scroll bars are not themed; 14 controls per run are wider than their scroll area at 200% text. R084.s leaves one or two tab-bar scroll buttons in the Tab order between the tab bar and its page; [R084.v](R084v-keyboard-reachability.md) removes them from the Tab order. | Minor | Cosmetic and keyboard-friction issues. Every ring keeps at least 3.93:1 against the colour directly inside it, and no control is unreachable. A mid-tone ring cannot satisfy all cases, so the next step is a design decision. | [R084](../PR_ROADMAP.md#r084) (UX decision) |
+| D-027 | `verify-m6-offline.sh` fails in its final summary when `git` is missing | [R089.d](R089d-release-candidate.md#failures) | E04–E07, O03 (study tooling) | **Open.** At the RC, attempt 1 completed every step, including 190/190 regressions, then raised `FileNotFoundError: … 'git'` in the summary. `verify-m5-offline.sh` handles a missing `git`; the M6 script does not. Attempt 2, with `git` installed from the same pinned archive, passed. No code was changed. | Minor | Test infrastructure only: every study check passed before the summary failed, and the study passes when `git` is present. | Study tooling: record a null source commit when `git` is absent, as the M5 script does |
+| D-028 | `visible_focus_input_tests` exceeds the 60 s Wayland harness limit at 2× on one CPU | [R089.d](R089d-release-candidate.md#failures) | N05 (test harness) | **Open.** Three attempts on the one-CPU runner ended at 60.2–60.3 s in `test-wayland.sh` with no failed check. The same build passed on six CPUs (Wayland 1× 14.4 s, 2× 28.4 s), and CI run 38435734443 passed the same line. | Minor | Test infrastructure: a harness timeout under a one-CPU quota. No check failed, and the suite passes with more CPU and in CI. | Test-only: a per-suite limit for this suite, or a split |
 | D-010 | System Wayland 1.26 client leaks a destroyed-proxy reference | [R062.b proxy](R062b-wayland-proxy.md), [R058.c](R058c-native-diagnostics.md) | N01 | **Open (external).** The leak is reproduced standalone without Qt or SketchyUp. Only sanitized CI uses the patched private client (`scripts/ci-wayland-client.sh`); users get the system library. | Limitation | A 96-byte leak per affected dialog event, in a third-party library. Disclosed in R062.b as "a documented external limitation until a fixed distribution library is available". | [R085](../PR_ROADMAP.md#r085): track the distribution fix |
 | D-011 | Qt Wayland client-decoration framebuffer leak | [R050](R050-native-render-ui.md) | N01 | **Open (external).** Sanitized Wayland steps still set `QT_WAYLAND_DISABLE_WINDOWDECORATION=1` (`.github/workflows/native.yml`). | Limitation | Upstream Qt allocation, with no application frame in the stack. Disclosed in R050 as a test-environment workaround. | [R085](../PR_ROADMAP.md#r085): track upstream |
 | D-012 | Compositor crash with RGB565/odd-stride surfaces at fractional scale | [R085.a](R085a-current-platform-validation.md), [R085.b](R085b-native-surface-color.md), [support matrix](../SUPPORT_MATRIX.md#runtime-and-services) | N01, N04 | **Mitigated.** The application now requests eight-bit surfaces and all 20 fractional cases pass. The external Weston/Mesa defect is not shown to be fixed. | Limitation | External defect, avoided by the surface-color policy ([ADR 0157](../decisions/0157-native-surface-color.md)). Disclosed in the support matrix. | [R085](../PR_ROADMAP.md#r085) |
@@ -80,11 +89,12 @@ problem. **Limitation** means a documented, intended boundary.
 | D-015 | Interchange is lossy conversion; no native SKP/DWG | [support matrix](../SUPPORT_MATRIX.md#exchange-boundaries), ADRs [0111](../decisions/0111-native-gltf-import-workflow.md), [0115](../decisions/0115-native-obj-interchange-workflow.md), [0119](../decisions/0119-native-stl-interchange-workflow.md), [0123](../decisions/0123-native-dxf-interchange-workflow.md) | X02–X04 | Documented boundary. | Limitation | Losses are reported per conversion. SKP/DWG are gated investigations, not Core. | [R088](../PR_ROADMAP.md#r088) (documentation) |
 | D-016 | Blender handoff is one-way; animation exports PNG frames without movie encoding or resume | [user guide](../USER_GUIDE.md), [support matrix](../SUPPORT_MATRIX.md#exchange-boundaries), [M7](M7-accepted.md) | P03, P08, P09 | Documented boundary. | Limitation | P09 requires the one-way behavior to be documented, and it is. | [R088](../PR_ROADMAP.md#r088) (documentation) |
 | D-017 | Finite planar/sweep geometry limits; retained internal faces may be non-manifold | [M3](M3.md), [M4](M4.md), [M2](M2.md) | G01, E01, E05 | Documented boundary. | Limitation | Explicit enforced limits with bounded rejection. | [R088](../PR_ROADMAP.md#r088) (documentation) |
-| D-018 | Remote assistant quality is probabilistic, and acceptance covers one configuration | [M5](M5.md), [R086.b](R086b-remote-evaluation.md), [R086.as](R086as-openai-inspection-batches.md) | A04, A05 | Documented boundary. Earlier failed campaigns (R086.ah, R086.ak) stay recorded; the current host passes 24/24. | Limitation | Disclosed in M5 and the support matrix. Fresh current-head CI and release review remain. | [R086](../PR_ROADMAP.md#r086) |
-| D-001 | Local provider configurations do not pass the frozen corpus (experimental by decision) | [R086.c](R086c-local-evaluation.md), [R086.ak](R086ak-remote-local-guidance.md), [R086.as](R086as-openai-inspection-batches.md), [M5](M5.md), [support matrix](../SUPPORT_MATRIX.md#runtime-and-services) | A05 (also A08) | **Resolved by scope decision (2026-10-11).** The owner decided that a passing local configuration is not a 1.0 requirement ([ADR 0160](../decisions/0160-provider-scope-for-1-0.md)). The failures remain true and recorded: The frozen Ollama `qwen3:4b-instruct` profile scores 0/3 on all seven live tasks (20 of 21 reach the 300 s deadline). The later Qwen3-Coder campaign stops after 10 reports with room and resize failing. R086.as states that A05 still needs an accepted local configuration. No later record supersedes these. | Limitation | A05 now requires a passing remote provider only, and the remote OpenAI ChatGPT-plan profile passes the frozen corpus (24/24, [R086.b](R086b-remote-evaluation.md)). The local profile is experimental and labeled so. No safety blocker or false completion was observed. | [R086](../PR_ROADMAP.md#r086): re-run the remote profile at the release candidate; a local profile can be promoted only by a later decision
+| D-018 | Remote assistant quality is probabilistic, and acceptance covers one configuration | [M5](M5.md), [R086.b](R086b-remote-evaluation.md), [R086.as](R086as-openai-inspection-batches.md) | A04, A05 | Documented boundary. Earlier failed campaigns (R086.ah, R086.ak) stay recorded; the current host passes 24/24. At the RC, [R086.ca](R086ca-rc-remote-evaluation.md) passes 24/24 with no blockers, a bounded result for the frozen tasks only. | Limitation | Disclosed in M5 and the support matrix. | [R086](../PR_ROADMAP.md#r086) |
+| D-001 | Local provider configurations do not pass the frozen corpus (experimental by decision) | [R086.c](R086c-local-evaluation.md), [R086.ak](R086ak-remote-local-guidance.md), [R086.as](R086as-openai-inspection-batches.md), [M5](M5.md), [support matrix](../SUPPORT_MATRIX.md#runtime-and-services) | A05 (also A08) | **Resolved by scope decision (2026-10-11).** The owner decided that a passing local configuration is not a 1.0 requirement ([ADR 0160](../decisions/0160-provider-scope-for-1-0.md)). The failures remain true and recorded: The frozen Ollama `qwen3:4b-instruct` profile scores 0/3 on all seven live tasks (20 of 21 reach the 300 s deadline). The later Qwen3-Coder campaign stops after 10 reports with room and resize failing. R086.as states that A05 still needs an accepted local configuration. No later record supersedes these. | Limitation | A05 now requires a passing remote provider only, and the remote OpenAI ChatGPT-plan profile passes the frozen corpus (24/24, [R086.b](R086b-remote-evaluation.md)). The local profile is experimental and labeled so. No safety blocker or false completion was observed. | [R086](../PR_ROADMAP.md#r086): the remote re-run at the RC passed ([R086.ca](R086ca-rc-remote-evaluation.md)); a local profile can be promoted only by a later decision |
 | D-004 | Intel integrated reference GPU misses the 16.7 ms complete-frame target on 100k-triangle scenes under one CPU; not remeasured | [R082.i](R082i-complete-frame.md), [R082.j](R082j-viewport-reuse.md), [R082.an](R082an-public-memory.md), [ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md) | N01, D06 | **Waived, untested on Intel at the current revision (2026-10-12).** The latest Intel public campaign (R082.an, one CPU, Intel Arc/Wayland) missed the target in all five families: p95 17.3–19.6 ms. R082.j had passed all 20 Intel runs with an eight-CPU quota. The Intel rerun scheduled in [M9 hardware session](../M9_HARDWARE_SESSION.md) section 1 was not run. AMD passes every 100k target with a wide margin (viewport p95 2.1–2.6 ms, [R082.ii](R082ii-amd-hardware-session.md)). | Limitation | A known, recorded miss on the integrated GPU under a one-CPU quota, documented as untested for the current revision by the owner's waiver. Workflows function; only frame time is affected. The support matrix and release notes must not claim Intel performance. Reopen as Major if daily use on the Intel laptop shows slow frames. | [R082](../PR_ROADMAP.md#r082): none for 1.0; remeasure if Intel is promoted to a supported claim |
 | D-005 | 282 ms opening heartbeat gap on Intel/Wayland not remeasured after the progress fix | [R082.m](R082m-native-file-timing.md), [R082.bb](R082bb-public-tooltip-progress.md), [R082.ak](R082ak-public-progress.md), [R082.ii](R082ii-amd-hardware-session.md), [ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md) | D02, N01 | **Unverified; Intel/Wayland rerun waived (2026-10-12).** R082.m retains 186–282 ms maximum open gaps on Intel Arc/Wayland. R082.bb's fix brought all 18 AMD/X11 gaps below 50 ms (worst 33.0 ms), and the 2026-10-11 AMD/X11 file campaign agrees: open gap 19.7–29.2 ms, save gaps up to 32.4 ms, every operation under 400 ms. No Intel/Wayland rerun exists. | Limitation | UI latency only, untested on Intel/Wayland at the current revision. Every open and save is within the five-second target. | [R082](../PR_ROADMAP.md#r082): none for 1.0 |
 | D-020 | Weston 15.0.1 segfaults when a progress popup is created for a minimized window; Hyprland check waived | [R083.f](R083f-file-worker-hang.md), [ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md) | N01 | **Open (external); Hyprland check waived (2026-10-12).** Seen only on Weston 15.0.1, which is the isolated test compositor, not the primary Hyprland target. Other compositors were not tested. The check on Hyprland (a long open or save started, then the window minimized, before the progress popup appears; [M9 hardware session](../M9_HARDWARE_SESSION.md) section 8) was not run. | Limitation | An external compositor crash, not shown on the primary target, and untested there by the owner's waiver. The owner will see it in use if it occurs. | [R085](../PR_ROADMAP.md#r085) |
+| D-029 | PKGBUILD dependencies carry no versions | [R087.u](R087u-clean-machine-packages.md), [R088.d N02](R088d-core-parity-gaps.md#row-status), [release notes](../RELEASE_NOTES.md#install-and-upgrade) | N02 | **Open by design for 1.0.** pacman installs a package built against newer Qt or glibc on an older system, where both executables fail to start (`Qt_6.11` and `GLIBC_2.43` symbol versions not found in R087.u). The release notes tell users to install a package built for their repository snapshot. | Limitation | Documented in the release notes. Arch does not support partial upgrades, so it matters only when a package is installed outside its snapshot. The RC package installs and runs on the pinned and fresh images, and a package built from the RC archive runs on the Qt 6.8.0 reference. | [R087](../PR_ROADMAP.md#r087): versioned lower bounds for Qt and glibc after 1.0 |
 
 ## Candidates checked and not carried forward
 
@@ -158,13 +168,53 @@ Closed by the 2026-10-11 layers:
 - **Missing keyboard path to four Model-panel tabs and visible focus on most control classes**
   ([R084.s](R084s-keyboard-panel-tabs.md), [R084.q](R084q-visible-focus.md)).
 
+## Release-candidate triage (2026-10-13)
+
+The RC is `7b01bb7a`. Every open item in the table above was re-checked against the RC
+evidence: [R089.d](R089d-release-candidate.md), [R086.ca](R086ca-rc-remote-evaluation.md)
+and CI run [38435734443](https://github.com/zygote55/sketchyup/actions/runs/38435734443), which
+passes all four jobs. R089.d had four failures, and each is triaged:
+
+| R089.d failure | Triage |
+| --- | --- |
+| `visible_focus_input_tests`, Wayland 2×, timed out three times on one CPU | New D-028 (Minor). Passes in CI and on six CPUs at the RC |
+| `annotation_input_tests`, Wayland 2×, window-exposure check failed once | Existing D-021, extended. Passed on re-run and in CI |
+| `interaction_tests`, Wayland 2×, exit 2 once | Existing D-021, extended. Passed on re-run |
+| `verify-m6-offline.sh` stopped in its summary without `git` | New D-027 (Minor). Passes with `git` |
+
+The RC also adds D-029 (Limitation): the PKGBUILD's unversioned dependencies, recorded
+before in R087.u and R088.d but not in this table. No item changed class at the RC.
+
+Why no class is release-blocking:
+
+- **Release-blocking (none).** No open item loses or corrupts data, fails recovery, is a
+  critical security issue, crashes or hangs a Core workflow, or fails a Core row
+  ([R088.f](R088f-core-parity-report.md): 0 Open).
+- **Major (none).** No open item gives a wrong result or breaks a workflow on a supported
+  configuration. R086.ca at the RC shows no wrong-target mutation, false completion,
+  unreported partial commit or unknown outcome.
+- **Minor (10).** Each is test infrastructure (D-007–D-009, D-021, D-022, D-027, D-028), a
+  path the product does not reach (D-019), or a cosmetic or render-statistics residual
+  with no document effect (D-006, D-023).
+- **Limitation (14).** Each is a documented boundary: external library or compositor
+  defects with mitigations (D-010–D-013, D-020), evidence boundaries and format scope
+  (D-014–D-018), decisions (D-001, ADR 0160), waived hardware checks (D-004, D-005,
+  ADR 0161) and packaging (D-029). The release notes and support matrix disclose them.
+
 ## Open acceptance work that is not a known defect
 
 These are unaccepted areas, not recorded failures, so they are not classified above.
-Still required: release-candidate recovery revalidation and the final data-loss audit
+Before the RC, the list read: release-candidate recovery revalidation and the final data-loss audit
 (R083); the all-dialog keyboard workflows (N05); current/reference Arch clean-machine
 package checks (R087); the remote provider's release-candidate re-run (R086); and the Core
 parity report (R088).
+
+**At the RC (2026-10-13)** each has RC evidence: the recovery, publication-fault and
+transaction suites in CTest and the sanitizer job, and R086.ca recovery on 24/24 runs (R083);
+the all-dialog audit, 64/64 (N05); package acceptance and three clean machines (R087); the
+remote corpus (R086.ca); and the parity report ([R088.f](R088f-core-parity-report.md)). Two
+R083 checks were not re-run at the RC: the coverage-guided parser fuzzing campaign, and the
+sanitized run of five of the 13 failure-matrix suites. R088.f lists them.
 
 Waived by the owner on 2026-10-12 ([ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md)),
 untested and not claimed to pass: Intel campaigns and the sharing-off hardware control (R082);
@@ -179,10 +229,13 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 8 | D-006–D-009, D-019, D-021–D-023 |
-| Limitation | 13 | D-001, D-004, D-005, D-010–D-018, D-020 |
-| **Total open** | **21** | |
-| Fixed since the previous refresh | 4 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13) |
+| Minor | 10 | D-006–D-009, D-019, D-021–D-023, D-027, D-028 |
+| Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
+| **Total open at the RC** | **24** | |
+| Fixed since the 2026-10-11 refresh | 4 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13) |
+
+Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
+Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
 
 Before this refresh (2026-10-11): 22 (0 release-blocking, 1 Major, 11 Minor, 10 Limitation).
 D-003 is fixed. D-004 moved from Major to Limitation, and D-005 and D-020 from Minor to
@@ -190,7 +243,8 @@ Limitation, by the owner's evidence waiver. D-024 (Major) and D-025 (Minor) were
 R082.jj then fixed D-024. **2026-10-13:** #301 fixed D-025, and R084.u added D-026 (Minor),
 which R084.v then fixed.
 
-No release-blocking or Major defect remains; this is still not a release sign-off. D-024 is
+No release-blocking or Major defect remains at the RC. This list is the triage evidence; the
+release decision is recorded in [M9](M9.md). D-024 is
 fixed on AMD, so the 10,000-placement edit-feedback miss no longer stands against the M9 exit
 criterion "performance budgets pass"; the criterion is not thereby accepted. D-004, D-005 and D-020 are Limitations because the checks
 that would settle them are waived, not because they were shown harmless. No known open critical
