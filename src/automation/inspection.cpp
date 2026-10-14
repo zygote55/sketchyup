@@ -203,7 +203,16 @@ void validate(const QJsonValue &value, const QJsonObject &schema, const QString 
         fail("INVALID_REQUEST", "Unexpected constant parameter");
     if (schema.contains("enum") && !schema["enum"].toArray().contains(value))
         fail("INVALID_REQUEST", "Unknown parameter value");
-    const auto type = schema["type"].toString();
+    // A schema without "type" (such as a oneOf choice that only narrows properties)
+    // applies its keywords to whatever kind of value it meets, as JSON Schema does.
+    auto type = schema["type"].toString();
+    if (!schema.contains("type"))
+        type = value.isObject() ? "object"
+               : value.isArray() ? "array"
+               : value.isString() ? "string"
+               : value.isBool()   ? "boolean"
+               : value.isNull()   ? "null"
+                                  : "number";
     if (type == "object") {
         if (!value.isObject())
             fail("INVALID_REQUEST", "Expected object");

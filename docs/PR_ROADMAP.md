@@ -1295,7 +1295,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R090 — Add documentation-sheet records and linked views
 
-**Status:** Planned. **Track:** Core. **Scope:** F01. **UX:** —.
+**Status:** Delivered. Drawing-sheet and linked-view records, schema 27 persistence, linked-view evaluation and the shared commands and queries are implemented ([ADR 0163](decisions/0163-documentation-sheets.md); PRs #310–#313 and R090.e). The [R090.e acceptance record](verification/R090e-drawing-sheets.md) ([summary](verification/R090e-drawing-sheets.json)) shows the Verify line passing: records round trip, and a model edit marks an accepted view stale while its declared scale stays 1:50. It also fixes [D-030](verification/R089a-defect-triage.md). The sheet UI is R091. **Track:** Core. **Scope:** F01. **UX:** —.
 
 **Requires:** [R089](#r089), [R078](#r078); milestone gate rule above.
 

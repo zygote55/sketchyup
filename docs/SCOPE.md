@@ -117,7 +117,7 @@ remaining gaps; none can disappear from scope by calling the Core list full pari
 
 | ID | Capability | Class | Gate | Required outcome / feasibility gate |
 | --- | --- | --- | --- | --- |
-| F01 | LayOut-style documentation | Extended | M10 | Multi-page sheets, title blocks, scaled linked views, dimensions, annotations, print/PDF and model-update propagation with regression fixtures |
+| F01 | LayOut-style documentation | Extended | M10 | Multi-page sheets, title blocks, scaled linked views, dimensions, annotations, print/PDF and model-update propagation with regression fixtures. Evidence so far: sheet and linked-view records with stale tracking ([R090.e](verification/R090e-drawing-sheets.md)); layout, title blocks and print/PDF remain (R091, R092) |
 | F02 | Configurable components | Extended | M10 | Editable parameters, constrained formulas, attribute inspector and reusable architectural/furniture assemblies; define compatibility separately from SketchUp Dynamic/Live Components |
 | F03 | Terrain and site tools | Extended | M10 | Contour triangulation, terrain sculpting, drape/stamp and site coordinates with large-coordinate precision tests |
 | F04 | Broader CAD/BIM exchange | Extended | M10 | Prioritize IFC and STEP use cases; publish supported entities, hierarchy/property fidelity and geometry conversion limits |
