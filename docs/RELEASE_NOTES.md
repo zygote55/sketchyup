@@ -1,11 +1,52 @@
-# SketchyUp 1.0.0 release notes
+# SketchyUp release notes
+
+## 1.0.1
+
+SketchyUp 1.0.1 is a patch release for 1.0.0. It fixes one defect and changes no
+format, schema or API. The release check is
+[R089.g](verification/R089g-1.0.1-patch.md).
+
+### Fix
+
+- **D-030: `annotation.create` through `transaction.apply`.** In 1.0.0, every
+  `annotation.create` sent through MCP `transaction.apply`, a headless `--session` or
+  a recipe step failed with `INVALID_REQUEST` "Parameter must match exactly one
+  supported schema". The shared request validator ignored `properties`, `required`
+  and bounds in a schema without `type`, and both `oneOf` choices of
+  `annotation.create` (distance and label) are such schemas, so both matched every
+  request. A schema without `type` now applies its keywords to the value it meets.
+  The desktop Annotations panel and `--script` batches did not use this path and were
+  not affected. Invalid annotation requests are still rejected
+  ([R089.a](verification/R089a-defect-triage.md)).
+
+### Upgrade from 1.0.0-1
+
+Run `pacman -U sketchyup-1.0.1-1-x86_64.pkg.tar.zst`. pacman orders 1.0.1-1 after
+1.0.0-1. Preferences, data and cache are kept. The native document format is
+unchanged: 1.0.1 still writes schema `sketchyup-document-v26` in container version 2,
+and 1.0.0 and 1.0.1 open each other's documents. The only byte difference in a saved
+document is the writer string `SketchyUp/1.0.1`. To roll back, install
+`sketchyup-1.0.0-1-x86_64.pkg.tar.zst` with `pacman -U`; the D-030 defect returns.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.0.1 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch package | `sketchyup` 1.0.1-1, x86_64 |
+| Native document | Schema `sketchyup-document-v26` in SKUPDOC container version 2, unchanged. Saves record the writer `SketchyUp/1.0.1` |
+| MCP, inspection, transactions and other public schemas | Unchanged from 1.0.0 (below) |
+
+Everything else in the 1.0.0 notes below applies to 1.0.1.
+
+## 1.0.0
 
 SketchyUp 1.0.0 is the first release. Every earlier build was the 0.1.0 development
 version ([ADR 0162](decisions/0162-release-versioning.md)). The release gate record,
 with the release-candidate evidence, is [verification/M9.md](verification/M9.md).
 The [support matrix](SUPPORT_MATRIX.md) states what is supported and what is untested.
 
-## Versions
+### Versions
 
 | Item | Version |
 | --- | --- |
@@ -25,7 +66,7 @@ The schemas are installed under `/usr/share/doc/sketchyup/api`. After 1.0.0, a
 major version may drop reading support for a native format or break one of these
 schemas; minor and patch versions do not ([ADR 0162](decisions/0162-release-versioning.md)).
 
-## What 1.0 does
+### What 1.0 does
 
 SketchyUp is a native Linux face modeler built with Qt Widgets and OpenGL. It needs
 no network, account, browser runtime or Blender for ordinary modeling.
@@ -45,7 +86,7 @@ The 59 Core rows of the [scope matrix](SCOPE.md) are the 1.0 scope. The
 [user guide](USER_GUIDE.md) describes the workflows. Extended and Investigate rows
 are not part of 1.0, and 1.0 does not claim full SketchUp parity.
 
-## Install and upgrade
+### Install and upgrade
 
 Install the package with `pacman -U sketchyup-1.0.0-1-x86_64.pkg.tar.zst`. pacman
 orders 1.0.0-1 after the development package 0.1.0-3, so the same command upgrades
@@ -71,7 +112,7 @@ an existing 0.1.0-3 installation.
   an older system, where it fails to start ([R087.u](verification/R087u-clean-machine-packages.md)).
   Install a package built for your repository snapshot.
 
-## Rollback
+### Rollback
 
 No earlier release exists, so a rollback goes to a 0.1.0 development build.
 
@@ -86,7 +127,7 @@ No earlier release exists, so a rollback goes to a 0.1.0 development build.
   before saving it in 1.0.0.
 - Removing the package leaves documents, preferences, data and cache in place.
 
-## Known limitations
+### Known limitations
 
 No known defect is release-blocking. The open-defect list is
 [R089.a](verification/R089a-defect-triage.md); the release-candidate triage is in
