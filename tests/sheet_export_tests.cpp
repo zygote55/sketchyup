@@ -301,6 +301,32 @@ void preflightFindings() {
           "Missing font reported with its substitute: " +
               (substitution ? substitution->message : std::string()));
 
+    {
+        // View and item IDs come from separate allocators: an item whose ID equals a view's is
+        // still reported as an item (R092.b's Choose another font selects it).
+        Document doc;
+        doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}}, "Slab");
+        const auto scene = createScene(doc, "Plan", planScene());
+        const auto sheet = createDrawingSheet(doc, "Only", {420, 297}, "A-1", 10);
+        const auto view =
+            createDrawingView(doc, viewRecord(sheet, scene, "Plan", {20, 20, 200, 150}));
+        DrawingTextItem note;
+        note.frame = {250, 20, 80, 20};
+        note.text = "Same ID";
+        note.font = {"No Such Font R092", 10};
+        const auto item = createDrawingItem(doc, sheet, note);
+        check(item == view, "The fixture gives the item its view's ID");
+        acceptAll(doc);
+        const auto preflight = preflightSheetExport(doc, {});
+        const SheetExportFinding *same = nullptr;
+        for (const auto &finding : preflight.findings)
+            if (finding.code == "fontSubstituted" &&
+                finding.detail["requested"] == "No Such Font R092")
+                same = &finding;
+        check(same && same->items == std::vector<Id>{item} && same->views.empty(),
+              "A substituted item is an item even when a view has its ID");
+    }
+
     // Raster: a perspective view is counted; without a renderer it blocks.
     const auto eye = createScene(f.doc, "Eye", planScene(false));
     const auto garden =

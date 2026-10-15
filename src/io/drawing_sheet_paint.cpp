@@ -46,7 +46,8 @@ class FontResolver {
   public:
     explicit FontResolver(std::vector<DrawingFontSubstitution> &substitutions)
         : substitutions_(substitutions) {}
-    QString family(const std::string &requested, Id item) {
+    // `source` is a page item, or with `view` a view (its caption, frame label or annotation).
+    QString family(const std::string &requested, Id source, bool view = false) {
         auto it = cache_.find(requested);
         if (it == cache_.end()) {
             const auto name = QString::fromStdString(requested);
@@ -64,9 +65,10 @@ class FontResolver {
             auto entry = std::find_if(substitutions_.begin(), substitutions_.end(),
                                       [&](const auto &s) { return s.requested == requested; });
             if (entry == substitutions_.end())
-                entry = substitutions_.insert(substitutions_.end(), {requested, used, {}});
-            if (std::find(entry->items.begin(), entry->items.end(), item) == entry->items.end())
-                entry->items.push_back(item);
+                entry = substitutions_.insert(substitutions_.end(), {requested, used, {}, {}});
+            auto &sources = view ? entry->views : entry->items;
+            if (std::find(sources.begin(), sources.end(), source) == sources.end())
+                sources.push_back(source);
         }
         return it->second;
     }
@@ -213,7 +215,8 @@ struct Builder {
                                bool bold = false) {
         const auto qtext = QString::fromStdString(value);
         const auto shaped =
-            shapeText(qtext, fonts.family(font.family, source), font.sizePt, wrapMm, align, bold);
+            shapeText(qtext, fonts.family(font.family, source, layer != DrawingSheetLayer::Item),
+                      font.sizePt, wrapMm, align, bold);
         out.missingGlyphs += shaped.missingGlyphs;
         if (centred)
             origin -= QPointF(shaped.sizeMm.width() / 2, shaped.sizeMm.height() / 2);

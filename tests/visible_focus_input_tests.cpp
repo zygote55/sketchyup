@@ -3,6 +3,7 @@
 // adjacent colours (WCAG 1.4.11), in both themes and at two interface text sizes. The
 // indicator is measured from pixels painted by the real main window and the real dialogs.
 #include "app/sheet_evaluation.hpp"
+#include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
@@ -636,6 +637,58 @@ int main(int argc, char **argv) {
             modalSweep(
                 [&window] { window.findChild<QAction *>("sheet.view.chooseScene")->trigger(); },
                 "chooseSceneDialog");
+            // R092.b: File › Export sheets…: every control of the preflight dialog, and each
+            // finding control and the accent-filled Export PDF by name (with the opt-ins set,
+            // so it is enabled).
+            {
+                QString failure;
+                bool captured{};
+                QTimer::singleShot(0, &window, [&] {
+                    auto *dialog =
+                        dynamic_cast<SheetExportDialog *>(QApplication::activeModalWidget());
+                    try {
+                        check(dialog && dialog->objectName() == "sheetExportDialog",
+                              "Export dialog opened");
+                        check(QTest::qWaitForWindowExposed(dialog), "Export dialog exposed");
+                        dialog->activateWindow();
+                        check(QTest::qWaitForWindowActive(dialog), "Export dialog active");
+                        auto settled = [&] {
+                            check(QTest::qWaitFor(
+                                      [&] { return !dialog->checking() && dialog->preflight(); },
+                                      20000),
+                                  "Export preflight settles");
+                        };
+                        settled();
+                        for (auto *allow : dialog->findChildren<QCheckBox *>())
+                            if (allow->objectName().startsWith("sheetExportAllow") &&
+                                allow->isVisible() && !allow->isChecked()) {
+                                allow->setChecked(true);
+                                settled();
+                            }
+                        sweep(*dialog, "Sheets / Export sheets");
+                        auto *confirm = dialog->findChild<QPushButton *>("sheetExportConfirm");
+                        check(confirm && confirm->isEnabled(), "Export PDF is ready to probe");
+                        for (const char *name :
+                             {"sheetExportConfirm", "sheetExportReview", "sheetExportGoToView",
+                              "sheetExportChooseFont", "sheetExportChoose", "sheetExportCancel"})
+                            if (auto *control = dialog->findChild<QWidget *>(name);
+                                control && control->isVisible() && control->isEnabled())
+                                probe(*dialog, *control,
+                                      QString("Sheets / Export sheets / ") + name);
+                        captured = true;
+                    } catch (const std::exception &error) {
+                        failure = QString::fromUtf8(error.what());
+                    }
+                    if (dialog)
+                        dialog->reject();
+                });
+                window.findChild<QAction *>("sheet.export")->trigger();
+                if (!failure.isEmpty())
+                    throw std::runtime_error(failure.toStdString());
+                check(captured, "Export dialog sweep completed");
+                window.activateWindow();
+                check(QTest::qWaitForWindowActive(&window), "Main window regains focus");
+            }
             canvas->setSelectedView(0);
             window.setWorkspace(Window::Workspace::Model);
             window.activateWindow();
@@ -767,16 +820,18 @@ int main(int argc, char **argv) {
                     {"minimumAccentRingChange", minimumAccentChange},
                     {"workspace", sheetsOnly ? "sheets" : "model"},
                     {"passes", passed},
-                    {"scope", sheetsOnly
-                                  ? "Painted boundary of every Tab-focusable public control in the "
-                                    "Sheets workspace (canvas, page tabs, Pages, Entity info for "
-                                    "the page, a view and a text, sheet rail, New model view, "
-                                    "edit-view, Choose scene), in light and dark themes at 100% "
-                                    "and 200% interface text"
-                                  : "Painted boundary of every Tab-focusable public control in "
-                                    "the main window panels, tool rail, shortcut, drawing "
-                                    "plane, command and assistant preference dialogs, in light "
-                                    "and dark themes at 100% and 200% interface text"},
+                    {"scope",
+                     sheetsOnly
+                         ? "Painted boundary of every Tab-focusable public control in the "
+                           "Sheets workspace (canvas, page tabs, Pages, Entity info for "
+                           "the page, a view and a text, sheet rail, New model view, "
+                           "edit-view, Choose scene, Export sheets), in light and dark themes at "
+                           "100% "
+                           "and 200% interface text"
+                         : "Painted boundary of every Tab-focusable public control in "
+                           "the main window panels, tool rail, shortcut, drawing "
+                           "plane, command and assistant preference dialogs, in light "
+                           "and dark themes at 100% and 200% interface text"},
                     {"releaseAcceptance", false}})
                 .toJson();
         if (!reportPath.isEmpty()) {

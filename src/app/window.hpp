@@ -3,6 +3,7 @@
 #include "app/organization_panel.hpp"
 #include "app/recovery_controller.hpp"
 #include "app/shortcut_bindings.hpp"
+#include "app/theme.hpp"
 #include "app/viewport.hpp"
 #include "io/dxf_export.hpp"
 #include "io/obj_source.hpp"
@@ -22,12 +23,17 @@ class QDialog;
 class QHBoxLayout;
 class QStackedWidget;
 class QToolBar;
+class QPrinter;
 namespace sketchy {
 class DesktopInspection;
 class RenderPanel;
 class DrawingViewRenderCache;
 class SheetWorkspace;
 class SheetsTray;
+class SheetExportDialog;
+struct SheetExport;
+struct SheetExportOptions;
+struct SheetExportPreflight;
 class Window : public QMainWindow {
     Q_OBJECT
   public:
@@ -66,6 +72,13 @@ class Window : public QMainWindow {
     void exportObjDialog();
     void exportRasterDialog();
     void exportMeasuredDialog();
+    // R092.b: File › Export sheets… and Print… (window_sheet_export.cpp). Both open the
+    // preflight dialog; Export writes a new PDF off the UI thread and shows the report sheet,
+    // Print paints every page at actual size on the printer's paper.
+    void exportSheetsDialog();
+    void printSheetsDialog();
+    // The printer and paper Print uses; tests point it at a PDF file.
+    QPrinter *sheetPrinter();
     void libraryDialog(bool templates);
     void extensionsDialog();
     void saveLibraryDialog(bool component);
@@ -184,6 +197,18 @@ class Window : public QMainWindow {
     void showViewScene(Id view);
     void addSheetPage();
     void moveSheetPage(Id sheet, int delta);
+    // R092.b: the export and print flow (window_sheet_export.cpp).
+    QPointer<SheetExportDialog> sheetExport_;
+    std::unique_ptr<QPrinter> sheetPrinter_;
+    ThemeColors sheetColors_{themeColors(false)};
+    void sheetExportFlow(bool print);
+    void exportSheetsTo(const QString &path, SheetExportOptions options,
+                        const SheetExportPreflight &preflight);
+    void printSheetsTo(QPrinter &printer, SheetExportOptions options,
+                       const SheetExportPreflight &preflight);
+    void sheetExportReport(const QString &path, const SheetExport &exported);
+    void goToSheetView(Id view);
+    void chooseSheetItemFont(Id item);
     void focusWorkspace();
     bool sheetMeasurements(const QString &text);
     ShortcutScope actionScope(const QAction *action) const;
