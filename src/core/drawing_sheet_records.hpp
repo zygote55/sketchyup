@@ -16,6 +16,18 @@ struct DrawingPaper {
     bool operator==(const DrawingPaper &) const = default;
     void validate() const;
 };
+// How the sheet's dimensions write their values (R091.g): the unit, the decimals (0–4,
+// rounded half away from zero) and whether the unit is shown. Feet and inches always show
+// their marks and give whole inches, or 1/16 inch when decimals are above zero. The default
+// is whole millimetres without a unit ("6000"); the page notes state the unit.
+enum class DrawingDimensionUnit { Millimetres, Centimetres, Metres, FeetInches };
+struct DrawingDimensionFormat {
+    DrawingDimensionUnit unit{DrawingDimensionUnit::Millimetres};
+    int decimals{0};
+    bool showUnit{false};
+    bool operator==(const DrawingDimensionFormat &) const = default;
+    void validate() const;
+};
 struct DrawingSheetRecord {
     Id id{};
     std::string name;
@@ -25,6 +37,7 @@ struct DrawingSheetRecord {
     // and the page-margin frame, 0–50 mm and at most a quarter of the shorter side.
     std::string number;
     double marginMm{10};
+    DrawingDimensionFormat dimensionFormat;
     bool operator==(const DrawingSheetRecord &) const = default;
 };
 // A tagged source. R090 has only saved-scene sources; a future external-model kind

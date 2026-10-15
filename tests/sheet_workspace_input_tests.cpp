@@ -303,11 +303,14 @@ void workspace(Window &window, const QString &path, const Fixture &f) {
         check(accessible && accessible->role() == QAccessible::Canvas &&
                   accessible->text(QAccessible::Name) == "Page A-101 Ground floor, A3 landscape",
               "Canvas accessible name names the page");
-        check(accessible->childCount() == 2 && accessible->child(0) &&
+        // R091.g: views first, then the page's items (the notes text).
+        check(accessible->childCount() == 3 && accessible->child(0) &&
                   accessible->child(0)
                       ->text(QAccessible::Name)
                       .startsWith("View 1 · Ground floor plan · 1:50 · Current"),
               "Canvas exposes its views as accessible children");
+        check(accessible->child(2)->text(QAccessible::Name).startsWith("Text · "),
+              "Then its items: " + accessible->child(2)->text(QAccessible::Name).toStdString());
     }
 
     // F6 regions: search, sheet rail, canvas, page tabs, Tray, (Assistant), Measurements.
@@ -356,13 +359,21 @@ void workspace(Window &window, const QString &path, const Fixture &f) {
     {
         auto *ground = pageRow(tree, f.groundFloor);
         check(ground && ground->text(0) == "A-101" && ground->text(1) == "Ground floor" &&
-                  ground->text(2) == "1 changed" && ground->childCount() == 3,
+                  ground->data(1, Qt::AccessibleDescriptionRole) == "1 changed" &&
+                  ground->childCount() == 3,
               "A-101 row: number, name, one changed, two views and one item");
-        check(ground->child(1)->text(2) == "Changed" &&
+        // R091.g: state is a leading glyph on the name; the words are its description.
+        check(ground->child(1)->data(1, Qt::AccessibleDescriptionRole) == "Changed" &&
+                  !ground->child(1)->data(1, Qt::UserRole + 2).toList().isEmpty() &&
+                  ground->child(0)->data(1, Qt::UserRole + 2).toList().isEmpty() &&
                   ground->child(2)->text(1).startsWith("Text · Notes"),
               "View states and items in paint order");
         auto *elevations = pageRow(tree, f.elevations);
-        check(elevations && elevations->text(2) == "1 broken", "A-201 row has one broken view");
+        check(elevations && elevations->data(1, Qt::AccessibleDescriptionRole) == "1 broken",
+              "A-201 row has one broken view");
+        check(tree->columnCount() == 2 &&
+                  tree->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff,
+              "Pages has no state column and never scrolls sideways");
     }
 
     // Page tabs by keyboard: Right arrow shows the next page; the broken card on A-201.

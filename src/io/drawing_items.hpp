@@ -1,6 +1,7 @@
 #pragma once
 #include "core/drawing_item_records.hpp"
 #include "io/drawing_view.hpp"
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -17,7 +18,7 @@ const char *drawingItemStateName(DrawingItemState state);
 // One referenced anchor of a dimension or a view-target label.
 struct DrawingItemAnchorEvaluation {
     AnchorState state{AnchorState::Resolved};
-    Vec3 world{};                       // Resolved world point, or the stored fallback.
+    Vec3 world{};                        // Resolved world point, or the stored fallback.
     std::optional<DrawingPointMm> paper; // Sheet millimetres when the view projects.
 };
 
@@ -56,6 +57,27 @@ struct DrawingItemEvaluation {
 };
 // Throws only when the item does not exist.
 DrawingItemEvaluation evaluateDrawingItem(const Document &doc, Id item);
+// Evaluates a record that need not be in the document yet, such as a tool's preview or
+// a dragged copy (R091.g): the record's sheet and bound view are read from the document.
+DrawingItemEvaluation evaluateDrawingItem(const Document &doc, const DrawingItemRecord &record);
+// A dimension's value in its sheet's dimension format (R091.g), rounded half away from zero:
+// "6000", "600.0 cm", "6 m", "19'-8 1/4\"".
+std::string formatDrawingDimension(double metres, const DrawingDimensionFormat &format);
+// A dimension line placed from its measured paper points, orientation and offset (the
+// R091.c placement): the line's two ends, its midpoint (the text point) and the paper
+// length it measures.
+struct DrawingDimensionPlacement {
+    std::array<DrawingPointMm, 2> lineMm{};
+    DrawingPointMm textMm{};
+    double paperLengthMm{};
+};
+DrawingDimensionPlacement placeDrawingDimension(DrawingPointMm p0, DrawingPointMm p1,
+                                                DrawingDimensionOrientation orientation,
+                                                double offsetMm);
+// The signed offset that puts a dimension line through a paper point: the inverse of
+// placeDrawingDimension for the point's distance from the measured points.
+double drawingDimensionOffset(DrawingPointMm p0, DrawingPointMm p1,
+                              DrawingDimensionOrientation orientation, DrawingPointMm through);
 // The projection of a view whose scene camera is orthographic, or the reason it has
 // none: sceneMissing, sceneHasNoCamera or notToScale. No capture.
 struct DrawingViewMapping {
@@ -68,6 +90,25 @@ DrawingTitleBlockDerived drawingTitleBlockFields(const Document &doc, Id sheet);
 // Tabloid, within 0.5 mm), or empty.
 std::string drawingPaperName(const DrawingPaper &paper);
 
+// The nearest model vertex or point on a model edge that an evaluated view draws, to a
+// paper point q (sheet millimetres), from the view's MeasuredSource lines (ADR 0164 §3):
+// a drawn line end that matches a projected edge end within 0.001 mm is a vertex, any
+// other point on a drawn line an edge point at the projected parameter. Section-cut
+// lines and lines not drawn from a model edge are never offered. A vertex wins when it
+// lies within vertexPreferenceMm of q or is no farther than the nearest edge point;
+// nothing farther than maxDistanceMm is returned. Used by Reattach and by the desktop
+// Dimension and Label tools (R091.g).
+struct DrawingViewAnchorHit {
+    AnnotationAnchor anchor;
+    DrawingPointMm paperMm{};
+    double distanceMm{};
+    bool vertex{};
+};
+std::optional<DrawingViewAnchorHit>
+nearestDrawingViewAnchor(const Document &doc, const DrawingViewProjection &projection,
+                         const MeasuredDrawing &drawing, DrawingPointMm q,
+                         double vertexPreferenceMm,
+                         double maxDistanceMm = std::numeric_limits<double>::infinity());
 // Reattach proposal for one anchor (ADR 0164 decision 2): the nearest model vertex
 // or edge point drawn in the view to the anchor's old paper position (lastMm). A
 // vertex is preferred when it lies within drawingReattachVertexSnapMm of lastMm or

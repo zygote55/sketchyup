@@ -1,6 +1,7 @@
 #pragma once
 #include "app/sheet_evaluation.hpp"
 #include "app/theme.hpp"
+#include "io/drawing_items.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QPointer>
@@ -26,7 +27,8 @@ class SheetCanvas : public QWidget {
     Q_OBJECT
   public:
     // The integer values are the sheet rail actions' "sheetTool" property.
-    enum class Tool { Select, Pan, Zoom, View, Move };
+    // R091.g appends the page-item tools; existing values keep their numbers.
+    enum class Tool { Select, Pan, Zoom, View, Move, Line, Rectangle, Text, Label, Dimension };
     SheetCanvas(const Document &doc, DrawingViewRenderCache &cache, QWidget *parent = nullptr);
     ~SheetCanvas() override;
     void setSheet(Id sheet);
@@ -101,7 +103,9 @@ class SheetCanvas : public QWidget {
     // position (or the top-left of the margin). Enter and the panel's Place button.
     bool placeView(std::optional<QSizeF> size = std::nullopt);
     // An operation (frame, drag or pick-up) is in progress.
-    bool operationActive() const { return drag_ != Drag::None || anchored_; }
+    bool operationActive() const {
+        return drag_ != Drag::None || anchored_ || itemTool_.step > 0 || reattach_.item != 0;
+    }
     // Cancels the operation in progress; nothing is committed.
     void cancelOperation();
     // The frame being placed, or the dragged view's frame, in paper mm.
@@ -126,6 +130,54 @@ class SheetCanvas : public QWidget {
     // Ends Measurements re-entry and nudge amending (a new operation starts).
     void endRevision() { revision_ = {}; }
 
+    // ---- R091.g page items (sheet_items.cpp) ---------------------------------------------
+    // The selection is one view or one item; selecting one clears the other.
+    void setSelectedItem(Id item);
+    Id selectedItem() const { return selectedItem_; }
+    // The page's items in z order, bottom first.
+    std::vector<Id> items() const;
+    // Views, then items by z: the paint order that Tab cycles and the accessible children.
+    struct Entry {
+        bool item{};
+        Id id{};
+        bool operator==(const Entry &) const = default;
+    };
+    std::vector<Entry> entries() const;
+    // Widget coordinates of an item's painted extent (following a drag in progress).
+    QRectF itemRect(Id item) const;
+    // "Dimension · 6000 · View 1 · Current", "Text · Notes", "Title block · House extension".
+    QString describeItem(Id item) const;
+    // The item drawn under a paper point (top first), or zero.
+    Id itemAt(QPointF paperMm) const;
+    // Moves the selected item by a paper step; consecutive steps amend one "Nudge" entry.
+    bool nudgeItem(QPointF deltaMm);
+    // Decision 11: Enter (or a double-click) on a selected text, label or title block edits
+    // it in place. Esc, Ctrl+Enter or a click outside ends editing and commits one entry;
+    // nothing changed commits nothing. A title block edits one field at a time; Tab and
+    // Shift+Tab move between its fields within the same entry.
+    bool beginTextEdit(const QString &field = {});
+    void endTextEdit();
+    bool textEditing() const { return editor_ != nullptr && editor_->isVisible(); }
+    QWidget *textEditor() const { return editor_; }
+    QString textEditField() const { return editing_.field; }
+    // Reattach (decision 2): the selected broken dimension or view-target label shows the
+    // proposed vertex or edge for each missing anchor; Enter confirms, a click on another
+    // vertex or edge in the view chooses it instead, Esc cancels.
+    bool beginReattach();
+    void cancelReattach();
+    bool reattaching() const { return reattach_.item != 0; }
+    // The proposed or chosen paper point of each missing anchor while reattaching.
+    std::vector<QPointF> reattachPoints() const;
+    bool confirmReattach();
+    // The model point the Dimension or Label tool snaps to under the pointer, if any, and
+    // what it is ("Endpoint", "On edge").
+    std::optional<QPointF> anchorMarker() const;
+    QString anchorKind() const;
+    // The item tool's current step: points placed so far.
+    int itemStep() const { return itemTool_.step; }
+    // The text size, in points, that the Text and Label tools give new items.
+    double textSize() const { return textSizePt_; }
+
   signals:
     void selectionChanged(qulonglong view);
     void zoomChanged(double zoom);
@@ -139,6 +191,8 @@ class SheetCanvas : public QWidget {
     void saveSceneRequested(qulonglong view);
     // Backspace on a selected view (Delete is the sheet.view.delete shortcut).
     void deleteRequested();
+    // R091.g: the selected item changed (zero when none).
+    void itemSelectionChanged(qulonglong item);
     // A status message for the user (refusals and results).
     void message(const QString &text);
 
@@ -150,6 +204,8 @@ class SheetCanvas : public QWidget {
     void mousePressEvent(QMouseEvent *) override;
     void mouseMoveEvent(QMouseEvent *) override;
     void mouseReleaseEvent(QMouseEvent *) override;
+    void mouseDoubleClickEvent(QMouseEvent *) override;
+    bool eventFilter(QObject *, QEvent *) override;
     void keyPressEvent(QKeyEvent *) override;
     void focusInEvent(QFocusEvent *) override;
     void focusOutEvent(QFocusEvent *) override;
@@ -163,7 +219,17 @@ class SheetCanvas : public QWidget {
     bool grid_{true}, fitted_{true};
     double pixelsPerMm_{1};
     QPointF origin_;
-    enum class Drag { None, Pan, Zoom, Place, Move, Crop, EditPan } drag_{Drag::None};
+    enum class Drag {
+        None,
+        Pan,
+        Zoom,
+        Place,
+        Move,
+        Crop,
+        EditPan,
+        Item,
+        MoveItem
+    } drag_{Drag::None};
     QPointF dragStart_, dragLast_;
     double dragZoom_{1};
     RasterRenderer renderer_;
@@ -188,6 +254,7 @@ class SheetCanvas : public QWidget {
         DrawingViewRecord base; // The view before the operation being revised.
         QPointF direction;      // Unit drag direction of a move, for a typed distance.
         QJsonObject create;     // The last placement's create command.
+        DrawingItemRecord item; // The item before the operation being revised (R091.g).
     } revision_;
     Id editView_{};
     QWidget *banner_{};
@@ -226,6 +293,80 @@ class SheetCanvas : public QWidget {
     void releaseEditing(QMouseEvent *event);
     bool keyEditing(QKeyEvent *event);
     void clearPreview();
+    // ---- R091.g (sheet_items.cpp) ----
+    Id selectedItem_{};
+    // The dragged item's record while a move previews.
+    std::optional<DrawingItemRecord> previewItem_;
+    struct ItemTool {
+        int step{};             // Points placed: line start, rectangle corner, label tip, anchors.
+        QPointF start, pointer; // Paper mm: the first point and the (snapped) pointer.
+        Id view{};              // Dimension and view-target label: the bound view.
+        std::optional<DrawingViewAnchorHit> anchors[2];
+        double offsetMm{};
+    } itemTool_;
+    std::optional<DrawingViewAnchorHit> hoverAnchor_;
+    Id hoverView_{};
+    double textSizePt_{10};
+    // In-place editing (decision 11).
+    struct Editing {
+        Id item{}; // Zero for a new text or label.
+        DrawingItemKind kind{};
+        QString field;                     // Title-block field; empty for text and labels.
+        std::map<QString, QString> fields; // Title-block values typed so far.
+        DrawingItemRecord pending;         // A new item's record, created when editing ends.
+        QRectF box;                        // Paper mm under the editor.
+        DrawingFont font;
+        bool wrap{};      // The text wraps at the box width.
+        bool autoWidth{}; // The text box fits its words (placed with a click).
+    } editing_;
+    QWidget *editor_{};
+    bool ending_{};
+    // Reattach.
+    struct Reattach {
+        Id item{};
+        Id view{};
+        DrawingReattachProposal proposal;
+        std::vector<std::optional<DrawingViewAnchorHit>> chosen; // Per anchor; set when missing.
+        size_t active{};
+    } reattach_;
+    // Live item display: the evaluated items, rebuilt for records changed since.
+    struct LiveItems {
+        bool built{};
+        const void *source{};
+        std::string identity;
+        std::uint64_t revision{};
+        Id sheet{};
+        std::optional<DrawingItemRecord> preview;
+        std::vector<std::pair<Id, std::vector<DrawingSheetPrimitive>>> primitives;
+    };
+    mutable LiveItems live_;
+    void replaceItems(PreparedDrawingSheet &sheet) const;
+    const DrawingItemRecord *liveItem(Id item) const;
+    const LiveItems &liveItems() const;
+    bool itemsDiffer(const PreparedDrawingSheet &prepared) const;
+    const PreparedDrawingView *preparedView(Id view) const;
+    std::optional<DrawingViewAnchorHit> anchorNear(Id view, QPointF paperMm,
+                                                   double toleranceMm) const;
+    bool itemTool() const;
+    void resetItemTool();
+    void pressItemTool(QMouseEvent *event);
+    void moveItemTool(QMouseEvent *event);
+    void releaseItemTool(QMouseEvent *event);
+    QPointF constrained(QPointF from, QPointF to, bool shift) const;
+    bool commitItem(const QJsonObject &create, const QString &label, bool amend);
+    bool commitItemUpdate(const DrawingItemRecord &before, const DrawingItemRecord &after,
+                          const QString &label, const QString &amendKey);
+    bool commitLine(QPointF from, QPointF to, bool amend = false);
+    bool commitRectangle(QRectF frame, bool amend = false);
+    bool commitDimension(double offsetMm, bool amend = false);
+    void openEditor(QRectF paperBox, const QString &text, bool multiline, const QString &name);
+    void placeEditor();
+    void editorKey(QKeyEvent *event);
+    bool itemMeasurements(const QString &label, QString text, QString &error);
+    void paintItems(QPainter &painter);
+    bool keyItems(QKeyEvent *event);
+    QString itemInstruction() const;
+    void dropItemSelection();
 };
 // What the Model view tool places for a scene at a scale: the scene name, whether it is a
 // perspective, and the visible geometry's extent around the scene target (plus a 10 mm border,

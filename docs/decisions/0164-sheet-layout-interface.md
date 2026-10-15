@@ -311,6 +311,8 @@ schema 27.
 - `marginMm`: 0–50, at most a quarter of the shorter paper side, default 10.
   It is the page-margin frame. Snapping and the title-block default use it, and
   R092 uses it as the printable-area hint.
+- `dimensionFormat` (added by R091.g): `{unit: mm | cm | m | ftIn, decimals: 0–4, showUnit}`,
+  default whole millimetres without a unit; see the R091.g conventions.
 
 **Drawing item:** `id`, `sheet`, `z` (contiguous per sheet, 0 at the bottom),
 `kind`, and `data`, whose fields depend on `kind`:
@@ -931,6 +933,55 @@ design §§1, 2, 4, 6.
   `src/app/sheets_tray.cpp`.
 - Tests: `sheet_annotation_input_tests`; the `accessibility_bridge_test.py`
   extension.
+
+**Implementation conventions (R091.g).**
+- **Labels.** "Add line", "Add rectangle", "Add text", "Add label", "Add dimension", "Add title
+  block", "Edit text", "Edit label", "Edit title block", "Move <kind>", "Nudge", "Delete <kind>",
+  "Bring forward", "Send backward", "Reattach dimension", "Reattach label", "Change sheet number",
+  and one label per Entity info field ("Change font", "Change orientation", …).
+- **Tools.** Line and Rectangle draw by drag or click–move–click, snap like views (grid, margins,
+  view edges) and take Shift for 45° steps or a square. Text places with a click (the box fits its
+  words) or a drag (the drag sets the wrap width), then edits in place; a new item is created only
+  when editing ends with text. Label picks the leader's point first: a model vertex or edge in a
+  view drawn to scale binds it to the view, anything else is a paper point; the second click
+  places the text. Dimension picks two model points in one view (8 px snap, a vertex preferred
+  within it, from `nearestDrawingViewAnchor`, the same search Reattach uses), then the offset;
+  new dimensions are aligned, and Entity info changes the orientation. Tools stay active after
+  each item; a typed value right after one revises it (amend).
+- **Measurements.** Line: a length along the preview, `<dx,dy>` or `[x,y]` (before the first
+  click `[x,y]` sets the start). Rectangle: `w,h` (from the first corner towards the pointer, else
+  at the pointer). Text and Label: `[x,y]`, and `12pt` sets the size of new text. Dimension: the
+  offset after two points. Select with an item: `<dx,dy>`, `[x,y]` (top-left of its stored
+  geometry) or `12pt`; a selected dimension takes its offset.
+- **Moves.** An item moves its stored geometry, clamped to the paper; a dimension moves by its
+  offset; a label bound to a view moves its text only, a paper label moves with its point.
+- **In-place editing.** Esc, Ctrl+Enter, a click outside or focus leaving ends editing; Enter adds
+  a line break in text and labels and ends a title-block field. Tab and Shift+Tab move between
+  the title block's four stored fields within one entry.
+- **Title block.** Insert › Title block places 160 × 30 mm (or what fits) in the bottom-right
+  corner of the margin with empty stored fields. "+ Page" copies the current page's title blocks
+  into the new page in the same entry. The compositor draws the design's grid: the project across
+  the top, then Drawing and Sheet, then Scale, Date, Revision and Page, captions over bold values.
+- **Dimension text** reads along its line (left to right, or top to bottom), centred 1 mm above it.
+- **Dimension format.** Values follow the sheet's `dimensionFormat` (schema 27, required on
+  every sheet record), never the model's display units or precision: `unit` `mm` | `cm` | `m`
+  | `ftIn`, `decimals` 0–4 and `showUnit`; the default is whole millimetres without a unit
+  ("6000", the design's "6000"; the page notes state the unit). Rounding is half away from
+  zero. Feet and inches always show their marks, `19'-8"` in whole inches, or `19'-8 1/4"` to
+  1/16 inch when decimals are above zero, so `showUnit` changes nothing there.
+  `drawing_sheet.update {sheet, dimensionFormat: {unit?, decimals?, showUnit?}}` merges the
+  given fields. Entity info · Page (shown when nothing is selected) edits it, one entry per
+  field ("Change dimension format"). The prefix stays per dimension.
+- **No dialogs.** R091.g opens none, so its commands carry no ellipsis: Reattach proposes on
+  the canvas and Enter confirms (the dialog-keyboard inventory treats "…" as "opens a dialog").
+- **Z order.** Bring forward `Ctrl+]` and Send backward `Ctrl+[` in a new Arrange menu (Sheets
+  scope); Alt+Down and Alt+Up on an item row in Pages do the same.
+- **Pages** has two columns, number and name, so names keep the narrow Tray's width (no
+  sideways scrolling). State is a small leading glyph on the name: amber ⟳ changed, red ⊗
+  broken, nothing for current; page rows show glyphs with counts ("⟳2 ⊗2"). The words
+  ("Broken: reference missing", "1 changed · 2 broken") are the tooltip and the accessible
+  description. Choosing a row selects the item, Delete erases it and Enter edits its text in
+  place.
 
 **R091.h: enable and accept.**
 - Scope:

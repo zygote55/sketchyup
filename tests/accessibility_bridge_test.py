@@ -127,6 +127,159 @@ def wait_for(bridge, condition, message):
     raise AssertionError(message)
 
 
+def sheet_fixture(cli, root, environment):
+    """Writes a document with one page holding a title block and a text item (R091.g)."""
+    def ref(path):
+        return {"$ref": path}
+    document = ref("info#/result/documentId")
+    commands = [
+        {"command": "drawing_sheet.create", "name": "Ground floor", "number": "A-101",
+         "paper": {"widthMm": 420, "heightMm": 297}},
+        {"command": "drawing_item.create", "sheet": "1", "kind": "titleBlock",
+         "data": {"frame": {"xMm": 250, "yMm": 257, "widthMm": 160, "heightMm": 30},
+                  "fields": {"project": "House extension"}}},
+        {"command": "drawing_item.create", "sheet": "1", "kind": "text",
+         "data": {"frame": {"xMm": 240, "yMm": 160, "widthMm": 60, "heightMm": 10},
+                  "text": "Notes"}},
+    ]
+    steps = [
+        {"id": "info", "request": {"apiVersion": 1, "operation": "session.describe"}},
+        {"id": "begin", "request": {"apiVersion": 1, "operation": "transaction.begin",
+                                    "documentId": document,
+                                    "expectedRevision": ref("info#/result/revision"),
+                                    "history": {"label": "Sheet fixture", "taskId": "a11y-sheets",
+                                                "assistant": False}}},
+        {"id": "apply", "request": {"apiVersion": 1, "operation": "transaction.apply",
+                                    "documentId": document,
+                                    "transactionId": ref("begin#/result/transactionId"),
+                                    "expectedVersion": 0, "operationId": "sheet-items",
+                                    "commands": commands}},
+        {"id": "seal", "request": {"apiVersion": 1, "operation": "transaction.preview",
+                                   "documentId": document,
+                                   "transactionId": ref("begin#/result/transactionId"),
+                                   "expectedVersion": ref("apply#/result/stageVersion")}},
+        {"id": "commit", "request": {"apiVersion": 1, "operation": "transaction.commit",
+                                     "documentId": document,
+                                     "requestId": ref("seal#/result/requestId"),
+                                     "payloadHash": ref("seal#/result/payloadHash")}},
+        {"id": "save", "request": {"apiVersion": 1, "operation": "document.save",
+                                   "documentId": document,
+                                   "expectedRevision": ref("commit#/result/result/revision")}},
+    ]
+    recipe = root / "sheets-recipe.json"
+    recipe.write_text(json.dumps({"apiVersion": 1, "steps": steps}))
+    output = root / "sheets.sketchyup"
+    result = subprocess.run([str(cli), "--recipe", str(recipe), "--new", "--output", str(output),
+                             "--outcomes", str(root / "outcomes")],
+                            env=environment, capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0 and output.exists(), \
+        f"Sheet fixture recipe failed: {result.stdout[-2000:]} {result.stderr[-2000:]}"
+    return output
+
+
+def sheets_phase(bridge, application, root, environment):
+    """R091.g: page items are visible over AT-SPI in the Pages tree and as canvas children."""
+    fixture = sheet_fixture(application.resolve().parent / "sketchyup-cli", root, environment)
+    sheets = dict(environment, SKETCHYUP_SHEETS_WORKSPACE="1")
+    with (root / "sheets.log").open("w") as log:
+        process = subprocess.Popen([str(application.resolve()), str(fixture)], env=sheets,
+                                   stdout=log, stderr=log)
+        try:
+            with bridge.owned(bridge.get_desktop(0)) as desktop:
+                def own_application():
+                    assert process.poll() is None, "Sheets fixture exited before registration"
+                    for index in range(bridge.accessible_get_child_count(desktop, None)):
+                        child = bridge.accessible_get_child_at_index(desktop, index, None)
+                        if not child:
+                            continue
+                        if bridge.accessible_get_process_id(child, None) == process.pid:
+                            return child
+                        bridge.objects.g_object_unref(child)
+                    return None
+
+                with bridge.owned(wait_for(bridge, own_application,
+                                           "The sheets fixture did not register")) as app:
+                    seen = []
+
+                    def toggle():
+                        rows = bridge.snapshot(app)
+                        seen[:] = [(r["name"], r["role"]) for r in rows if "Sheets" in r["name"]]
+                        found = [r for r in rows if r["name"] == "Sheets workspace" and
+                                 r["role"] in ("push button", "toggle button", "check box")]
+                        return found[0] if found else None
+
+                    try:
+                        button = wait_for(bridge, toggle, "Sheets workspace button is absent")
+                    except AssertionError as error:
+                        raise AssertionError(f"{error}; seen {seen}") from None
+                    with bridge.at_path(app, button["path"]) as control:
+                        with bridge.owned(bridge.accessible_get_action_iface(control)) as action:
+                            names = [bridge.string(bridge.action_get_name(action, i, None))
+                                     for i in range(bridge.action_get_n_actions(action, None))]
+                            assert "Press" in names and bridge.action_do_action(
+                                action, names.index("Press"), None), "Could not open Sheets"
+
+                    def listed():
+                        rows = bridge.snapshot(app)
+                        names = {r["name"] for r in rows}
+                        return rows if {"Title block · House extension", "Text · Notes"} <= names \
+                            else None
+
+                    rows = wait_for(bridge, listed, "Pages does not list the page items")
+                    pages = find(rows, "Pages", "tree")
+                    notes = find(rows, "Text · Notes", "table cell")
+                    assert notes["description"] == "Current", \
+                        f"The row's state is its description: {notes['description']!r}"
+                    assert notes["path"][:-1] == pages["path"], "The item row belongs to Pages"
+                    canvas = [r for r in rows if r["role"] == "canvas" and
+                              r["name"].startswith("Page A-101")]
+                    assert len(canvas) == 1, "The page canvas is exposed"
+                    children = [r for r in rows if r["path"][:-1] == canvas[0]["path"]]
+                    item_names = sorted(r["name"] for r in children)
+                    assert item_names == ["Text · Notes · Current",
+                                          "Title block · House extension · Current"], \
+                        f"Canvas children name the items: {item_names}"
+                    # Qt's tree selection counts the hidden header as a row that the child list
+                    # leaves out: selecting child n selects the row of child n - columns. So the
+                    # title block's row (above the text's) is selected through the child one row
+                    # (two columns: number and name) further on.
+                    columns = 2
+                    block = find(rows, "Title block · House extension", "table cell")
+                    with bridge.at_path(app, pages["path"]) as control:
+                        with bridge.owned(bridge.accessible_get_selection_iface(control)) as selection:
+                            assert bridge.selection_select_child(
+                                selection, block["path"][-1] + columns, None), \
+                                "AT-SPI could not select the title block's row"
+
+                    observed = []
+
+                    def described():
+                        current = bridge.snapshot(app)
+                        page = [r for r in current if r["role"] == "canvas" and
+                                r["name"].startswith("Page A-101")]
+                        observed[:] = [r["description"] for r in page] + \
+                            [r["name"] for r in current if r["role"] == "label" and
+                             r["name"].startswith("Entity info")]
+                        return page[0] if page and page[0]["description"] == \
+                            "Title block · House extension · Current" else None
+
+                    try:
+                        page = wait_for(bridge, described, "Selecting the row does not select the item")
+                    except AssertionError as error:
+                        raise AssertionError(f"{error}; observed {observed}") from None
+                    return {"pagesItems": ["Title block · House extension", "Text · Notes"],
+                            "canvasChildren": item_names,
+                            "canvasDescription": page["description"],
+                            "selectionRowOffsetColumns": columns}
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("application", type=Path)
@@ -201,6 +354,10 @@ def main():
                                 return current if all(value in names for value in expected) else None
 
                             rows = wait_for(bridge, measured, "Accessible Entity info measurements are incomplete")
+                            # Leave the demo before the Sheets phase starts its own process.
+                            process.terminate()
+                            process.wait(timeout=10)
+                            sheets = sheets_phase(bridge, args.application, root, environment)
                             report = {
                                 "fixture": "built-in courtyard demo; private config/data and owned process only",
                                 "platformRequested": environment.get("QT_QPA_PLATFORM", "default"),
@@ -208,6 +365,7 @@ def main():
                                 "measurementsInput": {key: measurements[key] for key in ("name", "role", "description")},
                                 "selectionDescription": summary["description"],
                                 "entityInfo": expected,
+                                "sheets": sheets,
                                 "accessibleNodes": len(rows),
                                 "passes": True,
                                 "releaseAcceptance": False,

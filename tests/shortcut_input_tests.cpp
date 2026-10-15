@@ -445,11 +445,13 @@ int main(int argc, char **argv) {
                 check(workspaceOf("sheet.tool.pan") == "Sheets" &&
                           workspaceOf("tool.6") == "Model" && workspaceOf("view.commands") == "All",
                       "Workspace column names each command's scope");
-                choose(dialog, "sheet.tool.zoom", "L");
-                check(error(dialog).isEmpty(), "L for a sheet tool shows no conflict");
+                // R091.g: L is the sheet Line tool by default; Q (model Rotate) shows the same
+                // rule for an assignment.
+                choose(dialog, "sheet.tool.zoom", "Q");
+                check(error(dialog).isEmpty(), "Q for a sheet tool shows no conflict");
                 click(dialog, "shortcutAssign");
                 check(error(dialog).isEmpty(),
-                      "L for a sheet tool does not conflict with model Line");
+                      "Q for a sheet tool does not conflict with model Rotate");
                 choose(dialog, "sheet.tool.select", "Ctrl+S");
                 check(error(dialog).contains("Save") && error(dialog).contains("(All)"),
                       ("A global key conflicts across workspaces: " + error(dialog).toStdString())
@@ -461,19 +463,21 @@ int main(int argc, char **argv) {
                 save(dialog);
                 check(!dialog.isVisible(), "Scoped assignment saves");
             });
-            check(action(window, "sheet.tool.zoom")->shortcut() == QKeySequence("L") &&
+            check(action(window, "sheet.tool.zoom")->shortcut() == QKeySequence("Q") &&
+                      action(window, "sheet.tool.line")->shortcut() == QKeySequence("L") &&
                       action(window, "tool.6")->shortcut() == QKeySequence("L"),
-                  "Both L bindings are live");
+                  "Both L bindings are live, and the assigned Q");
             QTest::keyClick(window.viewport(), Qt::Key_L);
             check(window.viewport()->tool() == Viewport::Tool::Line, "L selects Line in Model");
             QTest::keyClick(window.viewport(), Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
             check(window.workspace() == Window::Workspace::Sheets, "Ctrl+Alt+S shows Sheets");
             auto *canvas = window.findChild<QWidget *>("sheetCanvas");
             check(QTest::qWaitFor([&] { return canvas->hasFocus(); }), "Canvas focused");
-            QTest::keyClick(canvas, Qt::Key_L);
+            // This model has no pages, so the page-item tools (L) wait for one; Q does not.
+            QTest::keyClick(canvas, Qt::Key_Q);
             check(window.findChild<QLabel *>("activeToolLabel")->text() == "Zoom" &&
                       window.viewport()->tool() == Viewport::Tool::Line,
-                  "L selects the sheet Zoom tool in Sheets and leaves the model tool alone");
+                  "Q selects the sheet Zoom tool in Sheets and leaves the model tool alone");
             QTest::keyClick(canvas, Qt::Key_H);
             check(window.findChild<QLabel *>("activeToolLabel")->text() == "Pan" &&
                       window.viewport()->tool() == Viewport::Tool::Line,

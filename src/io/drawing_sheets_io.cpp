@@ -72,6 +72,32 @@ DrawingViewSource decodeSource(const QJsonValue &value) {
     return {DrawingViewSourceKind::Scene, id(source["scene"])};
 }
 } // namespace
+QJsonObject encodeDrawingDimensionFormat(const DrawingDimensionFormat &format) {
+    const char *unit = format.unit == DrawingDimensionUnit::Centimetres  ? "cm"
+                       : format.unit == DrawingDimensionUnit::Metres     ? "m"
+                       : format.unit == DrawingDimensionUnit::FeetInches ? "ftIn"
+                                                                         : "mm";
+    return {{"unit", unit}, {"decimals", format.decimals}, {"showUnit", format.showUnit}};
+}
+DrawingDimensionFormat decodeDrawingDimensionFormat(const QJsonValue &value) {
+    const auto o = object(value, {"unit", "decimals", "showUnit"});
+    DrawingDimensionFormat format;
+    const auto unit = o["unit"].toString();
+    if (!o["unit"].isString() || (unit != "mm" && unit != "cm" && unit != "m" && unit != "ftIn"))
+        throw std::runtime_error("Unknown drawing dimension unit");
+    format.unit = unit == "cm"     ? DrawingDimensionUnit::Centimetres
+                  : unit == "m"    ? DrawingDimensionUnit::Metres
+                  : unit == "ftIn" ? DrawingDimensionUnit::FeetInches
+                                   : DrawingDimensionUnit::Millimetres;
+    const auto decimals = number(o["decimals"]);
+    if (decimals != std::floor(decimals) || decimals < 0 || decimals > 4)
+        throw std::runtime_error("Drawing dimension decimals must be an integer from 0 to 4");
+    format.decimals = int(decimals);
+    if (!o["showUnit"].isBool())
+        throw std::runtime_error("Drawing dimension showUnit requires a boolean");
+    format.showUnit = o["showUnit"].toBool();
+    return format;
+}
 QJsonArray encodeDrawingSheets(const DrawingSheetRecords &sheets) {
     QJsonArray result;
     for (const auto &[key, sheet] : sheets)
@@ -81,6 +107,7 @@ QJsonArray encodeDrawingSheets(const DrawingSheetRecords &sheets) {
             {"position", int(sheet->position)},
             {"number", QString::fromStdString(sheet->number)},
             {"marginMm", sheet->marginMm},
+            {"dimensionFormat", encodeDrawingDimensionFormat(sheet->dimensionFormat)},
             {"paper",
              QJsonObject{{"widthMm", sheet->paper.widthMm}, {"heightMm", sheet->paper.heightMm}}}});
     return result;
@@ -117,7 +144,8 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
     DrawingSheetRecords sheets;
     for (const auto &entry : array(sheetsValue, drawingSheetCountLimit)) {
         const auto record =
-            object(entry, {"id", "name", "position", "paper", "number", "marginMm"});
+            object(entry, {"id", "name", "position", "paper", "number", "marginMm",
+                           "dimensionFormat"});
         const auto paper = object(record["paper"], {"widthMm", "heightMm"});
         const auto position = number(record["position"]);
         if (position < 0 || position >= double(drawingSheetCountLimit) ||
@@ -131,6 +159,7 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
                                static_cast<std::uint32_t>(position), size,
                                record["number"].toString().toStdString(),
                                number(record["marginMm"])});
+        sheet->dimensionFormat = decodeDrawingDimensionFormat(record["dimensionFormat"]);
         // Canonical tables are written in ascending ID order.
         if (!sheets.empty() && sheet->id <= sheets.rbegin()->first)
             throw std::runtime_error("Drawing sheets must be stored once each in ID order");

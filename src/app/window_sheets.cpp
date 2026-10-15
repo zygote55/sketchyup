@@ -1,6 +1,8 @@
 #include "app/interface_preferences.hpp"
 #include "app/keyboard_navigation.hpp"
 #include "app/sheet_evaluation.hpp"
+#include "app/sheet_item_info.hpp"
+#include "app/sheet_items.hpp"
 #include "app/sheet_text.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
@@ -129,6 +131,50 @@ QPainterPath moveIcon() {
     }
     return path;
 }
+// The page-item tools (R091.g), from the R091 design's rail.
+QPainterPath lineIcon() {
+    QPainterPath path;
+    path.moveTo(3, 15);
+    path.lineTo(15, 3);
+    return path;
+}
+QPainterPath rectangleIcon() {
+    QPainterPath path;
+    path.addRect(QRectF(3, 5, 12, 8));
+    return path;
+}
+QPainterPath textIcon() {
+    QPainterPath path;
+    path.moveTo(4, 4);
+    path.lineTo(14, 4);
+    path.moveTo(9, 4);
+    path.lineTo(9, 15);
+    return path;
+}
+QPainterPath labelIcon() {
+    QPainterPath path;
+    path.moveTo(3, 15);
+    path.lineTo(9, 9);
+    path.lineTo(15, 9);
+    path.addEllipse(QPointF(3, 15), 1.2, 1.2);
+    return path;
+}
+QPainterPath dimensionIcon() {
+    QPainterPath path;
+    path.moveTo(2, 9);
+    path.lineTo(16, 9);
+    path.moveTo(2, 6);
+    path.lineTo(2, 12);
+    path.moveTo(16, 6);
+    path.lineTo(16, 12);
+    path.moveTo(5, 7);
+    path.lineTo(2, 9);
+    path.lineTo(5, 11);
+    path.moveTo(13, 7);
+    path.lineTo(16, 9);
+    path.lineTo(13, 11);
+    return path;
+}
 // The scale a new view gets: the scale every measurable view on the page shares, else the
 // first view's, else 1:50. True when it comes from the page.
 std::pair<double, bool> pageScale(const Document &doc, DrawingViewRenderCache &cache, Id sheet) {
@@ -217,6 +263,13 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
     addTool("sheet.tool.select", "Select", "Space", SheetCanvas::Tool::Select)->setChecked(true);
     addTool("sheet.tool.view", "Model view", "W", SheetCanvas::Tool::View);
     sheetRail_->addSeparator();
+    // Page items (R091.g).
+    addTool("sheet.tool.line", "Line", "L", SheetCanvas::Tool::Line);
+    addTool("sheet.tool.rectangle", "Rectangle", "R", SheetCanvas::Tool::Rectangle);
+    addTool("sheet.tool.text", "Text", "X", SheetCanvas::Tool::Text);
+    addTool("sheet.tool.label", "Label", "K", SheetCanvas::Tool::Label);
+    addTool("sheet.tool.dimension", "Dimension", "D", SheetCanvas::Tool::Dimension);
+    sheetRail_->addSeparator();
     addTool("sheet.tool.move", "Move", "M", SheetCanvas::Tool::Move);
     addTool("sheet.tool.pan", "Pan", "H", SheetCanvas::Tool::Pan);
     addTool("sheet.tool.zoom", "Zoom", "Z", SheetCanvas::Tool::Zoom);
@@ -284,9 +337,10 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
     page->addAction(action(
         "sheet.view.edit", "Edit view", {}, [this] { sheets_->canvas()->enterEditView(); },
         ShortcutScope::Sheets));
-    // Delete (and Backspace on the canvas) deletes the selected view; never inside edit-view.
+    // Delete (and Backspace on the canvas) deletes the selected view or item; never inside
+    // edit-view.
     auto *deleteView = action(
-        "sheet.view.delete", "Delete view", QKeySequence::Delete, [this] { deleteSheetView(); },
+        "sheet.view.delete", "Delete", QKeySequence::Delete, [this] { deleteSheetView(); },
         ShortcutScope::Sheets);
     page->addAction(deleteView);
     for (auto *menu : menuBar()->findChildren<QMenu *>())
@@ -308,6 +362,22 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
     page->addAction(action(
         "sheet.view.showScene", "Show scene in model", {},
         [this] { showViewScene(sheets_->canvas()->selectedView()); }, ShortcutScope::Sheets));
+    // Items (R091.g): in-place text editing and Reattach.
+    page->addAction(action(
+        "sheet.item.editText", "Edit text", {},
+        [this] {
+            sheets_->canvas()->setFocus(Qt::OtherFocusReason);
+            sheets_->canvas()->beginTextEdit();
+        },
+        ShortcutScope::Sheets));
+    // No ellipsis: Reattach proposes on the canvas and Enter confirms; no dialog opens.
+    page->addAction(action(
+        "sheet.item.reattach", "Reattach", {},
+        [this] {
+            sheets_->canvas()->setFocus(Qt::OtherFocusReason);
+            sheets_->canvas()->beginReattach();
+        },
+        ShortcutScope::Sheets));
     page->addSeparator();
     auto *grid = action(
         "sheet.grid", "Snap to grid 5 mm", {},
@@ -320,6 +390,24 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
     connect(sheets_->gridToggle(), &QCheckBox::toggled, grid, &QAction::setChecked);
     page->addAction(grid);
 
+    // Insert and Arrange (the R091 design's menu bar): the title block and the stacking order.
+    auto *insert = menuBar()->insertMenu(page->menuAction(), new QMenu("&Insert", this))->menu();
+    insert->setObjectName("insertMenu");
+    insert->menuAction()->setVisible(false);
+    insert->addAction(action(
+        "sheet.insert.titleBlock", "Title block", {}, [this] { insertTitleBlock(); },
+        ShortcutScope::Sheets));
+    auto *arrange = menuBar()->insertMenu(page->menuAction(), new QMenu("&Arrange", this))->menu();
+    arrange->setObjectName("arrangeMenu");
+    arrange->menuAction()->setVisible(false);
+    arrange->addAction(action(
+        "sheet.item.forward", "Bring forward", QKeySequence("Ctrl+]"),
+        [this] { restackSheetItem(sheets_->canvas()->selectedItem(), 1); }, ShortcutScope::Sheets));
+    arrange->addAction(action(
+        "sheet.item.backward", "Send backward", QKeySequence("Ctrl+["),
+        [this] { restackSheetItem(sheets_->canvas()->selectedItem(), -1); },
+        ShortcutScope::Sheets));
+
     // Canvas, page tabs and Tray wiring.
     sheets_->canvas()->setRasterRenderer(
         [this](const DrawingViewEvaluationInput &input, QSize pixels) {
@@ -327,13 +415,15 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
         });
     connect(sheetCache_.get(), &DrawingViewRenderCache::evaluated, this, [this](qulonglong) {
         sheets_->canvas()->contentChanged();
-        sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView());
+        sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView(),
+                             sheets_->canvas()->selectedItem());
         syncSheets();
     });
     connect(sheets_, &SheetWorkspace::currentSheetChanged, this, [this](qulonglong) {
         if (workspace_ == Workspace::Sheets)
             sheetCache_->refresh(sheets_->currentSheet());
-        sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView());
+        sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView(),
+                             sheets_->canvas()->selectedItem());
         syncSheets();
     });
     connect(sheets_, &SheetWorkspace::addPageRequested, this,
@@ -342,8 +432,14 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
             [this] { findChild<QAction *>("sheet.view.fit")->trigger(); });
     connect(sheets_, &SheetWorkspace::pagesRequested, this,
             [this] { sheetsTray_->pages()->setFocus(Qt::ShortcutFocusReason); });
+    connect(canvas, &SheetCanvas::itemSelectionChanged, this, [this](qulonglong) {
+        sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView(),
+                             sheets_->canvas()->selectedItem());
+        syncSheetActions();
+    });
     connect(canvas, &SheetCanvas::selectionChanged, this, [this](qulonglong) {
-        sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView());
+        sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView(),
+                             sheets_->canvas()->selectedItem());
         syncSheetActions();
     });
     canvas->setCommitter(
@@ -445,6 +541,68 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
         sheets_->setCurrentSheet(found->second->sheet);
         sheets_->canvas()->setSelectedView(view);
     });
+    connect(sheetsTray_, &SheetsTray::itemChosen, this, [this](qulonglong item) {
+        const auto found = doc_.drawingItems().find(item);
+        if (found == doc_.drawingItems().end())
+            return;
+        sheets_->setCurrentSheet(found->second->sheet);
+        sheets_->canvas()->setSelectedItem(item);
+    });
+    connect(sheetsTray_, &SheetsTray::itemActivated, this, [this](qulonglong item) {
+        // Enter on an item row: select it on the page and, for text, edit it in place.
+        const auto found = doc_.drawingItems().find(item);
+        if (found == doc_.drawingItems().end())
+            return;
+        sheets_->setCurrentSheet(found->second->sheet);
+        auto *canvas = sheets_->canvas();
+        canvas->setSelectedItem(item);
+        canvas->setFocus(Qt::OtherFocusReason);
+        const auto kind = found->second->kind();
+        if (kind == DrawingItemKind::Text || kind == DrawingItemKind::Label ||
+            kind == DrawingItemKind::TitleBlock)
+            canvas->beginTextEdit();
+    });
+    connect(sheetsTray_, &SheetsTray::deleteItem, this, [this](qulonglong item) {
+        run([&] { deleteSheetItem(item); });
+        sheetsTray_->pages()->setFocus(Qt::OtherFocusReason);
+    });
+    connect(sheetsTray_, &SheetsTray::setDimensionFormat, this,
+            [this](qulonglong sheet, const QJsonObject &fields) {
+                run([&] {
+                    sheetCommands({QJsonObject{{"command", "drawing_sheet.update"},
+                                               {"sheet", QString::number(sheet)},
+                                               {"dimensionFormat", fields}}},
+                                  "Change dimension format");
+                });
+            });
+    connect(sheetsTray_, &SheetsTray::reorderItem, this, [this](qulonglong item, int delta) {
+        run([&] { restackSheetItem(item, delta); });
+        sheetsTray_->pages()->setFocus(Qt::OtherFocusReason);
+    });
+    connect(sheetsTray_->itemInfo(), &SheetItemInfo::changeItem, this,
+            [this](qulonglong item, const QString &kind, const QJsonObject &data,
+                   const QString &label) {
+                run([&] {
+                    sheetCommands({QJsonObject{{"command", "drawing_item.update"},
+                                               {"item", QString::number(item)},
+                                               {"kind", kind},
+                                               {"data", data}}},
+                                  label);
+                });
+            });
+    connect(sheetsTray_->itemInfo(), &SheetItemInfo::changeSheetNumber, this,
+            [this](qulonglong sheet, const QString &number) {
+                run([&] {
+                    sheetCommands({QJsonObject{{"command", "drawing_sheet.update"},
+                                               {"sheet", QString::number(sheet)},
+                                               {"number", number}}},
+                                  "Change sheet number");
+                });
+            });
+    connect(sheetsTray_->itemInfo(), &SheetItemInfo::reattachRequested, this, [this](qulonglong) {
+        sheets_->canvas()->setFocus(Qt::OtherFocusReason);
+        sheets_->canvas()->beginReattach();
+    });
     connect(sheetsTray_, &SheetsTray::pageActivated, this, [this](qulonglong sheet) {
         sheets_->setCurrentSheet(sheet);
         sheets_->canvas()->setFocus(Qt::OtherFocusReason);
@@ -493,12 +651,17 @@ void Window::themeSheets(const ThemeColors &colors) {
     }
     sheets_->setTheme(colors);
     sheetsTray_->setTheme(colors);
-    for (const auto &[id, path] :
-         std::vector<std::pair<const char *, QPainterPath>>{{"sheet.tool.select", selectIcon()},
-                                                            {"sheet.tool.view", modelViewIcon()},
-                                                            {"sheet.tool.move", moveIcon()},
-                                                            {"sheet.tool.pan", panIcon()},
-                                                            {"sheet.tool.zoom", zoomIcon()}})
+    for (const auto &[id, path] : std::vector<std::pair<const char *, QPainterPath>>{
+             {"sheet.tool.select", selectIcon()},
+             {"sheet.tool.view", modelViewIcon()},
+             {"sheet.tool.line", lineIcon()},
+             {"sheet.tool.rectangle", rectangleIcon()},
+             {"sheet.tool.text", textIcon()},
+             {"sheet.tool.label", labelIcon()},
+             {"sheet.tool.dimension", dimensionIcon()},
+             {"sheet.tool.move", moveIcon()},
+             {"sheet.tool.pan", panIcon()},
+             {"sheet.tool.zoom", zoomIcon()}})
         findChild<QAction *>(id)->setIcon(
             QIcon(new LineIconEngine(path, colors.ink, colors.muted)));
 }
@@ -543,6 +706,10 @@ void Window::refreshSheetStep() {
                                       : label == "Size"     ? "width,height"
                                       : label == "Scale"    ? "1:50 or width,height"
                                       : label == "Distance" ? "dx,dy"
+                                      : label == "Length"   ? "length, <dx,dy> or [x,y]"
+                                      : label == "Offset"   ? "offset in mm"
+                                      : label == "Position" ? "[x,y] or 10pt"
+                                      : label == "Move"     ? "<dx,dy>, [x,y] or 10pt"
                                                             : QString{});
     if (!measurements_->hasFocus())
         measurements_->setText(canvas->measurementValue());
@@ -622,8 +789,79 @@ QJsonObject Window::sheetCommit(const QJsonArray &commands, const QString &label
         return {};
     }
 }
+void Window::deleteSheetItem(Id item) {
+    const auto found = doc_.drawingItems().find(item);
+    if (found == doc_.drawingItems().end())
+        return;
+    sheetCommands(
+        {QJsonObject{{"command", "drawing_item.delete"}, {"item", QString::number(item)}}},
+        "Delete " + sheetItemKindName(found->second->kind()).toLower());
+}
+void Window::restackSheetItem(Id item, int delta) {
+    const auto found = doc_.drawingItems().find(item);
+    if (found == doc_.drawingItems().end()) {
+        status_->setText("Select an item to change its stacking order.");
+        return;
+    }
+    auto order = drawingItemsOnSheet(doc_, found->second->sheet);
+    const auto at = std::find(order.begin(), order.end(), item);
+    const auto index = int(at - order.begin());
+    const auto target = index + delta;
+    if (target < 0 || target >= int(order.size())) {
+        status_->setText(delta > 0 ? "The item is already in front of the others."
+                                   : "The item is already behind the others.");
+        return;
+    }
+    std::swap(order[size_t(index)], order[size_t(target)]);
+    QJsonArray ids;
+    for (const auto id : order)
+        ids.append(QString::number(id));
+    sheetCommands({QJsonObject{{"command", "drawing_item.reorder"},
+                               {"sheet", QString::number(found->second->sheet)},
+                               {"order", ids}}},
+                  delta > 0 ? "Bring forward" : "Send backward");
+    syncSheetActions();
+}
+// A title block for a page: bottom right inside the margin, 160 × 30 mm or what fits.
+static QJsonObject titleBlockFrame(const DrawingSheetRecord &sheet) {
+    const auto margin = sheet.marginMm;
+    const auto width = std::min(160., sheet.paper.widthMm - 2 * margin);
+    const auto height = std::min(30., sheet.paper.heightMm - 2 * margin);
+    return {{"xMm", sheet.paper.widthMm - margin - width},
+            {"yMm", sheet.paper.heightMm - margin - height},
+            {"widthMm", width},
+            {"heightMm", height}};
+}
+void Window::insertTitleBlock() {
+    const auto sheet = sheets_->currentSheet();
+    const auto found = doc_.drawingSheets().find(sheet);
+    if (found == doc_.drawingSheets().end()) {
+        status_->setText("Add a page before inserting a title block.");
+        return;
+    }
+    run([&] {
+        const auto result = sheetCommands(
+            {QJsonObject{{"command", "drawing_item.create"},
+                         {"sheet", QString::number(sheet)},
+                         {"kind", "titleBlock"},
+                         {"data", QJsonObject{{"frame", titleBlockFrame(*found->second)}}}}},
+            "Add title block");
+        const auto created = result["createdDrawingItems"].toArray();
+        if (!created.isEmpty()) {
+            sheets_->canvas()->setSelectedItem(created.first().toString().toULongLong());
+            status_->setText("Inserted a title block. The sheet number, page and scale fill in "
+                             "automatically; press Enter to type the project.");
+        }
+    });
+    focusWorkspace();
+}
 void Window::deleteSheetView() {
     auto *canvas = sheets_->canvas();
+    if (const auto item = canvas->selectedItem(); item && !canvas->editView()) {
+        run([&] { deleteSheetItem(item); });
+        focusWorkspace();
+        return;
+    }
     const auto view = canvas->selectedView();
     if (!view || canvas->editView() || !doc_.drawingViews().contains(view))
         return;
@@ -790,22 +1028,31 @@ void Window::showViewScene(Id view) {
 }
 void Window::addSheetPage() {
     DrawingPaper paper;
+    QJsonArray commands{QJsonObject{}};
     if (const auto found = doc_.drawingSheets().find(sheets_->currentSheet());
-        found != doc_.drawingSheets().end())
+        found != doc_.drawingSheets().end()) {
         paper = found->second->paper;
+        // The new page gets a copy of the current page's title block in the same entry (ADR
+        // 0164); the batch creates the page first, with the next sheet ID.
+        for (const auto item : drawingItemsOnSheet(doc_, found->first))
+            if (const auto &record = *doc_.drawingItems().at(item);
+                record.kind() == DrawingItemKind::TitleBlock)
+                commands.append(QJsonObject{{"command", "drawing_item.create"},
+                                            {"sheet", QString::number(doc_.nextDrawingSheetId())},
+                                            {"kind", "titleBlock"},
+                                            {"data", sheetItemData(record)}});
+    }
+    commands[0] = QJsonObject{
+        {"command", "drawing_sheet.create"},
+        {"name", "Page " + QString::number(doc_.drawingSheets().size() + 1)},
+        {"paper", QJsonObject{{"widthMm", paper.widthMm}, {"heightMm", paper.heightMm}}}};
     const auto result = [&] {
         viewport_->cancel();
-        auto response = executeBatch(
-            doc_,
-            {{"apiVersion", 1},
-             {"documentId", QString::fromStdString(doc_.identity())},
-             {"expectedRevision", QString::number(doc_.revision())},
-             {"commands", QJsonArray{QJsonObject{
-                              {"command", "drawing_sheet.create"},
-                              {"name", "Page " + QString::number(doc_.drawingSheets().size() + 1)},
-                              {"paper", QJsonObject{{"widthMm", paper.widthMm},
-                                                    {"heightMm", paper.heightMm}}}}}},
-             {"history", QJsonObject{{"label", "Add page"}}}});
+        auto response = executeBatch(doc_, {{"apiVersion", 1},
+                                            {"documentId", QString::fromStdString(doc_.identity())},
+                                            {"expectedRevision", QString::number(doc_.revision())},
+                                            {"commands", commands},
+                                            {"history", QJsonObject{{"label", "Add page"}}}});
         return response;
     }();
     const auto created = result["createdDrawingSheets"].toArray();
@@ -843,7 +1090,10 @@ void Window::moveSheetPage(Id sheet, int delta) {
     sheetCommands({QJsonObject{{"command", "drawing_sheet.reorder"}, {"order", ids}}}, "Move page");
 }
 void Window::focusWorkspace() {
-    if (workspace_ == Workspace::Sheets && sheets_)
+    if (workspace_ == Workspace::Sheets && sheets_ && sheets_->canvas()->textEditing())
+        // A typed position opened the in-place editor (R091.g): typing continues there.
+        sheets_->canvas()->textEditor()->setFocus(Qt::OtherFocusReason);
+    else if (workspace_ == Workspace::Sheets && sheets_)
         sheets_->canvas()->setFocus(Qt::OtherFocusReason);
     else
         viewport_->setFocus();
@@ -872,8 +1122,9 @@ void Window::setWorkspace(Workspace workspace) {
         sideTabs_->setTabText(index, sheets ? "Sheets" : "Model");
     activeTool_->setVisible(sheets);
     focusRegions_ = sheets ? sheetRegions_ : modelRegions_;
-    if (auto *page = findChild<QMenu *>("pageMenu"))
-        page->menuAction()->setVisible(sheets);
+    for (const char *menu : {"pageMenu", "insertMenu", "arrangeMenu"})
+        if (auto *entry = findChild<QMenu *>(menu))
+            entry->menuAction()->setVisible(sheets);
     findChild<QAction *>("edit.delete")->setVisible(!sheets);
     findChild<QAction *>("sheet.view.delete")->setVisible(sheets);
     findChild<QAction *>(sheets ? "view.workspace.sheets" : "view.workspace.model")
@@ -920,7 +1171,8 @@ void Window::syncSheets() {
         sheetCache_->refresh(sheets_->currentSheet());
     sheets_->canvas()->contentChanged();
     sheetsTray_->setDocumentName(name);
-    sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView());
+    sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView(),
+                         sheets_->canvas()->selectedItem());
     const auto key = [this](const char *id) { return findChild<QAction *>(id)->shortcut(); };
     sheets_->setShortcutHints(key("sheet.view.fit"), key("sheet.page.add"));
     syncSheetActions();
@@ -949,13 +1201,41 @@ void Window::syncSheetActions() {
         selected && doc_.drawingViews().contains(selected) &&
         doc_.scenes().contains(doc_.drawingViews().at(selected)->source.scene) &&
         doc_.scenes().at(doc_.drawingViews().at(selected)->source.scene)->snapshot.camera;
+    // The selected item and its place in the page's stacking order.
+    const auto item = canvas->selectedItem();
+    const auto itemOrder =
+        item ? drawingItemsOnSheet(doc_, sheets_->currentSheet()) : std::vector<Id>{};
+    const auto itemAt = std::find(itemOrder.begin(), itemOrder.end(), item);
+    const auto itemIndex = itemAt == itemOrder.end() ? -1 : int(itemAt - itemOrder.begin());
+    const auto itemCount = int(itemOrder.size());
+    bool textItem = false, brokenBound = false;
+    if (const auto found = doc_.drawingItems().find(item); found != doc_.drawingItems().end()) {
+        const auto kind = found->second->kind();
+        textItem = kind == DrawingItemKind::Text || kind == DrawingItemKind::Label ||
+                   kind == DrawingItemKind::TitleBlock;
+        try {
+            brokenBound = drawingItemView(*found->second) &&
+                          evaluateDrawingItem(doc_, item).state == DrawingItemState::Broken;
+        } catch (const std::exception &) {
+        }
+    }
     const std::vector<std::pair<const char *, bool>> states{
         {"sheet.view.fit", page},
+        {"sheet.tool.line", page},
+        {"sheet.tool.rectangle", page},
+        {"sheet.tool.text", page},
+        {"sheet.tool.label", page},
+        {"sheet.tool.dimension", page},
+        {"sheet.insert.titleBlock", page},
+        {"sheet.item.forward", item && itemIndex + 1 < itemCount},
+        {"sheet.item.backward", item && itemIndex > 0},
+        {"sheet.item.editText", textItem && !canvas->textEditing()},
+        {"sheet.item.reattach", brokenBound},
         {"sheet.view.accept", selectedStatus && selectedStatus->state == DrawingViewState::Stale},
         {"sheet.view.edit",
          hasCamera && !(selectedStatus && selectedStatus->notToScale) && !canvas->editView()},
         {"sheet.view.chooseScene", selected != 0},
-        {"sheet.view.delete", selected != 0 && !canvas->editView()},
+        {"sheet.view.delete", (selected != 0 || item != 0) && !canvas->editView()},
         {"sheet.view.saveScene", canvas->editView() != 0},
         {"sheet.view.showScene", hasCamera},
         {"sheet.tool.view", page},

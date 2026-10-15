@@ -564,13 +564,32 @@ void executeDrawingSheetCommand(Document &doc, const QJsonObject &command,
         const auto found = doc.drawingSheets().find(sheet);
         if (found == doc.drawingSheets().end())
             throw std::runtime_error("Drawing sheet does not exist");
-        if (!command.contains("number") && !command.contains("marginMm"))
-            throw std::runtime_error("Drawing sheet update requires number or marginMm");
+        if (!command.contains("number") && !command.contains("marginMm") &&
+            !command.contains("dimensionFormat"))
+            throw std::runtime_error(
+                "Drawing sheet update requires number, marginMm or dimensionFormat");
+        std::optional<DrawingDimensionFormat> format;
+        if (command.contains("dimensionFormat")) {
+            // Fields merge one by one over the sheet's format (R091.g).
+            const auto value = command["dimensionFormat"];
+            if (!value.isObject() || value.toObject().isEmpty())
+                throw std::runtime_error("Drawing dimension format requires an object");
+            auto merged = encodeDrawingDimensionFormat(found->second->dimensionFormat);
+            const auto fields = value.toObject();
+            for (auto it = fields.begin(); it != fields.end(); ++it) {
+                if (!merged.contains(it.key()))
+                    throw std::runtime_error("Unknown drawing dimension format field: " +
+                                             it.key().toStdString());
+                merged[it.key()] = it.value();
+            }
+            format = decodeDrawingDimensionFormat(merged);
+        }
         updateDrawingSheetPage(doc, sheet,
                                command.contains("number") ? sheetNumber(command["number"])
                                                           : found->second->number,
                                command.contains("marginMm") ? number(command["marginMm"])
-                                                            : found->second->marginMm);
+                                                            : found->second->marginMm,
+                               format);
     } else if (operation == "drawing_item.create")
         createItem(doc, command);
     else if (operation == "drawing_item.update")

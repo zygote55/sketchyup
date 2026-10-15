@@ -105,13 +105,17 @@ void resizeDrawingSheet(Document &doc, Id id, DrawingPaper paper) {
     edit.drawingSheets.push_back({id, before, after});
     doc.apply(std::move(edit), doc.revision());
 }
-void updateDrawingSheetPage(Document &doc, Id id, std::string number, double marginMm) {
+void updateDrawingSheetPage(Document &doc, Id id, std::string number, double marginMm,
+                            std::optional<DrawingDimensionFormat> format) {
     const auto before = requireDrawingSheet(doc, id);
-    if (before->number == number && before->marginMm == marginMm)
+    const auto dimensionFormat = format.value_or(before->dimensionFormat);
+    if (before->number == number && before->marginMm == marginMm &&
+        before->dimensionFormat == dimensionFormat)
         return;
     auto after = std::make_shared<DrawingSheetRecord>(*before);
     after->number = std::move(number);
     after->marginMm = marginMm;
+    after->dimensionFormat = dimensionFormat;
     auto edit = sheetEdit("Update sheet");
     edit.drawingSheets.push_back({id, before, after});
     doc.apply(std::move(edit), doc.revision());

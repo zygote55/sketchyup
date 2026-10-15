@@ -178,6 +178,10 @@ class Window : public QMainWindow {
     void refreshPlacement();
     void chooseViewScene(Id view);
     void deleteSheetView();
+    // R091.g: page items.
+    void deleteSheetItem(Id item);
+    void restackSheetItem(Id item, int delta);
+    void insertTitleBlock();
     void saveViewScene(Id view);
     void showViewScene(Id view);
     void addSheetPage();

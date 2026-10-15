@@ -1,5 +1,7 @@
 #include "app/sheets_tray.hpp"
 #include "app/history_panel.hpp"
+#include "app/sheet_item_info.hpp"
+#include "app/sheet_items.hpp"
 #include "app/sheet_text.hpp"
 #include "core/drawing_item_records.hpp"
 #include "core/drawing_sheets.hpp"
@@ -20,12 +22,14 @@
 #include <QScopedValueRollback>
 #include <QSignalBlocker>
 #include <QStyle>
+#include <QStyledItemDelegate>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <set>
 namespace sketchy {
 namespace {
-enum Role { KindRole = Qt::UserRole, IdRole };
+enum Role { KindRole = Qt::UserRole, IdRole, GlyphRole };
+enum Glyph { ChangedGlyph = 1, BrokenGlyph = 2 };
 enum Kind { PageRow = 1, ViewRow, ItemRow };
 QLabel *valueLabel(const QString &name) {
     auto *label = new QLabel;
@@ -34,27 +38,6 @@ QLabel *valueLabel(const QString &name) {
     label->setAccessibleName(name);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse);
     return label;
-}
-QString itemSummary(const DrawingItemRecord &item) {
-    switch (item.kind()) {
-    case DrawingItemKind::Text:
-        return "Text · " + QString::fromStdString(std::get<DrawingTextItem>(item.data).text)
-                               .section('\n', 0, 0)
-                               .left(40);
-    case DrawingItemKind::Label:
-        return "Label · " + QString::fromStdString(std::get<DrawingLabelItem>(item.data).text)
-                                .section('\n', 0, 0)
-                                .left(40);
-    case DrawingItemKind::Dimension:
-        return "Dimension";
-    case DrawingItemKind::Line:
-        return "Line";
-    case DrawingItemKind::Rectangle:
-        return "Rectangle";
-    case DrawingItemKind::TitleBlock:
-        return "Title block";
-    }
-    return "Item";
 }
 } // namespace
 QPixmap sheetStateIcon(DrawingViewState state, bool pending, const ThemeColors &colors,
@@ -97,6 +80,76 @@ QPixmap sheetStateIcon(DrawingViewState state, bool pending, const ThemeColors &
     painter.drawPath(path);
     return pixmap;
 }
+namespace {
+// Pages paints each row's state as a small glyph before its name: amber refresh for changed,
+// red cross for broken, with a count on page rows ("⟳2 ⊗2"); current rows have none.
+class SheetPagesDelegate final : public QStyledItemDelegate {
+  public:
+    SheetPagesDelegate(const ThemeColors &colors, QObject *parent)
+        : QStyledItemDelegate(parent), colors_(colors) {}
+    void paint(QPainter *painter, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override {
+        const auto glyphs = index.data(GlyphRole).toList();
+        if (glyphs.isEmpty()) {
+            QStyledItemDelegate::paint(painter, option, index);
+            return;
+        }
+        QStyleOptionViewItem item(option);
+        initStyleOption(&item, index);
+        const auto text = item.text;
+        item.text.clear();
+        const auto *widget = item.widget;
+        auto *style = widget ? widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &item, painter, widget);
+        const auto area = style->subElementRect(QStyle::SE_ItemViewItemText, &item, widget);
+        const bool selected = item.state & QStyle::State_Selected;
+        const QFontMetrics metrics(item.font);
+        const auto ratio = widget ? widget->devicePixelRatioF() : 1.;
+        painter->save();
+        painter->setFont(item.font);
+        int x = area.left() + 2;
+        for (const auto &entry : glyphs) {
+            const auto glyph = entry.toPoint();
+            const bool changed = glyph.x() == ChangedGlyph;
+            painter->drawPixmap(
+                x, area.center().y() - 6,
+                sheetStateIcon(changed ? DrawingViewState::Stale : DrawingViewState::Broken, false,
+                               colors_, ratio));
+            x += 13;
+            if (glyph.y() > 0) {
+                const auto count = QString::number(glyph.y());
+                painter->setPen(selected  ? item.palette.color(QPalette::HighlightedText)
+                                : changed ? colors_.warning
+                                          : colors_.failure);
+                painter->drawText(
+                    QRect(x, area.top(), metrics.horizontalAdvance(count) + 1, area.height()),
+                    Qt::AlignVCenter | Qt::AlignLeft, count);
+                x += metrics.horizontalAdvance(count) + 4;
+            } else
+                x += 3;
+        }
+        x += 2;
+        painter->setPen(item.palette.color(selected ? QPalette::HighlightedText : QPalette::Text));
+        const QRect rest(x, area.top(), std::max(0, area.right() - x), area.height());
+        painter->drawText(rest, Qt::AlignVCenter | Qt::AlignLeft,
+                          metrics.elidedText(text, Qt::ElideRight, rest.width()));
+        painter->restore();
+    }
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        auto size = QStyledItemDelegate::sizeHint(option, index);
+        const QFontMetrics metrics(option.font);
+        for (const auto &entry : index.data(GlyphRole).toList()) {
+            const auto count = entry.toPoint().y();
+            size.rwidth() +=
+                13 + (count > 0 ? metrics.horizontalAdvance(QString::number(count)) + 4 : 3);
+        }
+        return size;
+    }
+
+  private:
+    const ThemeColors &colors_;
+};
+} // namespace
 SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache &cache,
                        QWidget *parent)
     : QWidget(parent), doc_(doc), cache_(cache) {
@@ -110,7 +163,7 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     info->setObjectName("sheetEntityInfo");
     auto *infoLayout = new QVBoxLayout(info);
     infoLayout->setContentsMargins(4, 2, 4, 6);
-    infoEmpty_ = new QLabel("Select a view on the page or in Pages.");
+    infoEmpty_ = new QLabel("Select a view or an item on the page or in Pages.");
     infoEmpty_->setObjectName("sheetInfoEmpty");
     infoEmpty_->setWordWrap(true);
     infoLayout->addWidget(infoEmpty_);
@@ -193,6 +246,7 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     // Edit view (Enter on the canvas), Show scene in model and, for a broken view, Choose
     // scene… The buttons wrap onto lines of their own in the narrow Tray.
     auto *actions = new QWidget;
+    infoActions_ = actions;
     actions->setObjectName("sheetInfoActions");
     auto *actionsLayout = new QVBoxLayout(actions);
     actionsLayout->setContentsMargins(0, 4, 0, 0);
@@ -217,6 +271,64 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     connect(infoChooseScene_, &QPushButton::clicked, this,
             [this] { emit chooseSceneRequested(view_); });
     infoLayout->addWidget(actions);
+    // R091.g: a selected page item shows its own labelled fields.
+    itemInfo_ = new SheetItemInfo(doc);
+    infoLayout->addWidget(itemInfo_);
+    // Entity info · Page (R091.g): how the page's dimensions write their values.
+    pageInfo_ = new QWidget;
+    pageInfo_->setObjectName("sheetPageInfo");
+    {
+        auto *pageGrid = new QGridLayout(pageInfo_);
+        pageGrid->setContentsMargins(0, 4, 0, 0);
+        pageGrid->setHorizontalSpacing(8);
+        pageGrid->setVerticalSpacing(6);
+        pageGrid->setColumnStretch(1, 1);
+        auto *heading = new QLabel("Dimensions");
+        heading->setObjectName("sheetInfoCaption");
+        pageGrid->addWidget(heading, 0, 0, 1, 2);
+        auto pageRow = [&](const QString &caption, QWidget *field, int at) {
+            auto *label = new QLabel(caption);
+            label->setObjectName("sheetInfoCaption");
+            label->setBuddy(field);
+            pageGrid->addWidget(label, at, 0, Qt::AlignTop | Qt::AlignLeft);
+            pageGrid->addWidget(field, at, 1);
+        };
+        dimensionUnit_ = new QComboBox;
+        dimensionUnit_->setObjectName("sheetDimensionUnit");
+        dimensionUnit_->setAccessibleName("Dimension unit");
+        dimensionUnit_->addItem("Millimetres", "mm");
+        dimensionUnit_->addItem("Centimetres", "cm");
+        dimensionUnit_->addItem("Metres", "m");
+        dimensionUnit_->addItem("Feet and inches", "ftIn");
+        pageRow("Unit", dimensionUnit_, 1);
+        dimensionDecimals_ = new QSpinBox;
+        dimensionDecimals_->setObjectName("sheetDimensionDecimals");
+        dimensionDecimals_->setAccessibleName("Dimension decimals");
+        dimensionDecimals_->setRange(0, 4);
+        dimensionDecimals_->setKeyboardTracking(false);
+        dimensionDecimals_->setToolTip("Decimal places; feet and inches show 1/16 inch when "
+                                       "this is above zero, otherwise whole inches");
+        pageRow("Decimals", dimensionDecimals_, 2);
+        dimensionShowUnit_ = new QCheckBox("Show the unit");
+        dimensionShowUnit_->setObjectName("sheetDimensionShowUnit");
+        dimensionShowUnit_->setAccessibleName("Show the dimension unit");
+        dimensionShowUnit_->setToolTip("Off by default: the page notes state the unit");
+        pageRow("Unit text", dimensionShowUnit_, 3);
+    }
+    infoLayout->addWidget(pageInfo_);
+    connect(dimensionUnit_, &QComboBox::activated, this, [this] {
+        if (!syncing_ && doc_.drawingSheets().contains(sheet_))
+            emit setDimensionFormat(sheet_, {{"unit", dimensionUnit_->currentData().toString()}});
+    });
+    connect(dimensionDecimals_, &QSpinBox::valueChanged, this, [this](int value) {
+        if (!syncing_ && doc_.drawingSheets().contains(sheet_) &&
+            doc_.drawingSheets().at(sheet_)->dimensionFormat.decimals != value)
+            emit setDimensionFormat(sheet_, {{"decimals", value}});
+    });
+    connect(dimensionShowUnit_, &QCheckBox::clicked, this, [this](bool on) {
+        if (!syncing_ && doc_.drawingSheets().contains(sheet_))
+            emit setDimensionFormat(sheet_, {{"showUnit", on}});
+    });
     place_ = new SheetPlacePanel(doc);
     place_->hide();
     layout->addWidget(place_, 1);
@@ -279,15 +391,19 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     pages_ = new QTreeWidget;
     pages_->setObjectName("sheetPagesTree");
     pages_->setAccessibleName("Pages");
-    pages_->setAccessibleDescription("Pages expand to their views and items. F2 renames a page, "
-                                     "Alt+Up and Alt+Down move it, Delete deletes it.");
-    pages_->setColumnCount(3);
-    pages_->setHeaderLabels({"Number", "Name", "State"});
+    pages_->setAccessibleDescription(
+        "Pages expand to their views and items. F2 renames a page, Alt+Up and Alt+Down move a "
+        "page or an item's stacking order, Delete deletes it, and Enter edits an item's text.");
+    // Two columns, so names keep the narrow Tray's width; state is a glyph on the name.
+    pages_->setColumnCount(2);
+    pages_->setHeaderLabels({"Number", "Name"});
     pages_->setHeaderHidden(true);
     pages_->header()->setStretchLastSection(false);
     pages_->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     pages_->header()->setSectionResizeMode(1, QHeaderView::Stretch);
-    pages_->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    pages_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    pages_->setTextElideMode(Qt::ElideRight);
+    pages_->setItemDelegateForColumn(1, new SheetPagesDelegate(colors_, pages_));
     pages_->setSelectionMode(QAbstractItemView::SingleSelection);
     pages_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     pages_->setUniformRowHeights(true);
@@ -307,10 +423,21 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
         case ViewRow:
             emit viewChosen(id);
             break;
+        case ItemRow:
+            emit itemChosen(id);
+            break;
         default:
             if (item->parent())
                 emit sheetChosen(item->parent()->data(0, IdRole).toULongLong());
         }
+    });
+    // Assistive technology selects rows without moving the current row; a selected row
+    // becomes current, so it chooses its page, view or item the same way.
+    connect(pages_, &QTreeWidget::itemSelectionChanged, this, [this] {
+        const auto selected = pages_->selectedItems();
+        if (syncing_ || selected.size() != 1 || selected.front() == pages_->currentItem())
+            return;
+        pages_->setCurrentItem(selected.front(), 1);
     });
     connect(pages_, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
         if (syncing_ || column != 1 || item->data(0, KindRole).toInt() != PageRow)
@@ -446,6 +573,26 @@ bool SheetsTray::eventFilter(QObject *object, QEvent *event) {
                 this, [this, id] { emit deletePage(id); }, Qt::QueuedConnection);
             return true;
         }
+        const bool itemRow = item && item->data(0, KindRole).toInt() == ItemRow;
+        if (itemRow && (key->key() == Qt::Key_Up || key->key() == Qt::Key_Down) &&
+            key->modifiers() == Qt::AltModifier) {
+            // The list runs bottom first: Alt+Down moves the item later in paint order
+            // (forward), Alt+Up earlier (backward).
+            const int delta = key->key() == Qt::Key_Down ? 1 : -1;
+            QMetaObject::invokeMethod(
+                this, [this, id, delta] { emit reorderItem(id, delta); }, Qt::QueuedConnection);
+            return true;
+        }
+        if (itemRow && key->key() == Qt::Key_Delete && key->modifiers() == Qt::NoModifier) {
+            QMetaObject::invokeMethod(
+                this, [this, id] { emit deleteItem(id); }, Qt::QueuedConnection);
+            return true;
+        }
+        if (itemRow && (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) &&
+            key->modifiers() == Qt::NoModifier) {
+            emit itemActivated(id);
+            return true;
+        }
         if (item && (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) &&
             key->modifiers() == Qt::NoModifier) {
             if (auto *top = currentPageItem())
@@ -478,9 +625,10 @@ void SheetsTray::fitInfo() {
     infoSection_->setMinimumHeight(layout->hasHeightForWidth() ? layout->heightForWidth(width)
                                                                : layout->sizeHint().height());
 }
-void SheetsTray::refresh(Id currentSheet, Id selectedView) {
+void SheetsTray::refresh(Id currentSheet, Id selectedView, Id selectedItem) {
     sheet_ = currentSheet;
     view_ = selectedView;
+    item_ = selectedItem;
     refreshInfo();
     fitInfo();
     refreshReferences();
@@ -491,9 +639,45 @@ void SheetsTray::refresh(Id currentSheet, Id selectedView) {
 void SheetsTray::refreshInfo() {
     const auto found = doc_.drawingViews().find(view_);
     const bool shown = found != doc_.drawingViews().end();
-    infoSection_->setTitle(shown ? "Entity info · Model view" : "Entity info");
-    infoEmpty_->setVisible(!shown);
+    const bool item = !shown && doc_.drawingItems().contains(item_);
+    infoSection_->setTitle(shown ? QString("Entity info · Model view") : QString("Entity info"));
+    infoEmpty_->setVisible(!shown && !item);
     infoFields_->setVisible(shown);
+    infoActions_->setVisible(shown);
+    itemInfo_->setVisible(item);
+    // Nothing selected: the page's own settings.
+    const auto page = doc_.drawingSheets().find(sheet_);
+    const bool pageShown = !shown && !item && page != doc_.drawingSheets().end();
+    pageInfo_->setVisible(pageShown);
+    if (pageShown) {
+        QScopedValueRollback pageGuard(syncing_, true);
+        const auto &format = page->second->dimensionFormat;
+        dimensionUnit_->setCurrentIndex(int(format.unit));
+        if (!dimensionDecimals_->hasFocus())
+            dimensionDecimals_->setValue(format.decimals);
+        dimensionShowUnit_->setChecked(format.showUnit);
+        infoSection_->setTitle("Entity info · Page");
+    }
+    if (item) {
+        std::optional<DrawingItemEvaluation> evaluation;
+        try {
+            evaluation = evaluateDrawingItem(doc_, item_);
+        } catch (const std::exception &) {
+        }
+        QString viewName;
+        if (const auto view = drawingItemView(*doc_.drawingItems().at(item_));
+            view && doc_.drawingViews().contains(view)) {
+            const auto views = drawingViewsOnSheet(doc_, doc_.drawingViews().at(view)->sheet);
+            const auto at = std::find(views.begin(), views.end(), view);
+            viewName = "View " + QString::number(int(at - views.begin()) + 1) + " · " +
+                       QString::fromStdString(doc_.drawingViews().at(view)->name);
+        }
+        itemInfo_->setTheme(colors_);
+        itemInfo_->refresh(item_, evaluation, viewName);
+        infoSection_->setTitle(itemInfo_->title());
+        return;
+    }
+    itemInfo_->refresh(0, std::nullopt, {});
     if (!shown)
         return;
     const auto &view = *found->second;
@@ -598,6 +782,13 @@ void SheetsTray::refreshPages() {
             page->setForeground(0, colors_.muted);
             size_t changed = 0, broken = 0;
             int number = 0;
+            // State is a leading glyph on the name (amber refresh: changed, red cross: broken,
+            // none: current); the words are the tooltip and the accessible description.
+            auto setState = [](QTreeWidgetItem *row, const QString &text, int glyph) {
+                row->setData(1, GlyphRole, glyph ? QVariantList{QPoint(glyph, 0)} : QVariantList{});
+                row->setData(1, Qt::AccessibleDescriptionRole, text);
+                row->setToolTip(1, row->text(1) + " · " + text);
+            };
             for (const auto view : drawingViewsOnSheet(doc_, id)) {
                 const auto &record = *doc_.drawingViews().at(view);
                 const auto status = cache_.status(view);
@@ -607,43 +798,50 @@ void SheetsTray::refreshPages() {
                 row->setText(0, QString::number(++number));
                 row->setText(1, QString::fromStdString(record.name) + " · " +
                                     viewScaleText(record, status && status->notToScale));
-                row->setText(2, status ? viewStateText(*status) : QString("Updating…"));
+                int glyph = 0;
                 if (status && status->state == DrawingViewState::Stale) {
                     ++changed;
-                    row->setForeground(2, colors_.warning);
+                    glyph = ChangedGlyph;
                 } else if (status && (status->state == DrawingViewState::Broken ||
                                       status->state == DrawingViewState::Failed)) {
                     ++broken;
-                    row->setForeground(2, colors_.failure);
+                    glyph = BrokenGlyph;
                 }
-                row->setToolTip(1, row->text(1) + " · " + row->text(2));
+                setState(row, status ? viewStateText(*status) : QString("Updating…"), glyph);
             }
-            const auto evaluation = cache_.sheet(id);
+            // Items in paint order (bottom first) with their state; evaluating an item is cheap
+            // (no capture), so the state is always the document's.
             for (const auto item : drawingItemsOnSheet(doc_, id)) {
                 auto *row = new QTreeWidgetItem(page);
                 row->setData(0, KindRole, ItemRow);
                 row->setData(0, IdRole, QVariant::fromValue<qulonglong>(item));
-                row->setText(1, itemSummary(*doc_.drawingItems().at(item)));
-                if (evaluation)
-                    for (const auto &prepared : evaluation->prepared.items)
-                        if (prepared.record.id == item &&
-                            prepared.evaluation.state == DrawingItemState::Broken) {
-                            row->setText(2, "Broken: " +
-                                                (prepared.evaluation.reasons.empty()
-                                                     ? QString("reference missing")
-                                                     : brokenReasonText(
-                                                           prepared.evaluation.reasons.front())));
-                            row->setForeground(2, colors_.failure);
-                        }
+                const auto &record = *doc_.drawingItems().at(item);
+                std::optional<DrawingItemEvaluation> evaluation;
+                try {
+                    evaluation = evaluateDrawingItem(doc_, item);
+                } catch (const std::exception &) {
+                }
+                row->setText(1, sheetItemSummary(record, evaluation ? &*evaluation : nullptr));
+                const bool itemBroken = evaluation && evaluation->state == DrawingItemState::Broken;
+                broken += itemBroken;
+                setState(row, evaluation ? sheetItemStateText(*evaluation) : QString("Updating…"),
+                         itemBroken ? BrokenGlyph : 0);
             }
             QStringList state;
-            if (changed)
+            QVariantList glyphs;
+            if (changed) {
                 state << QString::number(changed) + " changed";
-            if (broken)
+                glyphs << QPoint(ChangedGlyph, int(changed));
+            }
+            if (broken) {
                 state << QString::number(broken) + " broken";
-            page->setText(2, state.join(" · "));
-            page->setForeground(2, broken ? colors_.failure : colors_.warning);
-            page->setToolTip(1, sheetTitle(sheet) + (state.isEmpty() ? "" : " · " + page->text(2)));
+                glyphs << QPoint(BrokenGlyph, int(broken));
+            }
+            page->setData(1, GlyphRole, glyphs);
+            page->setData(1, Qt::AccessibleDescriptionRole,
+                          state.isEmpty() ? QString("Current") : state.join(" · "));
+            page->setToolTip(1, sheetTitle(sheet) +
+                                    (state.isEmpty() ? "" : " · " + state.join(" · ")));
             page->setExpanded(expanded.contains(id) || id == sheet_);
         }
         if (hadFocus && !pages_->hasFocus())
@@ -655,13 +853,13 @@ void SheetsTray::refreshPages() {
     if (!page)
         return;
     QTreeWidgetItem *current = page;
-    for (int i = 0; i < page->childCount(); ++i)
-        if (view_ && page->child(i)->data(0, KindRole).toInt() == ViewRow &&
-            page->child(i)->data(0, IdRole).toULongLong() == view_)
+    for (int i = 0; i < page->childCount(); ++i) {
+        const auto kind = page->child(i)->data(0, KindRole).toInt();
+        const auto id = page->child(i)->data(0, IdRole).toULongLong();
+        if ((view_ && kind == ViewRow && id == view_) || (item_ && kind == ItemRow && id == item_))
             current = page->child(i);
+    }
     auto *now = pages_->currentItem();
-    if (!view_ && now && now->parent() == page && now->data(0, KindRole).toInt() == ItemRow)
-        return;
     if (now != current) {
         if (current->parent())
             current->parent()->setExpanded(true);

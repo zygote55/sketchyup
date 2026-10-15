@@ -563,8 +563,13 @@ void sheetsWorkspace() {
           "Rail stop is the active sheet tool, got " + identity(focused()));
     key(Qt::Key_Down);
     check(focused() == toolButton("sheet.tool.view"), "Down moves to Model view in the sheet rail");
-    key(Qt::Key_Down);
-    check(focused() == toolButton("sheet.tool.move"), "Down moves past the separator to Move");
+    // R091.g: the page-item tools follow, then Move past a separator.
+    for (const auto *id : {"sheet.tool.line", "sheet.tool.rectangle", "sheet.tool.text",
+                           "sheet.tool.label", "sheet.tool.dimension", "sheet.tool.move"}) {
+        key(Qt::Key_Down);
+        check(focused() == toolButton(id),
+              std::string("Down moves to ") + id + " in the sheet rail");
+    }
     key(Qt::Key_Down);
     check(focused() == toolButton("sheet.tool.pan"), "Down moves to Pan in the sheet rail");
     key(Qt::Key_Return);
@@ -622,9 +627,18 @@ void sheetsWorkspace() {
             if (reached.insert(focused()).second)
                 visited += " " + identity(focused());
         }
-        for (auto *target : targets)
+        for (auto *target : targets) {
+            std::string state;
+            if (target) {
+                const auto at = target->mapTo(target->window(), QPoint());
+                state = " (visible " + std::to_string(target->isVisible()) + ", enabled " +
+                        std::to_string(target->isEnabled()) + ", at " + std::to_string(at.x()) +
+                        "," + std::to_string(at.y()) + " size " + std::to_string(target->width()) +
+                        "x" + std::to_string(target->height()) + ")";
+            }
             check(target && reached.contains(target),
-                  context + ": Tab reaches " + identity(target) + "; visited:" + visited);
+                  context + ": Tab reaches " + identity(target) + state + "; visited:" + visited);
+        }
     };
     tabs->setCurrentIndex(0);
     sheetCanvas->setFocus(Qt::OtherFocusReason);
@@ -675,7 +689,42 @@ void sheetsWorkspace() {
     sheetCanvas->setSelectedView(frontView);
     window.findChild<QAction *>("sheet.tool.pan")->trigger();
     tabReaches({window.findChild<QWidget *>("sheetInfoChooseScene")}, "Choose scene…");
+    // R091.g: page items. Insert › Title block; its Entity info fields and its Pages row are
+    // reachable from the keyboard, and Enter on the row edits it in place.
     window.findChild<QAction *>("sheet.tool.select")->trigger();
+    sheetCanvas->setFocus(Qt::OtherFocusReason);
+    window.findChild<QAction *>("sheet.insert.titleBlock")->trigger();
+    const auto block = sheetCanvas->selectedItem();
+    check(block != 0, "Insert › Title block selects the new title block");
+    window.findChild<QAction *>("sheet.tool.pan")->trigger();
+    tabReaches({window.findChild<QWidget *>("sheetItemTitle_project"),
+                window.findChild<QWidget *>("sheetItemTitle_drawingTitle"),
+                window.findChild<QWidget *>("sheetItemSheetNumber"),
+                window.findChild<QWidget *>("sheetItemTitle_date"),
+                window.findChild<QWidget *>("sheetItemTitle_revision"),
+                window.findChild<QWidget *>("sheetItemFont"),
+                window.findChild<QWidget *>("sheetItemSize")},
+               "Entity info · Title block");
+    window.findChild<QAction *>("sheet.tool.select")->trigger();
+    check(sheetCanvas->selectedItem() == block, "The title block stays selected");
+    pages->setFocus(Qt::TabFocusReason);
+    check(QTest::qWaitFor([&] { return pages->hasFocus(); }), "Pages tree focus for items");
+    auto *row = pages->currentItem();
+    check(row && row->data(0, Qt::UserRole + 1).toULongLong() == block &&
+              row->text(1) == "Title block",
+          "Pages shows the selected item's row as current");
+    key(Qt::Key_Up);
+    key(Qt::Key_Down);
+    check(pages->currentItem() &&
+              pages->currentItem()->data(0, Qt::UserRole + 1).toULongLong() == block &&
+              sheetCanvas->selectedItem() == block,
+          "Arrows reach the item's row, which selects it on the page");
+    key(Qt::Key_Return);
+    check(sheetCanvas->textEditing() && sheetCanvas->textEditField() == "project",
+          "Enter on the row edits the title block in place");
+    key(Qt::Key_Escape);
+    check(!sheetCanvas->textEditing() && QTest::qWaitFor([&] { return sheetCanvas->hasFocus(); }),
+          "Esc ends editing on the canvas");
     key(Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
     check(window.workspace() == Window::Workspace::Model &&
               QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),

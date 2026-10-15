@@ -202,6 +202,30 @@ void everyOperationIsSheetOnly() {
     check(doc.drawingSheets().at(second)->number == "A-201" &&
               doc.drawingSheets().at(second)->marginMm == 12,
           "Update keeps the field it does not name");
+    // R091.g: the dimension format merges field by field; the default is whole millimetres.
+    check(doc.drawingSheets().at(second)->dimensionFormat == DrawingDimensionFormat{},
+          "The dimension format defaults to whole millimetres without a unit");
+    step({{"command", "drawing_sheet.update"},
+          {"sheet", text(second)},
+          {"dimensionFormat", QJsonObject{{"unit", "m"}, {"decimals", 2}}}},
+         "update dimension format");
+    step({{"command", "drawing_sheet.update"},
+          {"sheet", text(second)},
+          {"dimensionFormat", QJsonObject{{"showUnit", true}}}},
+         "update dimension format again");
+    check(doc.drawingSheets().at(second)->dimensionFormat ==
+                  DrawingDimensionFormat{DrawingDimensionUnit::Metres, 2, true} &&
+              doc.drawingSheets().at(second)->number == "A-201",
+          "Dimension format fields merge and the other sheet fields stay");
+    for (const auto &bad : {QJsonObject{{"unit", "yd"}}, QJsonObject{{"decimals", 5}},
+                            QJsonObject{{"precision", 1}}, QJsonObject{}})
+        rejects(
+            [&] {
+                run(doc, {QJsonObject{{"command", "drawing_sheet.update"},
+                                      {"sheet", text(second)},
+                                      {"dimensionFormat", bad}}});
+            },
+            "invalid dimension format");
     const auto note = created(step(
         createItem(f.sheet, "text", {{"frame", frame(300, 20, 80, 20)}, {"text", "General notes"}}),
         "create text"));
@@ -478,7 +502,7 @@ void inspectionQueries() {
     const auto evaluation = dimension["evaluation"].toObject();
     check(evaluation["state"] == "current" && evaluation["valueMetres"] == 2 &&
               std::abs(evaluation["paperLengthMm"].toDouble() - 40) < 1e-9 &&
-              evaluation["text"] == "2 m" && evaluation["lineMm"].toArray().size() == 2 &&
+              evaluation["text"] == "2000" && evaluation["lineMm"].toArray().size() == 2 &&
               dimension["data"].toObject()["view"] == "1",
           "Describe returns the measured value and paper geometry");
     const auto block = inspect(doc, "drawing_item.describe", {{"item", "1"}})["evaluation"]

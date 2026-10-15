@@ -5166,11 +5166,36 @@
                                     {
                                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                                         "additionalProperties": false,
-                                        "description": "Change a drawing sheet's number or page margin",
+                                        "description": "Change a drawing sheet's number, page margin or dimension format",
                                         "minProperties": 3,
                                         "properties": {
                                             "command": {
                                                 "const": "drawing_sheet.update"
+                                            },
+                                            "dimensionFormat": {
+                                                "additionalProperties": false,
+                                                "description": "How the sheet's dimensions write their values; given fields replace the sheet's, the others stay",
+                                                "minProperties": 1,
+                                                "properties": {
+                                                    "decimals": {
+                                                        "maximum": 4,
+                                                        "minimum": 0,
+                                                        "type": "integer"
+                                                    },
+                                                    "showUnit": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "unit": {
+                                                        "enum": [
+                                                            "mm",
+                                                            "cm",
+                                                            "m",
+                                                            "ftIn"
+                                                        ],
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
                                             },
                                             "marginMm": {
                                                 "description": "Page-margin frame in millimetres, at most a quarter of the shorter paper side; defaults to 10",

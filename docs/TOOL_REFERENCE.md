@@ -47,7 +47,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `drawing_view.move` | Move a sheet view to another sheet | `view`, `sheet`, `command` |
 | `drawing_view.delete` | Delete a sheet view | `view`, `command` |
 | `drawing_view.accept` | Accept sheet views as reviewed at the current model | `command` |
-| `drawing_sheet.update` | Change a drawing sheet's number or page margin | `sheet`, `command` |
+| `drawing_sheet.update` | Change a drawing sheet's number, page margin or dimension format | `sheet`, `command` |
 | `drawing_item.create` | Add a page item | `sheet`, `kind`, `data`, `command` |
 | `drawing_item.update` | Edit a page item | `item`, `kind`, `data`, `command` |
 | `drawing_item.move` | Move a page item to another sheet | `item`, `sheet`, `command` |
