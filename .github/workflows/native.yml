@@ -100,12 +100,9 @@ jobs:
           path: /ccache
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
       - name: Pack the development build tree
-        run: |
-          # The test jobs need executables, CTest files and generated data; objects,
-          # static archives and moc/rcc sources stay behind.
-          tar --use-compress-program='zstd -T0 -3' -cf dev-build.tar.zst \
-            --exclude='*.o' --exclude='*.a' --exclude='*_autogen' --exclude='.ninja_log' build/dev
-          ls -l dev-build.tar.zst
+        # Executables, CTest files and generated data, with debug sections stripped:
+        # the unstripped tree is about 37 GB (see the script).
+        run: scripts/ci-pack-build.sh build/dev dev-build.tar.zst
       - uses: actions/upload-artifact@v6
         with:
           name: dev-build
