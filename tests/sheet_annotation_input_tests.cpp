@@ -866,6 +866,8 @@ void screens(Window &window, const QString &path, const QString &directory, cons
     window.setWorkspace(Window::Workspace::Model);
     window.openPath(path);
     window.setWorkspace(Window::Workspace::Sheets);
+    window.activateWindow();
+    (void)QTest::qWaitForWindowActive(&window);
     auto *sheets = window.sheetWorkspace();
     auto *canvas = sheets->canvas();
     sheets->setCurrentSheet(f.groundFloor);
@@ -981,10 +983,12 @@ void screens(Window &window, const QString &path, const QString &directory, cons
         canvas->setSelectedItem(notes);
         canvas->setFocus(Qt::OtherFocusReason);
         QTest::keyClick(canvas, Qt::Key_Return);
-        QTest::keyClick(focused(), Qt::Key_End);
-        QTest::keyClicks(focused(), " Verify");
+        auto *editor = canvas->textEditor();
+        check(editor != nullptr, "The text edits in place");
+        QTest::keyClick(editor, Qt::Key_End);
+        QTest::keyClicks(editor, " Verify");
         shoot("text-editing-" + suffix);
-        QTest::keyClick(focused(), Qt::Key_Escape);
+        QTest::keyClick(editor, Qt::Key_Escape);
         action(window, "edit.undo")->trigger();
         // A broken dimension and its Reattach proposal.
         window.setWorkspace(Window::Workspace::Model);

@@ -199,13 +199,19 @@ def sheets_phase(bridge, application, root, environment):
 
                 with bridge.owned(wait_for(bridge, own_application,
                                            "The sheets fixture did not register")) as app:
+                    seen = []
+
                     def toggle():
                         rows = bridge.snapshot(app)
+                        seen[:] = [(r["name"], r["role"]) for r in rows if "Sheets" in r["name"]]
                         found = [r for r in rows if r["name"] == "Sheets workspace" and
-                                 r["role"] in ("push button", "toggle button")]
+                                 r["role"] in ("push button", "toggle button", "check box")]
                         return found[0] if found else None
 
-                    button = wait_for(bridge, toggle, "Sheets workspace button is absent")
+                    try:
+                        button = wait_for(bridge, toggle, "Sheets workspace button is absent")
+                    except AssertionError as error:
+                        raise AssertionError(f"{error}; seen {seen}") from None
                     with bridge.at_path(app, button["path"]) as control:
                         with bridge.owned(bridge.accessible_get_action_iface(control)) as action:
                             names = [bridge.string(bridge.action_get_name(action, i, None))
@@ -231,22 +237,38 @@ def sheets_phase(bridge, application, root, environment):
                     assert item_names == ["Text · Notes · Current",
                                           "Title block · House extension · Current"], \
                         f"Canvas children name the items: {item_names}"
+                    # Qt's tree selection counts the hidden header as a row that the child list
+                    # leaves out: selecting child n selects the row of child n - columns. So the
+                    # title block's row (above the text's) is selected through the child one row
+                    # (three columns: number, name, state) further on.
+                    columns = 3
+                    block = find(rows, "Title block · House extension", "table cell")
                     with bridge.at_path(app, pages["path"]) as control:
                         with bridge.owned(bridge.accessible_get_selection_iface(control)) as selection:
-                            assert bridge.selection_select_child(selection, notes["path"][-1], None), \
-                                "AT-SPI could not select the text row"
+                            assert bridge.selection_select_child(
+                                selection, block["path"][-1] + columns, None), \
+                                "AT-SPI could not select the title block's row"
+
+                    observed = []
 
                     def described():
                         current = bridge.snapshot(app)
                         page = [r for r in current if r["role"] == "canvas" and
                                 r["name"].startswith("Page A-101")]
+                        observed[:] = [r["description"] for r in page] + \
+                            [r["name"] for r in current if r["role"] == "label" and
+                             r["name"].startswith("Entity info")]
                         return page[0] if page and page[0]["description"] == \
-                            "Text · Notes · Current" else None
+                            "Title block · House extension · Current" else None
 
-                    page = wait_for(bridge, described, "Selecting the row does not select the item")
+                    try:
+                        page = wait_for(bridge, described, "Selecting the row does not select the item")
+                    except AssertionError as error:
+                        raise AssertionError(f"{error}; observed {observed}") from None
                     return {"pagesItems": ["Title block · House extension", "Text · Notes"],
                             "canvasChildren": item_names,
-                            "canvasDescription": page["description"]}
+                            "canvasDescription": page["description"],
+                            "selectionRowOffsetColumns": columns}
         finally:
             process.terminate()
             try:

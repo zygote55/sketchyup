@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QWidget>
 #include <optional>
+#include <set>
 #include <vector>
 class QCheckBox;
 class QComboBox;
@@ -66,7 +67,9 @@ class SheetItemInfo : public QWidget {
     QPushButton *reattach_{};
     QWidget *stateRow_{};
     QWidget *addRow(const QString &caption, QWidget *field);
+    std::set<QWidget *> shown_; // The rows the item being refreshed shows.
     void show(QWidget *field, bool visible);
+    void applyRows();
     const DrawingItemRecord *record() const;
     void emitChange(const QJsonObject &data, const QString &label);
     void commitText();

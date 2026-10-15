@@ -301,6 +301,14 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
                 emit sheetChosen(item->parent()->data(0, IdRole).toULongLong());
         }
     });
+    // Assistive technology selects rows without moving the current row; a selected row
+    // becomes current, so it chooses its page, view or item the same way.
+    connect(pages_, &QTreeWidget::itemSelectionChanged, this, [this] {
+        const auto selected = pages_->selectedItems();
+        if (syncing_ || selected.size() != 1 || selected.front() == pages_->currentItem())
+            return;
+        pages_->setCurrentItem(selected.front(), 1);
+    });
     connect(pages_, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
         if (syncing_ || column != 1 || item->data(0, KindRole).toInt() != PageRow)
             return;

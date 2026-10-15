@@ -932,6 +932,41 @@ design §§1, 2, 4, 6.
 - Tests: `sheet_annotation_input_tests`; the `accessibility_bridge_test.py`
   extension.
 
+**Implementation conventions (R091.g).**
+- **Labels.** "Add line", "Add rectangle", "Add text", "Add label", "Add dimension", "Add title
+  block", "Edit text", "Edit label", "Edit title block", "Move <kind>", "Nudge", "Delete <kind>",
+  "Bring forward", "Send backward", "Reattach dimension", "Reattach label", "Change sheet number",
+  and one label per Entity info field ("Change font", "Change orientation", …).
+- **Tools.** Line and Rectangle draw by drag or click–move–click, snap like views (grid, margins,
+  view edges) and take Shift for 45° steps or a square. Text places with a click (the box fits its
+  words) or a drag (the drag sets the wrap width), then edits in place; a new item is created only
+  when editing ends with text. Label picks the leader's point first: a model vertex or edge in a
+  view drawn to scale binds it to the view, anything else is a paper point; the second click
+  places the text. Dimension picks two model points in one view (8 px snap, a vertex preferred
+  within it, from `nearestDrawingViewAnchor`, the same search Reattach uses), then the offset;
+  new dimensions are aligned, and Entity info changes the orientation. Tools stay active after
+  each item; a typed value right after one revises it (amend).
+- **Measurements.** Line: a length along the preview, `<dx,dy>` or `[x,y]` (before the first
+  click `[x,y]` sets the start). Rectangle: `w,h` (from the first corner towards the pointer, else
+  at the pointer). Text and Label: `[x,y]`, and `12pt` sets the size of new text. Dimension: the
+  offset after two points. Select with an item: `<dx,dy>`, `[x,y]` (top-left of its stored
+  geometry) or `12pt`; a selected dimension takes its offset.
+- **Moves.** An item moves its stored geometry, clamped to the paper; a dimension moves by its
+  offset; a label bound to a view moves its text only, a paper label moves with its point.
+- **In-place editing.** Esc, Ctrl+Enter, a click outside or focus leaving ends editing; Enter adds
+  a line break in text and labels and ends a title-block field. Tab and Shift+Tab move between
+  the title block's four stored fields within one entry.
+- **Title block.** Insert › Title block places 160 × 30 mm (or what fits) in the bottom-right
+  corner of the margin with empty stored fields. "+ Page" copies the current page's title blocks
+  into the new page in the same entry. The compositor draws the design's grid: the project across
+  the top, then Drawing and Sheet, then Scale, Date, Revision and Page, captions over bold values.
+- **Dimension text** reads along its line (left to right, or top to bottom), centred 1 mm above it.
+- **Z order.** Bring forward `Ctrl+]` and Send backward `Ctrl+[` in a new Arrange menu (Sheets
+  scope); Alt+Down and Alt+Up on an item row in Pages do the same.
+- **Pages** lists each item with "Current" or "Broken" (the reason is in the row's tooltip and
+  accessible description); choosing a row selects the item, Delete erases it and Enter edits its
+  text in place.
+
 **R091.h: enable and accept.**
 - Scope:
   - remove the flag;

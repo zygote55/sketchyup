@@ -245,11 +245,20 @@ QWidget *SheetItemInfo::addRow(const QString &caption, QWidget *field) {
     return field;
 }
 void SheetItemInfo::show(QWidget *field, bool visible) {
-    for (const auto &row : rows_)
-        if (row.field == field) {
+    if (visible)
+        shown_.insert(field);
+    else
+        shown_.erase(field);
+}
+void SheetItemInfo::applyRows() {
+    // Only rows whose visibility changes are touched: hiding the focused field would move focus.
+    for (const auto &row : rows_) {
+        const bool visible = shown_.contains(row.field);
+        if (row.field->isVisibleTo(this) != visible) {
             row.caption->setVisible(visible);
             row.field->setVisible(visible);
         }
+    }
 }
 const DrawingItemRecord *SheetItemInfo::record() const {
     const auto found = doc_.drawingItems().find(item_);
@@ -316,13 +325,12 @@ void SheetItemInfo::refresh(Id item, const std::optional<DrawingItemEvaluation> 
     item_ = item;
     const auto *record = this->record();
     QScopedValueRollback guard(syncing_, true);
-    for (const auto &row : rows_) {
-        row.caption->hide();
-        row.field->hide();
-    }
-    reattach_->hide();
-    if (!record)
+    shown_.clear();
+    if (!record) {
+        reattach_->hide();
+        applyRows();
         return;
+    }
     const auto kind = record->kind();
     // Never replace what the user is typing in the field for this item.
     auto keep = [&](QWidget *field) {
@@ -440,6 +448,8 @@ void SheetItemInfo::refresh(Id item, const std::optional<DrawingItemEvaluation> 
                            colors_, devicePixelRatioF()));
         show(stateRow_, true);
         reattach_->setVisible(broken && drawingItemView(*record));
-    }
+    } else
+        reattach_->hide();
+    applyRows();
 }
 } // namespace sketchy

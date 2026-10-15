@@ -627,9 +627,18 @@ void sheetsWorkspace() {
             if (reached.insert(focused()).second)
                 visited += " " + identity(focused());
         }
-        for (auto *target : targets)
+        for (auto *target : targets) {
+            std::string state;
+            if (target) {
+                const auto at = target->mapTo(target->window(), QPoint());
+                state = " (visible " + std::to_string(target->isVisible()) + ", enabled " +
+                        std::to_string(target->isEnabled()) + ", at " + std::to_string(at.x()) +
+                        "," + std::to_string(at.y()) + " size " + std::to_string(target->width()) +
+                        "x" + std::to_string(target->height()) + ")";
+            }
             check(target && reached.contains(target),
-                  context + ": Tab reaches " + identity(target) + "; visited:" + visited);
+                  context + ": Tab reaches " + identity(target) + state + "; visited:" + visited);
+        }
     };
     tabs->setCurrentIndex(0);
     sheetCanvas->setFocus(Qt::OtherFocusReason);
