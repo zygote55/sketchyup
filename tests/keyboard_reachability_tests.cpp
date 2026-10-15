@@ -1,3 +1,4 @@
+#include "app/file_operation.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_workspace.hpp"
@@ -27,8 +28,10 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeWidget>
+#include <chrono>
 #include <iostream>
 #include <set>
+#include <thread>
 // R084.v: keyboard reachability of the tool rail, the main window's Tab cycle, the side tabs
 // and the reopened Render with Blender sheet (D-026). Real key events to the focused widget only.
 using namespace sketchy;
@@ -493,11 +496,61 @@ void renderReopen(Fixture &f, const QString &files) {
     check(tabs->currentIndex() == 0, "Left returns to the Model tab");
     f.checkCycle({tabs->tabBar(), window.findChild<QTabWidget *>("organizationTabs")->tabBar()});
 }
+// R091.h: a closed prompt or file-operation surface returns activation and keyboard focus to
+// the Model workspace's viewport. Without a window manager (X11 under Xvfb) the window was
+// left inactive with no focus widget after View › Field of view… and after an open or save
+// that showed the progress surface.
+void promptsReturnFocus(Fixture &f) {
+    auto &window = f.window;
+    auto *viewport = window.viewport();
+    auto ready = [&] {
+        window.activateWindow();
+        check(QTest::qWaitForWindowActive(&window), "Window active before the prompt");
+        viewport->setFocus();
+        check(QTest::qWaitFor([&] { return viewport->hasFocus(); }), "Viewport focus");
+    };
+    auto answer = [](bool accept) {
+        auto *timer = new QTimer;
+        QObject::connect(timer, &QTimer::timeout, [timer, accept] {
+            auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+            if (!dialog || !dialog->isVisible() || dialog->objectName() == "fileOperationDialog")
+                return;
+            timer->stop();
+            timer->deleteLater();
+            accept ? dialog->accept() : dialog->reject();
+        });
+        timer->start(20);
+    };
+    auto returned = [&](const std::string &what) {
+        check(QTest::qWaitFor([&] { return window.isActiveWindow() && viewport->hasFocus(); }),
+              what + " returns activation and focus to the viewport" + f.state());
+    };
+    for (const bool accept : {true, false}) {
+        ready();
+        answer(accept);
+        window.findChild<QAction *>("view.fov")->trigger();
+        returned(accept ? "Accepting Field of view…" : "Cancelling Field of view…");
+    }
+    // The file-operation surface shows after 150 ms; this operation lasts longer.
+    ready();
+    bool shown = false;
+    QTimer watch;
+    QObject::connect(&watch, &QTimer::timeout, [&] {
+        if (auto *surface = window.findChild<QDialog *>("fileOperationDialog");
+            surface && surface->isVisible())
+            shown = true;
+    });
+    watch.start(5);
+    runFileOperation(&window, "Saving model…",
+                     [] { std::this_thread::sleep_for(std::chrono::milliseconds(600)); });
+    watch.stop();
+    check(shown, "The file-operation surface was shown");
+    returned("Closing the file-operation surface");
+}
 // R091.e: the Sheets workspace (ADR 0164 §4). One Tab stop for the sheet rail, the F6 order
 // search, sheet rail, canvas, page tabs, Tray (Pages), Assistant, Measurements, and the page
 // tabs and Pages tree reached by Tab.
 void sheetsWorkspace() {
-    qputenv("SKETCHYUP_SHEETS_WORKSPACE", "1");
     Window window;
     window.resize(1280, 900);
     window.show();
@@ -730,7 +783,6 @@ void sheetsWorkspace() {
               QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),
           "Ctrl+Alt+S returns to Model and its viewport");
     window.document().markSaved();
-    qunsetenv("SKETCHYUP_SHEETS_WORKSPACE");
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -775,6 +827,9 @@ int main(int argc, char **argv) {
         std::cout << "Side tabs: Ctrl+J, arrows, Tab into Model/Assistant pages and back passed\n";
         renderReopen(f, files.path());
         std::cout << "Render with Blender reopens on Render (D-026); Model/Render tabs passed\n";
+        promptsReturnFocus(f);
+        std::cout << "Field of view… and the file-operation surface return focus to the "
+                     "viewport passed\n";
         window.document().markSaved();
         window.hide();
         sheetsWorkspace();

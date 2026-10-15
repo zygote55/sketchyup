@@ -189,9 +189,6 @@ std::pair<double, bool> pageScale(const Document &doc, DrawingViewRenderCache &c
     return found ? std::pair{*found, true} : std::pair{50., false};
 }
 } // namespace
-bool Window::sheetsWorkspaceEnabled() {
-    return qEnvironmentVariable("SKETCHYUP_SHEETS_WORKSPACE") == QLatin1String("1");
-}
 ShortcutScope Window::actionScope(const QAction *action) const {
     return ShortcutScope(action->property("shortcutScope").toInt());
 }
@@ -665,8 +662,6 @@ void Window::themeSheets(const ThemeColors &colors) {
             QIcon(new LineIconEngine(path, colors.ink, colors.muted)));
 }
 void Window::sheetTool(int value) {
-    if (!sheets_)
-        return;
     const auto tool = SheetCanvas::Tool(value);
     sheets_->canvas()->setTool(tool);
     for (auto *entry : sheetRail_->actions())
@@ -714,8 +709,6 @@ void Window::refreshSheetStep() {
         measurements_->setText(canvas->measurementValue());
 }
 void Window::refreshPlacement() {
-    if (!sheets_)
-        return;
     auto *panel = sheetsTray_->placePanel();
     const auto sheet = sheets_->currentSheet();
     const auto [scale, fromPage] = pageScale(doc_, *sheetCache_, sheet);
@@ -1089,7 +1082,7 @@ void Window::moveSheetPage(Id sheet, int delta) {
     sheetCommands({QJsonObject{{"command", "drawing_sheet.reorder"}, {"order", ids}}}, "Move page");
 }
 void Window::focusWorkspace() {
-    if (workspace_ == Workspace::Sheets && sheets_ && sheets_->canvas()->textEditing())
+    if (workspace_ == Workspace::Sheets && sheets_->canvas()->textEditing())
         // A typed position opened the in-place editor (R091.g): typing continues there.
         sheets_->canvas()->textEditor()->setFocus(Qt::OtherFocusReason);
     else if (workspace_ == Workspace::Sheets && sheets_)
@@ -1098,8 +1091,6 @@ void Window::focusWorkspace() {
         viewport_->setFocus();
 }
 void Window::setWorkspace(Workspace workspace) {
-    if (!sheets_)
-        return;
     if (workspace == workspace_) {
         focusWorkspace();
         return;
@@ -1159,8 +1150,6 @@ void Window::syncWorkspaceActions() {
     }
 }
 void Window::syncSheets() {
-    if (!sheets_)
-        return;
     const auto name = path_.isEmpty()
                           ? (recoveredName_.isEmpty() ? QString("Untitled") : recoveredName_)
                           : QFileInfo(path_).fileName();
@@ -1180,8 +1169,6 @@ void Window::syncSheets() {
     refreshSheetStep();
 }
 void Window::syncSheetActions() {
-    if (!sheets_)
-        return;
     const bool page = doc_.drawingSheets().contains(sheets_->currentSheet());
     const auto order = orderedDrawingSheets(doc_);
     const auto at = std::find(order.begin(), order.end(), sheets_->currentSheet());

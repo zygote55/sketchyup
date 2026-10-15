@@ -152,7 +152,8 @@ file, or discard selected recovery data. Recovered work first saves to a new
 path. The status distinguishes a verified recovery copy from newer in-memory
 edits. See [recovery semantics](decisions/0016-native-recovery.md).
 
-The current document schema is **26**, inside container version **2**. The CLI
+The current document schema is **26**, inside container version **2**; a model
+with documentation sheets is schema **27** (see [Documentation sheets](#documentation-sheets)). The CLI
 can validate an older file and migrate it to a new destination without replacing
 the original:
 
@@ -163,6 +164,68 @@ sketchyup-cli --migrate-native old.sketchyup --output migrated.sketchyup
 
 The destination must be new. Unknown future formats reject explicitly. See the
 [native format contract](decisions/0108-public-native-format.md).
+
+## Documentation sheets
+
+Sheets are newer than 1.0.0: they are in the development builds that lead to
+1.1 ([ADR 0163](decisions/0163-documentation-sheets.md) for the records and
+[ADR 0164](decisions/0164-sheet-layout-interface.md) for the interface). A sheet
+is a drawing page with views of the model's scenes, dimensions, labels, text and
+a title block. Editing a page never changes the model. Printing and PDF export
+of pages are not available yet.
+
+1. **Save the scenes you want to draw.** A plan is a Top orthographic scene, an
+   elevation a Front, Back, Left or Right orthographic scene; a perspective
+   scene gives an illustration that is not to scale.
+2. **Switch to Sheets** with the **Model | Sheets** switch in the header, View →
+   Sheets workspace, or **Ctrl+Alt+S**. Press it again to return to Model.
+3. **Create a page** with **+ Page** below the canvas or **Ctrl+Shift+N**. A new
+   page is A3 landscape. Ctrl+PgUp and Ctrl+PgDn change pages; the Pages
+   section of the Tray lists them, and F2 there renames one.
+4. **Add a title block** with Insert → Title block. It sits in the bottom-right
+   corner of the margin. Select it, press Enter and type the project, then Tab to
+   the drawing title; Enter finishes. Date and revision are in Entity info, with
+   the page's sheet number. The page number and the scale fill in by themselves.
+   Later pages made with + Page copy the current page's title block.
+5. **Place a view.** Press **W**. The Tray shows **New model view**: choose a
+   scene and a scale, then drag a frame on the page, or point and type a size
+   such as `200,150` (millimetres) and press Enter. Move a view by dragging it or
+   with the arrow keys (1 mm; Shift for 10 mm), crop it with its handles, and
+   type `1:100` while it is selected to change its scale. Enter opens edit-view
+   to pan and zoom what the frame shows; Done or Esc leaves it.
+6. **Dimension.** Press **D**, click two model points in one view, then click
+   (or type) the offset. The value is measured from the model at the view's
+   scale. With nothing selected, Entity info sets the page's dimension unit and
+   decimals; the default is whole millimetres without a unit.
+7. **Label and text.** Press **K**, click a model point in a view (or anywhere
+   on the paper), then click where the text goes and type; Esc finishes. Press
+   **X** and click to add text. Enter edits a selected text in place.
+8. **Accept changes.** When the model changes, affected views show an amber
+   **⟳ Changed** chip; dimensions already show the new values. Select a view and
+   press **U** to accept it, or choose **Accept all** in the References section
+   or the Page menu. A view whose scene was deleted is **Broken**: its card offers
+   **Choose scene…**, which relinks it and keeps its frame and scale.
+9. **Reattach.** A dimension or label whose model point no longer exists turns red
+   and reads "[Missing reference]". This happens when the anchored vertex or edge
+   is erased, and also when an anchored edge is split or the geometry is made into
+   a component. Select it and choose **Reattach** in Entity info: the nearest point
+   in the view is proposed; press Enter to accept it or click another point.
+
+Every page operation is one undo step in the same history as model edits, so
+Ctrl+Z in Sheets can step back into a model edit; the History section shows
+what the next undo is.
+Without a pointer, the Pages tree selects views and items, Tab cycles them on the
+canvas, typed values in Measurements place and move them, and Entity info edits
+every value.
+
+**Files with sheets and SketchyUp 1.0.x.** A model with no pages is still saved as
+schema **26**, which SketchyUp 1.0.x opens. Adding a page saves it as schema
+**27**. SketchyUp 1.0.x refuses a schema-27 file with "Unsupported container
+field" and leaves it unchanged; it does not open the model without its sheets.
+Deleting every page saves the model as schema 26 again. To share a model with
+someone on 1.0.x, save a copy, delete its pages, and save the copy. Schema 27 can
+still change until the release that first writes it, so files with sheets from a
+development build may need to be re-created.
 
 ## Use the assistant
 

@@ -5,6 +5,14 @@ row [F01](../SCOPE.md)). This builds on [ADR 0163](0163-documentation-sheets.md)
 (R090) and shapes [R092](../PR_ROADMAP.md#r092). The interaction design is the
 owner-approved
 [R091 UX design (canvas; private to the owner)](https://claude.ai/artifact/ByrL3RtnQihKV9zx5DiYyQ).
+Implementation: R091.a–h are complete. PRs
+[#316](https://github.com/zygote55/sketchyup/pull/316) (R091.a),
+[#317](https://github.com/zygote55/sketchyup/pull/317) (R091.b),
+[#319](https://github.com/zygote55/sketchyup/pull/319) (R091.c),
+[#320](https://github.com/zygote55/sketchyup/pull/320) (R091.d),
+[#321](https://github.com/zygote55/sketchyup/pull/321) (R091.e),
+[#322](https://github.com/zygote55/sketchyup/pull/322) (R091.f),
+[#323](https://github.com/zygote55/sketchyup/pull/323) (R091.g) and the R091.h pull request; acceptance in [R091.h](../verification/R091h-sheet-layout.md).
 This ADR does not repeat that design. It decides how the code delivers it, names
 where the design meets the code or [UX_DESIGN](../UX_DESIGN.md) awkwardly, and
 splits the work into layers. The owner's choices are recorded under "Decisions".
@@ -711,10 +719,10 @@ schema 27.
     28 px header rows, as the design asks.
 - **Status bar.** In Sheets it adds an active-tool label before the
   instruction, as UX_DESIGN §3.1 describes. The model status bar is unchanged.
-- **Hidden until complete.** Until R091.h, the workspace toggle is hidden unless
-  `SKETCHYUP_SHEETS_WORKSPACE=1` is set. The native suites set it, so `main` stays
-  releasable with no half-built UI. Documents with sheets still open, save and
-  validate either way.
+- **Hidden until complete.** Until R091.h, the workspace toggle was hidden unless
+  `SKETCHYUP_SHEETS_WORKSPACE=1` was set. The native suites set it, so `main` stayed
+  releasable with no half-built UI. Documents with sheets still opened, saved and
+  validated either way. R091.h removed the flag: the workspace is always built.
 
 ## Decision
 
@@ -783,7 +791,7 @@ The owner decided these points on 2026-10-14. The interaction design is the
     Typing never starts editing by itself, because plain keys stay tool
     shortcuts (UX_DESIGN keyboard ownership rule).
 12. **Feature flag.** The UI stays behind `SKETCHYUP_SHEETS_WORKSPACE=1` until
-    R091.h enables it.
+    R091.h enables it. R091.h removed the flag on 2026-10-14.
 
 The remaining proposals in the body stand as written and were not separately
 decided: the Pages tree expands each page to its views and items (§4), leader

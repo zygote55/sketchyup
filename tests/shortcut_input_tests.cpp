@@ -416,13 +416,12 @@ int main(int argc, char **argv) {
         check(settings.value("futureNamespace/data").toByteArray() == unknown,
               "Unrelated typed settings preserved");
         // ADR 0164 §4: workspace scopes in the editor and in live keys (R091.e).
-        qputenv("SKETCHYUP_SHEETS_WORKSPACE", "1");
         {
             Window window;
             window.show();
-            check(QTest::qWaitForWindowExposed(&window), "Sheets-enabled window exposed");
+            check(QTest::qWaitForWindowExposed(&window), "Workspace-scope window exposed");
             window.activateWindow();
-            check(QTest::qWaitForWindowActive(&window), "Sheets-enabled window active");
+            check(QTest::qWaitForWindowActive(&window), "Workspace-scope window active");
             window.viewport()->setFocus();
             check(action(window, "sheet.tool.pan")->shortcut() == QKeySequence("H") &&
                       action(window, "tool.5")->shortcut() == QKeySequence("H") &&

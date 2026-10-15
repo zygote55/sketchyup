@@ -1033,7 +1033,6 @@ int main(int argc, char **argv) {
         return 2;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     qputenv("XDG_DATA_HOME", files.path().toUtf8());
-    qputenv("SKETCHYUP_SHEETS_WORKSPACE", "1");
     QSurfaceFormat format;
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
@@ -1060,7 +1059,7 @@ int main(int argc, char **argv) {
         Window window;
         window.resize(1440, 900);
         window.show();
-        check(QTest::qWaitForWindowExposed(&window), "Window exposed with the Sheets flag");
+        check(QTest::qWaitForWindowExposed(&window), "Window exposed");
         check(QTest::qWaitFor([&] { return window.viewport()->rendererReady(); }, 10000),
               "Viewport renderer initialized in the Model workspace");
         const auto arguments = app.arguments();

@@ -188,6 +188,24 @@ configurable (N05). The prototype's `V` remains an alias for Select. Its `F`
 The status bar always lists the modifiers that apply to the current step, so
 none of this has to be memorized.
 
+Shortcuts have a workspace scope ([ADR 0164](decisions/0164-sheet-layout-interface.md)
+§4): **model** keys work only in the Model workspace, **sheets** keys only in
+the Sheets workspace (section 13), and **global** keys in both. The same key can
+mean one tool in Model and another in Sheets; a global key conflicts with every
+scope. The shortcut editor shows each action's workspace.
+
+| Key | Sheets tool or command (scope: sheets) | Key | Sheets tool or command (scope: sheets) |
+| --- | --- | --- | --- |
+| `Space` | Select | `M` | Move |
+| `W` | Model view | `H` | Pan |
+| `L` | Line | `Z` | Zoom |
+| `R` | Rectangle | `Shift+Z` | Fit page |
+| `X` | Text | `U` | Accept view |
+| `K` | Label | `Ctrl+Shift+N` | Add page |
+| `D` | Dimension | `Ctrl+PgUp` / `Ctrl+PgDn` | Previous / next page |
+| `Ctrl+]` | Bring forward | `Ctrl+[` | Send backward |
+| `Delete` / `Backspace` | Delete the selected view or item | `Ctrl+Alt+S` | Switch Model and Sheets (global) |
+
 **Keyboard ownership rule:** the viewport owns the keyboard by default. Plain
 keys are tool shortcuts and digits go to the Measurements box. Text fields
 (entity name, assistant composer) take keys only while focused, and `Esc`
@@ -509,6 +527,7 @@ that do not exist yet.
 | M7 | Styles, Scenes tabs, sections, dimensions and text, shadows, full Jobs list, Blender handoff |
 | M8 | Component library, templates, import/export report sheets, extension management |
 | M9 | Shortcut editor, accessibility audit against section 10, scaling and multi-display verification, preference migration |
+| M10 (R091) | Sheets workspace (section 13): Model \| Sheets switch, page canvas, sheet tool rail, Sheets Tray (Entity info, References, Pages, History), model views with Changed and Broken states, edit-view, lines, rectangles, text, labels, referenced dimensions with Reattach, title blocks, workspace-scoped shortcuts |
 
 ## 12. Decisions to confirm
 
@@ -524,3 +543,153 @@ that do not exist yet.
 Validate sections 4 and 8 with the M5 demonstration in the build plan: a
 person should be able to complete every step using only what this document
 describes, and each failure case in step 8 should land in a state named here.
+
+## 13. Sheets
+
+The Sheets workspace lays out drawing pages from the model's scenes
+([ADR 0163](decisions/0163-documentation-sheets.md) records,
+[ADR 0164](decisions/0164-sheet-layout-interface.md) interface; R091). Page
+editing never changes model geometry: every page operation is one labelled,
+undoable sheet-only entry in the model's single history.
+
+### 13.1 Switching workspace
+
+- The header holds a **Model | Sheets** switch: two buttons, also under View
+  (Model workspace, Sheets workspace). `Ctrl+Alt+S` switches between them and
+  is configurable like any shortcut.
+- Switching swaps the tool rail, the central area and the Tray. The model
+  viewport is never closed, so returning to Model is instant and keeps the
+  camera and selection.
+- In Sheets the header's document name reads "house.sketchyup · Sheets •
+  Edited", and the Page, Insert and Arrange menus appear.
+- F6 regions in Sheets: command search, sheet tool rail, canvas, page tabs,
+  Tray (Sheets), Assistant, Measurements.
+
+### 13.2 Layout
+
+```text
+┌────────────────────────────────────────────────────────────────────────────┐
+│ File Edit View … Page Insert Arrange  [Model|Sheets]  house.sketchyup · Sheets │
+├────┬───────────────────────────────────────────────────┬───────────────────┤
+│ ▸  │ Sheets › A-101 Ground floor   A3 420×297 · Grid ⛶ │ ▾ Entity info     │
+│ ▢  │ ┌─────────────────────────────────────────────┐   │ ▾ References      │
+│ ── │ │  ┌ plan ─────────┐  ┌ elevation ── ⟳ Changed│   │   2 views changed │
+│ ╱  │ │  │               │  │                 │     │   │   [Accept all]    │
+│ ▭  │ │  └───────────────┘  └─────────────────┘     │   │ ▾ Pages           │
+│ T  │ │                          ┌ title block ───┐ │   │   A-101 ⟳2        │
+│ ↘  │ │                          └────────────────┘ │   │   A-201 ⊗1        │
+│ ↔  │ └─────────────────────────────────────────────┘   │ ▸ History         │
+│ ── │ ┌ A-101 ┬ A-201 ┬ + Page ┐                         │                   │
+├────┴───────────────────────────────────────────────────┴───────────────────┤
+│ Dimension │ Click the second point · Esc cancels │ Paper units: mm │ Offset [ 10 ] │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Canvas.** White paper on a pasteboard, the margin frame, an optional
+  5 mm grid, and the page's views and items. Wheel and the Zoom and Pan tools
+  move the page; `Shift+Z` fits it. Targets and snapping keep their size in
+  logical pixels at every zoom and scale factor.
+- **Breadcrumb and paper line** above the canvas name the page and its paper,
+  with the grid toggle and Fit page.
+- **Page tabs** below the canvas switch pages; **+ Page** adds one and copies
+  the current page's title block in the same entry.
+- **Status bar.** An active-tool label, the instruction, "Paper units: mm" and
+  the Measurements box labelled with the current step.
+
+### 13.3 Tools
+
+| Tool | Use |
+| --- | --- |
+| Select | Click or Tab to select a view or item; drag to move; handles crop a view; arrows nudge 1 mm (`Shift` 10 mm), and consecutive nudges are one "Nudge" entry; Enter opens edit-view on a view or edits text in place |
+| Model view (`W`) | The Tray shows **New model view**: this model, its scenes with their projections, the scale (the page's scale by default) and the style. Drag a frame, click–move–click, or type `w,h`; Enter or **Place** uses the natural frame at the pointer. A perspective scene places as "Not to scale" with rendered content |
+| Line, Rectangle | Drag or click–move–click; `Shift` gives 45° steps or a square; snaps to the grid, margins and view edges |
+| Text | Click (the box fits the words) or drag (the drag sets the wrap width), then type in place; a new item is made only when editing ends with text |
+| Label | First click picks the leader's point: a model vertex or edge in a view drawn to scale binds it to that view, anything else is a paper point. Second click places the text |
+| Dimension | Pick two model points in one view (vertex preferred within 8 px), then the offset. Values follow the page's dimension format |
+| Move, Pan, Zoom | Move picks up and drops; Pan and Zoom move the page view |
+
+Insert › Title block places a title block in the bottom-right corner of the
+margin. Its project, drawing title, date and revision are stored; the sheet
+number, page "n of N" and scale ("1:50 @ A3", "As indicated", "Not to scale")
+fill in automatically. Arrange › Bring forward and Send backward change the
+stacking order.
+
+**Snapping.** 8 logical pixels at any zoom, to the paper edges, the margins,
+and other views' edges and centres, which draw as alignment guides; the 5 mm
+grid applies when shown and nothing nearer does. A hint names the target. `Alt`
+held during a drag ignores snapping.
+
+### 13.4 Measurements in Sheets
+
+Bare numbers are paper millimetres; `cm` and `in` suffixes are accepted.
+Dimension *values* use the page's dimension format, never the model's units.
+Typing right after an operation revises it (amend), as in Model.
+
+| Tool or step | Label | Accepts |
+| --- | --- | --- |
+| Model view | Size | `w,h` frame size |
+| Select, one view | Scale | `1:50` or `50` sets the scale; `w,h` crops |
+| Select, items | Move | `<dx,dy>`, `[x,y]` (top-left) or `12pt` (text size) |
+| Select, a dimension | Offset | offset in mm |
+| Line | Length | a length along the preview, `<dx,dy>` or `[x,y]` |
+| Rectangle | Size | `w,h` |
+| Move | Distance | `dx,dy` |
+| Text, Label | Position | `[x,y]`, or `12pt` for new text |
+| Dimension, after two points | Offset | offset in mm |
+| Zoom | Zoom | `150%` or a factor |
+
+### 13.5 View states
+
+| State | On the page (screen only, never printed) | Repair |
+| --- | --- | --- |
+| Current | Nothing | — |
+| Changed | Amber "⟳ Changed" chip in the frame corner | **Accept view** (`U`) or **Accept all** (References, Page menu) |
+| Broken | Red border, cross-hatch and a card naming the cause, for example "Scene “South elevation” was deleted", with **Choose scene…** | Choose scene… relinks the view, keeping frame and scale |
+| Failed | As Broken, with "Could not draw this view" and the detail | — |
+
+"Not to scale" (a perspective scene) is a caption, not a state. Until a view's
+evaluation arrives, the page keeps its last drawing and Entity info reads
+"Updating…".
+
+**Edit-view.** Enter on a selected orthographic view, or **Edit view** in
+Entity info, edits what the frame shows without moving the frame: the wheel
+zooms the crop about the pointer, arrows pan 1 mm (`Shift` 10 mm), `+` and `-`
+zoom, and a banner offers **Save as new scene…** and **Done**. Each gesture is
+one entry; Esc, Done or a click outside leaves. **Show scene in model** applies
+the scene's camera in Model without an edit.
+
+### 13.6 Referenced dimensions and Reattach
+
+A dimension measures model geometry through its view: moving geometry, or
+changing the view's scale, crop or scene camera, updates the value at once.
+Anchors are resolved by entity identity. When an anchored vertex or edge no
+longer exists (erasing it, splitting an anchored edge, making a component), the
+dimension turns red at its last position, reads "[Missing reference]", and
+Entity info offers **Reattach**. Reattach proposes the nearest model vertex or
+edge point in the view; Enter accepts it, or a click picks another, and nothing
+is committed until then. Labels bound to a view behave the same way.
+
+### 13.7 The Tray in Sheets
+
+| Section | Contents |
+| --- | --- |
+| Entity info | The selection's editable fields: Model view (title, source, scale, style, crop, status, Edit view, Show scene in model, Choose scene…), each item kind's fields, and Page (dimension unit, decimals, show unit) when nothing is selected |
+| References | This model, the count of changed views, and **Accept all** |
+| Pages | Pages expanding to their views and items in paint order, with a state glyph (amber ⟳ changed, red ⊗ broken; page rows show counts) |
+| History | The shared labelled history |
+
+While Model view is the active tool, the **New model view** panel replaces
+these sections.
+
+### 13.8 Accessibility
+
+The canvas is one accessible object named for the page. Its description
+announces the selected view or item ("View 1 · Ground floor plan · 1:50 ·
+Changed since accepted"), and each view and item is an accessible child. The
+**Pages** tree is the full keyboard and screen-reader alternative, as the
+Outliner is for the model: arrows choose a row and select it on the canvas, F2
+renames a page or view, Alt+Up and Alt+Down move a page or an item's stacking
+order, Delete erases, and Enter edits an item's text. State glyphs carry their
+words as tooltip and accessible description. Entity info exposes every value as
+a labelled field. With typed Measurements, a page can be laid out without a
+pointer. Every Sheets control draws the visible focus ring of section 10.

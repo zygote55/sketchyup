@@ -212,14 +212,6 @@ int main(int argc, char **argv) {
     // file so a system Blender (CI installs one) cannot hold the check, and its button, busy.
     QSettings("SketchyUp", "SketchyUp")
         .setValue("render/blenderPath", settings.filePath("absent-blender"));
-    // The Sheets workspace is behind its flag until R091.h; its dialogs (the "sheets" group) and
-    // the inventory's completeness check need it.
-    if (app.arguments().size() == 2) {
-        const auto group = app.arguments()[1].section('=', 1);
-        if (app.arguments()[1].startsWith("--dialogs-keyboard=") &&
-            (group == "sheets" || group == "inventory" || group == "all"))
-            qputenv("SKETCHYUP_SHEETS_WORKSPACE", "1");
-    }
     Window window(nullptr, services);
     try {
         if (app.arguments().size() == 2 && app.arguments()[1].startsWith("--dialogs-keyboard=")) {

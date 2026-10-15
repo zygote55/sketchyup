@@ -240,8 +240,7 @@ inline std::function<void(QWidget &)> verifiedBlender(Context &context,
             "Fake Blender check enables Render");
     };
 }
-// R091.f: a page with one plan view of a top scene, for the Sheets workspace dialogs. The
-// window must have been built with SKETCHYUP_SHEETS_WORKSPACE=1 (the "sheets" group).
+// R091.f: a page with one plan view of a top scene, for the Sheets workspace dialogs.
 inline void sheetView(Context &context) {
     fresh(context);
     require(context.window.sheetWorkspace() != nullptr, "The Sheets workspace exists");

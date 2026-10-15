@@ -132,7 +132,13 @@ SheetCanvas::Placement sheetPlacement(const Document &doc, Id scene, double scal
                 break;
             const auto sheet = projection.worldToSheet(world.point(point));
             const QPointF at(sheet.x - 50, sheet.y - 50);
-            box = box.isNull() ? QRectF(at, QSizeF(1e-9, 1e-9)) : box.united(QRectF(at, at));
+            // Grow by each point. (QRectF::united ignores a zero-size rectangle, so uniting
+            // with QRectF(at, at) kept only the first point.)
+            box = box.isNull()
+                      ? QRectF(at, QSizeF(1e-9, 1e-9))
+                      : QRectF(
+                            QPointF(std::min(box.left(), at.x()), std::min(box.top(), at.y())),
+                            QPointF(std::max(box.right(), at.x()), std::max(box.bottom(), at.y())));
         }
     }
     if (box.isNull())
