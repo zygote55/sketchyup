@@ -1035,3 +1035,138 @@ design §§1, 2, 4, 6.
 R091.a–d are headless and can be reviewed in parallel with design follow-ups.
 R091.e depends on a–d. R091.f and R091.g both depend on e and touch the same
 files, so they merge in order.
+
+## R092 export
+
+Added 2026-10-14 for [R092](../PR_ROADMAP.md#r092). R092 prints and exports the
+drawing set through the compositor of §1 (decision 1). The approved preflight design
+is the "Export sheets as PDF" dialog of the R091 UX design canvas.
+
+### Decisions (owner, 2026-10-14)
+
+1. **Real text.** PDF text is real text with embedded font subsets, so it can be
+   selected and searched. Geometry stays vector. A font that cannot be embedded is
+   drawn as outlines and reported by the preflight. Raster views are drawn at 300 dpi
+   by default.
+2. **Actual size.** Each page is its own paper size in millimetres, and one PDF may
+   mix sizes. Measured scale holds on paper: a 2 m edge at 1:50 is 40 mm.
+3. **One preflight.** The preflight is a pure function of the document and the export
+   options. It returns structured findings, each with a severity (blocking, warning
+   or info), a stable code, the affected sheet, view and item IDs, and a message. The
+   export refuses to run while a blocking finding is unresolved. The caller's opt-ins
+   turn specific blocking findings into warnings. The desktop dialog, the CLI and the
+   automation query all call the same function.
+4. **Reconciliation report.** Every export produces a JSON report. It lists the
+   pages, and for each view its state, fingerprint, accepted stamp and scale. It also
+   lists font substitutions, raster views and DPI, and the views exported as they are
+   now (changed since accepted) or as empty frames. This is the roadmap's
+   "model-update reconciliation report". It is attached to the PDF as
+   `sheet-export-report.json` and returned to the caller.
+
+### R092.a: the headless engine
+
+- **Engine.** `src/io/sheet_export.{hpp,cpp}`:
+  - `preflightSheetExport(doc, options)`;
+  - `renderSheetsPdf(doc, options)`, which paints into memory;
+  - `exportSheetsPdf(doc, options, path)`, which publishes through `publishNewFile`. It
+    never replaces an existing file, and a failure leaves no partial file.
+- **Pages.** Each page is painted by `paintDrawingSheet` into one `QPdfWriter` at 2540
+  dpi, so one device unit is 0.01 mm. Each page gets its own `QPageLayout` before
+  `newPage`. Qt writes page boxes in whole points, so a page is within 0.5 pt
+  (0.18 mm) of its paper size; drawing coordinates, and so measured scale, are exact. Nothing edits the document; every read uses `captureDrawingSheet`
+  snapshots.
+- **Text.** The compositor's text primitives keep their shaped glyph runs as well as
+  their outlines. `DrawingTextMode::Text` (a new paint option) draws the runs with
+  `QPainter::drawGlyphRun`, so Qt's PDF engine embeds a TrueType subset with a
+  ToUnicode map.
+  - `drawingFontEmbeddable` refuses a font without TrueType outlines (`glyf`), and an
+    OS/2 `fsType` of restricted-license, no-subsetting or bitmap-only. Text in such a
+    font is filled as outlines instead.
+  - Model annotations inside views (`measuredDrawingPaths`) keep their runs the same
+    way.
+  - Sheet text is shaped with contextual alternates and ligatures off (`calt`, `liga`,
+    `clig`), so every glyph maps back to its character. Faces such as Inter swap ":"
+    and "-" between digits for glyphs outside their character map, which would drop
+    them from extracted text. The canvas uses the same shaping, so screen and paper
+    agree.
+  - The desktop canvas keeps the default, `Outlines`: it still fills the glyph paths.
+  - R078's measured export is unchanged.
+- **Options.**
+  - `sheets`: empty means every sheet. Pages are always written in page order.
+  - `allowBroken`: export broken or failed views, and raster views that cannot be
+    rendered, as empty, labelled frames.
+  - `allowChanged`: export views that changed since they were accepted as they are
+    now.
+  - `rasterDpi`: 72–1200, default 300. Each raster view is capped at 8192 px per side
+    and 16 MP; the report gives the DPI actually used.
+  - `rasterRenderer`: the desktop viewport's scene-scoped capture. Headless callers
+    have none.
+- **Page ranges.** `resolveSheetPageRange` accepts:
+  - `all`;
+  - a sheet number such as `A-101`, or a 1-based position when no sheet has that
+    number;
+  - a range `FROM..TO` (or `FROM–TO` with an en dash; a hyphen belongs to sheet
+    numbers);
+  - comma-separated lists of these.
+- **Findings.** An opted-in finding keeps its code, becomes a warning, and has
+  `optedIn` set.
+
+  | Code | Severity | Meaning |
+  | --- | --- | --- |
+  | `viewBroken` | blocking; warning with `allowBroken` | One per broken or failed view (or one over the path budgets): "A-301, view 3 “Section B-B”: its scene was deleted." It prints as an empty, labelled frame |
+  | `viewChanged` | blocking; warning with `allowChanged` | All views changed since accepted (`stale`), with their reasons, fingerprints and accepted stamps. ADR 0163 refuses to publish them unless acknowledged |
+  | `rasterUnavailable` | blocking; warning with `allowBroken` | Raster views that this export cannot render because it has no viewport. They print as labelled frames |
+  | `fontSubstituted` | warning | One per missing family, naming its substitute and the items and pages that use it |
+  | `fontOutlined` | warning | A font that cannot be embedded. Its text is drawn as outlines and cannot be selected |
+  | `missingGlyphs` | warning | Characters with no glyph in their font |
+  | `itemBroken` | warning | Page items with a missing model reference. They print in red as "[Missing reference]"; Reattach fixes them |
+  | `sceneReferencesMissing` | warning | A view whose scene names model entities that no longer exist |
+  | `scaleSummary` | info | "7 views at measured scale: 6 at 1:50 and 1 at 1:20. Print at 100% to measure from paper." |
+  | `rasterViews` | info | "1 view will be raster: “Garden view” (perspective) at 300 dpi. Everything else is vector." |
+
+- **CLI.** `sketchyup-cli --export-sheets OUT.pdf --input MODEL [--pages RANGE]
+  [--allow-broken] [--allow-changed] [--preflight-only]`.
+  - Like `--export-view`, it is a standalone operation that starts the offscreen
+    `QGuiApplication` font worker.
+  - `--preflight-only` prints `{"status":"preflight","preflight":{…}}` and writes
+    nothing.
+  - An export prints `{"status":"exported","exportReport":{…}}`.
+  - A blocked export exits 1 with `{"status":"failed","code":"EXPORT_BLOCKED",
+    "preflight":{…}}` on standard error.
+  - The sheet options without `--export-sheets` are `INVALID_REQUEST`.
+- **Automation.** The inspection query `drawing_sheets.export_preflight {pages?,
+  allowBroken?, allowChanged?, rasterDpi?, rasterCapture?}` returns the same findings.
+  It appears in the session, headless MCP and native MCP catalogs.
+  - `rasterCapture` describes an export that has the desktop's raster capture.
+  - The query needs the font worker. In a process without a `QGuiApplication` (the
+    headless `--session`, `--mcp` and `--inspect` modes, which keep `QCoreApplication`
+    under ADR 0127) it returns `UNAVAILABLE_CONTEXT`.
+  - The export itself is **not** an automation operation. ADR 0028 exposes no
+    arbitrary-path tool, and the session writes only the destination bound at launch.
+    A launcher-bound export destination would need its own decision.
+- **Tests.** `sheet_export_tests` (ctest `sheet_export`; `sheet_export_real` with
+  `SKETCHYUP_PDF_TEST=pdftoppm`, as `measured_export_real`). With Poppler, it
+  rasterizes the PDF and measures the 2 m edge as 40 mm ± 0.1 mm, checks clipping to
+  the view frame, extracts the dimension and title-block text with `pdftotext`, and
+  checks embedded subsets with `pdffonts`.
+
+### R092.b: desktop export and print (planned)
+
+- **File › Export sheets…** opens the preflight dialog from the approved design. The
+  dialog has:
+  - the page choice: All, Current page, or a range such as A-101–A-301;
+  - the output file;
+  - the "Checked before publishing" list, built from `preflightSheetExport` findings
+    and grouped by code.
+- **Controls in the list.**
+  - A broken view offers **Go to view** and "Export it as an empty, labelled frame"
+    (`allowBroken`).
+  - Changed views offer **Review and accept** and "Export them as they are now (named
+    in the export report)" (`allowChanged`).
+  - A substituted font offers **Choose another font**.
+  - **Export PDF** stays disabled while a blocking finding is unresolved; the footer
+    names what to fix.
+- **Raster views.** The desktop passes `Viewport::renderDrawingViewRaster` as
+  `rasterRenderer`, so raster views export at 300 dpi.
+- **Print…** goes through `QPrintDialog` at 100% (no fit-to-page). It runs the same
+  preflight and paints each page with `paintDrawingSheet` at actual size.

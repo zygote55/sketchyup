@@ -1201,6 +1201,67 @@
                 "openWorldHint": false,
                 "readOnlyHint": true
             },
+            "description": "drawing_sheets.export_preflight: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "allowBroken": {
+                        "type": "boolean"
+                    },
+                    "allowChanged": {
+                        "type": "boolean"
+                    },
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "pages": {
+                        "maxLength": 1024,
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "drawing_sheets.export_preflight"
+                    },
+                    "rasterCapture": {
+                        "type": "boolean"
+                    },
+                    "rasterDpi": {
+                        "maximum": 1200,
+                        "minimum": 72,
+                        "type": "integer"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "drawing_sheets.export_preflight"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
             "description": "selection.get: shared versioned SketchyUp operation",
             "inputSchema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -11731,6 +11792,52 @@
                                 },
                                 "required": [
                                     "item",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "allowBroken": {
+                                        "type": "boolean"
+                                    },
+                                    "allowChanged": {
+                                        "type": "boolean"
+                                    },
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "pages": {
+                                        "maxLength": 1024,
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "drawing_sheets.export_preflight"
+                                    },
+                                    "rasterCapture": {
+                                        "type": "boolean"
+                                    },
+                                    "rasterDpi": {
+                                        "maximum": 1200,
+                                        "minimum": 72,
+                                        "type": "integer"
+                                    }
+                                },
+                                "required": [
                                     "apiVersion",
                                     "documentId",
                                     "expectedRevision",

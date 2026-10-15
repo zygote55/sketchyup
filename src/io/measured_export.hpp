@@ -1,6 +1,7 @@
 #pragma once
 #include "io/measured_drawing.hpp"
 #include <QColor>
+#include <QGlyphRun>
 #include <QImage>
 #include <QPainterPath>
 #include <vector>
@@ -18,6 +19,10 @@ struct MeasuredPathPrimitive {
     double width{.25}; // Stroke width in millimetres; unused when filled.
     bool fill{}, dashed{};
     QString label; // The annotation text a filled glyph path draws.
+    // The label as shaped glyph runs; glyphTransform maps them to page millimetres.
+    // The sheet compositor paints them as real PDF text (R092); R078 export ignores them.
+    QList<QGlyphRun> glyphs;
+    QTransform glyphTransform;
 };
 struct MeasuredDrawingPaths {
     std::vector<MeasuredPathPrimitive> values; // Paint order.

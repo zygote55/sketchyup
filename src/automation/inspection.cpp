@@ -7,6 +7,7 @@
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "io/display_precision_io.hpp"
+#include "io/sheet_export.hpp"
 #include "io/model_style_io.hpp"
 #include "io/solar_io.hpp"
 #include "automation/solar_commands.hpp"
@@ -72,6 +73,7 @@ enum class Operation {
     DrawingItems,
     DrawingItem,
     DrawingItemReattach,
+    DrawingSheetsExportPreflight,
     Selection,
     Entities,
     Entity,
@@ -139,6 +141,13 @@ const std::vector<Spec> &registry() {
             spec("drawing_item.describe", Operation::DrawingItem, {{"item", idSchema()}}, {"item"}),
             spec("drawing_item.reattach_candidates", Operation::DrawingItemReattach,
                  {{"item", idSchema()}}, {"item"}),
+            spec("drawing_sheets.export_preflight", Operation::DrawingSheetsExportPreflight,
+                 {{"pages", textSchema(1024)},
+                  {"allowBroken", QJsonObject{{"type", "boolean"}}},
+                  {"allowChanged", QJsonObject{{"type", "boolean"}}},
+                  {"rasterDpi", QJsonObject{{"type", "integer"}, {"minimum", 72}, {"maximum", 1200}}},
+                  {"rasterCapture", QJsonObject{{"type", "boolean"}}}},
+                 {}),
             spec("selection.get", Operation::Selection, {}, {}, true),
             spec("entities.query", Operation::Entities,
                  {{"parent", ref},
@@ -732,6 +741,26 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         if (!doc.drawingItems().contains(id))
             fail("NOT_FOUND", "Drawing item does not exist");
         data = drawingItemReattachDescription(doc, id);
+        break;
+    }
+    case Operation::DrawingSheetsExportPreflight: {
+        // The shared R092 preflight (sheet_export.hpp); it needs the graphical font worker.
+        // rasterCapture describes an export that has the desktop viewport's raster capture.
+        try {
+            SheetExportOptions options;
+            if (request.contains("pages"))
+                options.sheets = resolveSheetPageRange(doc, request["pages"].toString().toStdString());
+            options.allowBroken = request["allowBroken"].toBool();
+            options.allowChanged = request["allowChanged"].toBool();
+            options.rasterDpi = request["rasterDpi"].toInt(300);
+            if (request["rasterCapture"].toBool())
+                options.rasterRenderer = [](const DrawingViewEvaluationInput &, QSize) -> QImage {
+                    throw std::logic_error("Preflight never renders");
+                };
+            data = sheetExportPreflightJson(preflightSheetExport(doc, options));
+        } catch (const SheetExportError &error) {
+            throw InspectionError(error.code(), error.what());
+        }
         break;
     }
     case Operation::Selection:
