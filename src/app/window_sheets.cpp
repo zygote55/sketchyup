@@ -1,5 +1,6 @@
 #include "app/interface_preferences.hpp"
 #include "app/keyboard_navigation.hpp"
+#include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_item_info.hpp"
 #include "app/sheet_items.hpp"
@@ -887,7 +888,7 @@ void Window::chooseViewScene(Id view) {
                          "workspace first.");
         return;
     }
-    QInputDialog dialog(this);
+    SettledInputDialog dialog(this);
     dialog.setObjectName("chooseSceneDialog");
     dialog.setWindowTitle("Choose scene");
     dialog.setInputMode(QInputDialog::TextInput);
@@ -950,7 +951,7 @@ void Window::saveViewScene(Id view) {
     auto proposed = base;
     for (int n = 2; names.contains(proposed.toStdString()); ++n)
         proposed = base + " " + QString::number(n);
-    QInputDialog dialog(this);
+    SettledInputDialog dialog(this);
     dialog.setObjectName("saveViewSceneDialog");
     dialog.setWindowTitle("Save as new scene");
     dialog.setInputMode(QInputDialog::TextInput);

@@ -852,7 +852,15 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         click(button.center());
         watch.finish();
         check(QTest::qWaitFor([&] { return window.isActiveWindow() && focused() == canvas; }),
-              "Focus returns to the canvas after Choose scene; got " + identity(focused()));
+              "Focus returns to the canvas after Choose scene; got " + identity(focused()) +
+                  "; focus window " +
+                  (QGuiApplication::focusWindow()
+                       ? QGuiApplication::focusWindow()->objectName().toStdString() + "/" +
+                             QGuiApplication::focusWindow()->metaObject()->className()
+                       : std::string("none")) +
+                  "; active window " + identity(QApplication::activeWindow()) + "; modal " +
+                  identity(QApplication::activeModalWidget()) + "; window focus child " +
+                  identity(window.focusWidget()));
         const auto &relinked = view(window, f.north);
         check(lastLabel(doc) == "Choose scene" && relinked.source.scene == f.southScene &&
                   relinked.frame == north.frame &&

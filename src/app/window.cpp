@@ -7,6 +7,7 @@
 #include "app/keyboard_navigation.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/render_panel.hpp"
+#include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
@@ -789,7 +790,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                                             {"view.isometric", "Isometric", 7}})
         view->addAction(action(id, label, {}, [this, preset] { viewport_->standardView(preset); }));
     view->addAction(action("view.fov", "Field of view…", {}, [this] {
-        QInputDialog input(this);
+        SettledInputDialog input(this);
         input.setWindowTitle("Field of view");
         input.setLabelText("Vertical angle in degrees");
         input.setInputMode(QInputDialog::DoubleInput);
