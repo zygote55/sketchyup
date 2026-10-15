@@ -1,4 +1,7 @@
 #include "app/render_panel.hpp"
+#include "app/sheet_evaluation.hpp"
+#include "app/sheet_workspace.hpp"
+#include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/drawing_sheets.hpp"
@@ -515,6 +518,17 @@ void sheetsWorkspace() {
     view.frame = {20, 20, 150, 100};
     view.scaleDenominator = 50;
     createDrawingView(doc, view);
+    // R091.f: a second view whose scene is deleted later, for Choose scene….
+    SceneSnapshot front;
+    front.camera = SceneCamera{};
+    front.camera->yaw = -90;
+    front.camera->pitch = 0;
+    front.camera->orthographic = true;
+    const auto frontScene = createScene(doc, "Front", front);
+    view.name = "Front";
+    view.source = {DrawingViewSourceKind::Scene, frontScene};
+    view.frame = {200, 20, 150, 100};
+    const auto frontView = createDrawingView(doc, view);
     emit window.viewport()->changed();
     window.viewport()->setFocus();
     check(QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }), "Model focus");
@@ -547,6 +561,10 @@ void sheetsWorkspace() {
     key(Qt::Key_F6, Qt::ShiftModifier); // then to the rail's stop.
     check(QTest::qWaitFor([&] { return focused() == toolButton("sheet.tool.select"); }),
           "Rail stop is the active sheet tool, got " + identity(focused()));
+    key(Qt::Key_Down);
+    check(focused() == toolButton("sheet.tool.view"), "Down moves to Model view in the sheet rail");
+    key(Qt::Key_Down);
+    check(focused() == toolButton("sheet.tool.move"), "Down moves past the separator to Move");
     key(Qt::Key_Down);
     check(focused() == toolButton("sheet.tool.pan"), "Down moves to Pan in the sheet rail");
     key(Qt::Key_Return);
@@ -590,6 +608,74 @@ void sheetsWorkspace() {
     check(pages->currentItem() && pages->currentItem() != pages->topLevelItem(0),
           "Down moves through the Pages tree");
     (void)second;
+    // R091.f: every new control is reachable by Tab from the canvas.
+    auto *sheetCanvas = window.sheetWorkspace()->canvas();
+    auto tabReaches = [&](const std::vector<QWidget *> &targets, const std::string &context) {
+        sheetCanvas->setFocus(Qt::OtherFocusReason);
+        check(QTest::qWaitFor([&] { return sheetCanvas->hasFocus(); }), context + ": canvas focus");
+        std::set<QWidget *> reached;
+        std::string visited;
+        for (int i = 0; i < 400; ++i) {
+            key(Qt::Key_Tab);
+            if (focused() == sheetCanvas)
+                break;
+            if (reached.insert(focused()).second)
+                visited += " " + identity(focused());
+        }
+        for (auto *target : targets)
+            check(target && reached.contains(target),
+                  context + ": Tab reaches " + identity(target) + "; visited:" + visited);
+    };
+    tabs->setCurrentIndex(0);
+    sheetCanvas->setFocus(Qt::OtherFocusReason);
+    check(QTest::qWaitFor([&] { return sheetCanvas->hasFocus(); }), "Canvas focus for R091.f");
+    window.findChild<QAction *>("sheet.tool.select")->trigger();
+    key(Qt::Key_Tab);
+    check(sheetCanvas->selectedView() != 0 && sheetCanvas->hasFocus(),
+          "With Select, Tab selects a view and the canvas keeps focus");
+    // Entity info: title, scale, style, Edit view and Show scene in model (Pan lets Tab leave).
+    window.findChild<QAction *>("sheet.tool.pan")->trigger();
+    tabReaches({window.findChild<QWidget *>("sheetInfoTitle"),
+                window.findChild<QWidget *>("sheetInfoScale"),
+                window.findChild<QWidget *>("sheetInfoStyle"),
+                window.findChild<QWidget *>("sheetInfoEditView"),
+                window.findChild<QWidget *>("sheetInfoShowScene")},
+               "Entity info");
+    // The New model view panel.
+    window.findChild<QAction *>("sheet.tool.view")->trigger();
+    auto *panel = window.sheetsTray()->placePanel();
+    tabReaches({panel->findChild<QWidget *>("sheetPlaceModel"), panel->scenes()->checkedButton(),
+                panel->scaleChoice(), panel->placeButton(), panel->cancelButton()},
+               "New model view");
+    // Arrows move between the scene radio buttons.
+    panel->scenes()->checkedButton()->setFocus(Qt::TabFocusReason);
+    const auto firstScene = panel->scene();
+    key(Qt::Key_Down);
+    check(panel->scene() != firstScene, "Down chooses the next scene in the panel");
+    // Edit-view: the banner's Save as new scene… and Done follow the canvas.
+    window.findChild<QAction *>("sheet.tool.select")->trigger();
+    sheetCanvas->setSelectedView(sheetCanvas->views().front());
+    sheetCanvas->setFocus(Qt::OtherFocusReason);
+    key(Qt::Key_Return);
+    check(sheetCanvas->editView() != 0, "Enter opens edit-view");
+    tabReaches({sheetCanvas->saveSceneButton(), sheetCanvas->doneButton()}, "Edit-view banner");
+    sheetCanvas->setFocus(Qt::OtherFocusReason);
+    key(Qt::Key_Escape);
+    check(sheetCanvas->editView() == 0, "Esc leaves edit-view");
+    // Choose scene… on a broken view.
+    eraseScene(doc, frontScene);
+    emit window.viewport()->changed();
+    check(QTest::qWaitFor(
+              [&] {
+                  const auto status = window.sheetEvaluations()->status(frontView);
+                  return status && status->state == DrawingViewState::Broken;
+              },
+              20000),
+          "The Front view is broken");
+    sheetCanvas->setSelectedView(frontView);
+    window.findChild<QAction *>("sheet.tool.pan")->trigger();
+    tabReaches({window.findChild<QWidget *>("sheetInfoChooseScene")}, "Choose scene…");
+    window.findChild<QAction *>("sheet.tool.select")->trigger();
     key(Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
     check(window.workspace() == Window::Workspace::Model &&
               QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),

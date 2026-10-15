@@ -3,8 +3,10 @@
 // here (audited by `native_accessibility_audit --dialogs-keyboard=GROUP`) or listed in
 // `unexercised()` with the reason it cannot run in the isolated fixture.
 #include "app/render_panel.hpp"
+#include "app/sheet_workspace.hpp"
 #include "automation/extension_store.hpp"
 #include "core/components.hpp"
+#include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include "integrations/chatgpt_auth.hpp"
 #include "native_dialog_audit.hpp"
@@ -237,6 +239,48 @@ inline std::function<void(QWidget &)> verifiedBlender(Context &context,
                 [&] { return setup.findChild<QPushButton *>("startRender")->isEnabled(); }, 20000),
             "Fake Blender check enables Render");
     };
+}
+// R091.f: a page with one plan view of a top scene, for the Sheets workspace dialogs. The
+// window must have been built with SKETCHYUP_SHEETS_WORKSPACE=1 (the "sheets" group).
+inline void sheetView(Context &context) {
+    fresh(context);
+    require(context.window.sheetWorkspace() != nullptr, "The Sheets workspace exists");
+    auto &doc = context.window.document();
+    SceneSnapshot plan;
+    plan.camera = SceneCamera{};
+    plan.camera->pitch = 90;
+    plan.camera->orthographic = true;
+    const auto scene = createScene(doc, "Audit plan", plan);
+    plan.camera->yaw = -90;
+    plan.camera->pitch = 0;
+    createScene(doc, "Audit front", plan);
+    const auto sheet = createDrawingSheet(doc, "Audit page", {420, 297}, "A-1", 10);
+    DrawingViewRecord view;
+    view.name = "Audit view";
+    view.sheet = sheet;
+    view.source = {DrawingViewSourceKind::Scene, scene};
+    view.frame = {20, 20, 150, 100};
+    view.scaleDenominator = 50;
+    createDrawingView(doc, view);
+    doc.markSaved();
+    emit context.window.viewport()->changed();
+}
+// Shows the page and selects its view; with `edit`, opens edit-view (Enter on the canvas).
+inline void selectSheetView(Context &context, bool edit) {
+    auto &window = context.window;
+    window.setWorkspace(Window::Workspace::Sheets);
+    auto *canvas = window.sheetWorkspace()->canvas();
+    const auto sheets = orderedDrawingSheets(window.document());
+    require(!sheets.empty(), "The audit page exists");
+    window.sheetWorkspace()->setCurrentSheet(sheets.back());
+    canvas->setFocus(Qt::OtherFocusReason);
+    require(QTest::qWaitFor([&] { return canvas->hasFocus(); }), "The page canvas has focus");
+    QTest::keyClick(canvas, Qt::Key_Tab); // With Select, Tab selects the first view.
+    require(canvas->selectedView() != 0, "Tab selects the audit view");
+    if (edit) {
+        QTest::keyClick(canvas, Qt::Key_Return);
+        require(canvas->editView() != 0, "Enter opens edit-view");
+    }
 }
 inline void exportSettings(QWidget &sheet, Context &context) {
     sheet.findChild<QSpinBox *>("animationFps")->setValue(1);
@@ -1266,9 +1310,34 @@ inline std::vector<Case> cases(Context &ctx) {
              press(button);
          },
          named("assistantConsent"), Enter::Closes, "Cancel", Return::Opener});
+    // -------------------------------------------------------------- sheets ---------
+    // R091.f: opened from the page canvas through the palette; focus returns to the canvas.
+    add({"sheet-choose-scene", "sheets", "Choose scene",
+         "Sheets: Tab selects a view, then Page > Choose scene… (palette)", sheetView,
+         [](Context &context) {
+             selectSheetView(context, false);
+             palette(context, "Choose scene…");
+         },
+         named("chooseSceneDialog"), Enter::Accept, "Choose", Return::Opener});
+    add({"sheet-save-scene", "sheets", "Save as new scene",
+         "Sheets: Tab selects a view, Enter opens edit-view, then Page > Save as new scene… "
+         "(palette)",
+         sheetView,
+         [](Context &context) {
+             selectSheetView(context, true);
+             palette(context, "Save as new scene…");
+         },
+         named("saveViewSceneDialog"), Enter::Accept, "Save scene", Return::Opener});
     return all;
 }
 // Dialogs that exist in the product but cannot be opened in the isolated, offline fixture.
+// Public "…" commands that edit in place rather than open a dialog.
+inline QJsonArray inPlaceEditors() {
+    return QJsonArray{QJsonObject{
+        {"id", "sheet.page.rename"},
+        {"reason", "Renames the page in place in the Sheets Tray's Pages tree (F2); no dialog "
+                   "opens (ADR 0164 §4)."}}};
+}
 inline QJsonArray unexercised() {
     return QJsonArray{
         QJsonObject{{"id", "file-operation-progress"},

@@ -310,6 +310,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     activeTool_->hide();
     bottomLayout->addWidget(activeTool_);
     status_ = new ElidedLabel("Select a tool to begin");
+    status_->setObjectName("statusMessage");
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     bottomLayout->addWidget(status_, 1);
@@ -319,6 +320,11 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     measurementUnits_ = new QLabel;
     measurementUnits_->setObjectName("measurementUnits");
     bottomLayout->addWidget(measurementUnits_);
+    // The Sheets workspace names the Measurements step ("Size", "Scale"); ADR 0164 §4.
+    measurementStep_ = new QLabel;
+    measurementStep_->setObjectName("measurementStep");
+    measurementStep_->hide();
+    bottomLayout->addWidget(measurementStep_);
     measurements_ = new QLineEdit;
     measurements_->setObjectName("measurements");
     measurements_->installEventFilter(this);
@@ -326,6 +332,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     measurements_->setFixedWidth(150);
     measurements_->setPlaceholderText("width, depth");
     measurements_->setAccessibleName("Measurements");
+    measurementStep_->setBuddy(measurements_);
     bottomLayout->addWidget(measurements_);
     vertical->addWidget(bottom);
     setCentralWidget(root);
@@ -1025,7 +1032,16 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #sectionHeader {text-align:left;font-weight:600;border:1px solid transparent;border-radius:4px;padding:4px 8px;background:transparent;}
 #sectionHeader:hover {background:$hover;} #sectionHeader:focus {border:1px solid $accent;}
 #sheetInfoCaption,#sheetPaperLine,#sheetInfoEmpty {color:$muted;}
-#activeToolLabel {font-weight:600;}
+#activeToolLabel,#measurementStep,#sheetPlaceHeading {font-weight:600;}
+#sheetPlaceHeading {font-size:$sectionHeadingPx;}
+#sheetPlace {background:$accent;color:$onAccent;font-weight:600;border-radius:6px;padding:4px 8px;}
+#sheetPlace:disabled {background:$hover;color:$muted;}
+#sheetPlaceSceneRow {border-radius:4px;} #sheetPlaceSceneRow[chosen="true"] {background:$selected;}
+#sheetPlaceSceneRow QRadioButton,#sheetPlaceSceneRow QLabel {background:transparent;}
+#sheetPlaceSceneRow QRadioButton::indicator {width:12px;height:12px;border:1px solid $muted;border-radius:7px;background:$input;}
+#sheetPlaceSceneRow QRadioButton::indicator:checked {border:1px solid $accent;background:qradialgradient(cx:0.5,cy:0.5,radius:0.5,fx:0.5,fy:0.5,stop:0 $accent,stop:0.5 $accent,stop:0.6 $input,stop:1 $input);}
+#sheetPlaceSceneRow QRadioButton::indicator:disabled {border:1px solid $border;}
+#sheetPlaceCancel,#sheetInfoActions QPushButton {border-radius:6px;padding:4px 10px;background:$input;}
 #sheetRail QToolButton {padding:6px;border-radius:6px;}
 #sheetPageTabs::tab {border:1px solid $border;border-radius:6px;padding:3px 10px;background:$input;margin-right:4px;}
 #sheetPageTabs::tab:selected {border:1px solid $accent;background:$selected;}
@@ -1037,6 +1053,7 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
+    style.replace("$sectionHeadingPx", QString::number(interfaceExtent(14, textPercent)) + "px");
     style.replace("$hintPx", QString::number(interfaceExtent(11, textPercent)) + "px");
     style.replace("$arrowTheme", dark ? "dark" : "light");
     style.replace("$selectionInk", dark ? colors.surface.name() : colors.input.name());

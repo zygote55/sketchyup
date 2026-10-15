@@ -46,7 +46,12 @@ SheetWorkspace::SheetWorkspace(const Document &doc, DrawingViewRenderCache &cach
                                          Qt::LinksAccessibleByKeyboard);
     breadcrumb_->setFocusPolicy(Qt::StrongFocus);
     breadcrumb_->setToolTip("Sheets: open the Pages list");
-    connect(breadcrumb_, &QLabel::linkActivated, this, [this] { emit pagesRequested(); });
+    connect(breadcrumb_, &QLabel::linkActivated, this, [this](const QString &link) {
+        if (link == "sheet")
+            emit leaveEditViewRequested();
+        else
+            emit pagesRequested();
+    });
     backtabOutOfLinks(breadcrumb_);
     topLayout->addWidget(breadcrumb_);
     paper_ = new ElidingLabel;
@@ -167,10 +172,25 @@ void SheetWorkspace::refresh() {
     }
     refreshLabels();
 }
+void SheetWorkspace::setEditView(Id view) {
+    editView_ = view;
+    refreshLabels();
+}
 void SheetWorkspace::refreshLabels() {
     const auto found = doc_.drawingSheets().find(canvas_->sheet());
     QString markup = "<a href=\"pages\">Sheets</a>";
-    if (found != doc_.drawingSheets().end()) {
+    const auto views = canvas_->views();
+    const auto at = std::find(views.begin(), views.end(), editView_);
+    if (found != doc_.drawingSheets().end() && editView_ && at != views.end()) {
+        // Edit-view: the page crumb leaves the context, as a group's parent crumb does.
+        const auto &sheet = *found->second;
+        const auto page = QString::fromStdString(sheet.number.empty() ? sheet.name : sheet.number);
+        markup += " &rsaquo; <a href=\"sheet\">" + page.toHtmlEscaped() + "</a> &rsaquo; <b>View " +
+                  QString::number(at - views.begin() + 1) + " · " +
+                  QString::fromStdString(doc_.drawingViews().at(editView_)->name).toHtmlEscaped() +
+                  "</b>";
+        paper_->setText(sheetPaperLine(sheet, doc_.drawingSheets().size()));
+    } else if (found != doc_.drawingSheets().end()) {
         markup += " &rsaquo; <b>" + sheetTitle(*found->second).toHtmlEscaped() + "</b>";
         paper_->setText(sheetPaperLine(*found->second, doc_.drawingSheets().size()));
     } else

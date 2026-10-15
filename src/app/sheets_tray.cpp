@@ -3,16 +3,23 @@
 #include "app/sheet_text.hpp"
 #include "core/drawing_item_records.hpp"
 #include "core/drawing_sheets.hpp"
+#include "core/scenes.hpp"
 #include <QApplication>
 #include <QFrame>
 #include <QGridLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
+#include <QLocale>
 #include <QPainter>
 #include <QPainterPath>
+#include <QRadioButton>
 #include <QRegularExpression>
+#include <QRegularExpressionValidator>
 #include <QScopedValueRollback>
+#include <QSignalBlocker>
+#include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <set>
@@ -114,26 +121,59 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     grid->setVerticalSpacing(6);
     grid->setColumnStretch(1, 1);
     int row = 0;
-    auto field = [&](const QString &name, QLabel *value) {
+    auto field = [&](const QString &name, QWidget *value) {
         auto *caption = new QLabel(name);
         caption->setObjectName("sheetInfoCaption");
         caption->setBuddy(value);
-        grid->addWidget(caption, row, 0, Qt::AlignTop);
+        grid->addWidget(caption, row, 0, Qt::AlignTop | Qt::AlignLeft);
         grid->addWidget(value, row, 1);
         ++row;
         return value;
     };
-    infoTitle_ = field("Title", valueLabel("View title"));
+    // Title, scale and style are editable; each change is one history entry (R091.f).
+    infoTitle_ = new QLineEdit;
     infoTitle_->setObjectName("sheetInfoTitle");
-    infoSource_ = field("Source", valueLabel("Source"));
+    infoTitle_->setAccessibleName("View title");
+    infoTitle_->setMaxLength(1024);
+    field("Title", infoTitle_);
+    connect(infoTitle_, &QLineEdit::editingFinished, this, &SheetsTray::commitTitle);
+    infoSource_ = valueLabel("Source");
     infoSource_->setTextFormat(Qt::RichText);
     infoSource_->setObjectName("sheetInfoSource");
-    infoScale_ = field("Scale", valueLabel("Scale"));
+    field("Source", infoSource_);
+    infoScale_ = new QComboBox;
     infoScale_->setObjectName("sheetInfoScale");
-    infoStyle_ = field("Style", valueLabel("Style"));
+    infoScale_->setAccessibleName("Scale");
+    infoScale_->setEditable(true);
+    infoScale_->setInsertPolicy(QComboBox::NoInsert);
+    for (const auto scale : sheetScaleChoices())
+        infoScale_->addItem("1:" + QString::number(scale, 'g', 10));
+    infoScale_->lineEdit()->setAccessibleName("Scale");
+    infoScale_->setToolTip("Choose a scale or type 1:N");
+    field("Scale", infoScale_);
+    connect(infoScale_, &QComboBox::activated, this, [this] { commitScale(); });
+    connect(infoScale_->lineEdit(), &QLineEdit::editingFinished, this, &SheetsTray::commitScale);
+    infoStyle_ = new QComboBox;
     infoStyle_->setObjectName("sheetInfoStyle");
-    infoCrop_ = field("Crop", valueLabel("Crop"));
+    infoStyle_->setAccessibleName("Style");
+    infoStyle_->addItem("Hidden line", QVariantList{0, false});
+    infoStyle_->addItem("Hidden line · hidden edges dashed", QVariantList{0, true});
+    infoStyle_->addItem("Rendered appearance", QVariantList{1, false});
+    field("Style", infoStyle_);
+    connect(infoStyle_, &QComboBox::activated, this, [this](int index) {
+        if (syncing_ || !doc_.drawingViews().contains(view_))
+            return;
+        const auto data = infoStyle_->itemData(index).toList();
+        const auto &view = *doc_.drawingViews().at(view_);
+        const int content = data.value(0).toInt();
+        const bool hidden = data.value(1).toBool();
+        if (int(view.content) == content && view.hiddenLines == hidden)
+            return;
+        emit setViewStyle(view_, content, hidden);
+    });
+    infoCrop_ = valueLabel("Crop");
     infoCrop_->setObjectName("sheetInfoCrop");
+    field("Crop", infoCrop_);
     auto *status = new QWidget;
     auto *statusLayout = new QHBoxLayout(status);
     statusLayout->setContentsMargins(0, 0, 0, 0);
@@ -150,14 +190,48 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     grid->addWidget(statusCaption, row, 0, Qt::AlignTop);
     grid->addWidget(status, row, 1);
     infoLayout->addWidget(infoFields_);
+    // Edit view (Enter on the canvas), Show scene in model and, for a broken view, Choose
+    // scene… The buttons wrap onto lines of their own in the narrow Tray.
+    auto *actions = new QWidget;
+    actions->setObjectName("sheetInfoActions");
+    auto *actionsLayout = new QVBoxLayout(actions);
+    actionsLayout->setContentsMargins(0, 4, 0, 0);
+    actionsLayout->setSpacing(6);
+    infoEdit_ = new QPushButton("Edit view  Enter");
+    infoEdit_->setObjectName("sheetInfoEditView");
+    infoEdit_->setAccessibleName("Edit view");
+    infoEdit_->setToolTip("Pan and zoom inside the frame (Enter on the page)");
+    infoShowScene_ = new QPushButton("Show scene in model");
+    infoShowScene_->setObjectName("sheetInfoShowScene");
+    infoShowScene_->setToolTip("Switch to Model and show the scene's camera");
+    infoChooseScene_ = new QPushButton("Choose scene…");
+    infoChooseScene_->setObjectName("sheetInfoChooseScene");
+    infoChooseScene_->setToolTip("Link this view to another scene; its frame and scale stay");
+    for (auto *button : {infoEdit_, infoShowScene_, infoChooseScene_}) {
+        button->setAutoDefault(false);
+        actionsLayout->addWidget(button);
+    }
+    connect(infoEdit_, &QPushButton::clicked, this, [this] { emit editViewRequested(); });
+    connect(infoShowScene_, &QPushButton::clicked, this,
+            [this] { emit showSceneRequested(view_); });
+    connect(infoChooseScene_, &QPushButton::clicked, this,
+            [this] { emit chooseSceneRequested(view_); });
+    infoLayout->addWidget(actions);
+    place_ = new SheetPlacePanel(doc);
+    place_->hide();
+    layout->addWidget(place_, 1);
     infoSection_ = new CollapsibleSection("Entity info", info);
     infoSection_->setObjectName("sheetInfoSection");
+    // Its fields never shrink below their height; Pages and History scroll instead.
     layout->addWidget(infoSection_);
+    connect(infoSection_->header(), &QPushButton::toggled, this, [this] { fitInfo(); });
+    sections_.push_back(infoSection_);
     auto separator = [&] {
         auto *line = new QFrame;
         line->setObjectName("sheetTraySeparator");
         line->setFixedHeight(1);
         layout->addWidget(line);
+        sections_.push_back(line);
     };
     separator();
 
@@ -199,6 +273,7 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     referencesSection_ = new CollapsibleSection("References", references);
     referencesSection_->setObjectName("sheetReferencesSection");
     layout->addWidget(referencesSection_);
+    sections_.push_back(referencesSection_);
     separator();
 
     pages_ = new QTreeWidget;
@@ -219,8 +294,8 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     pages_->installEventFilter(this);
     connect(pages_->itemDelegate(), &QAbstractItemDelegate::closeEditor, this,
             [this] { QTimer::singleShot(0, this, [this] { refresh(sheet_, view_); }); });
-    // F6 into the Tray lands in Pages, the keyboard alternative to the canvas.
-    setFocusProxy(pages_);
+    // F6 into the Tray lands in Pages, the keyboard alternative to the canvas (focusInEvent).
+    // Not a focus proxy: Tab would then jump over Entity info and References to Pages.
     connect(pages_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *item) {
         if (syncing_ || !item)
             return;
@@ -255,6 +330,7 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     pagesSection_ = new CollapsibleSection("Pages", pages_);
     pagesSection_->setObjectName("sheetPagesSection");
     layout->addWidget(pagesSection_);
+    sections_.push_back(pagesSection_);
     pagesSection_->setExpandedStretch(1);
     separator();
 
@@ -263,6 +339,7 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     historySection_ = new CollapsibleSection("History", history_, false);
     historySection_->setObjectName("sheetHistorySection");
     layout->addWidget(historySection_);
+    sections_.push_back(historySection_);
     historySection_->setExpandedStretch(1);
     connect(historySection_->header(), &QPushButton::toggled, this, [this](bool open) {
         if (open)
@@ -271,6 +348,43 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     layout->addStretch(0);
 }
 void SheetsTray::setHistoryFocusTarget(QWidget *target) { history_->setFocusTarget(target); }
+void SheetsTray::setPlacing(bool placing) {
+    if (placing == placing_)
+        return;
+    placing_ = placing;
+    const bool hadFocus = isAncestorOf(QApplication::focusWidget());
+    for (auto *section : sections_)
+        section->setVisible(!placing);
+    place_->setVisible(placing);
+    // F6 into the Tray lands in the panel while it shows, else in Pages.
+    if (hadFocus)
+        focusInEvent(nullptr);
+}
+void SheetsTray::commitTitle() {
+    if (syncing_ || !doc_.drawingViews().contains(view_))
+        return;
+    const auto name = infoTitle_->text().trimmed();
+    const auto &view = *doc_.drawingViews().at(view_);
+    if (name == QString::fromStdString(view.name))
+        return;
+    // Synchronous, so the editingFinished that follows on focus loss sees the new name.
+    emit renameView(view_, name);
+}
+void SheetsTray::commitScale() {
+    if (syncing_ || !doc_.drawingViews().contains(view_) || !infoScale_->isEnabled())
+        return;
+    const auto &view = *doc_.drawingViews().at(view_);
+    const auto value = parseSheetScale(infoScale_->currentText());
+    if (!value) {
+        // Not a scale: show the view's scale again.
+        QSignalBlocker blocker(infoScale_);
+        infoScale_->setEditText(viewScaleText(view, false));
+        return;
+    }
+    if (*value == view.scaleDenominator)
+        return;
+    emit setViewScale(view_, *value);
+}
 void SheetsTray::setTheme(const ThemeColors &colors) {
     colors_ = colors;
     referencesBanner_->setStyleSheet(
@@ -341,10 +455,34 @@ bool SheetsTray::eventFilter(QObject *object, QEvent *event) {
     }
     return QWidget::eventFilter(object, event);
 }
+void SheetsTray::focusInEvent(QFocusEvent *) {
+    if (placing_)
+        place_->findChild<QComboBox *>("sheetPlaceModel")->setFocus(Qt::OtherFocusReason);
+    else
+        pages_->setFocus(Qt::OtherFocusReason);
+}
+void SheetsTray::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    fitInfo();
+}
+void SheetsTray::fitInfo() {
+    const auto width = infoSection_->width();
+    auto *layout = infoSection_->layout();
+    if (width <= 0 || !layout)
+        return;
+    // Wrapped values report one line to the grid; reserve the lines they wrap to.
+    for (auto *label : infoFields_->findChildren<QLabel *>())
+        if (label->wordWrap() && label->width() > 0)
+            label->setMinimumHeight(label->heightForWidth(label->width()));
+    layout->invalidate();
+    infoSection_->setMinimumHeight(layout->hasHeightForWidth() ? layout->heightForWidth(width)
+                                                               : layout->sizeHint().height());
+}
 void SheetsTray::refresh(Id currentSheet, Id selectedView) {
     sheet_ = currentSheet;
     view_ = selectedView;
     refreshInfo();
+    fitInfo();
     refreshReferences();
     refreshPages();
     if (historySection_->expanded())
@@ -362,7 +500,11 @@ void SheetsTray::refreshInfo() {
     const auto status = cache_.status(view.id);
     const auto evaluation = cache_.sheet(view.sheet);
     const bool pending = !cache_.current(view.sheet) || !status;
-    infoTitle_->setText(QString::fromStdString(view.name));
+    QScopedValueRollback guard(syncing_, true);
+    // Never replace what the user is typing.
+    if (!infoTitle_->hasFocus() || infoTitle_->property("view").toULongLong() != view.id)
+        infoTitle_->setText(QString::fromStdString(view.name));
+    infoTitle_->setProperty("view", QVariant::fromValue<qulonglong>(view.id));
     const auto scene = doc_.scenes().find(view.source.scene);
     const auto model = documentName_.toHtmlEscaped();
     infoSource_->setText(scene == doc_.scenes().end()
@@ -372,11 +514,25 @@ void SheetsTray::refreshInfo() {
                                    "</b>");
     infoSource_->setAccessibleDescription(
         infoSource_->text().remove(QRegularExpression("<[^>]*>")));
-    infoScale_->setText(viewScaleText(view, status && status->notToScale));
-    infoStyle_->setText(view.content == DrawingViewContent::RasterAppearance
-                            ? QString("Rendered appearance")
-                        : view.hiddenLines ? QString("Hidden line · hidden edges dashed")
-                                           : QString("Hidden line"));
+    {
+        const bool perspective = status && status->notToScale;
+        QSignalBlocker blocker(infoScale_);
+        infoScale_->setEnabled(!perspective);
+        if (!infoScale_->lineEdit()->hasFocus() || perspective)
+            infoScale_->setEditText(viewScaleText(view, perspective));
+        infoScale_->setAccessibleDescription(perspective ? "Perspective views are not to scale"
+                                                         : QString{});
+        QSignalBlocker styleBlocker(infoStyle_);
+        infoStyle_->setCurrentIndex(view.content == DrawingViewContent::RasterAppearance ? 2
+                                    : view.hiddenLines                                   ? 1
+                                                                                         : 0);
+    }
+    const bool broken = status && (status->state == DrawingViewState::Broken ||
+                                   status->state == DrawingViewState::Failed);
+    infoEdit_->setVisible(!broken);
+    infoEdit_->setEnabled(!(status && status->notToScale));
+    infoShowScene_->setEnabled(scene != doc_.scenes().end() && scene->second->snapshot.camera);
+    infoChooseScene_->setVisible(broken && status->state == DrawingViewState::Broken);
     infoCrop_->setText("On · " + paperMillimetres(view.frame.widthMm) + " × " +
                        paperMillimetres(view.frame.heightMm) + " mm on paper");
     QString state;
@@ -512,5 +668,279 @@ void SheetsTray::refreshPages() {
         pages_->setCurrentItem(current, 1);
         pages_->scrollToItem(current);
     }
+}
+const std::vector<double> &sheetScaleChoices() {
+    static const std::vector<double> scales{1,   2,   5,   10,  20,   25,   50,
+                                            100, 200, 250, 500, 1000, 1250, 2500};
+    return scales;
+}
+std::optional<double> parseSheetScale(const QString &text) {
+    const auto point = QRegularExpression::escape(QLocale().decimalPoint());
+    const QRegularExpression pattern(R"(^\s*(?:1\s*:\s*)?([0-9]+(?:)" + point +
+                                     R"([0-9]+)?)\s*(?:\(.*\))?\s*$)");
+    const auto match = pattern.match(text);
+    if (!match.hasMatch())
+        return std::nullopt;
+    bool ok = false;
+    const auto value = QLocale().toDouble(match.captured(1), &ok);
+    if (!ok || !(value >= .001 && value <= 1e9))
+        return std::nullopt;
+    return value;
+}
+QString sceneProjection(const Document &doc, Id scene) {
+    const auto found = doc.scenes().find(scene);
+    if (found == doc.scenes().end() || !found->second->snapshot.camera)
+        return "No camera";
+    const auto &snapshot = found->second->snapshot;
+    const auto &camera = *snapshot.camera;
+    if (!camera.orthographic)
+        return "Perspective";
+    if (snapshot.section && snapshot.section->plane)
+        return "Section";
+    if (camera.pitch >= 85)
+        return "Top";
+    if (camera.pitch <= -85)
+        return "Bottom";
+    if (std::abs(camera.pitch) <= 5) {
+        // The standard views: Front looks from -Y (yaw -90), Right from +X (yaw 0), Back from
+        // +Y (yaw 90), Left from -X (yaw 180).
+        const auto yaw = std::remainder(camera.yaw, 360.);
+        if (std::abs(yaw + 90) <= 5)
+            return "Front";
+        if (std::abs(yaw) <= 5)
+            return "Right";
+        if (std::abs(yaw - 90) <= 5)
+            return "Back";
+        if (std::abs(std::abs(yaw) - 180) <= 5)
+            return "Left";
+    }
+    return "Parallel";
+}
+SheetPlacePanel::SheetPlacePanel(const Document &doc, QWidget *parent)
+    : QWidget(parent), doc_(doc) {
+    setObjectName("sheetPlacePanel");
+    setAccessibleName("New model view");
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(12);
+    auto *heading = new QLabel("New model view");
+    heading->setObjectName("sheetPlaceHeading");
+    layout->addWidget(heading);
+    auto *modelCaption = new QLabel("Model");
+    modelCaption->setObjectName("sheetInfoCaption");
+    model_ = new QComboBox;
+    model_->setObjectName("sheetPlaceModel");
+    model_->setAccessibleName("Model");
+    modelCaption->setBuddy(model_);
+    auto *modelBox = new QVBoxLayout;
+    modelBox->setSpacing(4);
+    modelBox->addWidget(modelCaption);
+    modelBox->addWidget(model_);
+    layout->addLayout(modelBox);
+    auto *sceneBox = new QGroupBox("Scene");
+    sceneBox->setObjectName("sheetPlaceScenes");
+    sceneList_ = new QWidget;
+    auto *sceneLayout = new QVBoxLayout(sceneBox);
+    sceneLayout->setContentsMargins(8, 4, 8, 6);
+    sceneLayout->addWidget(sceneList_);
+    new QVBoxLayout(sceneList_);
+    sceneList_->layout()->setContentsMargins(0, 0, 0, 0);
+    sceneList_->layout()->setSpacing(4);
+    scenes_ = new QButtonGroup(this);
+    scenes_->setExclusive(true);
+    connect(scenes_, &QButtonGroup::idToggled, this, [this](int id, bool checked) {
+        // The chosen scene's row is highlighted, as in the design.
+        if (auto *button = scenes_->button(id); button && button->parentWidget()) {
+            auto *row = button->parentWidget();
+            row->setProperty("chosen", checked);
+            row->style()->unpolish(row);
+            row->style()->polish(row);
+        }
+        if (checked) {
+            refreshDetails();
+            emit placementChanged();
+        }
+    });
+    empty_ = new QLabel("This model has no saved scenes. Save a scene in the Model workspace "
+                        "to place it as a view.");
+    empty_->setObjectName("sheetInfoEmpty");
+    empty_->setWordWrap(true);
+    sceneLayout->addWidget(empty_);
+    layout->addWidget(sceneBox);
+    auto *details = new QGridLayout;
+    details->setHorizontalSpacing(8);
+    details->setVerticalSpacing(8);
+    details->setColumnStretch(1, 1);
+    auto caption = [&](const QString &text, QWidget *buddy, int row) {
+        auto *label = new QLabel(text);
+        label->setObjectName("sheetInfoCaption");
+        label->setBuddy(buddy);
+        details->addWidget(label, row, 0);
+        details->addWidget(buddy, row, 1);
+    };
+    scale_ = new QComboBox;
+    scale_->setObjectName("sheetPlaceScale");
+    scale_->setAccessibleName("Scale");
+    {
+        // Above its select, like Model, so "1:50 (matches this page)" fits the Tray.
+        auto *label = new QLabel("Scale");
+        label->setObjectName("sheetInfoCaption");
+        label->setBuddy(scale_);
+        details->addWidget(label, 0, 0, 1, 2);
+        details->addWidget(scale_, 1, 0, 1, 2);
+    }
+    connect(scale_, &QComboBox::currentIndexChanged, this, [this] { emit placementChanged(); });
+    connect(scale_, &QComboBox::activated, this,
+            [this] { scale_->setProperty("userChose", true); });
+    style_ = new QLabel;
+    style_->setObjectName("sheetPlaceStyle");
+    style_->setWordWrap(true);
+    caption("Style", style_, 2);
+    title_ = new QLabel;
+    title_->setObjectName("sheetPlaceTitle");
+    title_->setWordWrap(true);
+    caption("Title", title_, 3);
+    layout->addLayout(details);
+    auto *note = new QLabel("Perspective scenes have no measurable scale. They place as “Not to "
+                            "scale”, and Dimension refuses to measure them.");
+    note->setObjectName("sheetInfoEmpty");
+    note->setWordWrap(true);
+    layout->addWidget(note);
+    layout->addStretch(1);
+    auto *buttons = new QHBoxLayout;
+    buttons->setSpacing(8);
+    place_ = new QPushButton("Place · Enter");
+    place_->setObjectName("sheetPlace");
+    place_->setAccessibleName("Place the view");
+    place_->setToolTip("Place the view at its natural size, or the frame you drew (Enter)");
+    place_->setAutoDefault(false);
+    cancel_ = new QPushButton("Cancel · Esc");
+    cancel_->setObjectName("sheetPlaceCancel");
+    cancel_->setAccessibleName("Cancel placing a view");
+    cancel_->setToolTip("Cancel the frame, or return to Select (Esc)");
+    cancel_->setAutoDefault(false);
+    buttons->addWidget(place_, 1);
+    buttons->addWidget(cancel_);
+    layout->addLayout(buttons);
+    connect(place_, &QPushButton::clicked, this, [this] { emit placeRequested(); });
+    connect(cancel_, &QPushButton::clicked, this, [this] { emit cancelRequested(); });
+}
+Id SheetPlacePanel::scene() const {
+    const auto id = scenes_->checkedId();
+    return id > 0 ? Id(id) : Id{};
+}
+void SheetPlacePanel::setScene(Id scene) {
+    if (auto *button = scenes_->button(int(scene)); button && button->isEnabled())
+        button->setChecked(true);
+}
+double SheetPlacePanel::scale() const {
+    return scale_->currentData().isValid() ? scale_->currentData().toDouble() : 50;
+}
+void SheetPlacePanel::refresh(const QString &documentName, Id sheet, double pageScale,
+                              bool pageHasScale) {
+    sheet_ = sheet;
+    {
+        QSignalBlocker blocker(model_);
+        model_->clear();
+        // External model files are not offered until that feature exists (decision 10).
+        model_->addItem(documentName + " (this model)");
+    }
+    const auto order = orderedScenes(doc_);
+    const auto chosen = scene();
+    bool rebuild = order != order_;
+    for (size_t i = 0; !rebuild && i < order.size(); ++i)
+        if (auto *button = scenes_->button(int(order[i])))
+            rebuild = button->text() != QString::fromStdString(doc_.scenes().at(order[i])->name) ||
+                      button->property("projection").toString() != sceneProjection(doc_, order[i]);
+    if (rebuild) {
+        QSignalBlocker blocker(scenes_);
+        const bool hadFocus = sceneList_->isAncestorOf(QApplication::focusWidget());
+        for (auto *button : scenes_->buttons())
+            scenes_->removeButton(button);
+        while (auto *item = sceneList_->layout()->takeAt(0)) {
+            delete item->widget();
+            delete item;
+        }
+        order_ = order;
+        for (const auto id : order) {
+            const auto name = QString::fromStdString(doc_.scenes().at(id)->name);
+            const auto projection = sceneProjection(doc_, id);
+            auto *row = new QWidget;
+            row->setObjectName("sheetPlaceSceneRow");
+            row->setAttribute(Qt::WA_StyledBackground);
+            auto *rowLayout = new QHBoxLayout(row);
+            rowLayout->setContentsMargins(4, 2, 4, 2);
+            rowLayout->setSpacing(8);
+            auto *radio = new QRadioButton(name);
+            radio->setObjectName("sheetPlaceScene");
+            radio->setProperty("projection", projection);
+            radio->setAccessibleName(name + ", " + projection);
+            radio->setEnabled(projection != "No camera");
+            auto *kind = new QLabel(projection);
+            kind->setObjectName("sheetInfoCaption");
+            rowLayout->addWidget(radio, 1);
+            rowLayout->addWidget(kind);
+            sceneList_->layout()->addWidget(row);
+            scenes_->addButton(radio, int(id));
+        }
+        Id keep = chosen && doc_.scenes().contains(chosen) ? chosen : Id{};
+        if (!keep)
+            for (const auto id : order)
+                if (scenes_->button(int(id))->isEnabled()) {
+                    keep = id;
+                    break;
+                }
+        if (keep) {
+            // Signals are blocked while rebuilding; mark the chosen row by hand.
+            scenes_->button(int(keep))->setChecked(true);
+            auto *row = scenes_->button(int(keep))->parentWidget();
+            row->setProperty("chosen", true);
+            row->style()->unpolish(row);
+            row->style()->polish(row);
+        }
+        if (hadFocus && scenes_->checkedButton())
+            scenes_->checkedButton()->setFocus(Qt::OtherFocusReason);
+    }
+    empty_->setVisible(order.empty());
+    {
+        // The page's scale first ("matches this page"), then the common scales.
+        QSignalBlocker blocker(scale_);
+        const auto previous = scale_->count() ? scale_->currentData().toDouble() : 0.;
+        const bool keepPrevious = scale_->property("userChose").toBool() && previous > 0;
+        scale_->clear();
+        auto scales = sheetScaleChoices();
+        if (std::find(scales.begin(), scales.end(), pageScale) == scales.end())
+            scales.push_back(pageScale);
+        std::sort(scales.begin(), scales.end());
+        for (const auto value : scales)
+            scale_->addItem(
+                "1:" + QString::number(value, 'g', 10) +
+                    (pageHasScale && value == pageScale ? " (matches this page)" : QString{}),
+                value);
+        const auto wanted = keepPrevious ? previous : pageScale;
+        scale_->setCurrentIndex(std::max(0, scale_->findData(wanted)));
+    }
+    refreshDetails();
+}
+void SheetPlacePanel::refreshDetails() {
+    const auto id = scene();
+    const bool perspective = sceneProjection(doc_, id) == "Perspective";
+    scale_->setEnabled(id && !perspective);
+    scale_->setToolTip(perspective ? "Perspective views are not to scale" : QString{});
+    style_->setText(perspective ? "From scene · Rendered" : "From scene · Hidden line");
+    place_->setEnabled(id != 0);
+    if (!id) {
+        title_->setText("—");
+        return;
+    }
+    std::set<std::string> names;
+    for (const auto &[view, record] : doc_.drawingViews())
+        names.insert(record->name);
+    const auto base = QString::fromStdString(doc_.scenes().at(id)->name);
+    auto name = base;
+    for (int n = 2; names.contains(name.toStdString()); ++n)
+        name = base + " " + QString::number(n);
+    const auto number = drawingViewsOnSheet(doc_, sheet_).size() + 1;
+    title_->setText(QString::number(number) + " · " + name);
 }
 } // namespace sketchy

@@ -11,6 +11,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
 #include <QDir>
 #include <QJsonArray>
 #include <QMenuBar>
@@ -333,7 +334,9 @@ void workspace(Window &window, const QString &path, const Fixture &f) {
     key(Qt::Key_F6);
     expectFocus(canvas, "F6 back to the canvas");
 
-    // Tab reaches the page tabs and the Pages tree and comes back to the canvas.
+    // Tab reaches the page tabs and the Pages tree and comes back to the canvas. With Select,
+    // Tab cycles the page's views instead (R091.f), so the cycle starts from Pan.
+    key(Qt::Key_H);
     {
         bool tabsReached = false, treeReached = false, canvasAgain = false;
         for (int i = 0; i < 60 && !canvasAgain; ++i) {
@@ -345,6 +348,8 @@ void workspace(Window &window, const QString &path, const Fixture &f) {
         check(tabsReached && treeReached && canvasAgain,
               "Tab cycles through the page tabs, the Pages tree and back to the canvas");
     }
+    key(Qt::Key_Escape);
+    check(canvas->tool() == SheetCanvas::Tool::Select, "Esc returns to Select");
 
     // The Pages tree lists pages with their views and items and the view states.
     auto *tree = tray->pages();
@@ -532,13 +537,13 @@ void workspace(Window &window, const QString &path, const Fixture &f) {
     canvas->setFocus(Qt::OtherFocusReason);
     QTest::mouseClick(canvas, Qt::LeftButton, {}, canvas->viewRect(f.plan).center().toPoint());
     check(canvas->selectedView() == f.plan, "Click selects a view");
-    check(window.findChild<QLabel *>("sheetInfoTitle")->text() == "Ground floor plan" &&
-              window.findChild<QLabel *>("sheetInfoScale")->text() == "1:50" &&
+    check(window.findChild<QLineEdit *>("sheetInfoTitle")->text() == "Ground floor plan" &&
+              window.findChild<QComboBox *>("sheetInfoScale")->currentText() == "1:50" &&
               window.findChild<QLabel *>("sheetInfoCrop")->text() == "On · 197 × 196 mm on paper" &&
               window.findChild<QLabel *>("sheetInfoStatus")
                   ->text()
                   .startsWith("Current · model revision"),
-          "Entity info shows the selected view read-only");
+          "Entity info shows the selected view");
     check(tree->currentItem() &&
               tree->currentItem()->data(0, Qt::UserRole + 1).toULongLong() == f.plan,
           "Selection mirrors into the Pages tree");
