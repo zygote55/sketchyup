@@ -271,6 +271,10 @@ void layout(Window &window, const QString &path, const Fixture &f) {
     window.openPath(path);
     window.setWorkspace(Window::Workspace::Sheets);
     settle(window);
+    // Opening shows the file-operation surface; under Xvfb (no window manager) the window may
+    // not get activation back by itself. Opening is preparation here, not under test.
+    window.activateWindow();
+    check(QTest::qWaitForWindowActive(&window), "Window active after opening the drawing set");
     const auto model = modelRecords(doc);
     const auto initialViews = doc.drawingViews();
     const auto initialEntries = entries(doc);
