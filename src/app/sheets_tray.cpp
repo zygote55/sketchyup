@@ -25,6 +25,7 @@
 #include <QStyledItemDelegate>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <algorithm>
 #include <set>
 namespace sketchy {
 namespace {
@@ -620,10 +621,13 @@ void SheetsTray::fitInfo() {
     // Wrapped values report one line to the grid; reserve the lines they wrap to.
     for (auto *label : infoFields_->findChildren<QLabel *>())
         if (label->wordWrap() && label->width() > 0)
-            label->setMinimumHeight(label->heightForWidth(label->width()));
+            // heightForWidth is -1 for a label without text to wrap (R092.b: no negative
+            // minimum, which Qt warns about).
+            label->setMinimumHeight(std::max(0, label->heightForWidth(label->width())));
     layout->invalidate();
-    infoSection_->setMinimumHeight(layout->hasHeightForWidth() ? layout->heightForWidth(width)
-                                                               : layout->sizeHint().height());
+    infoSection_->setMinimumHeight(std::max(0, layout->hasHeightForWidth()
+                                                   ? layout->heightForWidth(width)
+                                                   : layout->sizeHint().height()));
 }
 void SheetsTray::refresh(Id currentSheet, Id selectedView, Id selectedItem) {
     sheet_ = currentSheet;

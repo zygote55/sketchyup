@@ -1073,6 +1073,10 @@ void SheetExportDialog::chooseFile() {
         if (!path_.endsWith(".pdf", Qt::CaseInsensitive))
             path_ += ".pdf";
     }
+    // The chooser returns activation to this dialog, as ModalReturn does for the window:
+    // without a window manager (X11 under Xvfb) nothing hands it back, and no widget would
+    // have keyboard focus.
+    activateWindow();
     choose_->setFocus(Qt::OtherFocusReason);
     refreshTarget();
     refreshFooter();
@@ -1122,6 +1126,7 @@ void SheetExportDialog::choosePrinter() {
         printer->setFullPage(true);
         printer->setPageMargins(QMarginsF(), QPageLayout::Millimeter);
     }
+    activateWindow(); // As after the file chooser.
     choose_->setFocus(Qt::OtherFocusReason);
     refreshTarget();
     refreshPages();

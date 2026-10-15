@@ -13,6 +13,7 @@
 #include "io/document_io.hpp"
 #include "io/drawing_sheet_paint.hpp"
 #include "io/drawing_view.hpp"
+#include "qt_warning_guard.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -203,7 +204,8 @@ QWidget *tabTo(QDialog &dialog, const QString &name) {
     for (int i = 0; i < 60; ++i) {
         auto *f = focused();
         check(f && (f == &dialog || dialog.isAncestorOf(f)),
-              "Tab stays in the dialog looking for " + name.toStdString());
+              "Tab stays in the dialog looking for " + name.toStdString() + "; focus " +
+                  identity(f) + ", active window " + identity(QApplication::activeWindow()));
         if (f->objectName() == name)
             return f;
         QTest::keyClick(f, Qt::Key_Tab);
@@ -510,6 +512,11 @@ Results run(Window &window, const QString &files, const Fixture &f) {
         });
         space(dialog, "sheetExportChoose");
         file.finish();
+        // The chooser hands activation back to the export dialog before keys go on.
+        check(QTest::qWaitFor([&] {
+                  return dialog.isActiveWindow() && focused() && dialog.isAncestorOf(focused());
+              }),
+              "Focus returns to the export dialog after Choose…; got " + identity(focused()));
         check(dynamic_cast<SheetExportDialog &>(dialog).path() == path,
               "Choose… sets the output file");
     };
@@ -746,6 +753,7 @@ int main(int argc, char **argv) {
     format.setDepthBufferSize(24);
     sketchy::setDefaultViewportFormat(format);
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+    qt_warning_guard::install();
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
@@ -799,6 +807,8 @@ int main(int argc, char **argv) {
             results = run(window, files.path(), fixture);
         }
         check(unexpected.empty(), "No unexpected message box: " + unexpected);
+        check(qt_warning_guard::first().isEmpty(),
+              "No Qt geometry warning: " + qt_warning_guard::first().toStdString());
         window.document().markSaved();
         const QJsonObject summary{{"suite", "sheet_export_input_tests"},
                                   {"passed", true},

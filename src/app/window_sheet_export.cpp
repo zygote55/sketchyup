@@ -201,6 +201,9 @@ void Window::printSheetsTo(QPrinter &printer, SheetExportOptions options,
                                        return printSheets(snapshot, options, printer);
                                    });
     }
+    // The progress surface may have shown and hidden: return focus to the page or the model.
+    activateWindow();
+    focusWorkspace();
     status_->setText(QString("Printed %1 %2 at actual size on %3 · Model unchanged")
                          .arg(printed.pages)
                          .arg(printed.pages == 1 ? "page" : "pages")
