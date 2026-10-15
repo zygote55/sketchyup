@@ -998,6 +998,26 @@ design §§1, 2, 4, 6.
     script, the X11 and Wayland 1× and 2× matrix, installed smoke);
   - the roadmap status.
 
+**Implementation conventions (R091.h).**
+- **No flag.** The stacks, the Sheets page, the sheet rail and `SheetsTray` are always built;
+  `Window::sheetsWorkspaceEnabled` is gone, and an explicit `SKETCHYUP_SHEETS_WORKSPACE=0`
+  changes nothing (`sheet_workspace_input_tests`). The rail stack is moved back to right after
+  command search in the focus chain, so Tab from the search still enters the active tool.
+- **Activation after a prompt.** A modal dialog or the file-operation surface owned by the
+  window returns activation to it when it hides, unless another modal dialog, popup or
+  application window is still open (`ModalReturn` in `window.cpp`). Without a window manager
+  (X11 under Xvfb) the window was otherwise left inactive with no focus widget. The window's own
+  focus child (viewport or canvas) takes focus with the activation. The R091.f prompt fixes
+  stay.
+- **Natural frame.** The Model view tool measures the extent of every visible vertex. It had
+  measured only the first one (`QRectF::united` ignores a zero-size rectangle), so placed views
+  were centred on that vertex.
+- **Audit.** Reattach… is an in-place editor in the all-dialog inventory, like Rename page.
+- **Acceptance.** `sheet_acceptance_input_tests` is the §6 script (three pages, four views);
+  `visible_focus_input_tests` sweeps the Sheets workspace and reports two indicators below the
+  rule as known gaps pending a design decision (the checked Model | Sheets button's ring, and
+  the selected page tab's focus, which only thickens its border).
+
 R091.a–d are headless and can be reviewed in parallel with design follow-ups.
 R091.e depends on a–d. R091.f and R091.g both depend on e and touch the same
 files, so they merge in order.
