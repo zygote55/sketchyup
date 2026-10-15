@@ -370,8 +370,9 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
             sheets_->canvas()->beginTextEdit();
         },
         ShortcutScope::Sheets));
+    // No ellipsis: Reattach proposes on the canvas and Enter confirms; no dialog opens.
     page->addAction(action(
-        "sheet.item.reattach", "Reattach…", {},
+        "sheet.item.reattach", "Reattach", {},
         [this] {
             sheets_->canvas()->setFocus(Qt::OtherFocusReason);
             sheets_->canvas()->beginReattach();
