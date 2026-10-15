@@ -9,6 +9,7 @@
 #include "app/render_panel.hpp"
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
+#include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
 #include "app/unit_display.hpp"
@@ -32,6 +33,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPrinter>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScopedValueRollback>
@@ -395,6 +397,18 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.importDxf", "Import 2D DXF…", {}, [this] { importDxfDialog(); }));
     file->addAction(action("file.exportMeasured", "Export measured PDF/SVG…", {},
                            [this] { exportMeasuredDialog(); }));
+    // R092.b: the drawing set. Sheets has its own entries (Sheets scope); Model offers Export
+    // sheets… while the document has sheets. Only one of each pair shows at a time.
+    file->addAction(action(
+        "file.exportSheets", "Export sheets…", {}, [this] { exportSheetsDialog(); },
+        ShortcutScope::Model));
+    file->addAction(action(
+        "sheet.export", "Export sheets…", {}, [this] { exportSheetsDialog(); },
+        ShortcutScope::Sheets));
+    file->addAction(action(
+        "sheet.print", "Print…", {}, [this] { printSheetsDialog(); }, ShortcutScope::Sheets));
+    for (const char *id : {"sheet.export", "sheet.print"})
+        findChild<QAction *>(id)->setVisible(false); // The Sheets workspace shows them.
     file->addAction(action("file.exportDxf", "Export 2D DXF…", {}, [this] { exportDxfDialog(); }));
     file->addAction(action("file.importStl", "Import STL…", {}, [this] { importStlDialog(); }));
     file->addAction(action("file.exportStl", "Export STL…", {}, [this] { exportStlDialog(); }));
@@ -1196,6 +1210,12 @@ void Window::sync() {
                                          unitName(doc_.displayUnits()).toLower());
     }
     viewport_->refresh();
+    // An open export or print dialog checks the changed document again (R092.b).
+    if (sheetExport_)
+        sheetExport_->documentChanged();
+    if (auto *exportSheets = findChild<QAction *>("file.exportSheets");
+        exportSheets && workspace_ == Workspace::Model && !assistantFenced_)
+        exportSheets->setEnabled(!doc_.drawingSheets().empty());
     title_->setText(
         (path_.isEmpty() ? (recoveredName_.isEmpty() ? QString("Untitled") : recoveredName_)
                          : QFileInfo(path_).fileName()) +

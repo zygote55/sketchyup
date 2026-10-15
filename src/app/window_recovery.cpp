@@ -11,6 +11,7 @@
 #include <QFileInfo>
 #include <QHeaderView>
 #include <QPlainTextEdit>
+#include <QPrinter>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>

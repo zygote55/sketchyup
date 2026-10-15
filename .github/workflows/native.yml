@@ -119,6 +119,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_layout_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_annotation_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_acceptance_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_export_input_tests
           # -noreset: libatspi opens and closes a display before the demo starts; a server left
           # without clients resets, and the demo's connection can fail during the reset (D-033).
           xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
@@ -150,6 +151,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_layout_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_annotation_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_acceptance_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_export_input_tests
           # -noreset: libatspi opens and closes a display before the demo starts; a server left
           # without clients resets, and the demo's connection can fail during the reset (D-033).
           xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
@@ -307,6 +309,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_layout_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_annotation_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_acceptance_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_export_input_tests
           SKETCHYUP_TEST_SCALE=1 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-1.json
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/theme_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/visible_focus_input_tests
@@ -337,6 +340,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_layout_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_annotation_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_acceptance_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_export_input_tests
           SKETCHYUP_TEST_SCALE=2 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-2.json
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/theme_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/visible_focus_input_tests
@@ -482,9 +486,11 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_layout_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_annotation_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_acceptance_input_tests
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_export_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_layout_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_annotation_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_acceptance_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_export_input_tests
   blender:
     name: Blender interoperability
     runs-on: ubuntu-latest

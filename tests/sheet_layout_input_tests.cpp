@@ -8,6 +8,7 @@
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include "io/document_io.hpp"
+#include "qt_warning_guard.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -1046,6 +1047,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     sketchy::setDefaultViewportFormat(format);
+    qt_warning_guard::install();
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
@@ -1079,6 +1081,8 @@ int main(int argc, char **argv) {
         }
         layout(window, path, fixture);
         check(unexpected.empty(), "No unexpected message box: " + unexpected);
+        check(qt_warning_guard::first().isEmpty(),
+              "No Qt geometry warning: " + qt_warning_guard::first().toStdString());
         std::cout << "Sheet layout: W by drag and typed size, perspective not to scale, move, "
                      "nudge (amended), crop with the scale kept, snapping and Alt, Tab cycling, "
                      "Entity info edits, U and Accept all, edit-view pan and zoom, Choose "

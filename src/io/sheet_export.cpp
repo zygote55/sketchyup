@@ -11,6 +11,7 @@
 #include <QJsonDocument>
 #include <QPageLayout>
 #include <QPageSize>
+#include <QPagedPaintDevice>
 #include <QPainter>
 #include <QPdfWriter>
 #include <algorithm>
@@ -313,17 +314,17 @@ std::vector<SheetExportFinding> findings(const Preparation &prepared,
     qsizetype missingGlyphs{};
     std::vector<Id> missingGlyphSheets;
     for (const auto &page : prepared.pages) {
-        auto isView = [&](Id source) {
-            return std::any_of(page.sheet.views.begin(), page.sheet.views.end(),
-                               [&](const auto &v) { return v.record.id == source; });
-        };
+        // View and item IDs come from separate allocators: the layer says which one a
+        // source is.
         for (const auto &substitution : page.sheet.fontSubstitutions) {
             auto &entry = substitutions[substitution.requested];
             entry.used = substitution.used;
             addUnique(entry.sheets, page.page.sheet);
             addUnique(entry.labels, page.label);
             for (const auto source : substitution.items)
-                addUnique(isView(source) ? entry.views : entry.items, source);
+                addUnique(entry.items, source);
+            for (const auto source : substitution.views)
+                addUnique(entry.views, source);
         }
         for (const auto &primitive : page.sheet.primitives)
             for (const auto &run : primitive.glyphs)
@@ -332,7 +333,8 @@ std::vector<SheetExportFinding> findings(const Preparation &prepared,
                     addUnique(entry.sheets, page.page.sheet);
                     addUnique(entry.labels, page.label);
                     if (primitive.source)
-                        addUnique(isView(primitive.source) ? entry.views : entry.items,
+                        addUnique(primitive.layer == DrawingSheetLayer::Item ? entry.items
+                                                                             : entry.views,
                                   primitive.source);
                 }
         if (page.sheet.missingGlyphs > 0) {
@@ -649,24 +651,27 @@ SheetExportPreflight preflightSheetExport(const Document &doc, const SheetExport
     return prepare(doc, options).preflight;
 }
 
-SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &options) {
-    auto prepared = prepare(doc, options);
-    auto &preflight = prepared.preflight;
-    if (preflight.blocked()) {
-        size_t blocking = 0;
-        std::string first;
-        for (const auto &finding : preflight.findings)
-            if (finding.severity == SheetExportSeverity::Blocking && blocking++ == 0)
-                first = finding.message;
-        throw SheetExportError("EXPORT_BLOCKED",
-                               "Export blocked by " + plural(blocking, "finding", "findings") +
-                                   ": " + first,
-                               preflight);
-    }
-    // Raster content, rendered before any page is painted.
-    std::map<Id, QImage> rasters;
-    std::vector<Id> rasterFailures;
-    QJsonArray rasterReport;
+namespace {
+void requireUnblocked(const SheetExportPreflight &preflight) {
+    if (!preflight.blocked())
+        return;
+    size_t blocking = 0;
+    std::string first;
+    for (const auto &finding : preflight.findings)
+        if (finding.severity == SheetExportSeverity::Blocking && blocking++ == 0)
+            first = finding.message;
+    throw SheetExportError(
+        "EXPORT_BLOCKED",
+        "Export blocked by " + plural(blocking, "finding", "findings") + ": " + first, preflight);
+}
+// Raster content, rendered before any page is painted. A view whose renderer fails is a
+// failure unless broken views may print as empty frames.
+struct RenderedRasters {
+    std::map<Id, QImage> images;
+    std::vector<Id> failures;
+};
+RenderedRasters renderRasters(const Preparation &prepared, const SheetExportOptions &options) {
+    RenderedRasters result;
     for (const auto &plan : prepared.views) {
         if (!plan.raster || plan.rasterUnavailable)
             continue;
@@ -685,11 +690,34 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
             if (!options.allowBroken)
                 throw SheetExportError("RASTER_FAILED",
                                        "Could not render " + viewLabel(plan) + ": " + error);
-            rasterFailures.push_back(plan.view->record.id);
+            result.failures.push_back(plan.view->record.id);
             continue;
         }
-        rasters.emplace(plan.view->record.id, std::move(image));
+        result.images.emplace(plan.view->record.id, std::move(image));
     }
+    return result;
+}
+DrawingSheetPaintOptions pagePaint(const PreparedPage &page, const RenderedRasters &rasters) {
+    DrawingSheetPaintOptions paint;
+    paint.text = DrawingTextMode::Text;
+    for (const auto &view : page.sheet.views)
+        if (const auto it = rasters.images.find(view.record.id); it != rasters.images.end())
+            paint.rasters.emplace(it->first, it->second);
+    return paint;
+}
+bool emptyFrame(const ViewPlan &plan, const RenderedRasters &rasters) {
+    return plan.broken || plan.rasterUnavailable ||
+           std::find(rasters.failures.begin(), rasters.failures.end(), plan.view->record.id) !=
+               rasters.failures.end();
+}
+} // namespace
+
+SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &options) {
+    auto prepared = prepare(doc, options);
+    auto &preflight = prepared.preflight;
+    requireUnblocked(preflight);
+    const auto rendered = renderRasters(prepared, options);
+    QJsonArray rasterReport;
 
     // The reconciliation report, attached to the PDF and returned.
     QJsonObject report{{"format", "pdf"},
@@ -709,9 +737,7 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
              ++viewIndex) {
             const auto &plan = prepared.views[viewIndex];
             const auto id = plan.view->record.id;
-            const bool empty =
-                plan.broken || plan.rasterUnavailable ||
-                std::find(rasterFailures.begin(), rasterFailures.end(), id) != rasterFailures.end();
+            const bool empty = emptyFrame(plan, rendered);
             const auto outcome = empty         ? ViewOutcome::EmptyFrame
                                  : plan.raster ? ViewOutcome::Raster
                                                : ViewOutcome::Vector;
@@ -798,12 +824,7 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
                 require(pdf.setPageLayout(layout(page.page)), "PDF page layout rejected");
                 require(pdf.newPage(), "PDF page could not start");
             }
-            DrawingSheetPaintOptions paint;
-            paint.text = DrawingTextMode::Text;
-            for (const auto &view : page.sheet.views)
-                if (const auto it = rasters.find(view.record.id); it != rasters.end())
-                    paint.rasters.emplace(it->first, it->second);
-            const auto painted = paintDrawingSheet(painter, page.sheet, paint);
+            const auto painted = paintDrawingSheet(painter, page.sheet, pagePaint(page, rendered));
             // Placeholders appear only where the plan already said "empty frame".
             require(painted.rasterPlaceholders.empty() || options.allowBroken,
                     "A raster view would print as a placeholder");
@@ -832,6 +853,38 @@ SheetExport exportSheetsPdf(const Document &doc, const SheetExportOptions &optio
         throw SheetExportError("INVALID_PATH", "Output parent must already exist");
     auto result = renderSheetsPdf(doc, options);
     publishNewFile(path, result.bytes);
+    return result;
+}
+
+SheetPrint printSheets(const Document &doc, const SheetExportOptions &options,
+                       QPagedPaintDevice &device) {
+    auto prepared = prepare(doc, options);
+    requireUnblocked(prepared.preflight);
+    const auto rendered = renderRasters(prepared, options);
+    SheetPrint result;
+    for (const auto &plan : prepared.views) {
+        const auto id = plan.view->record.id;
+        if (emptyFrame(plan, rendered))
+            result.exportedEmpty.push_back(id);
+        else if (plan.changed)
+            result.exportedAsIs.push_back(id);
+        if (rendered.images.contains(id))
+            result.rasterViews.push_back(id);
+    }
+    QPainter painter;
+    require(painter.begin(&device), "The printer could not start");
+    for (size_t index = 0; index < prepared.pages.size(); ++index) {
+        if (index > 0)
+            require(device.newPage(), "The printer could not start a new page");
+        // drawingSheetDeviceTransform: one paper millimetre is one device millimetre.
+        const auto painted = paintDrawingSheet(painter, prepared.pages[index].sheet,
+                                               pagePaint(prepared.pages[index], rendered));
+        require(painted.rasterPlaceholders.empty() || options.allowBroken,
+                "A raster view would print as a placeholder");
+    }
+    require(painter.end(), "The printer could not finish");
+    result.pages = prepared.pages.size();
+    result.preflight = std::move(prepared.preflight);
     return result;
 }
 

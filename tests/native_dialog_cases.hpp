@@ -3,6 +3,7 @@
 // here (audited by `native_accessibility_audit --dialogs-keyboard=GROUP`) or listed in
 // `unexercised()` with the reason it cannot run in the isolated fixture.
 #include "app/render_panel.hpp"
+#include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
 #include "automation/extension_store.hpp"
 #include "core/components.hpp"
@@ -1327,6 +1328,57 @@ inline std::vector<Case> cases(Context &ctx) {
              palette(context, "Save as new scene…");
          },
          named("saveViewSceneDialog"), Enter::Accept, "Save scene", Return::Opener});
+    // R092.b: the preflight dialogs, audited once their findings (and the findings' controls)
+    // are listed. Their default button exports a file or prints, so only the default is
+    // asserted; Choose… opens the platform's file or print dialog.
+    const auto preflightSettles = [](QWidget &dialog) {
+        auto *sheet = dynamic_cast<SheetExportDialog *>(&dialog);
+        require(sheet && QTest::qWaitFor([&] { return !sheet->checking() && sheet->preflight(); },
+                                         20000),
+                "The export preflight settles");
+    };
+    add({"sheet-export",
+         "sheets",
+         "Export sheets as PDF",
+         "Sheets: File > Export sheets… (palette)",
+         sheetView,
+         [](Context &context) {
+             selectSheetView(context, false);
+             palette(context, "Export sheets…");
+         },
+         named("sheetExportDialog"),
+         Enter::DefaultOnly,
+         "Export PDF",
+         Return::Opener,
+         {},
+         preflightSettles});
+    add({"sheet-print",
+         "sheets",
+         "Print sheets",
+         "Sheets: File > Print… (palette)",
+         sheetView,
+         [](Context &context) {
+             selectSheetView(context, false);
+             palette(context, "Print…");
+         },
+         named("sheetPrintDialog"),
+         Enter::DefaultOnly,
+         "Print",
+         Return::Opener,
+         {},
+         preflightSettles});
+    add({"sheet-export-model",
+         "sheets",
+         "Export sheets as PDF (from Model)",
+         "Model: File > Export sheets… (palette)",
+         sheetView,
+         [](Context &context) { palette(context, "Export sheets…"); },
+         named("sheetExportDialog"),
+         Enter::DefaultOnly,
+         "Export PDF",
+         Return::Viewport,
+         {},
+         preflightSettles});
     return all;
 }
 // Dialogs that exist in the product but cannot be opened in the isolated, offline fixture.

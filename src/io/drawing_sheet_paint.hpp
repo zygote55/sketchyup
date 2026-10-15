@@ -75,8 +75,10 @@ struct DrawingSheetPrimitive {
 // into the preflight list.
 struct DrawingFontSubstitution {
     std::string requested, used;
-    // The items, or the views whose captions and frame labels, asked for it.
-    std::vector<Id> items;
+    // The page items that asked for it, and the views whose captions, frame labels or
+    // annotations did. View and item IDs come from separate allocators, so they are kept
+    // apart (R092.b).
+    std::vector<Id> items, views;
     bool operator==(const DrawingFontSubstitution &) const = default;
 };
 struct PreparedDrawingView {
