@@ -81,8 +81,29 @@ struct DrawingViewEvaluation {
     std::optional<DrawingViewProjection> projection;
     std::optional<MeasuredDrawing> drawing;
 };
+// Owner-thread half of evaluateDrawingViewDrawing (ADR 0164 §2): everything read
+// from the Document, as immutable values. It holds no reference to the live
+// document, so the document may change while a worker computes from it.
+struct DrawingViewEvaluationInput {
+    Id view{};
+    std::uint64_t revision{};
+    DrawingViewRecord record;
+    // The view's mapping when the scene camera is orthographic.
+    std::optional<DrawingViewProjection> projection;
+    // The scene capture (snapshot or broken reasons). Default when capturing threw.
+    DrawingViewCapture capture;
+    // The capture threw (for example a work limit or an out-of-bounds offset).
+    std::optional<std::string> captureError;
+};
+// Reads the document: the view record, the scene and a RenderSnapshot of it. Run
+// on the document's owner thread. Throws only when the view record does not exist.
+DrawingViewEvaluationInput captureDrawingViewEvaluation(const Document &doc, Id view);
+// Pure worker half: status, fingerprint, projection and measured drawing from the
+// captured input alone. Safe on any thread; the result is identical to
+// evaluateDrawingViewDrawing at the capture's revision.
+DrawingViewEvaluation computeDrawingViewEvaluation(const DrawingViewEvaluationInput &input);
 // Precedence: broken, then failed, then stale/current. Throws only
-// when the view record does not exist.
+// when the view record does not exist. The composition of the two halves above.
 DrawingViewEvaluation evaluateDrawingViewDrawing(const Document &doc, Id view);
 DrawingViewStatus evaluateDrawingView(const Document &doc, Id view);
 

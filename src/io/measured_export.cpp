@@ -43,23 +43,14 @@ class BoundedOutput final : public QIODevice {
         return size;
     }
 };
-struct Primitive {
-    QPainterPath path;
-    QColor color{Qt::black};
-    double width{.25};
-    bool fill{}, dashed{};
-    QString label;
-};
-struct DrawingPaths {
-    std::vector<Primitive> values;
-    qsizetype elements{}, textBytes{}, missingGlyphs{};
-    void append(Primitive p) {
-        require(p.path.elementCount() <= 1000000 - elements,
-                "Drawing exceeds one million path elements");
-        elements += p.path.elementCount();
-        values.push_back(std::move(p));
-    }
-};
+using Primitive = MeasuredPathPrimitive;
+using DrawingPaths = MeasuredDrawingPaths;
+void append(DrawingPaths &paths, Primitive p) {
+    require(p.path.elementCount() <= 1000000 - paths.elements,
+            "Drawing exceeds one million path elements");
+    paths.elements += p.path.elementCount();
+    paths.values.push_back(std::move(p));
+}
 QPointF point(Vec3 p) {
     require(std::isfinite(p.x) && std::isfinite(p.y) && std::abs(p.x) <= 1e12 &&
                 std::abs(p.y) <= 1e12,
@@ -69,7 +60,10 @@ QPointF point(Vec3 p) {
 QRectF content(const MeasuredPage &p) {
     return {p.marginMm, p.marginMm, p.widthMm - 2 * p.marginMm, p.heightMm - 2 * p.marginMm};
 }
-DrawingPaths paths(const MeasuredDrawing &drawing) {
+} // namespace
+MeasuredDrawingPaths measuredDrawingPaths(const MeasuredDrawing &drawing) {
+    require(qobject_cast<QGuiApplication *>(QCoreApplication::instance()),
+            "Measured drawing paths require the graphical font worker");
     DrawingPaths result;
     require(drawing.geometry.lines.size() <= 100000 &&
                 drawing.annotations.size() <= annotationRecordLimit,
@@ -83,7 +77,7 @@ DrawingPaths paths(const MeasuredDrawing &drawing) {
                 geometry.path.moveTo(point(line.a));
                 geometry.path.lineTo(point(line.b));
             }
-        result.append(std::move(geometry));
+        append(result, std::move(geometry));
     }
     for (const auto &annotation : drawing.annotations) {
         const auto &record = annotation.record;
@@ -142,7 +136,7 @@ DrawingPaths paths(const MeasuredDrawing &drawing) {
                     segment(p + QPointF(-d, -d), p + QPointF(d, d));
                     segment(p + QPointF(-d, d), p + QPointF(d, -d));
                 }
-        result.append(std::move(lines));
+        append(result, std::move(lines));
         QFont font("DejaVu Sans");
         font.setPixelSize(qRound(record.textSize));
         auto layoutText = text;
@@ -187,16 +181,17 @@ DrawingPaths paths(const MeasuredDrawing &drawing) {
         background.fill = true;
         background.color = Qt::white;
         background.path.addRoundedRect(transform.mapRect(bounds).adjusted(-1, -.7, 1, .7), .6, .6);
-        result.append(std::move(background));
+        append(result, std::move(background));
         Primitive label;
         label.fill = true;
         label.color = color;
         label.label = text;
         label.path = transform.map(glyphs);
-        result.append(std::move(label));
+        append(result, std::move(label));
     }
     return result;
 }
+namespace {
 QString pathData(const QPainterPath &path) {
     QString out;
     for (int i = 0; i < path.elementCount(); ++i) {
@@ -233,7 +228,7 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
                          image.height() * drawing.page.widthMm / drawing.page.heightMm) <= 1,
                 "Page raster aspect ratio differs from measured paper");
     }
-    const auto geometry = pageRaster ? DrawingPaths{} : paths(drawing);
+    const auto geometry = pageRaster ? DrawingPaths{} : measuredDrawingPaths(drawing);
     BoundedOutput output;
     const auto &page = drawing.page;
     MeasuredExport result;
