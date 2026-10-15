@@ -20,6 +20,10 @@ env:
 jobs:
   arch:
     name: Development build and native tests
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
     runs-on: ubuntu-latest
     container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 240
@@ -497,6 +501,10 @@ jobs:
         run: scripts/ci-blender-interop.sh 4
   sanitize:
     name: Sanitized builds
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
     runs-on: ubuntu-latest
     container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 180
