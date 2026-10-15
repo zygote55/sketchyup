@@ -30,6 +30,10 @@ CI run [38435734443](https://github.com/zygote55/sketchyup/actions/runs/38435734
 [R088.f parity report](R088f-core-parity-report.md). It adds D-027–D-029 and extends D-021;
 see [Release-candidate triage](#release-candidate-triage-2026-10-13). From this update the
 list is the release-candidate triage. The gate decision is in [M9](M9.md).
+**Updated 2026-10-15 (D-033).** The X11 2× AT-SPI bridge line failed once on `main` (run
+[38690132218](https://github.com/zygote55/sketchyup/actions/runs/38690132218)) with the demo
+aborting at start and an empty log. It is a test-harness race in Xvfb's server reset, added and
+fixed as D-033; see [Candidates checked and not carried forward](#candidates-checked-and-not-carried-forward).
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -144,6 +148,44 @@ Closed by R090.e:
   JSON Schema does. `transaction_dispatch_tests` covers typeless `oneOf` choices directly
   and the real `annotation.create` distance and label requests through `transaction.apply`,
   including three that must still be rejected ([R090.e](R090e-drawing-sheets.md)).
+
+Closed by the D-033 harness fix (2026-10-15, branch `fix/startup-abort`):
+
+- **D-033** (the demo aborts at start in the X11 AT-SPI bridge test, with an empty log). Class:
+  **Minor** (test infrastructure). Seen once in CI: `main` push run
+  [38690132218](https://github.com/zygote55/sketchyup/actions/runs/38690132218) (job
+  116273878087, `c788cb6a`), line `xvfb-run -a … QT_SCALE_FACTOR=2 … dbus-run-session -- python
+  tests/accessibility_bridge_test.py`: "Application exited with -6; last 0 log lines" and "Demo
+  exited before accessibility registration", about 120 ms after the demo started. The 1× line
+  had passed, and the same code passed before and after.
+  **Cause.** The demo could not connect to the X server: `qt.qpa.xcb: could not connect to
+  display`, then Qt's `qFatal` "no Qt platform plugin could be initialized" in
+  `QGuiApplicationPrivate::createEventDispatcher` (inside `QApplication`'s constructor, before
+  any SketchyUp code), hence SIGABRT. The server was running. Before starting the demo, the test's
+  `atspi_init` opens and closes an X display (libatspi reads the `AT_SPI_BUS` root property),
+  which can leave Xvfb without clients; Xvfb then resets, and a connection attempted during the
+  reset can fail. The log was empty because Qt, with no terminal on stderr, sends its messages, the
+  `qFatal` included, to journald, which the CI container lacks; no Qt message appears anywhere
+  in the CI logs.
+  **Evidence.** Reproduced locally in `sketchyup-native-fonts-check:20261008` with the `main`
+  `dev` build (`43a4007a`), running the 2× line in six concurrent lanes on six CPUs, each lane
+  waiting for its previous Xvfb to exit. With the default server, 8 of 167 runs failed (4.8%), all
+  with the CI signature, including the exact CI sequence of back-to-back `xvfb-run -a` lines on
+  `:99`. With `-noreset`, 0 of 248 failed (121 with the `main` test, 127 with this fix). With the
+  reset avoided another way (a client holding one X connection open for the whole run), 0 of 122
+  failed. An `LD_PRELOAD` handler attached
+  `gdb` at the abort; every captured abort had the same stack:
+  `abort` ← `QMessageLogger::fatal` ← `libQt6Gui` (platform plugin start-up) ←
+  `QGuiApplicationPrivate::createEventDispatcher` ← `QCoreApplicationPrivate::init` ←
+  `QApplicationPrivate::init` ← `main` (`src/app/main.cpp:21`, `QApplication app(argc, argv)`).
+  No SketchyUp code, the Sheets workspace (off without `SKETCHYUP_SHEETS_WORKSPACE=1`) or any
+  worker thread is involved.
+  **Fix.** The two X11 bridge lines run Xvfb with `-noreset` (`.github/workflows/native.yml`), as
+  `scripts/test-keyboard-layout.sh` already does, and the test sets `QT_FORCE_STDERR_LOGGING=1`
+  for the demo, so a Qt warning or fatal error is in the application log that a failure prints.
+  The Wayland lines start no Xvfb; for them only the logging changes. The journald routing applies to every native
+  test in CI, so D-031's message-less Wayland exit (recorded by R091.h) may also have lost a Qt
+  message the same way; that is not shown.
 
 Closed by R084.v:
 

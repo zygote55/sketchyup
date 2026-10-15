@@ -114,7 +114,9 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/sheet_workspace_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_layout_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
+          # -noreset: libatspi opens and closes a display before the demo starts; a server left
+          # without clients resets, and the demo's connection can fail during the reset (D-033).
+          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
@@ -141,7 +143,9 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/sheet_workspace_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_layout_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
+          # -noreset: libatspi opens and closes a display before the demo starts; a server left
+          # without clients resets, and the demo's connection can fail during the reset (D-033).
+          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests

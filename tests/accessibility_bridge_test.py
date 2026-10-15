@@ -293,8 +293,11 @@ def main():
             config = root / "SketchyUp"
             config.mkdir()
             (config / "SketchyUp.conf").write_text("[General]\ndefaultUnits=m\nrecoverySeconds=0\n")
+            # Without a terminal Qt sends its messages, qFatal included, to journald, which a CI
+            # container lacks; force them into the application log that a failure prints (D-033).
             environment = dict(os.environ, XDG_CONFIG_HOME=str(root), XDG_DATA_HOME=str(root),
-                               QT_LINUX_ACCESSIBILITY_ALWAYS_ON="1", LC_ALL="C.UTF-8")
+                               QT_LINUX_ACCESSIBILITY_ALWAYS_ON="1", LC_ALL="C.UTF-8",
+                               QT_FORCE_STDERR_LOGGING="1")
             # Logs are private fixture artifacts; never read settings from the user's profile.
             with (root / "application.log").open("w") as log:
                 process = subprocess.Popen([str(args.application.resolve()), "--demo"],
