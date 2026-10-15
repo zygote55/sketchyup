@@ -5,6 +5,14 @@ row [F01](../SCOPE.md)). This builds on [ADR 0163](0163-documentation-sheets.md)
 (R090) and shapes [R092](../PR_ROADMAP.md#r092). The interaction design is the
 owner-approved
 [R091 UX design (canvas; private to the owner)](https://claude.ai/artifact/ByrL3RtnQihKV9zx5DiYyQ).
+Implementation: R091.a–h are complete. PRs
+[#316](https://github.com/zygote55/sketchyup/pull/316) (R091.a),
+[#317](https://github.com/zygote55/sketchyup/pull/317) (R091.b),
+[#319](https://github.com/zygote55/sketchyup/pull/319) (R091.c),
+[#320](https://github.com/zygote55/sketchyup/pull/320) (R091.d),
+[#321](https://github.com/zygote55/sketchyup/pull/321) (R091.e),
+[#322](https://github.com/zygote55/sketchyup/pull/322) (R091.f),
+[#323](https://github.com/zygote55/sketchyup/pull/323) (R091.g) and the R091.h pull request; acceptance in [R091.h](../verification/R091h-sheet-layout.md).
 This ADR does not repeat that design. It decides how the code delivers it, names
 where the design meets the code or [UX_DESIGN](../UX_DESIGN.md) awkwardly, and
 splits the work into layers. The owner's choices are recorded under "Decisions".
@@ -711,10 +719,10 @@ schema 27.
     28 px header rows, as the design asks.
 - **Status bar.** In Sheets it adds an active-tool label before the
   instruction, as UX_DESIGN §3.1 describes. The model status bar is unchanged.
-- **Hidden until complete.** Until R091.h, the workspace toggle is hidden unless
-  `SKETCHYUP_SHEETS_WORKSPACE=1` is set. The native suites set it, so `main` stays
-  releasable with no half-built UI. Documents with sheets still open, save and
-  validate either way.
+- **Hidden until complete.** Until R091.h, the workspace toggle was hidden unless
+  `SKETCHYUP_SHEETS_WORKSPACE=1` was set. The native suites set it, so `main` stayed
+  releasable with no half-built UI. Documents with sheets still opened, saved and
+  validated either way. R091.h removed the flag: the workspace is always built.
 
 ## Decision
 
@@ -783,7 +791,7 @@ The owner decided these points on 2026-10-14. The interaction design is the
     Typing never starts editing by itself, because plain keys stay tool
     shortcuts (UX_DESIGN keyboard ownership rule).
 12. **Feature flag.** The UI stays behind `SKETCHYUP_SHEETS_WORKSPACE=1` until
-    R091.h enables it.
+    R091.h enables it. R091.h removed the flag on 2026-10-14.
 
 The remaining proposals in the body stand as written and were not separately
 decided: the Pages tree expands each page to its views and items (§4), leader
@@ -991,6 +999,45 @@ design §§1, 2, 4, 6.
   - the acceptance record `docs/verification/R091h-sheet-layout.md` (the §6
     script, the X11 and Wayland 1× and 2× matrix, installed smoke);
   - the roadmap status.
+
+**Implementation conventions (R091.h).**
+- **No flag.** The stacks, the Sheets page, the sheet rail and `SheetsTray` are always built;
+  `Window::sheetsWorkspaceEnabled` is gone, and an explicit `SKETCHYUP_SHEETS_WORKSPACE=0`
+  changes nothing (`sheet_workspace_input_tests`). The rail stack is moved back to right after
+  command search in the focus chain, so Tab from the search still enters the active tool.
+- **Activation after a prompt.** A modal dialog or the file-operation surface owned by the
+  window returns activation to it when it hides, unless another modal dialog, popup or
+  application window is still open (`ModalReturn` in `window.cpp`). Without a window manager
+  (X11 under Xvfb) the window was otherwise left inactive with no focus widget. The window's own
+  focus child (viewport or canvas) takes focus with the activation. The R091.f prompt fixes
+  stay.
+- **Prompts settle before closing (Wayland).** Qt's Wayland client applies keyboard focus after a
+  `wl_display.sync` round trip and compares it with the current focus window. A prompt closed
+  while the sync for its own activation is in flight leaves the application with no focus
+  window, although the compositor focused the main window again. `SettledInputDialog`
+  (`settled_dialog.hpp`) closes only once it is the focus window, waiting at most 300 ms; Choose
+  scene, Save as new scene and Field of view use it. `ModalReturn` is a no-op on compositors
+  without xdg-activation, such as Weston.
+- **Natural frame.** The Model view tool measures the extent of every visible vertex. It had
+  measured only the first one (`QRectF::united` ignores a zero-size rectangle), so placed views
+  were centred on that vertex.
+- **Audit.** With the flag gone, the inventory and every audit group run with Sheets built; the
+  in-canvas Reattach action carries no "…" (R091.g), so it needs no dialog case.
+- **Focus on accent-filled controls** (owner decision, 2026-10-14). A control with an `$accent`
+  fill (the checked Model | Sheets segment, Place, the edit-view Done) shows focus as a 2 px
+  inset ring in `$surface` of the fill's theme: #f7f7f2 on #547858 (4.65:1) and #202923 on
+  #9ec99d (8.05:1). The shared stylesheet applies it to any widget with the `accentFill`
+  property; such controls carry a 2 px border in the fill colour when unfocused, so focus never
+  shifts the layout. The edit-view banner, an inverse surface, uses the other theme's accent
+  and surface for Done. The audit rule for these controls: the ring against the fill inside it,
+  and the change of the boundary colour on focus, each at least 3:1.
+- **Selected page tab** (owner decision). Focus is the standard 2 px `$ink` ring, independent
+  of selection; selection keeps its accent fill and border. Tabs keep a 1 px margin that the
+  2 px ring takes, so focus never moves a tab.
+- **Acceptance.** `sheet_acceptance_input_tests` is the §6 script (three pages, four views).
+  `visible_focus_input_tests --workspace=sheets` sweeps the Sheets workspace as its own CI line
+  (so each run stays well under the Wayland harness's 60 s); the default run sweeps the Model
+  window. Both are strict.
 
 R091.a–d are headless and can be reviewed in parallel with design follow-ups.
 R091.e depends on a–d. R091.f and R091.g both depend on e and touch the same

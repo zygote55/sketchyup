@@ -132,7 +132,13 @@ SheetCanvas::Placement sheetPlacement(const Document &doc, Id scene, double scal
                 break;
             const auto sheet = projection.worldToSheet(world.point(point));
             const QPointF at(sheet.x - 50, sheet.y - 50);
-            box = box.isNull() ? QRectF(at, QSizeF(1e-9, 1e-9)) : box.united(QRectF(at, at));
+            // Grow by each point. (QRectF::united ignores a zero-size rectangle, so uniting
+            // with QRectF(at, at) kept only the first point.)
+            box = box.isNull()
+                      ? QRectF(at, QSizeF(1e-9, 1e-9))
+                      : QRectF(
+                            QPointF(std::min(box.left(), at.x()), std::min(box.top(), at.y())),
+                            QPointF(std::max(box.right(), at.x()), std::max(box.bottom(), at.y())));
         }
     }
     if (box.isNull())
@@ -643,11 +649,13 @@ void SheetCanvas::themeBanner() {
                 "#sheetEditBanner QLabel {color:%2;background:transparent;}"
                 "#sheetEditBanner QPushButton {color:%2;background:transparent;border:1px solid "
                 "%3;border-radius:6px;padding:2px 8px;}"
-                "#sheetEditBanner QPushButton#sheetEditDone {background:%4;color:%5;border:1px "
-                "solid %4;font-weight:600;padding:2px 10px;}"
-                "#sheetEditBanner QPushButton:focus {border:2px solid %2;}")
+                "#sheetEditBanner QPushButton#sheetEditDone {background:%4;color:%5;border:2px "
+                "solid %4;font-weight:600;padding:1px 9px;}"
+                "#sheetEditBanner QPushButton:focus {border:2px solid %2;}"
+                // An accent-filled control: a 2 px inset ring in the fill's own theme surface.
+                "#sheetEditBanner QPushButton#sheetEditDone:focus {border:2px solid %6;}")
             .arg(colors_.ink.name(), colors_.surface.name(), border.name(), other.accent.name(),
-                 colors_.dark ? "#ffffff" : "#172019"));
+                 colors_.dark ? "#ffffff" : "#172019", other.surface.name()));
     layoutBanner();
 }
 

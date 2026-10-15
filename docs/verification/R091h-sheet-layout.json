@@ -1,0 +1,2186 @@
+{
+ "layer": "R091.h",
+ "date": "2026-10-14",
+ "branch": "build/r091h-sheets-enable",
+ "sourceCommit": "95258e88",
+ "base": {
+  "r091g": {
+   "pr": 323,
+   "head": "a2a60b62"
+  },
+  "main": "d421ce8e"
+ },
+ "host": {
+  "qt6-base": "6.11.2-3",
+  "gcc": "16.2.1"
+ },
+ "flagRemoved": "SKETCHYUP_SHEETS_WORKSPACE",
+ "acceptanceScript": {
+  "suite": "sheet_acceptance_input_tests",
+  "cells": {
+   "checks/r091h-matrix-3/capture/sheet_acceptance_input_tests-x11-1": {
+    "layout": {
+     "historyEntries": 17,
+     "items": 7,
+     "modelBytesSha256": "763a6eae92bff931521e76c3210d95d4483d87e193e7fee136024ec27e3758a8",
+     "pages": 3,
+     "sheetOperationsChecked": 9,
+     "views": 4
+    },
+    "modelBytesExclude": [
+     "format",
+     "revision",
+     "version",
+     "drawingItems",
+     "drawingSheets",
+     "drawingViews",
+     "nextDrawingItemId",
+     "nextDrawingSheetId",
+     "nextDrawingViewId"
+    ],
+    "passed": true,
+    "platform": "xcb",
+    "repair": {
+     "acceptAll": "Accept 4 views",
+     "chooseScene": "Choose scene",
+     "itemsCurrent": 7,
+     "modelBytesSha256": "2b6c71be63951d02e14d35f3f27e16eeba71b42920590a60118ad30100edc23b",
+     "reattach": "Reattach dimension",
+     "sheetOperationsChecked": 12,
+     "viewsCurrent": 4
+    },
+    "revision": {
+     "brokenViews": 1,
+     "changedViews": 3,
+     "edgeDimension": "Broken: referenceMissing",
+     "modelEdits": [
+      "geometry.translate chimney +1 m x",
+      "saved_scene.delete North elevation",
+      "geometry.erase_edge terrace south edge"
+     ],
+     "vertexDimension": "9677"
+    },
+    "roundTrip": {
+     "fileBytes": 12575,
+     "fileSha256": "14be76ddc3de0fcb6ced7f75abea877f5d0cf70b78f49a5afbf5d1b583aec24c",
+     "items": 7,
+     "pages": 3,
+     "secondSaveIdentical": true,
+     "views": 4
+    },
+    "scale": 1,
+    "suite": "sheet_acceptance_input_tests"
+   },
+   "checks/r091h-matrix-3/capture/sheet_acceptance_input_tests-x11-2": {
+    "layout": {
+     "historyEntries": 17,
+     "items": 7,
+     "modelBytesSha256": "f4bc05c43e84d90828bbec3e0c1ec729529a166c0c623ed8ee15959910286f71",
+     "pages": 3,
+     "sheetOperationsChecked": 9,
+     "views": 4
+    },
+    "modelBytesExclude": [
+     "format",
+     "revision",
+     "version",
+     "drawingItems",
+     "drawingSheets",
+     "drawingViews",
+     "nextDrawingItemId",
+     "nextDrawingSheetId",
+     "nextDrawingViewId"
+    ],
+    "passed": true,
+    "platform": "xcb",
+    "repair": {
+     "acceptAll": "Accept 4 views",
+     "chooseScene": "Choose scene",
+     "itemsCurrent": 7,
+     "modelBytesSha256": "bc2f7beed6451f94146896ca85a69235a98d610940fcb2f586319a0e7ed81f8d",
+     "reattach": "Reattach dimension",
+     "sheetOperationsChecked": 12,
+     "viewsCurrent": 4
+    },
+    "revision": {
+     "brokenViews": 1,
+     "changedViews": 3,
+     "edgeDimension": "Broken: referenceMissing",
+     "modelEdits": [
+      "geometry.translate chimney +1 m x",
+      "saved_scene.delete North elevation",
+      "geometry.erase_edge terrace south edge"
+     ],
+     "vertexDimension": "9677"
+    },
+    "roundTrip": {
+     "fileBytes": 12575,
+     "fileSha256": "77c53b3bcdbcc2bb3498257ad2a47c9bd6bb0d46826e08f8f025baa76462c4a9",
+     "items": 7,
+     "pages": 3,
+     "secondSaveIdentical": true,
+     "views": 4
+    },
+    "scale": 2,
+    "suite": "sheet_acceptance_input_tests"
+   },
+   "checks/r091h-matrix-3/capture/sheet_acceptance_input_tests-wayland-1": {
+    "layout": {
+     "historyEntries": 17,
+     "items": 7,
+     "modelBytesSha256": "e0928aeacea4cb738c7c213d3984a306017d9c4a731fbbfb5d73167969a6bf3b",
+     "pages": 3,
+     "sheetOperationsChecked": 9,
+     "views": 4
+    },
+    "modelBytesExclude": [
+     "format",
+     "revision",
+     "version",
+     "drawingItems",
+     "drawingSheets",
+     "drawingViews",
+     "nextDrawingItemId",
+     "nextDrawingSheetId",
+     "nextDrawingViewId"
+    ],
+    "passed": true,
+    "platform": "wayland",
+    "repair": {
+     "acceptAll": "Accept 4 views",
+     "chooseScene": "Choose scene",
+     "itemsCurrent": 7,
+     "modelBytesSha256": "500f96b229d7afaa87083164947c0e251e070a08bf9b9c064a699b5b6ea075be",
+     "reattach": "Reattach dimension",
+     "sheetOperationsChecked": 12,
+     "viewsCurrent": 4
+    },
+    "revision": {
+     "brokenViews": 1,
+     "changedViews": 3,
+     "edgeDimension": "Broken: referenceMissing",
+     "modelEdits": [
+      "geometry.translate chimney +1 m x",
+      "saved_scene.delete North elevation",
+      "geometry.erase_edge terrace south edge"
+     ],
+     "vertexDimension": "9677"
+    },
+    "roundTrip": {
+     "fileBytes": 12575,
+     "fileSha256": "1737482a2ae8715442996aa2ebc271ec26bbe917d04bf816abe59c037d721af2",
+     "items": 7,
+     "pages": 3,
+     "secondSaveIdentical": true,
+     "views": 4
+    },
+    "scale": 1,
+    "suite": "sheet_acceptance_input_tests"
+   },
+   "checks/r091h-matrix-3/capture/sheet_acceptance_input_tests-wayland-2": {
+    "layout": {
+     "historyEntries": 17,
+     "items": 7,
+     "modelBytesSha256": "5e7ea975e817809b13f765a56cf68a9057d3ed38721c0f349a5fb7d978275cf6",
+     "pages": 3,
+     "sheetOperationsChecked": 9,
+     "views": 4
+    },
+    "modelBytesExclude": [
+     "format",
+     "revision",
+     "version",
+     "drawingItems",
+     "drawingSheets",
+     "drawingViews",
+     "nextDrawingItemId",
+     "nextDrawingSheetId",
+     "nextDrawingViewId"
+    ],
+    "passed": true,
+    "platform": "wayland",
+    "repair": {
+     "acceptAll": "Accept 4 views",
+     "chooseScene": "Choose scene",
+     "itemsCurrent": 7,
+     "modelBytesSha256": "61bf0c6fb4a8b15521a78a6bc073f64bfbb4c0383c0986449f7edeb6ccde5759",
+     "reattach": "Reattach dimension",
+     "sheetOperationsChecked": 12,
+     "viewsCurrent": 4
+    },
+    "revision": {
+     "brokenViews": 1,
+     "changedViews": 3,
+     "edgeDimension": "Broken: referenceMissing",
+     "modelEdits": [
+      "geometry.translate chimney +1 m x",
+      "saved_scene.delete North elevation",
+      "geometry.erase_edge terrace south edge"
+     ],
+     "vertexDimension": "9677"
+    },
+    "roundTrip": {
+     "fileBytes": 12575,
+     "fileSha256": "c01fe11746551930ea1c20fd1b3031265218692a04bea2f5fa07d0cca39c4f8a",
+     "items": 7,
+     "pages": 3,
+     "secondSaveIdentical": true,
+     "views": 4
+    },
+    "scale": 2,
+    "suite": "sheet_acceptance_input_tests"
+   },
+   "checks/r091h-matrix-3/capture/sheet_acceptance_input_tests-x11-1.5": {
+    "layout": {
+     "historyEntries": 17,
+     "items": 7,
+     "modelBytesSha256": "a1a570eccafbec6701e937047897bf9ba612ae9af910ea6dcc4aa8d26c3205e3",
+     "pages": 3,
+     "sheetOperationsChecked": 9,
+     "views": 4
+    },
+    "modelBytesExclude": [
+     "format",
+     "revision",
+     "version",
+     "drawingItems",
+     "drawingSheets",
+     "drawingViews",
+     "nextDrawingItemId",
+     "nextDrawingSheetId",
+     "nextDrawingViewId"
+    ],
+    "passed": true,
+    "platform": "xcb",
+    "repair": {
+     "acceptAll": "Accept 4 views",
+     "chooseScene": "Choose scene",
+     "itemsCurrent": 7,
+     "modelBytesSha256": "a0a567ebca5d6c0f2546ad4f72366b2a42b3191fdedba40d09e36e7465f9f224",
+     "reattach": "Reattach dimension",
+     "sheetOperationsChecked": 12,
+     "viewsCurrent": 4
+    },
+    "revision": {
+     "brokenViews": 1,
+     "changedViews": 3,
+     "edgeDimension": "Broken: referenceMissing",
+     "modelEdits": [
+      "geometry.translate chimney +1 m x",
+      "saved_scene.delete North elevation",
+      "geometry.erase_edge terrace south edge"
+     ],
+     "vertexDimension": "9677"
+    },
+    "roundTrip": {
+     "fileBytes": 12575,
+     "fileSha256": "b17c0d04225892dc5df6f92308997e0e586e2872a536a209121439e6abe30cf4",
+     "items": 7,
+     "pages": 3,
+     "secondSaveIdentical": true,
+     "views": 4
+    },
+    "scale": 1.5,
+    "suite": "sheet_acceptance_input_tests"
+   },
+   "checks/r091h-matrix-3/capture/sheet_acceptance_input_tests-wayland-1.5": {
+    "layout": {
+     "historyEntries": 17,
+     "items": 7,
+     "modelBytesSha256": "6e431b1fb012d95f2bdd279864a99ab714167f96a4a74ef965f04c35c6c92283",
+     "pages": 3,
+     "sheetOperationsChecked": 9,
+     "views": 4
+    },
+    "modelBytesExclude": [
+     "format",
+     "revision",
+     "version",
+     "drawingItems",
+     "drawingSheets",
+     "drawingViews",
+     "nextDrawingItemId",
+     "nextDrawingSheetId",
+     "nextDrawingViewId"
+    ],
+    "passed": true,
+    "platform": "wayland",
+    "repair": {
+     "acceptAll": "Accept 4 views",
+     "chooseScene": "Choose scene",
+     "itemsCurrent": 7,
+     "modelBytesSha256": "5e29b951205bd54f8c354c5d40f7465d4a80ad874241dbdfe56cc9773700ce47",
+     "reattach": "Reattach dimension",
+     "sheetOperationsChecked": 12,
+     "viewsCurrent": 4
+    },
+    "revision": {
+     "brokenViews": 1,
+     "changedViews": 3,
+     "edgeDimension": "Broken: referenceMissing",
+     "modelEdits": [
+      "geometry.translate chimney +1 m x",
+      "saved_scene.delete North elevation",
+      "geometry.erase_edge terrace south edge"
+     ],
+     "vertexDimension": "9677"
+    },
+    "roundTrip": {
+     "fileBytes": 12575,
+     "fileSha256": "2e9093546b44dc4ad916dd31f297ae2ff571ef67a48c39277b0d06b89f24ff2c",
+     "items": 7,
+     "pages": 3,
+     "secondSaveIdentical": true,
+     "views": 4
+    },
+    "scale": 1.5,
+    "suite": "sheet_acceptance_input_tests"
+   }
+  }
+ },
+ "nativeMatrix": {
+  "run": "r091h-matrix-3",
+  "image": "sketchyup-native-fonts-check:20261008",
+  "cpus": 6,
+  "memoryGiB": 10,
+  "lanes": 2,
+  "cells": 383,
+  "passed": 381,
+  "failed": {
+   "visible_focus_input_tests-wayland-1.5": {
+    "exit": 1,
+    "seconds": 30.8
+   },
+   "visible_focus_input_tests-x11-1.5": {
+    "exit": 1,
+    "seconds": 22.4
+   }
+  },
+  "failedNote": "visible_focus_input_tests at fractional 1.5 is not a CI line; failures span model-window controls (antialiased 1 px ring)",
+  "results": {
+   "assistant_panel_tests-x11-1": {
+    "exit": 0,
+    "seconds": 7.0
+   },
+   "assistant_preview_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.4
+   },
+   "render_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 7.8
+   },
+   "native_mcp_tests-x11-1": {
+    "exit": 0,
+    "seconds": 5.0
+   },
+   "desktop_inspection_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.7
+   },
+   "m4_workflow_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "units_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "history_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "recovery_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.8
+   },
+   "file_operation_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.3
+   },
+   "formline_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "dxf_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "obj_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "scene_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "text_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 8.1
+   },
+   "extension_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "preference_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.3
+   },
+   "keyboard_outliner_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "keyboard_reachability_tests-x11-1": {
+    "exit": 0,
+    "seconds": 8.0
+   },
+   "sheet_layout_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 20.8
+   },
+   "sheet_acceptance_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 14.9
+   },
+   "theme_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "text_size_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 5.2
+   },
+   "shortcut_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 5.6
+   },
+   "raster_export_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "annotation_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "section_viewport_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.7
+   },
+   "scene_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.0
+   },
+   "text_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 8.6
+   },
+   "extension_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.0
+   },
+   "preference_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "keyboard_outliner_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "keyboard_reachability_tests-x11-2": {
+    "exit": 0,
+    "seconds": 15.2
+   },
+   "sheet_layout_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 26.0
+   },
+   "sheet_acceptance_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 18.7
+   },
+   "theme_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "text_size_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 7.0
+   },
+   "shortcut_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 7.6
+   },
+   "raster_export_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.2
+   },
+   "annotation_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "section_viewport_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "style_viewport_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "texture_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "material_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "edge_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "smooth_viewport_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.3
+   },
+   "texture_viewport_tests-x11-1": {
+    "exit": 0,
+    "seconds": 5.1
+   },
+   "material_viewport_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.4
+   },
+   "placement_viewport_tests-x11-1": {
+    "exit": 0,
+    "seconds": 21.1
+   },
+   "entity_info_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "organization_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "component_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.9
+   },
+   "hosted_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "recipe_hosted_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.9
+   },
+   "stair_recipe_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.8
+   },
+   "m6_workflow_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 5.5
+   },
+   "site_recipe_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "hosted_array_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.9
+   },
+   "roof_recipe_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.3
+   },
+   "furniture_recipe_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "viewport_precision_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "group_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.7
+   },
+   "array_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "transform_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.7
+   },
+   "navigation_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "navigation_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.2
+   },
+   "selection_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "guide_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.9
+   },
+   "constraint_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.8
+   },
+   "inference_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "drawing_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "diagnostics_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 6.2
+   },
+   "diagnostics_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 7.7
+   },
+   "boolean_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.9
+   },
+   "intersection_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "sweep_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "offset_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "tool_lifecycle_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "smoke-x11-1": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "dialog_tests-x11-1": {
+    "exit": 0,
+    "seconds": 5.1
+   },
+   "layout-us-xcb": {
+    "exit": 0,
+    "seconds": 5.1
+   },
+   "layout-de-xcb": {
+    "exit": 0,
+    "seconds": 5.0
+   },
+   "layout-fr-xcb": {
+    "exit": 0,
+    "seconds": 5.1
+   },
+   "diagnostics_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "diagnostics_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 10.4
+   },
+   "boolean_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.5
+   },
+   "intersection_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.4
+   },
+   "sweep_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.4
+   },
+   "offset_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.3
+   },
+   "assistant_panel_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 4.3
+   },
+   "assistant_preview_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 0.5
+   },
+   "render_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 5.7
+   },
+   "native_mcp_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.3
+   },
+   "desktop_inspection_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.0
+   },
+   "m4_workflow_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.3
+   },
+   "units_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.7
+   },
+   "history_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.3
+   },
+   "recovery_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.6
+   },
+   "file_operation_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.4
+   },
+   "formline_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.3
+   },
+   "m7_presentation_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.1
+   },
+   "stl_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "gltf_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.2
+   },
+   "section_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.7
+   },
+   "reference_image_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "library_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "keyboard_modeling_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.2
+   },
+   "keyboard_panel_tabs_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 3.6
+   },
+   "sheet_workspace_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 7.9
+   },
+   "sheet_annotation_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 14.7
+   },
+   "bridge-wayland-1": {
+    "exit": 0,
+    "seconds": 5.9
+   },
+   "visible_focus_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 23.9
+   },
+   "viewport_label_overlap_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 7.5
+   },
+   "measured_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.0
+   },
+   "solar_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 3.3
+   },
+   "annotation_viewport_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 0.7
+   },
+   "style_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.7
+   },
+   "scene_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 5.7
+   },
+   "text_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 9.7
+   },
+   "extension_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "preference_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 2.3
+   },
+   "keyboard_outliner_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 6.1
+   },
+   "keyboard_reachability_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 17.6
+   },
+   "sheet_layout_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 29.9
+   },
+   "sheet_acceptance_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 13.7
+   },
+   "theme_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "text_size_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 9.5
+   },
+   "shortcut_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 10.1
+   },
+   "raster_export_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 2.9
+   },
+   "annotation_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 5.1
+   },
+   "section_viewport_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "style_viewport_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "texture_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.7
+   },
+   "material_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.6
+   },
+   "edge_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.1
+   },
+   "smooth_viewport_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 0.7
+   },
+   "texture_viewport_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.4
+   },
+   "material_viewport_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 0.9
+   },
+   "placement_viewport_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 24.9
+   },
+   "entity_info_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.1
+   },
+   "organization_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.3
+   },
+   "component_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "hosted_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.5
+   },
+   "recipe_hosted_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "stair_recipe_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.3
+   },
+   "m6_workflow_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.8
+   },
+   "site_recipe_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "hosted_array_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 2.5
+   },
+   "roof_recipe_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 2.1
+   },
+   "furniture_recipe_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 7.0
+   },
+   "viewport_precision_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "group_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.9
+   },
+   "selection_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.2
+   },
+   "transform_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "array_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 0.8
+   },
+   "smoke-wayland-2": {
+    "exit": 0,
+    "seconds": 8.8
+   },
+   "viewport_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 4.8
+   },
+   "keyboard_modeling_input_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "text_size_input_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 5.8
+   },
+   "keyboard_outliner_input_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "shortcut_input_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 7.2
+   },
+   "viewport_tests-x11-1.75": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "keyboard_modeling_input_tests-x11-1.75": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "text_size_input_tests-x11-1.75": {
+    "exit": 0,
+    "seconds": 5.9
+   },
+   "keyboard_outliner_input_tests-x11-1.75": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "shortcut_input_tests-x11-1.75": {
+    "exit": 0,
+    "seconds": 6.9
+   },
+   "sheet_annotation_input_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 16.8
+   },
+   "sheet_layout_input_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 25.4
+   },
+   "sheet_acceptance_input_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 17.7
+   },
+   "sheet_workspace_input_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 8.4
+   },
+   "keyboard_reachability_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 13.4
+   },
+   "visible_focus_input_tests-wayland-1.5": {
+    "exit": 1,
+    "seconds": 30.8
+   },
+   "interaction_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.7
+   },
+   "assistant_panel_tests-x11-2": {
+    "exit": 0,
+    "seconds": 7.4
+   },
+   "assistant_preview_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "render_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 8.8
+   },
+   "native_mcp_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.2
+   },
+   "desktop_inspection_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "m4_workflow_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.0
+   },
+   "units_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "history_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "recovery_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.2
+   },
+   "file_operation_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "formline_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.3
+   },
+   "stl_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "gltf_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "section_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.9
+   },
+   "reference_image_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 7.5
+   },
+   "library_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "keyboard_modeling_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.7
+   },
+   "keyboard_panel_tabs_tests-x11-1": {
+    "exit": 0,
+    "seconds": 5.5
+   },
+   "sheet_workspace_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 9.0
+   },
+   "sheet_annotation_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 11.7
+   },
+   "bridge-x11-1": {
+    "exit": 0,
+    "seconds": 7.7
+   },
+   "visible_focus_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 14.8
+   },
+   "viewport_label_overlap_tests-x11-1": {
+    "exit": 0,
+    "seconds": 10.1
+   },
+   "measured_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "solar_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 5.4
+   },
+   "annotation_viewport_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.4
+   },
+   "style_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "section_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "reference_image_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 9.7
+   },
+   "library_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "keyboard_modeling_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "keyboard_panel_tabs_tests-x11-2": {
+    "exit": 0,
+    "seconds": 8.9
+   },
+   "sheet_workspace_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 11.4
+   },
+   "sheet_annotation_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 20.7
+   },
+   "bridge-x11-2": {
+    "exit": 0,
+    "seconds": 9.2
+   },
+   "visible_focus_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 33.4
+   },
+   "viewport_label_overlap_tests-x11-2": {
+    "exit": 0,
+    "seconds": 11.1
+   },
+   "measured_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "solar_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 7.7
+   },
+   "annotation_viewport_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "style_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "style_viewport_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "texture_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.1
+   },
+   "material_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.8
+   },
+   "edge_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.8
+   },
+   "smooth_viewport_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "texture_viewport_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.7
+   },
+   "material_viewport_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.6
+   },
+   "placement_viewport_tests-x11-2": {
+    "exit": 0,
+    "seconds": 21.6
+   },
+   "entity_info_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "organization_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.8
+   },
+   "component_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "hosted_array_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "roof_recipe_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "furniture_recipe_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.6
+   },
+   "viewport_precision_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.6
+   },
+   "hosted_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.8
+   },
+   "recipe_hosted_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "stair_recipe_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.9
+   },
+   "m6_workflow_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.7
+   },
+   "site_recipe_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.9
+   },
+   "group_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.9
+   },
+   "array_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 3.6
+   },
+   "transform_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "navigation_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "selection_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "guide_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "constraint_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "inference_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "curve_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.4
+   },
+   "numeric_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "orientation_input_tests-x11-1": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "orientation_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "boolean_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 5.5
+   },
+   "intersection_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "sweep_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "offset_input_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.3
+   },
+   "interaction_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "viewport_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "shell_tests-x11-1": {
+    "exit": 0,
+    "seconds": 4.5
+   },
+   "layout-us-wayland": {
+    "exit": 0,
+    "seconds": 6.8
+   },
+   "layout-de-wayland": {
+    "exit": 0,
+    "seconds": 6.6
+   },
+   "layout-fr-wayland": {
+    "exit": 0,
+    "seconds": 6.5
+   },
+   "orientation_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.2
+   },
+   "orientation_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.4
+   },
+   "boolean_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 2.4
+   },
+   "intersection_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "sweep_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.9
+   },
+   "offset_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.9
+   },
+   "assistant_panel_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 11.7
+   },
+   "assistant_preview_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 0.9
+   },
+   "render_input_tests-wayland-2-1": {
+    "exit": 0,
+    "seconds": 11.3
+   },
+   "native_mcp_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 2.6
+   },
+   "desktop_inspection_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "m4_workflow_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 2.8
+   },
+   "units_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "history_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "recovery_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 7.0
+   },
+   "file_operation_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 6.6
+   },
+   "formline_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.0
+   },
+   "dxf_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.7
+   },
+   "obj_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.6
+   },
+   "scene_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.5
+   },
+   "text_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 6.7
+   },
+   "extension_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.2
+   },
+   "preference_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.9
+   },
+   "keyboard_outliner_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "keyboard_reachability_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 11.5
+   },
+   "sheet_layout_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 21.0
+   },
+   "sheet_acceptance_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 14.4
+   },
+   "theme_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.1
+   },
+   "text_size_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.9
+   },
+   "shortcut_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "raster_export_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.0
+   },
+   "annotation_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.4
+   },
+   "section_viewport_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.4
+   },
+   "render_input_tests-wayland-2-2": {
+    "exit": 0,
+    "seconds": 11.5
+   },
+   "section_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.6
+   },
+   "reference_image_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 10.1
+   },
+   "library_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.1
+   },
+   "keyboard_modeling_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.1
+   },
+   "keyboard_panel_tabs_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 6.9
+   },
+   "sheet_workspace_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 19.8
+   },
+   "sheet_annotation_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 6.9
+   },
+   "bridge-wayland-2": {
+    "exit": 0,
+    "seconds": 9.1
+   },
+   "visible_focus_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 53.2
+   },
+   "viewport_label_overlap_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 10.6
+   },
+   "measured_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.1
+   },
+   "solar_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 11.2
+   },
+   "annotation_viewport_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.2
+   },
+   "style_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 7.5
+   },
+   "style_viewport_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "texture_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 6.2
+   },
+   "material_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "edge_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.2
+   },
+   "smooth_viewport_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.1
+   },
+   "texture_viewport_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.3
+   },
+   "material_viewport_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.2
+   },
+   "placement_viewport_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 20.8
+   },
+   "entity_info_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 3.1
+   },
+   "organization_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 5.3
+   },
+   "component_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "hosted_array_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 2.3
+   },
+   "roof_recipe_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.6
+   },
+   "furniture_recipe_input_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.0
+   },
+   "viewport_precision_tests-wayland-1": {
+    "exit": 0,
+    "seconds": 1.0
+   },
+   "hosted_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 4.3
+   },
+   "recipe_hosted_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.7
+   },
+   "stair_recipe_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 6.4
+   },
+   "m6_workflow_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 5.5
+   },
+   "site_recipe_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 5.6
+   },
+   "group_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.3
+   },
+   "selection_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "transform_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "array_input_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 1.3
+   },
+   "viewport_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 2.4
+   },
+   "keyboard_modeling_input_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 1.4
+   },
+   "text_size_input_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 3.2
+   },
+   "keyboard_outliner_input_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "shortcut_input_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 4.2
+   },
+   "viewport_tests-wayland-1.75": {
+    "exit": 0,
+    "seconds": 2.2
+   },
+   "keyboard_modeling_input_tests-wayland-1.75": {
+    "exit": 0,
+    "seconds": 1.5
+   },
+   "text_size_input_tests-wayland-1.75": {
+    "exit": 0,
+    "seconds": 3.7
+   },
+   "keyboard_outliner_input_tests-wayland-1.75": {
+    "exit": 0,
+    "seconds": 2.1
+   },
+   "shortcut_input_tests-wayland-1.75": {
+    "exit": 0,
+    "seconds": 4.9
+   },
+   "sheet_layout_input_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 22.7
+   },
+   "sheet_acceptance_input_tests-wayland-1.5": {
+    "exit": 0,
+    "seconds": 17.8
+   },
+   "sheet_annotation_input_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 17.4
+   },
+   "sheet_workspace_input_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 10.1
+   },
+   "keyboard_reachability_tests-x11-1.5": {
+    "exit": 0,
+    "seconds": 10.5
+   },
+   "visible_focus_input_tests-x11-1.5": {
+    "exit": 1,
+    "seconds": 22.4
+   },
+   "interaction_tests-x11-2": {
+    "exit": 0,
+    "seconds": 4.7
+   },
+   "interaction_tests-wayland-2": {
+    "exit": 0,
+    "seconds": 2.0
+   },
+   "audit-inventory": {
+    "exit": 0,
+    "seconds": 0.0
+   },
+   "audit-settings-x11-2": {
+    "exit": 0,
+    "seconds": 5.7
+   },
+   "audit-settings-wayland-1": {
+    "exit": 0,
+    "seconds": 3.4
+   },
+   "audit-app-x11-2": {
+    "exit": 0,
+    "seconds": 5.8
+   },
+   "audit-app-wayland-1": {
+    "exit": 0,
+    "seconds": 3.3
+   },
+   "audit-files-x11-2": {
+    "exit": 0,
+    "seconds": 5.8
+   },
+   "audit-files-wayland-1": {
+    "exit": 0,
+    "seconds": 3.3
+   },
+   "audit-dxf-x11-2": {
+    "exit": 0,
+    "seconds": 5.7
+   },
+   "audit-dxf-wayland-1": {
+    "exit": 0,
+    "seconds": 3.5
+   },
+   "audit-stl-obj-x11-2": {
+    "exit": 0,
+    "seconds": 5.7
+   },
+   "audit-stl-obj-wayland-1": {
+    "exit": 0,
+    "seconds": 3.4
+   },
+   "audit-import-x11-2": {
+    "exit": 0,
+    "seconds": 6.3
+   },
+   "audit-import-wayland-1": {
+    "exit": 0,
+    "seconds": 3.8
+   },
+   "audit-components-x11-2": {
+    "exit": 0,
+    "seconds": 6.8
+   },
+   "audit-components-wayland-1": {
+    "exit": 0,
+    "seconds": 4.1
+   },
+   "audit-materials-x11-2": {
+    "exit": 0,
+    "seconds": 6.4
+   },
+   "audit-materials-wayland-1": {
+    "exit": 0,
+    "seconds": 3.6
+   },
+   "audit-styles-x11-2": {
+    "exit": 0,
+    "seconds": 5.9
+   },
+   "audit-styles-wayland-1": {
+    "exit": 0,
+    "seconds": 2.9
+   },
+   "audit-sections-x11-2": {
+    "exit": 0,
+    "seconds": 7.4
+   },
+   "audit-sections-wayland-1": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "audit-annotations-x11-2": {
+    "exit": 0,
+    "seconds": 6.5
+   },
+   "audit-annotations-wayland-1": {
+    "exit": 0,
+    "seconds": 3.4
+   },
+   "audit-outliner-x11-2": {
+    "exit": 0,
+    "seconds": 5.8
+   },
+   "audit-outliner-wayland-1": {
+    "exit": 0,
+    "seconds": 3.1
+   },
+   "audit-animation-x11-2": {
+    "exit": 0,
+    "seconds": 14.3
+   },
+   "audit-animation-wayland-1": {
+    "exit": 0,
+    "seconds": 19.3
+   },
+   "audit-blender-x11-2": {
+    "exit": 0,
+    "seconds": 7.2
+   },
+   "audit-blender-wayland-1": {
+    "exit": 0,
+    "seconds": 9.2
+   },
+   "audit-assistant-x11-2": {
+    "exit": 0,
+    "seconds": 5.2
+   },
+   "audit-assistant-wayland-1": {
+    "exit": 0,
+    "seconds": 2.3
+   },
+   "audit-render-x11-2": {
+    "exit": 0,
+    "seconds": 4.6
+   },
+   "audit-render-wayland-1": {
+    "exit": 0,
+    "seconds": 1.8
+   },
+   "audit-sheets-x11-2": {
+    "exit": 0,
+    "seconds": 4.4
+   },
+   "audit-sheets-wayland-1": {
+    "exit": 0,
+    "seconds": 1.4
+   },
+   "audit-sheets-x11-1": {
+    "exit": 0,
+    "seconds": 4.0
+   },
+   "audit-sheets-wayland-2": {
+    "exit": 0,
+    "seconds": 3.9
+   }
+  }
+ },
+ "visibleFocus": {
+  "round": 2,
+  "runs": [
+   "r091h-round2",
+   "r091h-round2b"
+  ],
+  "seconds": {
+   "model": {
+    "x11-1": 12.8,
+    "x11-2": 22.9,
+    "x11-1.5": 17.3,
+    "wayland-1": 14.4,
+    "wayland-2": 28.2,
+    "wayland-1.5": 17.7
+   },
+   "sheets": {
+    "x11-1": 8.7,
+    "x11-2": 14.8,
+    "x11-1.5": 11.5,
+    "wayland-1": 10.6,
+    "wayland-2": 21.7,
+    "wayland-1.5": 11.7
+   }
+  },
+  "measuredControls": {
+   "model": 422,
+   "sheets": 242
+  },
+  "failuresAt1xAnd2x": 0,
+  "minimumContrastOutside": 4.53,
+  "minimumContrastInside": 3.93,
+  "accentFillRing": {
+   "rule": "2 px inset ring in $surface of the fill's theme",
+   "light": "#f7f7f2 on #547858 = 4.65:1",
+   "dark": "#202923 on #9ec99d = 8.05:1",
+   "measured": {
+    "workspaceSegmentChecked": [
+     4.65,
+     8.05
+    ],
+    "sheetPlace": [
+     4.65,
+     8.05
+    ],
+    "sheetEditDone": [
+     8.05,
+     4.65
+    ]
+   }
+  },
+  "selectedPageTab": {
+   "ring": "2 px $ink",
+   "light": {
+    "outside": 11.27,
+    "inside": 9.52
+   },
+   "dark": {
+    "outside": 13.18,
+    "inside": 6.87
+   }
+  },
+  "fractional1_5": {
+   "failingMeasurements": {
+    "model": [
+     127,
+     128
+    ],
+    "sheets": [
+     74,
+     74
+    ]
+   },
+   "defect": "D-032",
+   "accentRingAt1_5": [
+    2.36,
+    2.57
+   ]
+  },
+  "strict": true
+ },
+ "ctest": {
+  "dev": {
+   "total": 198,
+   "passed": 198,
+   "skipped": 11
+  },
+  "headless": {
+   "total": 64,
+   "passed": 64
+  },
+  "sanitize": {
+   "total": 64,
+   "passed": 64
+  },
+  "sanitizeCliStep": {
+   "configuration": "-DSKETCHYUP_BUILD_CLI=ON",
+   "total": 103,
+   "passed": 103
+  }
+ },
+ "installedSmoke": {
+  "run": "r091h-package",
+  "image": "sketchyup-build:20261002",
+  "sourceCommit": "e8fb945e",
+  "sourceArchiveSha256Prefix": "da18158a",
+  "package": "sketchyup-1.0.0-1-x86_64.pkg.tar.zst",
+  "packageSha256": "db200f0545514326c1e7666c8926bbce107e81b786daecc812eb5d687b69deb7",
+  "checkPhase": {
+   "total": 198,
+   "passed": 198,
+   "skipped": 11
+  },
+  "sheetDocument": {
+   "dimension": {
+    "paperLengthMm": 96.76776322722357,
+    "text": "9677",
+    "valueMetres": 9.676776322722358
+   },
+   "documentVersion": 27,
+   "items": [
+    "dimension",
+    "dimension",
+    "label",
+    "text",
+    "titleBlock",
+    "titleBlock",
+    "titleBlock"
+   ],
+   "pagesDeletedDocumentVersion": 26,
+   "renamedFirstPage": "Ground floor (installed)",
+   "resavedDocumentVersion": 27,
+   "sheets": [
+    {
+     "name": "Page 1",
+     "paper": {
+      "heightMm": 297,
+      "widthMm": 420
+     },
+     "views": 2
+    },
+    {
+     "name": "Page 2",
+     "paper": {
+      "heightMm": 297,
+      "widthMm": 420
+     },
+     "views": 2
+    },
+    {
+     "name": "Page 3",
+     "paper": {
+      "heightMm": 297,
+      "widthMm": 420
+     },
+     "views": 0
+    }
+   ],
+   "views": [
+    {
+     "name": "Ground plan",
+     "notToScale": false,
+     "state": "current"
+    },
+    {
+     "name": "South elevation",
+     "notToScale": false,
+     "state": "current"
+    },
+    {
+     "name": "North elevation",
+     "notToScale": false,
+     "state": "current"
+    },
+    {
+     "name": "Garden view",
+     "notToScale": true,
+     "state": "current"
+    }
+   ]
+  }
+ },
+ "downgradeWindow": {
+  "priorCli": ".local/wt-v100/build/headless/sketchyup-cli (v1.0.0)",
+  "output": [
+   "old: sketchyup-cli 1.0.0  new: sketchyup-cli 1.0.0",
+   "1.0.0 reads up to schema 26",
+   "refused schema 27 drawing-sheets-v27.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+   "  unchanged: ee00d21a7e260ac4",
+   "refused schema 27 set.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+   "  unchanged: f0c9a2f14dfecbd1",
+   "refused schema 27 renamed.sketchyup: {\"status\":\"failed\",\"code\":\"INVALID_OPERATION\"}",
+   "  unchanged: 08644f5302bf13b4",
+   "1.0.0 on sheet-free save: {\"valid\":true,\"documentVersion\":26}",
+   "1.0.0 on the set with every page deleted: {\"valid\":true,\"documentVersion\":26}"
+  ],
+  "installedSameResult": true
+ },
+ "modelWorkspaceFocus": {
+  "x11Before": {
+   "fieldOfViewAccept": "inactive, no focus",
+   "fieldOfViewCancel": "inactive, no focus",
+   "open": "inactive, no focus",
+   "save": "inactive, no focus",
+   "textSize": "active"
+  },
+  "x11After": "active, viewport focused",
+  "wayland": "active, viewport focused",
+  "fix": "ModalReturn in src/app/window.cpp",
+  "regression": "keyboard_reachability_tests promptsReturnFocus"
+ },
+ "knownLimitations": [
+  "edge splits and make component break paper dimensions; Reattach repairs",
+  "raster views use the viewport's visibility, not the scene's",
+  "PDF text is outlines (R092)",
+  "focus rings under the threshold at fractional 1.5x (D-032)"
+ ],
+ "round2": {
+  "rerunPass": [
+   "sheet_workspace_input_tests",
+   "sheet_layout_input_tests",
+   "sheet_annotation_input_tests",
+   "sheet_acceptance_input_tests",
+   "keyboard_reachability_tests"
+  ],
+  "cells": 30,
+  "audit": {
+   "inventory": "clean",
+   "groupCells": 37,
+   "passed": 37
+  },
+  "ctestDev": {
+   "total": 198,
+   "passed": 198,
+   "skipped": 11
+  }
+ },
+ "defects": [
+  {
+   "id": "D-031",
+   "class": "Minor",
+   "status": "Unverified",
+   "run": 38605636463,
+   "attempt": 1,
+   "job": 115995661310
+  },
+  {
+   "id": "D-032",
+   "class": "Minor",
+   "status": "Open",
+   "row": "N05",
+   "title": "Focus ring under the threshold at fractional 1.5x"
+  }
+ ],
+ "round3": {
+  "ciFailure": {
+   "pr": 324,
+   "run": 38690414775,
+   "head": "89706008",
+   "message": "Focus returns to the canvas after Choose scene; got none"
+  },
+  "reproduction": {
+   "r091h89706008_untraced_4lanes": "1/60",
+   "r091gBuild_untraced_4lanes": "2/60",
+   "traced_4lanes": [
+    "4/60",
+    "5/60",
+    "3/60"
+   ],
+   "singleLaneAndOneCpu": "0/32"
+  },
+  "cause": "Qt Wayland client: a prompt closed while the wl_display.sync for its activation is in flight; the queued null focus window is delivered after the main window's enter compared equal to the stale focus window",
+  "modalReturnOnWeston": "no-op (Weston 15 has no xdg-activation)",
+  "fix": "SettledInputDialog closes once it is the focus window (max 300 ms); Choose scene, Save as new scene, Field of view",
+  "after": {
+   "focusFailures": "0/180",
+   "windowExposedAtWayland2xUnderLoad": "6/60 (D-021)"
+  },
+  "rerun": {
+   "cells": 20,
+   "passed": 20,
+   "audit": {
+    "inventory": "clean",
+    "sheetsGroup": "4/4"
+   },
+   "ctestDev": {
+    "total": 200,
+    "passed": 200,
+    "skipped": 12
+   }
+  }
+ }
+}

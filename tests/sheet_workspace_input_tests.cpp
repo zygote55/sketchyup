@@ -193,22 +193,32 @@ QRect devicePixels(const QRectF &logical, qreal ratio) {
     return QRectF(logical.topLeft() * ratio, logical.size() * ratio).toAlignedRect();
 }
 
-void flagOff() {
-    qunsetenv("SKETCHYUP_SHEETS_WORKSPACE");
+// R091.h: the Sheets workspace is always available; the old SKETCHYUP_SHEETS_WORKSPACE flag
+// is gone, so even an explicit "0" changes nothing.
+void alwaysAvailable() {
+    qputenv("SKETCHYUP_SHEETS_WORKSPACE", "0");
     Window window;
     window.show();
-    check(QTest::qWaitForWindowExposed(&window), "Window exposed without the Sheets flag");
-    check(!window.findChild<QWidget *>("workspaceToggle") &&
-              !window.findChild<QAction *>("view.workspace.toggle") &&
-              !window.findChild<QWidget *>("sheetCanvas") && !window.sheetWorkspace(),
-          "Without SKETCHYUP_SHEETS_WORKSPACE=1 there is no workspace toggle or canvas");
+    check(QTest::qWaitForWindowExposed(&window), "Window exposed");
+    check(window.findChild<QWidget *>("workspaceToggle") &&
+              window.findChild<QWidget *>("workspaceToggle")->isVisible() &&
+              window.findChild<QAction *>("view.workspace.toggle") &&
+              window.findChild<QWidget *>("sheetCanvas") && window.sheetWorkspace(),
+          "The workspace toggle and canvas exist without any flag");
     window.activateWindow();
-    check(QTest::qWaitForWindowActive(&window), "Window active without the flag");
+    check(QTest::qWaitForWindowActive(&window), "Window active");
     window.viewport()->setFocus();
     expectFocus(window.viewport(), "Initial focus");
     key(Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
-    check(window.workspace() == Window::Workspace::Model && window.viewport()->isVisible(),
-          "Ctrl+Alt+S does nothing without the flag");
+    check(window.workspace() == Window::Workspace::Sheets &&
+              QTest::qWaitFor([&] { return window.sheetWorkspace()->canvas()->isVisible(); }),
+          "Ctrl+Alt+S opens Sheets without any flag");
+    key(Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
+    check(window.workspace() == Window::Workspace::Model &&
+              QTest::qWaitFor([&] { return window.viewport()->isVisible(); }),
+          "Ctrl+Alt+S returns to Model");
+    window.document().markSaved();
+    qunsetenv("SKETCHYUP_SHEETS_WORKSPACE");
 }
 
 void workspace(Window &window, const QString &path, const Fixture &f) {
@@ -620,12 +630,11 @@ int main(int argc, char **argv) {
         const auto arguments = app.arguments();
         const auto screensAt = arguments.indexOf("--screens");
         if (screensAt < 0)
-            flagOff();
-        qputenv("SKETCHYUP_SHEETS_WORKSPACE", "1");
+            alwaysAvailable();
         Window window;
         window.resize(1440, 900);
         window.show();
-        check(QTest::qWaitForWindowExposed(&window), "Window exposed with the Sheets flag");
+        check(QTest::qWaitForWindowExposed(&window), "Window exposed");
         check(QTest::qWaitFor([&] { return window.viewport()->rendererReady(); }, 10000),
               "Viewport renderer initialized in the Model workspace");
         if (screensAt >= 0 && screensAt + 2 < arguments.size()) {

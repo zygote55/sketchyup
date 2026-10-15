@@ -180,9 +180,8 @@ def sheet_fixture(cli, root, environment):
 def sheets_phase(bridge, application, root, environment):
     """R091.g: page items are visible over AT-SPI in the Pages tree and as canvas children."""
     fixture = sheet_fixture(application.resolve().parent / "sketchyup-cli", root, environment)
-    sheets = dict(environment, SKETCHYUP_SHEETS_WORKSPACE="1")
     with (root / "sheets.log").open("w") as log:
-        process = subprocess.Popen([str(application.resolve()), str(fixture)], env=sheets,
+        process = subprocess.Popen([str(application.resolve()), str(fixture)], env=environment,
                                    stdout=log, stderr=log)
         try:
             with bridge.owned(bridge.get_desktop(0)) as desktop:

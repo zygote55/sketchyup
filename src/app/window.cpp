@@ -7,6 +7,7 @@
 #include "app/keyboard_navigation.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/render_panel.hpp"
+#include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
@@ -41,6 +42,7 @@
 #include <QStyleHints>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -120,6 +122,46 @@ class WindowUnmapBarrier final : public QObject {
         if (callback_)
             wl_callback_destroy(callback_);
     }
+};
+// R091.h: a modal prompt or the file-operation surface owned by the window hands activation
+// back to it when it closes. Without a window manager (X11 under Xvfb) nothing else does: the
+// application is left with no active window and no focus widget, so keys go nowhere. The
+// window's own focus child (the viewport or the page canvas) gets focus with the activation.
+// Another dialog still open (a prompt that follows another, or the window that opened it)
+// keeps activation.
+class ModalReturn final : public QObject {
+  public:
+    explicit ModalReturn(QWidget *window) : QObject(window), window_(window) {
+        qApp->installEventFilter(this);
+    }
+
+  protected:
+    bool eventFilter(QObject *object, QEvent *event) override {
+        if (event->type() != QEvent::Hide)
+            return false;
+        auto *dialog = qobject_cast<QDialog *>(object);
+        if (!dialog || !dialog->isWindow() || !dialog->parentWidget() ||
+            dialog->parentWidget()->window() != window_ ||
+            (!dialog->isModal() && dialog->windowModality() == Qt::NonModal))
+            return false;
+        QTimer::singleShot(0, window_, [window = window_] {
+            if (!window->isVisible() || window->isMinimized() ||
+                QApplication::activeModalWidget() || QApplication::activePopupWidget())
+                return;
+            // Another of the application's windows still open (a non-modal sheet such as Render
+            // that opened the prompt) keeps activation.
+            for (auto *other : QApplication::topLevelWidgets())
+                if (other != window && other->isVisible() &&
+                    (other->windowType() == Qt::Dialog || other->windowType() == Qt::Window ||
+                     other->windowType() == Qt::Sheet))
+                    return;
+            window->activateWindow();
+        });
+        return false;
+    }
+
+  private:
+    QWidget *window_;
 };
 } // namespace
 QAction *Window::action(const QString &id, const QString &title, const QKeySequence &shortcut,
@@ -208,15 +250,11 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     tools->setToolButtonStyle(Qt::ToolButtonTextOnly);
     tools->setFixedWidth(78);
     modelRail_ = tools;
-    const bool sheetsWorkspace = sheetsWorkspaceEnabled();
-    if (sheetsWorkspace) {
-        // ADR 0164 §7: stacks are built here, so the GL viewport is never reparented later.
-        railStack_ = new QStackedWidget;
-        railStack_->setObjectName("toolRailStack");
-        railStack_->addWidget(tools);
-        content->addWidget(railStack_);
-    } else
-        content->addWidget(tools);
+    // ADR 0164 §7: stacks are built here, so the GL viewport is never reparented later.
+    railStack_ = new QStackedWidget;
+    railStack_->setObjectName("toolRailStack");
+    railStack_->addWidget(tools);
+    content->addWidget(railStack_);
     viewport_ = new Viewport(doc_);
     inspection_ = std::make_unique<DesktopInspection>(*viewport_);
     auto *modelTabs = new QTabWidget;
@@ -228,16 +266,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     modelTabs->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
     modelTabs->tabBar()->setTabButton(0, QTabBar::LeftSide, nullptr);
     modelTabs_ = modelTabs;
-    if (sheetsWorkspace) {
-        sheetCache_ = std::make_unique<DrawingViewRenderCache>(doc_);
-        workspaceStack_ = new QStackedWidget;
-        workspaceStack_->setObjectName("workspaceStack");
-        workspaceStack_->addWidget(modelTabs);
-        sheets_ = new SheetWorkspace(doc_, *sheetCache_);
-        workspaceStack_->addWidget(sheets_);
-        content->addWidget(workspaceStack_, 1);
-    } else
-        content->addWidget(modelTabs, 1);
+    sheetCache_ = std::make_unique<DrawingViewRenderCache>(doc_);
+    workspaceStack_ = new QStackedWidget;
+    workspaceStack_->setObjectName("workspaceStack");
+    workspaceStack_->addWidget(modelTabs);
+    sheets_ = new SheetWorkspace(doc_, *sheetCache_);
+    workspaceStack_->addWidget(sheets_);
+    content->addWidget(workspaceStack_, 1);
     breadcrumb_ = new QLabel(viewport_);
     breadcrumb_->setObjectName("contextBreadcrumb");
     breadcrumb_->setAccessibleName("Editing context breadcrumb");
@@ -285,12 +320,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     hint->setWordWrap(true);
     hint->setObjectName("hint");
     trayLayout->addWidget(hint);
-    if (sheetsWorkspace) {
-        modelTrayWidgets_ = {heading, info_, organization_, hint};
-        sheetsTray_ = new SheetsTray(doc_, *viewport_, *sheetCache_);
-        sheetsTray_->hide();
-        trayLayout->addWidget(sheetsTray_, 1);
-    }
+    modelTrayWidgets_ = {heading, info_, organization_, hint};
+    sheetsTray_ = new SheetsTray(doc_, *viewport_, *sheetCache_);
+    sheetsTray_->hide();
+    trayLayout->addWidget(sheetsTray_, 1);
     sideTabs_ = new QTabWidget;
     sideTabs_->setObjectName("assistantSideTabs");
     sideTabs_->setAccessibleName("Model panels and assistant");
@@ -757,7 +790,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                                             {"view.isometric", "Isometric", 7}})
         view->addAction(action(id, label, {}, [this, preset] { viewport_->standardView(preset); }));
     view->addAction(action("view.fov", "Field of view…", {}, [this] {
-        QInputDialog input(this);
+        SettledInputDialog input(this);
         input.setWindowTitle("Field of view");
         input.setLabelText("Vertical angle in degrees");
         input.setInputMode(QInputDialog::DoubleInput);
@@ -894,8 +927,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     action("view.commands", "Commands…", QKeySequence("Ctrl+K"), [this] { palette(); });
     modelRegions_ = {search, tools, viewport_, organization_, assistant_, measurements_};
     focusRegions_ = modelRegions_;
-    if (sheets_)
-        setupSheets(header, view);
+    setupSheets(header, view);
+    // The rails sit in a stack, which put them late in the focus chain: Tab from command search
+    // skipped them. Move the stack, with both rails, back to right after the search. Qt moves
+    // only a focusable widget, so the stack is focusable just for the call.
+    railStack_->setFocusPolicy(Qt::TabFocus);
+    QWidget::setTabOrder(search, railStack_);
+    railStack_->setFocusPolicy(Qt::NoFocus);
     for (const auto &binding :
          std::vector<std::pair<QString, QString>>{{"edit.move", "geometry.transform_selection"},
                                                   {"edit.paint", "material.color"},
@@ -978,6 +1016,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         activateWindow();
         focusWorkspace();
     });
+    new ModalReturn(this);
     keyboardTabBars(this);
     keepPagesAfterTabBar(modelTabs);
     keepPagesAfterTabBar(sideTabs_);
@@ -1025,8 +1064,9 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #workspaceToggle QPushButton {border:1px solid $border;border-radius:0;padding:4px 14px;background:$input;}
 #workspaceModel {border-top-left-radius:6px;border-bottom-left-radius:6px;border-right:0;}
 #workspaceSheets {border-top-right-radius:6px;border-bottom-right-radius:6px;}
-#workspaceToggle QPushButton:checked {background:$accent;color:$onAccent;font-weight:600;}
+#workspaceToggle QPushButton:checked {background:$accent;color:$onAccent;font-weight:600;border:2px solid $accent;padding:3px 13px;}
 #workspaceToggle QPushButton:focus {border:1px solid $ink;}
+#workspaceToggle QPushButton:checked:focus {border:2px solid $surface;}
 #sheetTopBar {border-bottom:1px solid $border;} #sheetPageBar {border-top:1px solid $border;}
 #sheetTraySeparator {background:$border;}
 #sectionHeader {text-align:left;font-weight:600;border:1px solid transparent;border-radius:4px;padding:4px 8px;background:transparent;}
@@ -1034,8 +1074,8 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #sheetInfoCaption,#sheetPaperLine,#sheetInfoEmpty {color:$muted;}
 #activeToolLabel,#measurementStep,#sheetPlaceHeading {font-weight:600;}
 #sheetPlaceHeading {font-size:$sectionHeadingPx;}
-#sheetPlace {background:$accent;color:$onAccent;font-weight:600;border-radius:6px;padding:4px 8px;}
-#sheetPlace:disabled {background:$hover;color:$muted;}
+#sheetPlace {background:$accent;color:$onAccent;font-weight:600;border-radius:6px;padding:3px 7px;border:2px solid $accent;}
+#sheetPlace:disabled {background:$hover;color:$muted;border-color:$hover;}
 #sheetPlaceSceneRow {border-radius:4px;} #sheetPlaceSceneRow[chosen="true"] {background:$selected;}
 #sheetPlaceSceneRow QRadioButton,#sheetPlaceSceneRow QLabel {background:transparent;}
 #sheetPlaceSceneRow QRadioButton::indicator {width:12px;height:12px;border:1px solid $muted;border-radius:7px;background:$input;}
@@ -1043,13 +1083,15 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #sheetPlaceSceneRow QRadioButton::indicator:disabled {border:1px solid $border;}
 #sheetPlaceCancel,#sheetInfoActions QPushButton {border-radius:6px;padding:4px 10px;background:$input;}
 #sheetRail QToolButton {padding:6px;border-radius:6px;}
-#sheetPageTabs::tab {border:1px solid $border;border-radius:6px;padding:3px 10px;background:$input;margin-right:4px;}
+#sheetPageTabs::tab {border:1px solid $border;border-radius:6px;padding:3px 10px;background:$input;margin:1px 5px 1px 1px;}
 #sheetPageTabs::tab:selected {border:1px solid $accent;background:$selected;}
-#sheetPageTabs::tab:selected:focus {border:2px solid $accent;}
+#sheetPageTabs::tab:selected:focus {border:2px solid $ink;margin:0 4px 0 0;}
 #sheetAddPage {border:1px dashed $border;background:transparent;padding:3px 10px;border-radius:6px;}
 #sheetAddPage:focus,#sheetFitPage:focus,#sheetBreadcrumb:focus {border:1px solid $accent;}
 #sheetFitPage {padding:3px 10px;border-radius:6px;background:$input;}
 #sheetBreadcrumb {border:1px solid transparent;border-radius:4px;padding:2px 4px;}
+*[accentFill="true"] {border:2px solid $accent;}
+*[accentFill="true"]:focus,#sheetPlace:focus {border:2px solid $surface;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
@@ -1068,10 +1110,8 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
     style.replace("$accent", colors.accent.name());
     setStyleSheet(style);
     findChild<QToolBar *>("toolRail")->setFixedWidth(interfaceExtent(78, textPercent));
-    if (railStack_) {
-        sheetRail_->setFixedWidth(interfaceExtent(46, textPercent));
-        railStack_->setFixedWidth(railStack_->currentWidget()->maximumWidth());
-    }
+    sheetRail_->setFixedWidth(interfaceExtent(46, textPercent));
+    railStack_->setFixedWidth(railStack_->currentWidget()->maximumWidth());
     measurements_->setFixedWidth(interfaceExtent(150, textPercent));
     if (property("interfaceTextPercent").toInt() != textPercent) {
         setProperty("interfaceTextPercent", textPercent);
@@ -1082,8 +1122,7 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
     viewport_->setTheme(colors);
     setContextLabelColor(breadcrumb_, colors.accent);
     setContextLabelColor(componentBanner_, colors.accent);
-    if (sheets_)
-        themeSheets(colors);
+    themeSheets(colors);
 }
 void Window::run(const std::function<void()> &fn, bool viewOnly) {
     if (!viewOnly && assistant_ && assistant_->uncertain()) {
