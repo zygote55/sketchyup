@@ -1061,7 +1061,9 @@ void SheetExportDialog::refreshFooter() {
 }
 
 void SheetExportDialog::chooseFile() {
-    QFileDialog dialog(this, "Export sheets as PDF", path_, "PDF document (*.pdf)");
+    // Settled (R091.h): a chooser closed before its own activation settles would leave Wayland
+    // with no focus window when it hands activation back to this dialog (D-007).
+    Settled<QFileDialog> dialog(this, "Export sheets as PDF", path_, "PDF document (*.pdf)");
     dialog.setObjectName("sheetExportFileDialog");
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     dialog.setFileMode(QFileDialog::AnyFile);
@@ -1086,7 +1088,7 @@ void SheetExportDialog::choosePrinter() {
     if (!printer)
         return;
     const auto order = orderedDrawingSheets(doc_);
-    QPrintDialog dialog(printer, this);
+    Settled<QPrintDialog> dialog(printer, this);
     dialog.setObjectName("sheetPrintSystemDialog");
     dialog.setOptions(QAbstractPrintDialog::PrintPageRange |
                       QAbstractPrintDialog::PrintCurrentPage | QAbstractPrintDialog::PrintToFile |
