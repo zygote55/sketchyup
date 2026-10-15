@@ -851,6 +851,13 @@ bool SheetCanvas::keyEditing(QKeyEvent *event) {
                         key == Qt::Key_Up     ? -step
                         : key == Qt::Key_Down ? step
                                               : 0);
+    if (key == Qt::Key_Delete || key == Qt::Key_Backspace) {
+        // Edit-view swallows Delete so nothing is deleted by accident; Backspace outside it is
+        // the same as Delete (the Delete key itself is the sheet.view.delete shortcut).
+        if (!editView_ && selectedView_ && tool_ == Tool::Select && !operationActive())
+            emit deleteRequested();
+        return true;
+    }
     if (editView_) {
         if (arrow) {
             // Arrows pan the drawing inside the frame; consecutive steps amend one entry.

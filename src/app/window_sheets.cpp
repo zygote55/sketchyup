@@ -284,6 +284,21 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
     page->addAction(action(
         "sheet.view.edit", "Edit view", {}, [this] { sheets_->canvas()->enterEditView(); },
         ShortcutScope::Sheets));
+    // Delete (and Backspace on the canvas) deletes the selected view; never inside edit-view.
+    auto *deleteView = action(
+        "sheet.view.delete", "Delete view", QKeySequence::Delete, [this] { deleteSheetView(); },
+        ShortcutScope::Sheets);
+    page->addAction(deleteView);
+    for (auto *menu : menuBar()->findChildren<QMenu *>())
+        if (auto *modelDelete = findChild<QAction *>("edit.delete");
+            menu->actions().contains(modelDelete)) {
+            // Edit › Delete: the view in Sheets, the selection in Model.
+            const auto actions = menu->actions();
+            const auto at = actions.indexOf(modelDelete);
+            menu->insertAction(at + 1 < actions.size() ? actions[at + 1] : nullptr, deleteView);
+            deleteView->setVisible(false);
+            break;
+        }
     page->addAction(action(
         "sheet.view.chooseScene", "Choose scene…", {},
         [this] { chooseViewScene(sheets_->canvas()->selectedView()); }, ShortcutScope::Sheets));
@@ -346,6 +361,8 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
     });
     connect(canvas, &SheetCanvas::chooseSceneRequested, this,
             [this](qulonglong view) { chooseViewScene(view); });
+    connect(canvas, &SheetCanvas::deleteRequested, this,
+            [this] { findChild<QAction *>("sheet.view.delete")->trigger(); });
     connect(canvas, &SheetCanvas::saveSceneRequested, this,
             [this](qulonglong view) { saveViewScene(view); });
     connect(sheets_, &SheetWorkspace::leaveEditViewRequested, this, [this] {
@@ -605,6 +622,19 @@ QJsonObject Window::sheetCommit(const QJsonArray &commands, const QString &label
         return {};
     }
 }
+void Window::deleteSheetView() {
+    auto *canvas = sheets_->canvas();
+    const auto view = canvas->selectedView();
+    if (!view || canvas->editView() || !doc_.drawingViews().contains(view))
+        return;
+    run([&] {
+        // ADR 0164 §3: the dimensions and labels bound to the view go in the same entry.
+        sheetCommands(
+            {QJsonObject{{"command", "drawing_view.delete"}, {"view", QString::number(view)}}},
+            "Delete view");
+    });
+    focusWorkspace();
+}
 void Window::chooseViewScene(Id view) {
     const auto found = doc_.drawingViews().find(view);
     if (found == doc_.drawingViews().end()) {
@@ -838,6 +868,8 @@ void Window::setWorkspace(Workspace workspace) {
     focusRegions_ = sheets ? sheetRegions_ : modelRegions_;
     if (auto *page = findChild<QMenu *>("pageMenu"))
         page->menuAction()->setVisible(sheets);
+    findChild<QAction *>("edit.delete")->setVisible(!sheets);
+    findChild<QAction *>("sheet.view.delete")->setVisible(sheets);
     findChild<QAction *>(sheets ? "view.workspace.sheets" : "view.workspace.model")
         ->setChecked(true);
     syncWorkspaceActions();
@@ -917,6 +949,7 @@ void Window::syncSheetActions() {
         {"sheet.view.edit",
          hasCamera && !(selectedStatus && selectedStatus->notToScale) && !canvas->editView()},
         {"sheet.view.chooseScene", selected != 0},
+        {"sheet.view.delete", selected != 0 && !canvas->editView()},
         {"sheet.view.saveScene", canvas->editView() != 0},
         {"sheet.view.showScene", hasCamera},
         {"sheet.tool.view", page},

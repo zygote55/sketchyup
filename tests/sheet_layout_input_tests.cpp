@@ -860,6 +860,83 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         action(window, "edit.undo")->trigger(); // The scene deletion.
     }
 
+    // ---- Delete and Backspace delete the selected view with its bound items -----------------
+    std::cerr << "[layout] Delete a view" << std::endl;
+    {
+        sheets->setCurrentSheet(f.groundFloor);
+        settle(window);
+        // A leader label bound to the plan, so the ADR 0164 cascade has an item to take.
+        Id slab = 0;
+        for (const auto &[id, body] : doc.bodies())
+            if (body->name == "Slab")
+                slab = id;
+        const auto vertex = doc.bodies().at(slab)->surface.vertices.begin()->first;
+        batch(
+            doc,
+            {QJsonObject{
+                {"command", "drawing_item.create"},
+                {"sheet", QString::number(f.groundFloor)},
+                {"kind", "label"},
+                {"data",
+                 QJsonObject{{"text", "Slab corner"},
+                             {"textAt", QJsonObject{{"xMm", 300}, {"yMm", 250}}},
+                             {"target",
+                              QJsonObject{{"kind", "view"},
+                                          {"view", QString::number(f.plan)},
+                                          {"anchor",
+                                           QJsonObject{{"kind", "vertex"},
+                                                       {"body", QString::number(slab)},
+                                                       {"vertex", QString::number(vertex)}}}}}}}}});
+        emit window.viewport()->changed();
+        settle(window);
+        Id label = 0;
+        for (const auto &[id, item] : doc.drawingItems())
+            if (item->kind() == DrawingItemKind::Label)
+                label = id;
+        check(label != 0, "The bound label exists");
+        const auto views = doc.drawingViews();
+        const auto items = doc.drawingItems();
+        const auto entriesBefore = entries(doc);
+        // In edit-view Delete does nothing.
+        canvas->setFocus(Qt::OtherFocusReason);
+        canvas->setSelectedView(f.plan);
+        key(Qt::Key_Return);
+        check(canvas->editView() == f.plan && !action(window, "sheet.view.delete")->isEnabled(),
+              "Delete view is unavailable in edit-view");
+        key(Qt::Key_Delete);
+        key(Qt::Key_Backspace);
+        check(doc.drawingViews().contains(f.plan) && entries(doc) == entriesBefore,
+              "Delete and Backspace do nothing in edit-view");
+        key(Qt::Key_Escape);
+        check(action(window, "sheet.view.delete")->isEnabled() &&
+                  action(window, "sheet.view.delete")->isVisible() &&
+                  !action(window, "edit.delete")->isVisible(),
+              "Edit › Delete deletes the selected view in Sheets");
+        key(Qt::Key_Delete);
+        check(!doc.drawingViews().contains(f.plan) && !doc.drawingItems().contains(label) &&
+                  entries(doc) == entriesBefore + 1 && lastLabel(doc) == "Delete view" &&
+                  canvas->selectedView() == 0,
+              "Delete removes the view and its bound label in one entry");
+        unchanged("Delete view");
+        action(window, "edit.undo")->trigger();
+        check(doc.drawingViews() == views && doc.drawingItems() == items,
+              "Undo restores the view and its label with their IDs");
+        action(window, "edit.redo")->trigger();
+        check(!doc.drawingViews().contains(f.plan) && !doc.drawingItems().contains(label),
+              "Redo deletes them again");
+        action(window, "edit.undo")->trigger();
+        // Backspace is the same as Delete.
+        canvas->setFocus(Qt::OtherFocusReason);
+        canvas->setSelectedView(f.south);
+        key(Qt::Key_Backspace);
+        check(!doc.drawingViews().contains(f.south) && lastLabel(doc) == "Delete view",
+              "Backspace deletes the selected view");
+        unchanged("Backspace delete");
+        action(window, "edit.undo")->trigger();
+        check(doc.drawingViews() == views, "Undo restores it");
+        canvas->setFocus(Qt::OtherFocusReason);
+    }
+
     // ---- Undo everything, then redo everything
     std::cerr << "[layout] Undo everything, then redo everything" << std::endl;
     {

@@ -177,6 +177,7 @@ class Window : public QMainWindow {
     void syncSheetActions();
     void refreshPlacement();
     void chooseViewScene(Id view);
+    void deleteSheetView();
     void saveViewScene(Id view);
     void showViewScene(Id view);
     void addSheetPage();

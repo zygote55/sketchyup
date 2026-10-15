@@ -137,6 +137,8 @@ class SheetCanvas : public QWidget {
     void editViewChanged(qulonglong view);
     void chooseSceneRequested(qulonglong view);
     void saveSceneRequested(qulonglong view);
+    // Backspace on a selected view (Delete is the sheet.view.delete shortcut).
+    void deleteRequested();
     // A status message for the user (refusals and results).
     void message(const QString &text);
 
