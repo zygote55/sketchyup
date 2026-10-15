@@ -89,11 +89,11 @@ class SheetCanvas : public QWidget {
     // What the Model view tool places, from the "New model view" panel.
     struct Placement {
         Id scene{};
-        QString name;               // The view title; made unique among the views on commit.
+        QString name; // The view title; made unique among the views on commit.
         double scaleDenominator{50};
-        bool perspective{};         // Places as not to scale, with rendered content.
-        QSizeF naturalMm{120, 80};  // The content's extent at the scale, plus a border.
-        QPointF contentCentreMm;    // Content centre relative to the scene target, paper mm.
+        bool perspective{};        // Places as not to scale, with rendered content.
+        QSizeF naturalMm{120, 80}; // The content's extent at the scale, plus a border.
+        QPointF contentCentreMm;   // Content centre relative to the scene target, paper mm.
     };
     void setPlacement(const Placement &placement);
     const Placement &placement() const { return placement_; }
@@ -172,11 +172,11 @@ class SheetCanvas : public QWidget {
     // R091.f state.
     Committer committer_;
     Placement placement_;
-    bool anchored_{};       // Click–move–click: the first corner or pick-up is down.
-    bool dragMoved_{};      // The pointer moved past the drag threshold since the press.
+    bool anchored_{};  // Click–move–click: the first corner or pick-up is down.
+    bool dragMoved_{}; // The pointer moved past the drag threshold since the press.
     QPointF anchorMm_, cornerMm_;
     std::optional<QPointF> hoverMm_;
-    int cropCorner_{};      // 0 top-left, 1 top-right, 2 bottom-right, 3 bottom-left.
+    int cropCorner_{}; // 0 top-left, 1 top-right, 2 bottom-right, 3 bottom-left.
     // The dragged view's record while a move, crop or edit-view pan previews.
     std::optional<DrawingViewRecord> preview_;
     QString snapHint_;

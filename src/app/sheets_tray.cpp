@@ -5,21 +5,21 @@
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include <QApplication>
-#include <QGroupBox>
-#include <QLocale>
-#include <QRadioButton>
-#include <QRegularExpressionValidator>
-#include <QSignalBlocker>
-#include <QStyle>
 #include <QFrame>
 #include <QGridLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
+#include <QLocale>
 #include <QPainter>
 #include <QPainterPath>
+#include <QRadioButton>
 #include <QRegularExpression>
+#include <QRegularExpressionValidator>
 #include <QScopedValueRollback>
+#include <QSignalBlocker>
+#include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <set>
@@ -476,7 +476,7 @@ void SheetsTray::fitInfo() {
             label->setMinimumHeight(label->heightForWidth(label->width()));
     layout->invalidate();
     infoSection_->setMinimumHeight(layout->hasHeightForWidth() ? layout->heightForWidth(width)
-                                                                : layout->sizeHint().height());
+                                                               : layout->sizeHint().height());
 }
 void SheetsTray::refresh(Id currentSheet, Id selectedView) {
     sheet_ = currentSheet;
@@ -524,8 +524,8 @@ void SheetsTray::refreshInfo() {
                                                          : QString{});
         QSignalBlocker styleBlocker(infoStyle_);
         infoStyle_->setCurrentIndex(view.content == DrawingViewContent::RasterAppearance ? 2
-                                    : view.hiddenLines                                 ? 1
-                                                                                       : 0);
+                                    : view.hiddenLines                                   ? 1
+                                                                                         : 0);
     }
     const bool broken = status && (status->state == DrawingViewState::Broken ||
                                    status->state == DrawingViewState::Failed);
@@ -790,7 +790,8 @@ SheetPlacePanel::SheetPlacePanel(const Document &doc, QWidget *parent)
         details->addWidget(scale_, 1, 0, 1, 2);
     }
     connect(scale_, &QComboBox::currentIndexChanged, this, [this] { emit placementChanged(); });
-    connect(scale_, &QComboBox::activated, this, [this] { scale_->setProperty("userChose", true); });
+    connect(scale_, &QComboBox::activated, this,
+            [this] { scale_->setProperty("userChose", true); });
     style_ = new QLabel;
     style_->setObjectName("sheetPlaceStyle");
     style_->setWordWrap(true);
@@ -850,8 +851,7 @@ void SheetPlacePanel::refresh(const QString &documentName, Id sheet, double page
     for (size_t i = 0; !rebuild && i < order.size(); ++i)
         if (auto *button = scenes_->button(int(order[i])))
             rebuild = button->text() != QString::fromStdString(doc_.scenes().at(order[i])->name) ||
-                      button->property("projection").toString() !=
-                          sceneProjection(doc_, order[i]);
+                      button->property("projection").toString() != sceneProjection(doc_, order[i]);
     if (rebuild) {
         QSignalBlocker blocker(scenes_);
         const bool hadFocus = sceneList_->isAncestorOf(QApplication::focusWidget());
@@ -913,10 +913,10 @@ void SheetPlacePanel::refresh(const QString &documentName, Id sheet, double page
             scales.push_back(pageScale);
         std::sort(scales.begin(), scales.end());
         for (const auto value : scales)
-            scale_->addItem("1:" + QString::number(value, 'g', 10) +
-                                (pageHasScale && value == pageScale ? " (matches this page)"
-                                                                    : QString{}),
-                            value);
+            scale_->addItem(
+                "1:" + QString::number(value, 'g', 10) +
+                    (pageHasScale && value == pageScale ? " (matches this page)" : QString{}),
+                value);
         const auto wanted = keepPrevious ? previous : pageScale;
         scale_->setCurrentIndex(std::max(0, scale_->findData(wanted)));
     }

@@ -218,8 +218,7 @@ static std::vector<Target> snapTargets(const SheetCanvas &canvas, const Document
     targets.push_back({extent, x ? "the right edge of the paper" : "the bottom edge of the paper"});
     if (sheet.marginMm > 0) {
         targets.push_back({sheet.marginMm, x ? "the left margin" : "the top margin"});
-        targets.push_back(
-            {extent - sheet.marginMm, x ? "the right margin" : "the bottom margin"});
+        targets.push_back({extent - sheet.marginMm, x ? "the right margin" : "the bottom margin"});
     }
     const auto views = canvas.views();
     for (size_t i = 0; i < views.size(); ++i) {
@@ -232,8 +231,8 @@ static std::vector<Target> snapTargets(const SheetCanvas &canvas, const Document
         targets.push_back({low, (x ? "the left edge of view " : "the top edge of view ") + number});
         targets.push_back(
             {low + size, (x ? "the right edge of view " : "the bottom edge of view ") + number});
-        targets.push_back({low + size / 2, (x ? "the centre of view " : "the middle of view ") +
-                                               number});
+        targets.push_back(
+            {low + size / 2, (x ? "the centre of view " : "the middle of view ") + number});
     }
     return targets;
 }
@@ -271,10 +270,10 @@ QPointF SheetCanvas::snapPoint(QPointF point, bool snapping) {
     if (!sheet || !snapping)
         return point;
     const auto exclude = preview_ ? preview_->id : Id{};
-    const auto x = snapAxis(snapTargets(*this, doc_, *sheet, true, exclude), {point.x()},
-                            tolerance(), grid_);
-    const auto y = snapAxis(snapTargets(*this, doc_, *sheet, false, exclude), {point.y()},
-                            tolerance(), grid_);
+    const auto x =
+        snapAxis(snapTargets(*this, doc_, *sheet, true, exclude), {point.x()}, tolerance(), grid_);
+    const auto y =
+        snapAxis(snapTargets(*this, doc_, *sheet, false, exclude), {point.y()}, tolerance(), grid_);
     snapHint_ = hintText(x, y);
     if (x.snapped && !x.grid)
         guides_.push_back({x.at, 0, x.at, sheet->paper.heightMm});
@@ -417,8 +416,8 @@ bool SheetCanvas::commitPlacement(QRectF frame, bool amend) {
         create = {{"command", "drawing_view.create"},
                   {"name", name},
                   {"sheet", QString::number(sheet_)},
-                  {"source", QJsonObject{{"kind", "scene"},
-                                         {"scene", QString::number(placement_.scene)}}},
+                  {"source",
+                   QJsonObject{{"kind", "scene"}, {"scene", QString::number(placement_.scene)}}},
                   {"scaleDenominator", placement_.scaleDenominator},
                   {"content", placement_.perspective ? "rasterAppearance" : "technicalLines"}};
         // The drawing starts centred in the frame.
@@ -475,8 +474,8 @@ bool SheetCanvas::placeView(std::optional<QSizeF> size) {
                 at.rx() -= extent.width();
             if (cornerMm_.y() < anchorMm_.y())
                 at.ry() -= extent.height();
-        } else if (hoverMm_ && QRectF(0, 0, sheet->paper.widthMm, sheet->paper.heightMm)
-                                   .contains(*hoverMm_))
+        } else if (hoverMm_ &&
+                   QRectF(0, 0, sheet->paper.widthMm, sheet->paper.heightMm).contains(*hoverMm_))
             at = *hoverMm_;
         frame = QRectF(at, extent);
     }
@@ -503,8 +502,8 @@ bool SheetCanvas::nudge(QPointF delta) {
         return false;
     }
     // Consecutive nudges of the same view amend one "Nudge" entry (ADR 0164 §5).
-    const auto amendKey = keyOf(revision_.key, "nudge", live->id) ? revision_.key
-                                                                   : key("nudge", live->id);
+    const auto amendKey =
+        keyOf(revision_.key, "nudge", live->id) ? revision_.key : key("nudge", live->id);
     return commitView(*live, after, "Nudge", amendKey);
 }
 bool SheetCanvas::panContent(QPointF delta, const QString &amendKey) {
@@ -610,10 +609,10 @@ void SheetCanvas::layoutBanner() {
         return;
     // As wide as its sentence and buttons, within the canvas.
     const auto margins = banner_->layout()->contentsMargins();
-    const auto natural = int(std::ceil(bannerText_->fontMetrics().horizontalAdvance(
-                             bannerText_->text()))) +
-                         saveScene_->sizeHint().width() + done_->sizeHint().width() +
-                         2 * banner_->layout()->spacing() + margins.left() + margins.right() + 4;
+    const auto natural =
+        int(std::ceil(bannerText_->fontMetrics().horizontalAdvance(bannerText_->text()))) +
+        saveScene_->sizeHint().width() + done_->sizeHint().width() +
+        2 * banner_->layout()->spacing() + margins.left() + margins.right() + 4;
     const auto width = std::max(120, std::min(this->width() - 32, natural));
     banner_->setFixedWidth(width);
     const auto height = banner_->layout()->hasHeightForWidth()
@@ -846,8 +845,12 @@ bool SheetCanvas::keyEditing(QKeyEvent *event) {
     if (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))
         return false;
     const double step = shift ? 10 : 1;
-    const QPointF delta(key == Qt::Key_Left ? -step : key == Qt::Key_Right ? step : 0,
-                        key == Qt::Key_Up ? -step : key == Qt::Key_Down ? step : 0);
+    const QPointF delta(key == Qt::Key_Left    ? -step
+                        : key == Qt::Key_Right ? step
+                                               : 0,
+                        key == Qt::Key_Up     ? -step
+                        : key == Qt::Key_Down ? step
+                                              : 0);
     if (editView_) {
         if (arrow) {
             // Arrows pan the drawing inside the frame; consecutive steps amend one entry.
@@ -953,11 +956,10 @@ bool SheetCanvas::measurements(const QString &input, QString &error) {
             if (frame.left() < -1e-9 || frame.top() < -1e-9 ||
                 frame.right() > sheet->paper.widthMm + 1e-9 ||
                 frame.bottom() > sheet->paper.heightMm + 1e-9)
-                throw std::runtime_error("The frame must stay on the paper (" +
-                                         paperMillimetres(sheet->paper.widthMm).toStdString() +
-                                         " × " +
-                                         paperMillimetres(sheet->paper.heightMm).toStdString() +
-                                         " mm)");
+                throw std::runtime_error(
+                    "The frame must stay on the paper (" +
+                    paperMillimetres(sheet->paper.widthMm).toStdString() + " × " +
+                    paperMillimetres(sheet->paper.heightMm).toStdString() + " mm)");
         };
         // Size: w,h.
         if (label == "Size") {
@@ -983,8 +985,8 @@ bool SheetCanvas::measurements(const QString &input, QString &error) {
             if (revision_.key.startsWith("place:") && !anchored_) {
                 // Re-entry after a placement: the same view, the new size.
                 const auto frame = revision_.create["frame"].toObject();
-                const QRectF revised(frame["xMm"].toDouble(), frame["yMm"].toDouble(),
-                                     size.width(), size.height());
+                const QRectF revised(frame["xMm"].toDouble(), frame["yMm"].toDouble(), size.width(),
+                                     size.height());
                 requireFrame(revised);
                 if (!commitPlacement(revised, true))
                     throw std::runtime_error("The view could not be resized");
@@ -1041,8 +1043,7 @@ bool SheetCanvas::measurements(const QString &input, QString &error) {
             const QRectF frame(base.frame.xMm, base.frame.yMm, values[0], values[1]);
             requireFrame(frame);
             const auto amendKey = again ? revision_.key : key("size", live->id);
-            if (!commitView(*live, croppedView(base, frameOf(frame, 1e-6)), "Crop view",
-                            amendKey))
+            if (!commitView(*live, croppedView(base, frameOf(frame, 1e-6)), "Crop view", amendKey))
                 throw std::runtime_error("The view already has this size");
             revision_.base = base;
             return true;
@@ -1155,8 +1156,8 @@ SheetCanvas::adjusted(const PreparedDrawingSheet &prepared) const {
         change.frame.translate(to.left(), to.top());
         change.frame.scale(to.width() / from.width(), to.height() / from.height());
         change.frame.translate(-from.left(), -from.top());
-        change.caption = QTransform::fromTranslate(to.left() - from.left(),
-                                                   to.bottom() - from.bottom());
+        change.caption =
+            QTransform::fromTranslate(to.left() - from.left(), to.bottom() - from.bottom());
         change.to = to;
         const auto &status = view.evaluation.status;
         // Content that fills the frame (perspective, broken and failed views) follows it.
@@ -1223,8 +1224,8 @@ void SheetCanvas::paintEditing(QPainter &painter) {
         if (tool_ == Tool::Select) {
             painter.setPen(QPen(stroke, 1.5));
             painter.setBrush(Qt::white);
-            for (const auto &corner : {frame.topLeft(), frame.topRight(), frame.bottomRight(),
-                                       frame.bottomLeft()}) {
+            for (const auto &corner :
+                 {frame.topLeft(), frame.topRight(), frame.bottomRight(), frame.bottomLeft()}) {
                 QRectF handle(0, 0, handleSize, handleSize);
                 handle.moveCenter(corner);
                 painter.drawRect(handle);

@@ -14,9 +14,9 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QButtonGroup>
+#include <QComboBox>
 #include <QFileInfo>
 #include <QHBoxLayout>
-#include <QComboBox>
 #include <QIconEngine>
 #include <QInputDialog>
 #include <QJsonArray>
@@ -119,11 +119,10 @@ QPainterPath moveIcon() {
     path.lineTo(9, 16);
     path.moveTo(2, 9);
     path.lineTo(16, 9);
-    for (const auto &[tip, a, b] :
-         {std::tuple{QPointF(9, 2), QPointF(7, 4), QPointF(11, 4)},
-          std::tuple{QPointF(9, 16), QPointF(7, 14), QPointF(11, 14)},
-          std::tuple{QPointF(2, 9), QPointF(4, 7), QPointF(4, 11)},
-          std::tuple{QPointF(16, 9), QPointF(14, 7), QPointF(14, 11)}}) {
+    for (const auto &[tip, a, b] : {std::tuple{QPointF(9, 2), QPointF(7, 4), QPointF(11, 4)},
+                                    std::tuple{QPointF(9, 16), QPointF(7, 14), QPointF(11, 14)},
+                                    std::tuple{QPointF(2, 9), QPointF(4, 7), QPointF(4, 11)},
+                                    std::tuple{QPointF(16, 9), QPointF(14, 7), QPointF(14, 11)}}) {
         path.moveTo(a);
         path.lineTo(tip);
         path.lineTo(b);
@@ -332,10 +331,10 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
         sheetsTray_->refresh(sheets_->currentSheet(), sheets_->canvas()->selectedView());
         syncSheetActions();
     });
-    canvas->setCommitter([this](const QJsonArray &commands, const QString &label,
-                                const QString &amendKey) {
-        return sheetCommit(commands, label, amendKey);
-    });
+    canvas->setCommitter(
+        [this](const QJsonArray &commands, const QString &label, const QString &amendKey) {
+            return sheetCommit(commands, label, amendKey);
+        });
     connect(canvas, &SheetCanvas::stepChanged, this, [this] { refreshSheetStep(); });
     connect(canvas, &SheetCanvas::message, this, [this](const QString &text) {
         if (workspace_ == Workspace::Sheets)
@@ -588,10 +587,10 @@ QJsonObject Window::sheetCommit(const QJsonArray &commands, const QString &label
                                   {"commands", commands},
                                   {"history", QJsonObject{{"label", label}}}};
         // Re-entry and consecutive nudges amend the entry they continue.
-        auto result = !amendKey.isEmpty() && amendKey == sheetAmendKey_ &&
-                              doc_.canAmend(sheetAmendStamp_)
-                          ? executeAmend(doc_, sheetAmendStamp_, request)
-                          : executeBatch(doc_, request);
+        auto result =
+            !amendKey.isEmpty() && amendKey == sheetAmendKey_ && doc_.canAmend(sheetAmendStamp_)
+                ? executeAmend(doc_, sheetAmendStamp_, request)
+                : executeBatch(doc_, request);
         sheetAmendKey_ = amendKey;
         sheetAmendStamp_ = doc_.amendmentStamp();
         sync();
@@ -655,12 +654,12 @@ void Window::chooseViewScene(Id view) {
         return;
     }
     run([&] {
-        sheetCommands({QJsonObject{{"command", "drawing_view.update"},
-                                   {"view", QString::number(view)},
-                                   {"source", QJsonObject{{"kind", "scene"},
-                                                          {"scene", QString::number(
-                                                                        ids[size_t(index)])}}}}},
-                      "Choose scene");
+        sheetCommands(
+            {QJsonObject{{"command", "drawing_view.update"},
+                         {"view", QString::number(view)},
+                         {"source", QJsonObject{{"kind", "scene"},
+                                                {"scene", QString::number(ids[size_t(index)])}}}}},
+            "Choose scene");
     });
     focusWorkspace();
 }
@@ -713,14 +712,13 @@ void Window::saveViewScene(Id view) {
         // same with no offset. Decision 8: two entries, the model edit first, because one
         // history entry cannot change both the model and the sheets.
         auto snapshot = scene->second->snapshot;
-        const auto projection =
-            drawingViewProjection(record, renderSceneCamera(*snapshot.camera));
+        const auto projection = drawingViewProjection(record, renderSceneCamera(*snapshot.camera));
         snapshot.camera->target = projection.page.origin;
-        const auto created = sheetCommands(
-            {QJsonObject{{"command", "saved_scene.create"},
-                         {"name", name},
-                         {"snapshot", encodeSceneSnapshot(snapshot)}}},
-            "Save as new scene");
+        const auto created =
+            sheetCommands({QJsonObject{{"command", "saved_scene.create"},
+                                       {"name", name},
+                                       {"snapshot", encodeSceneSnapshot(snapshot)}}},
+                          "Save as new scene");
         const auto scenes = created["createdScenes"].toArray();
         if (scenes.isEmpty())
             throw std::runtime_error("The scene was not created");
@@ -909,17 +907,15 @@ void Window::syncSheetActions() {
     auto *canvas = sheets_->canvas();
     const auto selected = canvas->selectedView();
     const auto selectedStatus = selected ? sheetCache_->status(selected) : std::nullopt;
-    const bool hasCamera = selected && doc_.drawingViews().contains(selected) &&
-                           doc_.scenes().contains(doc_.drawingViews().at(selected)->source.scene) &&
-                           doc_.scenes()
-                               .at(doc_.drawingViews().at(selected)->source.scene)
-                               ->snapshot.camera;
+    const bool hasCamera =
+        selected && doc_.drawingViews().contains(selected) &&
+        doc_.scenes().contains(doc_.drawingViews().at(selected)->source.scene) &&
+        doc_.scenes().at(doc_.drawingViews().at(selected)->source.scene)->snapshot.camera;
     const std::vector<std::pair<const char *, bool>> states{
         {"sheet.view.fit", page},
-        {"sheet.view.accept",
-         selectedStatus && selectedStatus->state == DrawingViewState::Stale},
-        {"sheet.view.edit", hasCamera && !(selectedStatus && selectedStatus->notToScale) &&
-                                !canvas->editView()},
+        {"sheet.view.accept", selectedStatus && selectedStatus->state == DrawingViewState::Stale},
+        {"sheet.view.edit",
+         hasCamera && !(selectedStatus && selectedStatus->notToScale) && !canvas->editView()},
         {"sheet.view.chooseScene", selected != 0},
         {"sheet.view.saveScene", canvas->editView() != 0},
         {"sheet.view.showScene", hasCamera},

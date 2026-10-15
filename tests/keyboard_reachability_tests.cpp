@@ -612,8 +612,7 @@ void sheetsWorkspace() {
     auto *sheetCanvas = window.sheetWorkspace()->canvas();
     auto tabReaches = [&](const std::vector<QWidget *> &targets, const std::string &context) {
         sheetCanvas->setFocus(Qt::OtherFocusReason);
-        check(QTest::qWaitFor([&] { return sheetCanvas->hasFocus(); }),
-              context + ": canvas focus");
+        check(QTest::qWaitFor([&] { return sheetCanvas->hasFocus(); }), context + ": canvas focus");
         std::set<QWidget *> reached;
         std::string visited;
         for (int i = 0; i < 400; ++i) {

@@ -7,8 +7,8 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QPainter>
-#include <QPushButton>
 #include <QPainterPath>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QWheelEvent>
 #include <QWindow>

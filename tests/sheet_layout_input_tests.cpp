@@ -295,18 +295,17 @@ void layout(Window &window, const QString &path, const Fixture &f) {
     auto *panel = tray->placePanel();
     check(panel->isVisible() && !window.findChild<QWidget *>("sheetInfoSection")->isVisible(),
           "The New model view panel replaces the Tray sections");
-    check(panel->findChild<QComboBox *>("sheetPlaceModel")->currentText().endsWith(
-              "(this model)") &&
-              panel->findChild<QComboBox *>("sheetPlaceModel")->count() == 1,
-          "The model select offers this model only");
+    check(
+        panel->findChild<QComboBox *>("sheetPlaceModel")->currentText().endsWith("(this model)") &&
+            panel->findChild<QComboBox *>("sheetPlaceModel")->count() == 1,
+        "The model select offers this model only");
     {
         QStringList listed;
         for (auto *button : panel->scenes()->buttons())
             listed << button->accessibleName();
         check(listed == QStringList{"Ground plan, Top", "South elevation, Front",
                                     "North elevation, Back", "Garden view, Perspective"},
-              "The scene list shows each scene's projection: " +
-                  listed.join(" | ").toStdString());
+              "The scene list shows each scene's projection: " + listed.join(" | ").toStdString());
         check(panel->scaleChoice()->currentText() == "1:50",
               "An empty page proposes 1:50: " + panel->scaleChoice()->currentText().toStdString());
     }
@@ -363,8 +362,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         check(frame && near(frame->left(), 30) && near(frame->top(), 180) &&
                   near(frame->width(), 100) && near(frame->height(), 70),
               "The preview frame snaps to the grid");
-        check(measurements->text() == "100,70 mm", "The box shows the live size: " +
-                                                       measurements->text().toStdString());
+        check(measurements->text() == "100,70 mm",
+              "The box shows the live size: " + measurements->text().toStdString());
         check(entries(doc) == before + 1, "Dragging commits nothing");
         // Alt ignores snapping while held.
         mouse(canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
@@ -412,8 +411,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         moveTo(canvas, from, to, {}, Qt::NoButton);
         press(canvas, to);
         release(canvas, to);
-        check(entries(doc) == before + 3 && view(window, canvas->selectedView()).frame ==
-                                                DrawingFrame{250, 180, 100, 80},
+        check(entries(doc) == before + 3 &&
+                  view(window, canvas->selectedView()).frame == DrawingFrame{250, 180, 100, 80},
               "The second click places the frame");
         key(Qt::Key_Z, Qt::ControlModifier);
         check(entries(doc) == before + 2, "Undo the click-placed view");
@@ -527,8 +526,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
               "Cropping keeps the drawing where it is on paper");
         unchanged("Crop view");
         key(Qt::Key_Z, Qt::ControlModifier);
-        check(view(window, f.plan).frame == plan.frame && view(window, f.plan).offsetMm ==
-                                                              plan.offsetMm,
+        check(view(window, f.plan).frame == plan.frame &&
+                  view(window, f.plan).offsetMm == plan.offsetMm,
               "Undo the crop");
         canvas->setFocus(Qt::OtherFocusReason);
     }
@@ -565,8 +564,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
     settle(window);
     check(cache->status(f.south)->state == DrawingViewState::Stale, "Undo un-accepts");
     action(window, "sheet.view.acceptAll")->trigger();
-    check(lastLabel(doc).startsWith("Accept "), "Accept all is one entry: " +
-                                                    lastLabel(doc).toStdString());
+    check(lastLabel(doc).startsWith("Accept "),
+          "Accept all is one entry: " + lastLabel(doc).toStdString());
     settle(window);
     check(cache->status(f.south)->state == DrawingViewState::Current &&
               cache->status(placed)->state == DrawingViewState::Current,
@@ -691,7 +690,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
     }
 
     // ---- Edit-view: pan changes the offset, zoom the crop; Esc leaves
-    std::cerr << "[layout] Edit-view: pan changes the offset, zoom the crop; Esc leaves" << std::endl;
+    std::cerr << "[layout] Edit-view: pan changes the offset, zoom the crop; Esc leaves"
+              << std::endl;
     canvas->setSelectedView(f.plan);
     canvas->setFocus(Qt::OtherFocusReason);
     {
@@ -703,8 +703,7 @@ void layout(Window &window, const QString &path, const Fixture &f) {
                   sheets->breadcrumb()->text().contains("View 1 · Ground floor plan"),
               "Breadcrumb: Sheets › A-101 › View 1 · Ground floor plan: " +
                   sheets->breadcrumb()->text().toStdString());
-        check(toolLabel->text() == "Edit view" && stepLabel->text() == "Size",
-              "Edit-view status");
+        check(toolLabel->text() == "Edit view" && stepLabel->text() == "Size", "Edit-view status");
         {
             const auto image = canvas->grab().toImage();
             const auto ratio = canvas->devicePixelRatioF();
@@ -714,17 +713,17 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         }
         const auto entriesBefore = entries(doc);
         const auto from = canvas->viewRect(f.plan).center();
-        const auto delta = QPointF(std::round(10 * canvas->pixelsPerMm()),
-                                   std::round(5 * canvas->pixelsPerMm()));
+        const auto delta =
+            QPointF(std::round(10 * canvas->pixelsPerMm()), std::round(5 * canvas->pixelsPerMm()));
         drag(canvas, from, from + delta);
         const auto &panned = view(window, f.plan);
-        check(lastLabel(doc) == "Pan view" && entries(doc) == entriesBefore + 1 &&
-                  panned.frame == plan.frame && panned.scaleDenominator == plan.scaleDenominator &&
-                  near(panned.offsetMm[0], plan.offsetMm[0] + delta.x() / canvas->pixelsPerMm(),
-                       .06) &&
-                  near(panned.offsetMm[1], plan.offsetMm[1] + delta.y() / canvas->pixelsPerMm(),
-                       .06),
-              "A drag pans the drawing: the offset changes, frame and scale stay");
+        check(
+            lastLabel(doc) == "Pan view" && entries(doc) == entriesBefore + 1 &&
+                panned.frame == plan.frame && panned.scaleDenominator == plan.scaleDenominator &&
+                near(panned.offsetMm[0], plan.offsetMm[0] + delta.x() / canvas->pixelsPerMm(),
+                     .06) &&
+                near(panned.offsetMm[1], plan.offsetMm[1] + delta.y() / canvas->pixelsPerMm(), .06),
+            "A drag pans the drawing: the offset changes, frame and scale stay");
         unchanged("Pan view");
         const auto pannedTarget = target(view(window, f.plan));
         const auto wheelAt = canvas->viewRect(f.plan).center();
@@ -786,8 +785,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         });
         canvas->saveSceneButton()->click();
         watch.finish();
-        check(entries(doc) == entriesBefore + 2 && labelAt(doc, entriesBefore) ==
-                                                       "Save as new scene" &&
+        check(entries(doc) == entriesBefore + 2 &&
+                  labelAt(doc, entriesBefore) == "Save as new scene" &&
                   labelAt(doc, entriesBefore + 1) == "Use new scene",
               "Save as new scene is two entries: a model edit, then a sheet edit");
         check(doc.scenes().size() == scenes + 1, "A scene was added to the model");
@@ -817,16 +816,16 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         const auto revision = doc.revision();
         const auto entriesBefore = entries(doc);
         action(window, "sheet.view.showScene")->trigger();
-        check(window.workspace() == Window::Workspace::Model &&
-                  window.viewport()->orthographic() && doc.revision() == revision &&
-                  entries(doc) == entriesBefore,
+        check(window.workspace() == Window::Workspace::Model && window.viewport()->orthographic() &&
+                  doc.revision() == revision && entries(doc) == entriesBefore,
               "Show scene in model applies the scene camera without an edit");
         window.setWorkspace(Window::Workspace::Sheets);
         settle(window);
     }
 
     // ---- Choose scene… relinks a broken view, keeping frame and scale
-    std::cerr << "[layout] Choose scene… relinks a broken view, keeping frame and scale" << std::endl;
+    std::cerr << "[layout] Choose scene… relinks a broken view, keeping frame and scale"
+              << std::endl;
     {
         batch(doc, {QJsonObject{{"command", "saved_scene.delete"},
                                 {"scene", QString::number(f.northScene)}}});
@@ -870,8 +869,7 @@ void layout(Window &window, const QString &path, const Fixture &f) {
             action(window, "edit.undo")->trigger();
         bool same = doc.drawingViews().size() == initialViews.size();
         for (const auto &[id, record] : initialViews)
-            same = same && doc.drawingViews().contains(id) &&
-                   *doc.drawingViews().at(id) == *record;
+            same = same && doc.drawingViews().contains(id) && *doc.drawingViews().at(id) == *record;
         check(same, "Undoing every page operation restores the views exactly");
         check(modelRecords(doc).bodies == model.bodies, "Model geometry never changed");
         while (entries(doc) < finalEntries)

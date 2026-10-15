@@ -1312,22 +1312,14 @@ inline std::vector<Case> cases(Context &ctx) {
          named("assistantConsent"), Enter::Closes, "Cancel", Return::Opener});
     // -------------------------------------------------------------- sheets ---------
     // R091.f: opened from the page canvas through the palette; focus returns to the canvas.
-    add({"sheet-choose-scene",
-         "sheets",
-         "Choose scene",
-         "Sheets: Tab selects a view, then Page > Choose scene… (palette)",
-         sheetView,
+    add({"sheet-choose-scene", "sheets", "Choose scene",
+         "Sheets: Tab selects a view, then Page > Choose scene… (palette)", sheetView,
          [](Context &context) {
              selectSheetView(context, false);
              palette(context, "Choose scene…");
          },
-         named("chooseSceneDialog"),
-         Enter::Accept,
-         "Choose",
-         Return::Opener});
-    add({"sheet-save-scene",
-         "sheets",
-         "Save as new scene",
+         named("chooseSceneDialog"), Enter::Accept, "Choose", Return::Opener});
+    add({"sheet-save-scene", "sheets", "Save as new scene",
          "Sheets: Tab selects a view, Enter opens edit-view, then Page > Save as new scene… "
          "(palette)",
          sheetView,
@@ -1335,10 +1327,7 @@ inline std::vector<Case> cases(Context &ctx) {
              selectSheetView(context, true);
              palette(context, "Save as new scene…");
          },
-         named("saveViewSceneDialog"),
-         Enter::Accept,
-         "Save scene",
-         Return::Opener});
+         named("saveViewSceneDialog"), Enter::Accept, "Save scene", Return::Opener});
     return all;
 }
 // Dialogs that exist in the product but cannot be opened in the isolated, offline fixture.
