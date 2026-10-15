@@ -550,6 +550,14 @@ int main(int argc, char **argv) {
             canvas->setSelectedItem(0);
             QTest::qWait(30);
             sweep(window, "Sheets / page");
+            // At 200% text, the page's controls only, which bounds the native run time (the
+            // Wayland harness stops at 60 s); every context is swept at 100%.
+            if (textPercent != 100) {
+                window.setWorkspace(Window::Workspace::Model);
+                window.activateWindow();
+                check(QTest::qWaitForWindowActive(&window), "Window active after Sheets");
+                return;
+            }
             canvas->setSelectedView(views[0]);
             QTest::qWait(30);
             sweep(window, "Sheets / model view");
