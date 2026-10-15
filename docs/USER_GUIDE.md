@@ -275,7 +275,9 @@ before further editing or saving.
 
 Model prose is not the measurement oracle. The [agent guide](AI_MODELING.md),
 [tool reference](TOOL_REFERENCE.md) and [frozen provider corpus](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086a-frozen-provider-corpus.md)
-describe the supported commands and evaluation boundary. The retained local
+describe the supported commands and evaluation boundary. The assistant does not work
+with drawing sheets in 1.1: the sheet operations in the tool reference are available
+over MCP and the transaction APIs, not in the assistant panel. The retained local
 CPU profile is experimental, with no quality guarantee, automatic model download
 or cloud fallback.
 

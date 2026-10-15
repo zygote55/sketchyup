@@ -1238,6 +1238,36 @@ R091 UX design canvas.
   checked button, arrows choose), and audits `sheet-export`, `sheet-print` and
   `sheet-export-model` after their preflight has listed its controls; only the default
   button is asserted, because Enter would write a file or print.
+- **Assistant.** The in-app assistant does not see sheet tools in 1.1.0; MCP does. See
+  [Assistant tool surface (1.1.0)](#assistant-tool-surface-110).
 - **Tests.** `sheet_export_input_tests` (X11 and Wayland at 1×, 2× and 1.5×), the
   keyboard-reachability Sheets section, `visible_focus_input_tests --workspace=sheets`, and
   the dialog audit's sheets group; `sheet_export_tests` covers the font-source split.
+
+### Assistant tool surface (1.1.0)
+
+Added 2026-10-15 (owner decision, D-035 in [R089.a](../verification/R089a-defect-triage.md)).
+**The in-app assistant does not see sheet tools in 1.1.0; MCP does.**
+
+- **Rule.** `assistantVisible` in `src/automation/assistant.cpp`, next to the assistant's
+  tool builder, is the only filter: a name that starts with `drawing_` is not
+  assistant-visible. That covers every `drawing_sheet.*`, `drawing_view.*` and
+  `drawing_item.*` operation and every plural `drawing_*` query, including
+  `drawing_sheets.export_preflight`. They are left out of the top-level tools, the
+  `transaction.inspect` request schemas and the `transaction.apply` command schemas, so
+  the desktop assistant (an `AssistantTask` over `NativeAssistantSession`'s backend) and
+  `provider_trial`, which both build their provider requests through `AssistantTask`, send
+  the 1.0.x tool list. A drawing command
+  cannot be authorized for an assistant task, and a drawing tool call is rejected as
+  `UNSUPPORTED_CAPABILITY` without reaching the document.
+- **Why.** Tool schemas are re-sent on every provider turn. The sheet tools made each
+  Advanced turn about 1,600 input tokens larger, and two of three Advanced runs in the
+  1.1.0 RC corpus ran out of the 262,144-token task budget (R086.cb). No corpus task needs a
+  sheet, and no run used one.
+- **Unchanged.** MCP (`--mcp`, the local and native MCP bindings), the headless session,
+  `--inspect` and the transaction APIs keep every sheet operation and query, so external
+  agents still drive sheets. The generated schema files do not change.
+- **Guard.** `assistant_tool_surface_tests` pins the assistant's surfaces to
+  `tests/assistant-tool-surface-baseline.json`, dumped from the v1.0.1 build. Adding a tool
+  to the assistant means updating that baseline on purpose, with the corpus re-run that a
+  larger per-turn input requires.
