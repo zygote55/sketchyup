@@ -785,6 +785,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         });
         canvas->saveSceneButton()->click();
         watch.finish();
+        check(QTest::qWaitFor([&] { return window.isActiveWindow() && focused() == canvas; }),
+              "Focus returns to the canvas after the prompt; got " + identity(focused()));
         check(entries(doc) == entriesBefore + 2 &&
                   labelAt(doc, entriesBefore) == "Save as new scene" &&
                   labelAt(doc, entriesBefore + 1) == "Use new scene",
@@ -845,6 +847,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         });
         click(button.center());
         watch.finish();
+        check(QTest::qWaitFor([&] { return window.isActiveWindow() && focused() == canvas; }),
+              "Focus returns to the canvas after Choose scene; got " + identity(focused()));
         const auto &relinked = view(window, f.north);
         check(lastLabel(doc) == "Choose scene" && relinked.source.scene == f.southScene &&
                   relinked.frame == north.frame &&
