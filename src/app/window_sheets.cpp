@@ -909,10 +909,13 @@ void Window::chooseViewScene(Id view) {
         combo->setObjectName("chooseSceneList");
         combo->setAccessibleName("Scene");
     }
-    if (dialog.exec() != QDialog::Accepted) {
-        focusWorkspace();
+    const bool accepted = dialog.exec() == QDialog::Accepted;
+    // A closed prompt returns focus to the page (UX_DESIGN §4.1). Reactivate the window first:
+    // without a window manager (X11 under Xvfb) nothing hands activation back to it.
+    activateWindow();
+    focusWorkspace();
+    if (!accepted)
         return;
-    }
     const auto index = items.indexOf(dialog.textValue());
     if (index < 0 || !doc_.drawingViews().contains(view) ||
         doc_.drawingViews().at(view)->source.scene == ids[size_t(index)]) {
@@ -965,10 +968,13 @@ void Window::saveViewScene(Id view) {
         edit->setObjectName("saveViewSceneName");
         edit->setAccessibleName("Scene name");
     }
-    if (dialog.exec() != QDialog::Accepted) {
-        focusWorkspace();
+    const bool accepted = dialog.exec() == QDialog::Accepted;
+    // A closed prompt returns focus to the page (UX_DESIGN §4.1). Reactivate the window first:
+    // without a window manager (X11 under Xvfb) nothing hands activation back to it.
+    activateWindow();
+    focusWorkspace();
+    if (!accepted)
         return;
-    }
     const auto name = dialog.textValue().trimmed();
     if (name.isEmpty()) {
         status_->setText("A scene name cannot be empty.");

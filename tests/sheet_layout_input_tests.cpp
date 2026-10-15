@@ -271,6 +271,10 @@ void layout(Window &window, const QString &path, const Fixture &f) {
     window.openPath(path);
     window.setWorkspace(Window::Workspace::Sheets);
     settle(window);
+    // Opening shows the file-operation surface; under Xvfb (no window manager) the window may
+    // not get activation back by itself. Opening is preparation here, not under test.
+    window.activateWindow();
+    check(QTest::qWaitForWindowActive(&window), "Window active after opening the drawing set");
     const auto model = modelRecords(doc);
     const auto initialViews = doc.drawingViews();
     const auto initialEntries = entries(doc);
@@ -785,6 +789,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         });
         canvas->saveSceneButton()->click();
         watch.finish();
+        check(QTest::qWaitFor([&] { return window.isActiveWindow() && focused() == canvas; }),
+              "Focus returns to the canvas after the prompt; got " + identity(focused()));
         check(entries(doc) == entriesBefore + 2 &&
                   labelAt(doc, entriesBefore) == "Save as new scene" &&
                   labelAt(doc, entriesBefore + 1) == "Use new scene",
@@ -845,6 +851,8 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         });
         click(button.center());
         watch.finish();
+        check(QTest::qWaitFor([&] { return window.isActiveWindow() && focused() == canvas; }),
+              "Focus returns to the canvas after Choose scene; got " + identity(focused()));
         const auto &relinked = view(window, f.north);
         check(lastLabel(doc) == "Choose scene" && relinked.source.scene == f.southScene &&
                   relinked.frame == north.frame &&
