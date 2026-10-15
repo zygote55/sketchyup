@@ -46,14 +46,21 @@ interface.
   model has pages). **Checked before publishing** lists the findings before anything is
   written: a broken view or a view changed since it was accepted blocks the export
   until you fix it or choose to export it anyway, and missing fonts are named with
-  their substitute. Each page is written at its own paper size and actual size; text
-  is real, selectable text with embedded font subsets, lines stay vector, and
-  perspective and rendered views are drawn as images at 300 dpi. The export writes a
-  new file, never replaces one, and leaves no file if it fails. Every export produces
-  a reconciliation report, attached to the PDF as `sheet-export-report.json`.
-- **Print.** File → **Print…** in Sheets runs the same checks. Every page prints at
-  100% from the paper's top-left corner and is never scaled to fit; the dialog warns
-  when a page is larger than the paper.
+  their substitute (**Choose another font**). **Go to view** and **Review and accept**
+  take you to the view to fix. Each page is written at its own paper size and actual
+  size; text is real, selectable text with embedded font subsets, and lines stay
+  vector. On the desktop, perspective and rendered views are drawn from the viewport
+  as images at 300 dpi. The export runs behind the file-operation progress surface,
+  writes a new file, never replaces one, and leaves no file if it fails.
+- **Export report.** After an export, the report sheet lists the file, the pages,
+  any views exported as they are now or as empty frames, the raster views with their
+  DPI and the font substitutions. **Show the reconciliation report (JSON)** shows the
+  full record, which is also attached to the PDF as `sheet-export-report.json`.
+- **Print.** File → **Print…** in Sheets opens the same dialog and runs the same
+  checks; **Choose…** opens the system print dialog for the printer and paper. Every
+  page prints at 100% from the paper's top-left corner and is never scaled to fit.
+  When a page is larger than the paper, the dialog warns before you print, and the
+  page is cut off at the paper's edge.
 
 Limits: 256 sheets, 1,024 views (64 per sheet) and 4,096 page items (512 per sheet)
 per document.

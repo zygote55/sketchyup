@@ -1323,7 +1323,7 @@ Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANC
 
 #### R092 — Export and print coordinated documentation sets
 
-**Status:** In progress. R092.a, the headless engine (sheet PDF export with real text, the shared preflight and reconciliation report, `sketchyup-cli --export-sheets` and the `drawing_sheets.export_preflight` query), is merged (PR #325; [ADR 0164](decisions/0164-sheet-layout-interface.md#r092-export)). R092.b, the export dialog and Print, is PR #327. R092.c prepares the 1.1.0 release (version, upgrade baseline, release documents and the [M10 gate procedure](M10_ACCEPTANCE.md)). The R092 acceptance record, which checks the Verify line, remains. **Track:** Interchange. **Scope:** F01. **UX:** —.
+**Status:** In progress. R092.a, the headless engine (sheet PDF export with real text, the shared preflight and reconciliation report, `sketchyup-cli --export-sheets` and the `drawing_sheets.export_preflight` query), is merged (PR #325; [ADR 0164](decisions/0164-sheet-layout-interface.md#r092-export)). R092.b, the desktop export dialog with live preflight, the export report sheet, raster views from the viewport, and Print at 100%, is merged (PR #327). R092.c prepares the 1.1.0 release (version, upgrade baseline, release documents and the [M10 gate procedure](M10_ACCEPTANCE.md)). The R092 acceptance record, which checks the Verify line, remains. **Track:** Interchange. **Scope:** F01. **UX:** —.
 
 **Requires:** [R091](#r091); milestone gate rule above.
 
