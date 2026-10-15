@@ -852,7 +852,15 @@ void layout(Window &window, const QString &path, const Fixture &f) {
         click(button.center());
         watch.finish();
         check(QTest::qWaitFor([&] { return window.isActiveWindow() && focused() == canvas; }),
-              "Focus returns to the canvas after Choose scene; got " + identity(focused()));
+              "Focus returns to the canvas after Choose scene; got " + identity(focused()) +
+                  "; focus window " +
+                  (QGuiApplication::focusWindow()
+                       ? QGuiApplication::focusWindow()->objectName().toStdString() + "/" +
+                             QGuiApplication::focusWindow()->metaObject()->className()
+                       : std::string("none")) +
+                  "; active window " + identity(QApplication::activeWindow()) + "; modal " +
+                  identity(QApplication::activeModalWidget()) + "; window focus child " +
+                  identity(window.focusWidget()));
         const auto &relinked = view(window, f.north);
         check(lastLabel(doc) == "Choose scene" && relinked.source.scene == f.southScene &&
                   relinked.frame == north.frame &&
@@ -1033,7 +1041,6 @@ int main(int argc, char **argv) {
         return 2;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     qputenv("XDG_DATA_HOME", files.path().toUtf8());
-    qputenv("SKETCHYUP_SHEETS_WORKSPACE", "1");
     QSurfaceFormat format;
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
@@ -1060,7 +1067,7 @@ int main(int argc, char **argv) {
         Window window;
         window.resize(1440, 900);
         window.show();
-        check(QTest::qWaitForWindowExposed(&window), "Window exposed with the Sheets flag");
+        check(QTest::qWaitForWindowExposed(&window), "Window exposed");
         check(QTest::qWaitFor([&] { return window.viewport()->rendererReady(); }, 10000),
               "Viewport renderer initialized in the Model workspace");
         const auto arguments = app.arguments();

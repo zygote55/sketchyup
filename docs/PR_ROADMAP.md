@@ -1307,7 +1307,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R091 — Build sheet layout, annotations and title blocks
 
-**Status:** Planned. **Track:** Desktop. **Scope:** F01. **UX:** —.
+**Status:** Delivered. The Sheets workspace is built and enabled: page canvas, model views with Changed and Broken states, edit-view, lines, rectangles, text, labels, referenced dimensions with Reattach, title blocks, workspace-scoped shortcuts and the Pages tree ([ADR 0164](decisions/0164-sheet-layout-interface.md); PRs #316, #317, #319–#323 and R091.h). The [R091.h acceptance record](verification/R091h-sheet-layout.md) ([summary](verification/R091h-sheet-layout.json)) shows the Verify line passing: a three-page set is laid out and revised, the referenced dimension follows the moved geometry, Reattach and Choose scene repair broken references, and the model's records and bytes are unchanged by every page operation. Printing and PDF of pages are R092. **Track:** Desktop. **Scope:** F01. **UX:** [UX_DESIGN §13](UX_DESIGN.md#13-sheets).
 
 **Requires:** [R090](#r090); milestone gate rule above.
 

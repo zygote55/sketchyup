@@ -119,9 +119,8 @@ void Window::applyShortcuts(const ShortcutBindings &bindings) {
                                : base + " (" + sequence.toString(QKeySequence::NativeText) + ")");
     }
     updateCommandSearchLabel(this);
-    if (sheets_)
-        sheets_->setShortcutHints(findChild<QAction *>("sheet.view.fit")->shortcut(),
-                                  findChild<QAction *>("sheet.page.add")->shortcut());
+    sheets_->setShortcutHints(findChild<QAction *>("sheet.view.fit")->shortcut(),
+                              findChild<QAction *>("sheet.page.add")->shortcut());
 }
 void Window::initializeShortcuts() {
     for (auto *action : publicActions_) {
@@ -184,8 +183,6 @@ void Window::shortcutSettings() {
     list->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     list->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     list->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    // The Workspace column appears with the Sheets workspace (until R091.h, behind its flag).
-    list->setColumnHidden(2, !sheets_);
     layout.addWidget(list);
     auto *editor = new QKeySequenceEdit;
     editor->setObjectName("shortcutSequence");

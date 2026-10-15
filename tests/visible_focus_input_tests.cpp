@@ -2,9 +2,16 @@
 // visible focus indicator (WCAG 2.4.7) whose colour has at least 3:1 contrast with the
 // adjacent colours (WCAG 1.4.11), in both themes and at two interface text sizes. The
 // indicator is measured from pixels painted by the real main window and the real dialogs.
+#include "app/sheet_evaluation.hpp"
+#include "app/sheet_workspace.hpp"
+#include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
+#include "app/viewport.hpp"
 #include "app/window.hpp"
+#include "automation/commands.hpp"
+#include "core/drawing_sheets.hpp"
 #include "io/document_io.hpp"
+#include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAbstractSpinBox>
 #include <QAction>
@@ -75,6 +82,10 @@ const char *const kFamilies[] = {"QLineEdit",
                                  "QLabel",
                                  "sketchy::AssistantPanel",
                                  "sketchy::Viewport"};
+// R091.h: the classes the Sheets workspace run (--workspace=sheets) must exercise.
+const char *const kSheetsFamilies[] = {"QLineEdit",           "QPushButton", "QComboBox",
+                                       "QTreeWidget",         "QTabBar",     "QToolButton",
+                                       "sketchy::SheetCanvas"};
 QString family(const QWidget *widget) {
     if (qobject_cast<const QKeySequenceEdit *>(widget))
         return "QKeySequenceEdit";
@@ -220,6 +231,9 @@ int main(int argc, char **argv) {
     format.setDepthBufferSize(24);
     sketchy::setDefaultViewportFormat(format);
     QApplication app(argc, argv);
+    auto arguments = app.arguments().mid(1);
+    const bool sheetsOnly = arguments.removeAll("--workspace=sheets") > 0;
+    const auto reportPath = arguments.isEmpty() ? QString() : arguments.front();
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
     AssistantPanel::HostServices services;
@@ -235,11 +249,67 @@ int main(int argc, char **argv) {
         check(QTest::qWaitForWindowExposed(&window), "Focus window exposed");
         window.activateWindow();
         check(QTest::qWaitForWindowActive(&window), "Focus window owns keyboard focus");
+        // R091.h: --workspace=sheets sweeps the Sheets workspace only (its own CI line, so each
+        // run stays well under the Wayland harness's 60 s); without it, the Model window.
+        if (sheetsOnly) {
+            // R091.h: a page for the Sheets workspace sweep, with a plan view, a text and a title
+            // block. Model and sheet commands go in separate batches.
+            auto batch = [&](const QJsonArray &commands) {
+                auto &doc = window.document();
+                return executeBatch(doc, {{"apiVersion", 1},
+                                          {"documentId", QString::fromStdString(doc.identity())},
+                                          {"expectedRevision", QString::number(doc.revision())},
+                                          {"commands", commands}});
+            };
+            const auto scene = batch({QJsonObject{
+                {"command", "saved_scene.create"},
+                {"name", "Plan"},
+                {"snapshot",
+                 QJsonObject{{"camera", QJsonObject{{"target", QJsonArray{4, 3, 0}},
+                                                    {"yaw", -90},
+                                                    {"pitch", 90},
+                                                    {"distance", 20},
+                                                    {"fieldOfView", 45},
+                                                    {"orthographic", true}}},
+                             {"section", QJsonObject{{"plane", QJsonValue()}}}}}}})["createdScenes"]
+                                   .toArray()[0]
+                                   .toString();
+            const auto sheet = QString::number(window.document().nextDrawingSheetId());
+            batch({QJsonObject{{"command", "drawing_sheet.create"},
+                               {"name", "Ground floor"},
+                               {"number", "A-101"},
+                               {"paper", QJsonObject{{"widthMm", 420}, {"heightMm", 297}}}},
+                   QJsonObject{
+                       {"command", "drawing_view.create"},
+                       {"name", "Plan"},
+                       {"sheet", sheet},
+                       {"source", QJsonObject{{"kind", "scene"}, {"scene", scene}}},
+                       {"frame",
+                        QJsonObject{{"xMm", 20}, {"yMm", 20}, {"widthMm", 200}, {"heightMm", 150}}},
+                       {"scaleDenominator", 100}},
+                   QJsonObject{{"command", "drawing_item.create"},
+                               {"sheet", sheet},
+                               {"kind", "text"},
+                               {"data", QJsonObject{{"frame", QJsonObject{{"xMm", 240},
+                                                                          {"yMm", 40},
+                                                                          {"widthMm", 60},
+                                                                          {"heightMm", 10}}},
+                                                    {"text", "Notes"}}}},
+                   QJsonObject{{"command", "drawing_item.create"},
+                               {"sheet", sheet},
+                               {"kind", "titleBlock"},
+                               {"data", QJsonObject{{"frame", QJsonObject{{"xMm", 250},
+                                                                          {"yMm", 257},
+                                                                          {"widthMm", 160},
+                                                                          {"heightMm", 30}}}}}}});
+        }
+        emit window.viewport()->changed();
         const auto content = encodeContainer(window.document());
         QJsonArray rows;
         QJsonObject coverage;
         std::set<QString> covered;
         int failures{}, measured{}, clipped{};
+        double minimumAccentChange = 99;
         double minimumOutside = 99, minimumInside = 99;
         QString theme;
         int textPercent{};
@@ -267,7 +337,7 @@ int main(int argc, char **argv) {
             QCoreApplication::processEvents();
             check(!widget.hasFocus(), "Control is unfocused for the baseline");
             const bool gl = qobject_cast<QOpenGLWidget *>(&widget);
-            const auto before = capture(top, widget);
+            auto before = capture(top, widget);
             widget.setFocus(Qt::TabFocusReason);
             QCoreApplication::processEvents();
             if (!widget.hasFocus())
@@ -282,7 +352,19 @@ int main(int argc, char **argv) {
                 ++failures;
                 return;
             }
-            const auto after = capture(top, widget);
+            auto after = capture(top, widget);
+            // A tab's style margins leave a gap inside its tab rectangle (the page tabs' spacing,
+            // R091.h). Measure the painted tab: the box of focused pixels unlike the bar behind.
+            if (qobject_cast<QTabBar *>(&widget)) {
+                const auto behind = after.image.pixelColor(0, after.image.height() / 2);
+                QRect painted;
+                for (int y = after.box.top(); y <= after.box.bottom(); ++y)
+                    for (int x = after.box.left(); x <= after.box.right(); ++x)
+                        if (contrast(after.image.pixelColor(x, y), behind) > 1.2)
+                            painted |= QRect(x, y, 1, 1);
+                if (painted.isValid())
+                    before.box = after.box = painted;
+            }
             const auto kind = family(&widget);
             covered.insert(kind);
             ++measured;
@@ -310,8 +392,20 @@ int main(int argc, char **argv) {
                                    {-2.0, -3.0, -4.0}, 0b1111);
             if (!outer.isValid() || gl)
                 outer = widget.palette().color(QPalette::Window);
-            const auto inner =
-                bandColor(after.image, after.box, after.valid, {}, after.scale, {2.0}, 0b1001);
+            // R091.h: an accent-filled control (a primary button, the checked Model | Sheets
+            // segment, the edit-view Done) shows focus as a 2 px inset ring in the fill's own
+            // theme surface. Its rule: the ring against the fill just inside it (3 px in, past the
+            // ring), and the change of its boundary colour from the unfocused state, each at
+            // least 3:1. Beyond the boundary is chrome of the ring's own colour by design.
+            auto *button = qobject_cast<QAbstractButton *>(&widget);
+            const bool accentFilled = widget.property("accentFill").toBool() ||
+                                      widget.objectName() == "sheetEditDone" ||
+                                      (widget.parentWidget() &&
+                                       widget.parentWidget()->objectName() == "workspaceToggle" &&
+                                       button && button->isChecked());
+            const auto inner = bandColor(after.image, after.box, after.valid, {}, after.scale,
+                                         {accentFilled ? 3.0 : 2.0}, 0b1001);
+            double change = 99;
             for (int edge = 0; edge < 4; ++edge) {
                 const auto unfocusedColor =
                     edgeColor(before.image, before.box, before.scale, 0, edge);
@@ -320,25 +414,30 @@ int main(int argc, char **argv) {
                 ring.append(focusedColor.name());
                 outside = std::min(outside, contrast(focusedColor, outer));
                 inside = std::min(inside, contrast(focusedColor, inner));
+                change = std::min(change, contrast(focusedColor, unfocusedColor));
             }
             worst = QString("outside %1 inside %2").arg(outer.name(), inner.name());
             for (auto *parent = widget.parentWidget(); parent; parent = parent->parentWidget())
                 worst += " < " + identity(parent) + (parent->isWindow() ? "(window)" : "");
-            if (!gl) {
+            if (!gl && !accentFilled)
                 minimumOutside = std::min(minimumOutside, outside);
+            if (!gl)
                 minimumInside = std::min(minimumInside, inside);
-            }
+            if (accentFilled)
+                minimumAccentChange = std::min(minimumAccentChange, change);
             // The 3D canvas paints its own ring on its own background (document colours); the
             // window chrome beyond it is reported but not required to meet the ratio.
-            const bool passes = differs && layoutStable && (gl || outside >= 3) && inside >= 3;
+            const bool passes = differs && layoutStable && inside >= 3 &&
+                                (accentFilled ? change >= 3 : (gl || outside >= 3));
             failures += !passes;
             if (!passes)
                 std::cerr << "Focus indicator failure: " << identity(&widget).toStdString()
                           << " context=" << context.toStdString()
                           << " theme=" << theme.toStdString() << " text=" << textPercent
                           << " differs=" << differs << " layoutStable=" << layoutStable
-                          << " outside=" << outside << " inside=" << inside << " ["
-                          << worst.toStdString() << "]\n";
+                          << " outside=" << outside << " inside=" << inside << " change=" << change
+                          << " accentFilled=" << accentFilled << " [" << worst.toStdString()
+                          << "]\n";
             rows.append(QJsonObject{{"context", context},
                                     {"theme", theme},
                                     {"textPercent", textPercent},
@@ -349,6 +448,8 @@ int main(int argc, char **argv) {
                                     {"layoutStable", layoutStable},
                                     {"contrastOutside", outside},
                                     {"contrastInside", inside},
+                                    {"accentFilled", accentFilled},
+                                    {"contrastChange", change},
                                     {"passes", passes}});
             if (!captureDir.isEmpty()) {
                 const auto path = QString("%1/%2-%3-%4-%5.png")
@@ -457,6 +558,89 @@ int main(int argc, char **argv) {
             painter.end();
             both.save(QString("%1/R084q-focus-%2.png").arg(directory, theme));
         };
+        auto sheetsSweep = [&] {
+            window.setWorkspace(Window::Workspace::Sheets);
+            auto *sheets = window.sheetWorkspace();
+            auto *canvas = sheets->canvas();
+            auto *cache = window.sheetEvaluations();
+            check(QTest::qWaitFor(
+                      [&] {
+                          return cache->idle() && sheets->currentSheet() &&
+                                 cache->current(sheets->currentSheet());
+                      },
+                      20000),
+                  "Sheet evaluation settles");
+            window.activateWindow();
+            check(QTest::qWaitForWindowActive(&window), "Window active in Sheets");
+            const auto views = drawingViewsOnSheet(window.document(), sheets->currentSheet());
+            const auto items = drawingItemsOnSheet(window.document(), sheets->currentSheet());
+            check(views.size() == 1 && items.size() == 2, "The sweep page has a view and items");
+            canvas->setSelectedView(0);
+            canvas->setSelectedItem(0);
+            QTest::qWait(30);
+            sweep(window, "Sheets / page");
+            // The accent-filled controls, every time (the sweep samples two of a class): the
+            // checked Sheets segment here, Place and Done below.
+            auto probeNamed = [&](const char *name, const QString &context) {
+                auto *control = window.findChild<QWidget *>(name);
+                check(control && control->isVisible() && control->isEnabled(),
+                      "Accent-filled control shown");
+                probe(window, *control, context);
+            };
+            probeNamed("workspaceSheets", "Sheets / Sheets segment (checked)");
+            canvas->setSelectedView(views[0]);
+            QTest::qWait(30);
+            sweep(window, "Sheets / model view");
+            canvas->setSelectedItem(items[0]);
+            QTest::qWait(30);
+            sweep(window, "Sheets / text");
+            canvas->setSelectedItem(0);
+            canvas->setSelectedView(0);
+            // The sheet rail is one Tab stop like the model rail (R084.v): probe one checked
+            // and one unchecked button.
+            auto *rail = window.findChild<QToolBar *>("sheetRail");
+            check(rail && rail->isVisible(), "Sheet rail shown");
+            std::set<bool> probed;
+            for (auto *button : rail->findChildren<QToolButton *>()) {
+                if (!button->defaultAction() || !button->isVisibleTo(&window) ||
+                    probed.contains(button->isChecked()))
+                    continue;
+                probed.insert(button->isChecked());
+                const auto policy = button->focusPolicy();
+                button->setFocusPolicy(Qt::TabFocus);
+                probe(window, *button,
+                      button->isChecked() ? "Sheets / sheet rail button (checked)"
+                                          : "Sheets / sheet rail button");
+                button->setFocusPolicy(policy);
+            }
+            check(probed.size() == 2, "Checked and unchecked sheet tool buttons were probed");
+            // The New model view panel of the W tool.
+            window.findChild<QAction *>("sheet.tool.view")->trigger();
+            check(QTest::qWaitFor([&] { return window.sheetsTray()->placePanel()->isVisible(); }),
+                  "New model view panel shown");
+            sweep(window, "Sheets / New model view");
+            probeNamed("sheetPlace", "Sheets / Place");
+            window.findChild<QAction *>("sheet.tool.select")->trigger();
+            // Edit-view and its banner (Save as new scene…, Done).
+            canvas->setSelectedView(views[0]);
+            canvas->setFocus(Qt::OtherFocusReason);
+            canvas->enterEditView();
+            check(canvas->editView() == views[0], "Edit-view opened");
+            QTest::qWait(30);
+            sweep(window, "Sheets / edit-view");
+            probeNamed("sheetEditDone", "Sheets / Done");
+            canvas->setFocus(Qt::OtherFocusReason);
+            QTest::keyClick(canvas, Qt::Key_Escape);
+            check(!canvas->editView(), "Edit-view closed");
+            canvas->setSelectedView(views[0]);
+            modalSweep(
+                [&window] { window.findChild<QAction *>("sheet.view.chooseScene")->trigger(); },
+                "chooseSceneDialog");
+            canvas->setSelectedView(0);
+            window.setWorkspace(Window::Workspace::Model);
+            window.activateWindow();
+            check(QTest::qWaitForWindowActive(&window), "Window active after Sheets");
+        };
         const auto shotDir = qEnvironmentVariable("SKETCHYUP_FOCUS_SCREENSHOT_DIR");
         for (int percent : {100, 200}) {
             textPercent = percent;
@@ -468,6 +652,13 @@ int main(int argc, char **argv) {
                 QTest::qWait(50);
                 window.activateWindow();
                 check(QTest::qWaitForWindowActive(&window), "Window active after theme change");
+                if (sheetsOnly) {
+                    // The canvas, page tabs, Pages tree and Entity info for the page, a view and
+                    // an item; the sheet rail; the New model view panel; the edit-view banner;
+                    // and the Choose scene dialog.
+                    sheetsSweep();
+                    continue;
+                }
                 auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
                 check(tabs && tabs->count() > 0, "Model-panel tabs exist");
                 // Every panel at the default size; the first three at 200% (the enlarged-text
@@ -553,7 +744,10 @@ int main(int argc, char **argv) {
         }
         QJsonArray missing;
         for (const char *name : kFamilies)
-            if (!covered.contains(name))
+            if (!sheetsOnly && !covered.contains(name))
+                missing.append(name);
+        for (const char *name : kSheetsFamilies)
+            if (sheetsOnly && !covered.contains(name))
                 missing.append(name);
         QJsonArray coveredClasses;
         for (const auto &name : covered)
@@ -561,23 +755,32 @@ int main(int argc, char **argv) {
         const bool passed = failures == 0 && missing.isEmpty() && measured > 0;
         const auto bytes =
             QJsonDocument(
-                QJsonObject{{"rows", rows},
-                            {"measuredControls", measured},
-                            {"skippedClippedControls", clipped},
-                            {"failures", failures},
-                            {"coveredClasses", coveredClasses},
-                            {"uncoveredRequiredClasses", missing},
-                            {"minimumContrastOutside", minimumOutside},
-                            {"minimumContrastInside", minimumInside},
-                            {"passes", passed},
-                            {"scope", "Painted boundary of every Tab-focusable public control in "
-                                      "the main window panels, tool rail, shortcut, drawing "
-                                      "plane, command and assistant preference dialogs, in light "
-                                      "and dark themes at 100% and 200% interface text"},
-                            {"releaseAcceptance", false}})
+                QJsonObject{
+                    {"rows", rows},
+                    {"measuredControls", measured},
+                    {"skippedClippedControls", clipped},
+                    {"failures", failures},
+                    {"coveredClasses", coveredClasses},
+                    {"uncoveredRequiredClasses", missing},
+                    {"minimumContrastOutside", minimumOutside},
+                    {"minimumContrastInside", minimumInside},
+                    {"minimumAccentRingChange", minimumAccentChange},
+                    {"workspace", sheetsOnly ? "sheets" : "model"},
+                    {"passes", passed},
+                    {"scope", sheetsOnly
+                                  ? "Painted boundary of every Tab-focusable public control in the "
+                                    "Sheets workspace (canvas, page tabs, Pages, Entity info for "
+                                    "the page, a view and a text, sheet rail, New model view, "
+                                    "edit-view, Choose scene), in light and dark themes at 100% "
+                                    "and 200% interface text"
+                                  : "Painted boundary of every Tab-focusable public control in "
+                                    "the main window panels, tool rail, shortcut, drawing "
+                                    "plane, command and assistant preference dialogs, in light "
+                                    "and dark themes at 100% and 200% interface text"},
+                    {"releaseAcceptance", false}})
                 .toJson();
-        if (argc == 2) {
-            QFile report(QString::fromLocal8Bit(argv[1]));
+        if (!reportPath.isEmpty()) {
+            QFile report(reportPath);
             check(report.open(QIODevice::WriteOnly) && report.write(bytes) == bytes.size(),
                   "Write focus report");
         }

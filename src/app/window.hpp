@@ -40,8 +40,7 @@ class Window : public QMainWindow {
     Viewport *viewport() { return viewport_; }
     RenderPanel *renderPanel() { return render_; }
     AssistantPanel *assistantPanel() { return assistant_; }
-    // ADR 0164 §7 (R091.e): the Model and Sheets workspaces. The Sheets workspace exists only
-    // while SKETCHYUP_SHEETS_WORKSPACE=1 was set when the window was created (until R091.h).
+    // ADR 0164 §7 (R091.e): the Model and Sheets workspaces, always built (R091.h).
     enum class Workspace { Model, Sheets };
     Workspace workspace() const { return workspace_; }
     void setWorkspace(Workspace workspace);
@@ -158,7 +157,6 @@ class Window : public QMainWindow {
     std::vector<QWidget *> modelRegions_, sheetRegions_;
     std::set<QAction *> workspaceSuspended_;
     QString modelStatus_, modelPlaceholder_;
-    static bool sheetsWorkspaceEnabled();
     void setupSheets(QWidget *header, QMenu *view);
     void syncSheets();
     void themeSheets(const ThemeColors &colors);
