@@ -1032,7 +1032,8 @@ is the "Export sheets as PDF" dialog of the R091 UX design canvas.
     never replaces an existing file, and a failure leaves no partial file.
 - **Pages.** Each page is painted by `paintDrawingSheet` into one `QPdfWriter` at 2540
   dpi, so one device unit is 0.01 mm. Each page gets its own `QPageLayout` before
-  `newPage`. Nothing edits the document; every read uses `captureDrawingSheet`
+  `newPage`. Qt writes page boxes in whole points, so a page is within 0.5 pt
+  (0.18 mm) of its paper size; drawing coordinates, and so measured scale, are exact. Nothing edits the document; every read uses `captureDrawingSheet`
   snapshots.
 - **Text.** The compositor's text primitives keep their shaped glyph runs as well as
   their outlines. `DrawingTextMode::Text` (a new paint option) draws the runs with
@@ -1043,7 +1044,12 @@ is the "Export sheets as PDF" dialog of the R091 UX design canvas.
     font is filled as outlines instead.
   - Model annotations inside views (`measuredDrawingPaths`) keep their runs the same
     way.
-  - The desktop canvas keeps the default, `Outlines`, so screen output is unchanged.
+  - Sheet text is shaped with contextual alternates and ligatures off (`calt`, `liga`,
+    `clig`), so every glyph maps back to its character. Faces such as Inter swap ":"
+    and "-" between digits for glyphs outside their character map, which would drop
+    them from extracted text. The canvas uses the same shaping, so screen and paper
+    agree.
+  - The desktop canvas keeps the default, `Outlines`: it still fills the glyph paths.
   - R078's measured export is unchanged.
 - **Options.**
   - `sheets`: empty means every sheet. Pages are always written in page order.
