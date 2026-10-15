@@ -696,3 +696,66 @@ order, Delete erases, and Enter edits an item's text. State glyphs carry their
 words as tooltip and accessible description. Entity info exposes every value as
 a labelled field. With typed Measurements, a page can be laid out without a
 pointer. Every Sheets control draws the visible focus ring of section 10.
+
+### 13.9 Export and print
+
+**File › Export sheets…** (Sheets, and Model while the model has pages) and
+**File › Print…** (Sheets) open one preflight dialog, from the approved R091
+design ([ADR 0164](decisions/0164-sheet-layout-interface.md) "R092 export").
+
+```text
+┌ Export sheets as PDF ───────────────────────────────────────────────┐
+│ house · 4 pages · printed at actual size                             │
+├──────────────────────────────────────────────────────────────────────┤
+│ Pages   (•) All 4  ( ) Current page  ( ) Range [A-101–A-301]          │
+│ File    ~/Projects/house-sheets.pdf                       [Choose…]  │
+├──────────────────────────────────────────────────────────────────────┤
+│ Checked before publishing                                            │
+│ ┏ ⊗ 1 broken view blocks export. A-301, view 3 “Section B-B”: …     ┓ │
+│ ┃   [Go to view]  [ ] Export it as an empty, labelled frame         ┃ │
+│ ┌ ⟳ 2 views changed since accepted. A-101 view 2 …                  ┐ │
+│ │   [Review and accept]  [ ] Export them as they are now (…)        │ │
+│ ┌ ⚠ 1 font is not installed. “ISOCPEUR” … Choose another font       ┐ │
+│   ✓ 7 views at measured scale: 6 at 1:50 and 1 at 1:20. …            │
+│   ▦ 1 view will be raster: “Garden view” (perspective) at 300 dpi.   │
+├──────────────────────────────────────────────────────────────────────┤
+│ Fix the broken view, or choose to export it empty. [Cancel][Export PDF]│
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- **Pages** is one Tab stop; the arrows choose All, Current page or Range, and
+  typing a range chooses Range. A range names sheet numbers or page positions
+  (`A-101–A-301`, `1, 3–4`); an unknown page marks the field and the footer
+  says why.
+- **File** shows the new PDF's path; **Choose…** opens the platform's save
+  dialog (through the portal). An existing file is never replaced: the footer
+  asks for a new name. In Print the row is **Printer**: the printer and paper,
+  and **Choose…** opens the system print dialog, whose page range comes back to
+  Pages.
+- **Checked before publishing** groups the preflight's findings by code, with
+  a bold count headline and the engine's sentence. A blocking group has the red
+  failure border; changed views and warnings are amber; scales and raster views
+  are plain rows. The list checks again whenever an option or the document
+  changes, keeps the focused control, and scrolls when the screen is small.
+  - **Go to view** and **Review and accept** close the dialog and select the
+    first broken or changed view on its page; nothing is accepted for the user
+    (**U** accepts).
+  - The opt-in check boxes turn the blocking finding into a warning: broken
+    views export as empty, labelled frames; changed views export as they are now
+    and the export report names them.
+  - **Choose another font** selects the first text that uses the missing font
+    and focuses its Font field.
+  - In Print, a page larger than the paper adds an amber "pages are larger than
+    the paper" row: it prints at 100% and is cut off; nothing scales to fit.
+- **Footer.** The hint names what to fix; **Export PDF** (or **Print**) is the
+  default, accent-filled with the R091.h focus ring, and disabled while
+  anything blocks or the check is running. Cancel and Esc close without writing.
+- **Export** runs off the UI thread behind the file-operation progress surface
+  ("Exporting sheets…"), then shows the **report sheet** (§6.4): the file, the
+  page count, the views exported as they are now or as empty frames, raster
+  views and font substitutions, and **Show the reconciliation report (JSON)**.
+  A failure says what happened; no file is written.
+- **Print** paints each page at actual size from the paper's top-left corner,
+  one printer page per sheet.
+- Focus returns to the page canvas (or, from Model, the viewport) when the
+  dialog, the report or a failure message closes.

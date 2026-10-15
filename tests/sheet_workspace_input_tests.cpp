@@ -8,6 +8,7 @@
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include "io/document_io.hpp"
+#include "qt_warning_guard.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -621,6 +622,7 @@ int main(int argc, char **argv) {
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     sketchy::setDefaultViewportFormat(format);
+    qt_warning_guard::install();
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
@@ -643,6 +645,8 @@ int main(int argc, char **argv) {
             return 0;
         }
         workspace(window, path, fixture);
+        check(qt_warning_guard::first().isEmpty(),
+              "No Qt geometry warning: " + qt_warning_guard::first().toStdString());
         std::cout << "Sheets workspace: flag, toggle, F6 regions, Tab, page tabs, Pages tree, "
                      "page add/rename/move/delete with undo, changed chip, broken card, raster "
                      "view, Accept all, zoom, pan and fit passed\n";

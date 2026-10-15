@@ -5,6 +5,7 @@
 #include <QImage>
 #include <QJsonObject>
 #include <QSize>
+class QPagedPaintDevice;
 #include <QString>
 #include <cstdint>
 #include <functional>
@@ -120,6 +121,21 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
 // an existing file is never replaced, and a failure leaves no partial file).
 SheetExport exportSheetsPdf(const Document &doc, const SheetExportOptions &options,
                             const QString &path);
+
+// Printing (R092.b). Paints every selected page at actual size onto the device's current
+// paper, one device page per sheet: one paper millimetre is one device millimetre, never
+// scaled to fit. The caller chooses the paper and a full-page layout (the paper's top-left
+// corner is the sheet's); a sheet larger than the paper is cut off at the paper's edge, so
+// the desktop warns before printing. The preflight, opt-ins and raster rules are
+// renderSheetsPdf's: it throws SheetExportError(EXPORT_BLOCKED) while a blocking finding is
+// unresolved, and paints nothing.
+struct SheetPrint {
+    SheetExportPreflight preflight;
+    size_t pages{};
+    std::vector<Id> exportedAsIs, exportedEmpty, rasterViews;
+};
+SheetPrint printSheets(const Document &doc, const SheetExportOptions &options,
+                       QPagedPaintDevice &device);
 
 // JSON forms shared by the CLI, the inspection query and the report.
 QJsonObject sheetExportFindingJson(const SheetExportFinding &finding);

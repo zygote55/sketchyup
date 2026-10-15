@@ -171,8 +171,8 @@ Sheets are new in SketchyUp 1.1.0
 ([ADR 0163](decisions/0163-documentation-sheets.md) for the records and
 [ADR 0164](decisions/0164-sheet-layout-interface.md) for the interface). A sheet
 is a drawing page with views of the model's scenes, dimensions, labels, text and
-a title block. Editing a page never changes the model. Printing and PDF export
-of pages are not available yet.
+a title block. Editing a page never changes the model. File → Export sheets…
+writes the pages to a PDF and File → Print… prints them, both at actual size.
 
 1. **Save the scenes you want to draw.** A plan is a Top orthographic scene, an
    elevation a Front, Back, Left or Right orthographic scene; a perspective
@@ -210,6 +210,35 @@ of pages are not available yet.
    is erased, and also when an anchored edge is split or the geometry is made into
    a component. Select it and choose **Reattach** in Entity info: the nearest point
    in the view is proposed; press Enter to accept it or click another point.
+10. **Export a PDF.** Choose File → **Export sheets…** (in Model too, once the
+    model has pages). Pick **All**, the **Current page** or a **Range** such as
+    `A-101–A-301` (sheet numbers, or page positions such as `1, 3–4`), and the
+    file with **Choose…**. **Checked before publishing** lists what the export
+    will do, and updates as you change the options or the model:
+    - a **broken view** blocks the export. **Go to view** closes the dialog and
+      selects it; or tick "Export it as an empty, labelled frame";
+    - **changed views** block it too. **Review and accept** selects the first
+      one, so you can look at it and press **U**; or tick "Export them as they
+      are now", and the export report names them;
+    - a **font that is not installed** names its replacement; **Choose another
+      font** selects the text and its Font field;
+    - the measured scales, and the perspective or rendered views, which are drawn
+      as images at 300 dpi.
+
+    **Export PDF** works once nothing blocks. It writes a new file and never
+    replaces one; if it fails, nothing is written. Each page is its own paper size,
+    text stays real (it can be selected and searched), and lines stay vector. The
+    report that follows lists the file, the pages and any views exported as they
+    are now or as empty frames. **Show the reconciliation report (JSON)** shows
+    the full record, which is also attached to the PDF as
+    `sheet-export-report.json`.
+11. **Print.** File → **Print…** in Sheets runs the same checks. **Choose…** next
+    to the printer opens the system print dialog for the printer, the paper and
+    the pages. Every page prints at 100% from the paper's top-left corner and is
+    never scaled to fit, so measurements on paper match the scale. A page larger
+    than the paper is cut off at its edge, and the dialog warns before you print;
+    choose larger paper to print it whole. Set the printer itself to print at
+    actual size if it offers its own scaling.
 
 Every page operation is one undo step in the same history as model edits, so
 Ctrl+Z in Sheets can step back into a model edit; the History section shows

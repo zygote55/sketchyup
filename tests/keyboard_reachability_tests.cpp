@@ -1,6 +1,7 @@
 #include "app/file_operation.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
+#include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
@@ -18,6 +19,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSettings>
 #include <QSpinBox>
 #include <QTabBar>
@@ -778,6 +780,62 @@ void sheetsWorkspace() {
     key(Qt::Key_Escape);
     check(!sheetCanvas->textEditing() && QTest::qWaitFor([&] { return sheetCanvas->hasFocus(); }),
           "Esc ends editing on the canvas");
+    // R092.b: File › Export sheets… from the palette. Every control is reachable from the
+    // keyboard: Tab reaches each one, the page choice is one Tab stop whose arrows choose, and
+    // Esc returns to the canvas.
+    {
+        bool seen{};
+        std::exception_ptr failure;
+        QTimer watch;
+        QObject::connect(&watch, &QTimer::timeout, &window, [&] {
+            auto *dialog = dynamic_cast<SheetExportDialog *>(QApplication::activeModalWidget());
+            if (seen || !dialog || !dialog->isVisible())
+                return;
+            seen = true;
+            try {
+                dialog->activateWindow();
+                check(QTest::qWaitForWindowActive(dialog), "Export dialog active");
+                check(QTest::qWaitFor([&] { return !dialog->checking() && dialog->preflight(); },
+                                      20000),
+                      "Export preflight settles");
+                std::set<QString> reached;
+                std::string visited;
+                for (int i = 0; i < 30; ++i) {
+                    check(focused() && dialog->isAncestorOf(focused()),
+                          "Tab stays in the export dialog");
+                    if (reached.insert(focused()->objectName()).second)
+                        visited += " " + identity(focused());
+                    key(Qt::Key_Tab);
+                }
+                for (const auto *name :
+                     {"sheetExportAll", "sheetExportRangeText", "sheetExportChoose",
+                      "sheetExportGoToView", "sheetExportAllowBroken", "sheetExportCancel"})
+                    check(reached.contains(name), std::string("Tab reaches ") + name +
+                                                      " in the export dialog; visited:" + visited);
+                dialog->findChild<QWidget *>("sheetExportAll")->setFocus(Qt::TabFocusReason);
+                for (const auto *name : {"sheetExportCurrent", "sheetExportRange"}) {
+                    key(Qt::Key_Right);
+                    auto *radio = qobject_cast<QRadioButton *>(focused());
+                    check(radio && radio->objectName() == name && radio->isChecked(),
+                          std::string("Right chooses ") + name + ", got " + identity(focused()));
+                }
+                key(Qt::Key_Escape, {}, true);
+            } catch (...) {
+                failure = std::current_exception();
+                dialog->reject();
+            }
+        });
+        watch.start(20);
+        sheetCanvas->setFocus(Qt::OtherFocusReason);
+        check(QTest::qWaitFor([&] { return sheetCanvas->hasFocus(); }), "Canvas for Export");
+        paletteChoose(window, "Export sheets…");
+        watch.stop();
+        if (failure)
+            std::rethrow_exception(failure);
+        check(seen, "The palette opened File › Export sheets…");
+        check(QTest::qWaitFor([&] { return window.isActiveWindow() && sheetCanvas->hasFocus(); }),
+              "Esc in the export dialog returns to the canvas, got " + identity(focused()));
+    }
     key(Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
     check(window.workspace() == Window::Workspace::Model &&
               QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),

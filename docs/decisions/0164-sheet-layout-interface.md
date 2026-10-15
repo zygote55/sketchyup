@@ -1045,9 +1045,10 @@ files, so they merge in order.
 
 ## R092 export
 
-Added 2026-10-14 for [R092](../PR_ROADMAP.md#r092). R092 prints and exports the
-drawing set through the compositor of §1 (decision 1). The approved preflight design
-is the "Export sheets as PDF" dialog of the R091 UX design canvas.
+Added 2026-10-14 for [R092](../PR_ROADMAP.md#r092), with the R092.b conventions on
+2026-10-15. R092 prints and exports the drawing set through the compositor of §1
+(decision 1). The approved preflight design is the "Export sheets as PDF" dialog of the
+R091 UX design canvas.
 
 ### Decisions (owner, 2026-10-14)
 
@@ -1157,7 +1158,7 @@ is the "Export sheets as PDF" dialog of the R091 UX design canvas.
   the view frame, extracts the dimension and title-block text with `pdftotext`, and
   checks embedded subsets with `pdffonts`.
 
-### R092.b: desktop export and print (planned)
+### R092.b: desktop export and print
 
 - **File › Export sheets…** opens the preflight dialog from the approved design. The
   dialog has:
@@ -1177,3 +1178,66 @@ is the "Export sheets as PDF" dialog of the R091 UX design canvas.
   `rasterRenderer`, so raster views export at 300 dpi.
 - **Print…** goes through `QPrintDialog` at 100% (no fit-to-page). It runs the same
   preflight and paints each page with `paintDrawingSheet` at actual size.
+
+**Implementation conventions (R092.b).**
+- **Entry points.** `sheet.export` ("Export sheets…") and `sheet.print` ("Print…") are
+  Sheets-scope File entries; `file.exportSheets` is the Model-scope "Export sheets…",
+  enabled while the document has pages. One of each pair shows per workspace (as Delete
+  does). None has a default shortcut; the shortcut editor lists them with their workspace.
+  Print is not offered in Model.
+- **Dialog.** `SheetExportDialog` (`sheet_export_dialog.{hpp,cpp}`) is a
+  `Settled<QDialog>`: `settled_dialog.hpp` now holds the R091.h settling rule as a template,
+  and `SettledInputDialog` is `Settled<QInputDialog>`. Its outcome (Cancel, Confirm, Go to
+  view, Review and accept, Choose another font) is acted on by the window after it closes,
+  so the dialog never edits the document or writes a file.
+- **Live preflight.** `preflightSheetExport` runs on a one-thread pool against a
+  `readSnapshot`. A change of pages or an opt-in runs it again at once, typing a range after
+  300 ms, and every document revision after 150 ms (`Window::sync` notifies the open
+  dialog). The confirming button is disabled while a check runs, while anything blocks,
+  while the range is invalid, and (Export) while the file exists or its folder is missing;
+  the footer names the first of these. The list reuses each group's block, so the focused
+  control keeps focus; Tab follows reading order (pages, file or printer, each block's
+  controls, Cancel, the confirming button).
+- **Groups and wording.** One block per finding code, in the design's order (broken,
+  raster unavailable, changed, fonts, other warnings, paper, scales, raster views), at most
+  four lines each. The headline is a count ("1 broken view blocks export.", "3 views
+  changed since accepted.", "1 font is not installed."); the body is the engine's message
+  without the clause the headline repeats. Opt-in labels follow the design ("Export it as an
+  empty, labelled frame", "Export them as they are now (named in the export report)"), with
+  "Print" in Print and no report clause there. The footer: "Fix the broken view, or choose
+  to export it empty.", "Accept the changed views, or choose to export them as they are
+  now." Where the design says "changed since accepted" the R091 wording is already the
+  same.
+- **Raster capture.** The dialog's preflight passes a stand-in renderer, so it describes an
+  export with `rasterCapture` and never reports `rasterUnavailable`. On Export or Print the
+  window draws each raster view named by the preflight's `rasterViews` finding with
+  `Viewport::renderDrawingViewRaster` on the UI thread, at the finding's pixel size; the
+  worker's `rasterRenderer` only looks those images up. A view the viewport cannot draw
+  fails the export, or prints as an empty frame when broken views are opted in.
+- **Export.** `exportSheetsPdf` runs on a worker behind the file-operation progress surface
+  ("Exporting sheets…"), so it stays atomic and never replaces a file. The report sheet
+  ("Sheet export report", `ReportSheet`) gives the file, the page count, the views exported
+  as they are now or as empty frames, raster views with their DPI, font substitutions, and
+  a link-style button that shows the reconciliation JSON (also attached to the PDF). A
+  failure shows "Could not export sheets" with "No file was written." and the reason.
+- **Print.** `printSheets(doc, options, QPagedPaintDevice &)` (engine) shares the export's
+  preflight, opt-ins and raster rules and paints each selected page as one device page
+  with `drawingSheetDeviceTransform`: one paper millimetre is one device millimetre from the
+  paper's top-left corner. The window's `QPrinter` is high resolution, full page, with no
+  margins; the dialog's Printer row shows the printer and paper, and Choose… opens
+  `QPrintDialog` with the page range in both directions. A page more than 0.5 mm larger than
+  the paper in either direction adds the desktop-only `paperSmaller` warning ("N pages are
+  larger than the paper."): it prints at 100% and is cut off; nothing is scaled or rotated.
+- **Font sources.** `DrawingFontSubstitution` keeps `items` and `views` apart: view and
+  item IDs come from separate allocators, so an item whose ID equals a view's was reported
+  as a view caption (R092.a), which hid Choose another font.
+- **Layout.** Finding controls wrap below each other on a narrow dialog (the design's
+  flex-wrap), the page radio buttons stay on one line (arrow order), the path elides in the
+  middle, and the findings list scrolls when the screen is too small.
+- **Audit.** The dialog-keyboard audit treats a radio group as one Tab stop (Tab enters the
+  checked button, arrows choose), and audits `sheet-export`, `sheet-print` and
+  `sheet-export-model` after their preflight has listed its controls; only the default
+  button is asserted, because Enter would write a file or print.
+- **Tests.** `sheet_export_input_tests` (X11 and Wayland at 1×, 2× and 1.5×), the
+  keyboard-reachability Sheets section, `visible_focus_input_tests --workspace=sheets`, and
+  the dialog audit's sheets group; `sheet_export_tests` covers the font-source split.

@@ -1,4 +1,5 @@
 #pragma once
+#include <QDialog>
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QInputDialog>
@@ -15,28 +16,30 @@ namespace sketchy {
 // focus window and is dropped: the application is left with no focus window although the
 // compositor focused the main window. Waiting (at most 300 ms) until the prompt is the focus
 // window before closing it keeps the two changes in order. People never close a prompt that
-// fast; automation and scripted input do.
-class SettledInputDialog : public QInputDialog {
+// fast; automation and scripted input do. Settled<QDialog> is the same rule for a dialog
+// that closes from its own controls (the R092.b export dialog).
+template <class Base> class Settled : public Base {
   public:
-    using QInputDialog::QInputDialog;
+    using Base::Base;
     void done(int result) override {
         if (settling_)
             return;
-        if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")) || !isVisible() ||
-            !windowHandle() || QGuiApplication::focusWindow() == windowHandle()) {
-            QInputDialog::done(result);
+        if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")) ||
+            !this->isVisible() || !this->windowHandle() ||
+            QGuiApplication::focusWindow() == this->windowHandle()) {
+            Base::done(result);
             return;
         }
         settling_ = true;
         auto *timer = new QTimer(this);
         auto clock = std::make_shared<QElapsedTimer>();
         clock->start();
-        connect(timer, &QTimer::timeout, this, [this, timer, clock, result] {
-            if (QGuiApplication::focusWindow() != windowHandle() && clock->elapsed() < 300)
+        QObject::connect(timer, &QTimer::timeout, this, [this, timer, clock, result] {
+            if (QGuiApplication::focusWindow() != this->windowHandle() && clock->elapsed() < 300)
                 return;
             timer->deleteLater();
             settling_ = false;
-            QInputDialog::done(result);
+            Base::done(result);
         });
         timer->start(10);
     }
@@ -44,4 +47,5 @@ class SettledInputDialog : public QInputDialog {
   private:
     bool settling_{};
 };
+using SettledInputDialog = Settled<QInputDialog>;
 } // namespace sketchy

@@ -2,6 +2,7 @@
 #include "app/keyboard_navigation.hpp"
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
+#include "app/sheet_export_dialog.hpp"
 #include "app/sheet_item_info.hpp"
 #include "app/sheet_items.hpp"
 #include "app/sheet_text.hpp"
@@ -649,6 +650,9 @@ void Window::themeSheets(const ThemeColors &colors) {
     }
     sheets_->setTheme(colors);
     sheetsTray_->setTheme(colors);
+    sheetColors_ = colors;
+    if (sheetExport_)
+        sheetExport_->setTheme(colors);
     for (const auto &[id, path] : std::vector<std::pair<const char *, QPainterPath>>{
              {"sheet.tool.select", selectIcon()},
              {"sheet.tool.view", modelViewIcon()},
@@ -1119,6 +1123,10 @@ void Window::setWorkspace(Workspace workspace) {
             entry->menuAction()->setVisible(sheets);
     findChild<QAction *>("edit.delete")->setVisible(!sheets);
     findChild<QAction *>("sheet.view.delete")->setVisible(sheets);
+    // File › Export sheets… and Print… (R092.b): one entry per workspace.
+    findChild<QAction *>("file.exportSheets")->setVisible(!sheets);
+    findChild<QAction *>("sheet.export")->setVisible(sheets);
+    findChild<QAction *>("sheet.print")->setVisible(sheets);
     findChild<QAction *>(sheets ? "view.workspace.sheets" : "view.workspace.model")
         ->setChecked(true);
     syncWorkspaceActions();
@@ -1239,7 +1247,9 @@ void Window::syncSheetActions() {
         {"sheet.tool.pan", true},
         {"sheet.tool.zoom", true},
         {"sheet.page.add", true},
-        {"sheet.grid", true}};
+        {"sheet.grid", true},
+        {"sheet.export", !doc_.drawingSheets().empty()},
+        {"sheet.print", !doc_.drawingSheets().empty()}};
     // In Model the sheet actions stay suspended; switching to Sheets runs this again.
     if (workspace_ == Workspace::Sheets && !assistantFenced_)
         for (const auto &[id, enabled] : states)
