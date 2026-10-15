@@ -26,8 +26,9 @@ export LIBGL_ALWAYS_SOFTWARE=1
 export SKETCHYUP_TEST_EXIT_FILE="$test_runtime/test-status"
 # Weston exits with zero even when the launched program fails. Preserve the
 # program's actual status independently, including missing/aborted executions.
+# On the deadline, test-deadline.sh prints every client thread's stack before stopping Weston.
 weston_status=0
-timeout 60s weston --backend=headless --renderer=gl --fake-seat \
+"$(dirname "${BASH_SOURCE[0]}")/test-deadline.sh" 60 weston --backend=headless --renderer=gl --fake-seat \
   --width="$((1600 * test_scale))" --height="$((1000 * test_scale))" \
   --scale="$test_scale" --idle-time=0 --socket="$WAYLAND_DISPLAY" \
   --no-config --log="$test_runtime/weston.log" -- bash -c '
@@ -49,6 +50,11 @@ if (( weston_status != 0 )) || [[ ! -f "$SKETCHYUP_TEST_EXIT_FILE" ]]; then
   exit 1
 fi
 test_status=$(cat "$SKETCHYUP_TEST_EXIT_FILE")
+if (( test_status > 128 )); then
+  echo "Test killed by signal $(kill -l "$test_status" 2> /dev/null || echo $((test_status - 128))): $*" >&2
+elif (( test_status != 0 )); then
+  echo "Test exited with status $test_status: $*" >&2
+fi
 if (( test_status != 0 )); then
   tail -40 "$test_runtime/weston.log" >&2
 fi

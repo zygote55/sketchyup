@@ -16,7 +16,7 @@ env:
   CI_PACKAGES: >-
     cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa
     xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema
-    nodejs npm blender ffmpeg poppler at-spi2-core
+    nodejs npm blender ffmpeg poppler at-spi2-core gdb
 jobs:
   arch:
     name: Development build and native tests
@@ -25,7 +25,10 @@ jobs:
       # platform errors vanished (D-033). Force them onto stderr.
       QT_FORCE_STDERR_LOGGING: "1"
     runs-on: ubuntu-latest
-    container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v6
@@ -78,174 +81,174 @@ jobs:
         run: SKETCHYUP_PDF_TEST=/usr/bin/pdftoppm ctest --test-dir build/dev -R '^(measured_export_real|sheet_export_real)$' --output-on-failure
       - name: Native interaction and OpenGL tests
         run: |
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/assistant_panel_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/assistant_panel_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/assistant_preview_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/assistant_preview_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 SKETCHYUP_BLENDER_TEST=/usr/bin/blender timeout 90s build/dev/render_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/render_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/native_mcp_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/native_mcp_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 70s build/dev/desktop_inspection_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 70s build/dev/desktop_inspection_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/m4_workflow_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/m4_workflow_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/units_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/units_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/history_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/history_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/recovery_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/recovery_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/file_operation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/file_operation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/formline_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/formline_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/dxf_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/stl_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/obj_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/gltf_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/scene_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/section_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/reference_image_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/extension_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/library_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/preference_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_modeling_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_outliner_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_panel_tabs_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_reachability_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/sheet_workspace_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_layout_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_acceptance_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_export_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_panel_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_panel_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_preview_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_preview_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 SKETCHYUP_BLENDER_TEST=/usr/bin/blender scripts/test-deadline.sh 90 build/dev/render_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/render_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_mcp_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_mcp_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 70 build/dev/desktop_inspection_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 70 build/dev/desktop_inspection_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m4_workflow_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m4_workflow_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/units_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/units_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/history_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/history_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/recovery_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/recovery_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/file_operation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/file_operation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/formline_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/formline_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/dxf_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/stl_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/obj_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/gltf_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/scene_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/reference_image_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/extension_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/library_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/preference_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_modeling_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_outliner_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_panel_tabs_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_reachability_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/sheet_workspace_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_layout_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_acceptance_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
           # -noreset: libatspi opens and closes a display before the demo starts; a server left
           # without clients resets, and the demo's connection can fail during the reset (D-033).
-          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests --workspace=sheets
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/viewport_label_overlap_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/shortcut_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/measured_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/raster_export_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/solar_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/annotation_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/section_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/style_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/scene_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/section_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/reference_image_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/extension_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/library_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/preference_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_modeling_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_outliner_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_panel_tabs_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/keyboard_reachability_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/sheet_workspace_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_layout_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_acceptance_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_export_input_tests
+          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/theme_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_size_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_label_overlap_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/shortcut_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/measured_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/raster_export_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/solar_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/scene_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/reference_image_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/extension_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/library_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/preference_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_modeling_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_outliner_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_panel_tabs_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_reachability_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/sheet_workspace_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_layout_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_acceptance_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
           # -noreset: libatspi opens and closes a display before the demo starts; a server left
           # without clients resets, and the demo's connection can fail during the reset (D-033).
-          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/theme_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/visible_focus_input_tests --workspace=sheets
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/text_size_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/viewport_label_overlap_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/shortcut_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/measured_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/raster_export_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/solar_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/annotation_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/section_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/style_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/style_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/style_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/texture_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/texture_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/edge_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/edge_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/smooth_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/smooth_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/texture_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/texture_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/material_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/placement_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/placement_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/entity_info_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/entity_info_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/organization_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/organization_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/component_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/component_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/hosted_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/hosted_array_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/recipe_hosted_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/roof_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/stair_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/furniture_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/m6_workflow_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/viewport_precision_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/site_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/hosted_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/hosted_array_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/recipe_hosted_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/roof_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/stair_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/furniture_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/m6_workflow_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/viewport_precision_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/site_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/group_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 50s build/dev/group_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/array_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/array_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/transform_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/transform_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/navigation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/navigation_input_tests
+          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/theme_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_size_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_label_overlap_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/shortcut_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/measured_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/raster_export_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/solar_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/texture_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/texture_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/smooth_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/smooth_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/texture_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/texture_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/placement_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/placement_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/entity_info_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/entity_info_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/recipe_hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/roof_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/stair_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/furniture_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m6_workflow_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_precision_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/recipe_hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/roof_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/stair_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/furniture_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m6_workflow_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_precision_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/navigation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/navigation_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/navigation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/selection_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/selection_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/guide_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/guide_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/constraint_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/constraint_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/inference_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/inference_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/curve_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/drawing_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/numeric_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/diagnostics_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/orientation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/diagnostics_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/orientation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/boolean_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/boolean_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/intersection_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/intersection_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/sweep_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/sweep_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/offset_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/offset_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/tool_lifecycle_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/interaction_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/sketchyup --smoke
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 30s build/dev/dialog_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 40s build/dev/shell_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/selection_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/selection_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/guide_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/guide_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/constraint_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/constraint_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/inference_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/inference_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/curve_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/drawing_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/numeric_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/diagnostics_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/orientation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/diagnostics_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/orientation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/boolean_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/boolean_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/intersection_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/intersection_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/sweep_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/sweep_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/offset_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/offset_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/tool_lifecycle_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/interaction_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/sketchyup --smoke
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 30 build/dev/dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/shell_tests
       - name: Keyboard layouts through physical key input
         run: |
           for layout in us de fr; do
@@ -410,10 +413,10 @@ jobs:
           # groups. CI covers both platforms and both scales as X11 2x plus Wayland 1x; the
           # full four-way matrix (Wayland 2x up to 50 s per group) is local evidence in R084.u.
           mkdir -p build/dialog-keyboard
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 timeout 60s build/dev/native_accessibility_audit --dialogs-keyboard=inventory > build/dialog-keyboard/inventory.json
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/native_accessibility_audit --dialogs-keyboard=inventory > build/dialog-keyboard/inventory.json
           groups=$(python -c 'import json; print(" ".join(json.load(open("build/dialog-keyboard/inventory.json"))["groups"]))')
           for group in $groups; do
-            xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 timeout 90s build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/x11-2-$group.json
+            xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/x11-2-$group.json
             scripts/test-wayland.sh build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/wayland-1-$group.json
           done
       - name: Reproducible M5 offline acceptance and recordings
@@ -479,7 +482,7 @@ jobs:
           for factor in 1.5 1.75; do
             for target in viewport_tests keyboard_modeling_input_tests text_size_input_tests keyboard_outliner_input_tests shortcut_input_tests; do
               QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR="$factor" "build/dev/$target"
-              xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR="$factor" LIBGL_ALWAYS_SOFTWARE=1 timeout 90s "build/dev/$target"
+              xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR="$factor" LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 "build/dev/$target"
             done
           done
           # R091.f (ADR 0164 §6): page layout at fractional 1.5 on both platforms.
@@ -487,10 +490,10 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_annotation_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_acceptance_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_export_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_layout_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_acceptance_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 timeout 120s build/dev/sheet_export_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_layout_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_acceptance_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
   blender:
     name: Blender interoperability
     runs-on: ubuntu-latest
@@ -522,7 +525,10 @@ jobs:
       # platform errors vanished (D-033). Force them onto stderr.
       QT_FORCE_STDERR_LOGGING: "1"
     runs-on: ubuntu-latest
-    container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
