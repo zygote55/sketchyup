@@ -1,6 +1,7 @@
 #include "app/accessible_names.hpp"
 #include "app/inspection_service.hpp"
 #include "app/render_panel.hpp"
+#include "app/sheet_evaluation.hpp"
 #include "app/window.hpp"
 #include <QAction>
 #include <QCheckBox>

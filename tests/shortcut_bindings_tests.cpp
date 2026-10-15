@@ -104,8 +104,101 @@ int main(int argc, char **argv) {
               QByteArray("{\"apiVersion\":1,\"bindings\":{\"file.save\":\"Escape\"}}"),
               QByteArray(128 * 1024 + 1, ' ')})
             rejected([&] { ShortcutBindings invalid(defaults, bytes); });
+        // ADR 0164 §4: workspace scopes. The same key may bind once in Model and once in
+        // Sheets; Global conflicts with both.
+        const ShortcutMap scoped{{"tool.line", QKeySequence("L")},
+                                 {"tool.pan", QKeySequence("H")},
+                                 {"view.fit", QKeySequence("Shift+Z")},
+                                 {"sheet.tool.pan", QKeySequence("H")},
+                                 {"sheet.view.fit", QKeySequence("Shift+Z")},
+                                 {"sheet.tool.zoom", QKeySequence("Z")},
+                                 {"sheet.page.add", QKeySequence("Ctrl+Shift+N")},
+                                 {"view.commands", QKeySequence("Ctrl+K")},
+                                 {"file.save", QKeySequence("Ctrl+S")}};
+        const ShortcutScopes scopes{
+            {"tool.line", ShortcutScope::Model},       {"tool.pan", ShortcutScope::Model},
+            {"view.fit", ShortcutScope::Model},        {"sheet.tool.pan", ShortcutScope::Sheets},
+            {"sheet.view.fit", ShortcutScope::Sheets}, {"sheet.tool.zoom", ShortcutScope::Sheets},
+            {"sheet.page.add", ShortcutScope::Sheets}};
+        rejected([&] { ShortcutBindings unscoped(scoped); });
+        ShortcutBindings workspaces(scoped, {}, {}, scopes);
+        check(workspaces.effective() == scoped && workspaces.notices().isEmpty(),
+              "Equal defaults in Model and Sheets are both active");
+        check(workspaces.scope("view.commands") == ShortcutScope::Global &&
+                  workspaces.scope("sheet.tool.pan") == ShortcutScope::Sheets,
+              "Unlisted actions are Global");
+        check(workspaces.conflicts("sheet.tool.zoom", QKeySequence("L")).isEmpty(),
+              "A sheet tool may use the model Line key");
+        check(workspaces.conflicts("sheet.tool.zoom", QKeySequence("H")) ==
+                  QStringList{"sheet.tool.pan"},
+              "Keys still conflict within the Sheets workspace");
+        check(workspaces.conflicts("sheet.tool.zoom", QKeySequence("Ctrl+K")) ==
+                  QStringList{"view.commands"},
+              "A Global key conflicts with Sheets actions");
+        check(workspaces.conflicts("view.commands", QKeySequence("H")) ==
+                  QStringList{"sheet.tool.pan", "tool.pan"},
+              "A Global action conflicts with both workspaces");
+        workspaces.assign("sheet.tool.zoom", QKeySequence("L"));
+        check(workspaces.effective()["sheet.tool.zoom"] == QKeySequence("L") &&
+                  workspaces.effective()["tool.line"] == QKeySequence("L"),
+              "Assigning a model key to a sheet tool keeps both bindings");
+        rejected([&] { workspaces.assign("view.commands", QKeySequence("L")); });
+        workspaces.assign("view.commands", QKeySequence("L"), true);
+        check(workspaces.effective()["tool.line"].isEmpty() &&
+                  workspaces.effective()["sheet.tool.zoom"].isEmpty() &&
+                  workspaces.effective()["view.commands"] == QKeySequence("L"),
+              "Reassigning to a Global action displaces both workspace bindings");
+        // Migration: saved preferences from before scopes keep their meaning. A saved model
+        // binding equal to a new Sheets default no longer conflicts; a saved Global one still
+        // wins over the new default with a notice.
+        const auto oldSaved =
+            QJsonDocument(QJsonObject{{"apiVersion", 1},
+                                      {"bindings", QJsonObject{{"tool.line", "Ctrl+Shift+N"},
+                                                               {"future.action", "F13"}}}})
+                .toJson();
+        ShortcutBindings migrated(scoped, oldSaved, {}, scopes);
+        check(migrated.effective()["tool.line"] == QKeySequence("Ctrl+Shift+N") &&
+                  migrated.effective()["sheet.page.add"] == QKeySequence("Ctrl+Shift+N") &&
+                  migrated.notices().isEmpty() &&
+                  migrated.encode() ==
+                      QJsonDocument::fromJson(oldSaved).toJson(QJsonDocument::Compact),
+              "An old model binding and a new Sheets default are both active; bytes unchanged");
+        const auto oldGlobal =
+            QJsonDocument(QJsonObject{{"apiVersion", 1},
+                                      {"bindings", QJsonObject{{"file.save", "Ctrl+Shift+N"}}}})
+                .toJson();
+        ShortcutBindings shadowed(scoped, oldGlobal, {}, scopes);
+        check(shadowed.effective()["file.save"] == QKeySequence("Ctrl+Shift+N") &&
+                  shadowed.effective()["sheet.page.add"].isEmpty() &&
+                  shadowed.notices().size() == 1 &&
+                  shadowed.notices().front().contains("sheet.page.add"),
+              "A saved Global binding keeps winning over a new Sheets default");
+        // Saved choices that collide only across workspaces become active again; ones that
+        // collide within a workspace stay inactive until resolved.
+        const auto crossSaved =
+            QJsonDocument(
+                QJsonObject{{"apiVersion", 1},
+                            {"bindings", QJsonObject{{"tool.pan", "J"}, {"sheet.tool.pan", "J"}}}})
+                .toJson();
+        ShortcutBindings cross(scoped, crossSaved, {}, scopes);
+        check(cross.effective()["tool.pan"] == QKeySequence("J") &&
+                  cross.effective()["sheet.tool.pan"] == QKeySequence("J") &&
+                  cross.notices().isEmpty(),
+              "Saved bindings that differ in workspace are both active");
+        const auto sameSaved =
+            QJsonDocument(QJsonObject{{"apiVersion", 1},
+                                      {"bindings", QJsonObject{{"tool.pan", "J"},
+                                                               {"tool.line", "J"},
+                                                               {"sheet.tool.pan", "J"}}}})
+                .toJson();
+        ShortcutBindings same(scoped, sameSaved, {}, scopes);
+        check(same.effective()["tool.pan"].isEmpty() && same.effective()["tool.line"].isEmpty() &&
+                  same.effective()["sheet.tool.pan"] == QKeySequence("J") &&
+                  same.notices().size() == 1 && !same.notices().front().contains("sheet."),
+              "Only the bindings that conflict within a workspace are disabled");
         std::cout << "Shortcut preferences: restart, explicit conflicts, upgrades, unknown values, "
-                     "reserved keys and malformed/future versions passed\n";
+                     "reserved keys, malformed/future versions and workspace scopes (conflicts, "
+                     "migration) passed\n";
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -2,6 +2,7 @@
 #include "app/assistant_panel.hpp"
 #include "app/organization_panel.hpp"
 #include "app/recovery_controller.hpp"
+#include "app/shortcut_bindings.hpp"
 #include "app/viewport.hpp"
 #include "io/dxf_export.hpp"
 #include "io/obj_source.hpp"
@@ -13,12 +14,20 @@
 #include <QMenu>
 #include <QPointer>
 #include <functional>
+#include <memory>
+#include <optional>
+#include <set>
 class QTabWidget;
 class QDialog;
 class QHBoxLayout;
+class QStackedWidget;
+class QToolBar;
 namespace sketchy {
 class DesktopInspection;
 class RenderPanel;
+class DrawingViewRenderCache;
+class SheetWorkspace;
+class SheetsTray;
 class Window : public QMainWindow {
     Q_OBJECT
   public:
@@ -31,6 +40,14 @@ class Window : public QMainWindow {
     Viewport *viewport() { return viewport_; }
     RenderPanel *renderPanel() { return render_; }
     AssistantPanel *assistantPanel() { return assistant_; }
+    // ADR 0164 §7 (R091.e): the Model and Sheets workspaces. The Sheets workspace exists only
+    // while SKETCHYUP_SHEETS_WORKSPACE=1 was set when the window was created (until R091.h).
+    enum class Workspace { Model, Sheets };
+    Workspace workspace() const { return workspace_; }
+    void setWorkspace(Workspace workspace);
+    SheetWorkspace *sheetWorkspace() { return sheets_; }
+    SheetsTray *sheetsTray() { return sheetsTray_; }
+    DrawingViewRenderCache *sheetEvaluations() { return sheetCache_.get(); }
     QJsonObject inspect(const QJsonObject &request);
     void demo();
     void openPath(const QString &path);
@@ -127,11 +144,40 @@ class Window : public QMainWindow {
     bool canReplace();
     void palette();
     void focusRegion(bool previous = false);
+    // Sheets workspace (window_sheets.cpp).
+    Workspace workspace_{Workspace::Model};
+    std::unique_ptr<DrawingViewRenderCache> sheetCache_;
+    QStackedWidget *workspaceStack_{}, *railStack_{};
+    QTabWidget *modelTabs_{};
+    QToolBar *modelRail_{}, *sheetRail_{};
+    SheetWorkspace *sheets_{};
+    SheetsTray *sheetsTray_{};
+    QLabel *activeTool_{};
+    QWidget *workspaceToggle_{};
+    std::vector<QWidget *> modelTrayWidgets_;
+    std::vector<QWidget *> modelRegions_, sheetRegions_;
+    std::set<QAction *> workspaceSuspended_;
+    QString modelStatus_, modelPlaceholder_;
+    static bool sheetsWorkspaceEnabled();
+    void setupSheets(QWidget *header, QMenu *view);
+    void syncSheets();
+    void themeSheets(const ThemeColors &colors);
+    void syncWorkspaceActions();
+    void sheetTool(int tool);
+    void sheetCommands(const QJsonArray &commands, const QString &label);
+    void addSheetPage();
+    void moveSheetPage(Id sheet, int delta);
+    void focusWorkspace();
+    bool sheetMeasurements(const QString &text);
+    ShortcutScope actionScope(const QAction *action) const;
     void rememberPath(const QString &path);
     QStringList recentFiles_;
     std::vector<QWidget *> focusRegions_;
     void tool(Viewport::Tool tool, const QString &instruction);
+    // Scope defaults to Model for model tools and viewport-only keys, otherwise Global; the
+    // same shortcut may be used once per non-overlapping scope (ADR 0164 §4).
     QAction *action(const QString &id, const QString &title, const QKeySequence &shortcut,
-                    const std::function<void()> &fn);
+                    const std::function<void()> &fn,
+                    std::optional<ShortcutScope> scope = std::nullopt);
 };
 } // namespace sketchy

@@ -1,4 +1,5 @@
 #include "app/interface_preferences.hpp"
+#include "app/sheet_workspace.hpp"
 #include "app/shortcut_bindings.hpp"
 #include "app/window.hpp"
 #include <QAction>
@@ -6,11 +7,13 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QHeaderView>
 #include <QKeyEvent>
 #include <QKeySequenceEdit>
 #include <QLockFile>
 #include <QPushButton>
 #include <QSettings>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 #include <algorithm>
 namespace sketchy {
@@ -38,12 +41,18 @@ bool viewportShortcut(QAction *action, const QKeySequence &sequence) {
         !(sequence[0].key() >= Qt::Key_F1 && sequence[0].key() <= Qt::Key_F35);
     return plain || action->property("defaultShortcutContext").toInt() == int(Qt::WidgetShortcut);
 }
+ShortcutScope scopeOf(const QAction *action) {
+    return ShortcutScope(action->property("shortcutScope").toInt());
+}
+// Model panels belong to the Model workspace (ADR 0164 §4): their local keys guard Global and
+// Model bindings, never Sheets ones.
 ShortcutBindings::Guard panelGuard(const std::vector<QAction *> &actions, QWidget *panels) {
     return [actions, panels](const QString &id, const QKeySequence &sequence) -> QString {
         const auto found = std::find_if(actions.begin(), actions.end(), [&](QAction *action) {
             return action->objectName() == id;
         });
-        if (found == actions.end() || viewportShortcut(*found, sequence))
+        if (found == actions.end() || viewportShortcut(*found, sequence) ||
+            scopeOf(*found) == ShortcutScope::Sheets)
             return {};
         for (auto *local : panels->findChildren<QAction *>()) {
             if (local->shortcutContext() != Qt::WidgetShortcut &&
@@ -64,18 +73,45 @@ ShortcutMap defaults(const std::vector<QAction *> &actions) {
         result[action->objectName()] = action->property("defaultShortcut").value<QKeySequence>();
     return result;
 }
+ShortcutScopes scopes(const std::vector<QAction *> &actions) {
+    ShortcutScopes result;
+    for (auto *action : actions)
+        result[action->objectName()] = scopeOf(action);
+    return result;
+}
+QString scopeName(ShortcutScope scope) {
+    switch (scope) {
+    case ShortcutScope::Model:
+        return "Model";
+    case ShortcutScope::Sheets:
+        return "Sheets";
+    case ShortcutScope::Global:
+        break;
+    }
+    return "All";
+}
 } // namespace
 void Window::applyShortcuts(const ShortcutBindings &bindings) {
+    QWidget *canvas = sheets_ ? static_cast<QWidget *>(sheets_->canvas()) : nullptr;
     for (auto *action : publicActions_) {
         const auto sequence = bindings.effective().value(action->objectName());
         const bool viewportOnly = viewportShortcut(action, sequence);
+        const auto scope = actionScope(action);
         removeAction(action);
         viewport_->removeAction(action);
+        if (canvas)
+            canvas->removeAction(action);
         action->setShortcut(sequence);
         action->setShortcutContext(viewportOnly ? Qt::WidgetShortcut : Qt::WindowShortcut);
-        if (viewportOnly)
-            viewport_->addAction(action);
-        else
+        // Plain keys never reach text fields: Model ones work on the viewport, Sheets ones on
+        // the page canvas, and Global ones on both. Workspace actions of the inactive
+        // workspace are disabled (syncWorkspaceActions), so equal keys never compete.
+        if (viewportOnly) {
+            if (scope != ShortcutScope::Sheets)
+                viewport_->addAction(action);
+            if (canvas && scope != ShortcutScope::Model)
+                canvas->addAction(action);
+        } else
             addAction(action);
         const auto base = action->property("shortcutTooltip").toString();
         action->setToolTip(sequence.isEmpty()
@@ -83,17 +119,24 @@ void Window::applyShortcuts(const ShortcutBindings &bindings) {
                                : base + " (" + sequence.toString(QKeySequence::NativeText) + ")");
     }
     updateCommandSearchLabel(this);
+    if (sheets_)
+        sheets_->setShortcutHints(findChild<QAction *>("sheet.view.fit")->shortcut(),
+                                  findChild<QAction *>("sheet.page.add")->shortcut());
 }
 void Window::initializeShortcuts() {
     for (auto *action : publicActions_) {
         action->setProperty("defaultShortcutContext", int(action->shortcutContext()));
         action->setProperty("shortcutTooltip", action->toolTip());
+        // Viewport-only actions (Ctrl+A, Ctrl+G) are Model actions (ADR 0164 §4).
+        if (!action->property("shortcutScopeExplicit").toBool() &&
+            action->shortcutContext() == Qt::WidgetShortcut)
+            action->setProperty("shortcutScope", int(ShortcutScope::Model));
     }
     try {
         QSettings settings("SketchyUp", "SketchyUp");
-        ShortcutBindings bindings(defaults(publicActions_),
-                                  settings.value(settingsKey).toByteArray(),
-                                  panelGuard(publicActions_, organization_));
+        ShortcutBindings bindings(
+            defaults(publicActions_), settings.value(settingsKey).toByteArray(),
+            panelGuard(publicActions_, organization_), scopes(publicActions_));
         applyShortcuts(bindings);
         if (!bindings.notices().isEmpty())
             QTimer::singleShot(0, this, [this] {
@@ -113,7 +156,7 @@ void Window::shortcutSettings() {
         throw std::runtime_error("Cannot read shortcut preferences");
     const auto original = settings.value(settingsKey).toByteArray();
     ShortcutBindings draft(defaults(publicActions_), original,
-                           panelGuard(publicActions_, organization_));
+                           panelGuard(publicActions_, organization_), scopes(publicActions_));
     QDialog dialog(this);
     dialog.setObjectName("shortcutDialog");
     dialog.setWindowTitle("Keyboard shortcuts");
@@ -128,9 +171,21 @@ void Window::shortcutSettings() {
     search->setAccessibleName("Find a command");
     search->setPlaceholderText("Find a command…");
     layout.addWidget(search);
-    auto *list = new QListWidget;
+    // Command, shortcut and the workspace it works in (ADR 0164 §4). The same key may be used
+    // once in Model and once in Sheets; "All" commands conflict with both.
+    auto *list = new QTreeWidget;
     list->setObjectName("shortcutActions");
     list->setAccessibleName("Command shortcuts");
+    list->setRootIsDecorated(false);
+    list->setUniformRowHeights(true);
+    list->setColumnCount(3);
+    list->setHeaderLabels({"Command", "Shortcut", "Workspace"});
+    list->header()->setStretchLastSection(false);
+    list->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    list->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    list->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    // The Workspace column appears with the Sheets workspace (until R091.h, behind its flag).
+    list->setColumnHidden(2, !sheets_);
     layout.addWidget(list);
     auto *editor = new QKeySequenceEdit;
     editor->setObjectName("shortcutSequence");
@@ -167,18 +222,17 @@ void Window::shortcutSettings() {
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
     layout.addWidget(buttons);
     auto refresh = [&] {
-        for (int i = 0; i < list->count(); ++i) {
-            auto *item = list->item(i);
-            const auto id = item->data(Qt::UserRole).toString();
+        for (int i = 0; i < list->topLevelItemCount(); ++i) {
+            auto *item = list->topLevelItem(i);
+            const auto id = item->data(0, Qt::UserRole).toString();
             const auto key = draft.effective().value(id).toString(QKeySequence::NativeText);
-            item->setText(item->data(Qt::UserRole + 1).toString() + "  —  " +
-                          (key.isEmpty() ? "Unassigned" : key));
+            item->setText(1, key.isEmpty() ? "Unassigned" : key);
         }
         notices->setText(draft.notices().join('\n'));
     };
     auto selectedId = [&] {
         return list->currentItem() && !list->currentItem()->isHidden()
-                   ? list->currentItem()->data(Qt::UserRole).toString()
+                   ? list->currentItem()->data(0, Qt::UserRole).toString()
                    : QString{};
     };
     auto showConflict = [&] {
@@ -192,7 +246,11 @@ void Window::shortcutSettings() {
                 QStringList names;
                 for (auto *action : publicActions_)
                     if (conflicts.contains(action->objectName()))
-                        names << action->text().remove('&');
+                        names << action->text().remove('&') +
+                                     (sheets_
+                                          ? " (" + scopeName(draft.scope(action->objectName())) +
+                                                ")"
+                                          : QString{});
                 error->setText("Already used by " + names.join(", ") +
                                ". Reassign clears those bindings; Save applies the changes.");
                 replace->setEnabled(true);
@@ -201,28 +259,31 @@ void Window::shortcutSettings() {
             error->setText(QString::fromUtf8(failure.what()));
         }
     };
-    connect(list, &QListWidget::currentRowChanged, &dialog, [&] {
+    connect(list, &QTreeWidget::currentItemChanged, &dialog, [&] {
         editor->setKeySequence(draft.effective().value(selectedId()));
         showConflict();
     });
     auto filterCommands = [&](const QString &text) {
         const auto previous = selectedId();
         list->clear();
-        int selected = 0;
+        QTreeWidgetItem *selected{};
         for (auto *action : publicActions_) {
             const auto name = action->text().remove('&');
             const auto key =
                 draft.effective().value(action->objectName()).toString(QKeySequence::NativeText);
-            const auto label = name + "  —  " + (key.isEmpty() ? "Unassigned" : key);
+            const auto workspace = scopeName(draft.scope(action->objectName()));
+            // The workspace is a search term too ("sheets", "model").
+            const auto label = name + "  —  " + (key.isEmpty() ? "Unassigned" : key) +
+                               (sheets_ ? "  —  " + workspace : QString{});
             if (!label.contains(text, Qt::CaseInsensitive))
                 continue;
-            auto *item = new QListWidgetItem(label, list);
-            item->setData(Qt::UserRole, action->objectName());
-            item->setData(Qt::UserRole + 1, name);
-            if (action->objectName() == previous)
-                selected = list->count() - 1;
+            auto *item =
+                new QTreeWidgetItem(list, {name, key.isEmpty() ? "Unassigned" : key, workspace});
+            item->setData(0, Qt::UserRole, action->objectName());
+            if (action->objectName() == previous || !selected)
+                selected = item;
         }
-        list->setCurrentRow(list->count() ? selected : -1);
+        list->setCurrentItem(selected);
     };
     connect(search, &QLineEdit::textChanged, &dialog, filterCommands);
     connect(editor, &QKeySequenceEdit::keySequenceChanged, &dialog, showConflict);
@@ -282,6 +343,6 @@ void Window::shortcutSettings() {
     refresh();
     dialog.exec();
     activateWindow();
-    viewport_->setFocus();
+    focusWorkspace();
 }
 } // namespace sketchy

@@ -5,12 +5,12 @@
 #include <QSaveFile>
 #include <QVariantAnimation>
 namespace sketchy {
-QImage Viewport::renderRaster(QSize pixels) {
+QImage Viewport::renderRaster(QSize pixels, bool hiddenAllowed) {
     constexpr qint64 pixelLimit = 16 * 1024 * 1024;
     if (pixels.width() < 1 || pixels.height() < 1 || pixels.width() > 8192 ||
         pixels.height() > 8192 || qint64(pixels.width()) * pixels.height() > pixelLimit)
         throw std::runtime_error("Export needs 1–8192 pixels per side and at most 16 megapixels");
-    if (!ready_ || !context() || !isVisible())
+    if (!ready_ || !context() || (!isVisible() && !hiddenAllowed))
         throw std::runtime_error("Open a visible, initialized model view before exporting");
     if (inspectionBusy() || benchmarkTriangles_ || !rasterSize_.isEmpty() ||
         (sceneAnimation_ && sceneAnimation_->state() == QAbstractAnimation::Running))

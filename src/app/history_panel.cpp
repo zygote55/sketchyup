@@ -184,7 +184,8 @@ void HistoryPanel::navigate(size_t position) {
             view_.refresh();
             QMetaObject::invokeMethod(&view_, "changed");
             refresh();
-            view_.setFocus(Qt::OtherFocusReason);
+            (focusTarget_ ? focusTarget_.data() : static_cast<QWidget *>(&view_))
+                ->setFocus(Qt::OtherFocusReason);
         } catch (const std::exception &error) {
             refresh();
             error_->setText(QString::fromUtf8(error.what()));

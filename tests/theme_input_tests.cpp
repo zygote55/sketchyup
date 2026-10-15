@@ -110,13 +110,60 @@ int main(int argc, char **argv) {
                                     {"contrast", ratio},
                                     {"passes", ratio >= 4.5}});
         }
+        // ADR 0164 decision 5 (R091.e): the warning, failure and selection tokens in both
+        // themes. Text needs 4.5:1; the selection stroke is a graphic and needs 3:1. Canvas
+        // decorations are drawn on paper, which is white in both themes.
+        for (const bool dark : {false, true}) {
+            const auto colors = themeColors(dark);
+            auto token = [&](const char *name, const QColor &foreground, const QColor &background,
+                             const char *on, double minimum) {
+                const auto ratio = contrast(foreground, background);
+                passed &= ratio >= minimum;
+                rows.append(QJsonObject{{"theme", dark ? "dark" : "light"},
+                                        {"control", QString("token.") + name},
+                                        {"state", on},
+                                        {"foreground", foreground.name()},
+                                        {"background", background.name()},
+                                        {"contrast", ratio},
+                                        {"minimum", minimum},
+                                        {"passes", ratio >= minimum}});
+            };
+            token("warning", colors.warning, colors.warningSurface, "warning banner", 4.5);
+            token("warning", colors.warning, colors.surface, "Pages state text", 4.5);
+            token("warning", colors.warning, colors.selected, "selected Pages row", 4.5);
+            token("failure", colors.failure, colors.surface, "Pages state text", 4.5);
+            token("failure", colors.failure, colors.selected, "selected Pages row", 4.5);
+            token("selectionStroke", colors.selectionStroke, colors.surface, "selection on surface",
+                  3);
+            token("paper", colors.ink, colors.pasteboard, "text on pasteboard", 4.5);
+            check(colors.paper == QColor(Qt::white), "Paper is white in both themes");
+        }
+        const auto paper = themeColors(false);
+        auto onPaper = [&](const char *name, const QColor &foreground, const QColor &background,
+                           const char *on, double minimum) {
+            const auto ratio = contrast(foreground, background);
+            passed &= ratio >= minimum;
+            rows.append(QJsonObject{{"theme", "paper"},
+                                    {"control", QString("token.") + name},
+                                    {"state", on},
+                                    {"foreground", foreground.name()},
+                                    {"background", background.name()},
+                                    {"contrast", ratio},
+                                    {"minimum", minimum},
+                                    {"passes", ratio >= minimum}});
+        };
+        onPaper("warning", paper.warning, paper.warningSurface, "Changed chip", 4.5);
+        onPaper("failure", paper.failure, paper.paper, "broken card", 4.5);
+        onPaper("failure", paper.failure, paper.failureSurface, "broken hatch fill", 4.5);
+        onPaper("selectionStroke", paper.selectionStroke, paper.paper, "selected view outline", 3);
         const auto bytes =
             QJsonDocument(
                 QJsonObject{{"rows", rows},
                             {"passes", passed},
                             {"scope",
                              "Effective active Qt palette for measurements, "
-                             "selection, command button, secondary text and painted context link"},
+                             "selection, command button, secondary text and painted context link; "
+                             "Sheets warning, failure and selection tokens"},
                             {"releaseAcceptance", false}})
                 .toJson();
         if (argc == 2) {

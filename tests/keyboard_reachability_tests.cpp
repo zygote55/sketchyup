@@ -1,6 +1,8 @@
 #include "app/render_panel.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "core/drawing_sheets.hpp"
+#include "core/scenes.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -21,6 +23,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTreeWidget>
 #include <iostream>
 #include <set>
 // R084.v: keyboard reachability of the tool rail, the main window's Tab cycle, the side tabs
@@ -487,6 +490,113 @@ void renderReopen(Fixture &f, const QString &files) {
     check(tabs->currentIndex() == 0, "Left returns to the Model tab");
     f.checkCycle({tabs->tabBar(), window.findChild<QTabWidget *>("organizationTabs")->tabBar()});
 }
+// R091.e: the Sheets workspace (ADR 0164 §4). One Tab stop for the sheet rail, the F6 order
+// search, sheet rail, canvas, page tabs, Tray (Pages), Assistant, Measurements, and the page
+// tabs and Pages tree reached by Tab.
+void sheetsWorkspace() {
+    qputenv("SKETCHYUP_SHEETS_WORKSPACE", "1");
+    Window window;
+    window.resize(1280, 900);
+    window.show();
+    check(QTest::qWaitForWindowExposed(&window), "Sheets window exposed");
+    activate(window);
+    auto &doc = window.document();
+    SceneSnapshot plan;
+    plan.camera = SceneCamera{};
+    plan.camera->pitch = 90;
+    plan.camera->orthographic = true;
+    const auto scene = createScene(doc, "Plan", plan);
+    const auto first = createDrawingSheet(doc, "Ground floor", {420, 297}, "A-101", 10);
+    const auto second = createDrawingSheet(doc, "Elevations", {420, 297}, "A-201", 10);
+    DrawingViewRecord view;
+    view.name = "Plan";
+    view.sheet = first;
+    view.source = {DrawingViewSourceKind::Scene, scene};
+    view.frame = {20, 20, 150, 100};
+    view.scaleDenominator = 50;
+    createDrawingView(doc, view);
+    emit window.viewport()->changed();
+    window.viewport()->setFocus();
+    check(QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }), "Model focus");
+    key(Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
+    auto *canvas = window.findChild<QWidget *>("sheetCanvas");
+    auto *rail = window.findChild<QToolBar *>("sheetRail");
+    auto *tabs = window.findChild<QTabBar *>("sheetPageTabs");
+    auto *pages = window.findChild<QTreeWidget *>("sheetPagesTree");
+    check(canvas && rail && tabs && pages && canvas->isVisible(), "Sheets workspace shown");
+    check(QTest::qWaitFor([&] { return canvas->hasFocus(); }), "Canvas focused");
+    auto toolButton = [&](const char *id) {
+        return qobject_cast<QToolButton *>(rail->widgetForAction(window.findChild<QAction *>(id)));
+    };
+    // F6 and Shift+F6 regions.
+    const std::vector<QWidget *> order{tabs, pages,
+                                       window.findChild<QPushButton *>("commandSearch"),
+                                       toolButton("sheet.tool.select"), canvas};
+    for (auto *expected : order) {
+        key(Qt::Key_F6);
+        check(QTest::qWaitFor([&] { return focused() == expected; }),
+              "F6 in Sheets reaches " + identity(expected) + ", got " + identity(focused()));
+    }
+    for (auto it = order.rbegin() + 1; it != order.rend(); ++it) {
+        key(Qt::Key_F6, Qt::ShiftModifier);
+        check(QTest::qWaitFor([&] { return focused() == *it; }),
+              "Shift+F6 in Sheets reaches " + identity(*it) + ", got " + identity(focused()));
+    }
+    // The rail is one Tab stop; arrows move inside it and Enter picks a tool.
+    key(Qt::Key_F6, Qt::ShiftModifier); // From the page tabs back to the canvas,
+    key(Qt::Key_F6, Qt::ShiftModifier); // then to the rail's stop.
+    check(QTest::qWaitFor([&] { return focused() == toolButton("sheet.tool.select"); }),
+          "Rail stop is the active sheet tool, got " + identity(focused()));
+    key(Qt::Key_Down);
+    check(focused() == toolButton("sheet.tool.pan"), "Down moves to Pan in the sheet rail");
+    key(Qt::Key_Return);
+    check(window.findChild<QAction *>("sheet.tool.pan")->isChecked(), "Enter picks Pan");
+    // Tab cycle from the canvas back to it.
+    canvas->setFocus(Qt::OtherFocusReason);
+    check(QTest::qWaitFor([&] { return canvas->hasFocus(); }), "Canvas focus for the Tab cycle");
+    int railStops = 0;
+    bool tabsReached = false, pagesReached = false, back = false;
+    QWidget *previous{};
+    for (int i = 0; i < 400 && !back; ++i) {
+        key(Qt::Key_Tab);
+        auto *now = focused();
+        check(now->window() == &window, "Tab stays in the window");
+        check(!tabScrollButton(now), "Tab never stops on a tab scroll button");
+        if (now == canvas) {
+            back = true;
+            break;
+        }
+        if (now != previous && rail->isAncestorOf(now))
+            ++railStops;
+        tabsReached |= now == tabs;
+        pagesReached |= now == pages;
+        previous = now;
+    }
+    check(back && railStops == 1 && tabsReached && pagesReached,
+          "The Sheets Tab cycle has one sheet-rail stop and reaches the page tabs and Pages tree "
+          "(rail stops " +
+              std::to_string(railStops) + ")");
+    // Page tabs switch with arrows; the Pages tree moves with arrows.
+    tabs->setFocus(Qt::TabFocusReason);
+    check(QTest::qWaitFor([&] { return tabs->hasFocus(); }), "Page tabs focus");
+    key(Qt::Key_Right);
+    check(tabs->currentIndex() == 1, "Right shows the next page");
+    pages->setFocus(Qt::TabFocusReason);
+    check(QTest::qWaitFor([&] { return pages->hasFocus(); }), "Pages tree focus");
+    key(Qt::Key_Home);
+    check(pages->currentItem() && pages->currentItem()->text(0) == "A-101",
+          "Home moves to the first page in the Pages tree");
+    key(Qt::Key_Down);
+    check(pages->currentItem() && pages->currentItem() != pages->topLevelItem(0),
+          "Down moves through the Pages tree");
+    (void)second;
+    key(Qt::Key_S, Qt::ControlModifier | Qt::AltModifier);
+    check(window.workspace() == Window::Workspace::Model &&
+              QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),
+          "Ctrl+Alt+S returns to Model and its viewport");
+    window.document().markSaved();
+    qunsetenv("SKETCHYUP_SHEETS_WORKSPACE");
+}
 } // namespace
 int main(int argc, char **argv) {
     QTemporaryDir files;
@@ -531,6 +641,10 @@ int main(int argc, char **argv) {
         renderReopen(f, files.path());
         std::cout << "Render with Blender reopens on Render (D-026); Model/Render tabs passed\n";
         window.document().markSaved();
+        window.hide();
+        sheetsWorkspace();
+        std::cout << "Sheets workspace: one sheet-rail stop, F6 regions, page tabs and Pages tree "
+                     "passed\n";
     } catch (const std::exception &error) {
         window.document().markSaved();
         std::cerr << error.what() << '\n';
