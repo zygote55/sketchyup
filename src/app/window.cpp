@@ -126,7 +126,8 @@ class WindowUnmapBarrier final : public QObject {
 // back to it when it closes. Without a window manager (X11 under Xvfb) nothing else does: the
 // application is left with no active window and no focus widget, so keys go nowhere. The
 // window's own focus child (the viewport or the page canvas) gets focus with the activation.
-// Another modal dialog still open (a prompt that follows another) keeps activation.
+// Another dialog still open (a prompt that follows another, or the window that opened it)
+// keeps activation.
 class ModalReturn final : public QObject {
   public:
     explicit ModalReturn(QWidget *window) : QObject(window), window_(window) {
@@ -143,9 +144,17 @@ class ModalReturn final : public QObject {
             (!dialog->isModal() && dialog->windowModality() == Qt::NonModal))
             return false;
         QTimer::singleShot(0, window_, [window = window_] {
-            if (window->isVisible() && !window->isMinimized() &&
-                !QApplication::activeModalWidget() && !QApplication::activePopupWidget())
-                window->activateWindow();
+            if (!window->isVisible() || window->isMinimized() ||
+                QApplication::activeModalWidget() || QApplication::activePopupWidget())
+                return;
+            // Another of the application's windows still open (a non-modal sheet such as Render
+            // that opened the prompt) keeps activation.
+            for (auto *other : QApplication::topLevelWidgets())
+                if (other != window && other->isVisible() &&
+                    (other->windowType() == Qt::Dialog || other->windowType() == Qt::Window ||
+                     other->windowType() == Qt::Sheet))
+                    return;
+            window->activateWindow();
         });
         return false;
     }
