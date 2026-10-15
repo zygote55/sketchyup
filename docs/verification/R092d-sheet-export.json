@@ -1,7 +1,7 @@
 {
  "layer": "R092.d",
  "date": "2026-10-15",
- "rcCommit": "251fd52dc19e3639f5fe1bfda9c4eb8d39d4e47b",
+ "rcCommit": "093484f941fb3439b5033b2d9fa5fae951a2c09c",
  "prs": {
   "R092.a": 325,
   "R092.b": 327,
@@ -12,7 +12,7 @@
  "evidence": {
   "sheet_export": {
    "ci": {
-    "run": 38780023627,
+    "run": 38807074119,
     "jobs": [
      "Development build and native tests",
      "Sanitized builds",
@@ -21,7 +21,7 @@
     "result": "passed"
    },
    "local": {
-    "run": "rc110-r092d",
+    "run": "rc110b-r092d",
     "sections": [
      "pages and paper sizes",
      "real text and clipping",
@@ -34,18 +34,18 @@
   },
   "sheet_export_real": {
    "ci": {
-    "run": 38780023627,
+    "run": 38807074119,
     "step": "Independent measured PDF consumer",
     "result": "passed"
    },
    "local": {
-    "run": "rc110-r092d",
+    "run": "rc110b-r092d",
     "sections": [
      "poppler scale, text and clipping"
     ],
     "result": "passed"
    },
-   "localLogSha256": "135fd7e4f1302550a2159da95e554ad43d7c64d6947dcd4d7792db996478429f"
+   "localLogSha256": "ddfff608abd736e6974e0122b0af202e9d5405aeeded9d1565b7c9859819d864"
   },
   "sheet_export_input_tests": {
    "cells": {
@@ -76,11 +76,15 @@
     ],
     "blocked": true,
     "printedMarginFrameMm": 400
-   }
+   },
+   "ci": "CI run 38807074119",
+   "localRun": "rc110b-audit-trim"
   },
   "sheet_acceptance_input_tests": {
    "passed": 8,
-   "of": 8
+   "of": 8,
+   "ci": "CI run 38807074119",
+   "localRun": "rc110b-audit-trim"
   },
   "installedCli": {
    "fixture": "tests/fixtures/drawing-sheets-v27.sketchyup",
@@ -107,13 +111,15 @@
     "pages": 2,
     "paper": "A3 842x1192 pt",
     "sha256": {
-     "pinned": "41c99f6067498cd13708995124b5d0d603a8a7d9e6abba7a40d5ea52932ca94d",
-     "fresh": "43fdf521b9717236527f0dfd3820dcdd2f85d5ca011bcc48132b9c95b0535c5f"
+     "pinned": "cf1556c9d941578eff0caf31c0edeba03a58e7a6b7658b66c0e1c0df6e4af2c4",
+     "fresh": "2fb36c0d4eeb848514c300f3a96b6c3efe1fde3a27081cd1445fd6b58e74bb6a"
     },
     "pdftotextIdentical": true,
-    "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
+    "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940",
+    "pdftotextIdenticalToFirstRc": true
    },
-   "v27PreflightSha256": "a0ec877eff0bda1e6c0b7a7a80285ca2048622cfd2ef1596ed16fcc6526d1762"
+   "v27PreflightSha256": "a0ec877eff0bda1e6c0b7a7a80285ca2048622cfd2ef1596ed16fcc6526d1762",
+   "mcpListsSheetQueries": true
   }
  },
  "criteria": {
@@ -150,5 +156,11 @@
   "CLI cannot render raster views",
   "no physical printer or paper measurement (ADR 0161)"
  ],
- "failures": []
+ "failures": [],
+ "supersededRc": {
+  "commit": "251fd52dc19e3639f5fe1bfda9c4eb8d39d4e47b",
+  "result": "pass",
+  "ciRun": 38780023627,
+  "supersededBy": "D-035, PR #331 (assistant tool list only; no export code changed)"
+ }
 }

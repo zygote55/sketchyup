@@ -1,8 +1,13 @@
 # R092.d — Sheet export and print: acceptance at the 1.1.0 RC
 
 2026-10-15. This record checks the R092 Verify line against the release candidate `main`
-at `251fd52dc19e3639f5fe1bfda9c4eb8d39d4e47b`. That is the same commit and artifacts as the
-[1.1.0 RC walkthrough](F01-rc-1.1.0.md). [Summary](R092d-sheet-export.json).
+at `093484f941fb3439b5033b2d9fa5fae951a2c09c` (merge of PR #331). That is the same commit
+and artifacts as the [1.1.0 RC walkthrough](F01-rc-1.1.0.md). [Summary](R092d-sheet-export.json).
+
+The first candidate, `251fd52d`, also passed every check below. It was superseded because
+its provider corpus run failed (D-035, PR #331). PR #331 changes only the in-app
+assistant's tool list, its test and documents; no export, preflight or print code changed.
+Every check was run again at the new RC.
 
 R092 adds batch PDF and print output for drawing sheets ([ADR 0164 "R092 export"](../decisions/0164-sheet-layout-interface.md#r092-export)):
 R092.a, the headless engine, preflight, reconciliation report and `sketchyup-cli
@@ -19,7 +24,7 @@ export report sheet, viewport raster views and Print at 100% (PR #327); and R092
 
 | Source | Where it ran | Result |
 | --- | --- | --- |
-| `sheet_export` (ctest) | CI run [38780023627](https://github.com/zygote55/sketchyup/actions/runs/38780023627): development, sanitized (bounded CLI step) and package jobs; locally with `-V` | Pass in all four. Locally it prints its sections: pages and paper sizes, real text and clipping, preflight findings, atomic and read-only, and the CLI round trip |
+| `sheet_export` (ctest) | CI run [38807074119](https://github.com/zygote55/sketchyup/actions/runs/38807074119): development, sanitized (bounded CLI step) and package jobs; locally with `-V` | Pass in all four. Locally it prints its sections: pages and paper sizes, real text and clipping, preflight findings, atomic and read-only, and the CLI round trip |
 | `sheet_export_real` (ctest, `SKETCHYUP_PDF_TEST=/usr/bin/pdftoppm`) | CI "Independent measured PDF consumer" step; locally with `-V` | Pass in both ("poppler scale, text and clipping: ok") |
 | `sheet_export_input_tests` | CI: X11 and Wayland at 1×, 2× and 1.5. Locally: X11 and Wayland at 1.5 | 8/8 pass. Each run printed a passing summary |
 | `sheet_acceptance_input_tests` | Same cells | 8/8 pass |
@@ -106,5 +111,5 @@ export report sheet, viewport raster views and Print at 100% (PR #327); and R092
   QPrinter. No physical printer or paper measurement was made. ADR 0161 leaves that to the
   owner's daily use.
 
-The evidence logs are in `~/sketchyup-verification/rc-1.1.0/` and are not published. The
+The evidence logs are in `~/sketchyup-verification/rc-1.1.0b/` and are not published. The
 JSON summary lists their SHA-256.
