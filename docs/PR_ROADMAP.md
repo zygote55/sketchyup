@@ -1291,6 +1291,10 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 ### M10 — Expanded parity and conditional work
 
+Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANCE.md)).
+
+- **F01 release: SketchyUp 1.1.0 (package 1.1.0-1).** Pending the gate. R090–R092 deliver the row. R092.c prepared the release: the version from its single source, package acceptance upgrading from 1.0.1-1 with the real 1.0.1-1 prior-release check, the [1.1.0 release notes](RELEASE_NOTES.md), the [support matrix](SUPPORT_MATRIX.md) and the gate procedure. The release record will be `docs/verification/F01-1.1.0.md`, taken at the release candidate. **Track:** Release. **Scope:** F01.
+
 <a id="r090"></a>
 
 #### R090 — Add documentation-sheet records and linked views
@@ -1319,7 +1323,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 #### R092 — Export and print coordinated documentation sets
 
-**Status:** Planned. **Track:** Interchange. **Scope:** F01. **UX:** —.
+**Status:** In progress. R092.a, the headless engine (sheet PDF export with real text, the shared preflight and reconciliation report, `sketchyup-cli --export-sheets` and the `drawing_sheets.export_preflight` query), is merged (PR #325; [ADR 0164](decisions/0164-sheet-layout-interface.md#r092-export)). R092.b, the export dialog and Print, is PR #327. R092.c prepares the 1.1.0 release (version, upgrade baseline, release documents and the [M10 gate procedure](M10_ACCEPTANCE.md)). The R092 acceptance record, which checks the Verify line, remains. **Track:** Interchange. **Scope:** F01. **UX:** —.
 
 **Requires:** [R091](#r091); milestone gate rule above.
 
