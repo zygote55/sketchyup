@@ -498,6 +498,9 @@ with an Undo button. Regardless of mode the assistant stops to ask before:
 
 - Every command is reachable from the menus and the palette; every control
   has a label, a visible focus ring and a tooltip with its shortcut.
+  A control filled with the accent colour (a primary button, the checked
+  segment of a switch) shows focus as a 2 px inset ring in the surface colour,
+  which contrasts with the fill in both themes.
 - The viewport cannot be fully screen-reader accessible. The documented
   alternative is the Outliner (structure), Entity info (measurements) and
   typed coordinates (creation), all keyboard operable. The assistant is a

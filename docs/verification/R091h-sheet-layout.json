@@ -1893,15 +1893,84 @@
   }
  },
  "visibleFocus": {
-  "measuredControls": 580,
-  "failures": 0,
-  "knownGapsPerRun": 36,
-  "minimumContrastOutside": 4.15,
+  "round": 2,
+  "runs": [
+   "r091h-round2",
+   "r091h-round2b"
+  ],
+  "seconds": {
+   "model": {
+    "x11-1": 12.8,
+    "x11-2": 22.9,
+    "x11-1.5": 17.3,
+    "wayland-1": 14.4,
+    "wayland-2": 28.2,
+    "wayland-1.5": 17.7
+   },
+   "sheets": {
+    "x11-1": 8.7,
+    "x11-2": 14.8,
+    "x11-1.5": 11.5,
+    "wayland-1": 10.6,
+    "wayland-2": 21.7,
+    "wayland-1.5": 11.7
+   }
+  },
+  "measuredControls": {
+   "model": 422,
+   "sheets": 242
+  },
+  "failuresAt1xAnd2x": 0,
+  "minimumContrastOutside": 4.53,
   "minimumContrastInside": 3.93,
-  "knownGaps": [
-   "checked Model | Sheets button: $ink ring on $accent fill, inside 2.43:1 light / 1.64:1 dark",
-   "selected page tab: focus thickens the accent border 1 px to 2 px; boundary unchanged"
-  ]
+  "accentFillRing": {
+   "rule": "2 px inset ring in $surface of the fill's theme",
+   "light": "#f7f7f2 on #547858 = 4.65:1",
+   "dark": "#202923 on #9ec99d = 8.05:1",
+   "measured": {
+    "workspaceSegmentChecked": [
+     4.65,
+     8.05
+    ],
+    "sheetPlace": [
+     4.65,
+     8.05
+    ],
+    "sheetEditDone": [
+     8.05,
+     4.65
+    ]
+   }
+  },
+  "selectedPageTab": {
+   "ring": "2 px $ink",
+   "light": {
+    "outside": 11.27,
+    "inside": 9.52
+   },
+   "dark": {
+    "outside": 13.18,
+    "inside": 6.87
+   }
+  },
+  "fractional1_5": {
+   "failingMeasurements": {
+    "model": [
+     127,
+     128
+    ],
+    "sheets": [
+     74,
+     74
+    ]
+   },
+   "defect": "D-032",
+   "accentRingAt1_5": [
+    2.36,
+    2.57
+   ]
+  },
+  "strict": true
  },
  "ctest": {
   "dev": {
@@ -2033,18 +2102,47 @@
   "fix": "ModalReturn in src/app/window.cpp",
   "regression": "keyboard_reachability_tests promptsReturnFocus"
  },
- "defect": {
-  "id": "D-031",
-  "class": "Minor",
-  "status": "Unverified",
-  "run": 38605636463,
-  "attempt": 1,
-  "job": 115995661310
- },
  "knownLimitations": [
   "edge splits and make component break paper dimensions; Reattach repairs",
   "raster views use the viewport's visibility, not the scene's",
   "PDF text is outlines (R092)",
-  "two Sheets focus indicators pending a design decision"
+  "focus rings under the threshold at fractional 1.5x (D-032)"
+ ],
+ "round2": {
+  "rerunPass": [
+   "sheet_workspace_input_tests",
+   "sheet_layout_input_tests",
+   "sheet_annotation_input_tests",
+   "sheet_acceptance_input_tests",
+   "keyboard_reachability_tests"
+  ],
+  "cells": 30,
+  "audit": {
+   "inventory": "clean",
+   "groupCells": 37,
+   "passed": 37
+  },
+  "ctestDev": {
+   "total": 198,
+   "passed": 198,
+   "skipped": 11
+  }
+ },
+ "defects": [
+  {
+   "id": "D-031",
+   "class": "Minor",
+   "status": "Unverified",
+   "run": 38605636463,
+   "attempt": 1,
+   "job": 115995661310
+  },
+  {
+   "id": "D-032",
+   "class": "Minor",
+   "status": "Open",
+   "row": "N05",
+   "title": "Focus ring under the threshold at fractional 1.5x"
+  }
  ]
 }

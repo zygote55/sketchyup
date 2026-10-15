@@ -1,7 +1,7 @@
 # R091.h — Sheet layout: enable and accept
 
-2026-10-14. Product, suites and documentation on branch `build/r091h-sheets-enable` at
-`95258e88`, which contains R091.g (PR #323 head `a2a60b62`) and `main` after #322 (R091.f).
+2026-10-14. Product, suites and documentation on branch `build/r091h-sheets-enable`: the main
+matrix at `95258e88`, and round 2 (the focus-ring decisions) at the branch head. `95258e88` which contains R091.g (PR #323 head `a2a60b62`) and `main` after #322 (R091.f).
 [Summary](R091h-sheet-layout.json).
 
 R091 adds the Sheets workspace ([ADR 0164](../decisions/0164-sheet-layout-interface.md)):
@@ -29,11 +29,21 @@ editing never modifies source model geometry".
   measures every visible vertex.
 - **`sheet_acceptance_input_tests`** (new; CI on X11 and Wayland at 1×, 2× and 1.5): the
   [§6 script](#the-adr-0164-6-script).
-- **`visible_focus_input_tests`** sweeps the Sheets workspace: the canvas, page tabs, Pages tree,
-  breadcrumb and Entity info for the page, a model view and a text; the sheet rail (checked and
-  unchecked buttons); the New model view panel; the edit-view banner; and the Choose scene
-  dialog. `sketchy::SheetCanvas` is a required class. At 200% text only the page context is
-  swept, to keep Wayland 2× under the harness's 60 s.
+- **`visible_focus_input_tests --workspace=sheets`** (new CI lines on X11 and Wayland at 1× and
+  2×) sweeps the Sheets workspace: the canvas, page tabs, Pages tree, breadcrumb and Entity info
+  for the page, a model view and a text; the sheet rail (checked and unchecked buttons); the New
+  model view panel; the edit-view banner; the Choose scene dialog; and, every time, the
+  accent-filled controls (checked Sheets segment, Place, Done). `sketchy::SheetCanvas` is a
+  required class there. The default run sweeps the Model window as before. Splitting keeps each
+  run well under the Wayland harness's 60 s (round 2: Model 28.2 s, Sheets 21.7 s at Wayland 2×).
+- **Focus rings (owner decisions after round 1).** An accent-filled control shows focus as a
+  2 px inset ring in `$surface` of the fill's theme, through the shared stylesheet
+  (`accentFill` property, the checked switch segment, and Done in the inverse edit-view banner).
+  Those controls carry a 2 px border in the fill colour when unfocused, so focus never shifts the
+  layout. The selected page tab's focus is the standard 2 px `$ink` ring; selection keeps its
+  accent fill and border. The suite measures an accent-filled control by the ring against the
+  fill inside it and the change of its boundary colour, and a tab by its painted box (tab
+  margins are spacing). It is strict: no allowance remains.
 - **Docs.** [UX_DESIGN](../UX_DESIGN.md) §13 Sheets, the scoped shortcut table in §4.2 and an
   M10 row in §11; [user guide](../USER_GUIDE.md#documentation-sheets) "Documentation sheets";
   ADR 0164 status, implementation list and R091.h conventions; [D-031](R089a-defect-triage.md).
@@ -45,7 +55,7 @@ editing never modifies source model geometry".
 | `sheet_workspace_input_tests` | "Without the flag there is no toggle" became "the toggle, canvas and `Ctrl+Alt+S` work with no flag (and with `=0`)" | The flag is gone |
 | `sheet_layout_input_tests`, `sheet_annotation_input_tests`, `shortcut_input_tests`, `keyboard_reachability_tests`, `native_accessibility_audit`, `accessibility_bridge_test.py` | No longer set the flag; the audit no longer sets it for the sheets, inventory and all groups | The flag is gone |
 | `keyboard_reachability_tests` | New phase: Field of view… (accept, cancel) and a file-operation surface return activation and focus to the viewport | Regression for the Model-workspace focus fix |
-| `visible_focus_input_tests` | Sweeps the Sheets workspace; adds `sketchy::SheetCanvas` to the required classes; reports `knownGaps` | New Tab stops: the Model \| Sheets buttons in the header (in every Model context), and the Sheets controls |
+| `visible_focus_input_tests` | `--workspace=sheets` sweeps the Sheets workspace with its own required classes (including `sketchy::SheetCanvas`); accent-filled controls and tabs are measured as described above | New Tab stops: the Model \| Sheets buttons in the header (in every Model context), and the Sheets controls |
 
 No Tab-stop count is asserted anywhere: `keyboard_reachability_tests` checks one rail stop, that
 each stop is visited once and that the cycle returns to the viewport. The Model Tab cycle gains
@@ -140,17 +150,47 @@ Extra cells beyond `native.yml`: 1.5 for `sheet_workspace_input_tests`,
   on X11 2× and Wayland 1×, and the sheets group also on X11 1× and Wayland 2× (37/37).
 - **AT-SPI bridge:** all four cells pass; the Sheets phase reads the Pages rows
   ("Title block · House extension", "Text · Notes"), the canvas children and description.
-- **Visible focus at 1× and 2× (CI cells):** 580 controls measured per run, 0 failures, minimum
-  ring contrast 4.15:1 outside and 3.93:1 inside, every required class covered. 36 measurements
-  per run are **known gaps** (below).
+- **Visible focus in this run** (before the round-2 decisions): superseded by
+  [Round 2](#round-2-focus-rings), which re-ran every visible-focus cell.
 - **Visible focus at 1.5 (extra cells):** 137 and 138 failures. They are not Sheets-specific:
   most are model-window controls (36 tool buttons, 20 tab bars, 15 breadcrumb, the material,
   solar, drawing-plane and assistant-preference dialogs). At a fractional factor the 1 px ring
-  is antialiased and the suite's single-pixel edge sampling no longer finds it. The suite is not
-  a CI line at 1.5, and R084.q measured 1× and 2× only.
-- **Wayland 2× `visible_focus_input_tests` took 53.2 s** with two lanes, under the 60 s harness
-  limit that D-028 records. It was 60.1 s (a timeout) in the first matrix, before the 200% text
-  sweep was bounded; a single-lane rerun then took 50.6 s.
+  is antialiased and its painted colour falls under the threshold. The suite is not a CI line at
+  1.5, and R084.q measured 1× and 2× only. Recorded as [D-032](R089a-defect-triage.md).
+- **Wayland 2× `visible_focus_input_tests` took 53.2 s** here with both workspaces in one run,
+  close to the 60 s harness limit (D-028). Round 2 splits it.
+
+### Round 2: focus rings
+
+After the owner's decisions (accent-fill ring, page-tab ring, strict suite, split run), at the
+final head, run `r091h-round2` (single lane; the same image and runner) and `r091h-round2b` (the
+Sheets focus cells again after adding the explicit accent-filled probes):
+
+| `visible_focus_input_tests` | X11 1× | X11 2× | X11 1.5 | Wayland 1× | Wayland 2× | Wayland 1.5 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Model (default) | 12.8 | 22.9 | fail 17.3 | 14.4 | 28.2 | fail 17.7 |
+| `--workspace=sheets` | 8.7 | 14.8 | fail 11.5 | 10.6 | 21.7 | fail 11.7 |
+
+- **1× and 2×:** 0 failures. Model run 422 controls measured, Sheets run 242; every required
+  class covered; minimum ring contrast 4.53:1 outside and 3.93:1 inside.
+- **Accent-filled rings** (ring against the fill, and the boundary's change on focus), 1× and 2×,
+  X11 and Wayland:
+
+  | Control | Light | Dark |
+  | --- | ---: | ---: |
+  | Model or Sheets segment, checked | 4.65:1 | 8.05:1 |
+  | Place · Enter | 4.65:1 | 8.05:1 |
+  | Done · Esc (inverse banner: the other theme's accent and surface) | 8.05:1 | 4.65:1 |
+
+  Computed from the tokens: #f7f7f2 on #547858 is 4.65:1, #202923 on #9ec99d is 8.05:1.
+- **Selected page tab:** the `$ink` ring measures 11.27:1 against the bar and 9.52:1 against the
+  selected fill (light), 13.18:1 and 6.87:1 (dark).
+- **1.5:** 127–128 (Model) and 74 (Sheets) failing measurements, the D-032 class. The 2 px
+  accent-fill ring does not fix it: at 1.5 those rings measure 2.36:1 (light) and 2.57:1 (dark).
+- **Also re-run, all pass:** `sheet_workspace_input_tests`, `sheet_layout_input_tests`,
+  `sheet_annotation_input_tests`, `sheet_acceptance_input_tests` and `keyboard_reachability_tests`
+  on X11 and Wayland at 1×, 2× and 1.5 (30 cells); the full audit, inventory clean and 37/37;
+  `ctest --preset dev` 198/198 (11 optional skipped).
 
 ### Earlier runs
 
@@ -251,15 +291,8 @@ X11 sessions without one and for the native suites.
   scene's saved visibility.
 - **PDF text is outlines** (R092): export and printing of pages are not part of R091, and the
   measured-PDF path writes text as glyph outlines.
-- **Two focus indicators are below the rule, pending a design decision.**
-  `visible_focus_input_tests` reports them as `knownGaps` (36 measurements per run) rather than
-  failures:
-  - the checked Model | Sheets button: its `$ink` focus ring on the `$accent` fill measures
-    2.43:1 (light) and 1.64:1 (dark) inside;
-  - the selected page tab: focus only thickens its accent border from 1 px to 2 px, so the tab's
-    boundary does not change.
-  Both are R091.e styles. A fix changes the owner-approved look, so it is left to a design
-  decision; every other Sheets control meets the rule.
+- **Focus rings at fractional 1.5×** stay under the threshold for 1 px and 2 px rings alike
+  (D-032); 1× and 2× pass.
 - The status bar does not name a model edit that Undo steps back into from Sheets (ADR 0164 §5,
   "Undid model edit: …"); the History section shows the entry.
 

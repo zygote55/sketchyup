@@ -1009,6 +1009,7 @@ SheetPlacePanel::SheetPlacePanel(const Document &doc, QWidget *parent)
     buttons->setSpacing(8);
     place_ = new QPushButton("Place · Enter");
     place_->setObjectName("sheetPlace");
+    place_->setProperty("accentFill", true); // The shared focus rule for accent-filled controls.
     place_->setAccessibleName("Place the view");
     place_->setToolTip("Place the view at its natural size, or the frame you drew (Enter)");
     place_->setAutoDefault(false);

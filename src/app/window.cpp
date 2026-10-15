@@ -1063,8 +1063,9 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #workspaceToggle QPushButton {border:1px solid $border;border-radius:0;padding:4px 14px;background:$input;}
 #workspaceModel {border-top-left-radius:6px;border-bottom-left-radius:6px;border-right:0;}
 #workspaceSheets {border-top-right-radius:6px;border-bottom-right-radius:6px;}
-#workspaceToggle QPushButton:checked {background:$accent;color:$onAccent;font-weight:600;}
+#workspaceToggle QPushButton:checked {background:$accent;color:$onAccent;font-weight:600;border:2px solid $accent;padding:3px 13px;}
 #workspaceToggle QPushButton:focus {border:1px solid $ink;}
+#workspaceToggle QPushButton:checked:focus {border:2px solid $surface;}
 #sheetTopBar {border-bottom:1px solid $border;} #sheetPageBar {border-top:1px solid $border;}
 #sheetTraySeparator {background:$border;}
 #sectionHeader {text-align:left;font-weight:600;border:1px solid transparent;border-radius:4px;padding:4px 8px;background:transparent;}
@@ -1072,8 +1073,8 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #sheetInfoCaption,#sheetPaperLine,#sheetInfoEmpty {color:$muted;}
 #activeToolLabel,#measurementStep,#sheetPlaceHeading {font-weight:600;}
 #sheetPlaceHeading {font-size:$sectionHeadingPx;}
-#sheetPlace {background:$accent;color:$onAccent;font-weight:600;border-radius:6px;padding:4px 8px;}
-#sheetPlace:disabled {background:$hover;color:$muted;}
+#sheetPlace {background:$accent;color:$onAccent;font-weight:600;border-radius:6px;padding:3px 7px;border:2px solid $accent;}
+#sheetPlace:disabled {background:$hover;color:$muted;border-color:$hover;}
 #sheetPlaceSceneRow {border-radius:4px;} #sheetPlaceSceneRow[chosen="true"] {background:$selected;}
 #sheetPlaceSceneRow QRadioButton,#sheetPlaceSceneRow QLabel {background:transparent;}
 #sheetPlaceSceneRow QRadioButton::indicator {width:12px;height:12px;border:1px solid $muted;border-radius:7px;background:$input;}
@@ -1081,13 +1082,15 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #sheetPlaceSceneRow QRadioButton::indicator:disabled {border:1px solid $border;}
 #sheetPlaceCancel,#sheetInfoActions QPushButton {border-radius:6px;padding:4px 10px;background:$input;}
 #sheetRail QToolButton {padding:6px;border-radius:6px;}
-#sheetPageTabs::tab {border:1px solid $border;border-radius:6px;padding:3px 10px;background:$input;margin-right:4px;}
+#sheetPageTabs::tab {border:1px solid $border;border-radius:6px;padding:3px 10px;background:$input;margin:1px 5px 1px 1px;}
 #sheetPageTabs::tab:selected {border:1px solid $accent;background:$selected;}
-#sheetPageTabs::tab:selected:focus {border:2px solid $accent;}
+#sheetPageTabs::tab:selected:focus {border:2px solid $ink;margin:0 4px 0 0;}
 #sheetAddPage {border:1px dashed $border;background:transparent;padding:3px 10px;border-radius:6px;}
 #sheetAddPage:focus,#sheetFitPage:focus,#sheetBreadcrumb:focus {border:1px solid $accent;}
 #sheetFitPage {padding:3px 10px;border-radius:6px;background:$input;}
 #sheetBreadcrumb {border:1px solid transparent;border-radius:4px;padding:2px 4px;}
+*[accentFill="true"] {border:2px solid $accent;}
+*[accentFill="true"]:focus,#sheetPlace:focus {border:2px solid $surface;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");

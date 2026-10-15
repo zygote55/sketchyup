@@ -1016,10 +1016,21 @@ design §§1, 2, 4, 6.
   were centred on that vertex.
 - **Audit.** With the flag gone, the inventory and every audit group run with Sheets built; the
   in-canvas Reattach action carries no "…" (R091.g), so it needs no dialog case.
-- **Acceptance.** `sheet_acceptance_input_tests` is the §6 script (three pages, four views);
-  `visible_focus_input_tests` sweeps the Sheets workspace and reports two indicators below the
-  rule as known gaps pending a design decision (the checked Model | Sheets button's ring, and
-  the selected page tab's focus, which only thickens its border).
+- **Focus on accent-filled controls** (owner decision, 2026-10-14). A control with an `$accent`
+  fill (the checked Model | Sheets segment, Place, the edit-view Done) shows focus as a 2 px
+  inset ring in `$surface` of the fill's theme: #f7f7f2 on #547858 (4.65:1) and #202923 on
+  #9ec99d (8.05:1). The shared stylesheet applies it to any widget with the `accentFill`
+  property; such controls carry a 2 px border in the fill colour when unfocused, so focus never
+  shifts the layout. The edit-view banner, an inverse surface, uses the other theme's accent
+  and surface for Done. The audit rule for these controls: the ring against the fill inside it,
+  and the change of the boundary colour on focus, each at least 3:1.
+- **Selected page tab** (owner decision). Focus is the standard 2 px `$ink` ring, independent
+  of selection; selection keeps its accent fill and border. Tabs keep a 1 px margin that the
+  2 px ring takes, so focus never moves a tab.
+- **Acceptance.** `sheet_acceptance_input_tests` is the §6 script (three pages, four views).
+  `visible_focus_input_tests --workspace=sheets` sweeps the Sheets workspace as its own CI line
+  (so each run stays well under the Wayland harness's 60 s); the default run sweeps the Model
+  window. Both are strict.
 
 R091.a–d are headless and can be reviewed in parallel with design follow-ups.
 R091.e depends on a–d. R091.f and R091.g both depend on e and touch the same
