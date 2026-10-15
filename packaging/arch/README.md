@@ -13,7 +13,7 @@ On an Arch workstation with the documented build dependencies installed:
 scripts/package-source.sh /absolute/path/to/package-output
 cd /absolute/path/to/package-output
 makepkg
-sudo pacman -U sketchyup-1.0.0-1-x86_64.pkg.tar.zst
+sudo pacman -U sketchyup-1.1.0-1-x86_64.pkg.tar.zst
 ```
 
 The version has one source: `project(SketchyUp VERSION ...)` in `CMakeLists.txt`
@@ -77,14 +77,28 @@ Do not reuse earlier containers that bind the host's `/tmp` to `/capture`.
 The lifecycle harness refuses execution outside a Docker container with its
 explicit test flag. It builds the preceding package and then the current release from
 the same source to exercise clean install and upgrade hooks. The preceding package is
-`pkgrel - 1` of the same version, or for a first `pkgrel` the last development package
-(`1.0.0-1` upgrades from `0.1.0-3`; `vercmp` must order them). After the upgrade it
+the previous release in the series: `pkgrel - 1` of the same version; for the first
+`pkgrel` of a patch version, the previous patch at `pkgrel` 1 (`1.0.1-1` upgrades from
+`1.0.0-1`); and for the first `pkgrel` of `x.y.0`, the newest earlier entry of the
+script's `released_packages` table (`1.1.0-1` upgrades from `1.0.1-1`, `1.0.0-1` from
+the development package `0.1.0-3`). `vercmp` must order the table and each pair. A new
+minor version whose previous series is missing from the table stops with an error, so
+add each published release to it. After the upgrade it
 checks `pacman -Q` and `sketchyup-cli --version`. Both packages contain the current
 source, so this is a package lifecycle test, not proof of a historical format migration. It validates the installed desktop file,
 MIME glob/magic, real desktop `%f` argument expansion (including spaces), renderer
 startup, saved identity/revision, upgrade/reopen and uninstall. A PATH shim adds
 capture/exit behavior to the installed app without changing its desktop entry.
 The capture report must match the installed CLI's document metadata.
+
+With `SKETCHYUP_PRIOR_RELEASE_PACKAGE` set to a published release package, the script
+also checks the format downgrade window ([ADR 0163](../../docs/decisions/0163-documentation-sheets.md)).
+It verifies the package's SHA-256 (pinned in the script per file name, or
+`SKETCHYUP_PRIOR_RELEASE_SHA256`), unpacks it privately without installing it, and
+passes its CLI to `check()` as `SKETCHYUP_PRIOR_CLI`. After installation, the released
+CLI must refuse every retained fixture newer than the schemas it reads and leave it
+unchanged, and must accept a sheet-free document saved by the new package. CI downloads
+the latest release, `sketchyup-1.0.1-1-x86_64.pkg.tar.zst` from the v1.0.1 release.
 
 After upgrading, the installed CLI migrates the retained historical native fixtures
 to new files. `scripts/verify-installed-migrations.py` checks source hashes, identity,
@@ -116,7 +130,7 @@ file operations do not require either service.
 From a clean checkout of the commit to release:
 
 ```sh
-scripts/release-artifacts.sh "$PWD/build/release-1.0.0"
+scripts/release-artifacts.sh "$PWD/build/release-1.1.0"
 ```
 
 The script refuses a dirty or untracked working tree. It writes, into the output

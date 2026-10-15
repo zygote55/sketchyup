@@ -31,9 +31,14 @@ API schemas keep their own version numbers; the product version does not replace
 
 **pkgrel policy.** `pkgrel` starts at 1 for each new `pkgver` and increases only for
 packaging-only changes built from the same source version. Package acceptance builds
-the previous package from the same source: `pkgrel - 1` of the same version, or, for
-`1.0.0-1`, the last development package `0.1.0-3`. pacman orders `1.0.0-1` after
-`0.1.0-3`.
+the previous package from the same source and upgrades from it: `pkgrel - 1` of the same
+version; for the first `pkgrel` of a new version, the newest earlier release in the
+`released_packages` table of `packaging/arch/verify-package.sh` (so `1.0.0-1` upgraded from
+the development package `0.1.0-3`, `1.0.1-1` from `1.0.0-1`, and `1.1.0-1` from `1.0.1-1`).
+pacman must order each release after its predecessor. Separately, the published package of
+the previous release is downloaded with a pinned SHA-256, and its CLI must refuse newer
+document formats unchanged and accept what the new release writes for older content
+(added for 1.1.0).
 
 **Writer string.** The native container manifest's `writer` field is
 `SketchyUp/<version>` (`SKETCHYUP_WRITER`), so saves from 1.0.0 write

@@ -1,6 +1,6 @@
 # SketchyUp user guide
 
-This guide describes SketchyUp 1.0.0. Check the [support matrix](SUPPORT_MATRIX.md)
+This guide describes SketchyUp 1.1.0. Check the [support matrix](SUPPORT_MATRIX.md)
 before choosing an exchange format or relying on a platform configuration, and the
 [release notes](RELEASE_NOTES.md) for upgrade notes and known limitations.
 
@@ -110,7 +110,7 @@ canvas exposes no geometry, positions or hover targets, so a screen reader canno
 read the model from it. Names and measurements come from the panels: the
 **Selection summary** label (its description adds the selected entity's name,
 editing context and face area), the Outliner and Entity info. No interactive
-screen-reader session has been run (waived for 1.0, [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)),
+screen-reader session has been run (waived for 1.0 and 1.1, [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)),
 so how a particular reader announces a change is unverified.
 
 Some interactions remain pointer-first:
@@ -133,7 +133,7 @@ Assistant preferences dialogs ([record](https://github.com/zygote55/sketchyup/bl
 dialog. Physical keyboard layouts and input methods are untested, and no Orca,
 speech or braille session has been validated. These physical checks, and the physical
 checks for displays (a 150% output, hotplug on X11, suspend/resume) and Intel graphics,
-were not run for 1.0 ([ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)); AMD discrete-GPU
+were not run for 1.0 or 1.1 ([ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)); AMD discrete-GPU
 results are recorded (R082.ii).
 
 ## Save, recover and migrate
@@ -167,8 +167,8 @@ The destination must be new. Unknown future formats reject explicitly. See the
 
 ## Documentation sheets
 
-Sheets are newer than 1.0.0: they are in the development builds that lead to
-1.1 ([ADR 0163](decisions/0163-documentation-sheets.md) for the records and
+Sheets are new in SketchyUp 1.1.0
+([ADR 0163](decisions/0163-documentation-sheets.md) for the records and
 [ADR 0164](decisions/0164-sheet-layout-interface.md) for the interface). A sheet
 is a drawing page with views of the model's scenes, dimensions, labels, text and
 a title block. Editing a page never changes the model. File → Export sheets…
@@ -252,15 +252,15 @@ schema **26**, which SketchyUp 1.0.x opens. Adding a page saves it as schema
 **27**. SketchyUp 1.0.x refuses a schema-27 file with "Unsupported container
 field" and leaves it unchanged; it does not open the model without its sheets.
 Deleting every page saves the model as schema 26 again. To share a model with
-someone on 1.0.x, save a copy, delete its pages, and save the copy. Schema 27 can
-still change until the release that first writes it, so files with sheets from a
-development build may need to be re-created.
+someone on 1.0.x, save a copy, delete its pages, and save the copy. Schema 27 is
+fixed from 1.1.0, the first release that writes it; files with sheets from a
+development build before 1.1.0 may need to be re-created.
 
 ## Use the assistant
 
 Open **View → Assistant** or press **Ctrl+J**. Preferences offers the implemented
 OpenAI connections and an experimental numeric-loopback Ollama adapter. The
-supported provider for 1.0 is the remote OpenAI connection: choose **Continue with
+supported provider for 1.0 and 1.1 is the remote OpenAI connection: choose **Continue with
 ChatGPT** to sign in with a ChatGPT plan (the subscription that includes Codex;
 SketchyUp does not use the Codex tool or its credentials). The local adapter is
 experimental and is not a 1.0 requirement ([provider scope](decisions/0160-provider-scope-for-1-0.md)).

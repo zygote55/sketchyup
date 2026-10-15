@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(SketchyUp VERSION 1.0.0 LANGUAGES CXX)
+project(SketchyUp VERSION 1.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -1247,6 +1247,7 @@ install(FILES docs/decisions/0140-optional-capability-discovery.md DESTINATION s
 
 install(FILES docs/M8_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
 install(FILES docs/M9_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
+install(FILES docs/M10_ACCEPTANCE.md DESTINATION share/doc/sketchyup)
 install(FILES docs/decisions/0145-native-accessibility-inventory.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0146-legacy-preference-compatibility.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0147-keyboard-measured-modeling.md DESTINATION share/doc/sketchyup/decisions)
@@ -1258,6 +1259,7 @@ install(FILES docs/decisions/0159-instanced-component-storage.md DESTINATION sha
 install(FILES docs/decisions/0160-provider-scope-for-1-0.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0161-m9-hardware-evidence-waiver.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0162-release-versioning.md DESTINATION share/doc/sketchyup/decisions)
+install(FILES docs/decisions/0163-documentation-sheets.md docs/decisions/0164-sheet-layout-interface.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0155-linux-accessibility-bridge.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0154-keyboard-outliner-workflow.md DESTINATION share/doc/sketchyup/decisions)
 install(FILES docs/decisions/0153-panel-shortcut-reservations.md DESTINATION share/doc/sketchyup/decisions)

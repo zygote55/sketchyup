@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.1.0 — unreleased
+
+A minor release that adds documentation sheets (scope row F01). Additive: existing
+commands, queries and schemas keep their shapes.
+
+- Documentation sheets: the Sheets workspace with pages, linked views of saved scenes at
+  a declared scale and a "changed since accepted" state, lines, rectangles, text,
+  labels, referenced dimensions with Reattach, title blocks and a per-sheet dimension
+  format.
+- PDF export of sheets with a preflight and a reconciliation report, and printing at
+  100%. CLI: `sketchyup-cli --export-sheets`.
+- API: new `drawing_sheet.*`, `drawing_view.*` and `drawing_item.*` transaction
+  operations and drawing-sheet inspection queries, including
+  `drawing_sheets.export_preflight`.
+- Format: schema 27 (`drawing-sheets-v1`) is written only for documents with sheets.
+  SketchyUp 1.0.x refuses those files unchanged and still opens sheet-free ones.
+- Package: Arch `sketchyup` 1.1.0-1, upgrading from 1.0.1-1.
+
 ## 1.0.1 — 2026-10-14
 
 Patch release from `release/1.0.x` ([GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.0.1)).
