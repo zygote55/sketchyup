@@ -97,6 +97,8 @@ class SheetsTray : public QWidget {
 
   protected:
     bool eventFilter(QObject *, QEvent *) override;
+    void resizeEvent(QResizeEvent *) override;
+    void focusInEvent(QFocusEvent *) override;
 
   private:
     Document &doc_;
@@ -113,6 +115,8 @@ class SheetsTray : public QWidget {
     std::vector<QWidget *> sections_;
     bool placing_{};
     void commitTitle();
+    // Entity info keeps the height its wrapped fields need in the narrow Tray.
+    void fitInfo();
     void commitScale();
     QLabel *referencesModel_{}, *referencesBannerText_{}, *referencesBannerIcon_{};
     QWidget *referencesBanner_{};

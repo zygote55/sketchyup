@@ -1036,6 +1036,11 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #sheetPlaceHeading {font-size:$sectionHeadingPx;}
 #sheetPlace {background:$accent;color:$onAccent;font-weight:600;border-radius:6px;padding:4px 8px;}
 #sheetPlace:disabled {background:$hover;color:$muted;}
+#sheetPlaceSceneRow {border-radius:4px;} #sheetPlaceSceneRow[chosen="true"] {background:$selected;}
+#sheetPlaceSceneRow QRadioButton,#sheetPlaceSceneRow QLabel {background:transparent;}
+#sheetPlaceSceneRow QRadioButton::indicator {width:12px;height:12px;border:1px solid $muted;border-radius:7px;background:$input;}
+#sheetPlaceSceneRow QRadioButton::indicator:checked {border:1px solid $accent;background:qradialgradient(cx:0.5,cy:0.5,radius:0.5,fx:0.5,fy:0.5,stop:0 $accent,stop:0.5 $accent,stop:0.6 $input,stop:1 $input);}
+#sheetPlaceSceneRow QRadioButton::indicator:disabled {border:1px solid $border;}
 #sheetPlaceCancel,#sheetInfoActions QPushButton {border-radius:6px;padding:4px 10px;background:$input;}
 #sheetRail QToolButton {padding:6px;border-radius:6px;}
 #sheetPageTabs::tab {border:1px solid $border;border-radius:6px;padding:3px 10px;background:$input;margin-right:4px;}

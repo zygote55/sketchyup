@@ -906,15 +906,16 @@ void screens(Window &window, const QString &path, const QString &directory, cons
         action(window, ("view.theme." + std::to_string(theme)).c_str())->trigger();
         const auto suffix = theme == 1 ? QString("light") : QString("dark");
         window.resize(1440, 900);
-        // The W tool mid-drag with the New model view panel.
-        sheets->setCurrentSheet(f.elevations);
+        // The W tool mid-drag with the New model view panel: a frame below view 2, its left
+        // edge snapped to view 2's and its other sides to the grid.
+        sheets->setCurrentSheet(f.groundFloor);
         canvas->fitPage();
         settle(window);
         canvas->setFocus(Qt::OtherFocusReason);
         action(window, "sheet.tool.view")->trigger();
         window.sheetsTray()->placePanel()->setScene(f.northScene);
-        const auto from = canvas->widgetPoint({220.4, 24.3});
-        const auto to = canvas->widgetPoint({396.2, 136.1});
+        const auto from = canvas->widgetPoint({240.6, 135.3});
+        const auto to = canvas->widgetPoint({395.6, 247.2});
         press(canvas, from);
         moveTo(canvas, from, to);
         shoot("place-" + suffix);

@@ -608,7 +608,13 @@ void SheetCanvas::leaveEditView() {
 void SheetCanvas::layoutBanner() {
     if (!banner_)
         return;
-    const auto width = std::max(120, std::min(this->width() - 32, 820));
+    // As wide as its sentence and buttons, within the canvas.
+    const auto margins = banner_->layout()->contentsMargins();
+    const auto natural = int(std::ceil(bannerText_->fontMetrics().horizontalAdvance(
+                             bannerText_->text()))) +
+                         saveScene_->sizeHint().width() + done_->sizeHint().width() +
+                         2 * banner_->layout()->spacing() + margins.left() + margins.right() + 4;
+    const auto width = std::max(120, std::min(this->width() - 32, natural));
     banner_->setFixedWidth(width);
     const auto height = banner_->layout()->hasHeightForWidth()
                             ? banner_->layout()->heightForWidth(width)

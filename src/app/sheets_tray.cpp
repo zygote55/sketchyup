@@ -10,6 +10,7 @@
 #include <QRadioButton>
 #include <QRegularExpressionValidator>
 #include <QSignalBlocker>
+#include <QStyle>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -221,7 +222,9 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     layout->addWidget(place_, 1);
     infoSection_ = new CollapsibleSection("Entity info", info);
     infoSection_->setObjectName("sheetInfoSection");
+    // Its fields never shrink below their height; Pages and History scroll instead.
     layout->addWidget(infoSection_);
+    connect(infoSection_->header(), &QPushButton::toggled, this, [this] { fitInfo(); });
     sections_.push_back(infoSection_);
     auto separator = [&] {
         auto *line = new QFrame;
@@ -291,8 +294,8 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     pages_->installEventFilter(this);
     connect(pages_->itemDelegate(), &QAbstractItemDelegate::closeEditor, this,
             [this] { QTimer::singleShot(0, this, [this] { refresh(sheet_, view_); }); });
-    // F6 into the Tray lands in Pages, the keyboard alternative to the canvas.
-    setFocusProxy(pages_);
+    // F6 into the Tray lands in Pages, the keyboard alternative to the canvas (focusInEvent).
+    // Not a focus proxy: Tab would then jump over Entity info and References to Pages.
     connect(pages_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *item) {
         if (syncing_ || !item)
             return;
@@ -354,9 +357,8 @@ void SheetsTray::setPlacing(bool placing) {
         section->setVisible(!placing);
     place_->setVisible(placing);
     // F6 into the Tray lands in the panel while it shows, else in Pages.
-    setFocusProxy(placing ? static_cast<QWidget *>(place_) : pages_);
     if (hadFocus)
-        (placing ? static_cast<QWidget *>(place_) : pages_)->setFocus(Qt::OtherFocusReason);
+        focusInEvent(nullptr);
 }
 void SheetsTray::commitTitle() {
     if (syncing_ || !doc_.drawingViews().contains(view_))
@@ -453,10 +455,34 @@ bool SheetsTray::eventFilter(QObject *object, QEvent *event) {
     }
     return QWidget::eventFilter(object, event);
 }
+void SheetsTray::focusInEvent(QFocusEvent *) {
+    if (placing_)
+        place_->findChild<QComboBox *>("sheetPlaceModel")->setFocus(Qt::OtherFocusReason);
+    else
+        pages_->setFocus(Qt::OtherFocusReason);
+}
+void SheetsTray::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    fitInfo();
+}
+void SheetsTray::fitInfo() {
+    const auto width = infoSection_->width();
+    auto *layout = infoSection_->layout();
+    if (width <= 0 || !layout)
+        return;
+    // Wrapped values report one line to the grid; reserve the lines they wrap to.
+    for (auto *label : infoFields_->findChildren<QLabel *>())
+        if (label->wordWrap() && label->width() > 0)
+            label->setMinimumHeight(label->heightForWidth(label->width()));
+    layout->invalidate();
+    infoSection_->setMinimumHeight(layout->hasHeightForWidth() ? layout->heightForWidth(width)
+                                                                : layout->sizeHint().height());
+}
 void SheetsTray::refresh(Id currentSheet, Id selectedView) {
     sheet_ = currentSheet;
     view_ = selectedView;
     refreshInfo();
+    fitInfo();
     refreshReferences();
     refreshPages();
     if (historySection_->expanded())
@@ -722,7 +748,14 @@ SheetPlacePanel::SheetPlacePanel(const Document &doc, QWidget *parent)
     sceneList_->layout()->setSpacing(4);
     scenes_ = new QButtonGroup(this);
     scenes_->setExclusive(true);
-    connect(scenes_, &QButtonGroup::idToggled, this, [this](int, bool checked) {
+    connect(scenes_, &QButtonGroup::idToggled, this, [this](int id, bool checked) {
+        // The chosen scene's row is highlighted, as in the design.
+        if (auto *button = scenes_->button(id); button && button->parentWidget()) {
+            auto *row = button->parentWidget();
+            row->setProperty("chosen", checked);
+            row->style()->unpolish(row);
+            row->style()->polish(row);
+        }
         if (checked) {
             refreshDetails();
             emit placementChanged();
@@ -748,16 +781,24 @@ SheetPlacePanel::SheetPlacePanel(const Document &doc, QWidget *parent)
     scale_ = new QComboBox;
     scale_->setObjectName("sheetPlaceScale");
     scale_->setAccessibleName("Scale");
-    caption("Scale", scale_, 0);
+    {
+        // Above its select, like Model, so "1:50 (matches this page)" fits the Tray.
+        auto *label = new QLabel("Scale");
+        label->setObjectName("sheetInfoCaption");
+        label->setBuddy(scale_);
+        details->addWidget(label, 0, 0, 1, 2);
+        details->addWidget(scale_, 1, 0, 1, 2);
+    }
     connect(scale_, &QComboBox::currentIndexChanged, this, [this] { emit placementChanged(); });
+    connect(scale_, &QComboBox::activated, this, [this] { scale_->setProperty("userChose", true); });
     style_ = new QLabel;
     style_->setObjectName("sheetPlaceStyle");
     style_->setWordWrap(true);
-    caption("Style", style_, 1);
+    caption("Style", style_, 2);
     title_ = new QLabel;
     title_->setObjectName("sheetPlaceTitle");
     title_->setWordWrap(true);
-    caption("Title", title_, 2);
+    caption("Title", title_, 3);
     layout->addLayout(details);
     auto *note = new QLabel("Perspective scenes have no measurable scale. They place as “Not to "
                             "scale”, and Dimension refuses to measure them.");
@@ -782,7 +823,6 @@ SheetPlacePanel::SheetPlacePanel(const Document &doc, QWidget *parent)
     layout->addLayout(buttons);
     connect(place_, &QPushButton::clicked, this, [this] { emit placeRequested(); });
     connect(cancel_, &QPushButton::clicked, this, [this] { emit cancelRequested(); });
-    setFocusProxy(model_);
 }
 Id SheetPlacePanel::scene() const {
     const auto id = scenes_->checkedId();
@@ -826,8 +866,10 @@ void SheetPlacePanel::refresh(const QString &documentName, Id sheet, double page
             const auto name = QString::fromStdString(doc_.scenes().at(id)->name);
             const auto projection = sceneProjection(doc_, id);
             auto *row = new QWidget;
+            row->setObjectName("sheetPlaceSceneRow");
+            row->setAttribute(Qt::WA_StyledBackground);
             auto *rowLayout = new QHBoxLayout(row);
-            rowLayout->setContentsMargins(0, 0, 0, 0);
+            rowLayout->setContentsMargins(4, 2, 4, 2);
             rowLayout->setSpacing(8);
             auto *radio = new QRadioButton(name);
             radio->setObjectName("sheetPlaceScene");
@@ -848,8 +890,14 @@ void SheetPlacePanel::refresh(const QString &documentName, Id sheet, double page
                     keep = id;
                     break;
                 }
-        if (keep)
+        if (keep) {
+            // Signals are blocked while rebuilding; mark the chosen row by hand.
             scenes_->button(int(keep))->setChecked(true);
+            auto *row = scenes_->button(int(keep))->parentWidget();
+            row->setProperty("chosen", true);
+            row->style()->unpolish(row);
+            row->style()->polish(row);
+        }
         if (hadFocus && scenes_->checkedButton())
             scenes_->checkedButton()->setFocus(Qt::OtherFocusReason);
     }
