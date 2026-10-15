@@ -224,7 +224,7 @@ SheetItemInfo::SheetItemInfo(const Document &doc, QWidget *parent) : QWidget(par
     stateLayout->addWidget(state_, 1);
     addRow("Status", stateRow_);
     rows_.back().caption->setBuddy(state_);
-    reattach_ = new QPushButton("Reattach…");
+    reattach_ = new QPushButton("Reattach");
     reattach_->setObjectName("sheetItemReattach");
     reattach_->setAccessibleName("Reattach");
     reattach_->setAutoDefault(false);

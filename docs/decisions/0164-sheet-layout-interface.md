@@ -980,6 +980,8 @@ design §§1, 2, 4, 6.
   `drawing_sheet.update {sheet, dimensionFormat: {unit?, decimals?, showUnit?}}` merges the
   given fields. Entity info · Page (shown when nothing is selected) edits it, one entry per
   field ("Change dimension format"). The prefix stays per dimension.
+- **No dialogs.** R091.g opens none, so its commands carry no ellipsis: Reattach proposes on
+  the canvas and Enter confirms (the dialog-keyboard inventory treats "…" as "opens a dialog").
 - **Z order.** Bring forward `Ctrl+]` and Send backward `Ctrl+[` in a new Arrange menu (Sheets
   scope); Alt+Down and Alt+Up on an item row in Pages do the same.
 - **Pages** has two columns, number and name, so names keep the narrow Tray's width (no
