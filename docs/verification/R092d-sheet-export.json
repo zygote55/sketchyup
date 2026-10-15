@@ -1,0 +1,154 @@
+{
+ "layer": "R092.d",
+ "date": "2026-10-15",
+ "rcCommit": "251fd52dc19e3639f5fe1bfda9c4eb8d39d4e47b",
+ "prs": {
+  "R092.a": 325,
+  "R092.b": 327,
+  "R092.c": 328
+ },
+ "verifyLine": "Measured scale, page count, clipping and annotation fixtures match output; missing fonts/references are reported before publishing.",
+ "result": "pass",
+ "evidence": {
+  "sheet_export": {
+   "ci": {
+    "run": 38780023627,
+    "jobs": [
+     "Development build and native tests",
+     "Sanitized builds",
+     "Arch package acceptance"
+    ],
+    "result": "passed"
+   },
+   "local": {
+    "run": "rc110-r092d",
+    "sections": [
+     "pages and paper sizes",
+     "real text and clipping",
+     "preflight findings",
+     "atomic and read-only",
+     "CLI round trip"
+    ],
+    "result": "passed"
+   }
+  },
+  "sheet_export_real": {
+   "ci": {
+    "run": 38780023627,
+    "step": "Independent measured PDF consumer",
+    "result": "passed"
+   },
+   "local": {
+    "run": "rc110-r092d",
+    "sections": [
+     "poppler scale, text and clipping"
+    ],
+    "result": "passed"
+   },
+   "localLogSha256": "135fd7e4f1302550a2159da95e554ad43d7c64d6947dcd4d7792db996478429f"
+  },
+  "sheet_export_input_tests": {
+   "cells": {
+    "ci": [
+     "x11-1",
+     "x11-2",
+     "wayland-1",
+     "wayland-2",
+     "wayland-1.5",
+     "x11-1.5"
+    ],
+    "local": [
+     "wayland-1.5",
+     "x11-1.5"
+    ]
+   },
+   "passed": 8,
+   "of": 8,
+   "summaries": {
+    "pages": 3,
+    "pdftotext": true,
+    "findingCodes": [
+     "fontSubstituted",
+     "rasterViews",
+     "scaleSummary",
+     "viewBroken",
+     "viewChanged"
+    ],
+    "blocked": true,
+    "printedMarginFrameMm": 400
+   }
+  },
+  "sheet_acceptance_input_tests": {
+   "passed": 8,
+   "of": 8
+  },
+  "installedCli": {
+   "fixture": "tests/fixtures/drawing-sheets-v27.sketchyup",
+   "machines": [
+    "pinned",
+    "fresh"
+   ],
+   "preflightBlocked": true,
+   "findingCodes": [
+    "viewBroken",
+    "viewChanged",
+    "rasterUnavailable",
+    "fontSubstituted",
+    "itemBroken",
+    "scaleSummary",
+    "rasterViews"
+   ],
+   "plainExport": "EXPORT_BLOCKED, no file",
+   "optedExport": {
+    "flags": [
+     "--allow-broken",
+     "--allow-changed"
+    ],
+    "pages": 2,
+    "paper": "A3 842x1192 pt",
+    "sha256": {
+     "pinned": "41c99f6067498cd13708995124b5d0d603a8a7d9e6abba7a40d5ea52932ca94d",
+     "fresh": "43fdf521b9717236527f0dfd3820dcdd2f85d5ca011bcc48132b9c95b0535c5f"
+    },
+    "pdftotextIdentical": true,
+    "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
+   },
+   "v27PreflightSha256": "a0ec877eff0bda1e6c0b7a7a80285ca2048622cfd2ef1596ed16fcc6526d1762"
+  }
+ },
+ "criteria": {
+  "measuredScale": [
+   "sheet_export_real: 2 m at 1:50 = 40 mm +/- 0.1 mm via Poppler at 254 dpi",
+   "sheet_export_input_tests: printed margin frame 10 mm in, 400 mm wide +/- 0.2 mm (8/8 report 400)",
+   "report and attached JSON give view scale 1:50; scaleSummary finding"
+  ],
+  "pageCount": [
+   "sheet_export: 2 media boxes, A3 landscape + A4 portrait at actual size; page ranges",
+   "sheet_export_real: Poppler page sizes",
+   "sheet_export_input_tests: pdfinfo 3 pages",
+   "installed CLI: 2 pages, report hash matches file"
+  ],
+  "clipping": [
+   "sheet_export: detail primitives clipped to 60x60 mm frame",
+   "sheet_export_real: no dark pixel outside the detail frame except caption and margin frame"
+  ],
+  "annotationFixtures": [
+   "sheet_export_real: pdftotext dimension 2000, notes, title block, 1:50, 1 of 2; fonts embedded with Unicode maps, no Type 3",
+   "sheet_export_input_tests: notes, title block, scale, view caption extracted",
+   "installed CLI: [Missing reference] and Scene was deleted printed for broken items"
+  ],
+  "missingFontsAndReferencesBeforePublishing": [
+   "preflight findings viewBroken, viewChanged, rasterUnavailable, fontSubstituted, itemBroken",
+   "blocked export throws EXPORT_BLOCKED and writes no file",
+   "desktop dialog keeps Export PDF disabled while blocked",
+   "CLI --preflight-only writes nothing; plain export exits 1 EXPORT_BLOCKED"
+  ]
+ },
+ "limits": [
+  "PDF page box rounded to whole points (within 0.18 mm)",
+  "pdffonts shows sub=no: Qt omits the subset name tag; subset checked by size",
+  "CLI cannot render raster views",
+  "no physical printer or paper measurement (ADR 0161)"
+ ],
+ "failures": []
+}
