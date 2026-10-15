@@ -1014,7 +1014,8 @@ design §§1, 2, 4, 6.
 - **Natural frame.** The Model view tool measures the extent of every visible vertex. It had
   measured only the first one (`QRectF::united` ignores a zero-size rectangle), so placed views
   were centred on that vertex.
-- **Audit.** Reattach… is an in-place editor in the all-dialog inventory, like Rename page.
+- **Audit.** With the flag gone, the inventory and every audit group run with Sheets built; the
+  in-canvas Reattach action carries no "…" (R091.g), so it needs no dialog case.
 - **Acceptance.** `sheet_acceptance_input_tests` is the §6 script (three pages, four views);
   `visible_focus_input_tests` sweeps the Sheets workspace and reports two indicators below the
   rule as known gaps pending a design decision (the checked Model | Sheets button's ring, and

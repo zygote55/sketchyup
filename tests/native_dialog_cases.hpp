@@ -1332,16 +1332,10 @@ inline std::vector<Case> cases(Context &ctx) {
 // Dialogs that exist in the product but cannot be opened in the isolated, offline fixture.
 // Public "…" commands that edit in place rather than open a dialog.
 inline QJsonArray inPlaceEditors() {
-    return QJsonArray{
-        QJsonObject{{"id", "sheet.page.rename"},
-                    {"reason",
-                     "Renames the page in place in the Sheets Tray's Pages tree (F2); no dialog "
-                     "opens (ADR 0164 §4)."}},
-        QJsonObject{{"id", "sheet.item.reattach"},
-                    {"reason", "Reattach proposes the nearest point on the page canvas; Enter "
-                               "accepts it or a click picks another, and no dialog opens (ADR 0164 "
-                               "§3). sheet_annotation_input_tests and "
-                               "sheet_acceptance_input_tests drive it by keyboard."}}};
+    return QJsonArray{QJsonObject{
+        {"id", "sheet.page.rename"},
+        {"reason", "Renames the page in place in the Sheets Tray's Pages tree (F2); no dialog "
+                   "opens (ADR 0164 §4)."}}};
 }
 inline QJsonArray unexercised() {
     return QJsonArray{
