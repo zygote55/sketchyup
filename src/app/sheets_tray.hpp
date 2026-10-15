@@ -3,10 +3,13 @@
 #include "app/sheet_evaluation.hpp"
 #include "app/theme.hpp"
 #include <QButtonGroup>
+#include <QCheckBox>
 #include <QComboBox>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTreeWidget>
 #include <QWidget>
 namespace sketchy {
@@ -101,6 +104,8 @@ class SheetsTray : public QWidget {
     void itemActivated(qulonglong item);
     void deleteItem(qulonglong item);
     void reorderItem(qulonglong item, int delta);
+    // R091.g: the page's dimension format; given fields change, the others stay.
+    void setDimensionFormat(qulonglong sheet, const QJsonObject &fields);
 
   protected:
     bool eventFilter(QObject *, QEvent *) override;
@@ -119,6 +124,11 @@ class SheetsTray : public QWidget {
     QPushButton *infoEdit_{}, *infoShowScene_{}, *infoChooseScene_{};
     QWidget *infoFields_{}, *infoActions_{};
     SheetItemInfo *itemInfo_{};
+    // Entity info · Page, shown when nothing is selected: the dimension format.
+    QWidget *pageInfo_{};
+    QComboBox *dimensionUnit_{};
+    QSpinBox *dimensionDecimals_{};
+    QCheckBox *dimensionShowUnit_{};
     SheetPlacePanel *place_{};
     std::vector<QWidget *> sections_;
     bool placing_{};

@@ -279,8 +279,10 @@ void scaleAndPositions() {
     check(dimension.size() == 3, "Dimension lines, text background and text");
     check(hasSegment(dimension[0]->path, {100, 115}, {140, 115}), "Dimension line at y = 115");
     check(hasSegment(dimension[0]->path, {100, 106}, {100, 116.5}), "Extension line with gap");
-    check(dimension[2]->text == QString::fromStdString(evaluation.text) && !evaluation.text.empty(),
-          "Dimension text is the evaluated value");
+    check(dimension[2]->text == QString::fromStdString(evaluation.text) &&
+              evaluation.text == "2000",
+          "Dimension text is the evaluated value in whole millimetres (the R091 design's "
+          "\"6000\")");
     // The R091 design: the value reads along the line, centred just above it.
     check(near(dimension[2]->textBoxMm.center().x(), 120) &&
               near(dimension[2]->textBoxMm.bottom(), 114),

@@ -12,8 +12,10 @@ void renameDrawingSheet(Document &doc, Id sheet, std::string name);
 // Every view and item on the sheet must still fit the new paper. A margin larger
 // than a quarter of the new shorter side is reduced to that quarter.
 void resizeDrawingSheet(Document &doc, Id sheet, DrawingPaper paper);
-// Sets the sheet number and page margin (ADR 0164).
-void updateDrawingSheetPage(Document &doc, Id sheet, std::string number, double marginMm);
+// Sets the sheet number and page margin (ADR 0164) and, when given, the dimension format
+// (R091.g).
+void updateDrawingSheetPage(Document &doc, Id sheet, std::string number, double marginMm,
+                            std::optional<DrawingDimensionFormat> format = std::nullopt);
 void reorderDrawingSheets(Document &doc, const std::vector<Id> &order);
 // Deletes the sheet, its views and its items in one edit; Undo restores them.
 void eraseDrawingSheet(Document &doc, Id sheet);

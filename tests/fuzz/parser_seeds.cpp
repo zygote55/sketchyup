@@ -44,9 +44,11 @@ QByteArray stableComponent(QByteArray bytes) {
     return bytes + encoded + model + thumbnail;
 }
 // Schema 27 page items (R091.b): every kind on one sheet, bound to the plan view and,
-// for one label, to the broken view.
+// for one label, to the broken view; the sheet has a nondefault dimension format (R091.g).
 Document withDrawingItems(Document doc) {
     const auto sheet = doc.drawingSheets().begin()->first;
+    updateDrawingSheetPage(doc, sheet, "A-101", 10,
+                           DrawingDimensionFormat{DrawingDimensionUnit::Centimetres, 1, true});
     const auto plan = doc.drawingViews().begin()->first;
     const auto broken = doc.drawingViews().rbegin()->first;
     const auto body = doc.bodies().begin()->first;

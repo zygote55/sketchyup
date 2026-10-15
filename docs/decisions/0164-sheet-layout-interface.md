@@ -311,6 +311,8 @@ schema 27.
 - `marginMm`: 0–50, at most a quarter of the shorter paper side, default 10.
   It is the page-margin frame. Snapping and the title-block default use it, and
   R092 uses it as the printable-area hint.
+- `dimensionFormat` (added by R091.g): `{unit: mm | cm | m | ftIn, decimals: 0–4, showUnit}`,
+  default whole millimetres without a unit; see the R091.g conventions.
 
 **Drawing item:** `id`, `sheet`, `z` (contiguous per sheet, 0 at the bottom),
 `kind`, and `data`, whose fields depend on `kind`:
@@ -961,11 +963,23 @@ design §§1, 2, 4, 6.
   into the new page in the same entry. The compositor draws the design's grid: the project across
   the top, then Drawing and Sheet, then Scale, Date, Revision and Page, captions over bold values.
 - **Dimension text** reads along its line (left to right, or top to bottom), centred 1 mm above it.
+- **Dimension format.** Values follow the sheet's `dimensionFormat` (schema 27, required on
+  every sheet record), never the model's display units or precision: `unit` `mm` | `cm` | `m`
+  | `ftIn`, `decimals` 0–4 and `showUnit`; the default is whole millimetres without a unit
+  ("6000", the design's "6000"; the page notes state the unit). Rounding is half away from
+  zero. Feet and inches always show their marks, `19'-8"` in whole inches, or `19'-8 1/4"` to
+  1/16 inch when decimals are above zero, so `showUnit` changes nothing there.
+  `drawing_sheet.update {sheet, dimensionFormat: {unit?, decimals?, showUnit?}}` merges the
+  given fields. Entity info · Page (shown when nothing is selected) edits it, one entry per
+  field ("Change dimension format"). The prefix stays per dimension.
 - **Z order.** Bring forward `Ctrl+]` and Send backward `Ctrl+[` in a new Arrange menu (Sheets
   scope); Alt+Down and Alt+Up on an item row in Pages do the same.
-- **Pages** lists each item with "Current" or "Broken" (the reason is in the row's tooltip and
-  accessible description); choosing a row selects the item, Delete erases it and Enter edits its
-  text in place.
+- **Pages** has two columns, number and name, so names keep the narrow Tray's width (no
+  sideways scrolling). State is a small leading glyph on the name: amber ⟳ changed, red ⊗
+  broken, nothing for current; page rows show glyphs with counts ("⟳2 ⊗2"). The words
+  ("Broken: reference missing", "1 changed · 2 broken") are the tooltip and the accessible
+  description. Choosing a row selects the item, Delete erases it and Enter edits its text in
+  place.
 
 **R091.h: enable and accept.**
 - Scope:

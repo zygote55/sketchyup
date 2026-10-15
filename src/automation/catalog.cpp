@@ -156,12 +156,27 @@ QJsonObject drawingViewUpdateSpec() {
     return entry;
 }
 QJsonObject drawingSheetUpdateSpec() {
-    auto entry = spec("drawing_sheet.update", "Change a drawing sheet's number or page margin",
-                      "Drawing sheets",
-                      {{"sheet", stableId()},
-                       {"number", drawingSheetNumberSchema()},
-                       {"marginMm", drawingSheetMarginSchema()}},
-                      {"sheet"});
+    auto entry = spec(
+        "drawing_sheet.update",
+        "Change a drawing sheet's number, page margin or dimension format", "Drawing sheets",
+        {{"sheet", stableId()},
+         {"number", drawingSheetNumberSchema()},
+         {"marginMm", drawingSheetMarginSchema()},
+         {"dimensionFormat",
+          QJsonObject{
+              {"type", "object"},
+              {"additionalProperties", false},
+              {"minProperties", 1},
+              {"description", "How the sheet's dimensions write their values; given fields "
+                              "replace the sheet's, the others stay"},
+              {"properties",
+               QJsonObject{{"unit", QJsonObject{{"type", "string"},
+                                                {"enum", QJsonArray{"mm", "cm", "m", "ftIn"}}}},
+                           {"decimals", QJsonObject{{"type", "integer"},
+                                                    {"minimum", 0},
+                                                    {"maximum", 4}}},
+                           {"showUnit", QJsonObject{{"type", "boolean"}}}}}}}},
+        {"sheet"});
     auto parameters = entry["parameters"].toObject();
     parameters["minProperties"] = 3;
     entry["parameters"] = parameters;

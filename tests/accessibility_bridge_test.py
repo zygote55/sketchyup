@@ -228,6 +228,8 @@ def sheets_phase(bridge, application, root, environment):
                     rows = wait_for(bridge, listed, "Pages does not list the page items")
                     pages = find(rows, "Pages", "tree")
                     notes = find(rows, "Text · Notes", "table cell")
+                    assert notes["description"] == "Current", \
+                        f"The row's state is its description: {notes['description']!r}"
                     assert notes["path"][:-1] == pages["path"], "The item row belongs to Pages"
                     canvas = [r for r in rows if r["role"] == "canvas" and
                               r["name"].startswith("Page A-101")]
@@ -240,8 +242,8 @@ def sheets_phase(bridge, application, root, environment):
                     # Qt's tree selection counts the hidden header as a row that the child list
                     # leaves out: selecting child n selects the row of child n - columns. So the
                     # title block's row (above the text's) is selected through the child one row
-                    # (three columns: number, name, state) further on.
-                    columns = 3
+                    # (two columns: number and name) further on.
+                    columns = 2
                     block = find(rows, "Title block · House extension", "table cell")
                     with bridge.at_path(app, pages["path"]) as control:
                         with bridge.owned(bridge.accessible_get_selection_iface(control)) as selection:

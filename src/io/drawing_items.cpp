@@ -1,7 +1,6 @@
 #include "io/drawing_items.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/model.hpp"
-#include "presentation/unit_display.hpp"
 #include <QString>
 #include <algorithm>
 #include <cmath>
@@ -44,7 +43,7 @@ void resolveAnchors(const Document &doc, Id view, const std::vector<AnnotationAn
     if (!result.reasons.empty())
         result.state = DrawingItemState::Broken;
 }
-void placeDimension(const Document &doc, const DrawingDimensionItem &item,
+void placeDimension(const Document &doc, Id sheet, const DrawingDimensionItem &item,
                     DrawingItemEvaluation &result) {
     resolveAnchors(doc, item.view, {item.anchors[0], item.anchors[1]}, result);
     if (result.state == DrawingItemState::Broken) {
@@ -62,9 +61,11 @@ void placeDimension(const Document &doc, const DrawingDimensionItem &item,
     result.paperLengthMm = length;
     // The view-plane distance, which is what an orthographic drawing measures.
     result.valueMetres = length * view.scaleDenominator / 1000;
-    const auto value =
-        displayLength(*result.valueMetres, doc.displayUnits(), doc.displayPrecision())
-            .toStdString();
+    // The sheet's dimension format, not the model's display precision (R091.g).
+    const auto found = doc.drawingSheets().find(sheet);
+    const auto value = formatDrawingDimension(
+        *result.valueMetres, found == doc.drawingSheets().end() ? DrawingDimensionFormat{}
+                                                                : found->second->dimensionFormat);
     result.text = item.prefix.empty() ? value : item.prefix + " " + value;
 }
 struct Evaluator {
@@ -83,7 +84,9 @@ struct Evaluator {
         if (result.state == DrawingItemState::Current)
             result.tipMm = result.anchors[0].paper;
     }
-    void operator()(const DrawingDimensionItem &item) const { placeDimension(doc, item, result); }
+    void operator()(const DrawingDimensionItem &item) const {
+        placeDimension(doc, record.sheet, item, result);
+    }
     void operator()(const DrawingLineItem &) const {}
     void operator()(const DrawingRectangleItem &) const {}
     void operator()(const DrawingTitleBlockItem &) const {
@@ -97,6 +100,42 @@ double fractionOn(Point a, Point b, Point q) {
     return squared > 0 ? std::clamp(dot(sub(q, a), v) / squared, 0., 1.) : 0.;
 }
 } // namespace
+std::string formatDrawingDimension(double metres, const DrawingDimensionFormat &format) {
+    // Half away from zero; a relative nudge keeps values such as 4.5 mm (stored as
+    // 4.4999…) rounding up as written.
+    auto round = [](double value) {
+        return std::round(value + std::copysign(1e-9 * std::max(1., std::abs(value)), value));
+    };
+    if (format.unit == DrawingDimensionUnit::FeetInches) {
+        const auto inches = std::abs(metres) / .0254;
+        const auto sign = metres < 0 ? "-" : "";
+        if (format.decimals == 0) {
+            const auto whole = static_cast<long long>(round(inches));
+            return sign + std::to_string(whole / 12) + "'-" + std::to_string(whole % 12) + "\"";
+        }
+        // To 1/16 inch, as a reduced fraction.
+        const auto sixteenths = static_cast<long long>(round(inches * 16));
+        const auto feet = sixteenths / 192, rest = sixteenths % 192;
+        auto numerator = rest % 16, denominator = 16ll;
+        while (numerator && numerator % 2 == 0) {
+            numerator /= 2;
+            denominator /= 2;
+        }
+        auto text = sign + std::to_string(feet) + "'-" + std::to_string(rest / 16);
+        if (numerator)
+            text += " " + std::to_string(numerator) + "/" + std::to_string(denominator);
+        return text + "\"";
+    }
+    const auto [factor, unit] =
+        format.unit == DrawingDimensionUnit::Centimetres ? std::pair{100., " cm"}
+        : format.unit == DrawingDimensionUnit::Metres    ? std::pair{1., " m"}
+                                                         : std::pair{1000., " mm"};
+    const auto scale = std::pow(10., format.decimals);
+    auto text = QString::number(round(metres * factor * scale) / scale, 'f', format.decimals);
+    if (text.startsWith('-') && text.mid(1).toDouble() == 0)
+        text.remove(0, 1);
+    return text.toStdString() + (format.showUnit ? unit : "");
+}
 DrawingDimensionPlacement placeDrawingDimension(DrawingPointMm p0, DrawingPointMm p1,
                                                 DrawingDimensionOrientation orientation,
                                                 double offset) {

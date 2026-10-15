@@ -60,6 +60,9 @@ DrawingItemEvaluation evaluateDrawingItem(const Document &doc, Id item);
 // Evaluates a record that need not be in the document yet, such as a tool's preview or
 // a dragged copy (R091.g): the record's sheet and bound view are read from the document.
 DrawingItemEvaluation evaluateDrawingItem(const Document &doc, const DrawingItemRecord &record);
+// A dimension's value in its sheet's dimension format (R091.g), rounded half away from zero:
+// "6000", "600.0 cm", "6 m", "19'-8 1/4\"".
+std::string formatDrawingDimension(double metres, const DrawingDimensionFormat &format);
 // A dimension line placed from its measured paper points, orientation and offset (the
 // R091.c placement): the line's two ends, its midpoint (the text point) and the paper
 // length it measures.

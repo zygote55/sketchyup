@@ -16,14 +16,18 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
+#include <QHeaderView>
 #include <QJsonArray>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollBar>
+#include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -548,13 +552,37 @@ void annotate(Window &window, const QString &path, const Fixture &f) {
         const auto evaluation = evaluateDrawingItem(doc, diagonal);
         check(evaluation.state == DrawingItemState::Current && evaluation.valueMetres &&
                   near(*evaluation.valueMetres, std::hypot(8.2, 3), 1e-6) &&
-                  evaluation.text == displayLength(*evaluation.valueMetres, doc.displayUnits(),
-                                                   doc.displayPrecision())
-                                         .toStdString(),
-              "The dimension measures the model length at the view's scale in display units: " +
+                  evaluation.text == "8732",
+              "The dimension measures the model length at the view's scale, in the page's "
+              "format (whole millimetres): " +
                   evaluation.text);
         check(data<DrawingDimensionItem>(doc, diagonal).offsetMm > 0,
               "The offset follows the pointer");
+    }
+    // The page's dimension format: Entity info · Page when nothing is selected.
+    {
+        canvas->setSelectedItem(0);
+        canvas->setSelectedView(0);
+        auto *unit = tray->findChild<QComboBox *>("sheetDimensionUnit");
+        auto *decimals = tray->findChild<QSpinBox *>("sheetDimensionDecimals");
+        auto *showUnit = tray->findChild<QCheckBox *>("sheetDimensionShowUnit");
+        check(unit && unit->isVisible() && decimals && showUnit &&
+                  unit->currentText() == "Millimetres" && decimals->value() == 0 &&
+                  !showUnit->isChecked(),
+              "Entity info · Page shows the page's dimension format");
+        before = entries(doc);
+        unit->setCurrentIndex(2);
+        emit unit->activated(2);
+        decimals->setValue(2);
+        showUnit->click();
+        check(entries(doc) == before + 3 && lastLabel(doc) == "Change dimension format" &&
+                  evaluateDrawingItem(doc, diagonal).text == "8.73 m",
+              "Each format field is one entry and the dimension follows: " +
+                  evaluateDrawingItem(doc, diagonal).text);
+        for (int i = 0; i < 3; ++i)
+            action(window, "edit.undo")->trigger();
+        check(evaluateDrawingItem(doc, diagonal).text == "8732", "Undo restores the format");
+        focusCanvas();
     }
     // A drag from one point to the other, then a typed offset; re-entry amends.
     const auto far = paperOf(doc, f.plan, {10, 0, .2});
@@ -624,9 +652,27 @@ void annotate(Window &window, const QString &path, const Fixture &f) {
         bool listed = false;
         for (int i = 0; i < page->childCount(); ++i)
             listed |= page->child(i)->data(0, Qt::UserRole + 1).toULongLong() == diagonal &&
-                      page->child(i)->text(2) == "Broken" &&
-                      page->child(i)->toolTip(1).endsWith("Broken: reference missing");
-        check(listed, "Pages lists the broken dimension with its state");
+                      page->child(i)->data(1, Qt::AccessibleDescriptionRole).toString() ==
+                          "Broken: reference missing" &&
+                      page->child(i)->toolTip(1).endsWith("Broken: reference missing") &&
+                      !page->child(i)->data(1, Qt::UserRole + 2).toList().isEmpty();
+        check(listed, "Pages lists the broken dimension with its state glyph and description");
+        check(tray->pages()->columnCount() == 2 &&
+                  page->data(1, Qt::AccessibleDescriptionRole).toString().contains("broken"),
+              "Pages has no state column; the page row describes its counts");
+        // At the narrow Tray width the names fit without sideways scrolling.
+        auto *pages = tray->pages();
+        const auto width = tray->width();
+        tray->setFixedWidth(248);
+        QTest::qWait(100);
+        QCoreApplication::processEvents();
+        check(!pages->horizontalScrollBar()->isVisible() &&
+                  pages->header()->length() <= pages->viewport()->width(),
+              "Pages fits 248 px: columns " + std::to_string(pages->header()->length()) + " in " +
+                  std::to_string(pages->viewport()->width()));
+        tray->setMinimumWidth(0);
+        tray->setMaximumWidth(QWIDGETSIZE_MAX);
+        tray->resize(width, tray->height());
     }
     before = entries(doc);
     reattach->click();
@@ -789,7 +835,9 @@ void annotate(Window &window, const QString &path, const Fixture &f) {
         for (int i = 0; i < page->childCount(); ++i)
             if (page->child(i)->data(0, Qt::UserRole + 1).toULongLong() == notes)
                 row = page->child(i);
-        check(row && row->text(1) == "Text · Notes" && row->text(2) == "Current",
+        check(row && row->text(1) == "Text · Notes" &&
+                  row->data(1, Qt::AccessibleDescriptionRole).toString() == "Current" &&
+                  row->data(1, Qt::UserRole + 2).toList().isEmpty(),
               "Pages lists the item with its state");
         check(pages->currentItem() == row, "The selected item's row is current in Pages");
         pages->setFocus(Qt::OtherFocusReason);

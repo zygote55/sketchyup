@@ -140,8 +140,8 @@ void dimensionsFollowTheModel() {
     auto &doc = f.doc;
     auto first = eval(doc, 1);
     check(first.state == DrawingItemState::Current && near(*first.paperLengthMm, 40) &&
-              near(*first.valueMetres, 2) && first.text == "2 m",
-          "A 2 m edge at 1:50 measures 40 mm and reads 2 m: " + describe(first));
+              near(*first.valueMetres, 2) && first.text == "2000",
+          "A 2 m edge at 1:50 measures 40 mm and reads 2000 (mm): " + describe(first));
     const auto p0 = (*first.measuredMm)[0], p1 = (*first.measuredMm)[1];
     // The plan maps world x to paper x and world y up the paper.
     check(near(p1[0] - p0[0], 40) && near(p1[1], p0[1]), "Plan x runs along paper x");
@@ -153,7 +153,7 @@ void dimensionsFollowTheModel() {
                           {"data", QJsonObject{{"offsetMm", 8}, {"prefix", "W"}}}}});
     first = eval(doc, 1);
     check(near((*first.lineMm)[0][1], p0[1] - 8) && near((*first.lineMm)[1][0], p1[0]) &&
-              near((*first.textMm)[0], (p0[0] + p1[0]) / 2) && first.text == "W 2 m",
+              near((*first.textMm)[0], (p0[0] + p1[0]) / 2) && first.text == "W 2000",
           "Offset moves the line and the prefix leads the text");
     run(doc, {QJsonObject{{"command", "drawing_item.update"}, {"item", "2"}, {"kind", "dimension"},
                           {"data", QJsonObject{{"orientation", "horizontal"}}}}});
@@ -180,7 +180,7 @@ void dimensionsFollowTheModel() {
     check(doc.drawingItems() == items, "A model edit never writes item records");
     first = eval(doc, 1);
     check(first.state == DrawingItemState::Current && near(*first.valueMetres, 3) &&
-              near(*first.paperLengthMm, 60) && first.text == "W 3 m" &&
+              near(*first.paperLengthMm, 60) && first.text == "W 3000" &&
               doc.drawingViews().at(1)->scaleDenominator == 50,
           "Moving a vertex updates the measured value; the scale is unchanged");
     doc.undo();
@@ -291,6 +291,40 @@ void brokenAndReattach() {
 // A dimension is refused on a perspective view; an existing one becomes broken
 // (notToScale) when its scene turns perspective, and recovers on undo. A missing
 // scene breaks it with sceneMissing.
+// R091.g: the sheet's dimension format, rounded half away from zero.
+void dimensionFormats() {
+    using U = DrawingDimensionUnit;
+    const std::vector<std::tuple<double, DrawingDimensionFormat, std::string>> cases{
+        {6, {}, "6000"},
+        {6, {U::Millimetres, 0, true}, "6000 mm"},
+        {std::hypot(8.2, 3), {}, "8732"},
+        {std::hypot(8.2, 3), {U::Centimetres, 1, false}, "873.2"},
+        {std::hypot(8.2, 3), {U::Metres, 2, true}, "8.73 m"},
+        {.0045, {}, "5"},
+        {.0025, {}, "3"},
+        {1.2345, {U::Metres, 3, false}, "1.235"},
+        {2, {U::Metres, 4, true}, "2.0000 m"},
+        {6, {U::FeetInches, 0, false}, "19'-8\""},
+        {6, {U::FeetInches, 2, false}, "19'-8 1/4\""},
+        {.3048, {U::FeetInches, 0, true}, "1'-0\""},
+        {.0254 * (3 + 7. / 16), {U::FeetInches, 1, false}, "0'-3 7/16\""},
+        {.0254 * (12 * 2 + 5.5), {U::FeetInches, 1, false}, "2'-5 1/2\""},
+    };
+    for (const auto &[metres, format, expected] : cases) {
+        const auto written = formatDrawingDimension(metres, format);
+        check(written == expected, "Dimension format: " + std::to_string(metres) + " m reads " +
+                                       written + ", expected " + expected);
+    }
+    // The page's format applies to every dimension on it.
+    Fixture f;
+    auto &doc = f.doc;
+    run(doc, {QJsonObject{{"command", "drawing_sheet.update"},
+                          {"sheet", text(doc.drawingViews().at(1)->sheet)},
+                          {"dimensionFormat",
+                           QJsonObject{{"unit", "cm"}, {"decimals", 1}, {"showUnit", true}}}}});
+    check(eval(doc, 1).text == "200.0 cm" && eval(doc, 2).text == "100.0 cm",
+          "Every dimension on the page follows its format");
+}
 void notToScale() {
     Fixture f;
     auto &doc = f.doc;
@@ -515,6 +549,7 @@ int main(int argc, char **argv) {
     try {
         dimensionsFollowTheModel();
         brokenAndReattach();
+        dimensionFormats();
         notToScale();
         pureTranslation();
         lastMmFollowsTheView();

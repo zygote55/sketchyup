@@ -129,6 +129,9 @@ Document sheetFixture() {
     const auto detail = createScene(doc, "Detail", orthographicScene(45));
     const auto cover = createDrawingSheet(doc, "Cover", {420, 297});
     const auto plans = createDrawingSheet(doc, "Plans", {297, 420.5}, "A-101", 12.5);
+    // R091.g: a nondefault dimension format.
+    updateDrawingSheetPage(doc, plans, "A-101", 12.5,
+                           DrawingDimensionFormat{DrawingDimensionUnit::FeetInches, 2, true});
     const auto scratch = createDrawingSheet(doc, "Scratch", {210, 297});
     auto temporary = viewRecord("Temporary", scratch, plan);
     temporary.frame = {10, 10, 100, 100};
@@ -341,11 +344,18 @@ int main(int argc, char **argv) {
                                        {"position", 0},
                                        {"paper", QJsonObject{{"widthMm", 297}, {"heightMm", 420.5}}},
                                        {"number", "A-101"},
-                                       {"marginMm", 12.5}},
-                  "Sheet record stores id, name, position, paper, number and margin");
+                                       {"marginMm", 12.5},
+                                       {"dimensionFormat", QJsonObject{{"unit", "ftIn"},
+                                                                       {"decimals", 2},
+                                                                       {"showUnit", true}}}},
+                  "Sheet record stores id, name, position, paper, number, margin and "
+                  "dimension format");
             check(tree["drawingSheets"].toArray()[0].toObject()["number"] == "" &&
-                      tree["drawingSheets"].toArray()[0].toObject()["marginMm"] == 10,
-                  "An empty sheet number and the default margin are stored explicitly");
+                      tree["drawingSheets"].toArray()[0].toObject()["marginMm"] == 10 &&
+                      tree["drawingSheets"].toArray()[0].toObject()["dimensionFormat"] ==
+                          QJsonObject{{"unit", "mm"}, {"decimals", 0}, {"showUnit", false}},
+                  "An empty sheet number, the default margin and the default dimension format "
+                  "are stored explicitly");
 
             // R091.b: the item table, its allocator and its floor.
             check(floors["nextDrawingItemId"] == "11" && tree["nextDrawingItemId"] == "11",
@@ -667,8 +677,9 @@ int main(int argc, char **argv) {
                     root["drawingViews"] = views;
                 },
                 "repeated view");
-            // R091.b: the sheet number and margin are required fields.
-            for (const auto &field : {"number", "marginMm"})
+            // R091.b: the sheet number and margin are required fields; R091.g: and the
+            // dimension format, every field of it.
+            for (const auto &field : {"number", "marginMm", "dimensionFormat"})
                 rawRejects(onSheet(1, [&](QJsonObject &sheet) { sheet.remove(field); }),
                            std::string("missing sheet ") + field);
             rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["number"] = 101; }),
@@ -690,6 +701,28 @@ int main(int argc, char **argv) {
                        "negative margin");
             rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["marginMm"] = 50.5; }),
                        "margin over 50 mm");
+            auto onFormat = [&](const std::function<void(QJsonObject &)> &mutate) {
+                return onSheet(1, [=](QJsonObject &sheet) {
+                    auto format = sheet["dimensionFormat"].toObject();
+                    mutate(format);
+                    sheet["dimensionFormat"] = format;
+                });
+            };
+            for (const auto &field : {"unit", "decimals", "showUnit"})
+                rawRejects(onFormat([&](QJsonObject &format) { format.remove(field); }),
+                           std::string("missing dimension format ") + field);
+            rawRejects(onFormat([](QJsonObject &format) { format["extra"] = 1; }),
+                       "unknown dimension format field");
+            rawRejects(onFormat([](QJsonObject &format) { format["unit"] = "in"; }),
+                       "unknown dimension unit");
+            rawRejects(onFormat([](QJsonObject &format) { format["decimals"] = 5; }),
+                       "dimension decimals over 4");
+            rawRejects(onFormat([](QJsonObject &format) { format["decimals"] = 1.5; }),
+                       "fractional dimension decimals");
+            rawRejects(onFormat([](QJsonObject &format) { format["showUnit"] = "yes"; }),
+                       "text showUnit");
+            rawRejects(onSheet(1, [](QJsonObject &sheet) { sheet["dimensionFormat"] = "mm"; }),
+                       "dimension format not an object");
 
             // R091.b: the item table. Every field at every level is required and unknown
             // fields are rejected.

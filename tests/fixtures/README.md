@@ -76,6 +76,8 @@ broken link). Its sheet and view allocators are above the live IDs. R091.b regen
 it while schema 27 was still unreleased (ADR 0163 decision 6): the plans sheet has a
 number and a nondefault margin, and the sheets hold nine page items covering every
 kind, orientation, alignment, dash style and label target, in a nondefault z order,
-with a retired item ID and a dimension whose anchor body was deleted. The test requires
+with a retired item ID and a dimension whose anchor body was deleted. R091.g regenerated
+it again, still before release: the plans sheet has a nondefault dimension format (feet
+and inches, 2 decimals, unit shown). The test requires
 exact re-encoding apart from the writer string, and package acceptance requires the
 prior package to refuse it unchanged. It is original synthetic project data.

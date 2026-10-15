@@ -49,6 +49,13 @@ void DrawingViewAcceptance::validate() const {
 size_t drawingSheetBytes(const DrawingSheetPtr &sheet) {
     return sheet ? sizeof(DrawingSheetRecord) + sheet->name.size() + sheet->number.size() + 64 : 0;
 }
+void DrawingDimensionFormat::validate() const {
+    if (unit != DrawingDimensionUnit::Millimetres && unit != DrawingDimensionUnit::Centimetres &&
+        unit != DrawingDimensionUnit::Metres && unit != DrawingDimensionUnit::FeetInches)
+        throw std::runtime_error("Unknown drawing dimension unit");
+    if (decimals < 0 || decimals > 4)
+        throw std::runtime_error("Drawing dimension decimals must be from 0 to 4");
+}
 double defaultDrawingSheetMarginMm(const DrawingPaper &paper) {
     return std::min(drawingSheetDefaultMarginMm, std::min(paper.widthMm, paper.heightMm) / 4);
 }
@@ -84,6 +91,7 @@ void validateDrawingSheetRecords(const DrawingSheetRecords &sheets, Id nextSheet
             sheet->marginMm > std::min(sheet->paper.widthMm, sheet->paper.heightMm) / 4)
             throw std::runtime_error("Drawing sheet margin must be from 0 to 50 millimetres and at "
                                      "most a quarter of the shorter paper side");
+        sheet->dimensionFormat.validate();
         bytes += drawingSheetBytes(sheet);
     }
     names.clear();

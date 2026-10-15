@@ -565,6 +565,15 @@ void Window::setupSheets(QWidget *header, QMenu *view) {
         run([&] { deleteSheetItem(item); });
         sheetsTray_->pages()->setFocus(Qt::OtherFocusReason);
     });
+    connect(sheetsTray_, &SheetsTray::setDimensionFormat, this,
+            [this](qulonglong sheet, const QJsonObject &fields) {
+                run([&] {
+                    sheetCommands({QJsonObject{{"command", "drawing_sheet.update"},
+                                               {"sheet", QString::number(sheet)},
+                                               {"dimensionFormat", fields}}},
+                                  "Change dimension format");
+                });
+            });
     connect(sheetsTray_, &SheetsTray::reorderItem, this, [this](qulonglong item, int delta) {
         run([&] { restackSheetItem(item, delta); });
         sheetsTray_->pages()->setFocus(Qt::OtherFocusReason);

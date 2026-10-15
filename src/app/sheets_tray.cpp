@@ -22,12 +22,14 @@
 #include <QScopedValueRollback>
 #include <QSignalBlocker>
 #include <QStyle>
+#include <QStyledItemDelegate>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <set>
 namespace sketchy {
 namespace {
-enum Role { KindRole = Qt::UserRole, IdRole };
+enum Role { KindRole = Qt::UserRole, IdRole, GlyphRole };
+enum Glyph { ChangedGlyph = 1, BrokenGlyph = 2 };
 enum Kind { PageRow = 1, ViewRow, ItemRow };
 QLabel *valueLabel(const QString &name) {
     auto *label = new QLabel;
@@ -78,6 +80,76 @@ QPixmap sheetStateIcon(DrawingViewState state, bool pending, const ThemeColors &
     painter.drawPath(path);
     return pixmap;
 }
+namespace {
+// Pages paints each row's state as a small glyph before its name: amber refresh for changed,
+// red cross for broken, with a count on page rows ("⟳2 ⊗2"); current rows have none.
+class SheetPagesDelegate final : public QStyledItemDelegate {
+  public:
+    SheetPagesDelegate(const ThemeColors &colors, QObject *parent)
+        : QStyledItemDelegate(parent), colors_(colors) {}
+    void paint(QPainter *painter, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override {
+        const auto glyphs = index.data(GlyphRole).toList();
+        if (glyphs.isEmpty()) {
+            QStyledItemDelegate::paint(painter, option, index);
+            return;
+        }
+        QStyleOptionViewItem item(option);
+        initStyleOption(&item, index);
+        const auto text = item.text;
+        item.text.clear();
+        const auto *widget = item.widget;
+        auto *style = widget ? widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &item, painter, widget);
+        const auto area = style->subElementRect(QStyle::SE_ItemViewItemText, &item, widget);
+        const bool selected = item.state & QStyle::State_Selected;
+        const QFontMetrics metrics(item.font);
+        const auto ratio = widget ? widget->devicePixelRatioF() : 1.;
+        painter->save();
+        painter->setFont(item.font);
+        int x = area.left() + 2;
+        for (const auto &entry : glyphs) {
+            const auto glyph = entry.toPoint();
+            const bool changed = glyph.x() == ChangedGlyph;
+            painter->drawPixmap(
+                x, area.center().y() - 6,
+                sheetStateIcon(changed ? DrawingViewState::Stale : DrawingViewState::Broken, false,
+                               colors_, ratio));
+            x += 13;
+            if (glyph.y() > 0) {
+                const auto count = QString::number(glyph.y());
+                painter->setPen(selected  ? item.palette.color(QPalette::HighlightedText)
+                                : changed ? colors_.warning
+                                          : colors_.failure);
+                painter->drawText(
+                    QRect(x, area.top(), metrics.horizontalAdvance(count) + 1, area.height()),
+                    Qt::AlignVCenter | Qt::AlignLeft, count);
+                x += metrics.horizontalAdvance(count) + 4;
+            } else
+                x += 3;
+        }
+        x += 2;
+        painter->setPen(item.palette.color(selected ? QPalette::HighlightedText : QPalette::Text));
+        const QRect rest(x, area.top(), std::max(0, area.right() - x), area.height());
+        painter->drawText(rest, Qt::AlignVCenter | Qt::AlignLeft,
+                          metrics.elidedText(text, Qt::ElideRight, rest.width()));
+        painter->restore();
+    }
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        auto size = QStyledItemDelegate::sizeHint(option, index);
+        const QFontMetrics metrics(option.font);
+        for (const auto &entry : index.data(GlyphRole).toList()) {
+            const auto count = entry.toPoint().y();
+            size.rwidth() +=
+                13 + (count > 0 ? metrics.horizontalAdvance(QString::number(count)) + 4 : 3);
+        }
+        return size;
+    }
+
+  private:
+    const ThemeColors &colors_;
+};
+} // namespace
 SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache &cache,
                        QWidget *parent)
     : QWidget(parent), doc_(doc), cache_(cache) {
@@ -202,6 +274,61 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     // R091.g: a selected page item shows its own labelled fields.
     itemInfo_ = new SheetItemInfo(doc);
     infoLayout->addWidget(itemInfo_);
+    // Entity info · Page (R091.g): how the page's dimensions write their values.
+    pageInfo_ = new QWidget;
+    pageInfo_->setObjectName("sheetPageInfo");
+    {
+        auto *pageGrid = new QGridLayout(pageInfo_);
+        pageGrid->setContentsMargins(0, 4, 0, 0);
+        pageGrid->setHorizontalSpacing(8);
+        pageGrid->setVerticalSpacing(6);
+        pageGrid->setColumnStretch(1, 1);
+        auto *heading = new QLabel("Dimensions");
+        heading->setObjectName("sheetInfoCaption");
+        pageGrid->addWidget(heading, 0, 0, 1, 2);
+        auto pageRow = [&](const QString &caption, QWidget *field, int at) {
+            auto *label = new QLabel(caption);
+            label->setObjectName("sheetInfoCaption");
+            label->setBuddy(field);
+            pageGrid->addWidget(label, at, 0, Qt::AlignTop | Qt::AlignLeft);
+            pageGrid->addWidget(field, at, 1);
+        };
+        dimensionUnit_ = new QComboBox;
+        dimensionUnit_->setObjectName("sheetDimensionUnit");
+        dimensionUnit_->setAccessibleName("Dimension unit");
+        dimensionUnit_->addItem("Millimetres", "mm");
+        dimensionUnit_->addItem("Centimetres", "cm");
+        dimensionUnit_->addItem("Metres", "m");
+        dimensionUnit_->addItem("Feet and inches", "ftIn");
+        pageRow("Unit", dimensionUnit_, 1);
+        dimensionDecimals_ = new QSpinBox;
+        dimensionDecimals_->setObjectName("sheetDimensionDecimals");
+        dimensionDecimals_->setAccessibleName("Dimension decimals");
+        dimensionDecimals_->setRange(0, 4);
+        dimensionDecimals_->setKeyboardTracking(false);
+        dimensionDecimals_->setToolTip("Decimal places; feet and inches show 1/16 inch when "
+                                       "this is above zero, otherwise whole inches");
+        pageRow("Decimals", dimensionDecimals_, 2);
+        dimensionShowUnit_ = new QCheckBox("Show the unit");
+        dimensionShowUnit_->setObjectName("sheetDimensionShowUnit");
+        dimensionShowUnit_->setAccessibleName("Show the dimension unit");
+        dimensionShowUnit_->setToolTip("Off by default: the page notes state the unit");
+        pageRow("Unit text", dimensionShowUnit_, 3);
+    }
+    infoLayout->addWidget(pageInfo_);
+    connect(dimensionUnit_, &QComboBox::activated, this, [this] {
+        if (!syncing_ && doc_.drawingSheets().contains(sheet_))
+            emit setDimensionFormat(sheet_, {{"unit", dimensionUnit_->currentData().toString()}});
+    });
+    connect(dimensionDecimals_, &QSpinBox::valueChanged, this, [this](int value) {
+        if (!syncing_ && doc_.drawingSheets().contains(sheet_) &&
+            doc_.drawingSheets().at(sheet_)->dimensionFormat.decimals != value)
+            emit setDimensionFormat(sheet_, {{"decimals", value}});
+    });
+    connect(dimensionShowUnit_, &QCheckBox::clicked, this, [this](bool on) {
+        if (!syncing_ && doc_.drawingSheets().contains(sheet_))
+            emit setDimensionFormat(sheet_, {{"showUnit", on}});
+    });
     place_ = new SheetPlacePanel(doc);
     place_->hide();
     layout->addWidget(place_, 1);
@@ -267,13 +394,16 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     pages_->setAccessibleDescription(
         "Pages expand to their views and items. F2 renames a page, Alt+Up and Alt+Down move a "
         "page or an item's stacking order, Delete deletes it, and Enter edits an item's text.");
-    pages_->setColumnCount(3);
-    pages_->setHeaderLabels({"Number", "Name", "State"});
+    // Two columns, so names keep the narrow Tray's width; state is a glyph on the name.
+    pages_->setColumnCount(2);
+    pages_->setHeaderLabels({"Number", "Name"});
     pages_->setHeaderHidden(true);
     pages_->header()->setStretchLastSection(false);
     pages_->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     pages_->header()->setSectionResizeMode(1, QHeaderView::Stretch);
-    pages_->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    pages_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    pages_->setTextElideMode(Qt::ElideRight);
+    pages_->setItemDelegateForColumn(1, new SheetPagesDelegate(colors_, pages_));
     pages_->setSelectionMode(QAbstractItemView::SingleSelection);
     pages_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     pages_->setUniformRowHeights(true);
@@ -515,6 +645,19 @@ void SheetsTray::refreshInfo() {
     infoFields_->setVisible(shown);
     infoActions_->setVisible(shown);
     itemInfo_->setVisible(item);
+    // Nothing selected: the page's own settings.
+    const auto page = doc_.drawingSheets().find(sheet_);
+    const bool pageShown = !shown && !item && page != doc_.drawingSheets().end();
+    pageInfo_->setVisible(pageShown);
+    if (pageShown) {
+        QScopedValueRollback pageGuard(syncing_, true);
+        const auto &format = page->second->dimensionFormat;
+        dimensionUnit_->setCurrentIndex(int(format.unit));
+        if (!dimensionDecimals_->hasFocus())
+            dimensionDecimals_->setValue(format.decimals);
+        dimensionShowUnit_->setChecked(format.showUnit);
+        infoSection_->setTitle("Entity info · Page");
+    }
     if (item) {
         std::optional<DrawingItemEvaluation> evaluation;
         try {
@@ -639,6 +782,13 @@ void SheetsTray::refreshPages() {
             page->setForeground(0, colors_.muted);
             size_t changed = 0, broken = 0;
             int number = 0;
+            // State is a leading glyph on the name (amber refresh: changed, red cross: broken,
+            // none: current); the words are the tooltip and the accessible description.
+            auto setState = [](QTreeWidgetItem *row, const QString &text, int glyph) {
+                row->setData(1, GlyphRole, glyph ? QVariantList{QPoint(glyph, 0)} : QVariantList{});
+                row->setData(1, Qt::AccessibleDescriptionRole, text);
+                row->setToolTip(1, row->text(1) + " · " + text);
+            };
             for (const auto view : drawingViewsOnSheet(doc_, id)) {
                 const auto &record = *doc_.drawingViews().at(view);
                 const auto status = cache_.status(view);
@@ -648,16 +798,16 @@ void SheetsTray::refreshPages() {
                 row->setText(0, QString::number(++number));
                 row->setText(1, QString::fromStdString(record.name) + " · " +
                                     viewScaleText(record, status && status->notToScale));
-                row->setText(2, status ? viewStateText(*status) : QString("Updating…"));
+                int glyph = 0;
                 if (status && status->state == DrawingViewState::Stale) {
                     ++changed;
-                    row->setForeground(2, colors_.warning);
+                    glyph = ChangedGlyph;
                 } else if (status && (status->state == DrawingViewState::Broken ||
                                       status->state == DrawingViewState::Failed)) {
                     ++broken;
-                    row->setForeground(2, colors_.failure);
+                    glyph = BrokenGlyph;
                 }
-                row->setToolTip(1, row->text(1) + " · " + row->text(2));
+                setState(row, status ? viewStateText(*status) : QString("Updating…"), glyph);
             }
             // Items in paint order (bottom first) with their state; evaluating an item is cheap
             // (no capture), so the state is always the document's.
@@ -672,28 +822,26 @@ void SheetsTray::refreshPages() {
                 } catch (const std::exception &) {
                 }
                 row->setText(1, sheetItemSummary(record, evaluation ? &*evaluation : nullptr));
-                if (evaluation) {
-                    // The short state fits the column; the reason is in the tooltip, Entity
-                    // info and the canvas description.
-                    row->setText(2, evaluation->state == DrawingItemState::Broken ? "Broken"
-                                                                                  : "Current");
-                    row->setData(2, Qt::AccessibleDescriptionRole, sheetItemStateText(*evaluation));
-                    if (evaluation->state == DrawingItemState::Broken) {
-                        ++broken;
-                        row->setForeground(2, colors_.failure);
-                    }
-                }
-                row->setToolTip(1, row->text(1) + " · " +
-                                       (evaluation ? sheetItemStateText(*evaluation) : QString{}));
+                const bool itemBroken = evaluation && evaluation->state == DrawingItemState::Broken;
+                broken += itemBroken;
+                setState(row, evaluation ? sheetItemStateText(*evaluation) : QString("Updating…"),
+                         itemBroken ? BrokenGlyph : 0);
             }
             QStringList state;
-            if (changed)
+            QVariantList glyphs;
+            if (changed) {
                 state << QString::number(changed) + " changed";
-            if (broken)
+                glyphs << QPoint(ChangedGlyph, int(changed));
+            }
+            if (broken) {
                 state << QString::number(broken) + " broken";
-            page->setText(2, state.join(" · "));
-            page->setForeground(2, broken ? colors_.failure : colors_.warning);
-            page->setToolTip(1, sheetTitle(sheet) + (state.isEmpty() ? "" : " · " + page->text(2)));
+                glyphs << QPoint(BrokenGlyph, int(broken));
+            }
+            page->setData(1, GlyphRole, glyphs);
+            page->setData(1, Qt::AccessibleDescriptionRole,
+                          state.isEmpty() ? QString("Current") : state.join(" · "));
+            page->setToolTip(1, sheetTitle(sheet) +
+                                    (state.isEmpty() ? "" : " · " + state.join(" · ")));
             page->setExpanded(expanded.contains(id) || id == sheet_);
         }
         if (hadFocus && !pages_->hasFocus())
