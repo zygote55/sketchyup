@@ -208,6 +208,39 @@ Sheets focus cells again after adding the explicit accent-filled probes):
   `hosted_array`, `roof_recipe`, `furniture_recipe`, `site_recipe` and `group` suites under two
   lanes. Each passed on a single-lane rerun (D-021 class).
 
+### Round 3: focus after Choose scene on Wayland
+
+CI on PR #324 (`89706008`) failed `sheet_layout_input_tests` on Wayland: "Focus returns to the
+canvas after Choose scene; got none".
+
+- **Reproduced, and not caused by R091.h.** The CI line in the wide runner with four lanes:
+  1 of 60 runs at `89706008`; 2 of 60 on the R091.g build (no `ModalReturn`, flag set). With
+  `WAYLAND_DEBUG` tracing (slower), 4, 5 and 3 of 60. Single-lane and one-CPU runs (32) did not
+  fail. `ModalReturn` cannot be involved on Weston: Weston 15 has no xdg-activation, and Qt's
+  `QWaylandWindow::requestActivateWindow` then does nothing.
+- **Cause (Qt Wayland client race).** The trace of every failure is the same: Weston focuses
+  the Choose scene prompt (`wl_keyboard.enter`) and the client requests a `wl_display.sync`;
+  the test accepts the prompt about 60 ms later, before that sync's `done` arrives; the prompt's
+  surface is destroyed; `done` then arrives and Qt (`QWaylandDisplay::handleWaylandSync`) queues
+  "no focus window", since its active list is empty; Weston sends `leave(nil)` and
+  `enter(main window)`, and the next sync compares the main window with
+  `QGuiApplication::focusWindow()`, which is still the main window because the queued change
+  has not been delivered, so nothing is queued. The queued "no focus window" is then delivered
+  and stays: focus window none, active window none, the window's focus child the canvas.
+  The compositor did return focus; Qt dropped it. A person cannot close a prompt within one
+  round trip of it appearing; automation can.
+- **Fix.** `SettledInputDialog` closes only when the prompt is the focus window (at most
+  300 ms), so the activation sync is processed first. Choose scene, Save as new scene and Field
+  of view use it. On X11 it closes at once.
+- **After:** 0 of 180 runs failed the focus check (60 traced and 60 untraced at 1×, 60 more
+  traced). The untraced batch had 6 "Window exposed" failures at Wayland 2× under four-lane load
+  (D-021; the R091.g build had 10 of 60 in the same batch).
+- **Re-run, single lane, at the head after merging R092.a:** `sheet_layout_input_tests`,
+  `sheet_acceptance_input_tests`, `keyboard_reachability_tests`, `visible_focus_input_tests` and
+  `--workspace=sheets` on X11 and Wayland at 1× and 2×: 20/20 pass. The inventory is clean and
+  the sheets audit group passes on X11 1× and 2× and Wayland 1× and 2×. `ctest --preset dev`
+  200/200, 12 optional tests skipped.
+
 ## CTest and sanitizers
 
 | Check | Where | Result |

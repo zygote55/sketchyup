@@ -1011,6 +1011,13 @@ design §§1, 2, 4, 6.
   (X11 under Xvfb) the window was otherwise left inactive with no focus widget. The window's own
   focus child (viewport or canvas) takes focus with the activation. The R091.f prompt fixes
   stay.
+- **Prompts settle before closing (Wayland).** Qt's Wayland client applies keyboard focus after a
+  `wl_display.sync` round trip and compares it with the current focus window. A prompt closed
+  while the sync for its own activation is in flight leaves the application with no focus
+  window, although the compositor focused the main window again. `SettledInputDialog`
+  (`settled_dialog.hpp`) closes only once it is the focus window, waiting at most 300 ms; Choose
+  scene, Save as new scene and Field of view use it. `ModalReturn` is a no-op on compositors
+  without xdg-activation, such as Weston.
 - **Natural frame.** The Model view tool measures the extent of every visible vertex. It had
   measured only the first one (`QRectF::united` ignores a zero-size rectangle), so placed views
   were centred on that vertex.

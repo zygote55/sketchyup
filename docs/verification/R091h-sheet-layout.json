@@ -2144,5 +2144,43 @@
    "row": "N05",
    "title": "Focus ring under the threshold at fractional 1.5x"
   }
- ]
+ ],
+ "round3": {
+  "ciFailure": {
+   "pr": 324,
+   "run": 38690414775,
+   "head": "89706008",
+   "message": "Focus returns to the canvas after Choose scene; got none"
+  },
+  "reproduction": {
+   "r091h89706008_untraced_4lanes": "1/60",
+   "r091gBuild_untraced_4lanes": "2/60",
+   "traced_4lanes": [
+    "4/60",
+    "5/60",
+    "3/60"
+   ],
+   "singleLaneAndOneCpu": "0/32"
+  },
+  "cause": "Qt Wayland client: a prompt closed while the wl_display.sync for its activation is in flight; the queued null focus window is delivered after the main window's enter compared equal to the stale focus window",
+  "modalReturnOnWeston": "no-op (Weston 15 has no xdg-activation)",
+  "fix": "SettledInputDialog closes once it is the focus window (max 300 ms); Choose scene, Save as new scene, Field of view",
+  "after": {
+   "focusFailures": "0/180",
+   "windowExposedAtWayland2xUnderLoad": "6/60 (D-021)"
+  },
+  "rerun": {
+   "cells": 20,
+   "passed": 20,
+   "audit": {
+    "inventory": "clean",
+    "sheetsGroup": "4/4"
+   },
+   "ctestDev": {
+    "total": 200,
+    "passed": 200,
+    "skipped": 12
+   }
+  }
+ }
 }
