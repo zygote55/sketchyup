@@ -527,6 +527,8 @@ inline void focusViewport(Window &window) {
             dialog->hide();
             hid = true;
         }
+    if (window.workspace() != Window::Workspace::Model)
+        window.setWorkspace(Window::Workspace::Model); // A Sheets case leaves the canvas.
     if (auto *tabs = window.findChild<QTabWidget *>("modelTabs"))
         tabs->setCurrentWidget(window.viewport()); // A render result tab may be in front.
     activate(window, hid);

@@ -648,8 +648,12 @@ void Window::chooseViewScene(Id view) {
         return;
     }
     const auto index = items.indexOf(dialog.textValue());
-    if (index < 0 || !doc_.drawingViews().contains(view))
+    if (index < 0 || !doc_.drawingViews().contains(view) ||
+        doc_.drawingViews().at(view)->source.scene == ids[size_t(index)]) {
+        // The same scene: nothing changes, so nothing is committed.
+        focusWorkspace();
         return;
+    }
     run([&] {
         sheetCommands({QJsonObject{{"command", "drawing_view.update"},
                                    {"view", QString::number(view)},

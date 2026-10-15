@@ -892,6 +892,31 @@ design §§1, 2, 4, 6.
 - Tests: `sheet_layout_input_tests` (also at fractional 1.5); new
   `native_accessibility_audit` dialog cases.
 
+**Implementation conventions (R091.f).**
+- **Labels.** "Place view", "Move view", "Nudge", "Crop view", "Pan view", "Change scale",
+  "Rename view", "Change style", "Accept 1 view" (`U`), "Accept N views" (Accept all),
+  "Choose scene"; "Save as new scene" (model) then "Use new scene" (sheet).
+- **Amending.** Measurements re-entry, consecutive nudges, consecutive arrow pans and consecutive
+  wheel notches in edit-view amend the entry they continue (`executeAmend`) while nothing else
+  changed; a new operation, selection or tool ends it. Amending a placement re-creates the view,
+  so it gets a new ID (allocators never rewind).
+- **Crop.** Dragging a handle or typing `w,h` changes the frame and adjusts `offsetMm` so the
+  scene target stays on its paper point: the drawing stays put and the scale never changes.
+- **Placement.** The natural frame is the visible geometry's extent at the scale plus a 10 mm
+  border, rounded up to 5 mm, with the drawing centred by `offsetMm`; Enter or Place uses it at
+  the pointer (else the margin corner). A perspective scene places 160 × 120 mm with rendered
+  content. The title is the scene name, made unique ("South elevation 2").
+- **Snapping.** 8 logical pixels at any zoom. Targets: the paper edges, the margins, and the
+  other views' edges and centres (drawn as alignment guides). The 5 mm grid quantizes when it is
+  shown and nothing nearer applies. Alt turns snapping off.
+- **Edit-view** applies to drawable orthographic views; a perspective view fills its frame and
+  is cropped with the handles instead. The wheel zooms the crop about the pointer (×1.1 per
+  notch), Ctrl+wheel zooms the page, `+`/`-` zoom the crop and arrows pan 1 mm (Shift 10 mm).
+  Esc, Done or a click outside the frame leaves.
+- **Save as new scene** copies the view's scene with its camera target moved to the point drawn
+  at the frame centre; the view then uses it with a zero offset and draws the same.
+- **Tab** cycles the page's views; R091.g adds page items to the cycle with item selection.
+
 **R091.g: page items.** Design §5; §§3, 4.
 - Scope:
   - the Line, Rectangle, Text, Label and Dimension tools;
