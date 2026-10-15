@@ -80,6 +80,9 @@ per document.
   `drawing_sheets.export_preflight`. The export preflight query needs the font worker,
   so the headless `--session`, `--mcp` and `--inspect` modes return
   `UNAVAILABLE_CONTEXT` for it. Exporting a PDF is not an automation operation.
+- **In-app assistant:** its tool list is unchanged from 1.0.x. The assistant does not
+  see or run the sheet operations and queries; they are available over MCP and the
+  transaction APIs, so external agents can still work with sheets.
 - The schema files keep their names and versions (`transactions-v1`,
   `inspection-v1`, MCP 2026-07-28 and the others listed under 1.0.0). They gain these
   entries, and no existing response shape changes.

@@ -44,6 +44,10 @@ timed out once on Wayland 2× on `main` after #327 with no output; it is recorde
 [Harness diagnostics](#harness-diagnostics-d-034)). The `sheet_export_input_tests` focus
 failure on PR #328 is a reproduced instance of D-007, fixed for the export dialog's choosers;
 D-007 stays open for its other instances. See the counts.
+**Updated 2026-10-15 (D-035; branch `fix/assistant-sheet-tools`).** The 1.1.0 RC provider
+corpus failed Advanced 1/3 on its token budget because the assistant's tool list carried the
+drawing-sheet tools. Added and fixed as D-035 (Major); see
+[Candidates checked and not carried forward](#candidates-checked-and-not-carried-forward).
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -200,6 +204,34 @@ Closed by the D-033 harness fix (2026-10-15, branch `fix/startup-abort`):
   test in CI, so D-031's message-less Wayland exit (recorded by R091.h) may also have lost a Qt
   message the same way; that is not shown.
 
+Closed by the D-035 fix (2026-10-15, branch `fix/assistant-sheet-tools`):
+
+- **D-035** (sheet tools enlarged the assistant's per-turn input; Advanced exceeded the token
+  budget at the 1.1.0 RC). Class: **Major** (a supported workflow failed its acceptance gate on
+  the supported provider configuration). Found by [R086.cb](https://github.com/zygote55/sketchyup/blob/docs/r086cb-rc110-corpus/docs/verification/R086cb-rc110-remote-evaluation.md)
+  at the 1.1.0 RC (`251fd52d`): Advanced assemblies passed 1/3 (minimum 2). Two repeats
+  followed the R086.ca command sequence but their 12th reply took usage past the
+  262,144-token task budget, and the host stopped them with `BUDGET_EXCEEDED`, committing
+  nothing. **Cause.** The in-app assistant advertised the shared inspection catalog and
+  nested every inspection query inside `transaction.inspect`, so the eight drawing-sheet
+  queries added by R090–R092 were re-sent twice on every provider turn. The ChatGPT-plan
+  first request's tools grew from 55,230 to 64,972 bytes for Advanced, and the reported
+  first-turn input from 11,368 to 12,974 tokens; no run used a sheet tool.
+  **Fix.** One rule next to the assistant's tool builder (`assistantVisible` in
+  `src/automation/assistant.cpp`) keeps every `drawing_*` operation and query out of the
+  assistant's provider tool list: the top-level queries, the `transaction.inspect`
+  requests and the `transaction.apply` commands. A drawing command cannot be authorized
+  for an assistant task, and a drawing tool call is rejected as `UNSUPPORTED_CAPABILITY`.
+  MCP, the headless session and the transaction APIs are unchanged and keep every sheet
+  tool ([ADR 0164](../decisions/0164-sheet-layout-interface.md#assistant-tool-surface-110)).
+  **Evidence.** `assistant_tool_surface_tests` checks that no `drawing_*` name is reachable
+  in the assistant's schemas, that the surfaces for the five corpus authorizations and the
+  every-command superset equal a baseline dumped from the v1.0.1 build byte for byte
+  (`tests/assistant-tool-surface-baseline.json`), that a drawing query call never reaches
+  the backend, and that MCP still lists the sheet queries and commands. The Advanced
+  first request's tools are 55,230 bytes again, the R086.ca figure. The release corpus must
+  be re-run at the next RC.
+
 Closed by R084.v:
 
 - **D-026** (reopened "Render with Blender" kept focus on Jobs…, so Enter opened Jobs instead of
@@ -330,10 +362,11 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | Minor | 13 | D-006–D-009, D-019, D-021–D-023, D-027, D-028, D-031, D-032, D-034 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
 | **Total open** | **27** | |
-| Fixed since the 2026-10-11 refresh | 4 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13) |
+| Fixed since the 2026-10-11 refresh | 5 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
-R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor).
+R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
+(Major, 1.1.0 RC) was added and fixed on 2026-10-15, so it is not open.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
