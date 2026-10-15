@@ -83,6 +83,8 @@ struct ShapedText {
     QPainterPath path;
     QSizeF sizeMm;
     qsizetype missingGlyphs{};
+    QList<QGlyphRun> glyphs; // In layout units; unitTransform maps them to millimetres.
+    QTransform unitTransform;
 };
 ShapedText shapeText(const QString &input, const QString &family, double sizePt,
                      std::optional<double> wrapMm, Qt::Alignment align, bool bold = false) {
@@ -93,6 +95,13 @@ ShapedText shapeText(const QString &input, const QString &family, double sizePt,
     font.setPixelSize(reference);
     font.setHintingPreference(QFont::PreferNoHinting);
     font.setStyleStrategy(QFont::PreferOutline);
+    // One glyph per character: no contextual alternates or ligatures, so text written to
+    // a PDF as real text maps back to its characters (R092: selectable and searchable).
+    // Some faces (Inter, Adwaita Sans) otherwise swap ':' and '-' between digits for
+    // glyphs outside their character map.
+    font.setFeature(QFont::Tag("calt"), 0);
+    font.setFeature(QFont::Tag("liga"), 0);
+    font.setFeature(QFont::Tag("clig"), 0);
     if (bold)
         font.setWeight(QFont::Bold);
     auto text = input;
@@ -131,7 +140,9 @@ ShapedText shapeText(const QString &input, const QString &family, double sizePt,
         }
     }
     glyphs.setFillRule(Qt::WindingFill);
-    result.path = QTransform::fromScale(unit, unit).map(glyphs);
+    result.unitTransform = QTransform::fromScale(unit, unit);
+    result.path = result.unitTransform.map(glyphs);
+    result.glyphs = layout.glyphRuns();
     result.sizeMm = {wrapMm ? *wrapMm : natural * unit, y * unit};
     return result;
 }
@@ -214,6 +225,8 @@ struct Builder {
         p.color = color;
         p.text = qtext;
         p.textBoxMm = QRectF(origin, shaped.sizeMm);
+        p.glyphs = shaped.glyphs;
+        p.glyphTransform = shaped.unitTransform * QTransform::fromTranslate(origin.x(), origin.y());
         return p;
     }
     void textBackground(DrawingSheetLayer layer, Id source, const QRectF &box,
@@ -246,6 +259,7 @@ struct Builder {
                             frame.center().y() - box.height() / 2 - box.top());
         words.path.translate(shift);
         words.textBoxMm.translate(shift);
+        words.glyphTransform *= QTransform::fromTranslate(shift.x(), shift.y());
         words.clipMm = frame;
         words.placeholderFor = placeholderFor;
         add(std::move(words));
@@ -302,6 +316,9 @@ struct Builder {
             p.text = value.label;
             if (!value.label.isEmpty())
                 p.textBoxMm = p.path.boundingRect();
+            p.glyphs = value.glyphs;
+            p.glyphTransform =
+                value.glyphTransform * QTransform::fromTranslate(frame.left(), frame.top());
             p.clipMm = frame;
             add(std::move(p));
         }
@@ -394,6 +411,7 @@ struct Builder {
                 turn.rotate(angle);
                 turn.translate(-size.width() / 2, -size.height() - dimensionTextGapMm);
                 words.path = turn.map(words.path);
+                words.glyphTransform *= turn;
                 const QRectF local(QPointF(0, 0), size);
                 words.textBoxMm = turn.mapRect(local);
                 textBackground(layer, id, local, {}, turn);
@@ -482,6 +500,7 @@ struct Builder {
             for (auto &word : words) {
                 word.path.translate(0, shift);
                 word.textBoxMm.translate(0, shift);
+                word.glyphTransform *= QTransform::fromTranslate(0, shift);
                 word.clipMm = cell.rectMm;
                 add(std::move(word));
             }
@@ -588,6 +607,17 @@ PreparedDrawingSheet prepareDrawingSheet(const Document &doc, Id sheet) {
     return prepareDrawingSheet(captureDrawingSheet(doc, sheet));
 }
 
+bool drawingFontEmbeddable(const QRawFont &font) {
+    if (!font.isValid() || font.fontTable("glyf").isEmpty())
+        return false;
+    const auto os2 = font.fontTable("OS/2");
+    if (os2.size() < 10)
+        return true; // No OS/2 table: no embedding restriction is declared.
+    const auto fsType = quint16((quint8(os2[8]) << 8) | quint8(os2[9]));
+    // Restricted-license, no-subsetting (PDF embedding always subsets) or bitmap-only.
+    return (fsType & 0x000f) != 0x0002 && !(fsType & 0x0100) && !(fsType & 0x0200);
+}
+
 QTransform drawingSheetDeviceTransform(const QPaintDevice &device) {
     return QTransform::fromScale(device.logicalDpiX() / 25.4, device.logicalDpiY() / 25.4);
 }
@@ -632,6 +662,31 @@ DrawingSheetPaintResult paintDrawingSheet(QPainter &painter, const PreparedDrawi
                                                                           : "rasterNotSupplied"});
             }
             continue;
+        }
+        if (options.text == DrawingTextMode::Text && !p.glyphs.isEmpty()) {
+            bool embeddable = true;
+            for (const auto &run : p.glyphs)
+                if (!drawingFontEmbeddable(run.rawFont())) {
+                    embeddable = false;
+                    const auto family = run.rawFont().familyName().toStdString();
+                    if (std::find(result.outlinedFonts.begin(), result.outlinedFonts.end(),
+                                  family) == result.outlinedFonts.end())
+                        result.outlinedFonts.push_back(family);
+                }
+            if (embeddable) {
+                // Real text: the PDF engine embeds a subset of each font and writes the
+                // characters, so the text is selectable and searchable. The pen colours it.
+                painter.save();
+                painter.setPen(QPen(p.color));
+                painter.setBrush(Qt::NoBrush);
+                painter.setTransform(p.glyphTransform, true);
+                for (const auto &run : p.glyphs)
+                    painter.drawGlyphRun(QPointF(), run);
+                painter.restore();
+                ++result.primitives;
+                ++result.textPrimitives;
+                continue;
+            }
         }
         if (p.fill) {
             painter.setPen(Qt::NoPen);

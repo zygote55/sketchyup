@@ -1003,6 +1003,63 @@
       "sideEffects": "none"
     },
     {
+      "name": "drawing_sheets.export_preflight",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "allowBroken": {
+            "type": "boolean"
+          },
+          "allowChanged": {
+            "type": "boolean"
+          },
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "pages": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "query": {
+            "const": "drawing_sheets.export_preflight"
+          },
+          "rasterCapture": {
+            "type": "boolean"
+          },
+          "rasterDpi": {
+            "maximum": 1200,
+            "minimum": 72,
+            "type": "integer"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
       "name": "selection.get",
       "paged": true,
       "parameters": {

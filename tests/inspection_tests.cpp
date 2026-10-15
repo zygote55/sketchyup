@@ -429,6 +429,11 @@ int main(int argc, char **argv) {
         check(run(sceneDocument, "reference_image.describe", {{"body", QString::number(imageBody)}})
                   ["asset"].toObject()["present"] == false, "Missing image assets remain explicit");
         rejects("NOT_FOUND", [&] { run(sceneDocument, "reference_image.describe", {{"body", "999999"}}); });
+        // The sheet export preflight shapes text, so it needs the graphical font worker;
+        // this QCoreApplication process reports that (sheet_export_tests runs it fully).
+        rejects("UNAVAILABLE_CONTEXT",
+                [&] { run(sceneDocument, "drawing_sheets.export_preflight"); });
+        exercised.insert("drawing_sheets.export_preflight");
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
                   QJsonDocument::fromJson(published.readAll()).object() == inspectionCapabilities(),

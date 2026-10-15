@@ -168,6 +168,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `drawing_items.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_item.describe` |  | `item`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_item.reattach_candidates` |  | `item`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_sheets.export_preflight` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `selection.get` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entities.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entity.describe` |  | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -234,6 +235,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `drawing_items.query` | drawing_items.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_item.describe` | drawing_item.describe: shared versioned SketchyUp operation | `item`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_item.reattach_candidates` | drawing_item.reattach_candidates: shared versioned SketchyUp operation | `item`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `drawing_sheets.export_preflight` | drawing_sheets.export_preflight: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `selection.get` | selection.get: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entities.query` | entities.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `entity.describe` | entity.describe: shared versioned SketchyUp operation | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |

@@ -187,6 +187,8 @@ MeasuredDrawingPaths measuredDrawingPaths(const MeasuredDrawing &drawing) {
         label.color = color;
         label.label = text;
         label.path = transform.map(glyphs);
+        label.glyphs = layout.glyphRuns();
+        label.glyphTransform = transform;
         append(result, std::move(label));
     }
     return result;
