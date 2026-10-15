@@ -7,6 +7,7 @@
 #include <QImage>
 #include <QPainterPath>
 #include <QRectF>
+#include <QSizeF>
 #include <QString>
 #include <QTransform>
 #include <cstdint>
@@ -54,8 +55,8 @@ struct DrawingSheetPrimitive {
     QColor color{Qt::black};
     double strokeMm{.25};
     bool fill{}, dashed{};
-    QRectF clipMm;   // The view frame for view content, otherwise the paper.
-    QString text;    // The text a shaped glyph path draws.
+    QRectF clipMm;    // The view frame for view content, otherwise the paper.
+    QString text;     // The text a shaped glyph path draws.
     QRectF textBoxMm; // The laid-out text box of a glyph path.
     // A raster slot: the image supplied for rasterView is drawn into rasterRectMm.
     Id rasterView{};
@@ -75,9 +76,9 @@ struct DrawingFontSubstitution {
 struct PreparedDrawingView {
     DrawingViewRecord record;
     DrawingViewEvaluation evaluation;
-    int number{}; // 1-based caption number: the view's place on the sheet in ID order.
-    std::string caption; // "1 · Ground floor plan 1:50", or "… Not to scale".
-    bool raster{};       // Raster appearance or a perspective (not to scale) view.
+    int number{};          // 1-based caption number: the view's place on the sheet in ID order.
+    std::string caption;   // "1 · Ground floor plan 1:50", or "… Not to scale".
+    bool raster{};         // Raster appearance or a perspective (not to scale) view.
     std::string pathError; // Measured paths exceeded the R078 budgets.
 };
 struct PreparedDrawingItem {
@@ -88,8 +89,8 @@ struct PreparedDrawingSheet {
     std::string identity;
     std::uint64_t revision{};
     DrawingSheetRecord sheet;
-    std::vector<PreparedDrawingView> views;  // ID order (the views' paint order).
-    std::vector<PreparedDrawingItem> items;  // z order, bottom first.
+    std::vector<PreparedDrawingView> views;        // ID order (the views' paint order).
+    std::vector<PreparedDrawingItem> items;        // z order, bottom first.
     std::vector<DrawingSheetPrimitive> primitives; // Paint order.
     std::vector<DrawingFontSubstitution> fontSubstitutions;
     qsizetype missingGlyphs{};
@@ -129,6 +130,25 @@ QTransform drawingSheetDeviceTransform(const QPaintDevice &device);
 // Paints the prepared sheet. The painter's state is restored afterwards.
 DrawingSheetPaintResult paintDrawingSheet(QPainter &painter, const PreparedDrawingSheet &sheet,
                                           const DrawingSheetPaintOptions &options = {});
+// The cells of a title block in paper millimetres (R091.g, the R091 design): a four-column
+// grid with the project across the top row; the drawing title (three columns) and sheet
+// number; then scale, date, revision and page. Stored cells are the editable fields
+// (project, drawingTitle, date, revision); the sheet number, scale and page are derived.
+struct DrawingTitleBlockCell {
+    std::string field;   // "project", "drawingTitle", "sheet", "scale", "date", "revision", "page"
+    std::string caption; // Empty for the project row.
+    bool stored{};
+    QRectF rectMm;
+};
+std::vector<DrawingTitleBlockCell> drawingTitleBlockCells(const DrawingItemFrame &frame);
+// The laid-out size of item text in paper millimetres, as the compositor shapes it.
+QSizeF drawingTextSizeMm(const std::string &text, const DrawingFont &font,
+                         std::optional<double> wrapMm = std::nullopt);
+// The display list of one item alone (paper millimetres), as prepareDrawingSheet builds
+// it: the desktop canvas uses it for previews and for items edited since the last
+// evaluation, so a change never waits on a worker.
+std::vector<DrawingSheetPrimitive> drawingItemPrimitives(const DrawingSheetRecord &sheet,
+                                                         const PreparedDrawingItem &item);
 // Caption text of a view: "<number> · <name> 1:<scale>" or "... Not to scale".
 std::string drawingViewCaption(int number, const DrawingViewRecord &view, bool notToScale);
 } // namespace sketchy

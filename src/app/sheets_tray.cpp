@@ -1,5 +1,7 @@
 #include "app/sheets_tray.hpp"
 #include "app/history_panel.hpp"
+#include "app/sheet_item_info.hpp"
+#include "app/sheet_items.hpp"
 #include "app/sheet_text.hpp"
 #include "core/drawing_item_records.hpp"
 #include "core/drawing_sheets.hpp"
@@ -34,27 +36,6 @@ QLabel *valueLabel(const QString &name) {
     label->setAccessibleName(name);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse);
     return label;
-}
-QString itemSummary(const DrawingItemRecord &item) {
-    switch (item.kind()) {
-    case DrawingItemKind::Text:
-        return "Text · " + QString::fromStdString(std::get<DrawingTextItem>(item.data).text)
-                               .section('\n', 0, 0)
-                               .left(40);
-    case DrawingItemKind::Label:
-        return "Label · " + QString::fromStdString(std::get<DrawingLabelItem>(item.data).text)
-                                .section('\n', 0, 0)
-                                .left(40);
-    case DrawingItemKind::Dimension:
-        return "Dimension";
-    case DrawingItemKind::Line:
-        return "Line";
-    case DrawingItemKind::Rectangle:
-        return "Rectangle";
-    case DrawingItemKind::TitleBlock:
-        return "Title block";
-    }
-    return "Item";
 }
 } // namespace
 QPixmap sheetStateIcon(DrawingViewState state, bool pending, const ThemeColors &colors,
@@ -110,7 +91,7 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     info->setObjectName("sheetEntityInfo");
     auto *infoLayout = new QVBoxLayout(info);
     infoLayout->setContentsMargins(4, 2, 4, 6);
-    infoEmpty_ = new QLabel("Select a view on the page or in Pages.");
+    infoEmpty_ = new QLabel("Select a view or an item on the page or in Pages.");
     infoEmpty_->setObjectName("sheetInfoEmpty");
     infoEmpty_->setWordWrap(true);
     infoLayout->addWidget(infoEmpty_);
@@ -193,6 +174,7 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     // Edit view (Enter on the canvas), Show scene in model and, for a broken view, Choose
     // scene… The buttons wrap onto lines of their own in the narrow Tray.
     auto *actions = new QWidget;
+    infoActions_ = actions;
     actions->setObjectName("sheetInfoActions");
     auto *actionsLayout = new QVBoxLayout(actions);
     actionsLayout->setContentsMargins(0, 4, 0, 0);
@@ -217,6 +199,9 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     connect(infoChooseScene_, &QPushButton::clicked, this,
             [this] { emit chooseSceneRequested(view_); });
     infoLayout->addWidget(actions);
+    // R091.g: a selected page item shows its own labelled fields.
+    itemInfo_ = new SheetItemInfo(doc);
+    infoLayout->addWidget(itemInfo_);
     place_ = new SheetPlacePanel(doc);
     place_->hide();
     layout->addWidget(place_, 1);
@@ -279,8 +264,9 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
     pages_ = new QTreeWidget;
     pages_->setObjectName("sheetPagesTree");
     pages_->setAccessibleName("Pages");
-    pages_->setAccessibleDescription("Pages expand to their views and items. F2 renames a page, "
-                                     "Alt+Up and Alt+Down move it, Delete deletes it.");
+    pages_->setAccessibleDescription(
+        "Pages expand to their views and items. F2 renames a page, Alt+Up and Alt+Down move a "
+        "page or an item's stacking order, Delete deletes it, and Enter edits an item's text.");
     pages_->setColumnCount(3);
     pages_->setHeaderLabels({"Number", "Name", "State"});
     pages_->setHeaderHidden(true);
@@ -306,6 +292,9 @@ SheetsTray::SheetsTray(Document &doc, Viewport &viewport, DrawingViewRenderCache
             break;
         case ViewRow:
             emit viewChosen(id);
+            break;
+        case ItemRow:
+            emit itemChosen(id);
             break;
         default:
             if (item->parent())
@@ -446,6 +435,26 @@ bool SheetsTray::eventFilter(QObject *object, QEvent *event) {
                 this, [this, id] { emit deletePage(id); }, Qt::QueuedConnection);
             return true;
         }
+        const bool itemRow = item && item->data(0, KindRole).toInt() == ItemRow;
+        if (itemRow && (key->key() == Qt::Key_Up || key->key() == Qt::Key_Down) &&
+            key->modifiers() == Qt::AltModifier) {
+            // The list runs bottom first: Alt+Down moves the item later in paint order
+            // (forward), Alt+Up earlier (backward).
+            const int delta = key->key() == Qt::Key_Down ? 1 : -1;
+            QMetaObject::invokeMethod(
+                this, [this, id, delta] { emit reorderItem(id, delta); }, Qt::QueuedConnection);
+            return true;
+        }
+        if (itemRow && key->key() == Qt::Key_Delete && key->modifiers() == Qt::NoModifier) {
+            QMetaObject::invokeMethod(
+                this, [this, id] { emit deleteItem(id); }, Qt::QueuedConnection);
+            return true;
+        }
+        if (itemRow && (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) &&
+            key->modifiers() == Qt::NoModifier) {
+            emit itemActivated(id);
+            return true;
+        }
         if (item && (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) &&
             key->modifiers() == Qt::NoModifier) {
             if (auto *top = currentPageItem())
@@ -478,9 +487,10 @@ void SheetsTray::fitInfo() {
     infoSection_->setMinimumHeight(layout->hasHeightForWidth() ? layout->heightForWidth(width)
                                                                : layout->sizeHint().height());
 }
-void SheetsTray::refresh(Id currentSheet, Id selectedView) {
+void SheetsTray::refresh(Id currentSheet, Id selectedView, Id selectedItem) {
     sheet_ = currentSheet;
     view_ = selectedView;
+    item_ = selectedItem;
     refreshInfo();
     fitInfo();
     refreshReferences();
@@ -491,9 +501,32 @@ void SheetsTray::refresh(Id currentSheet, Id selectedView) {
 void SheetsTray::refreshInfo() {
     const auto found = doc_.drawingViews().find(view_);
     const bool shown = found != doc_.drawingViews().end();
-    infoSection_->setTitle(shown ? "Entity info · Model view" : "Entity info");
-    infoEmpty_->setVisible(!shown);
+    const bool item = !shown && doc_.drawingItems().contains(item_);
+    infoSection_->setTitle(shown ? QString("Entity info · Model view") : QString("Entity info"));
+    infoEmpty_->setVisible(!shown && !item);
     infoFields_->setVisible(shown);
+    infoActions_->setVisible(shown);
+    itemInfo_->setVisible(item);
+    if (item) {
+        std::optional<DrawingItemEvaluation> evaluation;
+        try {
+            evaluation = evaluateDrawingItem(doc_, item_);
+        } catch (const std::exception &) {
+        }
+        QString viewName;
+        if (const auto view = drawingItemView(*doc_.drawingItems().at(item_));
+            view && doc_.drawingViews().contains(view)) {
+            const auto views = drawingViewsOnSheet(doc_, doc_.drawingViews().at(view)->sheet);
+            const auto at = std::find(views.begin(), views.end(), view);
+            viewName = "View " + QString::number(int(at - views.begin()) + 1) + " · " +
+                       QString::fromStdString(doc_.drawingViews().at(view)->name);
+        }
+        itemInfo_->setTheme(colors_);
+        itemInfo_->refresh(item_, evaluation, viewName);
+        infoSection_->setTitle(itemInfo_->title());
+        return;
+    }
+    itemInfo_->refresh(0, std::nullopt, {});
     if (!shown)
         return;
     const auto &view = *found->second;
@@ -618,23 +651,32 @@ void SheetsTray::refreshPages() {
                 }
                 row->setToolTip(1, row->text(1) + " · " + row->text(2));
             }
-            const auto evaluation = cache_.sheet(id);
+            // Items in paint order (bottom first) with their state; evaluating an item is cheap
+            // (no capture), so the state is always the document's.
             for (const auto item : drawingItemsOnSheet(doc_, id)) {
                 auto *row = new QTreeWidgetItem(page);
                 row->setData(0, KindRole, ItemRow);
                 row->setData(0, IdRole, QVariant::fromValue<qulonglong>(item));
-                row->setText(1, itemSummary(*doc_.drawingItems().at(item)));
-                if (evaluation)
-                    for (const auto &prepared : evaluation->prepared.items)
-                        if (prepared.record.id == item &&
-                            prepared.evaluation.state == DrawingItemState::Broken) {
-                            row->setText(2, "Broken: " +
-                                                (prepared.evaluation.reasons.empty()
-                                                     ? QString("reference missing")
-                                                     : brokenReasonText(
-                                                           prepared.evaluation.reasons.front())));
-                            row->setForeground(2, colors_.failure);
-                        }
+                const auto &record = *doc_.drawingItems().at(item);
+                std::optional<DrawingItemEvaluation> evaluation;
+                try {
+                    evaluation = evaluateDrawingItem(doc_, item);
+                } catch (const std::exception &) {
+                }
+                row->setText(1, sheetItemSummary(record, evaluation ? &*evaluation : nullptr));
+                if (evaluation) {
+                    // The short state fits the column; the reason is in the tooltip, Entity
+                    // info and the canvas description.
+                    row->setText(2, evaluation->state == DrawingItemState::Broken ? "Broken"
+                                                                                  : "Current");
+                    row->setData(2, Qt::AccessibleDescriptionRole, sheetItemStateText(*evaluation));
+                    if (evaluation->state == DrawingItemState::Broken) {
+                        ++broken;
+                        row->setForeground(2, colors_.failure);
+                    }
+                }
+                row->setToolTip(1, row->text(1) + " · " +
+                                       (evaluation ? sheetItemStateText(*evaluation) : QString{}));
             }
             QStringList state;
             if (changed)
@@ -655,13 +697,13 @@ void SheetsTray::refreshPages() {
     if (!page)
         return;
     QTreeWidgetItem *current = page;
-    for (int i = 0; i < page->childCount(); ++i)
-        if (view_ && page->child(i)->data(0, KindRole).toInt() == ViewRow &&
-            page->child(i)->data(0, IdRole).toULongLong() == view_)
+    for (int i = 0; i < page->childCount(); ++i) {
+        const auto kind = page->child(i)->data(0, KindRole).toInt();
+        const auto id = page->child(i)->data(0, IdRole).toULongLong();
+        if ((view_ && kind == ViewRow && id == view_) || (item_ && kind == ItemRow && id == item_))
             current = page->child(i);
+    }
     auto *now = pages_->currentItem();
-    if (!view_ && now && now->parent() == page && now->data(0, KindRole).toInt() == ItemRow)
-        return;
     if (now != current) {
         if (current->parent())
             current->parent()->setExpanded(true);

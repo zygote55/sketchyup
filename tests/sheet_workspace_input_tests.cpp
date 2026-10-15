@@ -303,11 +303,14 @@ void workspace(Window &window, const QString &path, const Fixture &f) {
         check(accessible && accessible->role() == QAccessible::Canvas &&
                   accessible->text(QAccessible::Name) == "Page A-101 Ground floor, A3 landscape",
               "Canvas accessible name names the page");
-        check(accessible->childCount() == 2 && accessible->child(0) &&
+        // R091.g: views first, then the page's items (the notes text).
+        check(accessible->childCount() == 3 && accessible->child(0) &&
                   accessible->child(0)
                       ->text(QAccessible::Name)
                       .startsWith("View 1 · Ground floor plan · 1:50 · Current"),
               "Canvas exposes its views as accessible children");
+        check(accessible->child(2)->text(QAccessible::Name).startsWith("Text · "),
+              "Then its items: " + accessible->child(2)->text(QAccessible::Name).toStdString());
     }
 
     // F6 regions: search, sheet rail, canvas, page tabs, Tray, (Assistant), Measurements.

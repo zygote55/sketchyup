@@ -37,40 +37,50 @@ QPainterPath refreshIcon() {
     path.lineTo(7.5, 4.5);
     return path;
 }
-class SheetViewAccessible;
-// The canvas: role Canvas, the page as its name, the selected view as its description, and one
-// child per view (ADR 0164 §1).
+class SheetEntryAccessible;
+// The canvas: role Canvas, the page as its name, the selected view or item as its description,
+// and one child per view and item in paint order (ADR 0164 §§1, 4).
 class SheetCanvasAccessible final : public QAccessibleWidget {
   public:
     explicit SheetCanvasAccessible(QWidget *widget)
         : QAccessibleWidget(widget, QAccessible::Canvas) {}
     SheetCanvas *canvas() const { return static_cast<SheetCanvas *>(widget()); }
-    int childCount() const override { return int(canvas()->views().size()); }
+    int childCount() const override { return int(canvas()->entries().size()); }
     QAccessibleInterface *child(int index) const override;
     int indexOfChild(const QAccessibleInterface *child) const override;
     QAccessibleInterface *childAt(int x, int y) const override {
         const auto point = canvas()->mapFromGlobal(QPoint(x, y));
-        const auto views = canvas()->views();
-        for (int i = int(views.size()) - 1; i >= 0; --i)
-            if (canvas()->viewRect(views[size_t(i)]).contains(point))
+        const auto entries = canvas()->entries();
+        for (int i = int(entries.size()) - 1; i >= 0; --i) {
+            const auto &entry = entries[size_t(i)];
+            const auto rect =
+                entry.item ? canvas()->itemRect(entry.id) : canvas()->viewRect(entry.id);
+            if (rect.contains(point))
                 return child(i);
+        }
         return nullptr;
     }
     QAccessibleInterface *focusChild() const override {
-        const auto views = canvas()->views();
-        const auto at = std::find(views.begin(), views.end(), canvas()->selectedView());
-        return canvas()->hasFocus() && at != views.end() ? child(int(at - views.begin())) : nullptr;
+        const auto entries = canvas()->entries();
+        const SheetCanvas::Entry selected{canvas()->selectedItem() != 0,
+                                          canvas()->selectedItem() ? canvas()->selectedItem()
+                                                                   : canvas()->selectedView()};
+        const auto at = std::find(entries.begin(), entries.end(), selected);
+        return canvas()->hasFocus() && selected.id && at != entries.end()
+                   ? child(int(at - entries.begin()))
+                   : nullptr;
     }
 };
-class SheetViewAccessible final : public QAccessibleInterface {
+class SheetEntryAccessible final : public QAccessibleInterface {
   public:
-    SheetViewAccessible(SheetCanvas *canvas, Id view) : canvas_(canvas), view_(view) {}
-    Id view() const { return view_; }
+    SheetEntryAccessible(SheetCanvas *canvas, SheetCanvas::Entry entry)
+        : canvas_(canvas), entry_(entry) {}
+    SheetCanvas::Entry entry() const { return entry_; }
     bool isValid() const override {
         if (!canvas_)
             return false;
-        const auto views = canvas_->views();
-        return std::find(views.begin(), views.end(), view_) != views.end();
+        const auto entries = canvas_->entries();
+        return std::find(entries.begin(), entries.end(), entry_) != entries.end();
     }
     QObject *object() const override { return nullptr; }
     QWindow *window() const override {
@@ -88,14 +98,18 @@ class SheetViewAccessible final : public QAccessibleInterface {
         if (!isValid())
             return {};
         if (kind == QAccessible::Name)
-            return canvas_->describeView(view_);
-        return kind == QAccessible::Description ? canvas_->brokenMessage(view_) : QString{};
+            return entry_.item ? canvas_->describeItem(entry_.id)
+                               : canvas_->describeView(entry_.id);
+        return kind == QAccessible::Description && !entry_.item ? canvas_->brokenMessage(entry_.id)
+                                                                : QString{};
     }
     void setText(QAccessible::Text, const QString &) override {}
     QRect rect() const override {
         if (!isValid())
             return {};
-        const auto local = canvas_->viewRect(view_).toAlignedRect();
+        const auto local =
+            (entry_.item ? canvas_->itemRect(entry_.id) : canvas_->viewRect(entry_.id))
+                .toAlignedRect();
         return QRect(canvas_->mapToGlobal(local.topLeft()), local.size());
     }
     QAccessible::Role role() const override { return QAccessible::Graphic; }
@@ -106,46 +120,50 @@ class SheetViewAccessible final : public QAccessibleInterface {
             return state;
         }
         state.selectable = true;
-        state.selected = canvas_->selectedView() == view_;
+        state.selected = entry_.item ? canvas_->selectedItem() == entry_.id
+                                     : canvas_->selectedView() == entry_.id;
         state.focused = state.selected && canvas_->hasFocus();
         return state;
     }
 
   private:
     QPointer<SheetCanvas> canvas_;
-    Id view_{};
+    SheetCanvas::Entry entry_;
 };
-// Child interfaces live as long as their view is on the page; ids are stable per canvas.
-std::map<std::pair<const SheetCanvas *, Id>, QAccessible::Id> &childIds() {
-    static std::map<std::pair<const SheetCanvas *, Id>, QAccessible::Id> ids;
+// Child interfaces live as long as their view or item is on the page; ids are stable per canvas.
+using ChildKey = std::tuple<const SheetCanvas *, bool, Id>;
+std::map<ChildKey, QAccessible::Id> &childIds() {
+    static std::map<ChildKey, QAccessible::Id> ids;
     return ids;
 }
 QAccessibleInterface *SheetCanvasAccessible::child(int index) const {
-    const auto views = canvas()->views();
-    if (index < 0 || index >= int(views.size()))
+    const auto entries = canvas()->entries();
+    if (index < 0 || index >= int(entries.size()))
         return nullptr;
-    const auto key = std::pair<const SheetCanvas *, Id>(canvas(), views[size_t(index)]);
+    const auto &entry = entries[size_t(index)];
+    const ChildKey key{canvas(), entry.item, entry.id};
     auto &ids = childIds();
     if (const auto found = ids.find(key); found != ids.end())
         if (auto *existing = QAccessible::accessibleInterface(found->second))
             return existing;
-    auto *created = new SheetViewAccessible(canvas(), key.second);
+    auto *created = new SheetEntryAccessible(canvas(), entry);
     ids[key] = QAccessible::registerAccessibleInterface(created);
     return created;
 }
 int SheetCanvasAccessible::indexOfChild(const QAccessibleInterface *child) const {
-    const auto *view = dynamic_cast<const SheetViewAccessible *>(child);
-    if (!view)
+    const auto *entry = dynamic_cast<const SheetEntryAccessible *>(child);
+    if (!entry)
         return -1;
-    const auto views = canvas()->views();
-    const auto at = std::find(views.begin(), views.end(), view->view());
-    return at == views.end() ? -1 : int(at - views.begin());
+    const auto entries = canvas()->entries();
+    const auto at = std::find(entries.begin(), entries.end(), entry->entry());
+    return at == entries.end() ? -1 : int(at - entries.begin());
 }
-void dropChildren(const SheetCanvas *canvas, const std::vector<Id> &keep) {
+void dropChildren(const SheetCanvas *canvas, const std::vector<SheetCanvas::Entry> &keep) {
     auto &ids = childIds();
     for (auto it = ids.begin(); it != ids.end();) {
-        if (it->first.first == canvas &&
-            std::find(keep.begin(), keep.end(), it->first.second) == keep.end()) {
+        const auto &[owner, item, id] = it->first;
+        if (owner == canvas &&
+            std::find(keep.begin(), keep.end(), SheetCanvas::Entry{item, id}) == keep.end()) {
             QAccessible::deleteAccessibleInterface(it->second);
             it = ids.erase(it);
         } else
@@ -219,11 +237,14 @@ const DrawingSheetRecord *SheetCanvas::record() const {
 void SheetCanvas::setSheet(Id sheet) {
     if (sheet == sheet_ && (record() || !sheet))
         return;
+    if (textEditing())
+        endTextEdit();
     cancelOperation();
     leaveEditView();
     endRevision();
     sheet_ = sheet;
     selectedView_ = 0;
+    dropItemSelection();
     fitPage();
     contentChanged();
     emit selectionChanged(0);
@@ -240,15 +261,18 @@ void SheetCanvas::setGrid(bool shown) {
 void SheetCanvas::setTool(Tool tool) {
     if (tool_ == tool)
         return;
+    if (textEditing())
+        endTextEdit();
     cancelOperation();
     leaveEditView();
     endRevision();
     tool_ = tool;
     drag_ = Drag::None;
-    setCursor(tool == Tool::Pan    ? Qt::OpenHandCursor
-              : tool == Tool::Zoom ? Qt::SizeVerCursor
-              : tool == Tool::View ? Qt::CrossCursor
-                                   : Qt::ArrowCursor);
+    setCursor(tool == Tool::Pan                            ? Qt::OpenHandCursor
+              : tool == Tool::Zoom                         ? Qt::SizeVerCursor
+              : tool == Tool::Text                         ? Qt::IBeamCursor
+              : tool == Tool::Select || tool == Tool::Move ? Qt::ArrowCursor
+                                                           : Qt::CrossCursor);
     emit toolChanged(int(tool));
     emit stepChanged();
 }
@@ -279,6 +303,7 @@ void SheetCanvas::fitPage() {
     origin_ = {(this->width() - sheet->paper.widthMm * pixelsPerMm_) / 2,
                (this->height() - sheet->paper.heightMm * pixelsPerMm_) / 2};
     rasterTimer_.start();
+    placeEditor();
     update();
     emit zoomChanged(zoom());
 }
@@ -292,6 +317,7 @@ void SheetCanvas::setPixelsPerMm(double value, QPointF anchor) {
     origin_ = anchor - paper * pixelsPerMm_;
     fitted_ = false;
     rasterTimer_.start();
+    placeEditor();
     update();
     emit zoomChanged(zoom());
 }
@@ -308,17 +334,23 @@ void SheetCanvas::panBy(QPointF delta) {
     origin_.setX(std::clamp(origin_.x(), keepX - paper.width(), width() - keepX));
     origin_.setY(std::clamp(origin_.y(), keepY - paper.height(), height() - keepY));
     fitted_ = false;
+    placeEditor();
     update();
 }
 void SheetCanvas::setSelectedView(Id view) {
     if (view &&
         (!doc_.drawingViews().contains(view) || doc_.drawingViews().at(view)->sheet != sheet_))
         view = 0;
-    if (view == selectedView_)
+    if (view == selectedView_ && !selectedItem_)
         return;
+    if (textEditing())
+        endTextEdit();
+    cancelReattach();
     if (editView_)
         leaveEditView();
     endRevision();
+    // One selection: a view clears the selected item.
+    dropItemSelection();
     selectedView_ = view;
     update();
     announce();
@@ -394,12 +426,15 @@ QString SheetCanvas::describeView(Id view) const {
 void SheetCanvas::announce() {
     setAccessibleName(pageName());
     const auto views = this->views();
-    setAccessibleDescription(editView_       ? "Editing " + describeView(editView_)
-                             : selectedView_ ? describeView(selectedView_)
-                             : views.empty() ? QString("No views on this page")
-                                             : QString("%1 view%2 · none selected")
-                                                   .arg(views.size())
-                                                   .arg(views.size() == 1 ? "" : "s"));
+    const auto items = this->items();
+    QString counts = QString("%1 view%2").arg(views.size()).arg(views.size() == 1 ? "" : "s");
+    if (!items.empty())
+        counts += QString(" · %1 item%2").arg(items.size()).arg(items.size() == 1 ? "" : "s");
+    setAccessibleDescription(editView_                        ? "Editing " + describeView(editView_)
+                             : selectedItem_                  ? describeItem(selectedItem_)
+                             : selectedView_                  ? describeView(selectedView_)
+                             : views.empty() && items.empty() ? QString("No views on this page")
+                                                              : counts + " · none selected");
 }
 void SheetCanvas::contentChanged() {
     if (fitted_)
@@ -414,7 +449,24 @@ void SheetCanvas::contentChanged() {
         emit selectionChanged(0);
         emit stepChanged();
     }
-    dropChildren(this, views());
+    // R091.g: an item that is gone (deleted, undone) leaves the selection and its operations.
+    if (previewItem_ && !liveItem(previewItem_->id))
+        cancelOperation();
+    if (reattach_.item && !liveItem(reattach_.item))
+        cancelReattach();
+    if (editor_ && editing_.item && !liveItem(editing_.item)) {
+        editor_->removeEventFilter(this);
+        editor_->hide();
+        editor_->deleteLater();
+        editor_ = nullptr;
+        editing_ = {};
+        setFocus(Qt::OtherFocusReason);
+    }
+    if (selectedItem_ && !liveItem(selectedItem_)) {
+        dropItemSelection();
+        emit stepChanged();
+    }
+    dropChildren(this, entries());
     announce();
     QAccessibleEvent event(this, QAccessible::NameChanged);
     QAccessible::updateAccessibility(&event);
@@ -687,6 +739,13 @@ void SheetCanvas::wheelEvent(QWheelEvent *event) {
     event->accept();
 }
 void SheetCanvas::mousePressEvent(QMouseEvent *event) {
+    if (textEditing()) {
+        // Decision 11: a click outside the in-place editor ends editing (one entry).
+        endTextEdit();
+        setFocus(Qt::MouseFocusReason);
+        event->accept();
+        return;
+    }
     setFocus(Qt::MouseFocusReason);
     dragStart_ = dragLast_ = event->position();
     if (event->button() == Qt::MiddleButton ||
@@ -731,7 +790,7 @@ bool SheetCanvas::event(QEvent *event) {
         // entities (ADR 0164 §4); F6 leaves the canvas. An empty page lets Tab move on.
         if ((key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) &&
             !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) &&
-            tool_ == Tool::Select && !editView_ && !views().empty() && !operationActive()) {
+            tool_ == Tool::Select && !editView_ && !entries().empty() && !operationActive()) {
             cycleSelection(key->key() == Qt::Key_Backtab ||
                            key->modifiers().testFlag(Qt::ShiftModifier));
             event->accept();
@@ -759,7 +818,7 @@ void SheetCanvas::keyPressEvent(QKeyEvent *event) {
     if (key == Qt::Key_Escape) {
         // Back out one step: cancel a drag, then leave the tool, then leave edit-view, then
         // clear the selection (UX_DESIGN §4.1).
-        if (drag_ != Drag::None || anchored_)
+        if (operationActive())
             cancelOperation();
         else if (tool_ != Tool::Select)
             emit escapeToSelect();

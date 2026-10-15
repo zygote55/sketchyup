@@ -4,6 +4,7 @@
 // through the committer as drawing_view.* commands, one labelled sheet-only entry; previews
 // are local canvas state and Esc cancels them without an entry.
 #include "app/sheet_canvas.hpp"
+#include "app/sheet_items.hpp"
 #include "app/sheet_text.hpp"
 #include "automation/measurements.hpp"
 #include "core/drawing_sheets.hpp"
@@ -353,17 +354,22 @@ void SheetCanvas::setPlacement(const Placement &placement) {
 }
 void SheetCanvas::clearPreview() {
     preview_.reset();
+    previewItem_.reset();
     snapHint_.clear();
     guides_.clear();
     update();
 }
 void SheetCanvas::cancelOperation() {
-    const bool active = drag_ != Drag::None || anchored_ || preview_;
+    const bool active = drag_ != Drag::None || anchored_ || preview_ || previewItem_ ||
+                        itemTool_.step > 0 || reattach_.item;
     if (drag_ == Drag::Pan || drag_ == Drag::Zoom)
         rasterTimer_.start();
     drag_ = Drag::None;
     anchored_ = false;
     dragMoved_ = false;
+    resetItemTool();
+    if (reattach_.item)
+        reattach_ = {};
     clearPreview();
     if (active)
         emit stepChanged();
@@ -539,10 +545,12 @@ bool SheetCanvas::zoomCrop(double factor, std::optional<QPointF> about) {
     return commitView(*live, after, "Crop view", amendKey);
 }
 void SheetCanvas::cycleSelection(bool backward) {
-    const auto list = views();
+    // Views, then items by z (R091.g): the paint order.
+    const auto list = entries();
     if (list.empty())
         return;
-    auto at = std::find(list.begin(), list.end(), selectedView_);
+    const Entry selected{selectedItem_ != 0, selectedItem_ ? selectedItem_ : selectedView_};
+    auto at = selected.id ? std::find(list.begin(), list.end(), selected) : list.end();
     size_t index;
     if (at == list.end())
         index = backward ? list.size() - 1 : 0;
@@ -550,7 +558,10 @@ void SheetCanvas::cycleSelection(bool backward) {
         const auto current = size_t(at - list.begin());
         index = backward ? (current + list.size() - 1) % list.size() : (current + 1) % list.size();
     }
-    setSelectedView(list[index]);
+    if (list[index].item)
+        setSelectedItem(list[index].id);
+    else
+        setSelectedView(list[index].id);
     QAccessibleEvent event(this, QAccessible::Focus);
     event.setChild(int(index));
     QAccessible::updateAccessibility(&event);
@@ -647,6 +658,33 @@ void SheetCanvas::pressEditing(QMouseEvent *event) {
     const auto point = toPaper(event->position());
     const bool snapping = !(event->modifiers() & Qt::AltModifier);
     dragMoved_ = false;
+    if (reattaching()) {
+        // A click on another vertex or edge in the view chooses it for the active anchor.
+        const auto hit = anchorNear(reattach_.view, point, tolerance());
+        if (!hit) {
+            emit message("Click a model vertex or edge in the view, or press Enter to use the "
+                         "proposed point.");
+            return;
+        }
+        auto &anchors = reattach_.proposal.anchors;
+        if (reattach_.active < anchors.size())
+            reattach_.chosen[reattach_.active] = hit;
+        // The next missing anchor becomes active.
+        for (size_t step = 1; step <= anchors.size(); ++step) {
+            const auto next = (reattach_.active + step) % anchors.size();
+            if (anchors[next].state != AnchorState::Resolved) {
+                reattach_.active = next;
+                break;
+            }
+        }
+        update();
+        emit stepChanged();
+        return;
+    }
+    if (itemTool() && !editView_) {
+        pressItemTool(event);
+        return;
+    }
     if (editView_) {
         // Inside the frame a drag pans the drawing; a click outside closes the context.
         if (!viewRect(editView_).contains(event->position())) {
@@ -674,6 +712,20 @@ void SheetCanvas::pressEditing(QMouseEvent *event) {
         emit stepChanged();
         return;
     case Tool::Move:
+        if (anchored_ && previewItem_) {
+            // The second click drops the picked-up item.
+            if (const auto *live = liveItem(previewItem_->id)) {
+                const auto before = *live, after = *previewItem_;
+                anchored_ = false;
+                clearPreview();
+                if (commitItemUpdate(before, after,
+                                     "Move " + sheetItemKindName(before.kind()).toLower(),
+                                     key("itemmove", before.id)))
+                    revision_.item = before;
+            }
+            emit stepChanged();
+            return;
+        }
         if (anchored_ && preview_) {
             // The second click drops the picked-up view.
             const auto *live = liveView(preview_->id);
@@ -709,6 +761,14 @@ void SheetCanvas::pressEditing(QMouseEvent *event) {
                 return;
             }
         }
+        // Items paint over views, so they are picked first (R091.g).
+        if (const auto item = itemAt(point)) {
+            setSelectedItem(item);
+            previewItem_ = *liveItem(item);
+            anchorMm_ = point;
+            drag_ = Drag::MoveItem;
+            return;
+        }
         const auto hit = viewAt(point);
         setSelectedView(hit);
         if (hit) {
@@ -718,8 +778,7 @@ void SheetCanvas::pressEditing(QMouseEvent *event) {
         }
         return;
     }
-    case Tool::Pan:
-    case Tool::Zoom:
+    default:
         return;
     }
 }
@@ -730,6 +789,31 @@ void SheetCanvas::moveEditing(QMouseEvent *event) {
     if (drag_ != Drag::None && !dragMoved_ &&
         QLineF(event->position(), dragStart_).length() >= dragThresholdPixels)
         dragMoved_ = true;
+    if (itemTool() && !editView_ && !reattaching()) {
+        moveItemTool(event);
+        return;
+    }
+    if (previewItem_ && ((drag_ == Drag::MoveItem && dragMoved_) ||
+                         (drag_ == Drag::None && anchored_ && tool_ == Tool::Move))) {
+        const auto *live = liveItem(previewItem_->id);
+        const auto *sheet = record();
+        if (!live || !sheet)
+            return;
+        auto delta = point - anchorMm_;
+        // The item's top-left snaps like a view's corner; a dimension follows the pointer.
+        if (live->kind() != DrawingItemKind::Dimension && snapping) {
+            const auto origin = sheetItemOrigin(*live);
+            delta = snapPoint(origin + delta, true) - origin;
+        } else {
+            snapHint_.clear();
+            guides_.clear();
+            delta = {tidy(delta.x()), tidy(delta.y())};
+        }
+        previewItem_ = movedSheetItem(doc_, *live, delta, sheet->paper);
+        update();
+        emit stepChanged();
+        return;
+    }
     if (tool_ == Tool::View && anchored_ && !editView_) {
         cornerMm_ = snapPoint(point, snapping);
         update();
@@ -821,6 +905,36 @@ void SheetCanvas::releaseEditing(QMouseEvent *event) {
         emit stepChanged();
         return;
     }
+    case Drag::Item:
+        releaseItemTool(event);
+        return;
+    case Drag::MoveItem: {
+        const auto *live = previewItem_ ? liveItem(previewItem_->id) : nullptr;
+        if (!live) {
+            clearPreview();
+            return;
+        }
+        if (!dragMoved_) {
+            // Move tool: a click picks the item up; the next click drops it.
+            if (tool_ == Tool::Move) {
+                anchored_ = true;
+                emit stepChanged();
+            } else
+                clearPreview();
+            return;
+        }
+        const auto before = *live, after = *previewItem_;
+        const auto delta = sheetItemOrigin(after) - sheetItemOrigin(before);
+        clearPreview();
+        if (commitItemUpdate(before, after, "Move " + sheetItemKindName(before.kind()).toLower(),
+                             key("itemmove", before.id))) {
+            revision_.item = before;
+            const auto length = std::hypot(delta.x(), delta.y());
+            revision_.direction = length > 0 ? delta / length : QPointF();
+        }
+        emit stepChanged();
+        return;
+    }
     case Drag::EditPan: {
         setCursor(Qt::ArrowCursor);
         const auto *live = preview_ ? liveView(preview_->id) : nullptr;
@@ -844,6 +958,8 @@ bool SheetCanvas::keyEditing(QKeyEvent *event) {
         key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up || key == Qt::Key_Down;
     if (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))
         return false;
+    if (keyItems(event))
+        return true;
     const double step = shift ? 10 : 1;
     const QPointF delta(key == Qt::Key_Left    ? -step
                         : key == Qt::Key_Right ? step
@@ -854,7 +970,8 @@ bool SheetCanvas::keyEditing(QKeyEvent *event) {
     if (key == Qt::Key_Delete || key == Qt::Key_Backspace) {
         // Edit-view swallows Delete so nothing is deleted by accident; Backspace outside it is
         // the same as Delete (the Delete key itself is the sheet.view.delete shortcut).
-        if (!editView_ && selectedView_ && tool_ == Tool::Select && !operationActive())
+        if (!editView_ && (selectedView_ || selectedItem_) && tool_ == Tool::Select &&
+            !operationActive())
             emit deleteRequested();
         return true;
     }
@@ -901,6 +1018,25 @@ QString SheetCanvas::measurementLabel() const {
         return "Scale";
     if (tool_ == Tool::Move && selectedView_)
         return "Distance";
+    // R091.g: the item tools and a selected item.
+    switch (tool_) {
+    case Tool::Line:
+        return "Length";
+    case Tool::Rectangle:
+        return "Size";
+    case Tool::Text:
+    case Tool::Label:
+        return textEditing() ? QString{} : QString("Position");
+    case Tool::Dimension:
+        return itemTool_.step == 2 || revision_.key.startsWith("item:dimension") ? "Offset"
+                                                                                 : QString{};
+    default:
+        break;
+    }
+    if ((tool_ == Tool::Select || tool_ == Tool::Move) && selectedItem_ && !textEditing()) {
+        const auto *item = liveItem(selectedItem_);
+        return item && item->kind() == DrawingItemKind::Dimension ? "Offset" : "Move";
+    }
     return {};
 }
 QString SheetCanvas::measurementValue() const {
@@ -924,6 +1060,20 @@ QString SheetCanvas::measurementValue() const {
         const auto view = effectiveView(selectedView_);
         return viewScaleText(view, status && status->notToScale);
     }
+    // R091.g.
+    if (tool_ == Tool::Line && itemTool_.step == 1)
+        return paperMillimetres(tidy(QLineF(itemTool_.start, itemTool_.pointer).length())) + " mm";
+    if (tool_ == Tool::Rectangle && itemTool_.step == 1) {
+        const auto size = QRectF(itemTool_.start, itemTool_.pointer).normalized().size();
+        return paperMillimetres(tidy(size.width())) + separator +
+               paperMillimetres(tidy(size.height())) + " mm";
+    }
+    if (tool_ == Tool::Dimension && itemTool_.step == 2)
+        return paperMillimetres(tidy(itemTool_.offsetMm)) + " mm";
+    if ((tool_ == Tool::Select || tool_ == Tool::Move) && selectedItem_)
+        if (const auto *item = liveItem(selectedItem_))
+            if (const auto *d = std::get_if<DrawingDimensionItem>(&item->data))
+                return paperMillimetres(tidy(d->offsetMm, 1e-3)) + " mm";
     return {};
 }
 bool SheetCanvas::measurements(const QString &input, QString &error) {
@@ -947,12 +1097,15 @@ bool SheetCanvas::measurements(const QString &input, QString &error) {
     const auto label = measurementLabel();
     if (label.isEmpty()) {
         error = tool_ == Tool::Select || tool_ == Tool::Move
-                    ? "Select a view to type its scale, size or position"
-                    : "This tool takes no typed values";
+                    ? "Select a view or an item to type its scale, size or position"
+                : tool_ == Tool::Dimension ? "Pick two points in a view first"
+                                           : "This tool takes no typed values";
         return false;
     }
     auto text = input.trimmed();
     text.remove(QRegularExpression(R"(\s*mm\s*$)"));
+    if (itemTool() || (selectedItem_ && (tool_ == Tool::Select || tool_ == Tool::Move)))
+        return itemMeasurements(label, text, error);
     try {
         const auto *sheet = record();
         if (!sheet)
@@ -1093,6 +1246,10 @@ bool SheetCanvas::measurements(const QString &input, QString &error) {
 QString SheetCanvas::toolName() const {
     if (editView_)
         return "Edit view";
+    if (textEditing())
+        return "Edit text";
+    if (reattaching())
+        return "Reattach";
     switch (tool_) {
     case Tool::Pan:
         return "Pan";
@@ -1102,12 +1259,24 @@ QString SheetCanvas::toolName() const {
         return "Model view";
     case Tool::Move:
         return "Move";
+    case Tool::Line:
+        return "Line";
+    case Tool::Rectangle:
+        return "Rectangle";
+    case Tool::Text:
+        return "Text";
+    case Tool::Label:
+        return "Label";
+    case Tool::Dimension:
+        return "Dimension";
     case Tool::Select:
         break;
     }
     return "Select";
 }
 QString SheetCanvas::instruction() const {
+    if (const auto text = itemInstruction(); !text.isEmpty() && !editView_)
+        return text;
     if (editView_)
         return "Drag to pan the drawing · Wheel zooms the crop, the scale stays · Arrows pan "
                "1 mm · Shift+Arrows 10 mm · Esc leaves";
@@ -1121,17 +1290,19 @@ QString SheetCanvas::instruction() const {
         return "Drag the frame, or type width,height · Shift keeps the view's proportion · Alt "
                "ignores snapping · Esc cancels";
     case Tool::Move:
-        return selectedView_ ? "Drag the view, or click it and click its new place · Type "
-                               "dx,dy · Alt ignores snapping · Esc cancels"
-                             : "Click a view to pick it up, then click its new place · Esc "
-                               "returns to Select";
-    case Tool::Select:
+        return selectedView_ || selectedItem_
+                   ? "Drag it, or click it and click its new place · Type dx,dy · Alt ignores "
+                     "snapping · Esc cancels"
+                   : "Click a view or an item to pick it up, then click its new place · Esc "
+                     "returns to Select";
+    default:
         break;
     }
     if (selectedView_)
         return "Drag a handle to crop · Arrows nudge 1 mm · Shift+Arrows 10 mm · Alt ignores "
                "snapping · U accepts a changed view";
-    return "Click a view to select it · Wheel zooms · Middle drag pans · Shift+Z fits the page";
+    return "Click a view or an item to select it · Tab cycles them · Wheel zooms · Middle drag "
+           "pans · Shift+Z fits the page";
 }
 
 // ---- Painting ----------------------------------------------------------------------------
@@ -1144,6 +1315,7 @@ SheetCanvas::adjusted(const PreparedDrawingSheet &prepared) const {
         DrawingViewRecord record;
     };
     std::map<Id, Change> changes;
+    const bool items = itemsDiffer(prepared);
     for (const auto &view : prepared.views) {
         if (!liveView(view.record.id))
             continue;
@@ -1174,9 +1346,12 @@ SheetCanvas::adjusted(const PreparedDrawingSheet &prepared) const {
         change.record = now;
         changes[view.record.id] = change;
     }
-    if (changes.empty())
+    if (changes.empty() && !items)
         return std::nullopt;
     auto result = prepared;
+    // R091.g: items edited since the evaluation, or previewed, draw as they are now.
+    if (items)
+        replaceItems(result);
     for (auto &view : result.views)
         if (const auto found = changes.find(view.record.id); found != changes.end())
             view.record = found->second.record;
@@ -1241,7 +1416,7 @@ void SheetCanvas::paintEditing(QPainter &painter) {
     }
     const auto transform = paperToWidget();
     // Alignment guides of the active snap.
-    if (!guides_.empty() && (operationActive() || preview_)) {
+    if (!guides_.empty() && (operationActive() || preview_ || previewItem_)) {
         QPen guide(stroke, 1, Qt::DashLine);
         guide.setCosmetic(true);
         painter.setPen(guide);
@@ -1294,5 +1469,6 @@ void SheetCanvas::paintEditing(QPainter &painter) {
         hint(frame, 20);
     }
     painter.restore();
+    paintItems(painter);
 }
 } // namespace sketchy

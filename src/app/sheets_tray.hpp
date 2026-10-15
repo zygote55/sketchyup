@@ -11,6 +11,7 @@
 #include <QWidget>
 namespace sketchy {
 class HistoryPanel;
+class SheetItemInfo;
 class Viewport;
 // Common drawing scales offered by the scale selects ("1:1" … "1:2500").
 const std::vector<double> &sheetScaleChoices();
@@ -68,8 +69,9 @@ class SheetsTray : public QWidget {
                QWidget *parent = nullptr);
     void setDocumentName(const QString &name) { documentName_ = name; }
     void setTheme(const ThemeColors &colors);
-    // Rebuilds what changed for the current page and selected view.
-    void refresh(Id currentSheet, Id selectedView);
+    // Rebuilds what changed for the current page and the selected view or item.
+    void refresh(Id currentSheet, Id selectedView, Id selectedItem = 0);
+    SheetItemInfo *itemInfo() const { return itemInfo_; }
     QTreeWidget *pages() const { return pages_; }
     HistoryPanel *history() const { return history_; }
     SheetPlacePanel *placePanel() const { return place_; }
@@ -94,6 +96,11 @@ class SheetsTray : public QWidget {
     void editViewRequested();
     void showSceneRequested(qulonglong view);
     void chooseSceneRequested(qulonglong view);
+    // R091.g: page items in Pages and Entity info.
+    void itemChosen(qulonglong item);
+    void itemActivated(qulonglong item);
+    void deleteItem(qulonglong item);
+    void reorderItem(qulonglong item, int delta);
 
   protected:
     bool eventFilter(QObject *, QEvent *) override;
@@ -110,7 +117,8 @@ class SheetsTray : public QWidget {
     QLineEdit *infoTitle_{};
     QComboBox *infoScale_{}, *infoStyle_{};
     QPushButton *infoEdit_{}, *infoShowScene_{}, *infoChooseScene_{};
-    QWidget *infoFields_{};
+    QWidget *infoFields_{}, *infoActions_{};
+    SheetItemInfo *itemInfo_{};
     SheetPlacePanel *place_{};
     std::vector<QWidget *> sections_;
     bool placing_{};
@@ -123,7 +131,7 @@ class SheetsTray : public QWidget {
     QPushButton *acceptAll_{};
     QTreeWidget *pages_{};
     HistoryPanel *history_{};
-    Id sheet_{}, view_{};
+    Id sheet_{}, view_{}, item_{};
     bool syncing_{};
     QString signature_;
     void refreshInfo();

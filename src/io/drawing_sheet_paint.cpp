@@ -12,6 +12,7 @@
 #include <QTextLayout>
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <stdexcept>
 namespace sketchy {
 namespace {
@@ -27,6 +28,10 @@ constexpr double captionGapMm = 2, captionSizePt = 10;
 constexpr double annotationStrokeMm = .18, frameStrokeMm = .25, marginStrokeMm = .35;
 constexpr double arrowLengthMm = 7 * 25.4 / 96, arrowHalfWidthMm = 3 * 25.4 / 96;
 constexpr double extensionGapMm = 1, extensionOvershootMm = 1.5, crossHalfMm = 4 * 25.4 / 96;
+// Dimension text sits this far above its line, turned to read along it (R091.g design).
+constexpr double dimensionTextGapMm = 1;
+// Title-block cells: padding and the project row's larger, bold type.
+constexpr double cellPaddingMm = 1.5, projectScale = 1.3;
 const char *const fallbackFamily = "DejaVu Sans";
 
 std::string formatDenominator(double denominator) {
@@ -80,7 +85,7 @@ struct ShapedText {
     qsizetype missingGlyphs{};
 };
 ShapedText shapeText(const QString &input, const QString &family, double sizePt,
-                     std::optional<double> wrapMm, Qt::Alignment align) {
+                     std::optional<double> wrapMm, Qt::Alignment align, bool bold = false) {
     constexpr int reference = 100; // Layout units per em.
     require(std::isfinite(sizePt) && sizePt > 0, "Text size must be positive");
     const double unit = sizePt * millimetresPerPoint / reference;
@@ -88,6 +93,8 @@ ShapedText shapeText(const QString &input, const QString &family, double sizePt,
     font.setPixelSize(reference);
     font.setHintingPreference(QFont::PreferNoHinting);
     font.setStyleStrategy(QFont::PreferOutline);
+    if (bold)
+        font.setWeight(QFont::Bold);
     auto text = input;
     text.replace('\n', QChar::LineSeparator);
     QTextLayout layout(text, font);
@@ -191,10 +198,11 @@ struct Builder {
     DrawingSheetPrimitive text(DrawingSheetLayer layer, Id source, const std::string &value,
                                const DrawingFont &font, QPointF origin, bool centred = false,
                                std::optional<double> wrapMm = {},
-                               Qt::Alignment align = Qt::AlignLeft, QColor color = Qt::black) {
+                               Qt::Alignment align = Qt::AlignLeft, QColor color = Qt::black,
+                               bool bold = false) {
         const auto qtext = QString::fromStdString(value);
         const auto shaped =
-            shapeText(qtext, fonts.family(font.family, source), font.sizePt, wrapMm, align);
+            shapeText(qtext, fonts.family(font.family, source), font.sizePt, wrapMm, align, bold);
         out.missingGlyphs += shaped.missingGlyphs;
         if (centred)
             origin -= QPointF(shaped.sizeMm.width() / 2, shaped.sizeMm.height() / 2);
@@ -209,11 +217,12 @@ struct Builder {
         return p;
     }
     void textBackground(DrawingSheetLayer layer, Id source, const QRectF &box,
-                        const QRectF &clip = {}) {
+                        const QRectF &clip = {}, const QTransform &turn = {}) {
         DrawingSheetPrimitive p;
         p.layer = layer;
         p.source = source;
-        p.path.addRect(box.adjusted(-.6, -.3, .6, .3));
+        p.path.addPolygon(turn.map(QPolygonF(box.adjusted(-.6, -.3, .6, .3))));
+        p.path.closeSubpath();
         p.fill = true;
         p.color = Qt::white;
         p.clipMm = clip;
@@ -311,7 +320,7 @@ struct Builder {
         const bool broken = evaluation.state == DrawingItemState::Broken;
         constexpr auto layer = DrawingSheetLayer::Item;
         if (const auto *t = std::get_if<DrawingTextItem>(&record.data)) {
-            const Qt::Alignment align = t->align == DrawingTextAlign::Center ? Qt::AlignHCenter
+            const Qt::Alignment align = t->align == DrawingTextAlign::Center  ? Qt::AlignHCenter
                                         : t->align == DrawingTextAlign::Right ? Qt::AlignRight
                                                                               : Qt::AlignLeft;
             add(text(layer, id, t->text, t->font, {t->frame.xMm, t->frame.yMm}, false,
@@ -369,10 +378,31 @@ struct Builder {
                 arrow(lines, a, b - a);
                 arrow(lines, b, a - b);
                 textAt = qpoint(*evaluation.textMm);
+                // The value reads along the line, left to right or top to bottom, just
+                // above it (the R091 design: "6000" over a plan, "4000" turned on its side).
+                auto angle = std::atan2(b.y() - a.y(), b.x() - a.x()) * 180 / std::numbers::pi;
+                if (angle > 90 + 1e-9)
+                    angle -= 180;
+                else if (angle <= -90 + 1e-9)
+                    angle += 180;
+                add(stroke(layer, id, lines, annotationStrokeMm, color));
+                auto words = text(layer, id, evaluation.text, d->font, {0, 0}, false, {},
+                                  Qt::AlignLeft, color);
+                const auto size = words.textBoxMm.size();
+                QTransform turn;
+                turn.translate(textAt.x(), textAt.y());
+                turn.rotate(angle);
+                turn.translate(-size.width() / 2, -size.height() - dimensionTextGapMm);
+                words.path = turn.map(words.path);
+                const QRectF local(QPointF(0, 0), size);
+                words.textBoxMm = turn.mapRect(local);
+                textBackground(layer, id, local, {}, turn);
+                add(std::move(words));
+                return;
             }
             add(stroke(layer, id, lines, annotationStrokeMm, color));
-            auto words = text(layer, id, evaluation.text, d->font, textAt, true, {}, Qt::AlignLeft,
-                              color);
+            auto words =
+                text(layer, id, evaluation.text, d->font, textAt, true, {}, Qt::AlignLeft, color);
             textBackground(layer, id, words.textBoxMm);
             add(std::move(words));
         } else if (const auto *line = std::get_if<DrawingLineItem>(&record.data)) {
@@ -390,44 +420,113 @@ struct Builder {
             titleBlock(id, *b, evaluation.titleBlock.value_or(DrawingTitleBlockDerived{}));
         }
     }
-    void titleBlock(Id id, const DrawingTitleBlockItem &block, const DrawingTitleBlockDerived &derived) {
+    void titleBlock(Id id, const DrawingTitleBlockItem &block,
+                    const DrawingTitleBlockDerived &derived) {
+        // The R091 design's title block: a four-column grid, the project across the top,
+        // then the drawing title and sheet, then scale, date, revision and page. Each cell
+        // holds its caption over its value, which is bold.
         const QRectF frame(block.frame.xMm, block.frame.yMm, block.frame.widthMm,
                            block.frame.heightMm);
-        const std::vector<std::pair<const char *, std::string>> rows{
-            {"Project", block.fields.project},   {"Drawing", block.fields.drawingTitle},
-            {"Sheet", derived.sheetNumber},      {"Page", derived.page},
-            {"Scale", derived.scale},            {"Date", block.fields.date},
-            {"Revision", block.fields.revision}};
         QPainterPath outline;
         outline.addRect(frame);
         add(stroke(DrawingSheetLayer::Item, id, outline, marginStrokeMm));
-        const auto rowHeight = frame.height() / double(rows.size());
+        const auto cells = drawingTitleBlockCells(block.frame);
         QPainterPath dividers;
-        for (size_t i = 1; i < rows.size(); ++i) {
-            dividers.moveTo(frame.left(), frame.top() + rowHeight * double(i));
-            dividers.lineTo(frame.right(), frame.top() + rowHeight * double(i));
+        for (const auto &cell : cells) {
+            // Each cell draws its bottom and right edges inside the outline.
+            if (cell.rectMm.bottom() < frame.bottom() - 1e-6) {
+                dividers.moveTo(cell.rectMm.bottomLeft());
+                dividers.lineTo(cell.rectMm.bottomRight());
+            }
+            if (cell.rectMm.right() < frame.right() - 1e-6) {
+                dividers.moveTo(cell.rectMm.topRight());
+                dividers.lineTo(cell.rectMm.bottomRight());
+            }
         }
-        auto lines = stroke(DrawingSheetLayer::Item, id, dividers, annotationStrokeMm);
+        auto lines = stroke(DrawingSheetLayer::Item, id, dividers, frameStrokeMm);
         lines.clipMm = frame;
         add(std::move(lines));
-        for (size_t i = 0; i < rows.size(); ++i) {
-            const auto top = frame.top() + rowHeight * double(i);
-            auto words = text(DrawingSheetLayer::Item, id,
-                              std::string(rows[i].first) + ": " + rows[i].second, block.font,
-                              {frame.left() + 1.5, top});
-            const auto shift = (rowHeight - words.textBoxMm.height()) / 2;
-            words.path.translate(0, shift);
-            words.textBoxMm.translate(0, shift);
-            words.clipMm = frame;
-            add(std::move(words));
+        for (const auto &cell : cells) {
+            const auto value = cell.field == "project"        ? block.fields.project
+                               : cell.field == "drawingTitle" ? block.fields.drawingTitle
+                               : cell.field == "sheet"        ? derived.sheetNumber
+                               : cell.field == "scale"        ? derived.scale
+                               : cell.field == "date"         ? block.fields.date
+                               : cell.field == "revision"     ? block.fields.revision
+                                                              : derived.page;
+            const auto left = cell.rectMm.left() + cellPaddingMm;
+            std::vector<DrawingSheetPrimitive> words;
+            if (cell.caption.empty()) {
+                if (!value.empty())
+                    words.push_back(text(
+                        DrawingSheetLayer::Item, id, value,
+                        DrawingFont{block.font.family,
+                                    std::min(block.font.sizePt * projectScale, drawingFontMaxPt)},
+                        {left, cell.rectMm.top()}, false, {}, Qt::AlignLeft, Qt::black, true));
+            } else {
+                words.push_back(text(DrawingSheetLayer::Item, id, cell.caption, block.font,
+                                     {left, cell.rectMm.top()}));
+                if (!value.empty()) {
+                    const auto below = words.front().textBoxMm.bottom();
+                    words.push_back(text(DrawingSheetLayer::Item, id, value, block.font,
+                                         {left, below}, false, {}, Qt::AlignLeft, Qt::black, true));
+                }
+            }
+            if (words.empty())
+                continue;
+            // The cell's lines are centred vertically.
+            QRectF box;
+            for (const auto &word : words)
+                box = box.isNull() ? word.textBoxMm : box.united(word.textBoxMm);
+            const auto shift = cell.rectMm.center().y() - box.center().y();
+            for (auto &word : words) {
+                word.path.translate(0, shift);
+                word.textBoxMm.translate(0, shift);
+                word.clipMm = cell.rectMm;
+                add(std::move(word));
+            }
         }
     }
 };
 } // namespace
 
+std::vector<DrawingTitleBlockCell> drawingTitleBlockCells(const DrawingItemFrame &frame) {
+    // Rows: the project (shorter, one line) and two rows of caption-over-value cells.
+    const auto x = frame.xMm, y = frame.yMm, w = frame.widthMm, h = frame.heightMm;
+    const auto project = h * .28, row = (h - project) / 2, column = w / 4;
+    auto cell = [&](const char *field, const char *caption, bool stored, double column0,
+                    double columns, double top, double height) {
+        return DrawingTitleBlockCell{field, caption, stored,
+                                     QRectF(x + column0 * column, top, columns * column, height)};
+    };
+    return {cell("project", "", true, 0, 4, y, project),
+            cell("drawingTitle", "Drawing", true, 0, 3, y + project, row),
+            cell("sheet", "Sheet", false, 3, 1, y + project, row),
+            cell("scale", "Scale", false, 0, 1, y + project + row, row),
+            cell("date", "Date", true, 1, 1, y + project + row, row),
+            cell("revision", "Revision", true, 2, 1, y + project + row, row),
+            cell("page", "Page", false, 3, 1, y + project + row, row)};
+}
+QSizeF drawingTextSizeMm(const std::string &text, const DrawingFont &font,
+                         std::optional<double> wrapMm) {
+    std::vector<DrawingFontSubstitution> substitutions;
+    FontResolver fonts(substitutions);
+    return shapeText(QString::fromStdString(text), fonts.family(font.family, 0), font.sizePt,
+                     wrapMm, Qt::AlignLeft)
+        .sizeMm;
+}
+std::vector<DrawingSheetPrimitive> drawingItemPrimitives(const DrawingSheetRecord &sheet,
+                                                         const PreparedDrawingItem &item) {
+    PreparedDrawingSheet prepared;
+    prepared.sheet = sheet;
+    Builder builder(prepared);
+    builder.item(item);
+    return std::move(prepared.primitives);
+}
 std::string drawingViewCaption(int number, const DrawingViewRecord &view, bool notToScale) {
     return std::to_string(number) + " · " + view.name + " " +
-           (notToScale ? std::string("Not to scale") : "1:" + formatDenominator(view.scaleDenominator));
+           (notToScale ? std::string("Not to scale")
+                       : "1:" + formatDenominator(view.scaleDenominator));
 }
 
 DrawingSheetCapture captureDrawingSheet(const Document &doc, Id sheet) {
@@ -460,9 +559,9 @@ PreparedDrawingSheet prepareDrawingSheet(const DrawingSheetCapture &capture) {
         view.number = ++number;
         const auto &status = view.evaluation.status;
         view.caption = drawingViewCaption(view.number, view.record, status.notToScale);
-        view.raster = status.state != DrawingViewState::Broken &&
-                      status.state != DrawingViewState::Failed &&
-                      (status.notToScale || view.record.content == DrawingViewContent::RasterAppearance);
+        view.raster =
+            status.state != DrawingViewState::Broken && status.state != DrawingViewState::Failed &&
+            (status.notToScale || view.record.content == DrawingViewContent::RasterAppearance);
         prepared.views.push_back(std::move(view));
     }
     for (const auto item : drawingItemsOnSheet(doc, capture.sheet))

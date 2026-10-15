@@ -6,11 +6,11 @@
 #include <QBuffer>
 #include <QFontDatabase>
 #include <QGuiApplication>
-#include <algorithm>
 #include <QPaintEngine>
 #include <QPainter>
 #include <QPdfWriter>
 #include <QRegularExpression>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <string>
@@ -63,8 +63,12 @@ class RecordingEngine final : public QPaintEngine {
     }
     void drawPath(const QPainterPath &path) override {
         const bool filled = brush_.style() != Qt::NoBrush;
-        records.push_back({Recorded::Path, transform_.map(path), {}, clip_,
-                           filled ? brush_.color() : pen_.color(), filled});
+        records.push_back({Recorded::Path,
+                           transform_.map(path),
+                           {},
+                           clip_,
+                           filled ? brush_.color() : pen_.color(),
+                           filled});
     }
     void drawPixmap(const QRectF &r, const QPixmap &, const QRectF &) override { image(r); }
     void drawImage(const QRectF &r, const QImage &, const QRectF &,
@@ -116,7 +120,8 @@ class RecordingDevice final : public QPaintDevice {
         }
     }
 };
-std::vector<Recorded> record(const PreparedDrawingSheet &sheet, DrawingSheetPaintOptions options = {},
+std::vector<Recorded> record(const PreparedDrawingSheet &sheet,
+                             DrawingSheetPaintOptions options = {},
                              DrawingSheetPaintResult *result = nullptr) {
     RecordingDevice device;
     QPainter painter;
@@ -166,10 +171,11 @@ struct Fixture {
         face = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}}, "Slab");
         plan = createScene(doc, "Plan", planScene());
         sheet = createDrawingSheet(doc, "Ground floor", {420, 297}, "A-101", 10);
-        view = createDrawingView(doc, viewRecord(sheet, plan, "Ground floor plan", {20, 20, 200, 150}));
-        perspective = createDrawingView(
-            doc, viewRecord(sheet, createScene(doc, "Eye", planScene(false)), "Perspective",
-                            {240, 20, 150, 100}));
+        view = createDrawingView(doc,
+                                 viewRecord(sheet, plan, "Ground floor plan", {20, 20, 200, 150}));
+        perspective =
+            createDrawingView(doc, viewRecord(sheet, createScene(doc, "Eye", planScene(false)),
+                                              "Perspective", {240, 20, 150, 100}));
         const auto gone = createScene(doc, "South elevation", planScene());
         broken = createDrawingView(doc, viewRecord(sheet, gone, "South", {240, 140, 150, 60}));
         eraseScene(doc, gone);
@@ -275,7 +281,10 @@ void scaleAndPositions() {
     check(hasSegment(dimension[0]->path, {100, 106}, {100, 116.5}), "Extension line with gap");
     check(dimension[2]->text == QString::fromStdString(evaluation.text) && !evaluation.text.empty(),
           "Dimension text is the evaluated value");
-    check(near(dimension[2]->textBoxMm.center(), {120, 115}), "Dimension text centred on line");
+    // The R091 design: the value reads along the line, centred just above it.
+    check(near(dimension[2]->textBoxMm.center().x(), 120) &&
+              near(dimension[2]->textBoxMm.bottom(), 114),
+          "Dimension text centred above its line");
     check(dimension[2]->path.boundingRect().intersects(dimension[2]->textBoxMm),
           "Glyphs lie in the text box");
     // Text and label positions, line and rectangle in paper millimetres.
@@ -301,9 +310,11 @@ void scaleAndPositions() {
     for (const auto *p : of(sheet, f.titleBlock, DrawingSheetLayer::Item))
         if (!p->text.isEmpty())
             rows << p->text;
-    check(rows.contains("Sheet: A-101") && rows.contains("Page: 1 of 1") &&
-              rows.contains("Scale: 1:50 @ A3") && rows.contains("Project: House") &&
-              rows.contains("Revision: B"),
+    // The R091 design's grid: captions over values, the project across the top.
+    check(rows.contains("Sheet") && rows.contains("A-101") && rows.contains("Page") &&
+              rows.contains("1 of 1") && rows.contains("Scale") && rows.contains("1:50 @ A3") &&
+              rows.contains("House") && rows.contains("Revision") && rows.contains("B") &&
+              rows.contains("Drawing") && rows.contains("Ground floor plan"),
           "Title block automatic fields: " + rows.join(" | ").toStdString());
     // Margin frame.
     const auto margin = of(sheet, 0, DrawingSheetLayer::MarginFrame);
@@ -321,7 +332,7 @@ void orderAndCaptions() {
         if (order.empty() || order.back() != std::pair{p.layer, p.source})
             order.push_back({p.layer, p.source});
     const std::vector<std::pair<DrawingSheetLayer, Id>> expected{
-        {DrawingSheetLayer::MarginFrame, 0},     {DrawingSheetLayer::View, f.view},
+        {DrawingSheetLayer::MarginFrame, 0},      {DrawingSheetLayer::View, f.view},
         {DrawingSheetLayer::View, f.perspective}, {DrawingSheetLayer::View, f.broken},
         {DrawingSheetLayer::Caption, f.view},     {DrawingSheetLayer::Caption, f.perspective},
         {DrawingSheetLayer::Caption, f.broken},   {DrawingSheetLayer::Item, f.text},
@@ -359,7 +370,8 @@ void noEditorDecorations() {
     // The plan view is stale (never accepted); accepting it changes nothing painted.
     const auto stale = prepareDrawingSheet(f.doc, f.sheet);
     check(stale.views[0].evaluation.status.state == DrawingViewState::Stale, "Stale view");
-    acceptDrawingViews(f.doc, {{f.view, {f.doc.revision(), stale.views[0].evaluation.status.fingerprint}}});
+    acceptDrawingViews(
+        f.doc, {{f.view, {f.doc.revision(), stale.views[0].evaluation.status.fingerprint}}});
     const auto current = prepareDrawingSheet(f.doc, f.sheet);
     check(current.views[0].evaluation.status.state == DrawingViewState::Current, "Current view");
     check(samePrimitives(stale, current), "Stale and current views paint identically: no chip");
@@ -388,11 +400,12 @@ void brokenAndRaster() {
           "Perspective view is a raster slot with a placeholder");
     DrawingSheetPaintResult result;
     auto recorded = record(sheet, {}, &result);
-    check(result.rasterPlaceholders ==
-              std::vector<DrawingSheetRasterPlaceholder>{{f.perspective, "rasterNotSupplied"}} &&
-              result.rasterViews.empty() && result.brokenViews == std::vector<Id>{f.broken} &&
-              result.brokenItems.empty(),
-          "Placeholder and broken view reported");
+    check(
+        result.rasterPlaceholders ==
+                std::vector<DrawingSheetRasterPlaceholder>{{f.perspective, "rasterNotSupplied"}} &&
+            result.rasterViews.empty() && result.brokenViews == std::vector<Id>{f.broken} &&
+            result.brokenItems.empty(),
+        "Placeholder and broken view reported");
     const auto withoutImage = recorded.size();
     DrawingSheetPaintOptions options;
     QImage image(300, 200, QImage::Format_ARGB32);
@@ -401,7 +414,8 @@ void brokenAndRaster() {
     recorded = record(sheet, options, &result);
     check(result.rasterViews == std::vector<Id>{f.perspective} && result.rasterPlaceholders.empty(),
           "Supplied raster is painted");
-    check(recorded.size() == withoutImage - 2 + 1, "Image replaces the placeholder frame and label");
+    check(recorded.size() == withoutImage - 2 + 1,
+          "Image replaces the placeholder frame and label");
     bool imageAt = false;
     for (const auto &r : recorded)
         if (r.kind == Recorded::Image)
@@ -445,9 +459,9 @@ void fonts() {
     l.textAt = {200, 250};
     const auto item = createDrawingItem(f.doc, f.sheet, l);
     const auto sheet = prepareDrawingSheet(f.doc, f.sheet);
-    const auto missing = std::find_if(
-        sheet.fontSubstitutions.begin(), sheet.fontSubstitutions.end(),
-        [](const auto &s) { return s.requested == "No Such Family 9f3c"; });
+    const auto missing =
+        std::find_if(sheet.fontSubstitutions.begin(), sheet.fontSubstitutions.end(),
+                     [](const auto &s) { return s.requested == "No Such Family 9f3c"; });
     check(missing != sheet.fontSubstitutions.end() && missing->items == std::vector<Id>{item} &&
               !missing->used.empty() && missing->used != missing->requested,
           "Substitution reported");
