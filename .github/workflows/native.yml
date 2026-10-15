@@ -622,13 +622,13 @@ jobs:
         # checks the SHA-256 it pins for this file name.
         run: |
           install -d /work/release
-          curl -fsSL --retry 3 -o /work/release/sketchyup-1.0.0-1-x86_64.pkg.tar.zst \
-            https://github.com/zygote55/sketchyup/releases/download/v1.0.0/sketchyup-1.0.0-1-x86_64.pkg.tar.zst
-          echo '9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7  /work/release/sketchyup-1.0.0-1-x86_64.pkg.tar.zst' | sha256sum -c -
+          curl -fsSL --retry 3 -o /work/release/sketchyup-1.0.1-1-x86_64.pkg.tar.zst \
+            https://github.com/zygote55/sketchyup/releases/download/v1.0.1/sketchyup-1.0.1-1-x86_64.pkg.tar.zst
+          echo '91e807851d40525ce5429814f88b59c4fef9321de121f165e9e33429b82869f5  /work/release/sketchyup-1.0.1-1-x86_64.pkg.tar.zst' | sha256sum -c -
       - name: Disposable Arch package acceptance
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: 4
-          SKETCHYUP_PRIOR_RELEASE_PACKAGE: /work/release/sketchyup-1.0.0-1-x86_64.pkg.tar.zst
+          SKETCHYUP_PRIOR_RELEASE_PACKAGE: /work/release/sketchyup-1.0.1-1-x86_64.pkg.tar.zst
         run: |
           useradd --create-home builder
           scripts/package-source.sh /work/package

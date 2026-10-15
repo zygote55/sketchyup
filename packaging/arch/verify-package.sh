@@ -25,13 +25,43 @@ package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
   echo 'Package acceptance requires an x.y.z pkgver and an integer pkgrel.' >&2
   exit 1
 }
-# Both packages build from the same source. A later pkgrel upgrades from the previous
-# pkgrel of the same version; the first pkgrel of a version upgrades from the last
-# development package, 0.1.0-3, which preceded the 1.0.0 release.
+# Both packages build from the same source. The prior package is the previous release
+# in the series: a later pkgrel upgrades from the previous pkgrel of the same version;
+# the first pkgrel of a patch version x.y.z (z >= 1) upgrades from x.y.(z-1)-1; and the
+# first pkgrel of x.y.0 upgrades from the newest earlier entry of released_packages
+# (1.0.0-1 from the development package 0.1.0-3, 1.1.0-1 from 1.0.1-1). Add each
+# published release to this table, oldest first.
+released_packages=(0.1.0-3 1.0.0-1 1.0.1-1)
+for (( index = 1; index < ${#released_packages[@]}; index++ )); do
+  (( $(vercmp "${released_packages[index]}" "${released_packages[index - 1]}") > 0 )) || {
+    echo "released_packages is not in vercmp order at ${released_packages[index]}." >&2
+    exit 1
+  }
+done
+IFS=. read -r version_major version_minor version_patch <<< "$package_version"
 if (( package_release >= 2 )); then
   prior_version=$package_version prior_release=$((package_release - 1))
+elif (( version_patch >= 1 )); then
+  prior_version=$version_major.$version_minor.$((version_patch - 1)) prior_release=1
 else
-  prior_version=0.1.0 prior_release=3
+  prior_package=
+  for released in "${released_packages[@]}"; do
+    if (( $(vercmp "$released" "$package_version-$package_release") < 0 )); then
+      prior_package=$released
+    fi
+  done
+  [[ -n $prior_package ]] || {
+    echo "No earlier release is listed for $package_version-$package_release; extend released_packages." >&2
+    exit 1
+  }
+  prior_version=${prior_package%-*} prior_release=${prior_package##*-}
+  # A missing table entry would silently skip a release: x.y.0 (y >= 1) must upgrade
+  # from the x.(y-1) series.
+  IFS=. read -r prior_major prior_minor _ <<< "$prior_version"
+  (( version_minor == 0 || (prior_major == version_major && prior_minor == version_minor - 1) )) || {
+    echo "The newest listed release before $package_version-$package_release is $prior_package, not in $version_major.$((version_minor - 1)); extend released_packages." >&2
+    exit 1
+  }
 fi
 (( $(vercmp "$package_version-$package_release" "$prior_version-$prior_release") > 0 )) || {
   echo "Package $package_version-$package_release is not newer than $prior_version-$prior_release." >&2
@@ -44,6 +74,7 @@ source_dir=/work/package/src/sketchyup-$package_version
 # from this pinned image, the snapshot the release was built on.
 declare -A known_release_sha256=(
   [sketchyup-1.0.0-1-x86_64.pkg.tar.zst]=9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7
+  [sketchyup-1.0.1-1-x86_64.pkg.tar.zst]=91e807851d40525ce5429814f88b59c4fef9321de121f165e9e33429b82869f5
 )
 prior_release_cli=
 if [[ -n ${SKETCHYUP_PRIOR_RELEASE_PACKAGE:-} ]]; then
