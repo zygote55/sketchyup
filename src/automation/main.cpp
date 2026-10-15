@@ -15,6 +15,7 @@
 #include "io/native_format.hpp"
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
+#include "io/sheet_export.hpp"
 #include "io/stl_export.hpp"
 #include "sketchyup/version.hpp"
 #include <QCommandLineParser>
@@ -29,8 +30,9 @@ int main(int argc, char **argv) {
     bool measuredExport = false;
     for (int i = 1; i < argc; ++i) {
         const auto argument = QByteArray(argv[i]);
-        measuredExport =
-            measuredExport || argument == "--export-view" || argument.startsWith("--export-view=");
+        measuredExport = measuredExport || argument == "--export-view" ||
+                         argument.startsWith("--export-view=") || argument == "--export-sheets" ||
+                         argument.startsWith("--export-sheets=");
     }
     QStringList originalArguments;
     for (int i = 0; i < argc; ++i)
@@ -59,6 +61,13 @@ int main(int argc, char **argv) {
         {"export-view", "Export a measured orthographic PDF or SVG to a new file", "path"});
     parser.addOption(
         {"view-settings", "Read explicit measured page, scale, mode and camera settings", "path"});
+    parser.addOption(
+        {"export-sheets", "Export drawing sheets at actual size to a new PDF file", "path"});
+    parser.addOption(
+        {"pages", "Sheet export pages: all, A-101, 3, A-101..A-301 or a list", "range"});
+    parser.addOption({"allow-broken", "Export broken sheet views as empty, labelled frames"});
+    parser.addOption({"allow-changed", "Export sheet views changed since accepted as they are"});
+    parser.addOption({"preflight-only", "Print sheet export preflight findings without exporting"});
     parser.addOption({"format-capabilities", "Describe supported native storage and migration"});
     parser.addOption({"inspect-native", "Validate and describe an explicit native file", "path"});
     parser.addOption({"validate-native", "Fully validate an explicit native file", "path"});
@@ -188,6 +197,51 @@ int main(int argc, char **argv) {
         if (parser.isSet("view-settings"))
             throw sketchy::InspectionError("INVALID_REQUEST",
                                            "--view-settings requires --export-view");
+        if (parser.isSet("export-sheets")) {
+            const QStringList allowed{"export-sheets", "input",         "pages",
+                                      "allow-broken",  "allow-changed", "preflight-only"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "Sheet export is a standalone operation");
+            if (!parser.positionalArguments().isEmpty() || !parser.isSet("input"))
+                throw sketchy::InspectionError("INVALID_REQUEST", "Sheet export requires --input");
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            auto print = [](std::ostream &stream, const QJsonObject &value) {
+                stream << QJsonDocument(value).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            };
+            try {
+                sketchy::SheetExportOptions options;
+                if (parser.isSet("pages"))
+                    options.sheets = sketchy::resolveSheetPageRange(
+                        document, parser.value("pages").toStdString());
+                options.allowBroken = parser.isSet("allow-broken");
+                options.allowChanged = parser.isSet("allow-changed");
+                if (parser.isSet("preflight-only")) {
+                    print(std::cout,
+                          {{"status", "preflight"},
+                           {"preflight", sketchy::sheetExportPreflightJson(
+                                             sketchy::preflightSheetExport(document, options))}});
+                    return 0;
+                }
+                const auto exported =
+                    sketchy::exportSheetsPdf(document, options, parser.value("export-sheets"));
+                print(std::cout, {{"status", "exported"}, {"exportReport", exported.report}});
+                return 0;
+            } catch (const sketchy::SheetExportError &error) {
+                QJsonObject failure{{"status", "failed"},
+                                    {"code", QString::fromStdString(error.code())},
+                                    {"error", error.what()}};
+                if (error.preflight())
+                    failure["preflight"] = sketchy::sheetExportPreflightJson(*error.preflight());
+                print(std::cerr, failure);
+                return 1;
+            }
+        }
+        for (const auto *option : {"pages", "allow-broken", "allow-changed", "preflight-only"})
+            if (parser.isSet(option))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Sheet export options require --export-sheets");
         if (parser.isSet("import-dxf") || parser.isSet("export-dxf")) {
             auto invalid = [](const char *message) {
                 throw sketchy::InspectionError("INVALID_REQUEST", message);

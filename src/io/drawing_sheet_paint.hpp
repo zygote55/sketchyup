@@ -4,6 +4,7 @@
 #include "io/drawing_items.hpp"
 #include "io/drawing_view.hpp"
 #include <QColor>
+#include <QGlyphRun>
 #include <QImage>
 #include <QPainterPath>
 #include <QRectF>
@@ -58,6 +59,11 @@ struct DrawingSheetPrimitive {
     QRectF clipMm;    // The view frame for view content, otherwise the paper.
     QString text;     // The text a shaped glyph path draws.
     QRectF textBoxMm; // The laid-out text box of a glyph path.
+    // The same text as shaped glyph runs (R092): glyphTransform maps their layout units
+    // to paper millimetres. DrawingTextMode::Text paints these as real text, so a PDF
+    // embeds font subsets and the text stays selectable; path is their outline.
+    QList<QGlyphRun> glyphs;
+    QTransform glyphTransform;
     // A raster slot: the image supplied for rasterView is drawn into rasterRectMm.
     Id rasterView{};
     QRectF rasterRectMm;
@@ -100,6 +106,14 @@ PreparedDrawingSheet prepareDrawingSheet(const DrawingSheetCapture &capture);
 // Single-thread path: prepareDrawingSheet(captureDrawingSheet(doc, sheet)).
 PreparedDrawingSheet prepareDrawingSheet(const Document &doc, Id sheet);
 
+// How text primitives reach the device. Outlines (the default) fill the shaped glyph
+// paths, identical on every device. Text draws the glyph runs, so a QPdfWriter writes
+// real text with embedded font subsets (R092); a run whose font cannot be embedded
+// (drawingFontEmbeddable) is filled as outlines and reported.
+enum class DrawingTextMode { Outlines, Text };
+// Whether a PDF may embed this font: an sfnt font with TrueType outlines ("glyf") whose
+// OS/2 fsType allows embedding (not restricted-license, not bitmap-only).
+bool drawingFontEmbeddable(const QRawFont &font);
 struct DrawingSheetPaintOptions {
     // Maps paper millimetres to the painter's current coordinates. Default: the
     // device's logical DPI / 25.4, so one paper millimetre is one device millimetre.
@@ -110,6 +124,7 @@ struct DrawingSheetPaintOptions {
     std::map<Id, QImage> rasters;
     // The page-margin frame (sheet marginMm); skipped when the margin is zero.
     bool marginFrame{true};
+    DrawingTextMode text{DrawingTextMode::Outlines};
 };
 struct DrawingSheetRasterPlaceholder {
     Id view{};
@@ -124,6 +139,10 @@ struct DrawingSheetPaintResult {
     std::vector<Id> brokenItems;
     qsizetype missingGlyphs{};
     size_t primitives{}; // Display-list entries painted.
+    // DrawingTextMode::Text: primitives drawn as real text, and the font families whose
+    // runs could not be embedded and were filled as outlines instead.
+    size_t textPrimitives{};
+    std::vector<std::string> outlinedFonts;
 };
 // The paper-millimetre to device transform for a paint device.
 QTransform drawingSheetDeviceTransform(const QPaintDevice &device);
