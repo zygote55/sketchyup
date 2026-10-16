@@ -1,12 +1,13 @@
 # SketchyUp 1.1 support matrix
 
-SketchyUp 1.1.0. This is the support declaration for the 1.1.0 release. It is the 1.0.x
+SketchyUp 1.1.1. This is the support declaration for the 1.1.1 release; it is the 1.1.0
+declaration with no supported configuration changed. The 1.1.0 declaration is the 1.0.x
 declaration (1.0.0, 2026-10-13) plus documentation sheets, Extended row F01; no other
 supported configuration changed.
 **Supported** means the configuration has release evidence. **Untested** means no
 evidence exists for this release; it is neither claimed to work nor known to fail.
 
-- **Supported:** Arch Linux x86_64 with the `sketchyup` 1.1.0-1 package, Qt 6.8.0
+- **Supported:** Arch Linux x86_64 with the `sketchyup` 1.1.1-1 package, Qt 6.8.0
   through 6.12.0 and an OpenGL 3.3 core-profile driver. Omarchy/Hyprland on Wayland
   is the primary desktop; the Qt X11 path is also tested. Ordinary modeling needs
   no network, account, provider or Blender. The assistant's supported provider is
@@ -40,7 +41,7 @@ versions, upgrade and rollback notes and known limitations. The
 | Local assistant (experimental, not a 1.0 gate) | Explicit numeric-loopback Ollama adapter; retained Qwen CPU profile fails all seven frozen live-task thresholds and remains experimental. A passing local configuration is not a 1.0 requirement ([ADR 0160](decisions/0160-provider-scope-for-1-0.md)) | [Measured profile and failures](verification/R086c-local-evaluation.md); no quality guarantee, automatic download or cloud fallback |
 | Blender | Optional Blender 5.2 LTS rendering/handoff, with runtime/device checks; the worker rejects other Blender versions | CI runs Blender 5.2.2. [M7 procedure](M7_ACCEPTANCE.md); CPU/actual consumer evidence does not validate every GPU/driver combination |
 | Ordinary modeling | No provider, account, browser runtime or Blender required | Shared native/core operations; [combined exchange study](M8_ACCEPTANCE.md) also exercises offline editing and undo |
-| Packaging | Arch package `sketchyup` 1.1.0-1 (x86_64), MIT application code plus retained dependency notices. Upgrades from 1.0.1-1; 1.0.1-1 upgraded from 1.0.0-1, and 1.0.0-1 from development package 0.1.0-3 | [Clean current-source lifecycle and prior-application upgrade](verification/R087g-clean-current-package.md); [current and reference Arch clean machines](verification/R087u-clean-machine-packages.md) (Qt 6.8.0 through 6.12.0). PKGBUILD dependencies carry no versions, so pacman installs a package built against newer Qt on an older system where it cannot start (R087.u). Install the package built for your repository snapshot |
+| Packaging | Arch package `sketchyup` 1.1.1-1 (x86_64), MIT application code plus retained dependency notices. Upgrades from 1.1.0-1 ([F01.a](verification/F01a-1.1.1-patch.md)); 1.1.0-1 upgraded from 1.0.1-1; 1.0.1-1 upgraded from 1.0.0-1, and 1.0.0-1 from development package 0.1.0-3 | [Clean current-source lifecycle and prior-application upgrade](verification/R087g-clean-current-package.md); [current and reference Arch clean machines](verification/R087u-clean-machine-packages.md) (Qt 6.8.0 through 6.12.0). PKGBUILD dependencies carry no versions, so pacman installs a package built against newer Qt on an older system where it cannot start (R087.u). Install the package built for your repository snapshot |
 
 Physical display scale and **View → Interface text size** are separate controls.
 Qt client scale factors in isolated tests emulate fractional sizing; they do not

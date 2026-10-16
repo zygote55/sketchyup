@@ -1,6 +1,6 @@
 # SketchyUp user guide
 
-This guide describes SketchyUp 1.1.0. Check the [support matrix](SUPPORT_MATRIX.md)
+This guide describes SketchyUp 1.1.1. Check the [support matrix](SUPPORT_MATRIX.md)
 before choosing an exchange format or relying on a platform configuration, and the
 [release notes](RELEASE_NOTES.md) for upgrade notes and known limitations.
 

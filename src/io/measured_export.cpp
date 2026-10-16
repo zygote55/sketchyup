@@ -1,5 +1,6 @@
 #include "io/measured_export.hpp"
 #include "io/new_file.hpp"
+#include "io/pdf_info.hpp"
 #include "presentation/annotation_display.hpp"
 #include <QBuffer>
 #include <QCryptographicHash>
@@ -308,6 +309,7 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
         xml.writeEndDocument();
         require(!xml.hasError(), "SVG serialization failed or exceeded output budget");
     } else {
+        const auto created = QDateTime::currentDateTimeUtc();
         QPdfWriter pdf(&output);
         pdf.setResolution(2540);
         pdf.setTitle(pageRaster ? "SketchyUp rasterized measured orthographic drawing"
@@ -341,6 +343,7 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
                 painter.drawPath(p.path);
             }
         require(painter.end(), "PDF painter could not finish");
+        repairQtPdfInfo(output.bytes, created); // D-036: Qt 6.8.0/6.8.1 document information.
     }
     require(!output.exceeded && !output.bytes.isEmpty(),
             "Measured output exceeds 64 MiB or is empty");

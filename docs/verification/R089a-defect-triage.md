@@ -48,6 +48,9 @@ D-007 stays open for its other instances. See the counts.
 corpus failed Advanced 1/3 on its token budget because the assistant's tool list carried the
 drawing-sheet tools. Added and fixed as D-035 (Major); see
 [Candidates checked and not carried forward](#candidates-checked-and-not-carried-forward).
+**Updated 2026-10-15 (1.1.1).** D-036 (malformed PDF document information on Qt 6.8.0, Minor,
+shipped in 1.1.0) was found by the Qt 6.8 reference clean machine at the 1.1.0 RC and is fixed
+by the 1.1.1 patch ([F01.a](F01a-1.1.1-patch.md)). See the counts.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -203,6 +206,31 @@ Closed by the D-033 harness fix (2026-10-15, branch `fix/startup-abort`):
   The Wayland lines start no Xvfb; for them only the logging changes. The journald routing applies to every native
   test in CI, so D-031's message-less Wayland exit (recorded by R091.h) may also have lost a Qt
   message the same way; that is not shown.
+
+Closed by the 1.1.1 patch release:
+
+- **D-036** (sheet and measured PDF exports on Qt 6.8.0 write a malformed Info dictionary).
+  Class: **Minor** (document metadata only, on the oldest supported Qt). Found 2026-10-15 by
+  the Qt 6.8 reference clean machine at the 1.1.0 RC `093484f9`
+  ([F01-rc-1.1.0](https://github.com/zygote55/sketchyup/blob/main/docs/verification/F01-rc-1.1.0.md#failures));
+  shipped in 1.1.0 by owner decision. On Qt 6.8.0
+  (`archlinux:base-devel-20241013.0.269705`, 2024-10-15 archive) the installed CLI's opted-in
+  sheet export wrote an Info dictionary without its closing `>>` and with the dates
+  `D:00000000-1-1-1Z`; Poppler reported 48 "Dictionary key must be a name object" syntax
+  errors and could not read Title, Creator, Producer or the dates. Pages, text, fonts and the
+  attached report were intact. **Cause (Qt).** `QPdfEnginePrivate::writeInfo` in Qt 6.8.0 and
+  6.8.1 ends the dictionary with `2` instead of `>>` (qtbase a30591603b58, fixed for 6.8.2 by
+  14bd53687faa); Qt 6.8.0 also prints an invalid date when it cannot determine the system
+  time zone. Every `QPdfWriter` output is affected, so the measured PDF export was malformed
+  too, including in 1.0.x. **Fix.** `repairQtPdfInfo` (`src/io/pdf_info.cpp`) finds the
+  trailer's `/Info` object through `startxref` and the cross-reference table and patches only
+  those two patterns, at the same length, so every offset stays valid; both exports call it
+  before hashing, so the report's SHA-256 still matches. Any other PDF is left byte for byte
+  unchanged. `tests/pdf_info_check.hpp`, a strict reader of the `/Info` dictionary, checks the
+  sheet export, the CLI sheet export and the measured export on any Qt, and a Qt 6.8.0-shaped
+  copy is rejected, then repaired. Not repaired: the desktop Print path through `QPrinter`;
+  on Qt 6.8.0 without a time zone the XMP dates stay empty. Shipped in 1.1.1
+  ([F01.a](F01a-1.1.1-patch.md)).
 
 Closed by the D-035 fix (2026-10-15, branch `fix/assistant-sheet-tools`):
 
@@ -362,11 +390,13 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | Minor | 13 | D-006–D-009, D-019, D-021–D-023, D-027, D-028, D-031, D-032, D-034 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
 | **Total open** | **27** | |
-| Fixed since the 2026-10-11 refresh | 5 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15) |
+| Fixed since the 2026-10-11 refresh | 6 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
-(Major, 1.1.0 RC) was added and fixed on 2026-10-15, so it is not open.
+(Major, 1.1.0 RC) was added and fixed on 2026-10-15, so it is not open. D-036 (Minor, Qt 6.8
+only) was added on 2026-10-15 by the Qt 6.8 reference at the 1.1.0 RC, shipped in 1.1.0 and is
+fixed by 1.1.1, so it is not open.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
