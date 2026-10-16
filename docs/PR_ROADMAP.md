@@ -1335,7 +1335,7 @@ Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANC
 
 #### R093 — Implement constrained component parameters
 
-**Status:** In progress ([ADR 0165](decisions/0165-constrained-component-parameters.md), proposed). The ADR fixes the parameter model, the expression grammar, the limits, schema 28 with the `component-parameters-v1` feature and the command surface, and lists the choices left to the owner. No slice is merged yet. **Track:** Core. **Scope:** F02. **UX:** —.
+**Status:** In progress ([ADR 0165](decisions/0165-constrained-component-parameters.md), accepted; owner choices on their defaults). The ADR fixes the parameter model, the expression grammar, the limits, schema 28 with the `component-parameters-v1` feature and the command surface, and lists the choices left to the owner. No slice is merged yet. **Track:** Core. **Scope:** F02. **UX:** —.
 
 **Requires:** [R089](#r089), [R033](#r033); milestone gate rule above.
 

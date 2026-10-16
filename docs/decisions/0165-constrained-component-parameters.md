@@ -1,9 +1,11 @@
 # Constrained component parameters
 
-Status: **Proposed (2026-10-16).** Roadmap [R093](../PR_ROADMAP.md#r093) (M10, scope
+Status: **Accepted (2026-10-16)** for the decision; the layers are implemented by
+R093.a–e (see "Layer plan"). Roadmap [R093](../PR_ROADMAP.md#r093) (M10, scope
 row [F02](../SCOPE.md)); shapes [R094](../PR_ROADMAP.md#r094). The choices that belong
-to the owner are listed under "Open for the owner", each with the default this ADR
-assumes. Implementation is split into R093.a–e (see "Layer plan").
+to the owner are listed under "Open for the owner". Work proceeds on the stated
+defaults; the owner has not yet decided them and may change any of them before the
+F02 release.
 
 ## Context
 
