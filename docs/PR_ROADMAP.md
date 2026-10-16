@@ -1335,7 +1335,7 @@ Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANC
 
 #### R093 — Implement constrained component parameters
 
-**Status:** Planned. **Track:** Core. **Scope:** F02. **UX:** —.
+**Status:** In progress ([ADR 0165](decisions/0165-constrained-component-parameters.md), accepted; owner choices on their defaults). The ADR fixes the parameter model, the expression grammar, the limits, schema 28 with the `component-parameters-v1` feature and the command surface, and lists the choices left to the owner. No slice is merged yet. **Track:** Core. **Scope:** F02. **UX:** —.
 
 **Requires:** [R089](#r089), [R033](#r033); milestone gate rule above.
 
@@ -1343,11 +1343,19 @@ Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANC
 
 **Verify:** Changing width drives dependent geometry deterministically; invalid/cyclic formulas cannot partially commit or execute host code.
 
+Implementation split ([ADR 0165](decisions/0165-constrained-component-parameters.md#layer-plan) has the files and tests). Each slice requires its predecessor; R093 remains open until R093.e passes.
+
+- **R093.a — Expression engine.** **Build:** A Qt-free `sketchyup_parameter_expression` library: lexer, parser, static type and unit checker, iterative evaluator and canonical printer for the ADR 0165 grammar, with its limits and `PARAMETER_*` error codes; the `parameter-expression` libFuzzer format and seeds; the in-ctest `parameter_expression_fuzz`. **Verify:** Every production, precedence rule, unit rule and domain error is tested, with byte offsets; canonical text re-parses to the same tree and value; each limit accepts n and refuses n+1 before the work it bounds; golden values match bit for bit in `dev` and `sanitize`; the library's undefined symbols include no process, file, network or loader call.
+- **R093.b — Parameter records, dependency graph and regeneration.** **Build:** Definition parameter and driver records, instance overrides, the acyclic graph with deterministic order, the six driver kinds, variant regeneration and sharing, re-baselining of the template, repeat identities, hosted re-cuts, and the rules for `component.edit`, `component.edit_instance`, make-unique and replace on parametric components; `Edit`, history and memory accounting. No persistence. **Verify:** Overriding the table fixture's width from 0.9 m to 1.2 m stretches the top and moves only the right legs, with byte-identical results across repetitions, shuffled insertion, undo/redo and the two builds; a cyclic, ill-typed or out-of-range change and a regeneration failure in any placement refuse the whole batch with every record pointer-identical.
+- **R093.c — Schema 28 persistence.** **Build:** Retain the `v1.1.0` writer output as `release-1.1.0-v27.sketchyup` first; then the schema-28 root tables, the `component-parameters-v1` feature, the 26/27/28 writer policy, bundle and template capture, the ADR 0108 "Schema 28" section and a `component-parameters-v28.sketchyup` fixture; fuzz seeds and fault-corpus counts. **Verify:** Every field round trips; v1–27 fixtures load unchanged; non-canonical, unknown or missing fields and cyclic or ill-typed stored formulas are refused without changing the file; deleting every parameter writes 27 or 26 again; the 1.1.0-1 package refuses the v28 fixture unchanged and opens a parameter-free save from the new package.
+- **R093.d — Commands, inspection, MCP and assistant surface.** **Build:** The `component_parameter.*` operations and `component_parameters.*` queries, including the read-only `evaluate` dry run and driver rebind stamps; regenerated `docs/api` files; `assistantVisible()` hides every `component_parameter` name. **Verify:** Batches are atomic and one undo entry; stale revisions and every refusal code leave the document unchanged; `evaluate` never changes the document; MCP and the headless session expose every operation; `assistant_tool_surface_tests` passes against the unchanged baseline.
+- **R093.e — Acceptance record.** **Build:** `docs/verification/R093e-component-parameters.md` with a JSON summary, a 300-second campaign for the new and changed fuzz formats, and the measured parse, evaluation and load budgets. **Verify:** The R093 Verify line passes at a recorded commit in `dev` and `sanitize`, with no fuzz finding, and the ADR records R093.a–e as complete.
+
 <a id="r094"></a>
 
 #### R094 — Ship configurable component authoring and assemblies
 
-**Status:** Planned. **Track:** Desktop. **Scope:** F02. **UX:** —.
+**Status:** Planned. Builds on the records, queries and driver states of [ADR 0165](decisions/0165-constrained-component-parameters.md#what-r094-needs-from-r093). **Track:** Desktop. **Scope:** F02. **UX:** —.
 
 **Requires:** [R093](#r093), [R059](#r059); milestone gate rule above.
 
