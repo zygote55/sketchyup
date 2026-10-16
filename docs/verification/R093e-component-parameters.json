@@ -1,0 +1,316 @@
+{
+ "layer": "R093.e",
+ "date": "2026-10-16",
+ "recordedCommit": "16a51681181f9d751a7fda5d895c8e9aa627a9f7",
+ "integrationBase": "ddf7016e9dd5c5b1a6de32ae892e626c52dbec1f",
+ "branch": "build/r093e-acceptance",
+ "prs": {
+  "R093.a": 339,
+  "R093.b": 341
+ },
+ "verifyLine": "Changing width drives dependent geometry deterministically; invalid/cyclic formulas cannot partially commit or execute host code.",
+ "result": "pass",
+ "ci": "not run; CI runs once at the end of F02 (owner decision)",
+ "integrationFixes": [
+  {
+   "commit": "cce5f079",
+   "title": "F02: compare registered commands by their real encoding",
+   "cause": "command_tests compared parametric documents by a canonical dump because the writer refused parameter records before schema 28"
+  },
+  {
+   "commit": "7541c985",
+   "title": "F02: cover parameter commands through save and reopen",
+   "cause": "no test ran commands, saveDocument and loadDocument together"
+  }
+ ],
+ "productionChanges": 0,
+ "runs": {
+  "dev": {
+   "command": "ctest --preset dev -j6",
+   "passed": 207,
+   "of": 207,
+   "skipped": 12,
+   "skippedReason": "opt-in *_real external consumers"
+  },
+  "headless": {
+   "command": "ctest --preset headless",
+   "passed": 68, "of": 68
+  },
+  "sanitize": {
+   "Sanitized core without Qt": {
+    "passed": 68,
+    "of": 68
+   },
+   "Sanitized bounded inspection and CLI": {
+    "passed": 107,
+    "of": 107
+   },
+   "Sanitized shipped recipes and discovery": {
+    "passed": 7,
+    "of": 7
+   },
+   "Sanitized native MCP inspection": {
+    "wayland": {"runs": 46, "passed": 46}, "texture_cache": "passed", "note": "first pass: text_input_tests hit the 60 s deadline under host contention; rerun passed (59 s, then 27 s and 32 s alone; main CI about 31 s)",
+    "image": "sketchyup-ci-pinned:r094a"
+   }
+  },
+  "generatedDocs": {
+   "apiSchemas": "10 match",
+   "toolReference": "2 match",
+   "regenerated": false
+  }
+ },
+ "verify": {
+  "component_parameters": {
+   "checks": 420,
+   "suites": [
+    "table",
+    "shelves",
+    "determinism",
+    "rebaseline",
+    "sharing",
+    "nested",
+    "hosted",
+    "fail-closed",
+    "one-placement",
+    "cycles",
+    "locks",
+    "evaluation-budget"
+   ]
+  },
+  "component_parameter_commands": {
+   "checks": 193,
+   "cases": [
+    "atomicBatches",
+    "refusals",
+    "rebind",
+    "inspection",
+    "promotion",
+    "session",
+    "persistence"
+   ]
+  },
+  "component_parameter_io": {
+   "checks": 870,
+   "refusalCases": 141
+  },
+  "parameter_expression": {
+   "checks": 2672,
+   "cases": [
+    "grammarClosure",
+    "limits",
+    "goldenValues"
+   ]
+  },
+  "parameter_expression_fuzz": {
+   "generated": 20000,
+   "mutations": 9600,
+   "mutationAccepted": 1016,
+   "digest": "6ed984df689bd758"
+  },
+  "parameter_expression_symbols": "pass",
+  "parser_fault_corpus": {
+   "entries": 19,
+   "mutations": 9728,
+   "sourcePreserved": true
+  }
+ },
+ "determinism": {
+  "tableGoldenDigest": {
+   "dev": "64f78ccba287b01c57d9cc337ca6d0764c32a878f404d6ce8332e48eba5def6f",
+   "sanitize": "64f78ccba287b01c57d9cc337ca6d0764c32a878f404d6ce8332e48eba5def6f"
+  },
+  "expressionGoldens": "26 lines byte-identical",
+  "inCtestFuzzDigest": {
+   "dev": "6ed984df689bd758",
+   "sanitize": "6ed984df689bd758"
+  },
+  "writerFixtureNormalizedSha256": {
+   "dev": "a87a1ecf1e52c35d1197953a32af51dcf8cba07206f4e65d993b37780fb807b7",
+   "sanitize": "a87a1ecf1e52c35d1197953a32af51dcf8cba07206f4e65d993b37780fb807b7",
+   "committedFixture": "a87a1ecf1e52c35d1197953a32af51dcf8cba07206f4e65d993b37780fb807b7",
+   "masked": [
+    "documentId",
+    "chunk sha256"
+   ]
+  }
+ },
+ "fuzz": {
+  "procedure": "R083.e",
+  "seconds": 300,
+  "concurrency": 2,
+  "options": "-max_len=1048576 -timeout=10 -rss_limit_mb=2048 -detect_leaks=1",
+  "asan": "detect_leaks=1:abort_on_error=1 (+alloc_dealloc_mismatch=0 for the JSON-based formats)",
+  "toolchain": "clang 22.1.8, Qt 6.11.2",
+  "rejectedSeeds": [
+   "native-json/component-parameter-cycle"
+  ],
+  "targets": {
+   "parameter-expression": {
+    "seeds": 12,
+    "seedSetSha256": "7c19885c61c7e702e27619ce8fe744b7f4cb8715524951fed97ab0b650c248d0",
+    "executions": 586988,
+    "execPerSec": 1950,
+    "cov": 2124,
+    "ft": 6832,
+    "peakRssMb": 479,
+    "corpus": 621,
+    "allocDeallocMismatchDisabled": false,
+    "findings": 0
+   },
+   "native-json": {
+    "seeds": 6,
+    "seedSetSha256": "33678a44335d88161f5e0e18bb015e690d5153b60e1e44265c2ee1679126a8c0",
+    "executions": 234901,
+    "execPerSec": 780,
+    "cov": 17266,
+    "ft": 58068,
+    "peakRssMb": 516,
+    "corpus": 504,
+    "allocDeallocMismatchDisabled": true,
+    "findings": 0
+   },
+   "native-container": {
+    "seeds": 5,
+    "seedSetSha256": "e753e2b82551e1e7c0ea0392c5a568f1f01f7caa56925eb728c3db599bf79b94",
+    "executions": 582458,
+    "execPerSec": 1935,
+    "cov": 16234,
+    "ft": 41605,
+    "peakRssMb": 524,
+    "corpus": 87,
+    "allocDeallocMismatchDisabled": true,
+    "findings": 0
+   },
+   "component": {
+    "seeds": 2,
+    "seedSetSha256": "068025fdd18ea1b25ff44b4d73743a5648a5a3f5912d168b2c5dc94aa77e85ec",
+    "executions": 674025,
+    "execPerSec": 2239,
+    "cov": 16215,
+    "ft": 36496,
+    "peakRssMb": 559,
+    "corpus": 42,
+    "allocDeallocMismatchDisabled": true,
+    "findings": 0
+   },
+   "template": {
+    "seeds": 2,
+    "seedSetSha256": "c8568e56d08f6c10097bfc1a9f04378c9e17ddfe2c966f8d1e6ebaa2e46cba20",
+    "executions": 969572,
+    "execPerSec": 3221,
+    "cov": 14038,
+    "ft": 27879,
+    "peakRssMb": 613,
+    "corpus": 38,
+    "allocDeallocMismatchDisabled": true,
+    "findings": 0
+   }
+  }
+ },
+ "budgets": {
+  "basis": "ceiling = 10 x the largest sample on the reference host, per build",
+  "parseCheck1024Bytes": {
+   "unit": "us",
+   "devSamples": [
+    1863,
+    4151,
+    3167,
+    3057,
+    721
+   ],
+   "devCeiling": 42000,
+   "sanitizeSamples": [
+    17508,
+    14699,
+    11838,
+    5173,
+    4068
+   ],
+   "sanitizeCeiling": 180000,
+   "test": "parameter_expression_tests"
+  },
+  "evaluateWorstDefinition": {
+   "unit": "ms",
+   "visits": 98049,
+   "devSamples": [
+    17.1,
+    33.4,
+    17.3,
+    34.0,
+    17.0,
+    6.9
+   ],
+   "devCeiling": 340,
+   "sanitizeSamples": [
+    104.2,
+    76.8,
+    67.3,
+    28.5,
+    33.3
+   ],
+   "sanitizeCeiling": 1050,
+   "test": "component_parameter_tests evaluation-budget"
+  },
+  "loadWorstDocument": {
+   "unit": "s",
+   "documents": {
+    "visits20M": {
+     "bytes": 457099,
+     "devSamples": [
+      9.51,
+      5.42,
+      3.42
+     ],
+     "sanitizeSamples": [
+      48.2,
+      12.5
+     ]
+    },
+    "variants4096": {
+     "bytes": 2462844,
+     "devSamples": [
+      4.27,
+      3.07,
+      1.85
+     ],
+     "sanitizeSamples": [
+      17.3,
+      5.7
+     ]
+    }
+   },
+   "devCeiling": 96,
+   "sanitizeCeiling": 490,
+   "test": "component_parameter_io_tests"
+  }
+ },
+ "previousRelease": {
+  "fixture": "tests/fixtures/component-parameters-v28.sketchyup",
+  "fixtureSha256": "df46f73d5ce1c68b95995be0e9881f7e5478ff49d8bc3b7db010a9138da9fd92",
+  "refusal": "{\"code\":\"INVALID_OPERATION\",\"error\":\"Unsupported container field\",\"status\":\"failed\"}",
+  "releases": {
+   "1.1.0-1": {
+    "packageSha256": "e718b8fb0e52bb5ec40b6817b99c92a824242f4a20907a02f50f47e3f0c0d00a",
+    "exit": 1,
+    "fileUnchanged": true,
+    "opensParameterFreeSchemas": [
+     26,
+     27
+    ],
+    "ioChecks": 888
+   },
+   "1.0.1-1": {
+    "packageSha256": "91e807851d40525ce5429814f88b59c4fef9321de121f165e9e33429b82869f5",
+    "exit": 1,
+    "fileUnchanged": true,
+    "opensParameterFreeSchemas": [
+     26
+    ],
+    "ioChecks": 885
+   }
+  },
+  "r093cEvidence": "ADR 0165 Implementation notes (R093.c)"
+ },
+ "nativeMatrix": "R093 adds no GUI suites; the X11/Wayland matrices and package job run in CI at the end of F02"
+}
