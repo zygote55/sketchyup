@@ -1,0 +1,285 @@
+{
+  "layer": "F01.a",
+  "date": "2026-10-15",
+  "patch": {
+    "branch": "fix/d036-1.1.1",
+    "base": "release/1.1.x",
+    "baseTag": "v1.1.0",
+    "baseCommit": "093484f941fb3439b5033b2d9fa5fae951a2c09c",
+    "commit": "7ac246f02ea9ed65b15741312756e2987e4ce192",
+    "tree": "14b0694a98f3a9772ca9ef64d3590dd8317b2161",
+    "cherryPick": {
+      "from": "3e4536957de4744d49f416f40aead60216d44138",
+      "pullRequest": 334,
+      "defect": "D-036",
+      "conflicts": false,
+      "commit": "277cdd4569cf4750d011d65b89cb1744379029ee"
+    },
+    "version": "1.1.1",
+    "pkgrel": 1
+  },
+  "artifacts": {
+    "sourceArchive": {
+      "file": "sketchyup-1.1.1.tar.gz",
+      "sha256": "52492a3f1b91b465f11688b361116962186c425d637bf9ff9bb31c9c355403a9",
+      "files": 1193
+    },
+    "package": {
+      "file": "sketchyup-1.1.1-1-x86_64.pkg.tar.zst",
+      "version": "1.1.1-1",
+      "sha256": "58ddfed5332f57fc3cef422d91938337f136f8c5f29fa19003ccec5c9afd9c2b",
+      "builtIn": "sketchyup-build:20261002 (package acceptance p111-package-2)"
+    },
+    "thirdPartyNotices": {
+      "file": "THIRD_PARTY_NOTICES",
+      "sha256": "ca7b71d7544ec0220563176da71c94901993bac411068fc375428cefa08ffeb5"
+    },
+    "manifestSha256": "103db4ddde46011f5f93eb050d2034e213924fdf53acb21b2b31e7baedf3e08a",
+    "sha256sumsSha256": "5c27dcf6e2aea7278b9c50d815baa2169adbba9dd6f67b3e619022a3c091badb",
+    "releaseArtifactsRuns": 2,
+    "archiveStableAcrossRuns": true,
+    "archiveEqualsPackageSource": true,
+    "logSha256": "0289545138ff08493e51d482d3f1ab981a2a0e6bbb38a9bae6119644573d4369"
+  },
+  "priorPackage": {
+    "file": "sketchyup-1.1.0-1-x86_64.pkg.tar.zst",
+    "source": "GitHub release v1.1.0",
+    "sha256": "e718b8fb0e52bb5ec40b6817b99c92a824242f4a20907a02f50f47e3f0c0d00a",
+    "verified": true
+  },
+  "images": {
+    "packageBuild": {
+      "tag": "sketchyup-build:20261002",
+      "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+    },
+    "qt68Reference": {
+      "tag": "archlinux:base-devel-20241013.0.269705",
+      "id": "sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+      "archiveDate": "2024-10-15",
+      "qt6-base": "6.8.0-1",
+      "gcc": "14.2.1"
+    },
+    "pinned": {
+      "image": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+      "archiveDate": "2026-10-02",
+      "qt6-base": "6.11.2-3"
+    }
+  },
+  "hostToolchain": {
+    "gcc": "16.2.1",
+    "cmake": "4.4.3",
+    "qt6-base": "6.11.2-3",
+    "poppler": "26.08.0-1",
+    "qpdf": "12.4.1-1"
+  },
+  "checks": {
+    "devCtest": {
+      "result": "201/201 pass, 12 *_real skipped",
+      "exit": 0,
+      "logSha256": "0531fb5fc314e5cf0b2f0c3a47f6baf53c92433c211980fcdc326ab6ca130f5b",
+      "pdfOptIn": {
+        "env": "SKETCHYUP_PDF_TEST=/usr/bin/pdftoppm",
+        "tests": [
+          "sheet_export",
+          "sheet_export_real",
+          "measured_export",
+          "measured_export_real",
+          "measured_cli"
+        ],
+        "result": "5/5 pass",
+        "logSha256": "e5e2e3431f567047e427a18584f5cab1eec9f375201b51c095eac673861a4fab"
+      }
+    },
+    "headlessCtest": {
+      "result": "64/64 pass",
+      "exit": 0,
+      "logSha256": "96747d269ead3e3fc2293d70c4669e86d804d47944c6a68fd306e3b9288a1bce"
+    },
+    "sanitizeSubset": {
+      "configure": "cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON",
+      "tests": [
+        "sheet_export",
+        "measured_export",
+        "measured_cli",
+        "drawing_sheet_paint",
+        "measured_drawing"
+      ],
+      "result": "5/5 pass",
+      "exit": 0,
+      "logSha256": "d94126b8caa99a986999f26d86f54e2231ac702fa6818e01ad01c0665ad00860"
+    },
+    "packageAcceptance": {
+      "attempts": [
+        {
+          "run": "p111-package",
+          "priorReleasePackage": "published 1.1.0-1",
+          "exit": 4,
+          "result": "drawing_sheet_io failed in the prior-labeled build check(): 'The prior release rejects schema 27 with items' cannot hold for a prior that reads schema 27; 200/201 other tests passed",
+          "classification": "check configuration, deterministic, not a product defect",
+          "logSha256": "6bd6c392883827c12172141af901b3ed7d7cbb3c86ca6a4ac0d440e2af0a088a"
+        },
+        {
+          "run": "p111-package-2",
+          "priorReleasePackage": "published 1.0.1-1 (sha256 91e807851d40525ce5429814f88b59c4fef9321de121f165e9e33429b82869f5), as CI",
+          "exit": 0,
+          "priorLabel": "1.1.0-1",
+          "ctest": "201/201",
+          "installedMigrations": 30,
+          "logSha256": "65997b68d727ece4b764f81874ad7c6d621e9320e0aa77c7c39ef0bb113f632b"
+        }
+      ],
+      "runner": "wide (6 CPUs 6-11, 10 GiB)"
+    },
+    "upgradeFromPublished": {
+      "attempts": [
+        {
+          "run": "p111-upgrade",
+          "exit": 1,
+          "classification": "harness error: looked for 'sketchyup-document-v27' instead of the chunk encoding json-v27",
+          "logSha256": "d33a63e0fa4855d738ded08cc19f1899c94b2aa7a0cf07c542d2414e4ea1ed36",
+          "scriptSha256": "2e301a72a7aad88e7872a76dcfec812c060974d2fafa7ccfcfb6e6257f2a7af0"
+        },
+        {
+          "run": "p111-upgrade-2",
+          "exit": 0,
+          "logSha256": "ee5e22532dcd8ce38221e5528ac9fd4213aa279b70cd09371bbdbbfba195592c",
+          "scriptSha256": "93a71fc4ed6cf8f93e380b92a3f80df0ee44e73a37210c504eaf88677fd0d14f"
+        }
+      ],
+      "runner": "standard (1 CPU, 4 GiB)",
+      "from": "1.1.0-1 (published)",
+      "to": "1.1.1-1",
+      "ownedFiles": 251,
+      "preferencesByteIdentical": true,
+      "dataAndCacheKept": true,
+      "versionAfter": "1.1.1",
+      "fixture": {
+        "file": "tests/fixtures/drawing-sheets-v27.sketchyup",
+        "sha256": "ee00d21a7e260ac485d9bbe52cb81d402e26a895087cbceb52eeb76397592fae"
+      },
+      "savedBy110Sha256": "e3e037a06e283c90e3c8de5a58e4f452f640b295f7f654436f7c5cfca400143d",
+      "savedBy111Sha256": "acba7c26fce70d0502f9582de0ca40b55603668d075e14a8c6930e85af022276",
+      "document110Reopens": true,
+      "document110Unchanged": true,
+      "document111Validates": true
+    },
+    "d036EndToEnd": {
+      "referenceBuild": {
+        "from": "sketchyup-1.1.1.tar.gz (release archive)",
+        "method": "rc-1.1.0b-qt68 build-snapshot.sh, makepkg --nocheck",
+        "buildSeconds": 925,
+        "package": "8e7ca7842e0f5d6cfd589b3de25c9e836378a55ab90cd2fcdf5b3f20ff93d091",
+        "logSha256": "121ee1a897732d4b6eb681eccdebc78f88f7e0920ca694b1e8b2e2f85c13408a"
+      },
+      "exports": {
+        "network": "none",
+        "tz": "unset, no /etc/localtime",
+        "attempts": [
+          {
+            "run": "qt68-reference",
+            "exit": 1,
+            "classification": "harness error: pacman -Q qt6-base before Qt was installed",
+            "logSha256": "e2ca14cafc048ac8670c1311eaff895f3935626e7cb0c3578ee6c1277b2aa04a"
+          },
+          {
+            "run": "qt68-reference-a2",
+            "exit": 0,
+            "logSha256": "e3109cb682bea45957d9d086c122040bb9e25d8091ffacf176df05c1024055f6",
+            "hostCheckSha256": "065d5a2c068888fc24e0cee514e1cd697be55528e0ba21a729f99829c364998a"
+          }
+        ]
+      },
+      "installed110": {
+        "package": "4cb4df9517d0f2f4c1e3a0d719ae57829855937ecf8090aa1ca5a2b0530d06d5 (reference-built 1.1.0-1)",
+        "sheets": {
+          "syntaxErrors": 48,
+          "title": null,
+          "creator": null,
+          "qpdfExit": 3,
+          "textSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940",
+          "pdfSha256": "bc2fed5978ee84033e0e3deb6310b155a517e3fa56677a5a47f66954f610aa51"
+        },
+        "measured": {
+          "syntaxErrors": 48,
+          "title": null,
+          "creator": null,
+          "qpdfExit": 3,
+          "textSha256": "ef6cbd2161eaea7943ce8693b9824d23d1793ffb1c0fca05b600d3899b44c977",
+          "pdfSha256": "90313466d5c2b4e20df3f386fb457a1ebc94cad72308e5e10da95e007ec8ab65"
+        }
+      },
+      "installed111": {
+        "package": "8e7ca7842e0f5d6cfd589b3de25c9e836378a55ab90cd2fcdf5b3f20ff93d091 (reference-built 1.1.1-1)",
+        "sheets": {
+          "syntaxErrors": 0,
+          "title": "SketchyUp drawing sheets",
+          "creator": "SketchyUp",
+          "qpdfExit": 0,
+          "textSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940",
+          "pdfSha256": "7445a2e41d29e82e6de4d143a66b041cb06b502454fe3a757e3f48834a336475"
+        },
+        "measured": {
+          "syntaxErrors": 0,
+          "title": "SketchyUp vector measured orthographic drawing",
+          "creator": "SketchyUp",
+          "qpdfExit": 0,
+          "textSha256": "ef6cbd2161eaea7943ce8693b9824d23d1793ffb1c0fca05b600d3899b44c977",
+          "pdfSha256": "b202364eb85e3b0c501c71d58936f59eb0c7aeae74553666dfd0ae8365be06a8"
+        }
+      },
+      "textIdentical": true,
+      "reportSha256MatchesFile": true,
+      "attachedReportKept": true
+    },
+    "pinnedSmoke": {
+      "package": "58ddfed5332f57fc3cef422d91938337f136f8c5f29fa19003ccec5c9afd9c2b",
+      "network": "none",
+      "exit": 0,
+      "sheets": {
+        "syntaxErrors": 0,
+        "qpdfExit": 0,
+        "textSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
+      },
+      "measured": {
+        "syntaxErrors": 0,
+        "qpdfExit": 0,
+        "textSha256": "ef6cbd2161eaea7943ce8693b9824d23d1793ffb1c0fca05b600d3899b44c977"
+      },
+      "logSha256": "50f1c885eb7bd7f46ffb660dca6973d6971cb23b37fa12dcb3932f8caec2d7a6",
+      "hostCheckSha256": "fc1939a4cb64a6239edc06282ce7b3e5f3277aca265fae566e4c782e15775580"
+    },
+    "providerCorpus": {
+      "offlineTests": [
+        "provider_release_corpus",
+        "provider_release_score",
+        "openai_provider",
+        "ollama_provider",
+        "chatgpt_auth",
+        "assistant",
+        "native_assistant_session"
+      ],
+      "result": "pass",
+      "inputSha256Regenerated": 16,
+      "inputSha256RegeneratedPerFile": 8,
+      "promptSha256Changed": 0,
+      "liveRun": false
+    }
+  },
+  "harnessSha256": {
+    "pdf-exports.sh": "4c61290a3d103fa681f6d4c83a787ad5f58c984178dbec8289d1c25f5fce5ae9",
+    "pdf-exports.a1.sh": "756a86601d297d25d53b2e79d22bec748a9ce53cd73565e802478ee7200f7d3b",
+    "run-pdf-exports.sh": "12805fe869be47c8f3ebd348eca09270b29ef1f2b74e4853d2c46eba47a006b2",
+    "check-pdfs.sh": "11cc56db01c508c58b732dce29a35c39a724b6c5b0821ef0f3c6d73414f38dc0",
+    "run-build-reference.sh": "77ee8f71f3616e534c10132adc0391be21a35659e57e20cfcae3009894bb1d89",
+    "run-container-check-wide-111.sh": "736015a28c28cea80c1567e06446d0a849833d62155a4812ecda66ec560dbc66"
+  },
+  "notRepeated": [
+    "native suites",
+    "AT-SPI and dialog audits",
+    "studies",
+    "fresh clean machine and full clean-machine lifecycles",
+    "hardware",
+    "Qt 6.8.1-6.10"
+  ],
+  "tagOrReleaseCreated": false
+}
