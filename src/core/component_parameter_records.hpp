@@ -4,8 +4,8 @@
 // A parametric definition carries one immutable ComponentParameters record: an
 // ordered list of parameters and a list of drivers. A top-level placement may carry
 // overrides for the definition's input parameters (ComponentInstance::overrides).
-// Variants, values and driver states are derived, never stored. These records are
-// not persisted until schema 28 (R093.c); the native writer refuses them.
+// Variants, values and driver states are derived, never stored. Schema 28 persists
+// the records, the overrides and the driver allocator (R093.c, ADR 0165 §5).
 #include "core/body.hpp"
 #include "core/parameter_expression.hpp"
 #include <array>

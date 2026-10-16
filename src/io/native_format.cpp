@@ -44,6 +44,14 @@ QJsonObject describe(const QByteArray &bytes, const Document &doc) {
     }
     qint64 assetBytes{};
     int missing{};
+    int parametric{}, drivers{}, overrides{};
+    for (const auto &[id, definition] : doc.definitions())
+        if (definition->parameters) {
+            ++parametric;
+            drivers += int(definition->parameters->drivers.size());
+        }
+    for (const auto &[root, instance] : doc.instances())
+        overrides += instance->overrides.empty() ? 0 : 1;
     for (const auto &[id, asset] : doc.assets()) {
         missing += !asset->payload;
         if (asset->payload)
@@ -56,7 +64,8 @@ QJsonObject describe(const QByteArray &bytes, const Document &doc) {
             {"containerVersion", container ? nativeContainerVersion : 0},
             {"documentVersion", tree["version"]},
             {"currentDocumentVersion", nativeDocumentVersion},
-            // Sheet-free documents are current at schema 26 (ADR 0163 decision 2).
+            // Sheet-free documents are current at schema 26 and parameter-free ones at 27
+            // (ADR 0163 decision 2, ADR 0165 §5).
             {"migrationNeeded",
              !container || tree["version"].toInt() != nativeDocumentVersionFor(doc)},
             {"documentId", QString::fromStdString(doc.identity())},
@@ -70,6 +79,9 @@ QJsonObject describe(const QByteArray &bytes, const Document &doc) {
             {"drawingSheets", int(doc.drawingSheets().size())},
             {"drawingViews", int(doc.drawingViews().size())},
             {"drawingItems", int(doc.drawingItems().size())},
+            {"componentParameters", parametric},
+            {"componentDrivers", drivers},
+            {"componentParameterOverrides", overrides},
             {"assets", int(doc.assets().size())},
             {"assetBytes", QString::number(assetBytes)},
             {"missingAssets", missing},
@@ -111,11 +123,11 @@ QJsonObject migrateNativeFile(const QString &input, const QString &output) {
 QJsonObject nativeFormatCapabilities() {
     return {{"apiVersion", 1},
             {"format", "sketchyup"},
-            {"publicSchema", "sketchyup-document-v27"},
+            {"publicSchema", "sketchyup-document-v28"},
             {"documentVersion", nativeDocumentVersion},
             {"containerVersion", nativeContainerVersion},
             {"readDocumentVersions", QJsonArray{1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
-                                                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}},
+                                                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}},
             {"fileLimitBytes", QString::number(fileLimit)},
             {"migrationReplacesFiles", false},
             {"unknownRequiredRecords", "reject"},

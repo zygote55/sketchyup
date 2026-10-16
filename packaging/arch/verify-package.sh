@@ -100,7 +100,8 @@ fi
 sed -i -e "s/^pkgver=$package_version$/pkgver=$prior_version/" \
   -e "s/^pkgrel=$package_release$/pkgrel=$prior_release/" \
   -e "s/^_srcname=.*$/_srcname=sketchyup-$package_version/" PKGBUILD
-# check() runs ctest; drawing_sheet_io_tests also drives the released CLI when set.
+# check() runs ctest; drawing_sheet_io_tests and component_parameter_io_tests also drive
+# the released CLI when set.
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" \
   SKETCHYUP_PRIOR_CLI="$prior_release_cli" makepkg --noconfirm --force
 grep -qx "project(SketchyUp VERSION $package_version LANGUAGES CXX)" "$source_dir/CMakeLists.txt" || {
