@@ -5,6 +5,7 @@
 #include "automation/annotation_commands.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/drawing_sheet_commands.hpp"
+#include "automation/component_parameter_commands.hpp"
 #include "automation/section_commands.hpp"
 #include "core/copy_array.hpp"
 namespace sketchy {
@@ -311,7 +312,7 @@ QJsonArray commandCatalog() {
     affine["description"] = "Column-major affine 4x4. Translation is at indices 12, 13, 14. "
                             "Transform only inspected vertex IDs to preserve member thickness; "
                             "uniform bounds scaling changes thickness.";
-    return {
+    QJsonArray result{
         spec("assert.measurement", "Require a final batch measurement to match", "Verification",
              {{"body", stableId()}, {"space", space},
               {"metric", QJsonObject{{"type", "string"},
@@ -940,6 +941,10 @@ QJsonArray commandCatalog() {
         spec("scene.transform", "Set object transform", "Scene",
              {{"body", stableId()}, {"matrix", list(number(), 16, 16)}, {"parent", stableId(true)}},
              {"body", "matrix"})};
+    // ADR 0165 §6 (R093.d): component parameter operations.
+    for (const auto &entry : componentParameterCommandSpecs())
+        result.append(entry);
+    return result;
 }
 QJsonObject commandDescription(const QString &name) {
     static const auto entries = commandCatalog();

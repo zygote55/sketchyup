@@ -707,6 +707,44 @@ above; where they differ, these notes govern.
   definition members, so a variant placement renders with its own meshes rather than
   shared ones: correct, not instanced. Instanced variant rendering is R094 work.
 
+## Implementation notes (R093.d)
+
+R093.d settled these points in the command and inspection layer. They refine §4 and §6.
+
+- **Override literals.** A string override is a choice value for a `choice` parameter
+  and otherwise one signed quantity literal (`"1200 mm"`, `"-90 deg"`); a unitless
+  literal is read in SI units, like a JSON number. Anything else is `PARAMETER_SYNTAX`.
+- **Parameter operations inside an edit scope are refused.** `component.edit` and
+  `component.edit_instance` reject every nested `component_parameter.*` operation: one
+  on another definition or placement needs its own scope, as scene operations do, and
+  one on the scoped definition goes in the outer batch beside the template edit. A
+  batch such as `[component_parameter.undrive, component.edit]` is the "same batch" of
+  §4 that removes or retargets a driver whose target the edit deletes.
+- **Result fields.** Every committed batch reports `createdComponentDrivers`,
+  `regenerated {placements, variants}` and `parameterWarnings` at the top level (a
+  definition edit re-projects every placement of it, so `placements` counts those too).
+  Each parameter operation also appends an entry to `componentOperations` with its own
+  `createdDrivers`, `regenerated` and `parameterWarnings`. `component.edit_instance`
+  reports `parametersPromoted` (false for a definition without parameters), and
+  `component.replace` reports `droppedOverrides` when it drops any.
+- **Codes.** `executeBatch` reports a parameter error as its ADR code (not
+  `INVALID_OPERATION`), so the headless session, MCP, staging and the CLI see
+  `PARAMETER_*`, `LIMIT_EXCEEDED`, `LOCKED_ENTITY`, `NOT_FOUND` and `INVALID_TARGET`.
+  Request-shape errors (an unknown driver data field, both `drivers` and `all`) stay
+  ordinary invalid operations.
+- **`component_parameters.evaluate`** returns `{status: "ok", values, regeneration,
+  expression}` or `{status: "error", error {code, message, offset?, excerpt?, ...}}`;
+  failures are data, not refusals. It takes an optional `type` for the expression's
+  result; without one the first of length, area, angle, number, boolean and each
+  choice parameter's options that type-checks is used. `regeneration` is the
+  materialized size of one placement with those values.
+- **Promotion needs a top-level placement.** `component.edit_instance` on a nested
+  placement of a parametric definition is refused with `INVALID_TARGET`, because its
+  values come from its parent's drivers.
+- **`--inspect-native` counts** (`componentParameters`, `componentDrivers`,
+  `componentParameterOverrides`) live in `src/io/native_format.cpp` and land with the
+  schema-28 reader in R093.c.
+
 ## What R094 needs from R093
 
 - `component_parameters.describe`, `.values` and `.evaluate` for the inspector and live

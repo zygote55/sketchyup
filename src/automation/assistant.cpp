@@ -48,8 +48,11 @@ QString phaseName(AssistantTask::Phase phase) {
 // re-sent on every provider turn and pushed the 1.1.0 release-candidate corpus over its
 // token budget (R086.cb, D-035 in R089.a). assistant_tool_surface_tests pins the
 // resulting surface to the 1.0.1 baseline, so any addition here must be deliberate.
+// Component parameter operations and queries (every component_parameter.* and
+// component_parameters.* name, ADR 0165 §6) are hidden the same way in the F02 release.
 bool assistantVisible(const QString &name) {
-    return !name.startsWith(QStringLiteral("drawing_"));
+    return !name.startsWith(QStringLiteral("drawing_")) &&
+           !name.startsWith(QStringLiteral("component_parameter"));
 }
 QJsonArray visibleInspectionCatalog() {
     QJsonArray result;
