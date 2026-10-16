@@ -8,6 +8,7 @@
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
+#include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QJsonDocument>
 #include <QTemporaryDir>
@@ -660,6 +661,67 @@ void session() {
           "transaction.apply keeps the parameter code: " + applyCode + " " + applyMessage);
     std::cout << "session: ok\n";
 }
+// Commands, then save and reopen: the values query, the descriptions, the regenerated
+// geometry and the canonical encoding survive schema 28 unchanged (R093.c with R093.d).
+void persistence() {
+    auto t = makeTable();
+    auto &doc = t.doc;
+    run(doc, {override(t.placement, {{"width", "1200 mm"}, {"shelves", 2}})});
+    run(doc, {QJsonObject{{"command", "component.instance"},
+                          {"definition", text(t.definition)},
+                          {"matrix", QJsonArray{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}}}});
+    Id copy = 0;
+    for (const auto &[id, instance] : doc.instances())
+        if (id != t.placement && instance->definition == t.definition)
+            copy = id;
+    check(copy != 0, "A second placement of the table exists");
+    run(doc, {override(copy, {{"width", "600 mm"}})});
+    const auto values = [](const Document &value, Id placement) -> QJsonArray {
+        return query(value, "component_parameters.values", {{"body", text(placement)}})
+            .value("values")
+            .toArray();
+    };
+    const auto describe = [&](const Document &value) {
+        return query(value, "component_parameters.describe", {{"definition", text(t.definition)}});
+    };
+    QTemporaryDir files;
+    const auto path = files.filePath("table.sketchyup");
+    saveDocument(doc, path);
+    check(!doc.dirty(), "Saving a parametric document clears the dirty state");
+    auto reopened = loadDocument(path);
+    check(values(reopened, t.placement) == values(doc, t.placement) &&
+              values(reopened, copy) == values(doc, copy),
+          "component_parameters.values round trips through save and reopen: " +
+              json(values(reopened, t.placement)));
+    const auto width = values(reopened, t.placement)[0].toObject();
+    check(width["name"] == "width" && width["source"] == "override" &&
+              std::abs(width["value"].toDouble() - 1.2) < 1e-12,
+          "The reopened override is 1.2 m: " + json(width));
+    check(describe(reopened) == describe(doc),
+          "component_parameters.describe round trips through save and reopen");
+    check(encodeDocument(reopened) == encodeDocument(doc),
+          "The reopened document encodes byte-identically");
+    const auto top = [&](const Document &value, Id placement) {
+        return maxX(*value.bodies().at(value.instances().at(placement)->members.at(t.top)));
+    };
+    check(std::abs(top(reopened, t.placement) - top(doc, t.placement)) < 1e-12 &&
+              std::abs(top(reopened, copy) - top(doc, copy)) < 1e-12,
+          "The reopened placements keep their regenerated geometry");
+    // Commands keep working on the reopened document, and a reset saves again.
+    run(reopened, {QJsonObject{{"command", "component_parameter.reset"},
+                               {"body", text(t.placement)},
+                               {"all", true}}});
+    const auto reset = values(reopened, t.placement)[0].toObject();
+    check(reset["source"] == "default" && std::abs(reset["value"].toDouble() - .9) < 1e-12,
+          "Reset after reopen restores the default: " + json(reset));
+    saveDocument(reopened, path);
+    const auto again = loadDocument(path);
+    check(values(again, t.placement) == values(reopened, t.placement) &&
+              values(again, copy) == values(doc, copy) &&
+              encodeDocument(again) == encodeDocument(reopened),
+          "A second save and reopen keeps every value");
+    std::cout << "persistence: ok\n";
+}
 } // namespace
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -671,6 +733,7 @@ int main(int argc, char **argv) {
         inspection();
         promotion();
         session();
+        persistence();
         std::cout << "component parameter commands: " << checks << " checks passed\n";
         return 0;
     } catch (const std::exception &error) {

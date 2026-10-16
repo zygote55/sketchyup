@@ -1550,6 +1550,56 @@ void accounting() {
           "The history entry charges the overrides");
     std::cout << "accounting: ok\n";
 }
+// ADR 0165 §7 "Budget": evaluating the worst accepted definition (128 parameters, 256
+// drivers, every formula 256 nodes) stays under ten times the value R093.e measured on
+// its reference machine, per build (the sanitized build runs several times slower).
+#if defined(__SANITIZE_ADDRESS__)
+constexpr double evaluationCeilingMs = 1050; // measured at most 104.2 ms
+#else
+constexpr double evaluationCeilingMs = 340; // measured at most 34.0 ms
+#endif
+void evaluationBudget() {
+    auto p = makePanel();
+    ComponentParameters record;
+    record.parameters.push_back(numberParameter("x", "1", ComponentParameterMode::Input));
+    for (std::size_t i = 1; i < ComponentParameterLimits::parameters; ++i)
+        record.parameters.push_back(numberParameter("q" + std::to_string(i), chain(128)));
+    // "-x + ... + x > 0": 127 names, 126 additions, a negation, a literal and a comparison.
+    const auto visible = canonicalParameterExpression(parseParameterExpression(chain(127) + " > 0"));
+    for (std::size_t i = 1; i <= ComponentParameterLimits::drivers; ++i) {
+        ComponentDriver driver;
+        driver.id = i;
+        driver.kind = ComponentDriverKind::Visibility;
+        driver.member = p.member;
+        driver.expression = visible;
+        record.drivers.push_back(driver);
+    }
+    auto definitions = p.doc.definitions();
+    definitions[p.definition] = withRecord(definitions.at(p.definition), record);
+    validateComponentParameterRecords(definitions, nullptr, ComponentParameterLimits::drivers + 1);
+    const auto compiled = compileComponentParameters(definitions.at(p.definition), definitions);
+    const auto first = evaluateComponentParameters(*compiled, {});
+    constexpr std::size_t nodes = 256;
+    check(first.visits == 1 + (ComponentParameterLimits::parameters - 1) * nodes +
+                              ComponentParameterLimits::drivers * nodes,
+          "The worst definition visits every node of every formula once (got " +
+              std::to_string(first.visits) + ")");
+    check(std::get<bool>(first.drivers.back()), "Its visibility formulas are true");
+    // Timed at the defaults, where the input's own default formula is visited too.
+    constexpr int runs = 20;
+    double best = 1e9;
+    for (int run = 0; run < runs; ++run) {
+        const auto started = std::chrono::steady_clock::now();
+        const auto evaluated = evaluateComponentParameters(*compiled, {});
+        best = std::min(best, std::chrono::duration<double, std::milli>(
+                                  std::chrono::steady_clock::now() - started)
+                                  .count());
+        check(evaluated.visits == first.visits, "Each evaluation visits the same nodes");
+    }
+    std::cout << "evaluation budget: " << first.visits << " visits, best of " << runs << " "
+              << best << " ms; ceiling " << evaluationCeilingMs << " ms\n";
+    check(best <= evaluationCeilingMs, "The worst definition evaluates within the ceiling");
+}
 } // namespace
 int main(int argc, char **argv) {
     const std::string argument = argc > 1 ? argv[1] : "";
@@ -1574,6 +1624,7 @@ int main(int argc, char **argv) {
         {"accounting", accounting},
         {"definition-limits", definitionLimits},
         {"document-limits", documentLimits},
+        {"evaluation-budget", evaluationBudget},
     };
     try {
         for (const auto &[name, suite] : suites) {
@@ -1582,7 +1633,8 @@ int main(int argc, char **argv) {
             // The full-validation oracle cross-checks every edit and undo; the large
             // limit fixtures run without it to stay short under sanitizers.
             Document::setFullValidationOracle(name != "definition-limits" &&
-                                              name != "document-limits");
+                                              name != "document-limits" &&
+                                              name != "evaluation-budget");
             suite();
         }
         std::cout << checks << " component parameter checks passed\n";

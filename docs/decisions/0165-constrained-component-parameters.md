@@ -1,7 +1,9 @@
 # Constrained component parameters
 
-Status: **Accepted (2026-10-16)** for the decision; the layers are implemented by
-R093.a–e (see "Layer plan"). Roadmap [R093](../PR_ROADMAP.md#r093) (M10, scope
+Status: **Accepted (2026-10-16)** for the decision; **R093.a–e are complete** (see
+"Layer plan"). The [R093.e acceptance record](../verification/R093e-component-parameters.md)
+verifies the R093 line locally in `dev` and `sanitize` at `16a51681`; CI runs at the end
+of F02. Roadmap [R093](../PR_ROADMAP.md#r093) (M10, scope
 row [F02](../SCOPE.md)); shapes [R094](../PR_ROADMAP.md#r094). The choices that belong
 to the owner are listed under "Open for the owner". Work proceeds on the stated
 defaults; the owner has not yet decided them and may change any of them before the

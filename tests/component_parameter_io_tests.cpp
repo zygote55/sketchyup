@@ -22,6 +22,7 @@
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QtEndian>
+#include <chrono>
 #include <functional>
 #include <iostream>
 #include <set>
@@ -166,6 +167,174 @@ int runPriorCli(const QString &cli, const QStringList &arguments, QByteArray &ou
     out = process.readAllStandardOutput();
     err = process.readAllStandardError();
     return process.exitCode();
+}
+// ---- Load budget (ADR 0165 §7 "Budget"): the worst accepted documents. ----
+// Ten times the values R093.e measured on its reference machine, per build: the
+// sanitized build runs several times slower, so it has its own ceiling.
+#if defined(__SANITIZE_ADDRESS__)
+constexpr double loadCeilingSeconds = 490; // measured at most 48.2 s
+#else
+constexpr double loadCeilingSeconds = 96; // measured at most 9.5 s
+#endif
+struct Panel {
+    Document doc;
+    Id definition{}, placement{}, member{};
+};
+Panel makePanel(Document doc, double x) {
+    Panel p{std::move(doc)};
+    const auto face =
+        p.doc.addFace({{{x, 0, 0}, {x + 1, 0, 0}, {x + 1, 1, 0}, {x, 1, 0}}}, "Panel");
+    const auto created = createComponent(p.doc, face, "Panel");
+    p.definition = created.definition;
+    p.placement = created.instance;
+    p.member = created.movedGeometry.at(face);
+    return p;
+}
+std::string chain(std::size_t terms) {
+    std::string text = "-x";
+    for (std::size_t i = 1; i < terms; ++i)
+        text += " + x";
+    return text;
+}
+ComponentParameter numberParameter(std::string name, std::string expression,
+                                   ComponentParameterMode mode = ComponentParameterMode::Derived) {
+    ComponentParameter parameter;
+    parameter.name = std::move(name);
+    parameter.label = "N";
+    parameter.type = ParameterType::Number;
+    parameter.mode = mode;
+    parameter.expression =
+        canonicalParameterExpression(parseParameterExpression(std::move(expression)));
+    return parameter;
+}
+DefinitionPtr withRecord(const DefinitionPtr &definition, ComponentParameters record) {
+    auto copy = std::make_shared<ComponentDefinition>(*definition);
+    copy->parameters = std::make_shared<const ComponentParameters>(std::move(record));
+    return copy;
+}
+// Copies of a one-member placement with the given overrides, rebuilt by restore (as
+// the R093.b limit tests do), projected through their variants when `project` is set.
+Document withPlacements(const Document &source, Id prototype,
+                        const std::vector<ComponentOverrides> &values,
+                        ComponentDefinitions definitions, bool project) {
+    auto bodies = source.bodies();
+    auto instances = source.instances();
+    Id next = source.nextId();
+    const auto &binding = *source.instances().at(prototype);
+    const auto &definition = *definitions.at(binding.definition);
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        auto instance = std::make_shared<ComponentInstance>(binding);
+        instance->overrides = values[i];
+        std::map<Id, Id> remap;
+        for (auto &[member, target] : instance->members) {
+            remap[target] = next;
+            target = next++;
+        }
+        auto root = std::make_shared<Body>(*source.bodies().at(prototype));
+        root->id = instance->members.at(definition.root);
+        root->transform =
+            Transform::translation({2.0 * double(i % 100), 2.0 * double(i / 100) + 3, 0});
+        instances[root->id] = instance;
+        if (project) {
+            for (auto &[id, body] :
+                 projectComponentPlacement(definitions, instances, root->id, *root))
+                bodies[id] = body;
+            continue;
+        }
+        bodies[root->id] = root;
+        for (const auto &[member, target] : binding.members) {
+            if (target == prototype)
+                continue;
+            auto body = std::make_shared<Body>(*source.bodies().at(target));
+            body->id = remap.at(target);
+            body->parent = remap.at(body->parent);
+            bodies[body->id] = body;
+        }
+    }
+    Document doc;
+    doc.restore(source.identity(), next, std::move(bodies), source.revision(),
+                std::move(definitions), std::move(instances), source.nextDefinitionId(),
+                source.tags(), source.nextTagId(), source.materials(), source.nextMaterialId(),
+                source.assets(), source.nextAssetId(), source.displayUnits(),
+                source.hostedRecords(), source.style(), source.scenes(), source.nextSceneId(),
+                source.sections(), source.nextSectionId(), source.activeSections(),
+                source.annotations(), source.nextAnnotationId(), source.solar(),
+                source.displayPrecision(), {}, 1, {}, 1, {}, 1, source.nextComponentDriverId());
+    return doc;
+}
+// Seconds to decode `bytes` as a container (the reader's checks, the evaluation of
+// every placement and restore), the best of `runs`.
+double loadSeconds(const QByteArray &bytes, const Document &expected, int runs) {
+    double best = 1e9;
+    for (int run = 0; run < runs; ++run) {
+        const auto started = std::chrono::steady_clock::now();
+        const auto loaded = decodeContainer(bytes);
+        best = std::min(best, std::chrono::duration<double>(std::chrono::steady_clock::now() -
+                                                            started)
+                                  .count());
+        check(loaded.componentVariants().visits == expected.componentVariants().visits &&
+                  loaded.componentVariants().variants.size() ==
+                      expected.componentVariants().variants.size(),
+              "The worst document reloads with the same evaluation");
+    }
+    return best;
+}
+void loadBudget() {
+    // (1) Evaluation: one definition of 125 parameters with 256-node formulas and 629
+    // distinct placements of it, plus a filler definition, total exactly the document
+    // budget of 20,000,000 evaluation visits.
+    auto p = makePanel(Document{}, 0);
+    auto second = makePanel(std::move(p.doc), 5);
+    p.doc = std::move(second.doc);
+    ComponentParameters heavy;
+    heavy.parameters.push_back(numberParameter("x", "1", ComponentParameterMode::Input));
+    for (int i = 1; i <= 124; ++i)
+        heavy.parameters.push_back(numberParameter("q" + std::to_string(i), chain(128)));
+    ComponentParameters filler;
+    filler.parameters.push_back(numberParameter("x", "1", ComponentParameterMode::Input));
+    for (int i = 1; i <= 5; ++i) {
+        std::string text = "x";
+        for (int j = 1; j < 128; ++j)
+            text += " + x";
+        filler.parameters.push_back(numberParameter("r" + std::to_string(i), text));
+    }
+    for (int i = 1; i <= 3; ++i)
+        filler.parameters.push_back(numberParameter("s" + std::to_string(i), "1"));
+    auto definitions = p.doc.definitions();
+    definitions[p.definition] = withRecord(definitions.at(p.definition), heavy);
+    definitions[second.definition] = withRecord(definitions.at(second.definition), filler);
+    std::vector<ComponentOverrides> values;
+    for (int k = 2; k <= 630; ++k)
+        values.push_back({{"x", count(k)}});
+    const auto visits = withPlacements(p.doc, p.placement, values, definitions, false);
+    check(visits.componentVariants().visits == ComponentParameterLimits::documentVisits,
+          "The evaluation fixture is at exactly 20,000,000 visits (got " +
+              std::to_string(visits.componentVariants().visits) + ")");
+    const auto visitsBytes = encodeContainer(visits);
+    const auto visitsSeconds = loadSeconds(visitsBytes, visits, 1);
+    // (2) Variants: 4,096 placements, each its own stretched variant.
+    auto v = makePanel(Document{}, 0);
+    defineComponentParameter(v.doc, v.definition,
+                             parameter("w", "W", ParameterType::Length,
+                                       ComponentParameterMode::Input, "1 m"));
+    auto stretch = driver(ComponentDriverKind::Stretch, v.member, "w");
+    stretch.at = .5;
+    driveComponent(v.doc, v.definition, 0, stretch);
+    values.clear();
+    for (int k = 1; k <= int(ComponentParameterLimits::variants); ++k)
+        values.push_back({{"w", metres(1 + .001 * k)}});
+    const auto variants = withPlacements(v.doc, v.placement, values, v.doc.definitions(), true);
+    check(variants.componentVariants().variants.size() == ComponentParameterLimits::variants,
+          "The variant fixture has every distinct variant the limit allows (got " +
+              std::to_string(variants.componentVariants().variants.size()) + ")");
+    const auto variantsBytes = encodeContainer(variants);
+    const auto variantsSeconds = loadSeconds(variantsBytes, variants, 1);
+    std::cout << "load budget: 20,000,000-visit document " << visitsBytes.size() << " bytes "
+              << visitsSeconds << " s; " << variants.componentVariants().variants.size()
+              << "-variant document " << variantsBytes.size() << " bytes " << variantsSeconds
+              << " s; ceiling " << loadCeilingSeconds << " s\n";
+    check(visitsSeconds <= loadCeilingSeconds && variantsSeconds <= loadCeilingSeconds,
+          "The worst accepted documents load within the ceiling");
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -1044,6 +1213,7 @@ int main(int argc, char **argv) {
             std::cout << "prior release CLI checked: " << prior.toStdString() << " (reads up to "
                       << reads << ")\n";
         }
+        loadBudget();
         std::cout << checks << " checks; component parameter persistence passed\n";
         return 0;
     } catch (const std::exception &error) {

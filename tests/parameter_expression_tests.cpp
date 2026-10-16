@@ -5,6 +5,7 @@
 //   parameter_expression_tests [--print-golden]
 #include "core/parameter_expression.hpp"
 #include <bit>
+#include <chrono>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -950,6 +951,46 @@ void helpers() {
     check(forward, "every jump is forward");
 }
 
+// ADR 0165 §7 "Budget": parsing and checking a 1,024-byte expression stays under ten
+// times the value R093.e measured on its reference machine, per build (the sanitized
+// build runs several times slower). The expression is at the byte limit and close to
+// the node limit: 127 names joined by " + " and a final literal.
+#if defined(__SANITIZE_ADDRESS__)
+constexpr double parseCeilingUs = 180000; // measured at most 17,508 us
+#else
+constexpr double parseCeilingUs = 42000; // measured at most 4,151 us
+#endif
+void parseBudget() {
+    std::string text = "width";
+    for (int i = 1; i < 127; ++i)
+        text += " + width";
+    text += " + ";
+    text += std::string(1024 - text.size() - 2, '1') + " m";
+    context = "1,024-byte budget expression";
+    check(text.size() == ParameterExpressionLimits::textBytes,
+          "The budget expression is 1,024 bytes");
+    const auto accepted =
+        checkParameterExpression(parseParameterExpression(text), symbols, sig(Length));
+    check(accepted.references.size() == 1, "The budget expression is accepted");
+    constexpr int runs = 200;
+    std::size_t references = 0;
+    const auto started = std::chrono::steady_clock::now();
+    for (int run = 0; run < runs; ++run)
+        references +=
+            checkParameterExpression(parseParameterExpression(text), symbols, sig(Length))
+                .references.size();
+    const auto microseconds =
+        std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - started)
+            .count() /
+        runs;
+    check(references == runs, "Every run checks the same expression");
+    std::cout << "parse budget: " << microseconds << " us per parse and check; ceiling "
+              << parseCeilingUs << " us\n";
+    check(microseconds <= parseCeilingUs,
+          "A 1,024-byte expression parses and checks within the ceiling");
+    context.clear();
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -963,6 +1004,7 @@ int main(int argc, char **argv) {
         limits();
         goldenValues(print);
         grammarClosure();
+        parseBudget();
         helpers();
         // Round trip over every expression used above.
         for (const auto &[input, expected] : canonicalCases)
