@@ -1884,6 +1884,173 @@
       "sideEffects": "none"
     },
     {
+      "name": "component_parameters.describe",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "definition": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "component_parameters.describe"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "component_parameters.values",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "body": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "component_parameters.values"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "component_parameters.evaluate",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "definition": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "expression": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "overrides": {
+            "additionalProperties": {
+              "maxLength": 64,
+              "type": [
+                "number",
+                "string",
+                "boolean"
+              ]
+            },
+            "maxProperties": 128,
+            "propertyNames": {
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "object"
+          },
+          "query": {
+            "const": "component_parameters.evaluate"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "length",
+              "area",
+              "angle",
+              "number",
+              "count",
+              "boolean",
+              "choice"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
       "name": "geometry.diagnose",
       "paged": false,
       "parameters": {

@@ -142,6 +142,15 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `scene.reparent` | Reparent and preserve world placement | `body`, `parent`, `command` |
 | `scene.state` | Set persistent visibility and lock | `body`, `command` |
 | `scene.transform` | Set object transform | `body`, `matrix`, `command` |
+| `component_parameter.define` | Define a component parameter | `definition`, `name`, `label`, `type`, `mode`, `expression`, `command` |
+| `component_parameter.update` | Update a component parameter | `definition`, `name`, `command` |
+| `component_parameter.rename` | Rename a component parameter | `definition`, `name`, `newName`, `command` |
+| `component_parameter.remove` | Remove a component parameter | `definition`, `name`, `command` |
+| `component_parameter.drive` | Drive a component member | `definition`, `kind`, `member`, `expression`, `data`, `command` |
+| `component_parameter.undrive` | Remove a component driver | `definition`, `driver`, `command` |
+| `component_parameter.rebind` | Rebind component drivers to their current targets | `definition`, `command` |
+| `component_parameter.override` | Set component parameter values on a placement | `body`, `values`, `command` |
+| `component_parameter.reset` | Reset component parameter values on a placement | `body`, `command` |
 
 ## Bounded queries
 
@@ -178,6 +187,9 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `topology.curve_edges` |  | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `topology.incidence` |  | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `component.instances` |  | `definition`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `component_parameters.describe` |  | `definition`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `component_parameters.values` |  | `body`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `component_parameters.evaluate` |  | `definition`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `geometry.diagnose` |  | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `measure.entity` |  | `target`, `space`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `measure.distance` |  | `space`, `start`, `end`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -245,6 +257,9 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `topology.curve_edges` | topology.curve_edges: shared versioned SketchyUp operation | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `topology.incidence` | topology.incidence: shared versioned SketchyUp operation | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `component.instances` | component.instances: shared versioned SketchyUp operation | `definition`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `component_parameters.describe` | component_parameters.describe: shared versioned SketchyUp operation | `definition`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `component_parameters.values` | component_parameters.values: shared versioned SketchyUp operation | `body`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `component_parameters.evaluate` | component_parameters.evaluate: shared versioned SketchyUp operation | `definition`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `geometry.diagnose` | geometry.diagnose: shared versioned SketchyUp operation | `target`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `measure.entity` | measure.entity: shared versioned SketchyUp operation | `target`, `space`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `measure.distance` | measure.distance: shared versioned SketchyUp operation | `space`, `start`, `end`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
