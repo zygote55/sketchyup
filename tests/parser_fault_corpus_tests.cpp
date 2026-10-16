@@ -3,6 +3,7 @@
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
+#include "fuzz/parameter_expression_harness.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
 #include "io/gltf_import.hpp"
@@ -337,14 +338,31 @@ int main(int argc, char **argv) {
                 // geometry is validated only when executed against a document.
                 check(manifest.source == bytes, "Extension retains exact validated source");
             }));
+        // R093.a: parameter expressions (ADR 0165 §7). A harness invariant failure is a
+        // corpus failure, never an ordinary rejection.
+        results.append(exercise(
+            "parameter-expression",
+            "clamp(width - 60 mm, 400 mm, 2.4 m) * if(style == \"oak\", 1, ratio ^ 2)",
+            [](const auto &bytes, bool &parsed) {
+                bool accepted = false;
+                try {
+                    accepted = fuzz::parameterExpressionAccepted(
+                        std::string_view(bytes.constData(), std::size_t(bytes.size())));
+                } catch (const fuzz::ParameterHarnessFailure &failure) {
+                    throw CorpusFailure(std::string("parameter-expression: ") + failure.what());
+                }
+                if (!accepted)
+                    throw std::runtime_error("parameter expression rejected");
+                parsed = true;
+            }));
         check(encodeContainer(source) == original, "Corpus never mutates its source model");
         check(encodeContainer(sheets) == sheetContainer, "Corpus never mutates its sheet model");
         check(encodeContainer(items) == itemContainer, "Corpus never mutates its item model");
-        check(results.size() == 14, "Corpus covers ten formats plus the four schema-27 seeds");
+        check(results.size() == 15, "Corpus covers eleven formats plus the four schema-27 seeds");
         std::cout << QJsonDocument(QJsonObject{{"corpusVersion", 1},
                                                {"seed", "0x83a5c0de"},
                                                {"formats", results},
-                                               {"mutations", 7168},
+                                               {"mutations", 7680},
                                                {"sourcePreserved", true}})
                          .toJson()
                          .toStdString();

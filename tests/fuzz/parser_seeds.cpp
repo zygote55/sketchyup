@@ -187,8 +187,25 @@ int main(int argc, char **argv) {
                                           QStringLiteral("0000000000000000000000000000083e"));
         publish("native-json", encodeDocument(items), "drawing-items");
         publish("native-container", encodeContainer(items), "drawing-items");
+        // R093.a: parameter expressions, canonical text, every type and function.
+        const char *const expressions[][2] = {
+            {"table-width", "width - 60 mm"},
+            {"table-shelves", "max(shelves, 1)"},
+            {"table-visible", "shelves > 0"},
+            {"choice", "if(style == \"oak\", 900 mm, 2 ft)"},
+            {"precedence", "-ratio ^ 2 + 3 * (ratio - 1) / 2"},
+            {"functions", "clamp(sqrt(floor_area), 400 mm, 2.4 m) + abs(mod(width, 0.3 m))"},
+            {"angles", "atan2(width, 1 m) + asin(0.5) + 15 deg - tilt"},
+            {"trig", "sin(tilt) ^ 2 + cos(tilt) ^ 2 + tan(0 rad)"},
+            {"logic", "not open and (ratio <= 1.5 or shelves != 3)"},
+            {"rounding", "round(width / 300 mm) + floor(ratio) + ceil(.5E1)"},
+            {"units", "1 in + 1 ft + 1 cm + 1 mm + 1 m"},
+            {"powers", "(width ^ -1) * 1 m + pi ^ 3 - 1e-07"},
+        };
+        for (const auto &[name, text] : expressions)
+            publish("parameter-expression", QByteArray(text), QString::fromLatin1(name));
         std::cout << QJsonDocument(QJsonObject{{"validSeeds", rows},
-                                               {"formats", 10},
+                                               {"formats", 11},
                                                {"inputLimitBytes", qint64(fuzz::inputLimit)},
                                                {"releaseAcceptance", false}})
                          .toJson(QJsonDocument::Compact)

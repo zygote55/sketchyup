@@ -3,8 +3,9 @@
 The opt-in Clang/libFuzzer targets instrument the linked SketchyUp and bundled
 parser code with coverage, AddressSanitizer and UndefinedBehaviorSanitizer.
 There is one target per native JSON/container, GLB, binary/ASCII STL, OBJ, DXF,
-template, component and extension format. Existing deterministic parser-fault
-and transaction tests remain required.
+template, component and extension format, and one for component parameter
+expressions (`parameter-expression`, R093.a; [ADR 0165 §7](decisions/0165-constrained-component-parameters.md)).
+Existing deterministic parser-fault and transaction tests remain required.
 
 Configure a separate build and generate valid, deterministic seeds:
 
@@ -36,6 +37,15 @@ alloc-dealloc mismatch reported entirely inside `QJsonDocument::fromJson`. A
 libFuzzer program that links only Qt reproduces it; plain ASan does not. Run those
 targets with `alloc_dealloc_mismatch=0` added to `ASAN_OPTIONS` and record that
 option with the results. See [R083.e](verification/R083e-parser-fuzzing.md).
+
+A `parameter-expression` input is one formula. It is parsed, then checked and
+evaluated against a fixed table with one parameter of every type. Its invariants:
+an accepted formula's canonical text re-parses to the same tree, checks the same
+way and evaluates to the same bits; a rejected one gives a code from the closed
+`PARAMETER_*`/`LIMIT_EXCEEDED` set with an offset inside the input; the token,
+node, depth, value-stack and node-visit counters stay within their limits. The
+in-ctest `parameter_expression_fuzz` runs the same harness over 20,000 generated
+formulas and seed mutations in the `dev` and `sanitize` presets.
 
 The harness caps generated inputs at 1 MiB. This is a campaign bound; the
 production file limits remain covered by separate boundary tests. Expected
