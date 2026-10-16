@@ -1,4 +1,5 @@
 #include "io/component_library.hpp"
+#include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include <QCryptographicHash>
 #include <set>
@@ -56,7 +57,10 @@ Document captureLibraryComponent(const Document &source, Id definition) {
     Document result;
     result.restore(result.identity(), 1, {}, 0, definitions, {}, source.nextDefinitionId(), tags,
                    source.nextTagId(), materials, source.nextMaterialId(), assets,
-                   source.nextAssetId(), source.displayUnits());
+                   source.nextAssetId(), source.displayUnits(),
+                   std::make_shared<const HostedComponents>(), {}, {}, 1, {}, 1, {}, {},
+                   1, {}, fullDisplayPrecision, {}, 1, {}, 1, {}, 1,
+                   source.nextComponentDriverId());
     placeComponent(result, definition);
     return result;
 }
@@ -188,6 +192,12 @@ LibraryInsertion insertLibraryComponent(Document &destination, const ComponentBu
         sides.front = materialIds.at(sides.front);
         sides.back = materialIds.at(sides.back);
     };
+    // Parameter records keep their parameters, members and child parameters; drivers
+    // take new document-global IDs here, in source order, so they stay ascending
+    // (ADR 0165 §5). Member IDs are the definition's own and do not change.
+    auto nextDriver = draft.nextComponentDriverId();
+    ComponentDefinitions inserted;
+    std::map<Id, std::shared_ptr<ComponentDefinition>> records;
     for (const auto &[id, def] : source.definitions()) {
         auto record = std::make_shared<ComponentDefinition>(*def);
         record->id = definitionIds.at(id);
@@ -209,8 +219,29 @@ LibraryInsertion insertLibraryComponent(Document &destination, const ComponentBu
                 mapped->referenceImage->asset = assetIds.at(mapped->referenceImage->asset);
             body = std::move(mapped);
         }
-        resources.definitions.push_back({record->id, nullptr, record});
+        inserted[record->id] = record;
+        records[record->id] = record;
     }
+    // A driver that was bound in the bundle stays bound: its digest is restamped over
+    // the remapped records (materials, tags and assets may take new IDs). One that had
+    // changed since it was bound keeps its stored digest, so it still reports so.
+    for (const auto &[id, def] : source.definitions()) {
+        if (!def->parameters)
+            continue;
+        const auto &record = records.at(definitionIds.at(id));
+        auto parameters = std::make_shared<ComponentParameters>(*def->parameters);
+        for (auto &driver : parameters->drivers) {
+            const bool bound = componentDriverState(*def, source.definitions(), driver) ==
+                               ComponentDriverState::Bound;
+            driver.id = allocateLibraryId(nextDriver);
+            if (bound)
+                driver.bound = componentDriverDigest(*record, inserted, driver);
+        }
+        record->parameters = std::move(parameters);
+    }
+    for (const auto &[id, record] : inserted)
+        resources.definitions.push_back({id, nullptr, record});
+    resources.nextComponentDriverFloor = nextDriver;
     resources.nextAssetFloor = nextAsset;
     resources.nextMaterialFloor = nextMaterial;
     resources.nextTagFloor = nextTag;

@@ -1,4 +1,5 @@
 #include "automation/extension.hpp"
+#include "component_parameter_fixture.hpp"
 #include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
@@ -269,6 +270,32 @@ int main(int argc, char **argv) {
                                     parsed = true;
                                     roundtrip(document);
                                 }));
+        // Schema 28 (R093.c): the ADR 0165 table with every parameter type and driver
+        // kind, a nested childParameter and a repeat at its maxCount.
+        Document parameters;
+        Id room{};
+        {
+            auto table = parameter_fixture::makeTable(4);
+            overrideComponentParameters(table.doc, table.wide,
+                                        {{"shelves", parameter_fixture::count(4)}});
+            room = table.room;
+            auto tree = QJsonDocument::fromJson(encodeDocument(table.doc)).object();
+            tree["documentId"] = "0000000000000000000000000000083f";
+            parameters = decodeDocument(QJsonDocument(tree).toJson(QJsonDocument::Compact));
+        }
+        const auto parameterContainer = encodeContainer(parameters);
+        results.append(exercise("native-json-component-parameters", encodeDocument(parameters),
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto document = decodeDocument(bytes);
+                                    parsed = true;
+                                    roundtrip(document);
+                                }));
+        results.append(exercise("native-container-component-parameters", parameterContainer,
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto document = decodeContainer(bytes);
+                                    parsed = true;
+                                    roundtrip(document);
+                                }));
         const auto glb = exportGlb(RenderSnapshot::capture(source)).glb;
         const auto glbPath = temporary.filePath("mutated.glb");
         results.append(exercise("glb", glb, [&](const auto &bytes, bool &parsed) {
@@ -328,6 +355,21 @@ int main(int argc, char **argv) {
                 parsed = true;
                 roundtrip(result.document);
             }));
+        results.append(exercise("template-component-parameters",
+                                encodeTemplateBundle(parameters, metadata, png),
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto result = decodeTemplateBundle(bytes);
+                                    parsed = true;
+                                    roundtrip(result.document);
+                                }));
+        results.append(exercise(
+            "component-component-parameters",
+            stableComponentSeed(encodeComponentBundle(parameters, room, metadata, png)),
+            [](const auto &bytes, bool &parsed) {
+                const auto result = decodeComponentBundle(bytes);
+                parsed = true;
+                roundtrip(result.document);
+            }));
         results.append(exercise(
             "extension", read(QStringLiteral(SOURCE_DIR "/examples/extensions/panel.sketchyext")),
             [](const auto &bytes, bool &parsed) {
@@ -358,11 +400,14 @@ int main(int argc, char **argv) {
         check(encodeContainer(source) == original, "Corpus never mutates its source model");
         check(encodeContainer(sheets) == sheetContainer, "Corpus never mutates its sheet model");
         check(encodeContainer(items) == itemContainer, "Corpus never mutates its item model");
-        check(results.size() == 15, "Corpus covers eleven formats plus the four schema-27 seeds");
+        check(encodeContainer(parameters) == parameterContainer,
+              "Corpus never mutates its parameter model");
+        check(results.size() == 19,
+              "Corpus covers eleven formats plus the four schema-27 and four schema-28 seeds");
         std::cout << QJsonDocument(QJsonObject{{"corpusVersion", 1},
                                                {"seed", "0x83a5c0de"},
                                                {"formats", results},
-                                               {"mutations", 7680},
+                                               {"mutations", 9728},
                                                {"sourcePreserved", true}})
                          .toJson()
                          .toStdString();

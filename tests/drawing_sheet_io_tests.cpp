@@ -290,8 +290,10 @@ int main(int argc, char **argv) {
         const auto releasePath = fixtures.filePath("release-1.0.0-v26.sketchyup");
         const auto release = read(releasePath);
 
-        // The policy constants: the reader accepts 27, and sheet-free content stays 26.
-        static_assert(nativeDocumentVersion == 27 && nativeSheetFreeDocumentVersion == 26);
+        // The policy constants: sheets need 27, and sheet-free content stays 26. Schema 28
+        // (R093.c) is only for component parameters, which these documents do not have.
+        static_assert(nativeParameterFreeDocumentVersion == 27 &&
+                      nativeSheetFreeDocumentVersion == 26);
         check(nativeDocumentVersionFor(Document{}) == 26, "Empty document needs schema 26");
 
         // Every field round-trips through raw JSON and the container.
@@ -1180,7 +1182,11 @@ int main(int argc, char **argv) {
                                                   QDir::Name);
             int historical{};
             for (const auto &name : names) {
-                if (name == "drawing-sheets-v27.sketchyup")
+                // Newer schemas keep their own tests: release-1.1.0-v27 and the schema-28
+                // fixture (R093.c, component_parameter_io).
+                if (name == "drawing-sheets-v27.sketchyup" ||
+                    name == "release-1.1.0-v27.sketchyup" ||
+                    name == "component-parameters-v28.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);

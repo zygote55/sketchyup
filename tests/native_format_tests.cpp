@@ -46,8 +46,8 @@ int main(int argc, char **argv) {
         QTemporaryDir files;
         check(files.isValid(), "Migration fixture directory");
         {
-            // R093.b: component parameters are stored from schema 28 (R093.c). Until
-            // then every writer path refuses them instead of dropping them.
+            // R093.c: component parameters are stored in schema 28; a parameter-free model
+            // keeps the lowest schema its content needs.
             Document model;
             const auto face = model.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
             const auto component = createComponent(model, face, "Panel");
@@ -57,18 +57,17 @@ int main(int argc, char **argv) {
             width.label = "Width";
             width.expression = "1 m";
             defineComponentParameter(model, component.definition, width);
-            auto refuses = [&](const std::function<void()> &write) {
-                try {
-                    write();
-                } catch (const std::runtime_error &error) {
-                    return std::string(error.what()).starts_with("UNSUPPORTED_FORMAT");
-                }
-                return false;
-            };
-            check(refuses([&] { (void)encodeContainer(model); }) &&
-                      refuses([&] { (void)encodeDocument(model); }),
-                  "The writer refuses component parameters until schema 28");
+            const auto parametric = encodeContainer(model);
+            check(nativeDocumentVersionFor(model) == nativeDocumentVersion &&
+                      encodeContainer(decodeContainer(parametric)) == parametric &&
+                      decodeDocument(encodeDocument(model))
+                              .definitions()
+                              .at(component.definition)
+                              ->parameters,
+                  "The writer stores component parameters in schema 28");
             model.undo();
+            check(nativeDocumentVersionFor(model) == nativeSheetFreeDocumentVersion,
+                  "Removing the parameters returns to schema 26");
             check(!plain.isEmpty() && !encodeContainer(model).isEmpty(),
                   "A parameter-free model still saves");
         }
@@ -189,11 +188,18 @@ int main(int argc, char **argv) {
             check(inspected["valid"] == true && inspected["documentVersion"].toInt() >= 1,
                   "Historical file fully validates");
             const auto report = migrateNativeFile(source, output);
-            // The writer emits the lowest schema the content needs (ADR 0163 decision 2).
-            const auto sheets = !loadDocument(source).drawingSheets().empty();
+            // The writer emits the lowest schema the content needs (ADR 0163 decision 2,
+            // ADR 0165 §5).
+            const auto loaded = loadDocument(source);
+            bool parametric = false;
+            for (const auto &[id, definition] : loaded.definitions())
+                parametric = parametric || definition->parameters;
+            const auto sheets = !loaded.drawingSheets().empty();
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (sheets ? nativeDocumentVersion : nativeSheetFreeDocumentVersion),
+                          (parametric ? nativeDocumentVersion
+                           : sheets   ? nativeParameterFreeDocumentVersion
+                                      : nativeSheetFreeDocumentVersion),
                   "Migration report identifies public schema");
             check(read(source) == before && encodeDocument(loadDocument(output)) == model,
                   "Migration preserves source bytes and all model records");
@@ -232,6 +238,11 @@ int main(int argc, char **argv) {
                 tree["nextDrawingViewId"] = "1";
                 tree["drawingItems"] = QJsonArray{};
                 tree["nextDrawingItemId"] = "1";
+            }
+            if (version >= 28) {
+                tree["componentParameters"] = QJsonArray{};
+                tree["componentParameterOverrides"] = QJsonArray{};
+                tree["nextComponentDriverId"] = "1";
             }
             if (version == 1)
                 tree.remove("revision");

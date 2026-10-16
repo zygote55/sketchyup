@@ -200,7 +200,8 @@ Document instantiateTemplate(const TemplateBundle &bundle) {
                    d.nextDefinitionId(), d.tags(), d.nextTagId(), d.materials(), d.nextMaterialId(),
                    d.assets(), d.nextAssetId(), d.displayUnits(), d.hostedRecords(), d.style(),
                    d.scenes(), d.nextSceneId(), d.sections(), d.nextSectionId(), d.activeSections(),
-                   d.annotations(), d.nextAnnotationId(), d.solar(), d.displayPrecision());
+                   d.annotations(), d.nextAnnotationId(), d.solar(), d.displayPrecision(), {}, 1,
+                   {}, 1, {}, 1, d.nextComponentDriverId());
     result.markRecovered();
     return result;
 }
@@ -229,8 +230,9 @@ ComponentBundle decodeComponentBundle(const QByteArray &bytes) {
         if (body->parent)
             continue;
         ++roots;
+        // The root placement shows the defaults: a bundle stores no overrides (ADR 0165 §5).
         require(d.instances().contains(id) && d.instances().at(id)->definition == definition &&
-                    body->transform == Transform{},
+                    d.instances().at(id)->overrides.empty() && body->transform == Transform{},
                 "Component bundle root placement is invalid");
     }
     require(roots == 1, "Component bundle must contain one root instance");

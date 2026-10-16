@@ -700,9 +700,9 @@ above; where they differ, these notes govern.
 - **Labels** that break the label rule are `PARAMETER_NAME`.
 - **Document evaluation budget** counts each parametric definition's default
   evaluation plus each distinct placement evaluation.
-- **Unsaved until R093.c.** Until schema 28 exists, the native writer refuses a
-  document with parameter records (`UNSUPPORTED_FORMAT`). No command creates them
-  before R093.d.
+- **Unsaved until R093.c.** Until schema 28 existed, the native writer refused a
+  document with parameter records (`UNSUPPORTED_FORMAT`). R093.c replaced the refusal
+  with schema 28. No command creates them before R093.d.
 - **Rendering.** The viewport and inference still match scene records against
   definition members, so a variant placement renders with its own meshes rather than
   shared ones: correct, not instanced. Instanced variant rendering is R094 work.
@@ -744,6 +744,36 @@ R093.d settled these points in the command and inspection layer. They refine §4
 - **`--inspect-native` counts** (`componentParameters`, `componentDrivers`,
   `componentParameterOverrides`) live in `src/io/native_format.cpp` and land with the
   schema-28 reader in R093.c.
+
+## Implementation notes (R093.c)
+
+R093.c added schema 28 ([ADR 0108](0108-public-native-format.md#schema-28-component-parameters-r093c)).
+These points refine §5; where they differ, these notes govern.
+
+- **The 1.1.0 refusal.** The published `sketchyup-1.1.0-1` package's
+  `sketchyup-cli --validate-native` refuses the schema-28 fixture with exit status 1
+  and exactly `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`
+  on stderr, and leaves it byte-identical. Its manifest check meets the new
+  `nextComponentDriverId` allocator floor before the required-feature check, so the
+  message names the container field, not the feature; `sketchyup-1.0.1-1` gives the
+  same message. Both open parameter-free saves from the new build (1.1.0 at schema 26
+  and 27, 1.0.1 at 26).
+- **Retained 1.1.0 output.** `release-1.1.0-v27.sketchyup` is the 1.1.0 package's own
+  `--migrate-native` output of the schema-27 writer fixture; the new build re-saves it
+  byte-identically apart from the writer string.
+- **Load order.** The reader attaches the stored records, checks them and evaluates
+  every placement once (`computeComponentVariants`, within the document evaluation
+  budget) before it bounds and projects the placements from their variants.
+  `projectComponentPlacement` takes that precomputed variant index. Restore then runs
+  its ordinary checks, which evaluate the document again.
+- **Bundle insertion keeps driver state.** Insertion remaps materials, tags and assets,
+  which a member's `bound` digest covers. A driver that was bound in the bundle is
+  restamped over the remapped records; one that had changed since it was bound keeps
+  its stored digest.
+- **Variant index fix.** Reusing a previous variant whose nested placements show
+  variants did not register those nested variants, so after some edits the in-memory
+  index listed fewer distinct variants than a fresh computation (and than the reopened
+  file). The engine now registers them when it reuses the parent.
 
 ## What R094 needs from R093
 

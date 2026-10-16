@@ -1,3 +1,4 @@
+#include "../component_parameter_fixture.hpp"
 #include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
@@ -149,6 +150,27 @@ int main(int argc, char **argv) {
                  QString::fromLatin1(
                      QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex())}});
         };
+        // Invalid inputs that must reach a rejection, never an accepted result.
+        QJsonArray rejectedRows;
+        const auto publishRejected = [&](const QString &format, const QByteArray &bytes,
+                                         const QString &name) {
+            fuzz::require(bytes.size() <= qsizetype(fuzz::inputLimit), "bounded seed");
+            fuzz::require(!fuzz::parseInput(format, bytes, scratch.filePath("input.glb")),
+                          "invalid seed is rejected");
+            const auto directory = QDir(root).filePath(format);
+            fuzz::require(QDir().mkpath(directory), "seed directory");
+            QFile file(QDir(directory).filePath(name));
+            fuzz::require(file.open(QIODevice::WriteOnly | QIODevice::NewOnly) &&
+                              file.write(bytes) == bytes.size(),
+                          "publish rejected seed");
+            rejectedRows.append(QJsonObject{
+                {"format", format},
+                {"name", name},
+                {"bytes", bytes.size()},
+                {"sha256",
+                 QString::fromLatin1(
+                     QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex())}});
+        };
         for (const auto &[format, bytes] : seeds)
             publish(format, bytes, "block");
         const auto empty =
@@ -187,6 +209,36 @@ int main(int argc, char **argv) {
                                           QStringLiteral("0000000000000000000000000000083e"));
         publish("native-json", encodeDocument(items), "drawing-items");
         publish("native-container", encodeContainer(items), "drawing-items");
+        // R093.c: schema 28. The ADR 0165 table with every parameter type and driver kind,
+        // a nested childParameter (the room) and a repeat at its maxCount (four shelves).
+        {
+            auto table = parameter_fixture::makeTable(4);
+            overrideComponentParameters(table.doc, table.wide,
+                                        {{"shelves", parameter_fixture::count(4)}});
+            const auto parameters = stableIdentity(
+                table.doc, QStringLiteral("0000000000000000000000000000083f"));
+            publish("native-json", encodeDocument(parameters), "component-parameters");
+            publish("native-container", encodeContainer(parameters), "component-parameters");
+            publish("template", encodeTemplateBundle(parameters, metadata, png),
+                    "component-parameters");
+            publish("component",
+                    stableComponent(
+                        encodeComponentBundle(parameters, table.room, metadata, png)),
+                    "component-parameters");
+            // A stored cycle: leg_x refers to itself. Readers must refuse it.
+            auto cyclic = QJsonDocument::fromJson(encodeDocument(parameters)).object();
+            auto tables = cyclic["componentParameters"].toArray();
+            auto record = tables[0].toObject();
+            auto list = record["parameters"].toArray();
+            auto legX = list[5].toObject();
+            legX["expression"] = "leg_x - 60 mm";
+            list[5] = legX;
+            record["parameters"] = list;
+            tables[0] = record;
+            cyclic["componentParameters"] = tables;
+            publishRejected("native-json", QJsonDocument(cyclic).toJson(QJsonDocument::Compact),
+                            "component-parameter-cycle");
+        }
         // R093.a: parameter expressions, canonical text, every type and function.
         const char *const expressions[][2] = {
             {"table-width", "width - 60 mm"},
@@ -205,6 +257,7 @@ int main(int argc, char **argv) {
         for (const auto &[name, text] : expressions)
             publish("parameter-expression", QByteArray(text), QString::fromLatin1(name));
         std::cout << QJsonDocument(QJsonObject{{"validSeeds", rows},
+                                               {"rejectedSeeds", rejectedRows},
                                                {"formats", 11},
                                                {"inputLimitBytes", qint64(fuzz::inputLimit)},
                                                {"releaseAcceptance", false}})
