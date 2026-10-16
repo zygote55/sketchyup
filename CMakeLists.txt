@@ -40,6 +40,11 @@ add_library(sketchyup_solar src/solar/solar.cpp)
 target_include_directories(sketchyup_solar PUBLIC src)
 target_link_libraries(sketchyup_core PUBLIC sketchyup_solar)
 target_compile_options(sketchyup_solar PRIVATE -Wall -Wextra -Wpedantic)
+# R093.a parameter expression engine (ADR 0165 §2, §7): Qt-free, C++ standard
+# library and libm only. Deterministic binary64: no FP contraction, no fast-math.
+add_library(sketchyup_parameter_expression STATIC src/core/parameter_expression.cpp)
+target_include_directories(sketchyup_parameter_expression PUBLIC src)
+target_compile_options(sketchyup_parameter_expression PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off -fno-fast-math)
 # Opt-in R082.ff scaling harness. The production limits apply at the default scale;
 # a private core copy with raised limits measures placement growth past them.
 add_executable(component_placement_scaling EXCLUDE_FROM_ALL tests/component_placement_scaling.cpp)
@@ -225,6 +230,17 @@ if(BUILD_TESTING)
   target_link_libraries(geometry_fuzz_tests PRIVATE sketchyup_core)
   add_test(NAME geometry_fuzz COMMAND geometry_fuzz_tests)
   set_tests_properties(geometry_fuzz PROPERTIES TIMEOUT 240)
+  add_executable(parameter_expression_tests tests/parameter_expression_tests.cpp)
+  target_link_libraries(parameter_expression_tests PRIVATE sketchyup_parameter_expression)
+  add_test(NAME parameter_expression COMMAND parameter_expression_tests)
+  add_executable(parameter_expression_fuzz_tests tests/parameter_expression_fuzz_tests.cpp)
+  target_link_libraries(parameter_expression_fuzz_tests PRIVATE sketchyup_parameter_expression)
+  add_test(NAME parameter_expression_fuzz COMMAND parameter_expression_fuzz_tests)
+  set_tests_properties(parameter_expression_fuzz PROPERTIES TIMEOUT 240)
+  add_test(NAME parameter_expression_symbols
+           COMMAND ${CMAKE_COMMAND} -DNM=${CMAKE_NM}
+                   -DLIBRARY=$<TARGET_FILE:sketchyup_parameter_expression>
+                   -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/parameter_expression_symbols.cmake)
   add_executable(push_pull_tests tests/push_pull_tests.cpp)
   target_link_libraries(push_pull_tests PRIVATE sketchyup_core)
   add_test(NAME push_pull COMMAND push_pull_tests)
