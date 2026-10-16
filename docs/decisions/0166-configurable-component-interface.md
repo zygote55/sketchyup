@@ -977,6 +977,15 @@ differ from §1, these notes govern.
   focus proxy; while Entity info is collapsed the proxy is its header. Tab order is set
   explicitly: section header → each control → its reset (override rows only) → Reset all →
   Edit definition….
+- **Layout.** A row is a box layout that puts the label column (label and caption) beside
+  the value column while the label fits on one line next to at least 16 characters of value,
+  and above it otherwise, in place of `QFormLayout`'s `WrapLongRows` (whose label column did
+  not take the height a wrapped caption needs). The section stack takes the Tray's width
+  (horizontal policy `Ignored`) and reports its height for a width as its box layout places
+  the sections, so the scroll area never squeezes wrapped text. A long bounds range may break
+  after its dash. Reset all and Edit definition… stack when they do not fit side by side.
+  Two existing Entity info controls (the coordinate frame combo box and "Inspect problem
+  geometry") are wider than a 290 px Tray at 200 % text and clip there, as they did before.
 - **Section header.** `CollapsibleSection::setDetail` adds the muted count beside the header
   ("2 overridden", omitted at zero) and appends it to the header's accessible description
   ("Expanded, 2 overridden"). Headers elide their title in a narrow Tray instead of widening

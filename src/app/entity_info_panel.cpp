@@ -47,8 +47,9 @@ QString unavailable(const std::string &status) {
     return "No closed surface";
 }
 // The Info tab's stack of sections (ADR 0166 §1.1). Its height for a width counts each
-// section at no less than its minimum height, as the box layout places them, so the scroll
-// area never squeezes a section below the height its wrapped text needs.
+// section as the box layout places it: at no less than its minimum height, and at the height
+// for its width bounded by its minimum width (a section wider than a narrow Tray). So the
+// scroll area never squeezes a section below the height its wrapped text needs.
 class SectionStack final : public QWidget {
   public:
     int heightForWidth(int width) const override {
@@ -60,8 +61,10 @@ class SectionStack final : public QWidget {
             auto *item = box->itemAt(i);
             if (item->isEmpty())
                 continue;
+            const int bounded =
+                std::clamp(inner, item->minimumSize().width(), item->maximumSize().width());
             height += std::max(item->minimumSize().height(), item->hasHeightForWidth()
-                                                                 ? item->heightForWidth(inner)
+                                                                 ? item->heightForWidth(bounded)
                                                                  : item->sizeHint().height());
             ++shown;
         }

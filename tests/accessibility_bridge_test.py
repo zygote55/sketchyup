@@ -292,12 +292,13 @@ def parameters_phase(bridge, application, root, environment):
                     field = find(rows, "Width", "text")
                     assert field["description"] == "Override, default 1 m, 0.5–2 m", \
                         f"The field's description is its caption: {field['description']!r}"
-                    header = find(rows, "Parameters · this placement", "push button")
+                    # The header is a checkable button, which AT-SPI reports as a check box.
+                    header = find(rows, "Parameters · this placement", "check box")
                     assert header["description"] == "Expanded, 1 overridden", \
                         f"The header reads its state and count: {header['description']!r}"
-                    reset = find(rows, "Reset Width to the default, 1 m", "push button")
-                    reset_all = find(rows, "Reset all", "push button")
-                    edit = find(rows, "Edit definition…", "push button")
+                    reset = find(rows, "Reset Width to the default, 1 m", "button")
+                    reset_all = find(rows, "Reset all", "button")
+                    edit = find(rows, "Edit definition…", "button")
                     return {"field": {"name": field["name"], "description": field["description"]},
                             "header": {"name": header["name"],
                                        "description": header["description"]},

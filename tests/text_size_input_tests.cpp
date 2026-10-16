@@ -150,12 +150,7 @@ int main(int argc, char **argv) {
                                          parameters->fields().size() == 8;
                               }),
                               "Parameters show in the Info tab");
-                        QTest::qWait(qEnvironmentVariableIntValue("WAITMS") ? qEnvironmentVariableIntValue("WAITMS") : 200);
-                        if (qEnvironmentVariableIsSet("NUDGE")) {
-                            for (auto *w : parameters->findChildren<QWidget *>()) w->updateGeometry();
-                            parameters->updateGeometry();
-                            QTest::qWait(200);
-                        }
+                        QTest::qWait(50);
                         const int right = scroll->viewport()->width();
                         bool overflow = false;
                         for (auto *widget : parameters->findChildren<QWidget *>()) {
@@ -167,33 +162,15 @@ int main(int argc, char **argv) {
                                 std::cerr << "Overflow: " << widget->metaObject()->className()
                                           << "/" << widget->objectName().toStdString() << " in "
                                           << widget->parentWidget()->objectName().toStdString()
-                                          << " ends at "
-                                          << end.x() << " of " << right << " (min "
+                                          << " ends at " << end.x() << " of " << right << " (min "
                                           << widget->minimumSizeHint().width() << ")\n";
                             overflow |= end.x() > right + 1;
                         }
                         check(!overflow, "Parameter controls stay inside the Info tab");
                         for (auto *label : parameters->findChildren<QLabel *>())
-                            if (label->isVisible() && label->wordWrap()) {
-                                if (label->height() < label->heightForWidth(label->width()))
-                                    std::cerr << "Clipped: " << label->objectName().toStdString()
-                                              << " \"" << label->text().toStdString() << "\" "
-                                              << label->width() << "x" << label->height()
-                                              << " needs " << label->heightForWidth(label->width())
-                                              << "; row " << label->parentWidget()->parentWidget()->height()
-                                              << " hfw " << label->parentWidget()->parentWidget()->heightForWidth(label->parentWidget()->parentWidget()->width())
-                                              << [&] {
-                                                     std::string chain;
-                                                     for (QWidget *w = label; w && w != scroll; w = w->parentWidget())
-                                                         chain += " | " + w->objectName().toStdString() + " " + std::to_string(w->width()) + "x" + std::to_string(w->height()) + " hfw " + std::to_string(w->heightForWidth(w->width())) + " min " + std::to_string(w->minimumHeight()) + "/" + std::to_string(w->minimumSizeHint().height()) + " has " + std::to_string(w->hasHeightForWidth()) + " sh " + std::to_string(w->sizeHint().height());
-                                                     return chain;
-                                                 }()
-                                              << " sections hfw "
-                                              << window.findChild<QWidget *>("entityInfoSections")->hasHeightForWidth()
-                                              << "\n";
+                            if (label->isVisible() && label->wordWrap())
                                 check(label->height() >= label->heightForWidth(label->width()),
                                       "Wrapped parameter text is not clipped");
-                            }
                         for (auto *button : parameters->findChildren<QPushButton *>())
                             if (button->isVisible() && button->objectName() != "sectionHeader")
                                 check(button->width() >= button->sizeHint().width(),

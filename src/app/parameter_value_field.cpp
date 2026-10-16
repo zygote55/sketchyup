@@ -298,11 +298,11 @@ void ParameterValueField::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
     // Side by side while the label fits on one line beside a value column of at least 16
     // characters; otherwise the label wraps above the value (ADR 0166 §1.2, §8).
-    const int value = std::max(valueColumn_->minimumSizeHint().width(),
-                               fontMetrics().averageCharWidth() * 16);
+    const int value =
+        std::max(valueColumn_->minimumSizeHint().width(), fontMetrics().averageCharWidth() * 16);
     const int label = labelColumn_->findChild<QLabel *>("parameterLabel")->sizeHint().width();
     const auto direction = width() >= label + value + line_->spacing() ? QBoxLayout::LeftToRight
-                                                                        : QBoxLayout::TopToBottom;
+                                                                       : QBoxLayout::TopToBottom;
     if (line_->direction() != direction) {
         line_->setDirection(direction);
         updateGeometry();
@@ -460,9 +460,7 @@ QString ParameterValueField::captionText(const QString &separator) const {
     }
     return parts.join(separator);
 }
-QString ParameterValueField::caption() const {
-    return captionText(" · ").remove(QChar(0x200B));
-}
+QString ParameterValueField::caption() const { return captionText(" · ").remove(QChar(0x200B)); }
 void ParameterValueField::refreshState() {
     const bool override = source_ == "override";
     const bool invalid = !error_.isEmpty();
