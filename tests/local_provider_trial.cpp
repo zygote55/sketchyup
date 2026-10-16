@@ -324,7 +324,7 @@ int main(int argc, char **argv) {
         const auto inputHash = hash(encodeContainer(fixture));
         const auto promptHash = hash(prompt.toUtf8());
         if (describe) {
-            const QJsonObject description{{"corpusVersion", 2},       {"trial", trial},
+            const QJsonObject description{{"corpusVersion", 3},       {"trial", trial},
                                           {"inputSha256", inputHash}, {"promptSha256", promptHash},
                                           {"prompt", prompt},         {"networkRequested", false}};
             QSaveFile file(args[4]);
@@ -683,7 +683,7 @@ int main(int argc, char **argv) {
         const bool manualVerified = loadDocument(manualPath).revision() == oldRevision + 1;
         QJsonObject report{
             {"trial", trial},
-            {"corpusVersion", 2},
+            {"corpusVersion", 3},
             {"inputSha256", inputHash},
             {"promptSha256", promptHash},
             {"metadataObserved", metadataObserved},
