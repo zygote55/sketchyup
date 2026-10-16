@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0–M6 gates passed; the M7 presentation checkpoint, the M8 exchange and extensibility gate and the M9 release-hardening gate are accepted. M9 is accepted at the 1.0.0 release candidate; the owner decides the `v1.0.0` tag. Updated: 2026-10-13.
+Status: M0–M6 gates passed; the M7 presentation checkpoint, the M8 exchange and extensibility gate and the M9 release-hardening gate are accepted. M9 is accepted at the 1.0.0 release candidate, and 1.0.0 is released. The first M10 release, F01 as 1.1.0, is released ([record](verification/F01-1.1.0.md)). Updated: 2026-10-15.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
@@ -1293,7 +1293,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 
 Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANCE.md)).
 
-- **F01 release: SketchyUp 1.1.0 (package 1.1.0-1).** Pending the gate. R090–R092 deliver the row. R092.c prepared the release: the version from its single source, package acceptance upgrading from 1.0.1-1 with the real 1.0.1-1 prior-release check, the [1.1.0 release notes](RELEASE_NOTES.md), the [support matrix](SUPPORT_MATRIX.md) and the gate procedure. The release record will be `docs/verification/F01-1.1.0.md`, taken at the release candidate. **Track:** Release. **Scope:** F01.
+- **F01 release: SketchyUp 1.1.0 (package 1.1.0-1).** Delivered. [SketchyUp 1.1.0 is released](https://github.com/zygote55/sketchyup/releases/tag/v1.1.0): tag `v1.1.0` on the release candidate `093484f9`, approved by the owner on 2026-10-15. R090–R092 deliver the row. R092.c prepared the release: the version from its single source, package acceptance upgrading from 1.0.1-1 with the real 1.0.1-1 prior-release check, the [1.1.0 release notes](RELEASE_NOTES.md), the [support matrix](SUPPORT_MATRIX.md) and the gate procedure. The [release record](verification/F01-1.1.0.md) ([summary](verification/F01-1.1.0.json)) was taken at the release candidate. **Track:** Release. **Scope:** F01.
 
 <a id="r090"></a>
 
@@ -1323,7 +1323,7 @@ Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANC
 
 #### R092 — Export and print coordinated documentation sets
 
-**Status:** In progress. R092.a, the headless engine (sheet PDF export with real text, the shared preflight and reconciliation report, `sketchyup-cli --export-sheets` and the `drawing_sheets.export_preflight` query), is merged (PR #325; [ADR 0164](decisions/0164-sheet-layout-interface.md#r092-export)). R092.b, the desktop export dialog with live preflight, the export report sheet, raster views from the viewport, and Print at 100%, is merged (PR #327). R092.c prepares the 1.1.0 release (version, upgrade baseline, release documents and the [M10 gate procedure](M10_ACCEPTANCE.md)). The R092 acceptance record, which checks the Verify line, remains. **Track:** Interchange. **Scope:** F01. **UX:** —.
+**Status:** Delivered. [SketchyUp 1.1.0 is released](https://github.com/zygote55/sketchyup/releases/tag/v1.1.0) with R092. R092.a, the headless engine (sheet PDF export with real text, the shared preflight and reconciliation report, `sketchyup-cli --export-sheets` and the `drawing_sheets.export_preflight` query), is merged (PR #325; [ADR 0164](decisions/0164-sheet-layout-interface.md#r092-export)). R092.b, the desktop export dialog with live preflight, the export report sheet, raster views from the viewport, and Print at 100%, is merged (PR #327). R092.c prepares the 1.1.0 release (version, upgrade baseline, release documents and the [M10 gate procedure](M10_ACCEPTANCE.md)). The [R092.d acceptance record](verification/R092d-sheet-export.md) ([summary](verification/R092d-sheet-export.json)) checks the Verify line at the release candidate, and the [F01 release record](verification/F01-1.1.0.md) accepts the row. The owner approved the tag and the release on 2026-10-15. **Track:** Interchange. **Scope:** F01. **UX:** —.
 
 **Requires:** [R091](#r091); milestone gate rule above.
 

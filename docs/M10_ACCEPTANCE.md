@@ -52,6 +52,26 @@ the manual walkthrough on the installed RC) stay **untested**, not passed, and t
 owner covers them in daily use. Everything below is required at the RC, including
 every automated check.
 
+## Owner trim of the local walkthrough
+
+On 2026-10-15 the owner decided, at the 1.1.0 RC, that the local walkthrough does not
+repeat what CI runs. The rule applies to every later M10 release:
+
+- CI at the exact RC commit is the evidence for every step the workflow runs with the
+  same invocation: the `ctest` presets and opt-in consumers, the native lines, the
+  sanitize job, Blender interoperability and the CI package acceptance. Those steps are
+  not repeated locally. A CI step that did not pass at the RC, or ran with a different
+  invocation, is not covered and runs locally.
+- The local walkthrough runs only what CI does not run: the release artifacts, the clean
+  machines, the native cells that are not CI lines, and the row's own detail checks.
+  When the sanitize job passed in CI, the local sanitized build is skipped.
+- The release record lists which steps CI covered and which ran locally. Anything neither
+  ran is stated as not run. It is not claimed to pass.
+
+The 1.1.0 package shipped the text of this file without the trim, because the installed
+documents are fixed at the RC. The 1.1.0 record
+([F01-1.1.0](verification/F01-1.1.0.md)) applies the rule.
+
 ## Required evidence at the RC
 
 | Area | Required at the RC | Frozen inputs and supporting evidence |
@@ -76,7 +96,8 @@ with a machine-readable summary, records:
 - tool, platform and Qt versions, and the result of each check above, with the
   commands and evidence hashes;
 - which checks were re-run at the RC and which earlier evidence is relied on, with
-  the reason;
+  the reason, and which steps CI covered, which ran locally and which did not run (see
+  the owner trim above);
 - the provider model, configuration, latency and cost (or the R086.a reason it is
   unreported);
 - the triage result, the unresolved limits and the checks waived by ADR 0161.

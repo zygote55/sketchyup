@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 — unreleased
+## 1.1.0 — 2026-10-15
 
 A minor release that adds documentation sheets (scope row F01). Additive: existing
 commands, queries and schemas keep their shapes.
@@ -17,6 +17,8 @@ commands, queries and schemas keep their shapes.
 - Format: schema 27 (`drawing-sheets-v1`) is written only for documents with sheets.
   SketchyUp 1.0.x refuses those files unchanged and still opens sheet-free ones.
 - Package: Arch `sketchyup` 1.1.0-1, upgrading from 1.0.1-1.
+
+Tag `v1.1.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.1.0).
 
 ## 1.0.1 — 2026-10-14
 
