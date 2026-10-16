@@ -9042,6 +9042,550 @@
       },
       "undo": "one batch history item",
       "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Define a component parameter",
+      "name": "component_parameter.define",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Define a parameter on a definition: an input's default or a derived formula. Shared-definition edit; every placement regenerates",
+        "properties": {
+          "command": {
+            "const": "component_parameter.define"
+          },
+          "definition": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "expression": {
+            "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "label": {
+            "description": "Display label: 1-128 UTF-8 bytes",
+            "maxLength": 512,
+            "type": "string"
+          },
+          "max": {
+            "description": "Literal bound in SI units",
+            "type": "number"
+          },
+          "min": {
+            "description": "Literal bound in SI units",
+            "type": "number"
+          },
+          "mode": {
+            "enum": [
+              "input",
+              "derived"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                "value": {
+                  "description": "[a-z0-9_-]{1,32}",
+                  "maxLength": 64,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value",
+                "label"
+              ],
+              "type": "object"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "type": "array"
+          },
+          "position": {
+            "description": "Display position; the end by default",
+            "maximum": 128,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "step": {
+            "description": "Literal bound in SI units",
+            "type": "number"
+          },
+          "type": {
+            "enum": [
+              "length",
+              "area",
+              "angle",
+              "number",
+              "count",
+              "boolean",
+              "choice"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "name",
+          "label",
+          "type",
+          "mode",
+          "expression",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Update a component parameter",
+      "name": "component_parameter.update",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Change a parameter's label, expression, bounds, options or position; type and mode are fixed. A default change re-baselines the template",
+        "minProperties": 4,
+        "properties": {
+          "command": {
+            "const": "component_parameter.update"
+          },
+          "definition": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "expression": {
+            "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "label": {
+            "description": "Display label: 1-128 UTF-8 bytes",
+            "maxLength": 512,
+            "type": "string"
+          },
+          "max": {
+            "description": "Literal bound in SI units; null removes it",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "min": {
+            "description": "Literal bound in SI units; null removes it",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                "value": {
+                  "description": "[a-z0-9_-]{1,32}",
+                  "maxLength": 64,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value",
+                "label"
+              ],
+              "type": "object"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "type": "array"
+          },
+          "position": {
+            "description": "Display position; the end by default",
+            "maximum": 128,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "step": {
+            "description": "Literal bound in SI units; null removes it",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "definition",
+          "name",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Rename a component parameter",
+      "name": "component_parameter.rename",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Rename a parameter; references in the definition, overrides on its placements and parent childParameter drivers follow",
+        "properties": {
+          "command": {
+            "const": "component_parameter.rename"
+          },
+          "definition": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "newName": {
+            "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "name",
+          "newName",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Remove a component parameter",
+      "name": "component_parameter.remove",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Remove a parameter; refused with PARAMETER_NAME while anything refers to it",
+        "properties": {
+          "command": {
+            "const": "component_parameter.remove"
+          },
+          "definition": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "name",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Drive a component member",
+      "name": "component_parameter.drive",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Create a driver, or update the named driver, on a canonical definition member; stamps its bound digest",
+        "properties": {
+          "command": {
+            "const": "component_parameter.drive"
+          },
+          "data": {
+            "additionalProperties": false,
+            "description": "Exactly the kind's fields: stretch {axis, at}, position {axis}, rotation {axis}, visibility {}, repeat {axis, maxCount, spacing}, childParameter {parameter}",
+            "properties": {
+              "at": {
+                "description": "Stretch plane, member-local metres",
+                "maximum": 1000000,
+                "minimum": -1000000,
+                "type": "number"
+              },
+              "axis": {
+                "enum": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "type": "string"
+              },
+              "maxCount": {
+                "maximum": 1000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "parameter": {
+                "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                "maxLength": 64,
+                "type": "string"
+              },
+              "spacing": {
+                "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                "maxLength": 2048,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "definition": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "driver": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "expression": {
+            "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "stretch",
+              "position",
+              "rotation",
+              "visibility",
+              "repeat",
+              "childParameter"
+            ],
+            "type": "string"
+          },
+          "member": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "kind",
+          "member",
+          "expression",
+          "data",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Remove a component driver",
+      "name": "component_parameter.undrive",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Remove a component driver",
+        "properties": {
+          "command": {
+            "const": "component_parameter.undrive"
+          },
+          "definition": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "driver": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "driver",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Rebind component drivers to their current targets",
+      "name": "component_parameter.rebind",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Restamp the named drivers, or every driver (all: true), so drivers whose targets changed become bound again",
+        "maxProperties": 3,
+        "minProperties": 3,
+        "properties": {
+          "all": {
+            "const": true
+          },
+          "command": {
+            "const": "component_parameter.rebind"
+          },
+          "definition": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "drivers": {
+            "items": {
+              "description": "Canonical uint64 decimal string",
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 256,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "definition",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Set component parameter values on a placement",
+      "name": "component_parameter.override",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Instance-scoped: set input values on a top-level placement. Values outside the parameter's type, bounds or step are refused, never clamped",
+        "properties": {
+          "body": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "command": {
+            "const": "component_parameter.override"
+          },
+          "values": {
+            "additionalProperties": {
+              "description": "A number in SI units, one signed quantity literal such as \"1200 mm\", a boolean or a choice value",
+              "maxLength": 64,
+              "type": [
+                "number",
+                "string",
+                "boolean"
+              ]
+            },
+            "maxProperties": 128,
+            "minProperties": 1,
+            "propertyNames": {
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "body",
+          "values",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
+    },
+    {
+      "category": "Component parameters",
+      "label": "Reset component parameter values on a placement",
+      "name": "component_parameter.reset",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Instance-scoped: remove the named overrides, or every override (all: true)",
+        "maxProperties": 3,
+        "minProperties": 3,
+        "properties": {
+          "all": {
+            "const": true
+          },
+          "body": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "command": {
+            "const": "component_parameter.reset"
+          },
+          "names": {
+            "items": {
+              "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "body",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative expression, graph, regeneration, document and resource validation"
     }
   ],
   "extensions": {
@@ -10774,6 +11318,158 @@
           },
           "query": {
             "const": "component.instances"
+          }
+        },
+        "required": [
+          "definition",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "component_parameters.describe",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "definition": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "component_parameters.describe"
+          }
+        },
+        "required": [
+          "definition",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "component_parameters.values",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "body": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "component_parameters.values"
+          }
+        },
+        "required": [
+          "body",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "component_parameters.evaluate",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "definition": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "expression": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "overrides": {
+            "additionalProperties": {
+              "maxLength": 64,
+              "type": [
+                "number",
+                "string",
+                "boolean"
+              ]
+            },
+            "maxProperties": 128,
+            "propertyNames": {
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "object"
+          },
+          "query": {
+            "const": "component_parameters.evaluate"
+          },
+          "type": {
+            "enum": [
+              "length",
+              "area",
+              "angle",
+              "number",
+              "count",
+              "boolean",
+              "choice"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -13305,6 +14001,185 @@
         "type": "object"
       },
       "name": "component.instances"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "component_parameters.describe: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "definition": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "component_parameters.describe"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "component_parameters.describe"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "component_parameters.values: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "body": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "component_parameters.values"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "component_parameters.values"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "component_parameters.evaluate: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "definition": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "expression": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "overrides": {
+            "additionalProperties": {
+              "maxLength": 64,
+              "type": [
+                "number",
+                "string",
+                "boolean"
+              ]
+            },
+            "maxProperties": 128,
+            "propertyNames": {
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "object"
+          },
+          "query": {
+            "const": "component_parameters.evaluate"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "length",
+              "area",
+              "angle",
+              "number",
+              "count",
+              "boolean",
+              "choice"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "component_parameters.evaluate"
     },
     {
       "annotations": {
@@ -22102,6 +22977,487 @@
                     "command"
                   ],
                   "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Define a parameter on a definition: an input's default or a derived formula. Shared-definition edit; every placement regenerates",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.define"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "expression": {
+                      "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                      "maxLength": 2048,
+                      "type": "string"
+                    },
+                    "label": {
+                      "description": "Display label: 1-128 UTF-8 bytes",
+                      "maxLength": 512,
+                      "type": "string"
+                    },
+                    "max": {
+                      "description": "Literal bound in SI units",
+                      "type": "number"
+                    },
+                    "min": {
+                      "description": "Literal bound in SI units",
+                      "type": "number"
+                    },
+                    "mode": {
+                      "enum": [
+                        "input",
+                        "derived"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "options": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "label": {
+                            "maxLength": 512,
+                            "type": "string"
+                          },
+                          "value": {
+                            "description": "[a-z0-9_-]{1,32}",
+                            "maxLength": 64,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "position": {
+                      "description": "Display position; the end by default",
+                      "maximum": 128,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "step": {
+                      "description": "Literal bound in SI units",
+                      "type": "number"
+                    },
+                    "type": {
+                      "enum": [
+                        "length",
+                        "area",
+                        "angle",
+                        "number",
+                        "count",
+                        "boolean",
+                        "choice"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "name",
+                    "label",
+                    "type",
+                    "mode",
+                    "expression",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Change a parameter's label, expression, bounds, options or position; type and mode are fixed. A default change re-baselines the template",
+                  "minProperties": 4,
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.update"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "expression": {
+                      "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                      "maxLength": 2048,
+                      "type": "string"
+                    },
+                    "label": {
+                      "description": "Display label: 1-128 UTF-8 bytes",
+                      "maxLength": 512,
+                      "type": "string"
+                    },
+                    "max": {
+                      "description": "Literal bound in SI units; null removes it",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "min": {
+                      "description": "Literal bound in SI units; null removes it",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "options": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "label": {
+                            "maxLength": 512,
+                            "type": "string"
+                          },
+                          "value": {
+                            "description": "[a-z0-9_-]{1,32}",
+                            "maxLength": 64,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "position": {
+                      "description": "Display position; the end by default",
+                      "maximum": 128,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "step": {
+                      "description": "Literal bound in SI units; null removes it",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "name",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Rename a parameter; references in the definition, overrides on its placements and parent childParameter drivers follow",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.rename"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "name": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "newName": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "name",
+                    "newName",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Remove a parameter; refused with PARAMETER_NAME while anything refers to it",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.remove"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "name": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "name",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Create a driver, or update the named driver, on a canonical definition member; stamps its bound digest",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.drive"
+                    },
+                    "data": {
+                      "additionalProperties": false,
+                      "description": "Exactly the kind's fields: stretch {axis, at}, position {axis}, rotation {axis}, visibility {}, repeat {axis, maxCount, spacing}, childParameter {parameter}",
+                      "properties": {
+                        "at": {
+                          "description": "Stretch plane, member-local metres",
+                          "maximum": 1000000,
+                          "minimum": -1000000,
+                          "type": "number"
+                        },
+                        "axis": {
+                          "enum": [
+                            "x",
+                            "y",
+                            "z"
+                          ],
+                          "type": "string"
+                        },
+                        "maxCount": {
+                          "maximum": 1000,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "parameter": {
+                          "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                          "maxLength": 64,
+                          "type": "string"
+                        },
+                        "spacing": {
+                          "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                          "maxLength": 2048,
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "driver": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "expression": {
+                      "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                      "maxLength": 2048,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "stretch",
+                        "position",
+                        "rotation",
+                        "visibility",
+                        "repeat",
+                        "childParameter"
+                      ],
+                      "type": "string"
+                    },
+                    "member": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "kind",
+                    "member",
+                    "expression",
+                    "data",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Remove a component driver",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.undrive"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "driver": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "driver",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Restamp the named drivers, or every driver (all: true), so drivers whose targets changed become bound again",
+                  "maxProperties": 3,
+                  "minProperties": 3,
+                  "properties": {
+                    "all": {
+                      "const": true
+                    },
+                    "command": {
+                      "const": "component_parameter.rebind"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "drivers": {
+                      "items": {
+                        "description": "Canonical uint64 decimal string",
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                      },
+                      "maxItems": 256,
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Instance-scoped: set input values on a top-level placement. Values outside the parameter's type, bounds or step are refused, never clamped",
+                  "properties": {
+                    "body": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "command": {
+                      "const": "component_parameter.override"
+                    },
+                    "values": {
+                      "additionalProperties": {
+                        "description": "A number in SI units, one signed quantity literal such as \"1200 mm\", a boolean or a choice value",
+                        "maxLength": 64,
+                        "type": [
+                          "number",
+                          "string",
+                          "boolean"
+                        ]
+                      },
+                      "maxProperties": 128,
+                      "minProperties": 1,
+                      "propertyNames": {
+                        "maxLength": 64,
+                        "minLength": 1
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "body",
+                    "values",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Instance-scoped: remove the named overrides, or every override (all: true)",
+                  "maxProperties": 3,
+                  "minProperties": 3,
+                  "properties": {
+                    "all": {
+                      "const": true
+                    },
+                    "body": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "command": {
+                      "const": "component_parameter.reset"
+                    },
+                    "names": {
+                      "items": {
+                        "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                        "maxLength": 64,
+                        "type": "string"
+                      },
+                      "maxItems": 128,
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "body",
+                    "command"
+                  ],
+                  "type": "object"
                 }
               ]
             },
@@ -23739,6 +25095,140 @@
                   },
                   "query": {
                     "const": "component.instances"
+                  }
+                },
+                "required": [
+                  "definition",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "definition": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "component_parameters.describe"
+                  }
+                },
+                "required": [
+                  "definition",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "body": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "component_parameters.values"
+                  }
+                },
+                "required": [
+                  "body",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "definition": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "expression": {
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  "overrides": {
+                    "additionalProperties": {
+                      "maxLength": 64,
+                      "type": [
+                        "number",
+                        "string",
+                        "boolean"
+                      ]
+                    },
+                    "maxProperties": 128,
+                    "propertyNames": {
+                      "maxLength": 64,
+                      "minLength": 1
+                    },
+                    "type": "object"
+                  },
+                  "query": {
+                    "const": "component_parameters.evaluate"
+                  },
+                  "type": {
+                    "enum": [
+                      "length",
+                      "area",
+                      "angle",
+                      "number",
+                      "count",
+                      "boolean",
+                      "choice"
+                    ],
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -32853,6 +34343,487 @@
                     "command"
                   ],
                   "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Define a parameter on a definition: an input's default or a derived formula. Shared-definition edit; every placement regenerates",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.define"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "expression": {
+                      "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                      "maxLength": 2048,
+                      "type": "string"
+                    },
+                    "label": {
+                      "description": "Display label: 1-128 UTF-8 bytes",
+                      "maxLength": 512,
+                      "type": "string"
+                    },
+                    "max": {
+                      "description": "Literal bound in SI units",
+                      "type": "number"
+                    },
+                    "min": {
+                      "description": "Literal bound in SI units",
+                      "type": "number"
+                    },
+                    "mode": {
+                      "enum": [
+                        "input",
+                        "derived"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "options": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "label": {
+                            "maxLength": 512,
+                            "type": "string"
+                          },
+                          "value": {
+                            "description": "[a-z0-9_-]{1,32}",
+                            "maxLength": 64,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "position": {
+                      "description": "Display position; the end by default",
+                      "maximum": 128,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "step": {
+                      "description": "Literal bound in SI units",
+                      "type": "number"
+                    },
+                    "type": {
+                      "enum": [
+                        "length",
+                        "area",
+                        "angle",
+                        "number",
+                        "count",
+                        "boolean",
+                        "choice"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "name",
+                    "label",
+                    "type",
+                    "mode",
+                    "expression",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Change a parameter's label, expression, bounds, options or position; type and mode are fixed. A default change re-baselines the template",
+                  "minProperties": 4,
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.update"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "expression": {
+                      "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                      "maxLength": 2048,
+                      "type": "string"
+                    },
+                    "label": {
+                      "description": "Display label: 1-128 UTF-8 bytes",
+                      "maxLength": 512,
+                      "type": "string"
+                    },
+                    "max": {
+                      "description": "Literal bound in SI units; null removes it",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "min": {
+                      "description": "Literal bound in SI units; null removes it",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "options": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "label": {
+                            "maxLength": 512,
+                            "type": "string"
+                          },
+                          "value": {
+                            "description": "[a-z0-9_-]{1,32}",
+                            "maxLength": 64,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "position": {
+                      "description": "Display position; the end by default",
+                      "maximum": 128,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "step": {
+                      "description": "Literal bound in SI units; null removes it",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "name",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Rename a parameter; references in the definition, overrides on its placements and parent childParameter drivers follow",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.rename"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "name": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "newName": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "name",
+                    "newName",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Remove a parameter; refused with PARAMETER_NAME while anything refers to it",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.remove"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "name": {
+                      "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                      "maxLength": 64,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "name",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Create a driver, or update the named driver, on a canonical definition member; stamps its bound digest",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.drive"
+                    },
+                    "data": {
+                      "additionalProperties": false,
+                      "description": "Exactly the kind's fields: stretch {axis, at}, position {axis}, rotation {axis}, visibility {}, repeat {axis, maxCount, spacing}, childParameter {parameter}",
+                      "properties": {
+                        "at": {
+                          "description": "Stretch plane, member-local metres",
+                          "maximum": 1000000,
+                          "minimum": -1000000,
+                          "type": "number"
+                        },
+                        "axis": {
+                          "enum": [
+                            "x",
+                            "y",
+                            "z"
+                          ],
+                          "type": "string"
+                        },
+                        "maxCount": {
+                          "maximum": 1000,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "parameter": {
+                          "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                          "maxLength": 64,
+                          "type": "string"
+                        },
+                        "spacing": {
+                          "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                          "maxLength": 2048,
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "driver": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "expression": {
+                      "description": "Expression text (ADR 0165 \u00a72); stored as canonical text",
+                      "maxLength": 2048,
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "stretch",
+                        "position",
+                        "rotation",
+                        "visibility",
+                        "repeat",
+                        "childParameter"
+                      ],
+                      "type": "string"
+                    },
+                    "member": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "kind",
+                    "member",
+                    "expression",
+                    "data",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Remove a component driver",
+                  "properties": {
+                    "command": {
+                      "const": "component_parameter.undrive"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "driver": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "driver",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Restamp the named drivers, or every driver (all: true), so drivers whose targets changed become bound again",
+                  "maxProperties": 3,
+                  "minProperties": 3,
+                  "properties": {
+                    "all": {
+                      "const": true
+                    },
+                    "command": {
+                      "const": "component_parameter.rebind"
+                    },
+                    "definition": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "drivers": {
+                      "items": {
+                        "description": "Canonical uint64 decimal string",
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                      },
+                      "maxItems": 256,
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "definition",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Instance-scoped: set input values on a top-level placement. Values outside the parameter's type, bounds or step are refused, never clamped",
+                  "properties": {
+                    "body": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "command": {
+                      "const": "component_parameter.override"
+                    },
+                    "values": {
+                      "additionalProperties": {
+                        "description": "A number in SI units, one signed quantity literal such as \"1200 mm\", a boolean or a choice value",
+                        "maxLength": 64,
+                        "type": [
+                          "number",
+                          "string",
+                          "boolean"
+                        ]
+                      },
+                      "maxProperties": 128,
+                      "minProperties": 1,
+                      "propertyNames": {
+                        "maxLength": 64,
+                        "minLength": 1
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "body",
+                    "values",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Instance-scoped: remove the named overrides, or every override (all: true)",
+                  "maxProperties": 3,
+                  "minProperties": 3,
+                  "properties": {
+                    "all": {
+                      "const": true
+                    },
+                    "body": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "command": {
+                      "const": "component_parameter.reset"
+                    },
+                    "names": {
+                      "items": {
+                        "description": "Parameter name: [a-z][a-z0-9_]{0,31}, not a reserved word",
+                        "maxLength": 64,
+                        "type": "string"
+                      },
+                      "maxItems": 128,
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "body",
+                    "command"
+                  ],
+                  "type": "object"
                 }
               ]
             },
@@ -34480,6 +36451,140 @@
                   },
                   "query": {
                     "const": "component.instances"
+                  }
+                },
+                "required": [
+                  "definition",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "definition": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "component_parameters.describe"
+                  }
+                },
+                "required": [
+                  "definition",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "body": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "component_parameters.values"
+                  }
+                },
+                "required": [
+                  "body",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "definition": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "expression": {
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  "overrides": {
+                    "additionalProperties": {
+                      "maxLength": 64,
+                      "type": [
+                        "number",
+                        "string",
+                        "boolean"
+                      ]
+                    },
+                    "maxProperties": 128,
+                    "propertyNames": {
+                      "maxLength": 64,
+                      "minLength": 1
+                    },
+                    "type": "object"
+                  },
+                  "query": {
+                    "const": "component_parameters.evaluate"
+                  },
+                  "type": {
+                    "enum": [
+                      "length",
+                      "area",
+                      "angle",
+                      "number",
+                      "count",
+                      "boolean",
+                      "choice"
+                    ],
+                    "type": "string"
                   }
                 },
                 "required": [

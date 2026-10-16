@@ -4,6 +4,8 @@
 #include "automation/text_commands.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/drawing_sheet_commands.hpp"
+#include "automation/component_parameter_commands.hpp"
+#include "core/component_parameter_records.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "io/display_precision_io.hpp"
@@ -83,6 +85,9 @@ enum class Operation {
     CurveEdges,
     Incidence,
     Instances,
+    ComponentParameters,
+    ComponentParameterValues,
+    ComponentParameterEvaluate,
     Diagnose,
     Measure,
     Distance,
@@ -171,6 +176,23 @@ const std::vector<Spec> &registry() {
             spec("topology.incidence", Operation::Incidence, {{"target", ref}}, {"target"}, true),
             spec("component.instances", Operation::Instances, {{"definition", idSchema()}},
                  {"definition"}, true),
+            spec("component_parameters.describe", Operation::ComponentParameters,
+                 {{"definition", idSchema()}}, {"definition"}),
+            spec("component_parameters.values", Operation::ComponentParameterValues,
+                 {{"body", idSchema()}}, {"body"}),
+            spec("component_parameters.evaluate", Operation::ComponentParameterEvaluate,
+                 {{"definition", idSchema()},
+                  {"overrides",
+                   QJsonObject{{"type", "object"},
+                               {"maxProperties", 128},
+                               {"propertyNames", QJsonObject{{"minLength", 1}, {"maxLength", 64}}},
+                               {"additionalProperties",
+                                QJsonObject{{"type", QJsonArray{"number", "string", "boolean"}},
+                                            {"maxLength", 64}}}}},
+                  {"expression", textSchema(2048)},
+                  {"type", choices({"length", "area", "angle", "number", "count", "boolean",
+                                    "choice"})}},
+                 {"definition"}),
             spec("geometry.diagnose", Operation::Diagnose, {{"target", ref}}, {"target"}),
             spec("measure.entity", Operation::Measure, {{"target", ref}, {"space", space}},
                  {"target", "space"}),
@@ -1030,6 +1052,20 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         data["glue"] = componentGlueDescription(*doc.definitions().at(definition));
         break;
     }
+    case Operation::ComponentParameters:
+    case Operation::ComponentParameterValues:
+    case Operation::ComponentParameterEvaluate:
+        try {
+            data = spec->operation == Operation::ComponentParameters
+                       ? componentParametersDescription(doc, decimal(request["definition"]))
+                   : spec->operation == Operation::ComponentParameterValues
+                       ? componentParameterValues(doc, decimal(request["body"]))
+                       : componentParametersEvaluation(doc, decimal(request["definition"]),
+                                                       request);
+        } catch (const ComponentParameterError &error) {
+            throw InspectionError(error.code(), error.what());
+        }
+        break;
     case Operation::Diagnose: {
         const auto ref = bodyReference(doc, request["target"]);
         const auto &body = *doc.bodies().at(ref.body);
