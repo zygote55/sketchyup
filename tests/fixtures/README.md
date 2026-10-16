@@ -81,3 +81,19 @@ it again, still before release: the plans sheet has a nondefault dimension forma
 and inches, 2 decimals, unit shown). The test requires
 exact re-encoding apart from the writer string, and package acceptance requires the
 prior package to refuse it unchanged. It is original synthetic project data.
+
+`release-1.1.0-v27.sketchyup` is unmodified schema-27 writer output from the released
+SketchyUp 1.1.0 (tag `v1.1.0`, commit `093484f9`), retained by R093.c before schema 28
+(ADR 0165 §5). It was written by the published package
+`sketchyup-1.1.0-1-x86_64.pkg.tar.zst` (SHA-256
+`e718b8fb0e52bb5ec40b6817b99c92a824242f4a20907a02f50f47e3f0c0d00a`), installed with
+`pacman -U` in a throwaway `archlinux:base-devel` container (image
+`sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1`), by
+`sketchyup-cli --migrate-native input-drawing-sheets-v27.sketchyup --output release-1.1.0-v27.sketchyup`,
+where the input was a copy of `drawing-sheets-v27.sketchyup` as it stands at `v1.1.0`
+(writer `SketchyUp/1.1.0`, document `a70aaf3e3f7cbb7a90579b5bf3a335a7`, revision 30,
+SHA-256 `e3e037a06e283c90e3c8de5a58e4f452f640b295f7f654436f7c5cfca400143d`). It holds
+the same face, saved scenes, two drawing sheets, three views and nine page items as
+that fixture. Every later build must read it exactly, load it with empty component
+parameter tables, and keep writing its parameter-free content as schema 27 that the
+1.1.0 reader accepts.
