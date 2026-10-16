@@ -207,20 +207,27 @@ void checkComponentParameterBounds(const ComponentParameter &parameter, const Pa
     // Compare quantized values with quantized bounds: final values are quantized, and
     // a bound such as 2.4 m must accept the value 2.4 m (R093.a: quantization can
     // move a value by one ulp).
+    // The error names the violated bound, its value and the refused value (R094.b).
+    auto violated = [&](const char *bound, double limit, const std::string &detail) {
+        context.bound = bound;
+        context.limit = limit;
+        context.value = v;
+        outside(detail);
+    };
     if (parameter.min && v < quantizeBound(type, *parameter.min))
-        outside("is below its minimum");
+        violated("min", *parameter.min, "is below its minimum");
     if (parameter.max && v > quantizeBound(type, *parameter.max))
-        outside("is above its maximum");
+        violated("max", *parameter.max, "is above its maximum");
     if (parameter.step) {
         const auto base = parameter.min.value_or(0);
         if (type == ParameterType::Count) {
             const auto k = (v - base) / *parameter.step;
             if (k != std::floor(k))
-                outside("is not on its step");
+                violated("step", *parameter.step, "is not on its step");
         } else {
             const auto k = std::nearbyint((v - base) / *parameter.step);
             if (!(std::abs(v - (base + k * *parameter.step)) <= quantum(type)))
-                outside("is not on its step");
+                violated("step", *parameter.step, "is not on its step");
         }
     }
 }
@@ -763,6 +770,14 @@ void validateComponentParameterRecords(const ComponentDefinitions &definitions,
                          definitionText(id) + ")",
                      {.definition = id});
         }
+    for (const auto &[id, definition] : definitions)
+        if (const auto &record = definition->parameters;
+            record && record->assembly &&
+            !validComponentAssembly(record->assembly->id, record->assembly->version))
+            fail("PARAMETER_NAME",
+                 definitionText(id) + " has a malformed assembly identity " +
+                     quotedParameterText(record->assembly->id),
+                 {.definition = id});
     std::set<Id> drivers;
     for (const auto &[id, definition] : definitions)
         if (definition->parameters)
@@ -1233,6 +1248,26 @@ ComponentResult rebindComponentDrivers(Document &doc, Id id, const std::vector<I
     Staged staged;
     staged.definitions[id] = stageRecord(doc, original, std::move(record), stamp, doc.definitions());
     return commit(doc, std::move(staged), id, 0, "Rebind component drivers");
+}
+ComponentResult setComponentAssembly(Document &doc, Id id,
+                                     std::optional<ComponentAssembly> assembly) {
+    const auto &original = requireDefinition(doc, id);
+    if (!original->parameters)
+        fail("PARAMETER_NAME", definitionText(id) + " has no parameters", {.definition = id});
+    if (assembly && !validComponentAssembly(assembly->id, assembly->version))
+        fail("PARAMETER_NAME",
+             "Assembly identity " + quotedParameterText(assembly->id) +
+                 " must match [a-z0-9_-]{1,64}(/[a-z0-9_-]{1,64})? with a version 1-2147483647",
+             {.definition = id});
+    if (original->parameters->assembly == assembly)
+        return {id, 0, {}, {}};
+    auto record = *original->parameters;
+    record.assembly = std::move(assembly);
+    auto staged = std::make_shared<ComponentDefinition>(*original);
+    staged->parameters = std::make_shared<const ComponentParameters>(std::move(record));
+    Staged edit;
+    edit.definitions[id] = std::move(staged);
+    return commit(doc, std::move(edit), id, 0, "Set component assembly identity");
 }
 ComponentResult overrideComponentParameters(Document &doc, Id root,
                                             const ComponentOverrides &values) {

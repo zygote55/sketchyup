@@ -17,7 +17,8 @@ ChangeReport publishComponentRecords(Document &doc, const ComponentDefinitions &
                                      const std::map<Id, BodyPtr> &seed, Id next,
                                      Id nextDefinition, Id nextDriver, std::string label,
                                      const ComponentPublishOptions &options = {});
-// A copy of a parameter record with fresh driver IDs taken from `nextDriver`.
+// A unique copy of a parameter record: fresh driver IDs taken from `nextDriver` and
+// no assembly identity (ADR 0166 §6.2).
 ComponentParametersPtr renumberComponentDrivers(const ComponentParametersPtr &record,
                                                 Id &nextDriver);
 // The record with each repeat block (re)reserved when its target subtree changed

@@ -79,9 +79,21 @@ struct ComponentDriver {
     ComponentDigest bound{};
     bool operator==(const ComponentDriver &) const = default;
 };
+// The library assembly a definition was built from (ADR 0166 §6.2; R094.b): `id`
+// matches [a-z0-9_-]{1,64}(/[a-z0-9_-]{1,64})? and `version` is 1-2,147,483,647.
+// Bundle capture and insertion keep it; make-unique leaves it off the copy.
+struct ComponentAssembly {
+    std::string id;
+    std::uint32_t version{};
+    bool operator==(const ComponentAssembly &) const = default;
+};
+inline constexpr std::uint32_t componentAssemblyMaxVersion = 2147483647;
+// True when `id` and `version` are a well-formed assembly identity.
+bool validComponentAssembly(std::string_view id, double version);
 struct ComponentParameters {
     std::vector<ComponentParameter> parameters; // display order
     std::vector<ComponentDriver> drivers;       // ascending ID
+    std::optional<ComponentAssembly> assembly;  // optional library identity
     bool operator==(const ComponentParameters &) const = default;
 };
 using ComponentParametersPtr = std::shared_ptr<const ComponentParameters>;
@@ -102,6 +114,10 @@ struct ComponentParameterErrorContext {
     std::string excerpt{};               // at most 64 bytes of the expression
     std::vector<std::string> cycle{};    // PARAMETER_CYCLE: up to 8 names of one cycle, in order
     std::vector<std::string> referrers{}; // PARAMETER_NAME on remove: what still refers to it
+    // PARAMETER_DOMAIN from bounds (R094.b): which bound ("min", "max" or "step"), its
+    // SI value and the refused SI value.
+    std::string bound{};
+    double limit{}, value{};
 };
 class ComponentParameterError : public std::runtime_error {
   public:

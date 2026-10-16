@@ -106,6 +106,8 @@ std::size_t componentParametersBytes(const ComponentParametersPtr &record) {
     for (const auto &driver : record->drivers)
         bytes += sizeof(ComponentDriver) + 64 + driver.expression.size() + driver.spacing.size() +
                  driver.parameter.size();
+    if (record->assembly)
+        bytes += sizeof(ComponentAssembly) + record->assembly->id.size();
     return bytes;
 }
 std::size_t componentOverridesBytes(const ComponentOverrides &overrides) {
@@ -342,6 +344,29 @@ void appendCanonicalParameters(std::string &out, const ComponentParameters &reco
         text(out, driver.parameter);
         out.append(reinterpret_cast<const char *>(driver.bound.data()), driver.bound.size());
     }
+    // Appended only when present, so records without one keep their encoding.
+    if (record.assembly) {
+        out.append("assembly");
+        text(out, record.assembly->id);
+        u64(out, record.assembly->version);
+    }
+}
+bool validComponentAssembly(std::string_view id, double version) {
+    if (!(version >= 1 && version <= componentAssemblyMaxVersion) ||
+        version != static_cast<double>(static_cast<std::uint32_t>(version)))
+        return false;
+    auto segment = [](std::string_view part) {
+        if (part.empty() || part.size() > 64)
+            return false;
+        for (const char c : part)
+            if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-'))
+                return false;
+        return true;
+    };
+    const auto slash = id.find('/');
+    if (slash == std::string_view::npos)
+        return segment(id);
+    return segment(id.substr(0, slash)) && segment(id.substr(slash + 1));
 }
 
 // ---- SHA-256 (FIPS 180-4) ----

@@ -238,6 +238,24 @@ int main(int argc, char **argv) {
             cyclic["componentParameters"] = tables;
             publishRejected("native-json", QJsonDocument(cyclic).toJson(QJsonDocument::Compact),
                             "component-parameter-cycle");
+            // R094.b: the room's record carries the optional assembly identity, so the
+            // seeds above exercise it. A malformed identity must be refused.
+            auto malformed = QJsonDocument::fromJson(encodeDocument(parameters)).object();
+            auto records = malformed["componentParameters"].toArray();
+            bool identified = false;
+            for (qsizetype i = 0; i < records.size(); ++i) {
+                auto entry = records[i].toObject();
+                if (!entry.contains("assembly"))
+                    continue;
+                entry["assembly"] = QJsonObject{{"id", "Sketchyup/Room/1"}, {"version", 0}};
+                records[i] = entry;
+                identified = true;
+            }
+            fuzz::require(identified, "the parameter seed carries an assembly identity");
+            malformed["componentParameters"] = records;
+            publishRejected("native-json",
+                            QJsonDocument(malformed).toJson(QJsonDocument::Compact),
+                            "component-assembly-malformed");
         }
         // R093.a: parameter expressions, canonical text, every type and function.
         const char *const expressions[][2] = {
