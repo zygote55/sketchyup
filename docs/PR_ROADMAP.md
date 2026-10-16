@@ -1335,7 +1335,7 @@ Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANC
 
 #### R093 — Implement constrained component parameters
 
-**Status:** In progress ([ADR 0165](decisions/0165-constrained-component-parameters.md), accepted; owner choices on their defaults). The ADR fixes the parameter model, the expression grammar, the limits, schema 28 with the `component-parameters-v1` feature and the command surface, and lists the choices left to the owner. No slice is merged yet. **Track:** Core. **Scope:** F02. **UX:** —.
+**Status:** Delivered. The expression engine, parameter records with the dependency graph and regeneration, schema 28 persistence, and the shared commands, queries and MCP surface are implemented ([ADR 0165](decisions/0165-constrained-component-parameters.md); owner choices remain on their defaults). R093.a and R093.b merged in PRs #339 and #341; R093.c, R093.d and R093.e are on `f02/integration`. The [R093.e acceptance record](verification/R093e-component-parameters.md) ([summary](verification/R093e-component-parameters.json)) shows the Verify line passing in `dev` and `sanitize`: the width change gives the same golden digest in both builds; a cyclic or invalid formula refuses the whole batch or file unchanged; the library calls no process, file, network or loader symbol. A 300-second fuzz campaign found nothing, and the parse, evaluation and load budgets are asserted at ten times their measured values. This is local verification; CI runs once at the end of F02. **Track:** Core. **Scope:** F02. **UX:** —.
 
 **Requires:** [R089](#r089), [R033](#r033); milestone gate rule above.
 
