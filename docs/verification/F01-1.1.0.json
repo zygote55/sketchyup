@@ -1,0 +1,702 @@
+{
+ "layer": "F01 1.1.0 release record",
+ "date": "2026-10-15",
+ "procedure": "docs/M10_ACCEPTANCE.md",
+ "row": "F01",
+ "version": "1.1.0",
+ "recordComplete": true,
+ "ownerApproval": {
+  "tag": "pending",
+  "release": "pending",
+  "corpusGate": "pending (scorer releaseAccepted=false)",
+  "note": "The owner's approval of the tag v1.1.0 and the release has not been given."
+ },
+ "tagCreated": false,
+ "releaseCreated": false,
+ "rc": {
+  "commit": "093484f941fb3439b5033b2d9fa5fae951a2c09c",
+  "mergeOf": "PR #331",
+  "version": "1.1.0",
+  "pkgver": "1.1.0",
+  "pkgrel": 1,
+  "releaseVersionScript": "scripts/release-version.sh prints 1.1.0, exit 0 on the RC tree",
+  "sourceArchive": {
+   "file": "sketchyup-1.1.0.tar.gz",
+   "sha256": "d3c4d927146e4307f794c78257956f9e1057fa83553557928536704b66a04b95"
+  },
+  "package": {
+   "file": "sketchyup-1.1.0-1-x86_64.pkg.tar.zst",
+   "name": "sketchyup",
+   "version": "1.1.0-1",
+   "sha256": "e718b8fb0e52bb5ec40b6817b99c92a824242f4a20907a02f50f47e3f0c0d00a"
+  },
+  "thirdPartyNotices": {
+   "file": "THIRD_PARTY_NOTICES",
+   "sha256": "9f24b3012d4e30c86268f9c3f693ebfe826359e153b541611f46d03b22d3d7a7"
+  },
+  "priorRelease": {
+   "file": "sketchyup-1.0.1-1-x86_64.pkg.tar.zst",
+   "source": "https://github.com/zygote55/sketchyup/releases/download/v1.0.1/sketchyup-1.0.1-1-x86_64.pkg.tar.zst",
+   "sha256": "91e807851d40525ce5429814f88b59c4fef9321de121f165e9e33429b82869f5",
+   "verified": true
+  },
+  "hashesFrom": "docs/verification/F01-rc-1.1.0.json (not recomputed)"
+ },
+ "images": {
+  "manifestBuildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+  "packageBuild": {
+   "tag": "sketchyup-build:20261002",
+   "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+  },
+  "nativeTests": {
+   "tag": "sketchyup-native-fonts-check:20261008",
+   "id": "sha256:873ba0787bccd851a46f068e265f7d2922f90df0857e782bbf6d441f0c51bd08"
+  },
+  "cleanPinned": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+  "cleanFresh": "archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1",
+  "qt68Reference": "archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2 (2024-10-15 archive)"
+ },
+ "frozenProviderInputs": {
+  "corpusManifest": {
+   "path": "tests/provider-release-corpus-v2.json",
+   "sha256": "af1a36dc2f499be02dbbbd7ecfc90d3f864036825c714e1f2b9d762e1f4c1604"
+  },
+  "scorer": {
+   "path": "scripts/score-provider-release.py",
+   "sha256": "fb80234e9c82a4938220a55feab25b49d7f43d6f93ae89754bf918ab7d4bfa90"
+  },
+  "providerTrialSha256": "c44c88d4a2167ac4afe11281f8935da49dcc2f1d5b1f3ae57723f046db8799c5"
+ },
+ "supersededRc": {
+  "commit": "251fd52dc19e3639f5fe1bfda9c4eb8d39d4e47b",
+  "mergeOf": "PR #328",
+  "walkthrough": "passed (same trimmed scope, no failure)",
+  "sourceArchiveSha256": "5a9272957feb537b4f4b9b6bd70185eee460ea513bdee3f261fa79f73c168f84",
+  "packageSha256": "7446d709513515e5fa8676a517a188626d886c2bd515f2118154db4704b88257",
+  "ciRun": 38780023627,
+  "corpusRun": "R086.cb failed: Advanced BUDGET_EXCEEDED",
+  "resolution": "D-035, PR #331: drawing-sheet tools hidden from the in-app assistant; still available over MCP and the transaction APIs",
+  "evidenceRoot": "~/sketchyup-verification/rc-1.1.0 (not published)"
+ },
+ "prs": {
+  "R090": [
+   310,
+   311,
+   312,
+   313,
+   314
+  ],
+  "R091": [
+   316,
+   317,
+   319,
+   320,
+   321,
+   322,
+   323,
+   324
+  ],
+  "R092": [
+   325,
+   327,
+   328
+  ],
+  "D-034": [
+   329
+  ],
+  "D-035": [
+   331
+  ],
+  "otherOnMain": [
+   309,
+   318,
+   326
+  ],
+  "notOnMain": {
+   "315": "release/1.0.x"
+  },
+  "openNotInRc": [
+   330
+  ]
+ },
+ "ciAtPrHeads": {
+  "allSuccess": true,
+  "note": "#320 succeeded on attempt 2 (attempt 1: D-031)"
+ },
+ "ciAtMergeCommits": {
+  "checked": 18,
+  "success": 16,
+  "failed": [
+   {
+    "commit": "c788cb6a",
+    "pr": 323,
+    "run": 38690132218,
+    "failedJob": "Development build and native tests",
+    "cause": "D-033 (fixed by #326)"
+   },
+   {
+    "commit": "68ff9ae2",
+    "pr": 327,
+    "run": 38742605671,
+    "failedJob": "Development build and native tests",
+    "cause": "D-034 (open, Minor)"
+   }
+  ],
+  "afterFailures": "every merge commit after 68ff9ae2, both RCs included, passed all four jobs"
+ },
+ "ciAtRc": {
+  "run": 38807074119,
+  "url": "https://github.com/zygote55/sketchyup/actions/runs/38807074119",
+  "headSha": "093484f941fb3439b5033b2d9fa5fae951a2c09c",
+  "conclusion": "success",
+  "jobs": {
+   "Development build and native tests": "success",
+   "Blender interoperability": "success",
+   "Sanitized builds": "success",
+   "Arch package acceptance": "success"
+  },
+  "ctest": {
+   "dev": "201/201",
+   "blenderReal": "9/9",
+   "dxfReal": "1/1",
+   "pdfReal": "2/2",
+   "sanitizeCore": "64/64",
+   "sanitizeCli": "105/105",
+   "sanitizeRecipes": "7/7",
+   "sanitizeNative": "1/1",
+   "package": "201/201"
+  },
+  "assistantToolSurface": "passed in dev, sanitized and package jobs",
+  "nativeLinesDev": 313,
+  "logSha256": "32d9960c2a97ae168e067d15b09f99518dbe089eb024a2bf1534403d769c945f"
+ },
+ "toolVersions": {
+  "native": {
+   "gcc": "16.2.1+r23+gd564253eb6c8-1",
+   "cmake": "4.4.3-2",
+   "ninja": "1.13.2-3",
+   "qt6-base": "6.11.2-3",
+   "qt6-wayland": "6.11.2-1",
+   "mesa": "1:26.2.3-2",
+   "weston": "15.0.1-3",
+   "xorg-server-xvfb": "21.1.24-1",
+   "wayland": "1.26.0-1",
+   "at-spi2-core": "2.60.7-1",
+   "python": "3.14.7-1",
+   "ffmpeg": "2:9.0.2-1",
+   "poppler": "26.08.0-1",
+   "gdb": "18.1-1",
+   "git": "2.56.0-1"
+  },
+  "hostPoppler": "26.08.0",
+  "qt68Reference": {
+   "gcc": "14.2.1+r134+gab884fffe3fc-1",
+   "cmake": "3.30.5-1",
+   "qt6-base": "6.8.0-1",
+   "qt6-wayland": "6.8.0-1",
+   "mesa": "1:24.2.4-1",
+   "glibc": "2.40+r16+gaa533d58ff-2"
+  }
+ },
+ "ownerTrim": {
+  "date": "2026-10-15",
+  "decidedBy": "owner",
+  "reason": "avoid duplicating CI at the RC",
+  "ranLocally": [
+   "release artifacts",
+   "package acceptance",
+   "clean machines pinned, fresh and Qt 6.8 reference with sheets smoke and MCP tools/list",
+   "development build (build only) plus assistant_tool_surface",
+   "47 non-CI native cells",
+   "34 non-CI dialog-audit cells plus inventory",
+   "8 sheet-suite cells at 1.5 (CI lines kept as the local F01 re-run)",
+   "M5-M8 studies",
+   "sheet_export and sheet_export_real with -V for R092.d"
+  ],
+  "coveredByCi": [
+   "ctest --preset dev",
+   "opt-in *_real consumers",
+   "MCP schema, shipped recipes, generated reference and API schemas",
+   "313 development native lines incl. AT-SPI bridge",
+   "keyboard layouts and fractional cells",
+   "CI dialog audit (X11 2x, Wayland 1x)",
+   "M5 with Blender",
+   "headless recipe",
+   "sanitize job incl. 46 sanitized native lines",
+   "Blender interoperability",
+   "CI package acceptance"
+  ],
+  "notRunLocally": [
+   "sanitized build",
+   "138 non-CI sanitized native cells"
+  ],
+  "m10AcceptanceUnchanged": "docs/M10_ACCEPTANCE.md is packaged, so it stays unchanged for 1.1.0; its update follows the release",
+  "appliesTo": "both candidates"
+ },
+ "requiredEvidence": {
+  "ci": {
+   "result": "pass",
+   "source": "CI run 38807074119"
+  },
+  "regressionAndSanitizer": {
+   "result": "pass",
+   "source": "CI",
+   "dev": "201/201",
+   "real": {
+    "blender": "9/9",
+    "dxf": "1/1",
+    "pdf": "2/2"
+   },
+   "sanitize": {
+    "preset": "64/64",
+    "cli": "105/105",
+    "recipes": "7/7",
+    "textureCache": "1/1",
+    "nativeLines": 46
+   },
+   "suppressionFile": false,
+   "notRun": "local sanitized build and 138 non-CI sanitized native cells (owner trim)"
+  },
+  "nativeMatrix": {
+   "result": "pass",
+   "cells": 360,
+   "ciLines": 313,
+   "localNonCiCells": "47/47",
+   "dialogAuditLocal": "34/34 runs, 214 dialog checks",
+   "sheetSuitesAt1_5Local": "8/8",
+   "f01SuitesInCi": true
+  },
+  "packageAcceptance": {
+   "result": "pass",
+   "source": "RC run rc110b-package-acceptance and CI package job",
+   "logSha256": "c71b4f28d221364cf971fcf2bd0cbe4de269ca0df428ec95b9caa2de4c1a6079"
+  },
+  "cleanMachines": {
+   "result": "pass (pinned, fresh, Qt 6.8 reference with D-036)",
+   "qt68Reference": {
+    "result": "pass with D-036 (Minor, Qt 6.8 only)",
+    "attempt": 1,
+    "image": "archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+    "archiveDate": "2024-10-15",
+    "qt": "6.8.0",
+    "package": {
+     "file": "sketchyup-1.1.0-1-x86_64.pkg.tar.zst",
+     "builtIn": "reference image from the RC archive (makepkg --nocheck)",
+     "sha256": "4cb4df9517d0f2f4c1e3a0d719ae57829855937ecf8090aa1ca5a2b0530d06d5"
+    },
+    "priorPackage": {
+     "file": "sketchyup-1.0.1-1-x86_64.pkg.tar.zst",
+     "builtIn": "reference image from the v1.0.1 release archive (byte-identical to tag v1.0.1)",
+     "sha256": "453e89f1913f4ca20dff8a9fc4745fd0e6044d05ce536fc5a339fde3b4467b8d"
+    },
+    "record": "docs/verification/F01-rc-1.1.0.md#failures"
+   },
+   "attempt": 2,
+   "summarySha256": "13e31bd7f01868621d484475a859c9daf2ad788aece7cfef74218a93ceeae1da"
+  },
+  "providerCorpus": {
+   "result": "pass",
+   "record": "R086.cd",
+   "scorerRerunByOrchestrator": "identical output"
+  },
+  "rowAcceptance": {
+   "result": "pass",
+   "records": {
+    "R090": "R090e-drawing-sheets.md (supporting)",
+    "R091": "R091h-sheet-layout.md (supporting)",
+    "R092": "R092d-sheet-export.md (at the RC)"
+   }
+  },
+  "triage": {
+   "result": "pass",
+   "open": 28,
+   "releaseBlocking": 0
+  },
+  "documentation": {
+   "result": "pass",
+   "qtRangeResolved": "the Qt 6.8 reference ran at this RC, so SUPPORT_MATRIX.md's Qt 6.8.0 through 6.12.0 claim is backed by what ran; it stands with D-036 recorded by owner decision (2026-10-15)"
+  }
+ },
+ "reRunAtRc": [
+  "release artifacts",
+  "release-version.sh",
+  "package acceptance",
+  "clean machines pinned, fresh and Qt 6.8 reference with sheets smoke and MCP tools/list",
+  "development build plus assistant_tool_surface",
+  "47 non-CI native cells",
+  "34 non-CI dialog-audit runs plus inventory",
+  "F01 sheet suites at 1.5",
+  "M5-M8 studies",
+  "sheet_export and sheet_export_real (R092.d)",
+  "provider corpus (R086.cd)"
+ ],
+ "ciAtRcNotRepeatedLocally": [
+  "ctest --preset dev",
+  "opt-in *_real consumers",
+  "MCP schema, shipped recipes, generated reference and API schemas",
+  "313 development native lines incl. AT-SPI bridge",
+  "keyboard layouts and fractional cells",
+  "CI dialog audit (X11 2x, Wayland 1x)",
+  "M5 with Blender",
+  "headless recipe",
+  "sanitize job incl. 46 sanitized native lines",
+  "Blender interoperability",
+  "CI package acceptance"
+ ],
+ "reliedOn": [
+  {
+   "evidence": "R090.e, R091.h",
+   "reason": "pre-RC row records; their suites and fixtures are unchanged and run in CI at the RC"
+  },
+  {
+   "evidence": "M9 (1.0.0 gate)",
+   "reason": "M10 does not re-audit M0-M9"
+  },
+  {
+   "evidence": "1.0.0 hardware records",
+   "reason": "supporting only; hardware checks waived by ADR 0161"
+  }
+ ],
+ "corpusVersionStillApplies": {
+  "corpusVersion": 2,
+  "reasons": [
+   "provider product unchanged: chatgpt-astra / gpt-6-astra / ChatGPT plan; no provider adapter source changed between v1.0.1 and the RC",
+   "assistant tool surface byte-identical to v1.0.1, pinned by assistant_tool_surface_tests; R086.cd first-request tools 55,230 bytes and first-turn input 11,368 tokens equal R086.ca",
+   "manifest af1a36dc equals R086.cb's; it differs from R086.ca only in inputSha256 values regenerated for the SketchyUp/1.1.0 writer, which M10 makes part of the RC",
+   "R086.cd is in any case a complete new evaluation at the RC"
+  ]
+ },
+ "provider": {
+  "profile": "chatgpt-astra",
+  "model": "gpt-6-astra",
+  "connection": "chatgpt-plan",
+  "observedResponseModel": "gpt-6-astra",
+  "configuration": {
+   "corpusVersion": 2,
+   "timeoutSeconds": 300,
+   "maxTurns": 16,
+   "maxOutputTokensPerTurn": 8192,
+   "taskReportedTokenBudget": 262144,
+   "sequential": true,
+   "retries": 0,
+   "qt": "6.11.2"
+  },
+  "window": {
+   "frozenAt": "2026-10-15T23:01:31Z",
+   "start": "2026-10-15T23:01:36Z",
+   "end": "2026-10-15T23:14:37Z"
+  },
+  "latencySeconds": {
+   "measure": [
+    11.4,
+    13.1,
+    13.5
+   ],
+   "room": [
+    38.6,
+    45.8,
+    42.6
+   ],
+   "resize": [
+    71.3,
+    61.0,
+    39.9
+   ],
+   "advanced": [
+    85.0,
+    82.6,
+    86.2
+   ],
+   "site": [
+    47.8,
+    38.1,
+    34.2
+   ],
+   "unsupported": [
+    4.3,
+    4.5,
+    6.4
+   ],
+   "injectedMetadata": [
+    14.5,
+    15.8,
+    19.6
+   ],
+   "unavailable": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "totalTrial": 778.467
+  },
+  "reportedTokens": 1904430,
+  "advancedReportedTokens": [
+   231072,
+   255325,
+   247858
+  ],
+  "advancedHeadroomTokens": [
+   31072,
+   6819,
+   14286
+  ],
+  "providerAttempts": 143,
+  "successfulResponses": 134,
+  "monetaryCost": null,
+  "costReason": "unreported per R086.a: subscription usage is not assumed free",
+  "reviewer": "Claude (automated savvy-flow review); not independent human sign-off",
+  "reviewBundleSha256": "797b1e9fc4764070179ef7a69e8df14b47924868983c06a0d1fe534b3d3e7b35"
+ },
+ "corpusHistory": [
+  {
+   "run": "R086.cb",
+   "rc": "251fd52dc19e3639f5fe1bfda9c4eb8d39d4e47b",
+   "result": "failed",
+   "detail": "Advanced 1/3 (BUDGET_EXCEEDED); corpusPassed false; no blockers",
+   "record": "docs/verification/R086cb-rc110-remote-evaluation.md",
+   "scoreSha256": "b2a3b09291a6c067d080525b5b864d5cc15905c07acd0388e29f5b601b2c4e67"
+  },
+  {
+   "run": "R086.cc",
+   "rc": "093484f941fb3439b5033b2d9fa5fae951a2c09c",
+   "result": "incomplete",
+   "detail": "stopped at 21/24: HTTP 503s ended site repeat 3, then the ChatGPT session became unavailable; scorer refused the incomplete set",
+   "record": "docs/verification/R086cc-rc110b-remote-evaluation.md",
+   "scoreSha256": "f4cd891c4c173ef44b24001d92795cc01d8e264708a8b0595486cb923118ede7"
+  },
+  {
+   "run": "R086.cd",
+   "rc": "093484f941fb3439b5033b2d9fa5fae951a2c09c",
+   "result": "passed",
+   "detail": "every task 3/3; corpusPassed true; no blockers; undo and recovery 24/24",
+   "record": "docs/verification/R086cd-rc110b-remote-evaluation.md",
+   "scoreSha256": "bfb118aeb36954dc1e64ad59258ab99458717fd5f5ad396356e4771de6b9935c",
+   "completionSha256": "b31a28c7a34cde499f1e1a44d6b50d84435392ee9d53c2086f6b9d63bedfb498"
+  }
+ ],
+ "triage": {
+  "source": "docs/verification/R089a-defect-triage.md",
+  "open": 28,
+  "releaseBlocking": 0,
+  "major": 0,
+  "minor": 14,
+  "limitation": 14,
+  "fixedAtThisRc": [
+   "D-035"
+  ],
+  "newDefectsFromGate": [
+   "D-036"
+  ],
+  "defects": [
+   {
+    "id": "D-006",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "render-statistics assertion, no document effect; viewport_tests cells pass at the RC"
+   },
+   {
+    "id": "D-007",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "test-infrastructure focus races; export-chooser instance fixed in #329 before both RCs"
+   },
+   {
+    "id": "D-008",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "test fixture timing; final pose still enforced; native lines pass in CI at the RC"
+   },
+   {
+    "id": "D-009",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "hardware test-fixture window placement only"
+   },
+   {
+    "id": "D-019",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "path not reachable from product code"
+   },
+   {
+    "id": "D-021",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "test-fixture exposure timeouts under host load; no occurrence at the RC"
+   },
+   {
+    "id": "D-022",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "fuzz tooling (Qt/libFuzzer/ASan), not application code"
+   },
+   {
+    "id": "D-023",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "cosmetic contrast residuals; every control reachable"
+   },
+   {
+    "id": "D-027",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "M6 study tooling needs git; passed with git at the RC"
+   },
+   {
+    "id": "D-028",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "one-CPU harness timeout; passes in CI and on six CPUs"
+   },
+   {
+    "id": "D-031",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "single silent Wayland exit in CI on PR #320; no check failed"
+   },
+   {
+    "id": "D-032",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "fractional 1.5x focus-ring contrast; focus works; disclosed in release notes"
+   },
+   {
+    "id": "D-034",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "one unexplained CI timeout; 0/740 local hangs; passed at both RCs; harness traces recurrence"
+   },
+   {
+    "id": "D-036",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "Qt 6.8 only: malformed PDF Info dictionary in sheet export; pages, text, fonts and attached report intact; owner decision 2026-10-15: ship recorded, fix in 1.1.1"
+   },
+   {
+    "id": "D-001",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "local providers experimental by decision (ADR 0160)"
+   },
+   {
+    "id": "D-004",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "Intel frame time waived and untested (ADR 0161)"
+   },
+   {
+    "id": "D-005",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "Intel/Wayland heartbeat waived and untested (ADR 0161)"
+   },
+   {
+    "id": "D-010",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "external Wayland client leak, disclosed"
+   },
+   {
+    "id": "D-011",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "external Qt decoration leak, test workaround"
+   },
+   {
+    "id": "D-012",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "external compositor defect, avoided by surface-color policy"
+   },
+   {
+    "id": "D-013",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "only when the declared ttf-dejavu dependency is removed"
+   },
+   {
+    "id": "D-014",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "evidence boundary; no data-loss defect recorded"
+   },
+   {
+    "id": "D-015",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "documented interchange boundary"
+   },
+   {
+    "id": "D-016",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "documented one-way Blender handoff"
+   },
+   {
+    "id": "D-017",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "documented geometry limits with bounded rejection"
+   },
+   {
+    "id": "D-018",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "probabilistic remote assistant; R086.cd 24/24 with no unsafe outcome"
+   },
+   {
+    "id": "D-020",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "external Weston crash; Hyprland check waived (ADR 0161)"
+   },
+   {
+    "id": "D-029",
+    "class": "Limitation",
+    "releaseBlocking": false,
+    "reason": "unversioned PKGBUILD dependencies, disclosed; RC package runs on the pinned and fresh images, and a package built on the 2024-10-15 archive runs on the Qt 6.8 reference"
+   }
+  ]
+ },
+ "unresolvedLimits": [
+  "waived and untested (ADR 0161)",
+  "local sanitized build and 138 non-CI sanitized cells not run (owner trim)",
+  "D-036 malformed sheet-PDF Info dictionary on Qt 6.8.0 (Minor, open; fix in 1.1.1)",
+  "Advanced token headroom 6,819 tokens (about 2.6%) in the worst run",
+  "schema validator ignores anyOf (R090.e)",
+  "D-034 unreproduced Wayland render hang",
+  "D-032 fractional focus rings",
+  "make-component and edge-split lineage breaks paper dimensions (R091.h known limitation)",
+  "Model workspace icon-strip breakpoints not implemented (UX_DESIGN.md)",
+  "provider acceptance covers one remote configuration and the frozen tasks only"
+ ],
+ "waivedAdr0161Untested": [
+  "Intel campaigns",
+  "sharing-off memory control",
+  "X11 output hotplug",
+  "suspend/resume",
+  "physical 150% output",
+  "physical pointer capture",
+  "input methods",
+  "D-020 on Hyprland",
+  "automatic X11 output placement",
+  "interactive Orca session",
+  "manual walkthrough on the installed RC"
+ ],
+ "openForOwner": [
+  "approve the tag v1.1.0 and the release",
+  {
+   "resolved": "2026-10-15",
+   "item": "Qt range in SUPPORT_MATRIX.md",
+   "decision": "the Qt 6.8 reference ran at the RC; owner: ship, record D-036 as known, keep the Qt 6.8.0-6.12.0 claim, fix in 1.1.1; no new RC"
+  }
+ ],
+ "evidenceRecords": {
+  "F01-rc-1.1.0.md": "5ec4e912dd996319f807d828ceb5310fffd083ea1d730451c6db401adaa79eac",
+  "F01-rc-1.1.0.json": "8828277c6f548a5a207bd1011a2f62f7e129ec80121af9424d9f695500a9d2d3",
+  "R092d-sheet-export.md": "9fcff01081ca526e4be01809680c0af77233d69807896537ee3cd781e2ee5ae6",
+  "R092d-sheet-export.json": "c1717d7ab8578a6171c04bd1fab2045ac96b765ab429a2e545f636876247d8dd",
+  "R086cd-rc110b-remote-evaluation.md": "a40c20d4442f6b31cb7dc66cd55ff665448b57708bdb2484107ad867d711aa02"
+ },
+ "credentialsPublished": false
+}
