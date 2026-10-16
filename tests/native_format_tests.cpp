@@ -1,3 +1,4 @@
+#include "core/component_parameters.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
 #include "sketchyup/version.hpp"
@@ -44,6 +45,33 @@ int main(int argc, char **argv) {
               "Shipped public format contract matches implementation");
         QTemporaryDir files;
         check(files.isValid(), "Migration fixture directory");
+        {
+            // R093.b: component parameters are stored from schema 28 (R093.c). Until
+            // then every writer path refuses them instead of dropping them.
+            Document model;
+            const auto face = model.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+            const auto component = createComponent(model, face, "Panel");
+            const auto plain = encodeContainer(model);
+            ComponentParameterSpec width;
+            width.name = "width";
+            width.label = "Width";
+            width.expression = "1 m";
+            defineComponentParameter(model, component.definition, width);
+            auto refuses = [&](const std::function<void()> &write) {
+                try {
+                    write();
+                } catch (const std::runtime_error &error) {
+                    return std::string(error.what()).starts_with("UNSUPPORTED_FORMAT");
+                }
+                return false;
+            };
+            check(refuses([&] { (void)encodeContainer(model); }) &&
+                      refuses([&] { (void)encodeDocument(model); }),
+                  "The writer refuses component parameters until schema 28");
+            model.undo();
+            check(!plain.isEmpty() && !encodeContainer(model).isEmpty(),
+                  "A parameter-free model still saves");
+        }
         {
             Document model;
             model.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 3, 0}, {0, 3, 0}}});

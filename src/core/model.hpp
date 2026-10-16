@@ -16,6 +16,8 @@
 #include <set>
 #include <stdexcept>
 namespace sketchy {
+struct ComponentVariant;
+using ComponentVariantsPtr = std::shared_ptr<const ComponentVariantIndex>;
 struct Change {
     Id id;
     BodyPtr before, after;
@@ -124,6 +126,9 @@ struct Edit {
     std::vector<DrawingItemChange> drawingItems{};
     Id nextDrawingItemFloor{};
     bool drawingSheetScope{};
+    // Component parameter records ride on definitions and overrides on instances
+    // (R093.b); driver IDs come from this document-global allocator.
+    Id nextComponentDriverFloor{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 // Running materialized-record totals compared with DocumentLimits::materialized.
@@ -192,6 +197,13 @@ class Document {
     Id nextDrawingViewId() const { return nextDrawingViewId_; }
     const DrawingItemRecords &drawingItems() const { return drawingItems_; }
     Id nextDrawingItemId() const { return nextDrawingItemId_; }
+    // R093.b (ADR 0165): the driver allocator and the derived variant index, which
+    // every apply, undo, redo and restore recomputes from the definitions and bindings.
+    Id nextComponentDriverId() const { return nextComponentDriverId_; }
+    const ComponentVariantIndex &componentVariants() const;
+    const ComponentVariantsPtr &componentVariantRecords() const;
+    // The variant a placement shows; null when it shows its definition's template.
+    std::shared_ptr<const ComponentVariant> componentVariant(Id placement) const;
     std::uint64_t revision() const { return revision_; }
     // Maintained incrementally by apply, undo/redo, amendment and restore.
     const DocumentTotals &materializedTotals() const { return totals_; }
@@ -287,7 +299,8 @@ class Document {
                  int displayPrecision = fullDisplayPrecision,
                  DrawingSheetRecords drawingSheets = {}, Id nextDrawingSheetId = 1,
                  DrawingViewRecords drawingViews = {}, Id nextDrawingViewId = 1,
-                 DrawingItemRecords drawingItems = {}, Id nextDrawingItemId = 1);
+                 DrawingItemRecords drawingItems = {}, Id nextDrawingItemId = 1,
+                 Id nextComponentDriverId = 1);
 
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
@@ -304,7 +317,7 @@ class Document {
                         int displayPrecision, DrawingSheetRecords drawingSheets = {},
                         Id nextDrawingSheetId = 1, DrawingViewRecords drawingViews = {},
                         Id nextDrawingViewId = 1, DrawingItemRecords drawingItems = {},
-                        Id nextDrawingItemId = 1);
+                        Id nextDrawingItemId = 1, Id nextComponentDriverId = 1);
 
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};
@@ -338,6 +351,9 @@ class Document {
     // Not persisted until R091.b; restore starts with an empty item table.
     DrawingItemRecords drawingItems_;
     Id nextDrawingItemId_{1};
+    // Not persisted until schema 28 (R093.c).
+    Id nextComponentDriverId_{1};
+    ComponentVariantsPtr variants_;
     struct DefinitionFloor {
         Id nextMemberId{1};
         std::map<Id, std::pair<Id, Id>> geometry;

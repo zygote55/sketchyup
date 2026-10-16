@@ -1,4 +1,7 @@
 #include "core/components.hpp"
+#include "core/component_parameters.hpp"
+#include "core/component_publish.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/document_limits.hpp"
 #include <algorithm>
 #include <set>
@@ -86,7 +89,8 @@ Id normalizeRoot(Document &draft, Id root) {
         draft.apply(std::move(edit), draft.revision());
     return geometry;
 }
-std::pair<DefinitionPtr, InstancePtr> capture(const Document &draft, Id root, Id definitionId,
+std::pair<std::shared_ptr<ComponentDefinition>, InstancePtr>
+capture(const Document &draft, Id root, Id definitionId,
                                               std::string name, bool includeDraftRoots = false,
                                               Transform rootDelta = {}, Transform fromWorld = {},
                                               std::optional<ComponentGlue> glue = {}) {
@@ -120,6 +124,14 @@ std::pair<DefinitionPtr, InstancePtr> capture(const Document &draft, Id root, Id
             body->hidden = body->locked = false;
             body->tag = 0;
         } else if (draft.instances().contains(id)) {
+            // Nested placements hold no overrides (ADR 0165 §1); dropping them would
+            // silently change the captured geometry.
+            if (!draft.instances().at(id)->overrides.empty())
+                throw ComponentParameterError(
+                    "INVALID_TARGET",
+                    "Placement #" + std::to_string(id) +
+                        " has parameter overrides; reset them before nesting it in a component",
+                    {.definition = draft.instances().at(id)->definition, .placement = id});
             emptyGeometry(*body);
             definition->references[id] = draft.instances().at(id)->definition;
             definition->members[id] = body;
@@ -142,16 +154,26 @@ struct Projection {
     Id next;
     // Persisted scene allocator floors above the canonical member floor (native load).
     const std::map<Id, std::pair<Id, Id>> *floors;
-    void resolve(Id root, Id definitionId, const Body &placement) {
+    // Projects one placement of `definitionId` through `variant` (null: the template).
+    // A top-level placement keeps `overrides` in its new binding.
+    void resolve(Id root, Id definitionId, const Body &placement, const VariantPtr &variant = {},
+                 const ComponentOverrides &overrides = {}) {
         const auto &definition = *definitions.at(definitionId);
+        const auto &members = variant ? variant->members : definition.members;
+        const auto &references = variant ? variant->references : definition.references;
         const auto reuse = bindings.contains(root) && bindings.at(root)->definition == definitionId
                                ? bindings.at(root)
                                : nullptr;
+        const auto &previous = before.componentVariants().placements;
+        const auto previousVariant = previous.find(root);
+        const bool sameVariant =
+            previousVariant == previous.end() ? !variant : previousVariant->second == variant;
         // A leaf has no transitive definition dependencies. Reuse its validated,
-        // immutable projection only when its definition, binding, placement and
-        // every seeded member are unchanged. Nested assemblies still resolve.
-        if (definition.references.empty() && reuse && before.instances().contains(root) &&
-            before.instances().at(root) == reuse && before.definitions().contains(definitionId) &&
+        // immutable projection only when its definition, binding, variant, placement
+        // and every seeded member are unchanged. Nested assemblies still resolve.
+        if (references.empty() && reuse && sameVariant && reuse->overrides == overrides &&
+            before.instances().contains(root) && before.instances().at(root) == reuse &&
+            before.definitions().contains(definitionId) &&
             before.definitions().at(definitionId) == definitions.at(definitionId) &&
             before.bodies().contains(root) && before.bodies().at(root).get() == &placement &&
             std::all_of(reuse->members.begin(), reuse->members.end(), [&](const auto &member) {
@@ -166,8 +188,9 @@ struct Projection {
         }
         auto binding = std::make_shared<ComponentInstance>();
         binding->definition = definitionId;
+        binding->overrides = overrides;
         binding->members[definition.root] = root;
-        for (const auto &[member, body] : definition.members) {
+        for (const auto &[member, body] : members) {
             if (member == definition.root)
                 continue;
             binding->members[member] = reuse && reuse->members.contains(member)
@@ -175,7 +198,7 @@ struct Projection {
                                            : allocate(next);
         }
         instances[root] = binding;
-        for (const auto &[member, prototype] : definition.members) {
+        for (const auto &[member, prototype] : members) {
             auto body = std::make_shared<Body>(*prototype);
             const auto id = binding->members.at(member);
             body->id = id;
@@ -183,8 +206,13 @@ struct Projection {
                 placementState(*body, placement);
             else
                 body->parent = binding->members.at(prototype->parent);
-            if (definition.references.contains(member)) {
-                resolve(id, definition.references.at(member), *body);
+            if (const auto reference = references.find(member); reference != references.end()) {
+                VariantPtr nested;
+                if (variant)
+                    if (const auto found = variant->nested.find(member);
+                        found != variant->nested.end())
+                        nested = found->second;
+                resolve(id, reference->second, *body, nested);
                 continue;
             }
             if (before.bodies().contains(id)) {
@@ -205,13 +233,43 @@ struct Projection {
         }
     }
 };
+// Parameter operations name the locked placement (ADR 0165 §4).
+void checkParameterLocks(const Document &doc, const Edit &edit) {
+    auto locked = [&](Id id) -> Id {
+        Id placement = 0;
+        for (size_t depth = 0; id && doc.bodies().contains(id) && depth <= 128; ++depth) {
+            if (!placement && doc.instances().contains(id))
+                placement = id;
+            if (doc.bodies().at(id)->locked)
+                return placement ? placement : id;
+            id = doc.bodies().at(id)->parent;
+        }
+        return 0;
+    };
+    auto refuse = [&](Id id) {
+        if (const auto placement = locked(id))
+            throw ComponentParameterError(
+                "LOCKED_ENTITY",
+                "Placement #" + std::to_string(placement) +
+                    " is locked; unlock it before changing its parameters",
+                {.placement = placement});
+    };
+    for (const auto &change : edit.changes)
+        refuse(change.before ? change.id : change.after->parent);
+    for (const auto &change : edit.instances)
+        refuse(change.root);
+}
 ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
                      const ComponentInstances &bindings, const std::map<Id, BodyPtr> &seed, Id next,
-                     Id nextDefinition, std::string label, Id editedDefinition = 0,
-                     const ChangeReport &lineage = {}) {
+                     Id nextDefinition, Id nextDriver, std::string label,
+                     const ComponentPublishOptions &options = {}) {
+    const auto editedDefinition = options.editedDefinition;
+    const auto &lineage = options.lineage;
     const auto sizes = validateComponentDefinitions(
         definitions, nextDefinition, doc.tags(), doc.nextTagId(), doc.materials(),
         doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
+    nextDriver = std::max(nextDriver, doc.nextComponentDriverId());
+    validateComponentParameterRecords(definitions, &doc.definitions(), nextDriver);
     std::set<Id> owned, nestedRoots;
     for (const auto &[root, binding] : doc.instances())
         for (const auto &[member, id] : binding->members) {
@@ -225,6 +283,35 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
             if (id != root)
                 nestedRoots.insert(id);
         }
+    // Each top-level placement projects its variant, computed before any record is
+    // built (ADR 0165 §3: evaluation and regeneration fail closed).
+    ComponentVariantEngine engine(definitions, &doc.componentVariants());
+    std::map<Id, VariantPtr> variants;
+    for (const auto &[root, binding] : bindings) {
+        if (nestedRoots.contains(root) ||
+            (binding->overrides.empty() && !engine.parametric(binding->definition)))
+            continue;
+        try {
+            engine.plan(binding->definition, binding->overrides);
+        } catch (const ComponentParameterError &error) {
+            throw error.withPlacement(root);
+        }
+    }
+    engine.checkPlanned();
+    for (const auto &[root, binding] : bindings) {
+        if (nestedRoots.contains(root) ||
+            (binding->overrides.empty() && !engine.parametric(binding->definition)))
+            continue;
+        try {
+            variants[root] = engine.variant(binding->definition, binding->overrides);
+        } catch (const ComponentParameterError &error) {
+            throw error.withPlacement(root);
+        }
+    }
+    auto variantOf = [&](Id root) {
+        const auto found = variants.find(root);
+        return found == variants.end() ? VariantPtr{} : found->second;
+    };
     Projection projection{doc, definitions, bindings, seed, seed, {}, next, nullptr};
     for (auto id : owned)
         projection.scene.erase(id);
@@ -250,14 +337,17 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
               [id] { return "body #" + std::to_string(id); });
     for (const auto &[root, binding] : bindings)
         if (!nestedRoots.contains(root))
-            count(sizes.at(binding->definition), [&, root] {
+            count(componentVariantSize(*definitions.at(binding->definition), variantOf(root),
+                                       sizes),
+                  [&, root] {
                 const auto &definition = *definitions.at(binding->definition);
                 return "placement #" + std::to_string(root) + " of " +
                        definitionLimitContext(definition.name, definition.id);
             });
     for (const auto &[root, binding] : bindings)
         if (!nestedRoots.contains(root))
-            projection.resolve(root, binding->definition, *seed.at(root));
+            projection.resolve(root, binding->definition, *seed.at(root), variantOf(root),
+                               binding->overrides);
     for (const auto &[root, binding] : bindings)
         if ((!doc.instances().contains(root) ||
              doc.instances().at(root)->definition != binding->definition) &&
@@ -268,6 +358,7 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
     Edit edit{std::move(label), {}};
     edit.nextIdFloor = projection.next;
     edit.nextDefinitionFloor = nextDefinition;
+    edit.nextComponentDriverFloor = nextDriver;
     bodyDifference(edit, doc, projection.scene);
     if (editedDefinition) {
         std::map<Id, size_t> changes;
@@ -313,9 +404,101 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
     recordDifference(doc.instances(), projection.instances, edit.instances);
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty())
         return {};
+    if (options.parameterLocks)
+        checkParameterLocks(doc, edit);
     return doc.apply(std::move(edit), doc.revision());
 }
+std::vector<Id> subtreeMembers(const ComponentDefinition &definition, Id member) {
+    std::map<Id, std::vector<Id>> children;
+    for (const auto &[id, body] : definition.members)
+        if (id != definition.root)
+            children[body->parent].push_back(id);
+    std::vector<Id> result, stack{member};
+    while (!stack.empty() && result.size() <= definition.members.size()) {
+        const auto id = stack.back();
+        stack.pop_back();
+        result.push_back(id);
+        if (const auto found = children.find(id); found != children.end())
+            stack.insert(stack.end(), found->second.begin(), found->second.end());
+    }
+    std::sort(result.begin(), result.end());
+    return result;
+}
 } // namespace
+ChangeReport publishComponentRecords(Document &doc, const ComponentDefinitions &definitions,
+                                     const ComponentInstances &bindings,
+                                     const std::map<Id, BodyPtr> &seed, Id next,
+                                     Id nextDefinition, Id nextDriver, std::string label,
+                                     const ComponentPublishOptions &options) {
+    return publish(doc, definitions, bindings, seed, next, nextDefinition, nextDriver,
+                   std::move(label), options);
+}
+ComponentRegeneration componentRegeneration(const Document &doc,
+                                            const ComponentDefinitions &beforeDefinitions,
+                                            const ComponentVariantIndex &beforeVariants) {
+    ComponentRegeneration result;
+    const auto &after = doc.componentVariants();
+    auto variantIn = [](const ComponentVariantIndex &index, Id root) {
+        const auto found = index.placements.find(root);
+        return found == index.placements.end() ? VariantPtr{} : found->second;
+    };
+    for (const auto &[root, instance] : doc.instances()) {
+        const auto before = beforeDefinitions.find(instance->definition);
+        if (before == beforeDefinitions.end() ||
+            before->second != doc.definitions().at(instance->definition) ||
+            variantIn(beforeVariants, root) != variantIn(after, root))
+            ++result.placements;
+    }
+    for (const auto &[key, variant] : after.variants) {
+        const auto found = beforeVariants.variants.find(key);
+        if (found == beforeVariants.variants.end() || found->second != variant)
+            ++result.variants;
+    }
+    return result;
+}
+ComponentParametersPtr renumberComponentDrivers(const ComponentParametersPtr &record,
+                                                Id &nextDriver) {
+    if (!record)
+        return nullptr;
+    auto copy = std::make_shared<ComponentParameters>(*record);
+    for (auto &driver : copy->drivers)
+        driver.id = allocate(nextDriver);
+    return copy;
+}
+void reserveRepeatBlocks(ComponentDefinition &definition, ComponentParameters &record,
+                         const ComponentDefinition *previousTemplate,
+                         const ComponentParameters *previousRecord) {
+    for (auto &driver : record.drivers) {
+        if (driver.kind != ComponentDriverKind::Repeat)
+            continue;
+        const ComponentDriver *previous = nullptr;
+        if (previousRecord)
+            for (const auto &candidate : previousRecord->drivers)
+                if (candidate.id == driver.id)
+                    previous = &candidate;
+        const auto members = definition.members.contains(driver.member)
+                                 ? subtreeMembers(definition, driver.member)
+                                 : std::vector<Id>{};
+        if (previous && previous->kind == ComponentDriverKind::Repeat &&
+            previous->member == driver.member && previous->maxCount == driver.maxCount &&
+            previous->firstMember == driver.firstMember && previousTemplate &&
+            previousTemplate->members.contains(driver.member) &&
+            subtreeMembers(*previousTemplate, driver.member) == members)
+            continue;
+        // Copy k's members take the block in order: copy, then template member ID.
+        const auto size = Id(driver.maxCount ? driver.maxCount - 1 : 0) * members.size();
+        if (size > ComponentParameterLimits::reservedMembers)
+            throw ComponentParameterError(
+                "LIMIT_EXCEEDED",
+                "Repeat copies would reserve more than 4,096 member IDs (definition #" +
+                    std::to_string(definition.id) + ")",
+                {.definition = definition.id, .driver = driver.id});
+        if (definition.nextMemberId > UINT64_MAX - size - 1)
+            throw std::runtime_error("Component member identity space exhausted");
+        driver.firstMember = definition.nextMemberId;
+        definition.nextMemberId += size;
+    }
+}
 ComponentResult createComponent(Document &doc, Id root, std::string name) {
     if (doc.instances().contains(root))
         throw std::runtime_error("This group is already a component instance");
@@ -336,7 +519,7 @@ ComponentResult createComponent(Document &doc, Id root, std::string name) {
     instances[root] = binding;
     ComponentResult result{id, root, {}, {}};
     result.changes = publish(doc, definitions, instances, draft.bodies(), draft.nextId(),
-                             nextDefinition, "Make component");
+                             nextDefinition, doc.nextComponentDriverId(), "Make component");
     if (geometry)
         result.movedGeometry[root] = geometry;
     return result;
@@ -361,9 +544,13 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id
     const auto sizes = validateComponentDefinitions(
         doc.definitions(), doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
         doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
+    // A parametric definition places its variant at the defaults (the template plus
+    // any repeat copies at the default counts).
+    ComponentVariantEngine engine(doc.definitions(), &doc.componentVariants());
+    const auto variant = engine.parametric(definition) ? engine.variant(definition, {}) : nullptr;
     // The document's running totals equal a sum over every materialized record.
     // A placement adds only placement-owned records, so unique geometry is unchanged.
-    auto total = sizes.at(definition);
+    auto total = componentVariantSize(*prototype, variant, sizes);
     const auto &current = doc.materializedTotals();
     total.records += current.records;
     total.vertices += current.vertices;
@@ -383,7 +570,7 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id
     const std::map<Id, BodyPtr> seed{{root, placement}};
     const ComponentInstances newBindings{{root, binding}};
     Projection projection{doc, doc.definitions(), newBindings, seed, seed, {}, next, nullptr};
-    projection.resolve(root, definition, *placement);
+    projection.resolve(root, definition, *placement, variant);
     Edit edit{"Place component", {}};
     edit.nextIdFloor = projection.next;
     edit.nextDefinitionFloor = doc.nextDefinitionId();
@@ -397,6 +584,10 @@ ComponentResult replaceComponent(Document &doc, Id root, Id definition) {
     const auto old = doc.instances().at(root);
     if (old->definition == definition)
         return {definition, root, {}, {}};
+    // The replacement starts at its own defaults: overrides are dropped and reported.
+    std::vector<std::string> dropped;
+    for (const auto &[name, value] : old->overrides)
+        dropped.push_back(name);
     auto binding = std::make_shared<ComponentInstance>();
     binding->definition = definition;
     binding->members[doc.definitions().at(definition)->root] = root;
@@ -409,12 +600,14 @@ ComponentResult replaceComponent(Document &doc, Id root, Id definition) {
             if (target != instance)
                 owners[target] = {instance, member};
     Id nextDefinition = doc.nextDefinitionId(), current = root, replacement = definition;
+    Id nextDriver = doc.nextComponentDriverId();
     while (owners.contains(current)) {
         const auto [parent, member] = owners.at(current);
         const auto previous = instances.at(parent);
         auto unique = std::make_shared<ComponentDefinition>(*definitions.at(previous->definition));
         unique->id = allocate(nextDefinition);
         unique->references.at(member) = replacement;
+        unique->parameters = renumberComponentDrivers(unique->parameters, nextDriver);
         definitions[unique->id] = unique;
         auto rebound = std::make_shared<ComponentInstance>(*previous);
         rebound->definition = unique->id;
@@ -422,11 +615,11 @@ ComponentResult replaceComponent(Document &doc, Id root, Id definition) {
         current = parent;
         replacement = unique->id;
     }
-    return {definition,
-            root,
-            publish(doc, definitions, instances, doc.bodies(), doc.nextId(), nextDefinition,
-                    "Replace component"),
-            {}};
+    ComponentResult result{definition, root, {}, {}};
+    result.changes = publish(doc, definitions, instances, doc.bodies(), doc.nextId(),
+                             nextDefinition, nextDriver, "Replace component");
+    result.droppedOverrides = std::move(dropped);
+    return result;
 }
 ComponentResult makeComponentUnique(Document &doc, Id root) {
     // Ancestor ownership must also become unique when a nested placement changes
@@ -439,11 +632,14 @@ ComponentResult makeComponentUnique(Document &doc, Id root) {
     auto definitions = doc.definitions();
     auto instances = doc.instances();
     Id nextDefinition = doc.nextDefinitionId(), selectedDefinition = 0;
+    Id nextDriver = doc.nextComponentDriverId();
     Id current = root, replaced = 0, replacement = 0;
     while (true) {
         const auto old = instances.at(current);
         auto definition = std::make_shared<ComponentDefinition>(*definitions.at(old->definition));
         definition->id = allocate(nextDefinition);
+        // The copy keeps its parameters under new driver IDs; bindings keep overrides.
+        definition->parameters = renumberComponentDrivers(definition->parameters, nextDriver);
         if (definition->name.size() <= 1017)
             definition->name += " unique";
         if (replaced)
@@ -461,15 +657,18 @@ ComponentResult makeComponentUnique(Document &doc, Id root) {
         replaced = member;
         replacement = definition->id;
     }
-    return {selectedDefinition,
-            root,
-            publish(doc, definitions, instances, doc.bodies(), doc.nextId(), nextDefinition,
-                    "Make component unique"),
-            {}};
+    ComponentResult result{selectedDefinition, root, {}, {}};
+    const auto firstDriver = doc.nextComponentDriverId();
+    result.changes = publish(doc, definitions, instances, doc.bodies(), doc.nextId(),
+                             nextDefinition, nextDriver, "Make component unique");
+    for (Id id = firstDriver; id < nextDriver; ++id)
+        result.createdDrivers.push_back(id);
+    return result;
 }
 ComponentResult editComponentDefinition(Document &doc, Id id,
                                         const std::function<ChangeReport(Document &)> &edit,
-                                        Transform editingFrame) {
+                                        Transform editingFrame,
+                                        const ComponentTemplateParameters &parameterStep) {
     editingFrame.validate();
     const auto original = doc.definitions().at(id);
     auto members = original->members;
@@ -482,7 +681,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
                   doc.nextMaterialId(), doc.assets(), doc.nextAssetId(), doc.displayUnits(),
                   std::make_shared<const HostedComponents>(), doc.style(), doc.scenes(),
                   doc.nextSceneId(), doc.sections(), doc.nextSectionId(), {}, {}, doc.nextAnnotationId(), doc.solar(),
-                  doc.displayPrecision());
+                  doc.displayPrecision(), {}, 1, {}, 1, {}, 1, doc.nextComponentDriverId());
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
@@ -492,7 +691,8 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     }
     if (!references.empty())
         publish(draft, draft.definitions(), references, draft.bodies(), draft.nextId(),
-                draft.nextDefinitionId(), "Resolve definition references");
+                draft.nextDefinitionId(), draft.nextComponentDriverId(),
+                "Resolve definition references");
     std::map<Id, std::map<Id, Id>> existingMembers;
     for (const auto &[root, instance] : doc.instances())
         if (instance->definition == id)
@@ -545,6 +745,14 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         if (other != id &&
             (!draft.definitions().contains(other) || draft.definitions().at(other) != definition))
             throw std::runtime_error("Edit another shared definition with its own explicit scope");
+    // The draft shows the template as plain records; its own definition record is not
+    // the one being edited. Parameter changes go through the parameter step instead.
+    if (!draft.definitions().contains(id) || draft.definitions().at(id) != baselineDefinitions.at(id) ||
+        draft.nextComponentDriverId() != doc.nextComponentDriverId())
+        throw ComponentParameterError(
+            "INVALID_TARGET",
+            "Change a definition's parameters outside its own template edit scope",
+            {.definition = id});
     for (const auto &[member, body] : draft.bodies())
         if (member != original->root && !body->parent && original->members.contains(member))
             throw std::runtime_error("A shared edit cannot move a member out of its definition");
@@ -556,11 +764,50 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     const auto delta = root->transform == editingFrame ? Transform{} : inverse * root->transform;
     const auto [definition, unused] =
         capture(draft, original->root, id, original->name, true, delta, inverse, original->glue);
+    // A parametric definition's members are its template (ADR 0165 §4). The record
+    // carries over, or the caller's parameter step replaces it in the same edit.
+    auto parameters = original->parameters;
+    if (parameterStep) {
+        parameters = parameterStep(*definition, parameters);
+        if (parameters && parameters->parameters.empty() && parameters->drivers.empty())
+            parameters = nullptr;
+        std::set<Id> known;
+        if (original->parameters)
+            for (const auto &driver : original->parameters->drivers)
+                known.insert(driver.id);
+        if (parameters)
+            for (const auto &driver : parameters->drivers)
+                if (!known.contains(driver.id))
+                    throw ComponentParameterError(
+                        "INVALID_TARGET", "A template edit cannot create drivers",
+                        {.definition = id, .driver = driver.id});
+    }
+    if (parameters) {
+        auto record = *parameters;
+        reserveRepeatBlocks(*definition, record, original.get(), original->parameters.get());
+        definition->parameters = std::make_shared<const ComponentParameters>(std::move(record));
+    }
     auto definitions = doc.definitions();
     for (const auto &[created, record] : draft.definitions())
         if (!definitions.contains(created))
             definitions[created] = record;
     definitions[id] = definition;
+    // Drivers whose targets this edit changed (R094's incompatible-change warning).
+    std::vector<Id> warnings;
+    if (definition->parameters)
+        for (const auto &driver : definition->parameters->drivers) {
+            const ComponentDriver *before = nullptr;
+            if (original->parameters)
+                for (const auto &candidate : original->parameters->drivers)
+                    if (candidate.id == driver.id)
+                        before = &candidate;
+            if (before &&
+                componentDriverState(*original, doc.definitions(), *before) ==
+                    ComponentDriverState::Bound &&
+                componentDriverState(*definition, definitions, driver) ==
+                    ComponentDriverState::ChangedSinceBound)
+                warnings.push_back(driver.id);
+        }
     auto bindings = doc.instances();
     for (const auto &[root, members] : existingMembers) {
         auto binding = std::make_shared<ComponentInstance>(*bindings.at(root));
@@ -570,23 +817,33 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         bindings[root] = binding;
     }
     ComponentResult result{id, 0, {}, {}};
-    result.changes =
-        publish(doc, definitions, bindings, doc.bodies(), doc.nextId(), draft.nextDefinitionId(),
-                "Edit shared component definition", id, report);
+    const auto beforeDefinitions = doc.definitions();
+    const auto beforeVariants = doc.componentVariantRecords();
+    result.changes = publish(doc, definitions, bindings, doc.bodies(), doc.nextId(),
+                             draft.nextDefinitionId(), doc.nextComponentDriverId(),
+                             "Edit shared component definition", {id, report, false});
     if (moved)
         result.movedGeometry[original->root] = moved;
+    result.parameterWarnings = std::move(warnings);
+    result.regenerated = componentRegeneration(doc, beforeDefinitions, *beforeVariants);
     return result;
 }
 std::map<Id, Id> componentScopeMembers(const Document &doc, const Document &draft, Id instance) {
     auto members = doc.instances().at(instance)->members;
+    // The draft shows the template; a placement's repeat copies have no draft record.
     auto nested = [&](auto &&self, Id sceneRoot, Id draftRoot) -> void {
-        const auto scene = doc.instances().at(sceneRoot),
-                   canonical = draft.instances().at(draftRoot);
+        const auto found = draft.instances().find(draftRoot);
+        if (found == draft.instances().end())
+            return;
+        const auto scene = doc.instances().at(sceneRoot);
+        const auto &canonical = found->second;
         for (auto [member, id] : scene->members) {
-            const auto target = canonical->members.at(member);
-            members[target] = id;
+            const auto target = canonical->members.find(member);
+            if (target == canonical->members.end())
+                continue;
+            members[target->second] = id;
             if (id != sceneRoot && doc.instances().contains(id))
-                self(self, id, target);
+                self(self, id, target->second);
         }
     };
     const auto definition = doc.definitions().at(doc.instances().at(instance)->definition);
@@ -637,7 +894,7 @@ ComponentResult setComponentAxes(Document &doc, Id id, Transform axes) {
     return {id,
             0,
             publish(doc, definitions, doc.instances(), scene, doc.nextId(), doc.nextDefinitionId(),
-                    "Change component local axes"),
+                    doc.nextComponentDriverId(), "Change component local axes"),
             {}};
 }
 ComponentResult setComponentGlue(Document &doc, Id id, std::optional<ComponentGlue> glue) {
@@ -654,33 +911,47 @@ std::map<Id, BodyPtr> projectComponentPlacement(const ComponentDefinitions &defi
                                                 const ComponentInstances &instances, Id root,
                                                 const Body &placement,
                                                 const std::map<Id, std::pair<Id, Id>> &floors) {
+    if (!instances.contains(root) || !instances.at(root))
+        throw std::runtime_error("Missing component placement binding");
+    const auto &top = *instances.at(root);
+    if (!definitions.contains(top.definition) || !definitions.at(top.definition))
+        throw std::runtime_error("Missing or mismatched component placement binding");
+    ComponentVariantEngine engine(definitions);
+    const auto variant = top.overrides.empty() && !engine.parametric(top.definition)
+                             ? VariantPtr{}
+                             : engine.variant(top.definition, top.overrides);
     // Every binding must already name each member, so projection never allocates.
-    auto complete = [&](auto &&self, Id placed, Id definitionId, size_t depth) -> void {
+    auto complete = [&](auto &&self, Id placed, Id definitionId, const VariantPtr &shown,
+                        size_t depth) -> void {
         if (depth > 128 || !instances.contains(placed) || !instances.at(placed) ||
             instances.at(placed)->definition != definitionId ||
             !definitions.contains(definitionId))
             throw std::runtime_error("Missing or mismatched component placement binding");
         const auto &definition = *definitions.at(definitionId);
         const auto &binding = *instances.at(placed);
-        if (binding.members.size() != definition.members.size() ||
+        const auto &members = shown ? shown->members : definition.members;
+        const auto &references = shown ? shown->references : definition.references;
+        if (binding.members.size() != members.size() ||
             !binding.members.contains(definition.root) ||
             binding.members.at(definition.root) != placed)
             throw std::runtime_error("Incomplete component placement member map");
-        for (const auto &[member, body] : definition.members) {
+        for (const auto &[member, body] : members) {
             if (!binding.members.contains(member))
                 throw std::runtime_error("Incomplete component placement member map");
-            if (definition.references.contains(member))
-                self(self, binding.members.at(member), definition.references.at(member),
-                     depth + 1);
+            if (const auto reference = references.find(member); reference != references.end()) {
+                VariantPtr nested;
+                if (shown)
+                    if (const auto found = shown->nested.find(member); found != shown->nested.end())
+                        nested = found->second;
+                self(self, binding.members.at(member), reference->second, nested, depth + 1);
+            }
         }
     };
-    if (!instances.contains(root) || !instances.at(root))
-        throw std::runtime_error("Missing component placement binding");
-    complete(complete, root, instances.at(root)->definition, 1);
+    complete(complete, root, top.definition, variant, 1);
     const Document empty;
     const std::map<Id, BodyPtr> seed;
     Projection projection{empty, definitions, instances, seed, {}, {}, 0, &floors};
-    projection.resolve(root, instances.at(root)->definition, placement);
+    projection.resolve(root, top.definition, placement, variant, top.overrides);
     return std::move(projection.scene);
 }
 } // namespace sketchy

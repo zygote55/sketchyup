@@ -351,6 +351,16 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
     return bodies;
 }
 QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
+    // Component parameter records and overrides (ADR 0165) are stored from schema 28
+    // (R093.c). Until then no writer path may drop them: refuse before encoding.
+    for (const auto &[id, definition] : doc.definitions())
+        if (definition->parameters)
+            throw std::runtime_error("UNSUPPORTED_FORMAT: component parameters cannot be saved "
+                                     "until native schema 28");
+    for (const auto &[root, instance] : doc.instances())
+        if (!instance->overrides.empty())
+            throw std::runtime_error("UNSUPPORTED_FORMAT: component parameters cannot be saved "
+                                     "until native schema 28");
     QJsonArray bodies;
     {
         const auto members = placementMembers(doc.instances());

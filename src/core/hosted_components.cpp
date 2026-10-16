@@ -1,5 +1,6 @@
 #include "core/hosted_components.hpp"
 #include "core/component_glue.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/model.hpp"
 #include <algorithm>
 namespace sketchy {
@@ -95,11 +96,12 @@ std::set<Id> ownedMembers(const ComponentInstances &instances) {
     }
     return result;
 }
-const ComponentDefinition &definitionFor(Id root, const ComponentAttachment &attachment,
-                                         const std::map<Id, BodyPtr> &bodies,
-                                         const ComponentDefinitions &definitions,
-                                         const ComponentInstances &instances,
-                                         const std::set<Id> &owned) {
+// The glue and cut outline come from the placement's variant (ADR 0165 §1): a driven
+// width re-cuts the host opening in the same edit.
+ComponentDefinition definitionFor(Id root, const ComponentAttachment &attachment,
+                                  const std::map<Id, BodyPtr> &bodies,
+                                  const ComponentDefinitions &definitions,
+                                  const ComponentInstances &instances, const std::set<Id> &owned) {
     if (!bodies.contains(root) || !bodies.at(root) || !instances.contains(root) ||
         !instances.at(root) || owned.contains(root) || !bodies.contains(attachment.host) ||
         !bodies.at(attachment.host) || bodies.at(attachment.host)->kind != BodyKind::Geometry ||
@@ -109,7 +111,12 @@ const ComponentDefinition &definitionFor(Id root, const ComponentAttachment &att
     const auto id = instances.at(root)->definition;
     if (!definitions.contains(id) || !definitions.at(id) || !definitions.at(id)->glue)
         fail("HOST_SCOPE", "Hosted component requires an explicit canonical glue face");
-    return *definitions.at(id);
+    const auto &definition = *definitions.at(id);
+    const auto &overrides = instances.at(root)->overrides;
+    ComponentVariantEngine engine(definitions);
+    if (overrides.empty() && !engine.parametric(id))
+        return definition;
+    return componentVariantDefinition(definition, engine.variant(id, overrides));
 }
 OpeningProfile cutProfile(const Surface &uncut, const ComponentAttachment &attachment,
                           const ComponentDefinition &definition) {
