@@ -1,5 +1,6 @@
 #include "core/annotations.hpp"
 #include "io/measured_export.hpp"
+#include "pdf_info_check.hpp"
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -80,6 +81,12 @@ int main(int argc, char **argv) {
         check(pdf.bytes.startsWith("%PDF-") && media.hasMatch() &&
                   media.captured(1).toDouble() == 720 && media.captured(2).toDouble() == 576,
               "PDF exact 10 by 8 inch media box");
+        // D-036: well-formed document information on every Qt (Qt 6.8.0 left it unclosed).
+        const auto info = pdfcheck::infoProblem(
+            pdf.bytes, "SketchyUp vector measured orthographic drawing", "SketchyUp");
+        if (!info.empty())
+            std::cerr << "PDF document information: " << info << '\n';
+        check(info.empty(), "Well-formed PDF document information");
         const auto file = scratch.filePath("measured.pdf");
         writeMeasuredExport(pdf, file);
         if (app.arguments().contains("--pdf-real")) {
