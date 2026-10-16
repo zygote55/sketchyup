@@ -505,6 +505,16 @@ CompiledParametersPtr compileComponentParameters(const DefinitionPtr &definition
         previous = driver.id;
         if (driver.kind > ComponentDriverKind::ChildParameter || driver.axis > ComponentAxis::Z)
             target("unknown driver kind or axis");
+        if (!definition.members.contains(driver.member) &&
+            std::any_of(record.drivers.begin(), record.drivers.end(), [&](const auto &repeat) {
+                if (repeat.kind != ComponentDriverKind::Repeat || !repeat.maxCount ||
+                    !definition.members.contains(repeat.member))
+                    return false;
+                const auto size = Id(repeat.maxCount - 1) * subtree(definition, repeat.member).size();
+                return driver.member >= repeat.firstMember &&
+                       driver.member - repeat.firstMember < size;
+            }))
+            target("generated repeat copies cannot be driven");
         if (!driver.member || !definition.members.contains(driver.member))
             target("its target member does not exist");
         if (driver.member == definition.root)

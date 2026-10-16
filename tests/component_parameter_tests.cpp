@@ -407,6 +407,14 @@ void shelvesRepeat() {
     check(copies().empty() && sceneBody(doc, t.placement, t.shelf).hidden, "Back to no shelves");
     expectCode([&] { overrideComponentParameters(doc, t.placement, {{"shelves", number(5)}}); },
                "PARAMETER_DOMAIN", "shelves above its maximum");
+    const auto generated = expectCode(
+        [&] {
+            driveComponent(doc, t.definition, 0,
+                           driver(ComponentDriverKind::Visibility, first, "shelves > 1"));
+        },
+        "PARAMETER_DRIVER_TARGET", "driving a generated repeat copy");
+    check(std::string(generated.what()).find("generated") != std::string::npos,
+          "A generated copy is named as such");
     // A default of zero shelves hides the template shelf; an override shows it again.
     ComponentParameterUpdate none;
     none.expression = "0";
@@ -998,6 +1006,14 @@ void templateEdits() {
     };
     expectCode([&] { editComponentDefinition(doc, t.definition, eraseShelf); },
                "PARAMETER_DRIVER_TARGET", "deleting a driver target");
+    expectCode(
+        [&] {
+            editComponentDefinition(doc, t.definition, [&](Document &draft) {
+                undriveComponent(draft, t.definition, t.repeat);
+                return eraseShelf(draft);
+            });
+        },
+        "INVALID_TARGET", "a parameter operation inside the definition's own scope");
     // A curve that crosses a stretch plane is refused; one beside it is not.
     auto circle = [&](Vec3 center) {
         return [&, center](Document &draft) {
@@ -1118,10 +1134,17 @@ void expressionLimits() {
     define("literal_n", "1." + std::string(30, '0'));
     expectCode([&] { define("literal_n1", "1." + std::string(31, '0')); }, "PARAMETER_SYNTAX",
                "a 33-character number literal");
-    std::string tokens = "1";
+    // 512 tokens (256 nodes, parentheses add tokens only), then 513.
+    std::string tokens = "+(1)";
+    for (int i = 1; i < 128; ++i)
+        tokens += " + (1)";
+    check(parseParameterExpression(tokens).tokenCount == 512, "The token fixture has 512 tokens");
+    define("tokens_n", tokens);
+    expectCode([&] { define("tokens_n1", "(" + tokens + ")"); }, "LIMIT_EXCEEDED", "514 tokens");
+    std::string many = "1";
     for (int i = 0; i < 256; ++i)
-        tokens += "+1";
-    expectCode([&] { define("tokens_n1", tokens); }, "LIMIT_EXCEEDED", "513 tokens");
+        many += "+1";
+    expectCode([&] { define("tokens_n2", many); }, "LIMIT_EXCEEDED", "513 tokens");
     invariant(doc, "expression limits");
     std::cout << "expression limits: ok\n";
 }

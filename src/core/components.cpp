@@ -745,6 +745,14 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
         if (other != id &&
             (!draft.definitions().contains(other) || draft.definitions().at(other) != definition))
             throw std::runtime_error("Edit another shared definition with its own explicit scope");
+    // The draft shows the template as plain records; its own definition record is not
+    // the one being edited. Parameter changes go through the parameter step instead.
+    if (!draft.definitions().contains(id) || draft.definitions().at(id) != baselineDefinitions.at(id) ||
+        draft.nextComponentDriverId() != doc.nextComponentDriverId())
+        throw ComponentParameterError(
+            "INVALID_TARGET",
+            "Change a definition's parameters outside its own template edit scope",
+            {.definition = id});
     for (const auto &[member, body] : draft.bodies())
         if (member != original->root && !body->parent && original->members.contains(member))
             throw std::runtime_error("A shared edit cannot move a member out of its definition");

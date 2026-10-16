@@ -30,5 +30,5 @@ void reserveRepeatBlocks(ComponentDefinition &definition, ComponentParameters &r
 // `beforeVariants`, and the variants that are new in the document's index.
 ComponentRegeneration componentRegeneration(const Document &doc,
                                             const ComponentDefinitions &beforeDefinitions,
-                                            const struct ComponentVariantIndex &beforeVariants);
+                                            const ComponentVariantIndex &beforeVariants);
 } // namespace sketchy
