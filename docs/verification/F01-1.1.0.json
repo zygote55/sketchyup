@@ -54,7 +54,7 @@
   },
   "cleanPinned": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
   "cleanFresh": "archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1",
-  "qt68Reference": null
+  "qt68Reference": "archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2 (2024-10-15 archive)"
  },
  "frozenProviderInputs": {
   "corpusManifest": {
@@ -188,7 +188,15 @@
    "gdb": "18.1-1",
    "git": "2.56.0-1"
   },
-  "hostPoppler": "26.08.0"
+  "hostPoppler": "26.08.0",
+  "qt68Reference": {
+   "gcc": "14.2.1+r134+gab884fffe3fc-1",
+   "cmake": "3.30.5-1",
+   "qt6-base": "6.8.0-1",
+   "qt6-wayland": "6.8.0-1",
+   "mesa": "1:24.2.4-1",
+   "glibc": "2.40+r16+gaa533d58ff-2"
+  }
  },
  "ownerTrim": {
   "date": "2026-10-15",
@@ -197,7 +205,7 @@
   "ranLocally": [
    "release artifacts",
    "package acceptance",
-   "clean machines pinned and fresh with sheets smoke and MCP tools/list",
+   "clean machines pinned, fresh and Qt 6.8 reference with sheets smoke and MCP tools/list",
    "development build (build only) plus assistant_tool_surface",
    "47 non-CI native cells",
    "34 non-CI dialog-audit cells plus inventory",
@@ -264,8 +272,25 @@
    "logSha256": "c71b4f28d221364cf971fcf2bd0cbe4de269ca0df428ec95b9caa2de4c1a6079"
   },
   "cleanMachines": {
-   "result": "pass (pinned, fresh)",
-   "qt68Reference": "not run (optional)",
+   "result": "pass (pinned, fresh, Qt 6.8 reference with D-036)",
+   "qt68Reference": {
+    "result": "pass with D-036 (Minor, Qt 6.8 only)",
+    "attempt": 1,
+    "image": "archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+    "archiveDate": "2024-10-15",
+    "qt": "6.8.0",
+    "package": {
+     "file": "sketchyup-1.1.0-1-x86_64.pkg.tar.zst",
+     "builtIn": "reference image from the RC archive (makepkg --nocheck)",
+     "sha256": "4cb4df9517d0f2f4c1e3a0d719ae57829855937ecf8090aa1ca5a2b0530d06d5"
+    },
+    "priorPackage": {
+     "file": "sketchyup-1.0.1-1-x86_64.pkg.tar.zst",
+     "builtIn": "reference image from the v1.0.1 release archive (byte-identical to tag v1.0.1)",
+     "sha256": "453e89f1913f4ca20dff8a9fc4745fd0e6044d05ce536fc5a339fde3b4467b8d"
+    },
+    "record": "docs/verification/F01-rc-1.1.0.md#failures"
+   },
    "attempt": 2,
    "summarySha256": "13e31bd7f01868621d484475a859c9daf2ad788aece7cfef74218a93ceeae1da"
   },
@@ -284,19 +309,19 @@
   },
   "triage": {
    "result": "pass",
-   "open": 27,
+   "open": 28,
    "releaseBlocking": 0
   },
   "documentation": {
-   "result": "pass with exception",
-   "exception": "SUPPORT_MATRIX.md claims Qt 6.8.0 through 6.12.0, but at the RC only Qt 6.11.2 and 6.12.0 ran; M10 says the Qt range claims only what ran"
+   "result": "pass",
+   "qtRangeResolved": "the Qt 6.8 reference ran at this RC, so SUPPORT_MATRIX.md's Qt 6.8.0 through 6.12.0 claim is backed by what ran; it stands with D-036 recorded by owner decision (2026-10-15)"
   }
  },
  "reRunAtRc": [
   "release artifacts",
   "release-version.sh",
   "package acceptance",
-  "clean machines pinned and fresh with sheets smoke and MCP tools/list",
+  "clean machines pinned, fresh and Qt 6.8 reference with sheets smoke and MCP tools/list",
   "development build plus assistant_tool_surface",
   "47 non-CI native cells",
   "34 non-CI dialog-audit runs plus inventory",
@@ -451,15 +476,17 @@
  ],
  "triage": {
   "source": "docs/verification/R089a-defect-triage.md",
-  "open": 27,
+  "open": 28,
   "releaseBlocking": 0,
   "major": 0,
-  "minor": 13,
+  "minor": 14,
   "limitation": 14,
   "fixedAtThisRc": [
    "D-035"
   ],
-  "newDefectsFromGate": [],
+  "newDefectsFromGate": [
+   "D-036"
+  ],
   "defects": [
    {
     "id": "D-006",
@@ -538,6 +565,12 @@
     "class": "Minor",
     "releaseBlocking": false,
     "reason": "one unexplained CI timeout; 0/740 local hangs; passed at both RCs; harness traces recurrence"
+   },
+   {
+    "id": "D-036",
+    "class": "Minor",
+    "releaseBlocking": false,
+    "reason": "Qt 6.8 only: malformed PDF Info dictionary in sheet export; pages, text, fonts and attached report intact; owner decision 2026-10-15: ship recorded, fix in 1.1.1"
    },
    {
     "id": "D-001",
@@ -621,14 +654,14 @@
     "id": "D-029",
     "class": "Limitation",
     "releaseBlocking": false,
-    "reason": "unversioned PKGBUILD dependencies, disclosed; RC package runs on both clean images"
+    "reason": "unversioned PKGBUILD dependencies, disclosed; RC package runs on the pinned and fresh images, and a package built on the 2024-10-15 archive runs on the Qt 6.8 reference"
    }
   ]
  },
  "unresolvedLimits": [
   "waived and untested (ADR 0161)",
   "local sanitized build and 138 non-CI sanitized cells not run (owner trim)",
-  "Qt 6.8 reference machine not run",
+  "D-036 malformed sheet-PDF Info dictionary on Qt 6.8.0 (Minor, open; fix in 1.1.1)",
   "Advanced token headroom 6,819 tokens (about 2.6%) in the worst run",
   "schema validator ignores anyOf (R090.e)",
   "D-034 unreproduced Wayland render hang",
@@ -652,7 +685,11 @@
  ],
  "openForOwner": [
   "approve the tag v1.1.0 and the release",
-  "Qt range in SUPPORT_MATRIX.md: run the Qt 6.8 reference against the RC package or accept the 1.0-era R087.u evidence"
+  {
+   "resolved": "2026-10-15",
+   "item": "Qt range in SUPPORT_MATRIX.md",
+   "decision": "the Qt 6.8 reference ran at the RC; owner: ship, record D-036 as known, keep the Qt 6.8.0-6.12.0 claim, fix in 1.1.1; no new RC"
+  }
  ],
  "evidenceRecords": {
   "F01-rc-1.1.0.md": "5ec4e912dd996319f807d828ceb5310fffd083ea1d730451c6db401adaa79eac",
