@@ -14,11 +14,13 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPointer>
+#include <array>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <set>
 class QTabWidget;
+class QSplitter;
 class QDialog;
 class QHBoxLayout;
 class QStackedWidget;
@@ -107,6 +109,21 @@ class Window : public QMainWindow {
     std::map<QAction *, bool> assistantActionStates_;
     std::vector<std::pair<QWidget *, bool>> assistantWidgetStates_;
     void layoutAssistant();
+    // R094.a: the user-resizable sidebar (window_sidebar.cpp). The workspace, the side panel and,
+    // in the wide layout, the Assistant column share one splitter. Widths are kept per layout in
+    // logical pixels at 100% interface text (0 = default) and persist in QSettings.
+    enum SidebarWidth { SidebarTray, SidebarTabbed, SidebarAssistant };
+    QSplitter *sidebarSplitter_{};
+    std::array<int, 3> sidebarWidths_{};
+    bool sidebarLayoutQueued_{};
+    void setupSidebar(QWidget *workspace);
+    void layoutSidebar();
+    void queueSidebarLayout();
+    void rememberSidebar(int handle);
+    void storeSidebarWidth(QWidget *column, int width);
+    void stepSidebar(int direction);
+    void resetSidebar();
+    void themeSidebar(const ThemeColors &colors);
     void toggleAssistant();
     void assistantFence(bool uncertain);
     std::unique_ptr<DesktopInspection> inspection_;
