@@ -30,24 +30,13 @@ void type(QDialog *dialog, const QString &field, const QString &text) {
 void accept(QDialog *dialog) {
     dialog->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Ok)->click();
 }
-void activate(Window &window) {
-    // Wayland compositors grant focus asynchronously, notably just after a modal
-    // dialog closes and under CI load; keep requesting it rather than once.
-    for (int attempt = 0; attempt < 15; ++attempt) {
-        window.activateWindow();
-        if (QTest::qWaitForWindowActive(&window, 1000))
-            return;
-    }
-    const auto *active = QApplication::activeWindow();
-    const auto *focus = QGuiApplication::focusWindow();
-    std::cerr << "Active widget window: "
-              << (active ? active->metaObject()->className() : "none") << ' '
-              << (active ? active->objectName().toStdString() : "") << "; focus window: "
-              << (focus ? focus->objectName().toStdString() : "none") << '\n';
-    check(false, "Entity info window active");
-}
 void edit(Window &window, const std::function<void(QDialog *)> &operation, bool keyboard = false) {
-    activate(window);
+    // F2 is a window shortcut, so only the keyboard path needs the main window
+    // active. The button path uses synthetic input and must not wait for the
+    // compositor to hand focus back after the previous editor closed: Wayland
+    // clients cannot request that, so activateWindow() cannot recover it.
+    if (keyboard)
+        check(QTest::qWaitForWindowActive(&window), "Entity info window active");
     auto *frame = window.findChild<QComboBox *>("entityInfoFrame");
     frame->setFocus();
     bool opened = false;
@@ -56,7 +45,12 @@ void edit(Window &window, const std::function<void(QDialog *)> &operation, bool 
         if (!dialog)
             return;
         dialog->activateWindow();
-        if (!QTest::qWaitForWindowActive(dialog)) {
+        // qWaitForWindowActive() would pass at once while the main window is
+        // active, because QWindow::isActive() counts a transient child as active
+        // with its parent. The editor could then close before the compositor
+        // mapped and activated it, and that late activation took focus from the
+        // main window. Wait until the editor itself holds keyboard focus.
+        if (!QTest::qWaitForWindowFocused(dialog)) {
             dialog->reject();
             return;
         }
