@@ -1,5 +1,55 @@
 # SketchyUp release notes
 
+## 1.1.1
+
+SketchyUp 1.1.1 is a patch release for 1.1.0. It fixes one defect and changes no
+format, schema or API ([ADR 0162](decisions/0162-release-versioning.md)). The release
+check is [F01.a](verification/F01a-1.1.1-patch.md).
+
+### Fix
+
+- **D-036: malformed PDF document information on Qt 6.8.0 and 6.8.1.** `QPdfWriter` in
+  Qt 6.8.0 and 6.8.1 ends the PDF document information dictionary with `2` instead of
+  `>>`, and Qt 6.8.0 writes the dates as `D:00000000-1-1-1Z` when it cannot determine
+  the system time zone. On those Qt versions every sheet PDF (**Export sheets…**,
+  `sketchyup-cli --export-sheets`) and every measured PDF export had a malformed
+  Info dictionary: PDF readers reported syntax errors and could not read the title,
+  creator or dates, although the pages, text, fonts and the attached report were
+  intact. SketchyUp now repairs exactly those two patterns in the written file, in
+  place and at the same length, before it hashes the file, so the export report's
+  SHA-256 still matches. A PDF without the defect, including every PDF written on a
+  fixed Qt, is left byte for byte unchanged
+  ([R089.a](verification/R089a-defect-triage.md)).
+
+Limits that remain:
+
+- The desktop **Print…** path to a PDF printer goes through `QPrinter`, which uses the
+  same Qt engine, and is not repaired. Use **Export sheets…** for a PDF.
+- On Qt 6.8.0 with no system time zone (no `TZ` and no `/etc/localtime`), the XMP
+  `CreateDate` and `ModifyDate` stay empty. The Info dictionary dates are filled in
+  with the export time in UTC.
+
+### Upgrade from 1.1.0-1
+
+Run `pacman -U sketchyup-1.1.1-1-x86_64.pkg.tar.zst`. pacman orders 1.1.1-1 after
+1.1.0-1. Preferences, data and cache are kept. The native document format is
+unchanged: 1.1.1 writes schema `sketchyup-document-v27` for documents with sheets and
+`sketchyup-document-v26` for documents without, and 1.1.0 and 1.1.1 open each other's
+documents. The only byte difference in a saved document is the writer string
+`SketchyUp/1.1.1`. To roll back, install `sketchyup-1.1.0-1-x86_64.pkg.tar.zst` with
+`pacman -U`; the D-036 defect returns on Qt 6.8.0 and 6.8.1.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.1.1 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch package | `sketchyup` 1.1.1-1, x86_64 |
+| Native document | Unchanged from 1.1.0. Saves record the writer `SketchyUp/1.1.1` |
+| MCP, inspection, transactions and other public schemas | Unchanged from 1.1.0 (below) |
+
+Everything else in the 1.1.0 notes below applies to 1.1.1.
+
 ## 1.1.0
 
 SketchyUp 1.1.0 is a minor release. It adds documentation sheets, the first Extended

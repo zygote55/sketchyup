@@ -1,6 +1,6 @@
 # Pull request roadmap
 
-Status: M0–M6 gates passed; the M7 presentation checkpoint, the M8 exchange and extensibility gate and the M9 release-hardening gate are accepted. M9 is accepted at the 1.0.0 release candidate, and 1.0.0 is released. The first M10 release, F01 as 1.1.0, is released ([record](verification/F01-1.1.0.md)). Updated: 2026-10-15.
+Status: M0–M6 gates passed; the M7 presentation checkpoint, the M8 exchange and extensibility gate and the M9 release-hardening gate are accepted. M9 is accepted at the 1.0.0 release candidate, and 1.0.0 is released. The first M10 release, F01 as 1.1.0, is released ([record](verification/F01-1.1.0.md)); the 1.1.1 patch release, which fixes D-036, is released ([record](verification/F01a-1.1.1-patch.md)). Updated: 2026-10-16.
 
 This is the execution breakdown of the [build plan](BUILD_PLAN.md),
 [scope matrix](SCOPE.md), [UX design and mockups](UX_DESIGN.md), and
