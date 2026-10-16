@@ -142,7 +142,7 @@ struct Network : QNetworkAccessManager {
     QUrl authUrl;
     QString subject{"fixture-user"}, access{"access-fixture-only"}, refresh{"refresh-fixture-only"};
     bool badNonce{}, badScope{}, rejectRefresh{};
-    int tokens{}, renewals{}, catalogs{}, revokeCode{200};
+    int tokens{}, renewals{}, catalogs{}, revokeCode{200}, tokenLifetime{3600};
     QNetworkReply *createRequest(Operation op, const QNetworkRequest &req,
                                  QIODevice *out) override {
         check(req.attribute(QNetworkRequest::RedirectPolicyAttribute).toInt() ==
@@ -189,7 +189,7 @@ struct Network : QNetworkAccessManager {
                 {{"access_token", access},
                  {"refresh_token", refresh},
                  {"token_type", "Bearer"},
-                 {"expires_in", 3600},
+                 {"expires_in", tokenLifetime},
                  {"scope", badScope
                                ? "openid"
                                : "openid offline_access resource.invoke chatgpt.tokens.use.direct"},
@@ -329,12 +329,26 @@ int main(int argc, char **argv) {
         check(credential == network.access.toLatin1() && network.renewals == 0,
               "Ready with current entitlement");
         credential.clear();
-        record["expires_at"] = double(QDateTime::currentSecsSinceEpoch() + 10);
+        record["expires_at"] = double(QDateTime::currentSecsSinceEpoch() + 600);
         write(saved, b64(json(record)));
         auth.prepare("oaiapp_fixture", "fixture-model");
         wait([&] { return !auth.busy(); });
         check(!credential.isEmpty() && network.renewals == 1 && read(saved) != b64(json(record)),
-              "Renew before task and persist rotation before use");
+              "Renew a ten-minute credential before a fifteen-minute task and persist rotation");
+        credential.clear();
+        network.tokenLifetime = 600;
+        record = QJsonDocument::fromJson(
+                     QByteArray::fromBase64(read(saved), QByteArray::Base64UrlEncoding)).object();
+        record["expires_at"] = double(QDateTime::currentSecsSinceEpoch() + 600);
+        write(saved, b64(json(record)));
+        auth.prepare("oaiapp_fixture", "fixture-model");
+        wait([&] { return !auth.busy(); });
+        check(credential.isEmpty() && auth.status().contains("lifetime is too short"),
+              "A refreshed credential too short for the task never reaches inference");
+        network.tokenLifetime = 3600;
+        auth.prepare("oaiapp_fixture", "fixture-model");
+        wait([&] { return !auth.busy(); });
+        check(!credential.isEmpty(), "A subsequent sufficiently long renewal permits inference");
         credential.clear();
         auth.prepare("oaiapp_fixture", "hidden");
         wait([&] { return !auth.busy(); });

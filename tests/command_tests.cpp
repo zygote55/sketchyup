@@ -37,6 +37,27 @@ template <class F> void rejects(F fn) {
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
+        for (auto response : {BatchResponse::Full, BatchResponse::CreatedIds}) {
+            Document doc;
+            const QJsonObject face{
+                {"command", "geometry.face"},
+                {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{1, 0, 0},
+                                               QJsonArray{1, 1, 0}, QJsonArray{0, 1, 0}}}}};
+            const auto result = executeBatch(
+                doc,
+                {{"apiVersion", 1},
+                 {"documentId", QString::fromStdString(doc.identity())},
+                 {"expectedRevision", QString::number(doc.revision())},
+                 {"commands", QJsonArray{face, face,
+                                         QJsonObject{{"command", "geometry.delete"}, {"body", "1"}}}}},
+                response);
+            const auto refs = result["createdFaces"].toArray();
+            check(refs.size() == 1 && refs[0].toObject()["body"] == "2" &&
+                      refs[0].toObject()["kind"] == "face" &&
+                      doc.bodies().at(2)->surface.faces.contains(
+                          refs[0].toObject()["id"].toString().toULongLong()),
+                  "Full and staging receipts omit created faces removed later in the batch");
+        }
         Document source;
         source.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
         const auto beforeQueries = encodeDocument(source);

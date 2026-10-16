@@ -34,9 +34,10 @@ never argv. There is no plaintext credential fallback. Buffers are best-effort
 cleared; Qt/OpenSSL copies do not offer a secure-memory guarantee.
 
 A process lock at a fixed application data path serializes credential
-lookup/rotation/sign-in across native windows and the opt-in trial executable. Before an assistant task, refresh if fewer than 330 seconds remain, then
+lookup/rotation/sign-in across native windows and the opt-in trial executable. Before an assistant task, refresh if fewer than 930 seconds remain, then
 persist the rotated token set before releasing a credential for inference. Native
-tasks are bounded to 300 seconds. A failed renewal requires another explicit
+tasks are bounded to 900 seconds. After model discovery, a credential must still
+cover the whole task before it is released for inference. A failed renewal requires another explicit
 connection attempt; no API-key or local-provider fallback occurs. Sign-out
 attempts renewable-session revocation, clears only the selected credential, and
 retains its public registration for later sign-in. Unconfirmed remote revocation
@@ -60,12 +61,28 @@ assembled by output index when the terminal envelope has an empty output array,
 as observed in the live ChatGPT plan stream. Item identities, contiguous indexes,
 completion and any nonempty terminal output must agree. Failed, incomplete,
 interrupted or conflicting streams fail closed.
-Known plan-usage errors point to Manage ChatGPT usage. Output is still checked
-against the host's 8,192-token per-response, 262,144-total-reported-token,
-16-turn and five-minute native task budgets. Total tokens include cached input;
+Known plan-usage errors point to Manage ChatGPT usage. ChatGPT plan replies use
+the host's 524,288-total-reported-token, 16-turn and fifteen-minute native task
+budgets, without a separate per-response token rejection. The unsupported
+generation cap cannot constrain these replies, and reported output includes
+hidden reasoning and formatting tokens. All reported usage still counts toward
+the aggregate budget, and response byte and tool-call limits remain enforced
+before dispatch. API-key and local connections retain their per-response caps.
+Budget failures identify the exhausted limit and measured usage.
+The native panel and native workflow trial use one shared limit profile. The previous
+262,144-token profile exhausted its allowance during a fence-and-gate request:
+the rejected reply reported 23,034 input plus 163 output tokens with only 1,339
+remaining. Repeated schema and transcript input must fit across the allowed
+16 turns. A deterministic streamed-provider regression exercises all 16 turns
+at that input usage, including larger reasoning replies, and reaches preview
+and commit using 430,337 reported tokens. The old profile rejects that sequence
+and discards its staged edit. This regression does not establish live fence
+modeling quality; earlier frozen-corpus results retain their original limits.
+Total tokens include cached input;
 the initial 131,072 limit stopped the measured window workflow before preview.
 Preferences discloses the revised limits. The initial development corpus used a separate 12-turn / 131,072-total profile;
-subsequent subscription trials use the native limits and record them explicitly;
+the frozen headless corpus retains its public five-minute draft ceiling and
+records that override explicitly; native workflow trials use the native limits;
 these are acceptance limits, not a server-side generation-token cap. Existing
 consent, tool authorization, immutable preview, sealed Apply and one-entry Undo
 remain authoritative.
@@ -74,6 +91,53 @@ The opt-in `provider_trial --chatgpt configured ...` uses the selected native
 account. OAuth/model-catalog traffic uses a separate network manager and never
 enters acceptance evidence. Successful completed inference and host receipts
 remain necessary for the live milestone gate.
+
+The opt-in `assistant_workflow_trial MODEL PROMPT.txt NEW_REPORT.json` reproduces
+native requests on an empty disposable document with the panel's command allowlist
+and subscription limits. It retains a private activity report and saves successful
+results as `NEW_REPORT.json.files/result.sketchyup`; `--inspect MODEL.sketchyup`
+reports saved world bounds without making a provider request. It is excluded from
+the default build and CTest.
+
+On 2026-10-16, the live `gpt-6-astra` request for a 16-foot by 6-foot modern fence
+with a centered 4-foot gate reached Apply on the baseline's last allowed turn:
+16 turns, 295,885 ms and 380,620 reported tokens. Individual topology lookups for
+newly created profiles consumed much of that budget. Face-creation receipts now
+return surviving face references, the native allowlist includes the existing array
+command, and instructions explain batching and reserving turns for measurements.
+The updated live run completed in 12 turns, 222,429 ms and 292,889 reported tokens.
+Reloading its saved document verified 4.8768 m overall width, 1.8288 m height and
+a centered 1.2192 m clear gate opening; the gate leaf is 47 inches wide with half-inch
+side clearances. That run recovered from one rejected array target; the assistant
+instructions now explicitly require entity `"0"` for whole-body context targets.
+The timings are individual observations, not a latency or success-rate guarantee.
+A native regression also creates fourteen profiles, extrudes them using returned
+face references, arrays eleven copies and reaches preview in five turns; Apply
+creates one history item and Undo restores the original document.
+
+A subsequent native fence request still exhausted the five-minute wall-clock
+deadline. A successful individual run was insufficient evidence that this latency
+budget was suitable. Native ChatGPT tasks now allow fifteen minutes with the same
+turn, token, command and memory bounds. The model receives remaining wall-clock
+seconds, and expiry reports the configured duration and usage. Native in-process
+staging and transaction dispatch accept a host-configured ceiling up to 900 seconds;
+the public defaults and published API schemas retain their 300-second ceiling.
+The draft's lifetime never exceeds the original task deadline. Sealing grants at
+most five minutes of review, also capped by the remaining draft lifetime; durable
+outcome leases and their stored format remain unchanged.
+
+Injected-clock native tests inspect a draft after 350 seconds, seal it after 400,
+and apply after 650 with one-entry Undo. Separate cases verify exact task expiry
+at 900 seconds, sealed review expiry at 700 seconds, cancellation and stale-model
+rejection without publishing the draft. Authentication tests renew credentials
+with ten minutes left before a fifteen-minute task and reject a renewal whose
+lifetime is still insufficient.
+
+The final live fence run with the extended profile completed and applied in
+11 turns, 176,305 ms and 280,341 reported tokens without a rejected tool call.
+Reloaded geometry again measured 16 feet overall, 6 feet high and a centered
+4-foot clear gate opening. This run finished within the former deadline; the
+injected-clock cases, rather than that timing, establish behavior beyond it.
 
 ## Sources
 

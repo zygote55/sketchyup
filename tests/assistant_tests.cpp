@@ -2,7 +2,6 @@
 #include "automation/commands.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
-#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <future>
@@ -347,19 +346,21 @@ int main(int argc, char **argv) {
             const auto s = fixture.state();
             AssistantTask task(fixture.backend(), settings);
             Driver driver(task);
-            auto unchangedRemoteRequest = [&] {
+            auto verifyRemoteRequest = [&] {
                 const auto budget = hostBudget(*driver.pending);
                 const auto system = driver.pending->value("system").toString();
                 const auto prefix = system.left(system.indexOf("\nHost task budget: "));
-                check(budget.size() == 5 && !budget.contains("privateDraftState") &&
-                          QCryptographicHash::hash(prefix.toUtf8(), QCryptographicHash::Sha256)
-                                  .toHex() ==
-                              "f097d6827f7a4a9cbef901e8af49af2f66abbd01e0a0a0dbb4c01e407e7d0b4b",
-                      "Remote request preserves the qualified system prefix and five-field budget");
+                check(budget.size() == 6 && budget["remainingSeconds"].toInteger() > 0 &&
+                          !budget.contains("privateDraftState") &&
+                          prefix.contains("createdIds.createdFaces") &&
+                          prefix.contains("Batch independent inspection calls") &&
+                          prefix.contains("The host alone decides whether to apply."),
+                      "Remote request explains efficient modeling while preserving host authority "
+                      "and budget");
             };
-            unchangedRemoteRequest();
+            verifyRemoteRequest();
             const auto draft = driver.begin(s);
-            unchangedRemoteRequest();
+            verifyRemoteRequest();
             const auto empty = driver.tool(
                 "transaction.inspect",
                 op(s, "transaction.inspect",
@@ -367,7 +368,7 @@ int main(int argc, char **argv) {
                 true);
             check(empty["code"] == "EMPTY_TRANSACTION" && !empty.contains("retry"),
                   "Remote error receipts retain the qualified behavior");
-            unchangedRemoteRequest();
+            verifyRemoteRequest();
             task.cancel();
             check(task.phase() == AssistantTask::Phase::Canceled &&
                       fixture.actor.document().revision() == 0 &&
@@ -615,6 +616,8 @@ int main(int argc, char **argv) {
             now += std::chrono::seconds(2);
             check(!task.nextRequest() && task.result()["error"].toObject()["code"] == "TIME_LIMIT",
                   "Host polling expires an unanswered provider request");
+            settings.limits.seconds = 901;
+            rejects("INVALID_REQUEST", [&] { AssistantTask tooLong(*model, settings); });
         }
         {
             auto model = session();
@@ -628,9 +631,11 @@ int main(int argc, char **argv) {
                       task.result()["toolCalls"] == 0,
                   "Duplicate IDs rejected before executing any tool");
         }
-        {
+        for (bool enforce : {true, false}) {
             auto model = session();
-            AssistantTask task(*model, options());
+            auto settings = options();
+            settings.limits.enforceOutputTokenLimit = enforce;
+            AssistantTask task(*model, settings);
             auto request = task.nextRequest();
             AssistantReply reply;
             reply.text = QString(70 * 1024, 'x');
@@ -638,14 +643,53 @@ int main(int argc, char **argv) {
                       task.result()["error"].toObject()["code"] == "BUDGET_EXCEEDED",
                   "Oversized provider response rejected");
         }
-        {
+        for (bool enforce : {true, false}) {
             auto model = session();
-            AssistantTask task(*model, options());
+            auto settings = options();
+            settings.limits.enforceOutputTokenLimit = enforce;
+            AssistantTask task(*model, settings);
             auto request = task.nextRequest();
             AssistantReply reply;
             reply.inputTokens = 1000000;
             check(!task.accept(request->value("attemptId").toString(), reply),
                   "Reported token overrun stops before tool execution");
+        }
+        for (bool enforce : {true, false}) {
+            auto model = session();
+            auto settings = options();
+            settings.remote = settings.remoteContextApproved = true;
+            settings.limits.outputTokens = 8192;
+            settings.limits.enforceOutputTokenLimit = enforce;
+            settings.limits.totalReportedTokens = 20000;
+            AssistantTask task(*model, settings);
+            auto request = task.nextRequest();
+            AssistantReply reply;
+            reply.inputTokens = 100;
+            reply.outputTokens = 9000;
+            reply.calls.push_back(
+                {"first", "document.describe", query(state(*model), "document.describe")});
+            check(task.accept(request->value("attemptId").toString(), reply) == !enforce,
+                  "Only hosts without a generation cap accept output above the per-reply cap");
+            if (enforce) {
+                const auto error = task.result()["error"].toObject();
+                check(error["budget"] == "output tokens per reply" && error["used"] == "9000" &&
+                          error["limit"] == "8192" && task.result()["toolCalls"] == 0,
+                      "Per-reply token failure identifies usage and stops before dispatch");
+            } else {
+                check(task.result()["reportedTokens"] == 9100,
+                      "Uncapped generation still charges all reported usage");
+                request = task.nextRequest();
+                check(request.has_value(), "Task continues within the aggregate budget");
+                reply.calls[0].id = "second";
+                reply.outputTokens = 10801;
+                check(!task.accept(request->value("attemptId").toString(), reply),
+                      "Uncapped generation cannot exceed remaining aggregate tokens");
+                const auto error = task.result()["error"].toObject();
+                check(error["budget"] == "remaining task tokens" &&
+                          error["used"] == "100 input + 10801 output" &&
+                          error["limit"] == "10900" && task.result()["toolCalls"] == 1,
+                      "Cumulative overrun reports remaining tokens and executes no extra tool");
+            }
         }
         {
             auto model = session();
@@ -669,6 +713,9 @@ int main(int argc, char **argv) {
                       !task.nextRequest() &&
                       task.result()["error"].toObject()["code"] == "BUDGET_EXCEEDED",
                   "Turn budget prevents another provider request");
+            check(task.result()["error"].toObject()["message"].toString().contains(
+                      "Provider turn budget exhausted (1 of 1 turns"),
+                  "Exhausted turns are distinguished from exhausted tokens");
         }
         {
             auto model = session();

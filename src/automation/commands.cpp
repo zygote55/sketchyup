@@ -628,6 +628,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans,
         solidOperations, assertionCommands;
+    std::vector<std::pair<Id, Id>> createdFaceIds;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
     };
@@ -989,6 +990,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             }
             auto createdId = staged.addFace(loops, command["name"].toString("Face").toStdString());
             created.append(QString::number(createdId));
+            createdFaceIds.emplace_back(
+                createdId, staged.bodies().at(createdId)->surface.faces.begin()->first);
         } else if (name == "geometry.insert_edges") {
             std::vector<std::array<Vec3, 2>> edges;
             const auto edgeValues = array(command["edges"]);
@@ -1682,6 +1685,11 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     for (const auto &change : edit.changes)
         if (!change.before && change.after)
             created.append(QString::number(change.id));
+    QJsonArray createdFaces;
+    for (const auto &[body, face] : createdFaceIds)
+        if (staged.bodies().contains(body) &&
+            staged.bodies().at(body)->surface.faces.contains(face))
+            createdFaces.append(inspectionReference(staged, body, "face", face));
     QJsonArray createdAnnotations;
     for (const auto &change : edit.annotations)
         if (!change.before && change.after)
@@ -1779,6 +1787,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         return {{"status", "committed"},
                 {"revision", QString::number(doc.revision())},
                 {"created", created},
+                {"createdFaces", createdFaces},
                 {"createdDefinitions", createdDefinitions},
                 {"createdTags", createdTags},
                 {"createdMaterials", createdMaterials},
@@ -1844,6 +1853,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     QJsonObject result{{"status", "committed"},
                        {"revision", QString::number(doc.revision())},
                        {"created", created},
+                       {"createdFaces", createdFaces},
                        {"createdDefinitions", createdDefinitions},
                        {"createdTags", createdTags},
                        {"createdMaterials", createdMaterials},

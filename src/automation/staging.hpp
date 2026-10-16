@@ -4,6 +4,8 @@
 #include <functional>
 #include <memory>
 namespace sketchy {
+// Trusted in-process hosts may allow longer tasks; public staging defaults stay five minutes.
+inline constexpr int maximumTrustedStagingTtlSeconds = 900;
 // In-process preparation only. Durable commit/outcome dispatch owns publication.
 // Caller serializes access with document operations.
 class StagingSession {
@@ -13,6 +15,7 @@ class StagingSession {
     struct Limits {
         size_t proposals{4};
         size_t retainedBytes{128 * 1024 * 1024};
+        int maximumTtlSeconds{300};
     };
     StagingSession();
     explicit StagingSession(Limits limits, Now now = Clock::now);

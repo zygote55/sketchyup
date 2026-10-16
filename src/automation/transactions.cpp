@@ -25,7 +25,8 @@ TransactionDispatcher::TransactionDispatcher(TransactionCoordinator &actor, Limi
                                              StagingSession::Now now)
     : actor_(actor), limits_(limits), now_(std::move(now)) {
     if (!limits.drafts || limits.drafts > 4 || !limits.retainedBytes ||
-        limits.retainedBytes > 128 * 1024 * 1024 || !now_)
+        limits.retainedBytes > 128 * 1024 * 1024 || limits.maximumTtlSeconds < 1 ||
+        limits.maximumTtlSeconds > maximumTrustedStagingTtlSeconds || !now_)
         fail("INVALID_REQUEST", "Invalid transaction draft limits");
 }
 void TransactionDispatcher::clear() {
@@ -100,7 +101,7 @@ int TransactionDispatcher::remainingSeconds(const Draft &draft) const {
         std::chrono::duration_cast<std::chrono::seconds>(draft.expires - now_()).count();
     if (seconds < 1)
         fail("TRANSACTION_EXPIRED", "Too little draft lifetime remains to seal a commit request");
-    return int(std::min<int64_t>(300, seconds));
+    return int(std::min<int64_t>(limits_.maximumTtlSeconds, seconds));
 }
 QJsonObject TransactionDispatcher::describe(const QString &id, const Draft &draft) const {
     QJsonObject result;
@@ -139,7 +140,7 @@ QJsonObject TransactionDispatcher::execute(const QJsonObject &request) {
     if (request["apiVersion"] != 1)
         fail("UNSUPPORTED_VERSION", "Transactions require API version 1");
     QJsonObject spec;
-    for (const auto &entry : transactionCatalog())
+    for (const auto &entry : transactionCatalog(limits_.maximumTtlSeconds))
         if (entry.toObject()["name"] == request["operation"]) {
             spec = entry.toObject();
             break;
@@ -267,10 +268,12 @@ QJsonObject TransactionDispatcher::run(const QJsonObject &request) {
         if (used >= limits_.retainedBytes)
             fail("STAGE_LIMIT", "No capacity for a replacement proposal");
         auto candidate = std::make_unique<StagingSession>(
-            StagingSession::Limits{1, limits_.retainedBytes - used}, now_);
+            StagingSession::Limits{1, limits_.retainedBytes - used, limits_.maximumTtlSeconds},
+            now_);
         const auto milliseconds =
             std::chrono::duration_cast<std::chrono::milliseconds>(draft.expires - now_()).count();
-        const auto ttl = std::clamp<int64_t>((milliseconds + 999) / 1000, 1, 300);
+        const auto ttl =
+            std::clamp<int64_t>((milliseconds + 999) / 1000, 1, limits_.maximumTtlSeconds);
         auto reply = candidate->prepare(doc, batch, int(ttl));
         Draft next;
         next.base = draft.base;
@@ -307,7 +310,11 @@ QJsonObject TransactionDispatcher::run(const QJsonObject &request) {
                                 {"expectedRevision", QString::number(draft.revision)},
                                 {"commands", draft.commands},
                                 {"history", draft.history}};
-        auto prepared = actor_.prepare(batch, remainingSeconds(draft));
+        // A long modeling draft gets a fresh, bounded review window when sealed.
+        // Durable outcomes retain their existing five-minute lease and file format.
+        const auto reviewSeconds = std::min(300, remainingSeconds(draft));
+        const auto reviewDeadline = now_() + std::chrono::seconds(reviewSeconds);
+        auto prepared = actor_.prepare(batch, reviewSeconds);
         const auto requestId = prepared["requestId"].toString(),
                    hash = prepared["payloadHash"].toString();
         const auto oldCharge = draft.stage->retainedBytes();
@@ -321,6 +328,7 @@ QJsonObject TransactionDispatcher::run(const QJsonObject &request) {
             fail("STAGE_LIMIT", "Sealed proposal exceeds retained capacity");
         }
         draft.sealed = std::move(prepared);
+        draft.expires = std::min(draft.expires, reviewDeadline);
         draft.stage.reset();
         draft.stageId.clear();
         return describe(id, draft);

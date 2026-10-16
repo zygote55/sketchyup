@@ -58,11 +58,11 @@ QJsonArray visibleInspectionCatalog() {
             result.append(value);
     return result;
 }
-QJsonArray catalog(const QStringList &commands, bool clarification) {
+QJsonArray catalog(const QStringList &commands, bool clarification, int taskSeconds) {
     const auto inspection = visibleInspectionCatalog();
     QJsonArray entries = inspection;
     if (!commands.empty()) {
-        for (const auto &value : transactionCatalog()) {
+        for (const auto &value : transactionCatalog(std::max(300, taskSeconds))) {
             auto entry = value.toObject();
             const auto name = entry["name"].toString();
             if (name == "transaction.commit" || name == "transaction.cancel" ||
@@ -151,6 +151,15 @@ const char *instructions =
     "When advertised, append assert.measurement to an edit transaction to enforce final "
     "dimensions, bounds, length, area or validated volume with an explicit absolute tolerance. "
     "Assertions evaluate the final batch, so later steps in that draft must preserve them. Use "
+    "transaction.apply to batch independent modeling commands (up to 100 commands across the "
+    "draft). geometry.face creation receipts include createdIds.createdFaces: authoritative "
+    "face references whose body and id can be used as body and face in the next extrusion "
+    "batch. Do not inspect each newly created face just to rediscover those returned IDs. "
+    "Batch independent inspection calls in one reply (up to 8). When advertised, use "
+    "geometry.array_selection for repeated members such as slats; whole-body targets use "
+    "kind=context and entity=\"0\" with the actual body ID. count is the number of new "
+    "copies, excluding the original. Reserve turns for final measurements and transaction.preview. "
+    "Use "
     "measure.entity "
     "for read-only measurements; assertion-only batches do not create history. "
     "assembly.site_place requires an existing body, explicit positionUnit, world/parent frame "
@@ -214,8 +223,9 @@ AssistantTask::AssistantTask(AssistantBackend backend, Options options, Now now)
         fail("INVALID_REQUEST", "Assistant requires a bounded prompt and explicit provider/model");
     const auto &limit = options_.limits;
     if (limit.turns < 1 || limit.turns > 32 || limit.toolCalls < 1 || limit.toolCalls > 128 ||
-        limit.retries < 0 || limit.retries > 3 || limit.seconds < 1 || limit.seconds > 300 ||
-        limit.outputTokens < 1 || limit.outputTokens > 8192 || !limit.totalReportedTokens ||
+        limit.retries < 0 || limit.retries > 3 || limit.seconds < 1 ||
+        limit.seconds > maximumTrustedStagingTtlSeconds || limit.outputTokens < 1 ||
+        limit.outputTokens > 8192 || !limit.totalReportedTokens ||
         limit.totalReportedTokens > 1000000 || limit.responseBytes < 1024 ||
         limit.responseBytes > 256 * 1024 || limit.contextBytes < 1024 ||
         limit.contextBytes > 1024 * 1024 || limit.conversationBytes < 512 * 1024 ||
@@ -231,7 +241,7 @@ AssistantTask::AssistantTask(AssistantBackend backend, Options options, Now now)
         if (!known.contains(name))
             fail("UNSUPPORTED_CAPABILITY", "Unknown authorized command");
     taskId_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    tools_ = catalog(options_.allowedCommands, options_.clarificationAvailable);
+    tools_ = catalog(options_.allowedCommands, options_.clarificationAvailable, limit.seconds);
     const auto state = backend_.state();
     documentId_ = state["documentId"].toString();
     revision_ = state["revision"].toString();
@@ -338,7 +348,12 @@ bool AssistantTask::current() {
 bool AssistantTask::deadline() {
     if (now_() < deadline_)
         return true;
-    stop(Phase::Failed, issue("TIME_LIMIT", "Assistant task deadline expired"));
+    stop(Phase::Failed,
+         issue("TIME_LIMIT", QString("Assistant task deadline expired (%1-second limit; "
+                                     "%2 provider turns; %3 reported tokens)")
+                                 .arg(options_.limits.seconds)
+                                 .arg(turns_)
+                                 .arg(tokens_)));
     return false;
 }
 void AssistantTask::retire() {
@@ -397,8 +412,20 @@ std::optional<QJsonObject> AssistantTask::nextRequest() {
              issue("CONSENT_REQUIRED", "Remote document context requires a trusted host grant"));
         return {};
     }
-    if (turns_ >= options_.limits.turns || tokens_ >= options_.limits.totalReportedTokens) {
-        stop(Phase::Failed, issue("BUDGET_EXCEEDED", "Provider turn or token budget exhausted"));
+    if (turns_ >= options_.limits.turns) {
+        stop(Phase::Failed,
+             issue("BUDGET_EXCEEDED", QString("Provider turn budget exhausted (%1 of %2 turns; "
+                                              "%3 reported tokens)")
+                                          .arg(turns_)
+                                          .arg(options_.limits.turns)
+                                          .arg(tokens_)));
+        return {};
+    }
+    if (tokens_ >= options_.limits.totalReportedTokens) {
+        stop(Phase::Failed,
+             issue("BUDGET_EXCEEDED", QString("Task token budget exhausted (%1 of %2 tokens)")
+                                          .arg(tokens_)
+                                          .arg(options_.limits.totalReportedTokens)));
         return {};
     }
     attempt_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -407,6 +434,9 @@ std::optional<QJsonObject> AssistantTask::nextRequest() {
         {"toolCallsPerReply", 8},
         {"remainingToolCalls", options_.limits.toolCalls - calls_},
         {"remainingProviderTurns", options_.limits.turns - turns_},
+        {"remainingSeconds",
+         qint64(std::max<int64_t>(
+             0, std::chrono::duration_cast<std::chrono::seconds>(deadline_ - now_()).count()))},
         {"remainingReportedTokens", QString::number(options_.limits.totalReportedTokens - tokens_)},
         {"privateDraftOpen", !draft_.isEmpty()}};
     QString localGuidance;
@@ -432,7 +462,9 @@ std::optional<QJsonObject> AssistantTask::nextRequest() {
         "A nested inspection of a private draft uses that draft's proposedRevision instead." +
         localGuidance +
         " Return at most 8 tool calls in each reply. Further replies may continue using the "
-        "remaining task budget below. For an open edit draft, request transaction.preview "
+        "remaining task budget below, including wall-clock seconds. Finish the requested "
+        "geometry and measurements before optional detail. For an open edit draft, request "
+        "transaction.preview "
         "before ending with final text; final text alone discards the unsealed draft. "
         "Copy complete entity references from inspection receipts and include every required "
         "schema field. Correct rejected arguments using the error receipt before retrying."
@@ -499,7 +531,8 @@ QJsonObject AssistantTask::execute(const AssistantToolCall &call) {
             fail("STAGE_LIMIT", "A task owns at most one draft");
         // Keep a multi-turn draft alive for this task, without extending its deadline.
         const auto remaining = std::clamp<int64_t>(
-            std::chrono::duration_cast<std::chrono::seconds>(deadline_ - now_()).count(), 1, 300);
+            std::chrono::duration_cast<std::chrono::seconds>(deadline_ - now_()).count(), 1,
+            maximumTrustedStagingTtlSeconds);
         args["ttlSeconds"] =
             std::min(args.value("ttlSeconds").toInt(int(remaining)), int(remaining));
         args["history"] = QJsonObject{{"label", "Assistant task"},
@@ -548,9 +581,21 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
         return false;
     if (!deadline() || !current())
         return false;
-    if (reply.calls.size() > 8 || reply.text.size() > options_.limits.responseBytes) {
-        stop(Phase::Failed, issue("BUDGET_EXCEEDED", "Provider reply exceeds bounded input"));
+    const auto exceed = [&](QString budget, QString used, QString limit) {
+        auto error =
+            issue("BUDGET_EXCEEDED",
+                  QString("Provider reply exceeds %1 (%2; limit %3)").arg(budget, used, limit));
+        error["budget"] = budget;
+        error["used"] = used;
+        error["limit"] = limit;
+        stop(Phase::Failed, error);
         return false;
+    };
+    if (reply.calls.size() > 8)
+        return exceed("tool calls per reply", QString::number(reply.calls.size()), "8");
+    if (reply.text.size() > options_.limits.responseBytes) {
+        return exceed("response bytes", QString::number(reply.text.toUtf8().size()),
+                      QString::number(options_.limits.responseBytes));
     }
     if (options_.remote && !reply.inputTokens) {
         stop(Phase::Failed,
@@ -562,16 +607,23 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
         calls.append(
             QJsonObject{{"id", call.id}, {"name", call.name}, {"arguments", call.arguments}});
     QJsonObject response{{"role", "assistant"}, {"text", reply.text}, {"toolCalls", calls}};
-    if (reply.calls.size() > 8 || reply.outputTokens > uint64_t(options_.limits.outputTokens) ||
-        size(response) > options_.limits.responseBytes ||
-        calls_ + int(reply.calls.size()) > options_.limits.toolCalls ||
-        reply.inputTokens > options_.limits.totalReportedTokens - tokens_ ||
-        reply.outputTokens >
-            options_.limits.totalReportedTokens - tokens_ -
-                std::min(reply.inputTokens, options_.limits.totalReportedTokens - tokens_)) {
-        stop(Phase::Failed, issue("BUDGET_EXCEEDED", "Provider reply exceeds task budget"));
-        return false;
-    }
+    if (options_.limits.enforceOutputTokenLimit &&
+        reply.outputTokens > uint64_t(options_.limits.outputTokens))
+        return exceed("output tokens per reply", QString::number(reply.outputTokens),
+                      QString::number(options_.limits.outputTokens));
+    if (size(response) > options_.limits.responseBytes)
+        return exceed("response bytes", QString::number(size(response)),
+                      QString::number(options_.limits.responseBytes));
+    if (calls_ + int(reply.calls.size()) > options_.limits.toolCalls)
+        return exceed("task tool calls", QString::number(calls_ + reply.calls.size()),
+                      QString::number(options_.limits.toolCalls));
+    const auto remaining = options_.limits.totalReportedTokens - tokens_;
+    if (reply.inputTokens > remaining ||
+        reply.outputTokens > remaining - std::min(reply.inputTokens, remaining))
+        return exceed(
+            "remaining task tokens",
+            QString("%1 input + %2 output").arg(reply.inputTokens).arg(reply.outputTokens),
+            QString::number(remaining));
     try {
         checkAutomationDepth(QJsonDocument(response).toJson(QJsonDocument::Compact));
     } catch (const std::exception &e) {

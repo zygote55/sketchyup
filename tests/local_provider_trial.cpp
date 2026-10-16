@@ -257,10 +257,14 @@ int main(int argc, char **argv) {
         options.remoteContextApproved = remote;
         options.model = config.model;
         options.limits.seconds = 300;
-        options.limits.outputTokens = plan ? 8192 : remote ? 2048 : 768;
-        options.limits.turns = plan ? 16 : 12;
-        if (plan)
-            options.limits.totalReportedTokens = 262144;
+        options.limits.outputTokens = remote ? 2048 : 768;
+        options.limits.turns = 12;
+        if (plan) {
+            options.limits = chatGptAssistantLimits();
+            // This frozen corpus uses the public headless session's five-minute draft ceiling.
+            // Native lifetime qualification runs through assistant_workflow_trial instead.
+            options.limits.seconds = 300;
+        }
         if (trial == "advanced") {
             options.prompt =
                 "Preserve the existing room and both hosted windows exactly. Add four editable "
@@ -696,7 +700,10 @@ int main(int argc, char **argv) {
             {"model", config.model},
             {"contextTokens", remote ? QJsonValue{} : QJsonValue(config.contextTokens)},
             {"threads", remote ? QJsonValue{} : QJsonValue(config.threads)},
-            {"outputTokensPerTurn", options.limits.outputTokens},
+            {"outputTokensPerTurn", options.limits.enforceOutputTokenLimit
+                                        ? QJsonValue(options.limits.outputTokens)
+                                        : QJsonValue()},
+            {"outputTokenLimitEnforced", options.limits.enforceOutputTokenLimit},
             {"taskSeconds", options.limits.seconds},
             {"taskTurns", options.limits.turns},
             {"taskReportedTokens", double(options.limits.totalReportedTokens)},

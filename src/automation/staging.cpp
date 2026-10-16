@@ -13,7 +13,8 @@ constexpr qsizetype responseLimit = 256 * 1024;
 StagingSession::StagingSession() : StagingSession(Limits{}) {}
 StagingSession::StagingSession(Limits limits, Now now) : limits_(limits), now_(std::move(now)) {
     if (!limits.proposals || limits.proposals > 4 || !limits.retainedBytes ||
-        limits.retainedBytes > 128 * 1024 * 1024 || !now_)
+        limits.retainedBytes > 128 * 1024 * 1024 || limits.maximumTtlSeconds < 1 ||
+        limits.maximumTtlSeconds > maximumTrustedStagingTtlSeconds || !now_)
         throw std::runtime_error("Invalid staging limits");
 }
 void StagingSession::prune() {
@@ -53,8 +54,8 @@ QJsonObject StagingSession::envelope(const Document &live, const QString &stageI
 QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &batch,
                                     int ttlSeconds) {
     prune();
-    if (ttlSeconds < 1 || ttlSeconds > 300)
-        fail("INVALID_REQUEST", "Staging TTL must be between 1 and 300 seconds");
+    if (ttlSeconds < 1 || ttlSeconds > limits_.maximumTtlSeconds)
+        fail("INVALID_REQUEST", "Staging TTL exceeds the host's configured lifetime");
     if (QJsonDocument(batch).toJson(QJsonDocument::Compact).size() > requestLimit)
         fail("LIMIT_EXCEEDED", "Staging request exceeds 64 KiB");
     if (batch["apiVersion"] != 1)

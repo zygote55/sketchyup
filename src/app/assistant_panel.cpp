@@ -18,6 +18,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPointer>
@@ -396,10 +397,8 @@ struct AssistantPanel::Impl {
             QSettings("SketchyUp", "SketchyUp").value("assistant/consentOpenAI", false).toBool();
         result.clarificationAvailable = true;
         result.limits.seconds = 300;
-        if (result.remote && usesPlan()) {
-            result.limits.outputTokens = 8192;
-            result.limits.totalReportedTokens = 262144;
-        }
+        if (result.remote && usesPlan())
+            result.limits = chatGptAssistantLimits();
         if (selection->isChecked()) {
             int count{};
             for (auto entity : view.selectionState().entities()) {
@@ -421,52 +420,7 @@ struct AssistantPanel::Impl {
                 request["target"] = inspectionReference(document, id);
             result.context.append(request);
         }
-        const QStringList routine{"assert.measurement",
-                                  "assembly.roof",
-                                  "assembly.stairs",
-                                  "assembly.table",
-                                  "assembly.cabinet",
-                                  "assembly.site_place",
-                                  "assembly.room",
-                                  "assembly.room.adopt_hosted",
-                                  "assembly.window.resize",
-                                  "geometry.face",
-                                  "geometry.rectangle",
-                                  "geometry.circle",
-                                  "geometry.polygon",
-                                  "geometry.polyline",
-                                  "geometry.wire",
-                                  "geometry.extrude_isolated",
-                                  "geometry.offset",
-                                  "geometry.sweep",
-                                  "geometry.intersect",
-                                  "geometry.boolean",
-                                  "geometry.reverse_faces",
-                                  "geometry.orient_faces",
-                                  "geometry.edge_appearance",
-                                  "geometry.trim",
-                                  "geometry.split",
-                                  "geometry.outer_shell",
-                                  "geometry.push_pull",
-                                  "geometry.translate",
-                                  "geometry.transform_selection",
-                                  "entity.position",
-                                  "entity.dimensions",
-                                  "entity.properties",
-                                  "group.create",
-                                  "group.selection",
-                                  "component.create",
-                                  "component.instance",
-                                  "component.make_unique",
-                                  "component.edit_instance",
-                                  "component.attach",
-                                  "component.bind",
-                                  "component.detach",
-                                  "material.assign",
-                                  "material.color",
-                                  "material.create",
-                                  "material.edit"};
-        result.allowedCommands = routine;
+        result.allowedCommands = nativeAssistantCommands();
         if (destructive->isChecked())
             result.allowedCommands.append({"geometry.delete", "geometry.erase_selection",
                                            "geometry.erase_face", "geometry.erase_edge",
@@ -803,8 +757,13 @@ void AssistantPanel::Impl::showSetup() {
         accounts->setCurrentIndex(std::max(0, accounts->findData(selected)));
     };
     fillAccounts(s.value("assistant/chatgptAccount").toString());
-    planLayout->addWidget(label("Each task is limited to five minutes, 16 provider turns and "
-                                "262,144 reported tokens, including cached input."));
+    const auto planLimits = chatGptAssistantLimits();
+    planLayout->addWidget(label(
+        QString("Each task is limited to %1 minutes, %2 provider turns and "
+                "%3 reported tokens, including cached input.")
+            .arg(planLimits.seconds / 60)
+            .arg(planLimits.turns)
+            .arg(QLocale().toString(qulonglong(planLimits.totalReportedTokens)))));
     planLayout->addWidget(accountLabel);
     planLayout->addWidget(accounts);
     auto *signIn = button("Continue with ChatGPT", "assistantChatGPTSignIn");

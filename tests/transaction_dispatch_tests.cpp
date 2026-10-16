@@ -82,6 +82,7 @@ int main(int argc, char **argv) {
             TransactionCoordinator actor(empty, files.path() + "/incremental");
             TransactionDispatcher api(actor);
             const auto &doc = actor.document();
+            rejects("LIMIT_EXCEEDED", [&] { begin(api, doc, {{"ttlSeconds", 301}}); });
             const auto b = begin(api, doc,
                                  {{"history", QJsonObject{{"label", "Create and move face"},
                                                           {"assistant", true},

@@ -5,6 +5,8 @@
 #include <QSet>
 #include <memory>
 namespace sketchy {
+// Shared native and live-trial profile, including repeated input across provider turns.
+AssistantTask::Limits chatGptAssistantLimits();
 // One codec belongs to one task. It retains opaque provider output only in memory.
 class OpenAiConversation {
   public:
