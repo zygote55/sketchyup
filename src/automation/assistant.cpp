@@ -40,8 +40,27 @@ QString phaseName(AssistantTask::Phase phase) {
     }
     return "failed";
 }
+// The one rule for what the in-app assistant's provider may see (ADR 0030, ADR 0164
+// "Assistant tool surface"). Drawing-sheet operations and queries, that is every
+// drawing_sheet(s).*, drawing_view(s).* and drawing_item(s).* name including
+// drawing_sheets.export_preflight, stay available over MCP and the transaction APIs but
+// are neither advertised to nor executable by an assistant provider. Their schemas are
+// re-sent on every provider turn and pushed the 1.1.0 release-candidate corpus over its
+// token budget (R086.cb, D-035 in R089.a). assistant_tool_surface_tests pins the
+// resulting surface to the 1.0.1 baseline, so any addition here must be deliberate.
+bool assistantVisible(const QString &name) {
+    return !name.startsWith(QStringLiteral("drawing_"));
+}
+QJsonArray visibleInspectionCatalog() {
+    QJsonArray result;
+    for (const auto &value : inspectionCatalog())
+        if (assistantVisible(value.toObject()["name"].toString()))
+            result.append(value);
+    return result;
+}
 QJsonArray catalog(const QStringList &commands, bool clarification) {
-    QJsonArray entries = inspectionCatalog();
+    const auto inspection = visibleInspectionCatalog();
+    QJsonArray entries = inspection;
     if (!commands.empty()) {
         for (const auto &value : transactionCatalog()) {
             auto entry = value.toObject();
@@ -53,11 +72,19 @@ QJsonArray catalog(const QStringList &commands, bool clarification) {
             auto properties = schema["properties"].toObject();
             if (name == "transaction.begin")
                 properties.remove("history");
+            if (name == "transaction.inspect") {
+                QJsonArray queries;
+                for (const auto &query : inspection)
+                    queries.append(query.toObject()["parameters"]);
+                properties["request"] = QJsonObject{{"oneOf", queries}};
+            }
             if (name == "transaction.apply") {
                 QJsonArray allowed;
-                for (const auto &command : commandCatalog())
-                    if (commands.contains(command.toObject()["name"].toString()))
+                for (const auto &command : commandCatalog()) {
+                    const auto commandName = command.toObject()["name"].toString();
+                    if (assistantVisible(commandName) && commands.contains(commandName))
                         allowed.append(command.toObject()["parameters"]);
+                }
                 auto array = properties["commands"].toObject();
                 array["items"] = QJsonObject{{"oneOf", allowed}};
                 properties["commands"] = array;
@@ -196,7 +223,8 @@ AssistantTask::AssistantTask(AssistantBackend backend, Options options, Now now)
         fail("INVALID_REQUEST", "Assistant limits exceed supported bounds");
     std::set<QString> known;
     for (const auto &entry : commandCatalog())
-        known.insert(entry.toObject()["name"].toString());
+        if (assistantVisible(entry.toObject()["name"].toString()))
+            known.insert(entry.toObject()["name"].toString());
     if (options_.allowedCommands.size() > int(known.size()))
         fail("INVALID_REQUEST", "Too many authorized commands");
     for (const auto &name : options_.allowedCommands)

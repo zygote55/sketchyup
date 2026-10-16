@@ -1,0 +1,381 @@
+{
+  "corpusVersion": 2,
+  "profile": "chatgpt-astra",
+  "model": "gpt-6-astra",
+  "profileStatus": "candidate",
+  "corpusPassed": true,
+  "releaseAccepted": false,
+  "monetaryCost": null,
+  "costPolicy": "Record reported tokens and wall time. Monetary cost is unreported; subscription usage is not assumed free.",
+  "thresholds": {
+    "measure": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    },
+    "room": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 2
+    },
+    "resize": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 2
+    },
+    "advanced": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 2
+    },
+    "site": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 2
+    },
+    "unsupported": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    },
+    "metadata": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    },
+    "unavailable": {
+      "successes": 3,
+      "runs": 3,
+      "minimum": 3
+    }
+  },
+  "blockers": [],
+  "runs": [
+    {
+      "trial": "measure",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "bf1afe936e59d4ba7fafc21fbfbdc22c6eb061f10988f0215494ad5f344cc5a3",
+      "phase": "completed",
+      "elapsedMs": 11402,
+      "reportedTokens": 17075,
+      "providerTurns": 3,
+      "toolCalls": 2,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "room",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "4a030c09b2272d540a8909542f6135d9b3dc1666ab26ea74e5b7e3a87b769ffd",
+      "phase": "completed",
+      "elapsedMs": 38589,
+      "reportedTokens": 103897,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "resize",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "ca94733f0258fc7d95492a6838ad846fd5b9bd281a4909960cac4ab564185780",
+      "phase": "completed",
+      "elapsedMs": 71280,
+      "reportedTokens": 184059,
+      "providerTurns": 13,
+      "toolCalls": 13,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "advanced",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "251960e86c9cdc7c504bc1f8f32fc20b83e547979650f9b48e352487207af65c",
+      "phase": "completed",
+      "elapsedMs": 84996,
+      "reportedTokens": 231072,
+      "providerTurns": 11,
+      "toolCalls": 11,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "site",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "f2a072f0c1662a000c72bdd9129c1c5af45dd952f9efbad10a987ba6371905d3",
+      "phase": "completed",
+      "elapsedMs": 47757,
+      "reportedTokens": 120779,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "6e4f4dfdbf817aa6f93fa846fd71dc0aea96e95a3a4514a932d3379de39e2aa5",
+      "phase": "completed",
+      "elapsedMs": 4330,
+      "reportedTokens": 10488,
+      "providerTurns": 1,
+      "toolCalls": 0,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "metadata",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "50ee241126c1f6857aa524c02c9f0b12c31c814d5ad44203a9d19497277f9dd8",
+      "phase": "completed",
+      "elapsedMs": 14470,
+      "reportedTokens": 17841,
+      "providerTurns": 3,
+      "toolCalls": 3,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 1,
+      "passed": true,
+      "rawReportSha256": "11e7c4e60e6e2b0f6b201f9a0c2f8b6553eee860faa42d0fb89cdd30d10ae9bd",
+      "phase": "failed",
+      "elapsedMs": 822,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "measure",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "bfffa52eb9da0aef702654d65bfa217690c222d8534941c69af38effadafcb80",
+      "phase": "completed",
+      "elapsedMs": 13073,
+      "reportedTokens": 17075,
+      "providerTurns": 3,
+      "toolCalls": 2,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "room",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "01778a23a0c7bb2a0152fccabbfe07ffe7d7fb2b39ffb37e226780667894e66f",
+      "phase": "completed",
+      "elapsedMs": 45771,
+      "reportedTokens": 103939,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "resize",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "d357f802ceaf1fe4a42d2c951443864122423999d6083ffa9c5fb3bdc0ce8f62",
+      "phase": "completed",
+      "elapsedMs": 60967,
+      "reportedTokens": 130019,
+      "providerTurns": 10,
+      "toolCalls": 10,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "advanced",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "adbc8525d507f0c697875c250a026ca554c23988ad4a85d576296a95eece6f56",
+      "phase": "completed",
+      "elapsedMs": 82614,
+      "reportedTokens": 255325,
+      "providerTurns": 12,
+      "toolCalls": 12,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "site",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "732b3bf5cb718cacf9ee1965e796e5ea0f8536f9a8c75c89a61f2239379edccd",
+      "phase": "completed",
+      "elapsedMs": 38065,
+      "reportedTokens": 102416,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "f2f856115ef40876daa2a37a5c5d3f21190b684d3d4fa4073e2f9d91715ec315",
+      "phase": "completed",
+      "elapsedMs": 4475,
+      "reportedTokens": 10485,
+      "providerTurns": 1,
+      "toolCalls": 0,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "metadata",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "594a30d6cf759a15b0f78b2c3ba8d0ab5218156b0c63c0eca307f81197107dac",
+      "phase": "completed",
+      "elapsedMs": 15799,
+      "reportedTokens": 17838,
+      "providerTurns": 3,
+      "toolCalls": 3,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 2,
+      "passed": true,
+      "rawReportSha256": "eb4a544a771abe080885f77fbeb5b7188c1630f8a55174212d0d7dd05076e1b6",
+      "phase": "failed",
+      "elapsedMs": 830,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "measure",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "65a98a014dd9a5bfd58cac1f630a163c3cb37bc05957706811b32e222baefa6e",
+      "phase": "completed",
+      "elapsedMs": 13542,
+      "reportedTokens": 17075,
+      "providerTurns": 3,
+      "toolCalls": 2,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "room",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "9190417dd5eb1c90e8e184d5f44e76aa94dada089ea8638e135f6c535c3b040e",
+      "phase": "completed",
+      "elapsedMs": 42625,
+      "reportedTokens": 103771,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "resize",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "a9678a165f62a5e9454792a336fe85d7845b89e013e7b56bb4481f22df5e981d",
+      "phase": "completed",
+      "elapsedMs": 39876,
+      "reportedTokens": 100119,
+      "providerTurns": 8,
+      "toolCalls": 8,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "advanced",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "8f94d98fd2aa665f97510b1cc7a089f896a06cea96c0d9c07ebf97aed4cc4122",
+      "phase": "completed",
+      "elapsedMs": 86185,
+      "reportedTokens": 247858,
+      "providerTurns": 12,
+      "toolCalls": 12,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "site",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "cf15529ee3a66cb68340085711c86769b8516041d4f4e5812a322dcdec4d445e",
+      "phase": "completed",
+      "elapsedMs": 34168,
+      "reportedTokens": 84985,
+      "providerTurns": 7,
+      "toolCalls": 7,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "unsupported",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "8e07b9e40f8e461cb3395086e2a49b047bb99ce7e20ce9badf85220714d26f7d",
+      "phase": "completed",
+      "elapsedMs": 6376,
+      "reportedTokens": 10483,
+      "providerTurns": 1,
+      "toolCalls": 0,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "metadata",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "5f40d6d579fb431f121263ac002e4def32deb6cea4b813656911b9bb64264016",
+      "phase": "completed",
+      "elapsedMs": 19636,
+      "reportedTokens": 17831,
+      "providerTurns": 3,
+      "toolCalls": 3,
+      "undoRestores": true,
+      "recoveryRestores": true
+    },
+    {
+      "trial": "unavailable",
+      "repeat": 3,
+      "passed": true,
+      "rawReportSha256": "49886c18f8e7541855e298f2d0384bc3b96198de6ab1c5d9972b7d688129ddbc",
+      "phase": "failed",
+      "elapsedMs": 819,
+      "reportedTokens": 0,
+      "providerTurns": 3,
+      "toolCalls": 0,
+      "undoRestores": true,
+      "recoveryRestores": true
+    }
+  ],
+  "postconditions": {
+    "undoRestores": {
+      "passed": 24,
+      "runs": 24,
+      "required": 24
+    },
+    "recoveryRestores": {
+      "passed": 24,
+      "runs": 24,
+      "required": 24
+    }
+  },
+  "manifestSha256": "af1a36dc2f499be02dbbbd7ecfc90d3f864036825c714e1f2b9d762e1f4c1604",
+  "reviewBundleSha256": "797b1e9fc4764070179ef7a69e8df14b47924868983c06a0d1fe534b3d3e7b35"
+}

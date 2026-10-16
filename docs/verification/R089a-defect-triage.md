@@ -44,6 +44,15 @@ timed out once on Wayland 2× on `main` after #327 with no output; it is recorde
 [Harness diagnostics](#harness-diagnostics-d-034)). The `sheet_export_input_tests` focus
 failure on PR #328 is a reproduced instance of D-007, fixed for the export dialog's choosers;
 D-007 stays open for its other instances. See the counts.
+**Updated 2026-10-15 (D-035; branch `fix/assistant-sheet-tools`).** The 1.1.0 RC provider
+corpus failed Advanced 1/3 on its token budget because the assistant's tool list carried the
+drawing-sheet tools. Added and fixed as D-035 (Major); see
+[Candidates checked and not carried forward](#candidates-checked-and-not-carried-forward).
+**Updated 2026-10-15 (D-036; Qt 6.8 reference at the 1.1.0 RC).** The Qt 6.8 reference clean
+machine ran at the 1.1.0 RC `093484f9` ([F01-rc-1.1.0](F01-rc-1.1.0.md#failures)). Every
+lifecycle step passed, but the sheet PDF written on Qt 6.8.0 has a malformed Info dictionary.
+Added as D-036 (Minor, Qt 6.8 only). The owner decided to ship 1.1.0 with it recorded and fix
+it in 1.1.1. See the counts.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -98,6 +107,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-031 | `keyboard_reachability_tests` exits silently on Wayland with a Weston "finalizing a layer with views still on it" BUG line | [R091.h](R091h-sheet-layout.md#defect-note-d-031), [PR #320 run 38605636463, attempt 1](https://github.com/zygote55/sketchyup/actions/runs/38605636463/attempts/1) (job 115995661310) | N03 (test harness) | **Unverified.** Once, in CI on PR #320 (R091.d, `5bf306b8`), attempt 1: the Wayland 1× line `SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_reachability_tests` printed "Side tabs: … passed", then, 7 s after Weston started, the only further output was Weston's `BUG: finalizing a layer with views still on it.` and the step failed with exit 1. No check message was printed. Attempt 2 on the same commit passed every job, and R091.h's local matrix passed the suite on Wayland. R091.d changed no desktop code. The failure is in the window phase that follows "Side tabs" (Render with Blender reopening), with no application message, so the cause (a client crash, a compositor shutdown race, or the harness ending Weston early) is not established. | Minor | Test infrastructure: no check failed and no product code path is implicated; distinct from D-021 (exposure timeout with a named check) and D-007 (focus lost after exposure, with a named check). | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only): keep the Weston log and a core dump on failure |
 | D-032 | Focus ring under the threshold at fractional 1.5× | [R091.h](R091h-sheet-layout.md#native-matrix) | N05 | **Open.** `visible_focus_input_tests` at `QT_SCALE_FACTOR=1.5` (X11 and Wayland; not a CI cell, R084.q measured 1× and 2× only) reports about 137 failing measurements per run, most of them Model-window controls untouched by R091: 36 tool buttons, 20 panel tab bars, 15 breadcrumb, and controls in the material, solar, drawing-plane and assistant-preference dialogs. At a fractional factor the 1 px ring is antialiased across two device pixels, so its painted colour falls under 3:1 against the chrome next to it. The R091.h accent-fill rule (2 px rings) does not change this. | Minor | A rendering residual of a 1 px indicator at a fractional factor; the ring is still drawn and keyboard focus is unaffected. Every 1× and 2× cell passes. | [R084](../PR_ROADMAP.md#r084): a 2 px ring or device-pixel-aligned focus drawing, with the suite at 1.5 in CI |
 | D-034 | `render_input_tests` timed out on Wayland 2× with no output | [main run 38742605671](https://github.com/zygote55/sketchyup/actions/runs/38742605671) (job 116447893819, `68ff9ae2`, after #327) | N03 (test harness) | **Unverified.** Once on `main`: the section-fixture line `SKETCHYUP_TEST_SCALE=2 SKETCHYUP_RENDER_SECTION_FIXTURE=1 SKETCHYUP_RENDER_MODEL=…/section-nested.sketchyup scripts/test-wayland.sh build/dev/render_input_tests` printed nothing for 60 s and Weston was stopped. Blender is not involved: Wayland lines set no `SKETCHYUP_BLENDER_TEST`, so the fake worker runs. The silence does not place the hang: the suite prints one line, at its end, to `std::cout`, which is block-buffered into the CI pipe, so a hang anywhere in its 8–11 s flow, or at exit, prints nothing; the four "could not load cursor" lines are Weston's own keyboard and shell clients, not the test. No other `render_input_tests` timeout is in the 80 failed Native build runs since 2026-10-07, while the line has run on every run since 2026-10-06. Locally, at `68ff9ae2` in the CI image without Blender: 0 of 740 runs of the exact line hung (540 with six parallel lanes, 300 of them through the new harness; 200 with two). One six-lane run failed a 5 s "First native queued worker starts" wait under that load, which is not this signature. | Minor | One CI occurrence with no check failed and no frame known; treated as test infrastructure until a stack shows otherwise. | The harness now prints every thread's stack and flushes stdio at the deadline ([Harness diagnostics](#harness-diagnostics-d-034)); a recurrence names the frame, and the fix goes to its owner |
+| D-036 | Sheet PDF export on Qt 6.8.0 writes a malformed Info dictionary | [F01-rc-1.1.0](F01-rc-1.1.0.md#failures) (Qt 6.8 reference clean machine, RC `093484f9`) | F01 (P07 unchecked) | **Open.** On Qt 6.8.0 (`archlinux:base-devel-20241013.0.269705`, 2024-10-15 archive), the installed CLI's opted-in sheet export writes an Info dictionary without its closing `>>` and with invalid dates `D:00000000-1-1-1Z`. Host Poppler 26.08.0 reports 48 "Dictionary key must be a name object" syntax errors and cannot read Title, Creator, Producer or the dates. The pages (2 × A3), the text (identical to the Qt 6.11.2 PDF), the embedded DejaVu fonts and the attached `sheet-export-report.json` are intact, and the file matches its report's SHA-256. Not seen on Qt 6.11.2 or 6.12.0 (0 errors). Deterministic: 2 of 2 attempts. Likely a Qt 6.8.0 `QPdfWriter` bug (not confirmed); `src/io/sheet_export.cpp` sets only the creator and title. `src/io/measured_export.cpp` uses `QPdfWriter` the same way and may be affected, including in 1.0.x (unchecked). | Minor | Document metadata only, on the oldest supported Qt; the page content is intact and a reader recovers it. Owner decision (2026-10-15): ship 1.1.0 with it recorded and keep the Qt 6.8.0–6.12.0 support claim. | 1.1.1: well-formed PDF metadata on Qt 6.8, with the measured export checked too |
 | D-010 | System Wayland 1.26 client leaks a destroyed-proxy reference | [R062.b proxy](R062b-wayland-proxy.md), [R058.c](R058c-native-diagnostics.md) | N01 | **Open (external).** The leak is reproduced standalone without Qt or SketchyUp. Only sanitized CI uses the patched private client (`scripts/ci-wayland-client.sh`); users get the system library. | Limitation | A 96-byte leak per affected dialog event, in a third-party library. Disclosed in R062.b as "a documented external limitation until a fixed distribution library is available". | [R085](../PR_ROADMAP.md#r085): track the distribution fix |
 | D-011 | Qt Wayland client-decoration framebuffer leak | [R050](R050-native-render-ui.md) | N01 | **Open (external).** Sanitized Wayland steps still set `QT_WAYLAND_DISABLE_WINDOWDECORATION=1` (`.github/workflows/native.yml`). | Limitation | Upstream Qt allocation, with no application frame in the stack. Disclosed in R050 as a test-environment workaround. | [R085](../PR_ROADMAP.md#r085): track upstream |
 | D-012 | Compositor crash with RGB565/odd-stride surfaces at fractional scale | [R085.a](R085a-current-platform-validation.md), [R085.b](R085b-native-surface-color.md), [support matrix](../SUPPORT_MATRIX.md#runtime-and-services) | N01, N04 | **Mitigated.** The application now requests eight-bit surfaces and all 20 fractional cases pass. The external Weston/Mesa defect is not shown to be fixed. | Limitation | External defect, avoided by the surface-color policy ([ADR 0157](../decisions/0157-native-surface-color.md)). Disclosed in the support matrix. | [R085](../PR_ROADMAP.md#r085) |
@@ -199,6 +209,34 @@ Closed by the D-033 harness fix (2026-10-15, branch `fix/startup-abort`):
   The Wayland lines start no Xvfb; for them only the logging changes. The journald routing applies to every native
   test in CI, so D-031's message-less Wayland exit (recorded by R091.h) may also have lost a Qt
   message the same way; that is not shown.
+
+Closed by the D-035 fix (2026-10-15, branch `fix/assistant-sheet-tools`):
+
+- **D-035** (sheet tools enlarged the assistant's per-turn input; Advanced exceeded the token
+  budget at the 1.1.0 RC). Class: **Major** (a supported workflow failed its acceptance gate on
+  the supported provider configuration). Found by [R086.cb](https://github.com/zygote55/sketchyup/blob/docs/r086cb-rc110-corpus/docs/verification/R086cb-rc110-remote-evaluation.md)
+  at the 1.1.0 RC (`251fd52d`): Advanced assemblies passed 1/3 (minimum 2). Two repeats
+  followed the R086.ca command sequence but their 12th reply took usage past the
+  262,144-token task budget, and the host stopped them with `BUDGET_EXCEEDED`, committing
+  nothing. **Cause.** The in-app assistant advertised the shared inspection catalog and
+  nested every inspection query inside `transaction.inspect`, so the eight drawing-sheet
+  queries added by R090–R092 were re-sent twice on every provider turn. The ChatGPT-plan
+  first request's tools grew from 55,230 to 64,972 bytes for Advanced, and the reported
+  first-turn input from 11,368 to 12,974 tokens; no run used a sheet tool.
+  **Fix.** One rule next to the assistant's tool builder (`assistantVisible` in
+  `src/automation/assistant.cpp`) keeps every `drawing_*` operation and query out of the
+  assistant's provider tool list: the top-level queries, the `transaction.inspect`
+  requests and the `transaction.apply` commands. A drawing command cannot be authorized
+  for an assistant task, and a drawing tool call is rejected as `UNSUPPORTED_CAPABILITY`.
+  MCP, the headless session and the transaction APIs are unchanged and keep every sheet
+  tool ([ADR 0164](../decisions/0164-sheet-layout-interface.md#assistant-tool-surface-110)).
+  **Evidence.** `assistant_tool_surface_tests` checks that no `drawing_*` name is reachable
+  in the assistant's schemas, that the surfaces for the five corpus authorizations and the
+  every-command superset equal a baseline dumped from the v1.0.1 build byte for byte
+  (`tests/assistant-tool-surface-baseline.json`), that a drawing query call never reaches
+  the backend, and that MCP still lists the sheet queries and commands. The Advanced
+  first request's tools are 55,230 bytes again, the R086.ca figure. The release corpus must
+  be re-run at the next RC.
 
 Closed by R084.v:
 
@@ -327,13 +365,15 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 13 | D-006–D-009, D-019, D-021–D-023, D-027, D-028, D-031, D-032, D-034 |
+| Minor | 14 | D-006–D-009, D-019, D-021–D-023, D-027, D-028, D-031, D-032, D-034, D-036 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **27** | |
-| Fixed since the 2026-10-11 refresh | 4 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13) |
+| **Total open** | **28** | |
+| Fixed since the 2026-10-11 refresh | 5 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
-R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor).
+R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
+(Major, 1.1.0 RC) was added and fixed on 2026-10-15, so it is not open. D-036 (Minor, Qt 6.8
+only) was added on 2026-10-15 by the Qt 6.8 reference at the 1.1.0 RC.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
