@@ -5,6 +5,7 @@
 #include "io/library_bundle.hpp"
 #include "io/obj_source.hpp"
 #include "io/stl_source.hpp"
+#include "parameter_expression_harness.hpp"
 #include <QCoreApplication>
 #include <QFile>
 #include <QTemporaryDir>
@@ -16,8 +17,8 @@
 namespace sketchy::fuzz {
 inline constexpr size_t inputLimit = 1024 * 1024;
 inline constexpr const char *formats[] = {
-    "native-json", "native-container", "glb",       "stl-binary", "stl-ascii", "obj",
-    "dxf",         "template",         "component", "extension"};
+    "native-json", "native-container", "glb",       "stl-binary", "stl-ascii",           "obj",
+    "dxf",         "template",         "component", "extension",  "parameter-expression"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -101,6 +102,18 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             roundtrip(result.document);
             require(result.document.definitions().contains(result.definition),
                     "component definition exists");
+        } else if (format == "parameter-expression") {
+            // R093.a: one expression, checked and evaluated against the fixed table.
+            bool expression = false;
+            try {
+                expression = parameterExpressionAccepted(
+                    std::string_view(bytes.constData(), std::size_t(bytes.size())));
+            } catch (const ParameterHarnessFailure &failure) {
+                fail(failure.what());
+            }
+            if (!expression)
+                return false;
+            accepted = true;
         } else if (format == "extension") {
             const auto result = parseExtensionManifest(bytes);
             accepted = true;
