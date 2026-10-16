@@ -1,5 +1,7 @@
 #include "core/model.hpp"
 #include "core/appearance.hpp"
+#include "core/component_parameters.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/component_validation.hpp"
 #include "core/document_limits.hpp"
 #include "core/edge_appearance.hpp"
@@ -47,6 +49,8 @@ Document Document::readSnapshot() const {
     result.nextDrawingViewId_ = nextDrawingViewId_;
     result.drawingItems_ = drawingItems_;
     result.nextDrawingItemId_ = nextDrawingItemId_;
+    result.nextComponentDriverId_ = nextComponentDriverId_;
+    result.variants_ = variants_;
     result.definitionFloors_ = definitionFloors_;
     result.surfaceFloors_ = surfaceFloors_;
     result.edgeFloors_ = edgeFloors_;
@@ -73,10 +77,13 @@ size_t componentBytes(const DefinitionPtr &definition) {
         sizeof(ComponentDefinition) + definition->name.size() + definition->references.size() * 96;
     for (const auto &[id, body] : definition->members)
         result += bytes(body) + 64;
-    return result;
+    // Parameter records count in history and snapshot accounting (ADR 0165 §3).
+    return result + componentParametersBytes(definition->parameters);
 }
 size_t componentBytes(const InstancePtr &instance) {
-    return instance ? sizeof(ComponentInstance) + instance->members.size() * 96 : 0;
+    return instance ? sizeof(ComponentInstance) + instance->members.size() * 96 +
+                          componentOverridesBytes(instance->overrides)
+                    : 0;
 }
 template <class Floor>
 DefinitionPtr freezeDefinition(const DefinitionPtr &source, const Floor &floor) {
@@ -267,11 +274,54 @@ void checkPlacementCount(size_t placements, const ComponentDefinitions &definiti
                 edit ? editLimitContext(*edit, definitions, LimitClass::Placement, "placements")
                      : std::string{});
 }
+LimitCounts variantDirect(const ComponentVariant &variant) {
+    DocumentTotals totals;
+    for (const auto &[member, body] : variant.members)
+        if (!variant.references.contains(member))
+            addTotals(totals, body);
+    return limitCounts(totals);
+}
 void checkUniqueGeometry(const DocumentTotals &totals,
                          const std::map<Id, size_t> &placementCounts,
-                         const ComponentDefinitions &definitions, const Edit *edit) {
+                         const ComponentDefinitions &definitions, const Edit *edit,
+                         const ComponentVariantIndex *variants = nullptr) {
     auto unique = limitCounts(totals);
-    if (!definitions.empty()) {
+    if (variants && !variants->placements.empty()) {
+        // A placement of a variant owns the variant's records, not the template's, and
+        // each distinct variant other than the template counts once (ADR 0165 §3).
+        // Bindings are validated, so every intermediate value is non-negative.
+        const auto geometry = componentGeometry(definitions);
+        std::array<long long, 7> value{
+            (long long)unique.bodies, (long long)unique.vertices, (long long)unique.faces,
+            (long long)unique.wires,  (long long)unique.edges,    (long long)unique.curves,
+            (long long)unique.guides};
+        auto add = [&](const LimitCounts &counts, long long times) {
+            const std::array<size_t, 7> fields{counts.bodies, counts.vertices, counts.faces,
+                                               counts.wires,  counts.edges,    counts.curves,
+                                               counts.guides};
+            for (size_t i = 0; i < 7; ++i)
+                value[i] += times * (long long)fields[i];
+        };
+        for (const auto &[definition, count] : placementCounts)
+            if (count && geometry.direct.contains(definition))
+                add(limitCounts(geometry.direct.at(definition)), -(long long)count);
+        add(limitCounts(geometry.stored), 1);
+        for (const auto &[root, variant] : variants->placements) {
+            add(limitCounts(geometry.direct.at(variant->definition)), 1);
+            add(variantDirect(*variant), -1);
+        }
+        for (const auto &[key, variant] : variants->variants)
+            add(variantDirect(*variant), 1);
+        auto clamp = [](long long v) { return size_t(std::max(0LL, v)); };
+        unique = {0,
+                  clamp(value[0]),
+                  clamp(value[1]),
+                  clamp(value[2]),
+                  clamp(value[3]),
+                  clamp(value[4]),
+                  clamp(value[5]),
+                  clamp(value[6])};
+    } else if (!definitions.empty()) {
         const auto geometry = componentGeometry(definitions);
         auto subtract = [](size_t &value, size_t owned) { value -= std::min(value, owned); };
         for (const auto &[definition, count] : placementCounts) {
@@ -456,6 +506,8 @@ size_t Document::readSnapshotBytes() const {
         result += drawingViewBytes(view) + 64;
     for (const auto &[id, item] : drawingItems_)
         result += drawingItemBytes(item) + 64;
+    if (variants_)
+        result += componentVariantBytes(*variants_);
     result += (surfaceFloors_.size() + edgeFloors_.size()) * 96;
     for (const auto &[id, floor] : definitionFloors_)
         result += sizeof(DefinitionFloor) + 64 + floor.geometry.size() * 96;
@@ -874,6 +926,11 @@ void Document::update(Edit edit, bool forward) {
         else
             instances.erase(change.root);
     }
+    // Variants are derived: recompute them for the restored records, reusing every
+    // unchanged evaluation and variant (ADR 0165 §3).
+    auto variants = variants_;
+    if (!edit.definitions.empty() || !edit.instances.empty())
+        variants = computeComponentVariants(definitions, instances, variants_.get());
     auto totals = totals_;
     std::set<Id> detachedAdded, lockedAdded;
     std::vector<Id> detachedErased, lockedErased;
@@ -921,6 +978,7 @@ void Document::update(Edit edit, bool forward) {
     lockedBodies_.merge(lockedAdded);
     definitions_.swap(definitions);
     instances_.swap(instances);
+    variants_.swap(variants);
     tags_.swap(tags);
     materials_.swap(materials);
     assets_.swap(assets);
@@ -970,7 +1028,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
          edit.nextDefinitionFloor > nextDefinitionId_ || edit.nextTagFloor > nextTagId_ ||
          edit.nextMaterialFloor > nextMaterialId_ || edit.nextAssetFloor > nextAssetId_ ||
          edit.nextSceneFloor > nextSceneId_ || edit.nextSectionFloor > nextSectionId_ ||
-         edit.nextAnnotationFloor > nextAnnotationId_))
+         edit.nextAnnotationFloor > nextAnnotationId_ ||
+         edit.nextComponentDriverFloor > nextComponentDriverId_))
         throw std::runtime_error("Drawing sheet edits cannot change model records");
     if (edit.solar) {
         edit.solar->first.validate();
@@ -1303,6 +1362,23 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         definitions[change.id] = change.after;
         nextDefinition = std::max(nextDefinition, change.id + 1);
     }
+    // Driver IDs are document-global and never reused (ADR 0165 §4).
+    Id nextDriver = std::max(nextComponentDriverId_, edit.nextComponentDriverFloor);
+    if (!edit.definitions.empty()) {
+        std::set<Id> liveDrivers;
+        for (const auto &[id, definition] : definitions_)
+            if (definition->parameters)
+                for (const auto &driver : definition->parameters->drivers)
+                    liveDrivers.insert(driver.id);
+        for (const auto &change : edit.definitions)
+            if (change.after && change.after->parameters)
+                for (const auto &driver : change.after->parameters->drivers) {
+                    if (driver.id < nextComponentDriverId_ && !liveDrivers.contains(driver.id))
+                        throw std::runtime_error("Retired component driver ID cannot be reused");
+                    if (driver.id != UINT64_MAX)
+                        nextDriver = std::max(nextDriver, driver.id + 1);
+                }
+    }
     for (auto &change : edit.instances) {
         if (!change.root || !instanceRoots.insert(change.root).second ||
             (!change.before && !change.after) ||
@@ -1576,13 +1652,23 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     validateReferenceImageAssets(assignedBodies, assets);
     validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
                                  nextMaterial, assets, nextAsset);
+    if (!edit.definitions.empty() || nextDriver != nextComponentDriverId_)
+        validateComponentParameterRecords(definitions, &definitions_, nextDriver);
+    // Every placement's evaluation and regeneration runs on the staged records before
+    // publication (ADR 0165 §4: fail closed).
+    ComponentVariantsPtr variants = variants_ ? variants_ : emptyComponentVariants();
     if (incremental) {
+        if (auto extended = extendComponentVariants(definitions, instances_, addedInstances,
+                                                    *variants))
+            variants = std::move(extended);
         validateComponentInstanceInsertions(definitions, addedInstances, changedRoots,
-                                            changedBodies, *this);
+                                            changedBodies, *this, *variants);
         // No hosted records exist, so this checks only their bounds.
         validateHostedComponents(*hosted, bodies_, definitions, instances_);
     } else {
-        validateComponentInstanceEdits(definitions, instances, updated, *this);
+        if (!edit.definitions.empty() || !edit.instances.empty())
+            variants = computeComponentVariants(definitions, instances, variants_.get());
+        validateComponentInstanceEdits(definitions, instances, updated, *this, *variants);
         validateHostedComponents(*hosted, updated, definitions, instances);
     }
     // The full scheme recounts the complete candidate; the incremental one adds
@@ -1591,7 +1677,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     if (incremental)
         for (const auto &[root, instance] : addedInstances)
             countPlacementChange(placementCounts, nullptr, instance);
-    checkUniqueGeometry(totals, placementCounts, definitions, &edit);
+    checkUniqueGeometry(totals, placementCounts, definitions, &edit, variants.get());
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
     auto lockedIn = [](const auto &records, Id id) {
@@ -1757,6 +1843,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     definitions_.swap(definitions);
     definitionFloors_.swap(definitionFloors);
     nextDefinitionId_ = nextDefinition;
+    nextComponentDriverId_ = nextDriver;
+    variants_ = std::move(variants);
     tags_.swap(tags);
     materials_.swap(materials);
     assets_.swap(assets);
@@ -2181,7 +2269,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        int displayPrecision, DrawingSheetRecords drawingSheets,
                        Id nextDrawingSheetId, DrawingViewRecords drawingViews,
                        Id nextDrawingViewId, DrawingItemRecords drawingItems,
-                       Id nextDrawingItemId) {
+                       Id nextDrawingItemId, Id nextComponentDriverId) {
     restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
                    std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
                    nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
@@ -2189,7 +2277,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                    std::move(sections), nextSectionId, std::move(activeSections),
                    std::move(annotations), nextAnnotationId, solar, displayPrecision,
                    std::move(drawingSheets), nextDrawingSheetId, std::move(drawingViews),
-                   nextDrawingViewId, std::move(drawingItems), nextDrawingItemId);
+                   nextDrawingViewId, std::move(drawingItems), nextDrawingItemId,
+                   nextComponentDriverId);
 }
 void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
                               std::map<Id, BodyPtr> bodies, std::uint64_t revision,
@@ -2203,7 +2292,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
                               SolarSettings solar, int displayPrecision,
                               DrawingSheetRecords drawingSheets, Id nextDrawingSheetId,
                               DrawingViewRecords drawingViews, Id nextDrawingViewId,
-                              DrawingItemRecords drawingItems, Id nextDrawingItemId) {
+                              DrawingItemRecords drawingItems, Id nextDrawingItemId,
+                              Id nextComponentDriverId) {
     requireDisplayPrecision(units, displayPrecision);
     style.validate();
     solar.validate();
@@ -2254,14 +2344,33 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     validateReferenceImageAssets(bodies, assets);
     validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
                                  nextMaterialId, assets, nextAssetId);
+    // Freeze caller records first (freezing keeps their content: each floor is the
+    // record's own), so the variant index names the definitions the document stores.
+    std::map<Id, DefinitionFloor> definitionFloors;
+    for (auto &[id, definition] : definitions) {
+        auto &floor = definitionFloors[id];
+        floor.nextMemberId = definition->nextMemberId;
+        for (const auto &[member, body] : definition->members)
+            floor.geometry[member] = {body->surface.nextId, body->topology.nextId};
+        definition = freezeDefinition(definition, floor);
+    }
+    for (auto &[root, instance] : instances) {
+        if (!instance)
+            throw std::runtime_error("Dangling component instance");
+        instance = std::make_shared<ComponentInstance>(*instance);
+    }
+    if (!nextComponentDriverId)
+        throw std::runtime_error("Invalid component driver allocator");
+    validateComponentParameterRecords(definitions, nullptr, nextComponentDriverId);
     checkPlacementCount(instances.size(), definitions, nullptr);
-    validateComponentInstances(definitions, instances, bodies);
+    auto variants = computeComponentVariants(definitions, instances, nullptr);
+    validateComponentInstances(definitions, instances, bodies, *variants);
     auto placementCounts = countPlacements(instances);
     {
         DocumentTotals materialized;
         for (const auto &[id, b] : bodies)
             addTotals(materialized, b);
-        checkUniqueGeometry(materialized, placementCounts, definitions, nullptr);
+        checkUniqueGeometry(materialized, placementCounts, definitions, nullptr, variants.get());
     }
     hosted = freezeHostedComponents(hosted);
     validateHostedComponents(*hosted, bodies, definitions, instances);
@@ -2272,16 +2381,6 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
         if (b->locked)
             locked.insert(id);
     }
-    std::map<Id, DefinitionFloor> definitionFloors;
-    for (auto &[id, definition] : definitions) {
-        auto &floor = definitionFloors[id];
-        floor.nextMemberId = definition->nextMemberId;
-        for (const auto &[member, body] : definition->members)
-            floor.geometry[member] = {body->surface.nextId, body->topology.nextId};
-        definition = freezeDefinition(definition, floor);
-    }
-    for (auto &[root, instance] : instances)
-        instance = std::make_shared<ComponentInstance>(*instance);
     for (auto &[id, tag] : tags)
         tag = std::make_shared<TagRecord>(*tag);
     for (auto &[id, material] : materials)
@@ -2311,6 +2410,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     bodies_ = std::move(bodies);
     definitions_ = std::move(definitions);
     instances_ = std::move(instances);
+    variants_ = std::move(variants);
     hosted_ = std::move(hosted);
     definitionFloors_ = std::move(definitionFloors);
     nextDefinitionId_ = nextDefinitionId;
@@ -2333,6 +2433,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     nextDrawingViewId_ = nextDrawingViewId;
     drawingItems_ = std::move(drawingItems);
     nextDrawingItemId_ = nextDrawingItemId;
+    nextComponentDriverId_ = nextComponentDriverId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
     totals_ = totals;
@@ -2381,10 +2482,23 @@ bool sameDefinition(const DefinitionPtr &a, const DefinitionPtr &b) {
     return a == b || (a && b && a->id == b->id && a->root == b->root &&
                       a->nextMemberId == b->nextMemberId && a->name == b->name &&
                       a->references == b->references && a->glue == b->glue &&
+                      (a->parameters == b->parameters ||
+                       (a->parameters && b->parameters && *a->parameters == *b->parameters)) &&
                       sameRecords(a->members, b->members, sameBody));
 }
 } // namespace
 void Document::setFullValidationOracle(bool enabled) { validationOracle() = enabled; }
+const ComponentVariantIndex &Document::componentVariants() const {
+    return variants_ ? *variants_ : *emptyComponentVariants();
+}
+const ComponentVariantsPtr &Document::componentVariantRecords() const {
+    return variants_ ? variants_ : emptyComponentVariants();
+}
+std::shared_ptr<const ComponentVariant> Document::componentVariant(Id placement) const {
+    const auto &placements = componentVariants().placements;
+    const auto found = placements.find(placement);
+    return found == placements.end() ? nullptr : found->second;
+}
 bool Document::fullValidationOracle() { return validationOracle(); }
 size_t Document::incrementalValidationCount() { return incrementalValidations(); }
 void Document::addHistoryRefs(const Edit &edit) {
@@ -2435,6 +2549,9 @@ void Document::verifyIncrementalState() const {
         failure += " detached floor index";
     if (refs != historyRefs_)
         failure += " history index";
+    if (!sameComponentVariants(*computeComponentVariants(definitions_, instances_),
+                               componentVariants()))
+        failure += " component variants";
     if (!failure.empty())
         throw ValidationOracleMismatch("Incremental bookkeeping disagrees with a recount:" +
                                        failure);
@@ -2464,8 +2581,11 @@ std::string Document::stateMismatch(const Document &other) const {
               nextAnnotationId_ == other.nextAnnotationId_ &&
               nextDrawingSheetId_ == other.nextDrawingSheetId_ &&
               nextDrawingViewId_ == other.nextDrawingViewId_ &&
-              nextDrawingItemId_ == other.nextDrawingItemId_,
+              nextDrawingItemId_ == other.nextDrawingItemId_ &&
+              nextComponentDriverId_ == other.nextComponentDriverId_,
           "allocators");
+    check(sameComponentVariants(componentVariants(), other.componentVariants()),
+          "component variants");
     check(revision_ == other.revision_ && undo_.size() == other.undo_.size() &&
               redo_.size() == other.redo_.size() && historyBytes_ == other.historyBytes_ &&
               historyPruned_ == other.historyPruned_,

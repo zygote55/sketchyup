@@ -1,5 +1,6 @@
 #include "core/component_records.hpp"
 #include "core/component_glue.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/component_validation.hpp"
 #include "core/document_limits.hpp"
 #include "core/model.hpp"
@@ -61,6 +62,7 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
         return change.before && change.after && *change.before == *change.after;
     });
     edit.nextDrawingItemFloor = after.nextDrawingItemId();
+    edit.nextComponentDriverFloor = after.nextComponentDriverId();
     if (before.activeSections() != after.activeSections())
         edit.activeSections = std::pair{before.activeSections(), after.activeSections()};
     if (before.hostedComponents() != after.hostedComponents())
@@ -240,33 +242,43 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
 namespace {
 // Validate one binding against its definition. Scene and Instances need only
 // contains/at, so the same checks serve whole-map and overlay candidates.
+// A parametric placement projects its variant (ADR 0165 §1): the binding names the
+// variant's members and every resolved record matches the variant's member.
 template <class Scene, class Instances>
 void validateInstance(const ComponentDefinitions &definitions, const Instances &instances,
                       const Scene &scene, const Document *baseline, Id root,
-                      const InstancePtr &instance, std::set<Id> &owned) {
+                      const InstancePtr &instance, std::set<Id> &owned,
+                      const ComponentVariantIndex &variants) {
     if (!instance || !definitions.contains(instance->definition) || !scene.contains(root))
         throw std::runtime_error("Dangling component instance");
     const auto &definition = *definitions.at(instance->definition);
-    if (instance->members.size() != definition.members.size() ||
+    const auto shown = variants.placements.find(root);
+    const VariantPtr variant = shown == variants.placements.end() ? nullptr : shown->second;
+    if (variant && variant->definition != instance->definition)
+        throw std::runtime_error("Component variant names another definition");
+    const auto &members = variant ? variant->members : definition.members;
+    const auto &references = variant ? variant->references : definition.references;
+    if (instance->members.size() != members.size() ||
         !instance->members.contains(definition.root) ||
         instance->members.at(definition.root) != root || scene.at(root)->kind != BodyKind::Group)
         throw std::runtime_error("Invalid component instance root or member map");
-    const bool unchangedLeaf = baseline && definition.references.empty() &&
+    const bool unchangedLeaf = baseline && references.empty() &&
                                baseline->instances().contains(root) &&
                                baseline->instances().at(root) == instance &&
                                baseline->definitions().contains(instance->definition) &&
                                baseline->definitions().at(instance->definition) ==
-                                   definitions.at(instance->definition);
+                                   definitions.at(instance->definition) &&
+                               baseline->componentVariant(root) == variant;
     std::set<Id> unique;
     for (const auto &[member, target] : instance->members) {
-        if (!definition.members.contains(member) || !scene.contains(target) ||
+        if (!members.contains(member) || !scene.contains(target) ||
             !unique.insert(target).second)
             throw std::runtime_error("Invalid or duplicated component member binding");
         if (member != definition.root) {
             if (!owned.insert(target).second)
                 throw std::runtime_error("Scene record belongs to multiple component members");
-            if (definition.references.contains(member)) {
-                const auto nested = definition.references.at(member);
+            if (references.contains(member)) {
+                const auto nested = references.at(member);
                 if (!instances.contains(target) || instances.at(target)->definition != nested)
                     throw std::runtime_error("Missing nested component instance binding");
             } else if (instances.contains(target))
@@ -277,15 +289,15 @@ void validateInstance(const ComponentDefinitions &definitions, const Instances &
         if (unchangedLeaf && baseline->bodies().contains(target) &&
             baseline->bodies().at(target) == scene.at(target))
             continue;
-        auto expected = *definition.members.at(member);
+        auto expected = *members.at(member);
         const auto &actual = *scene.at(target);
         if (member == definition.root)
             rootState(expected, actual);
         else {
             expected.id = target;
             expected.parent = instance->members.at(expected.parent);
-            if (definition.references.contains(member)) {
-                const auto nested = definition.references.at(member);
+            if (references.contains(member)) {
+                const auto nested = references.at(member);
                 auto geometry = *definitions.at(nested)->members.at(definitions.at(nested)->root);
                 rootState(geometry, expected);
                 expected = std::move(geometry);
@@ -296,13 +308,14 @@ void validateInstance(const ComponentDefinitions &definitions, const Instances &
     }
 }
 void validateInstances(const ComponentDefinitions &definitions, const ComponentInstances &instances,
-                       const std::map<Id, BodyPtr> &scene, const Document *baseline) {
+                       const std::map<Id, BodyPtr> &scene, const Document *baseline,
+                       const ComponentVariantIndex &variants) {
     // Defensive bound; Document reports the D06 placement diagnostic first.
     if (instances.size() > DocumentLimits::materialized.placements)
         throw std::runtime_error("Too many component instances");
     std::set<Id> owned, roots;
     for (const auto &[root, instance] : instances) {
-        validateInstance(definitions, instances, scene, baseline, root, instance, owned);
+        validateInstance(definitions, instances, scene, baseline, root, instance, owned, variants);
         roots.insert(root);
     }
     auto parents = owned;
@@ -348,7 +361,8 @@ void validateComponentInstanceInsertions(const ComponentDefinitions &definitions
                                          const ComponentInstances &added,
                                          const std::set<Id> &changedRoots,
                                          const std::map<Id, BodyPtr> &changedBodies,
-                                         const Document &baseline) {
+                                         const Document &baseline,
+                                         const ComponentVariantIndex &variants) {
     if (baseline.instances().size() + added.size() > DocumentLimits::materialized.placements)
         throw std::runtime_error("Too many component instances");
     const RecordOverlay<BodyPtr> scene{baseline.bodies(), changedBodies};
@@ -360,7 +374,8 @@ void validateComponentInstanceInsertions(const ComponentDefinitions &definitions
         checked.emplace(root, baseline.instances().at(root));
     std::set<Id> owned, roots;
     for (const auto &[root, instance] : checked) {
-        validateInstance(definitions, instances, scene, &baseline, root, instance, owned);
+        validateInstance(definitions, instances, scene, &baseline, root, instance, owned,
+                         variants);
         roots.insert(root);
     }
     // Unchanged records keep their parent and ownership. Inserted bindings own
@@ -378,11 +393,19 @@ void validateComponentInstanceInsertions(const ComponentDefinitions &definitions
 void validateComponentInstances(const ComponentDefinitions &definitions,
                                 const ComponentInstances &instances,
                                 const std::map<Id, BodyPtr> &scene) {
-    validateInstances(definitions, instances, scene, nullptr);
+    validateInstances(definitions, instances, scene, nullptr,
+                      *computeComponentVariants(definitions, instances));
+}
+void validateComponentInstances(const ComponentDefinitions &definitions,
+                                const ComponentInstances &instances,
+                                const std::map<Id, BodyPtr> &scene,
+                                const ComponentVariantIndex &variants) {
+    validateInstances(definitions, instances, scene, nullptr, variants);
 }
 void validateComponentInstanceEdits(const ComponentDefinitions &definitions,
                                     const ComponentInstances &instances,
-                                    const std::map<Id, BodyPtr> &scene, const Document &baseline) {
-    validateInstances(definitions, instances, scene, &baseline);
+                                    const std::map<Id, BodyPtr> &scene, const Document &baseline,
+                                    const ComponentVariantIndex &variants) {
+    validateInstances(definitions, instances, scene, &baseline, variants);
 }
 } // namespace sketchy

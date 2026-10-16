@@ -5,9 +5,11 @@
 namespace sketchy {
 // Edit validation may reuse only immutable projections from a valid Document.
 // Restore/import continue to use the full validator without a baseline.
+// Parametric placements are compared with their variants in `variants`.
 void validateComponentInstanceEdits(const ComponentDefinitions &definitions,
                                     const ComponentInstances &instances,
-                                    const std::map<Id, BodyPtr> &scene, const Document &baseline);
+                                    const std::map<Id, BodyPtr> &scene, const Document &baseline,
+                                    const ComponentVariantIndex &variants);
 // True when a live record is an instance root or a member target of a binding.
 bool componentBound(const Document &doc, Id id);
 // True when a live record is a member target of a binding (nested placement roots
@@ -28,5 +30,6 @@ void validateComponentInstanceInsertions(const ComponentDefinitions &definitions
                                          const ComponentInstances &added,
                                          const std::set<Id> &changedRoots,
                                          const std::map<Id, BodyPtr> &changedBodies,
-                                         const Document &baseline);
+                                         const Document &baseline,
+                                         const ComponentVariantIndex &variants);
 } // namespace sketchy

@@ -1,4 +1,5 @@
 #include "core/groups.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/geometry_subset.hpp"
 #include <algorithm>
 namespace sketchy {
@@ -64,8 +65,23 @@ ChangeReport explodeGroup(Document &doc, Id id) {
     if (old->kind != BodyKind::Group)
         throw std::runtime_error("Explode requires a group");
     Edit edit{"Explode group", {}};
-    if (doc.instances().contains(id))
-        edit.instances.push_back({id, doc.instances().at(id), nullptr});
+    if (doc.instances().contains(id)) {
+        const auto binding = doc.instances().at(id);
+        edit.instances.push_back({id, binding, nullptr});
+        // Exploding gives the variant's records (ADR 0165 §4). Nested placements become
+        // top-level and keep the values their parent's childParameter drivers supplied.
+        if (const auto variant = doc.componentVariant(id))
+            for (const auto &[member, values] : variant->nestedValues) {
+                const auto target = binding->members.find(member);
+                if (values.empty() || target == binding->members.end() ||
+                    !doc.instances().contains(target->second))
+                    continue;
+                const auto nested = doc.instances().at(target->second);
+                auto promoted = std::make_shared<ComponentInstance>(*nested);
+                promoted->overrides = values;
+                edit.instances.push_back({target->second, nested, promoted});
+            }
+    }
     // Groups may own geometry drawn directly in their editing context. Retain
     // that record and its IDs as raw geometry when removing the group boundary.
     const bool geometry = !old->surface.vertices.empty() || !old->guides.empty();
