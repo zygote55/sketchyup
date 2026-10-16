@@ -179,6 +179,139 @@ def sheet_fixture(cli, root, environment):
     return output
 
 
+def parameter_fixture(cli, root, environment):
+    """Writes a document with one placement of a parametric definition whose Width is
+    overridden (R094.c)."""
+    def ref(path):
+        return {"$ref": path}
+    document = ref("info#/result/documentId")
+    # A fresh document numbers the rectangle's body 1 and its face 5; making it a component
+    # keeps body 1 as the placement of definition 1.
+    commands = [
+        {"command": "geometry.rectangle", "body": "0", "origin": [0, 0, 0], "normal": [0, 0, 1],
+         "xAxis": [1, 0, 0], "width": 1, "height": 0.6},
+        {"command": "geometry.push_pull", "body": "1", "face": "5", "distance": 0.5},
+        {"command": "component.create", "body": "1", "name": "Shelf unit"},
+        {"command": "component_parameter.define", "definition": "1", "name": "width",
+         "label": "Width", "type": "length", "mode": "input", "expression": "1 m",
+         "min": 0.5, "max": 2},
+        {"command": "component_parameter.override", "body": "1", "values": {"width": 1.5}},
+    ]
+    steps = [
+        {"id": "info", "request": {"apiVersion": 1, "operation": "session.describe"}},
+        {"id": "begin", "request": {"apiVersion": 1, "operation": "transaction.begin",
+                                    "documentId": document,
+                                    "expectedRevision": ref("info#/result/revision"),
+                                    "history": {"label": "Parameter fixture",
+                                                "taskId": "a11y-parameters", "assistant": False}}},
+        {"id": "apply", "request": {"apiVersion": 1, "operation": "transaction.apply",
+                                    "documentId": document,
+                                    "transactionId": ref("begin#/result/transactionId"),
+                                    "expectedVersion": 0, "operationId": "parameters",
+                                    "commands": commands}},
+        {"id": "seal", "request": {"apiVersion": 1, "operation": "transaction.preview",
+                                   "documentId": document,
+                                   "transactionId": ref("begin#/result/transactionId"),
+                                   "expectedVersion": ref("apply#/result/stageVersion")}},
+        {"id": "commit", "request": {"apiVersion": 1, "operation": "transaction.commit",
+                                     "documentId": document,
+                                     "requestId": ref("seal#/result/requestId"),
+                                     "payloadHash": ref("seal#/result/payloadHash")}},
+        {"id": "save", "request": {"apiVersion": 1, "operation": "document.save",
+                                   "documentId": document,
+                                   "expectedRevision": ref("commit#/result/result/revision")}},
+    ]
+    recipe = root / "parameters-recipe.json"
+    recipe.write_text(json.dumps({"apiVersion": 1, "steps": steps}))
+    output = root / "parameters.sketchyup"
+    result = subprocess.run([str(cli), "--recipe", str(recipe), "--new", "--output", str(output),
+                             "--outcomes", str(root / "parameter-outcomes")],
+                            env=environment, capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0 and output.exists(), \
+        f"Parameter fixture recipe failed: {result.stdout[-2000:]} {result.stderr[-2000:]}"
+    return output
+
+
+def parameters_phase(bridge, application, root, environment):
+    """R094.c (ADR 0166 §8): Entity info's placement parameters are named and described over
+    AT-SPI: the section header, the value field (its caption and bounds), its reset button,
+    Reset all and Edit definition…."""
+    fixture = parameter_fixture(application.resolve().parent / "sketchyup-cli", root, environment)
+    with (root / "parameters.log").open("w") as log:
+        process = subprocess.Popen([str(application.resolve()), str(fixture)], env=environment,
+                                   stdout=log, stderr=log)
+        try:
+            with bridge.owned(bridge.get_desktop(0)) as desktop:
+                def own_application():
+                    assert process.poll() is None, "Parameter fixture exited before registration"
+                    for index in range(bridge.accessible_get_child_count(desktop, None)):
+                        child = bridge.accessible_get_child_at_index(desktop, index, None)
+                        if not child:
+                            continue
+                        if bridge.accessible_get_process_id(child, None) == process.pid:
+                            return child
+                        bridge.objects.g_object_unref(child)
+                    return None
+
+                with bridge.owned(wait_for(bridge, own_application,
+                                           "The parameter fixture did not register")) as app:
+                    def listed():
+                        rows = bridge.snapshot(app)
+                        cells = [r for r in rows if r["role"] == "table cell" and
+                                 r["name"].startswith("Shelf unit")]
+                        return (rows, cells[0]) if cells else None
+
+                    rows, placement = wait_for(bridge, listed, "Model hierarchy lacks the placement")
+                    hierarchy = find(rows, "Model hierarchy")
+                    with bridge.at_path(app, hierarchy["path"]) as control:
+                        with bridge.owned(bridge.accessible_get_selection_iface(control)) as selection:
+                            assert bridge.selection_select_child(
+                                selection, placement["path"][-1], None), \
+                                "AT-SPI could not select the placement"
+                    tab = find(rows, "Info", "page tab")
+                    with bridge.at_path(app, tab["path"]) as control:
+                        with bridge.owned(bridge.accessible_get_action_iface(control)) as action:
+                            names = [bridge.string(bridge.action_get_name(action, i, None))
+                                     for i in range(bridge.action_get_n_actions(action, None))]
+                            assert "Press" in names and bridge.action_do_action(
+                                action, names.index("Press"), None), "Could not open Entity info"
+                    observed = []
+
+                    def shown():
+                        current = bridge.snapshot(app)
+                        observed[:] = [(r["name"], r["role"]) for r in current
+                                       if "Width" in r["name"] or "Parameters" in r["name"]]
+                        fields = [r for r in current if r["name"] == "Width" and
+                                  r["role"] == "text"]
+                        return current if fields else None
+
+                    try:
+                        rows = wait_for(bridge, shown, "The Width field is not exposed")
+                    except AssertionError as error:
+                        raise AssertionError(f"{error}; observed {observed}") from None
+                    field = find(rows, "Width", "text")
+                    assert field["description"] == "Override, default 1 m, 0.5–2 m", \
+                        f"The field's description is its caption: {field['description']!r}"
+                    # The header is a checkable button, which AT-SPI reports as a check box.
+                    header = find(rows, "Parameters · this placement", "check box")
+                    assert header["description"] == "Expanded, 1 overridden", \
+                        f"The header reads its state and count: {header['description']!r}"
+                    reset = find(rows, "Reset Width to the default, 1 m", "button")
+                    reset_all = find(rows, "Reset all", "button")
+                    edit = find(rows, "Edit definition…", "button")
+                    return {"field": {"name": field["name"], "description": field["description"]},
+                            "header": {"name": header["name"],
+                                       "description": header["description"]},
+                            "buttons": [reset["name"], reset_all["name"], edit["name"]]}
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
 def sheets_phase(bridge, application, root, environment):
     """R091.g: page items are visible over AT-SPI in the Pages tree and as canvas children."""
     fixture = sheet_fixture(application.resolve().parent / "sketchyup-cli", root, environment)
@@ -372,6 +505,8 @@ def main():
                             process.terminate()
                             process.wait(timeout=10)
                             sheets = sheets_phase(bridge, args.application, root, environment)
+                            parameters = parameters_phase(bridge, args.application, root,
+                                                          environment)
                             report = {
                                 "fixture": "built-in courtyard demo; private config/data and owned process only",
                                 "platformRequested": environment.get("QT_QPA_PLATFORM", "default"),
@@ -380,6 +515,7 @@ def main():
                                 "selectionDescription": summary["description"],
                                 "entityInfo": expected,
                                 "sheets": sheets,
+                                "parameters": parameters,
                                 "sidebarHandle": {key: sidebar_handle[key] for key in ("name", "role", "orientation")},
                                 "accessibleNodes": len(rows),
                                 "passes": True,

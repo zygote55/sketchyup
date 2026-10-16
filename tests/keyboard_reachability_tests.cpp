@@ -1,4 +1,7 @@
+#include "app/collapsible_section.hpp"
+#include "app/component_parameters_section.hpp"
 #include "app/file_operation.hpp"
+#include "app/parameter_value_field.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
@@ -6,6 +9,8 @@
 #include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "core/component_parameters.hpp"
+#include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include <QAccessible>
@@ -549,6 +554,70 @@ void promptsReturnFocus(Fixture &f) {
     check(shown, "The file-operation surface was shown");
     returned("Closing the file-operation surface");
 }
+// R094.c (ADR 0166 §8): the Info tab's section headers, each parameter field, its reset
+// button, Reset all and Edit definition… are in the Tab cycle and named.
+void parameterSection(Fixture &f) {
+    auto &window = f.window;
+    auto &doc = window.document();
+    const auto body = doc.addFace({{{40, 40, 0}, {41, 40, 0}, {41, 41, 0}, {40, 41, 0}}}, "Box");
+    doc.extrude(body, doc.bodies().at(body)->surface.faces.begin()->first, 1);
+    const auto created = createComponent(doc, body, "Parametric box");
+    ComponentParameterSpec width;
+    width.name = "width";
+    width.label = "Width";
+    width.expression = "1 m";
+    width.min = .5;
+    width.max = 2;
+    defineComponentParameter(doc, created.definition, width);
+    ComponentParameterSpec shelves;
+    shelves.name = "shelves";
+    shelves.label = "Shelves";
+    shelves.type = ParameterType::Count;
+    shelves.expression = "2";
+    defineComponentParameter(doc, created.definition, shelves);
+    overrideComponentParameters(doc, created.instance, {{"width", ParameterQuantity{1.5, {1, 0}}}});
+    emit window.viewport()->changed();
+    window.findChild<QAction *>(toolId(Viewport::Tool::Pan))->trigger();
+    window.viewport()->setSelection(created.instance);
+    auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
+    tabs->setCurrentIndex(2);
+    auto *section = window.findChild<ComponentParametersSection *>("componentParametersSection");
+    check(QTest::qWaitFor([&] { return section->isVisible() && section->fields().size() == 2; }),
+          "The parameters section shows for the placement");
+    auto *info = window.findChild<QWidget *>("entityInfoSection");
+    auto *widthRow = section->field("width");
+    auto *shelvesRow = section->field("shelves");
+    const std::vector<QWidget *> targets{static_cast<CollapsibleSection *>(info)->header(),
+                                         section->header(),
+                                         widthRow->control(),
+                                         widthRow->resetButton(),
+                                         shelvesRow->control(),
+                                         section->resetAllButton(),
+                                         section->editDefinitionButton()};
+    std::set<QWidget *> reached;
+    for (const bool backwards : {false, true})
+        for (auto *stop : f.cycle(backwards))
+            reached.insert(stop);
+    for (auto *target : targets) {
+        check(reached.contains(target), "Tab or Shift+Tab reaches " + identity(target));
+        auto *accessible = QAccessible::queryAccessibleInterface(target);
+        check(accessible && !accessible->text(QAccessible::Name).isEmpty(),
+              "Accessible name for " + identity(target));
+    }
+    check(widthRow->control()->accessibleName() == "Width" &&
+              widthRow->resetButton()->accessibleName().startsWith("Reset Width to the default, "),
+          "Fields are named by their label and reset buttons say what they reset");
+    // Tab goes field → its reset → next field.
+    widthRow->control()->setFocus(Qt::TabFocusReason);
+    check(QTest::qWaitFor([&] { return widthRow->control()->hasFocus(); }), "Width focused");
+    key(Qt::Key_Tab);
+    f.expectFocus(widthRow->resetButton(), "Tab from Width");
+    key(Qt::Key_Tab);
+    f.expectFocus(shelvesRow->control(), "Tab from the reset button");
+    window.viewport()->setSelection(0);
+    tabs->setCurrentIndex(0);
+    window.document().markSaved();
+}
 // R091.e: the Sheets workspace (ADR 0164 §4). One Tab stop for the sheet rail, the F6 order
 // search, sheet rail, canvas, page tabs, Tray (Pages), Assistant, Measurements, and the page
 // tabs and Pages tree reached by Tab.
@@ -888,6 +957,8 @@ int main(int argc, char **argv) {
         promptsReturnFocus(f);
         std::cout << "Field of view… and the file-operation surface return focus to the "
                      "viewport passed\n";
+        parameterSection(f);
+        std::cout << "Info tab sections and placement parameters in the Tab cycle passed\n";
         window.document().markSaved();
         window.hide();
         sheetsWorkspace();

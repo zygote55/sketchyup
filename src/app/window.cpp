@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "app/accessible_names.hpp"
+#include "app/component_parameters_section.hpp"
 #include "app/context_label.hpp"
 #include "app/file_operation.hpp"
 #include "app/inspection_service.hpp"
@@ -993,6 +994,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             organization_->showMaterials();
         if (auto *toolAction = findChild<QAction *>("tool." + QString::number(mode)))
             toolAction->setChecked(true);
+        syncParameterMeasurement();
     });
     connect(viewport_, &Viewport::changed, this, &Window::sync);
     connect(viewport_, &Viewport::message, status_, &QLabel::setText);
@@ -1006,9 +1008,47 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (!measurements_->hasFocus())
             measurements_->setText(text);
     });
+    // ADR 0166 §1.3 (R094.c): with the Select tool and one parametric placement, the box sets
+    // the parameter Entity info names; re-entry amends the entry.
+    parameters_ = organization_->findChild<ComponentParametersSection *>();
+    connect(parameters_, &ComponentParametersSection::measurementChanged, this,
+            &Window::syncParameterMeasurement);
+    // The section's keys replace the status text while focus is in it (§1.2). Focus changes
+    // while the window is torn down, so the handler holds no pointer into the window: it lives
+    // as long as the section and checks the status label.
+    connect(qApp, &QApplication::focusChanged, parameters_,
+            [section = parameters_, status = QPointer<QLabel>(status_),
+             saved = std::make_shared<QString>()](QWidget *old, QWidget *now) {
+                const auto inside = [section](QWidget *widget) {
+                    return widget && section->isAncestorOf(widget);
+                };
+                if (!status)
+                    return;
+                if (inside(now) && !inside(old)) {
+                    *saved = status->text();
+                    status->setText(ComponentParametersSection::hint());
+                } else if (inside(old) && !inside(now) &&
+                           status->text() == ComponentParametersSection::hint()) {
+                    status->setText(*saved);
+                }
+            });
     connect(measurements_, &QLineEdit::returnPressed, this, [this] {
         if (assistant_ && assistant_->uncertain())
             return;
+        if (workspace_ == Workspace::Model && parameterMeasurement_) {
+            QString error;
+            if (parameters_->measurements(measurements_->text(), error)) {
+                measurementError(false);
+                measurements_->clear();
+                viewport_->setFocus();
+                syncParameterMeasurement();
+            } else {
+                status_->setText(error);
+                measurementError(true);
+                measurements_->selectAll();
+            }
+            return;
+        }
         if (workspace_ == Workspace::Sheets) {
             if (sheetMeasurements(measurements_->text())) {
                 measurementError(false);
@@ -1113,6 +1153,15 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #sheetBreadcrumb {border:1px solid transparent;border-radius:4px;padding:2px 4px;}
 *[accentFill="true"] {border:2px solid $accent;}
 *[accentFill="true"]:focus,#sheetPlace:focus {border:2px solid $surface;}
+#parameterLabel {font-weight:600;}
+#parameterCaption,#parameterNote,#parameterMessage,#sectionHeaderDetail {color:$muted;}
+#parameterCaption[override="true"] {color:$information;}
+QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'DejaVu Sans Mono';}
+*[parameterField="true"][override="true"] {border:2px solid $information;background:$informationSurface;}
+*[parameterField="true"][override="true"]:focus {border:2px solid $accent;}
+*[parameterField="true"][invalid="true"],*[parameterField="true"][invalid="true"]:focus {border:2px solid $failure;background:$failureSurface;}
+#parameterError,#parameterErrorIcon {color:$failure;}
+#parameterFewer,#parameterMore,*[parameterReset="true"] {padding:2px 8px;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
@@ -1129,6 +1178,11 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
     style.replace("$hover", colors.hover.name());
     style.replace("$input", colors.input.name());
     style.replace("$accent", colors.accent.name());
+    // R094.c (ADR 0166 §1.2): longer token names first.
+    style.replace("$informationSurface", colors.informationSurface.name());
+    style.replace("$information", colors.information.name());
+    style.replace("$failureSurface", colors.failureSurface.name());
+    style.replace("$failure", colors.failure.name());
     setStyleSheet(style);
     findChild<QToolBar *>("toolRail")->setFixedWidth(interfaceExtent(78, textPercent));
     sheetRail_->setFixedWidth(interfaceExtent(46, textPercent));
@@ -1158,6 +1212,25 @@ void Window::run(const std::function<void()> &fn, bool viewOnly) {
         QMessageBox::warning(this, "Could not complete edit", e.what());
     }
 }
+void Window::syncParameterMeasurement() {
+    if (!parameters_ || workspace_ != Workspace::Model) {
+        parameterMeasurement_ = false;
+        return;
+    }
+    const auto label = viewport_->tool() == Viewport::Tool::Select && !assistantFenced_
+                           ? parameters_->measurementLabel()
+                           : QString{};
+    const bool routed = !label.isEmpty();
+    if (!routed && !parameterMeasurement_)
+        return;
+    parameterMeasurement_ = routed;
+    measurementStep_->setText(label);
+    measurementStep_->setVisible(routed);
+    measurements_->setAccessibleName((routed ? label + ", " : QString{}) + "Measurements in " +
+                                     unitName(doc_.displayUnits()).toLower());
+    if (!measurements_->hasFocus())
+        measurements_->setText(routed ? parameters_->measurementValue() : QString{});
+}
 void Window::measurementError(bool invalid) {
     measurements_->setProperty("invalid", invalid);
     measurements_->setAccessibleDescription(invalid ? status_->text() : QString{});
@@ -1171,6 +1244,7 @@ bool Window::eventFilter(QObject *object, QEvent *event) {
             measurements_->clear();
         measurementError(false);
         focusWorkspace();
+        syncParameterMeasurement();
         return true;
     }
     return QMainWindow::eventFilter(object, event);
@@ -1292,6 +1366,7 @@ void Window::sync() {
     breadcrumb_->raise();
     syncComponentActions();
     organization_->refresh();
+    syncParameterMeasurement();
     QString text = viewport_->selectionSummary();
     if (viewport_->selectionState().context())
         text += QString("\nEditing context #%1").arg(viewport_->selectionState().context());

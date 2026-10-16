@@ -964,3 +964,82 @@ R094.b settled these points in the core and command layers. They refine §§1.4,
   same fixture carry it, and a malformed identity is a rejected `native-json` seed.
   `docs/api/native-format-v1.json` describes versions and features only, so it did not
   change.
+
+## Implementation notes (R094.c)
+
+R094.c built §1 in the desktop. These points settle what the ADR left open; where they
+differ from §1, these notes govern.
+
+- **Widgets.** `ComponentParametersSection` (`src/app/component_parameters_section.*`) is a
+  `CollapsibleSection`; `ParameterValueField` (`src/app/parameter_value_field.*`) is one row
+  (label column, control, reset button and error line). `EntityInfoPanel` puts both sections
+  in one scroll area with no horizontal scroll bar. The Entity info frame stays the panel's
+  focus proxy; while Entity info is collapsed the proxy is its header. Tab order is set
+  explicitly: section header → each control → its reset (override rows only) → Reset all →
+  Edit definition….
+- **Layout.** A row is a box layout that puts the label column (label and caption) beside
+  the value column while the label fits on one line next to at least 16 characters of value,
+  and above it otherwise, in place of `QFormLayout`'s `WrapLongRows` (whose label column did
+  not take the height a wrapped caption needs). The section stack takes the Tray's width
+  (horizontal policy `Ignored`) and reports its height for a width as its box layout places
+  the sections, so the scroll area never squeezes wrapped text. A long bounds range may break
+  after its dash. Reset all and Edit definition… stack when they do not fit side by side.
+  Two existing Entity info controls (the coordinate frame combo box and "Inspect problem
+  geometry") are wider than a 290 px Tray at 200 % text and clip there, as they did before.
+- **Section header.** `CollapsibleSection::setDetail` adds the muted count beside the header
+  ("2 overridden", omitted at zero) and appends it to the header's accessible description
+  ("Expanded, 2 overridden"). Headers elide their title in a narrow Tray instead of widening
+  the section; the accessible name keeps the full title.
+- **Refresh.** The section rereads `values` and `describe` through `inspectDocument` when the
+  document, revision, placement, units or precision change, and runs whether or not the Info
+  tab is shown, so the Measurements box works with any Tray tab. Rows are rebuilt only when
+  the definition's parameter descriptions change; otherwise they update in place, so a
+  commit keeps focus in its field.
+- **Captions and names.** A caption joins the source ("Override · default *x*", "Default",
+  "Derived · *expression*", "From *parent*") and the bounds ("400–2400 mm", sharing one unit
+  when both ends have it; "at least" or "at most" with one bound). The field's accessible
+  description is the same text joined by commas, with "Invalid: *sentence*" first while it
+  has an error, and a `DescriptionChanged` event is sent. A check box reads "Shown" or
+  "Hidden"; the count's − and + buttons are named "Decrease *Label*" and "Increase *Label*".
+  The section keeps the design's note ("Values accept the same units as the Measurements
+  box. Enter applies, Esc restores. Each change is one Undo step.").
+- **Entry.** Lengths go through `parseLength` (document unit by default, `'` and `"`),
+  angles through `parseAngle` (degrees by default, `rad`), areas take `mm²`, `cm²`, `m²`,
+  `in²`, `ft²` (or `2`) and otherwise the document unit squared, numbers and counts the
+  locale decimal or C locale; a count must be whole. A field sends a JSON number in SI
+  units. The count spin box has a range of ±999,999 so the field never clamps; a step (keys,
+  wheel or the buttons) commits at once and a step past a bound is refused like a typed value.
+- **Messages.** Until R094.e moves them to `parameter_messages`, the section writes the §5
+  sentences that apply to value fields: the bounds sentences ("2.6 m is above the maximum,
+  2400 mm. Nothing was changed."; below the minimum; not a step of), "At *value* the shape
+  can't be regenerated. Nothing was changed." for `PARAMETER_REGENERATION`, "The model
+  changed. Try again.", "The placement was removed." and "This placement can't hold
+  values."; any other refusal shows the core message followed by "Nothing was changed.". The
+  core message is the error's tooltip. A text that cannot be read shows "Type a length, such
+  as 1200 mm or 3'11"." (and the equivalents per type) at once.
+- **Commit path.** The section builds the batch itself (`executeBatch`, or `executeAmend`
+  for a Measurements re-entry) with `history: {label}`, then refreshes the viewport and emits
+  `Viewport::changed`, as `Viewport::organize` does. `Viewport::commitCommands` is private
+  and the placement is always top level, so no component scope is needed. Each batch is
+  checked with `evaluate` first, so the core refusal is a race only. Labels are "Change
+  *Label*", "Reset *Label*" and "Reset all parameters", the label cut to 64 UTF-8 bytes with
+  "…".
+- **Measurements box.** With the Select tool and the section showing an editable placement,
+  the window shows the parameter's label in the Measurements step label, its stored value in
+  the box while the box is not focused, and names the box "*Label*, Measurements in …".
+  Enter sets the parameter; re-entry on the same placement and parameter amends while the
+  document has not changed since. Typing digits in the canvas with the Select tool still
+  triggers the view shortcuts (1, 2, 3 …); the box is reached with F6, Tab or a click, so
+  the canvas does not claim digits from those shortcuts.
+- **Status text.** While focus is in the section the status bar shows the design's hint; it
+  returns to the previous text when focus leaves.
+- **Edit definition….** Opens the placement's context as Enter does. A placement with
+  overrides passes through a marked hook in `ComponentParametersSection::editDefinition`
+  where R094.e opens `ParametersScopeDialog`; until then it opens the context as today.
+- **Nested placements.** Every row is read-only (check boxes and combo boxes disabled, line
+  edits read-only and focusable), Reset all is disabled and the note is hidden.
+- **Theme.** `ThemeColors::information` and `informationSurface` (light `#2c5aa0` /
+  `#eef3fb`, dark `#b3cdf8` / `#1f2b3d`) style override captions, borders and fills;
+  invalid fields use `failure` and `failureSurface`; focus on an override field shows the
+  accent border. `theme_input_tests` checks the text pairs at 4.5:1 and the borders at 3:1 in
+  both themes.
