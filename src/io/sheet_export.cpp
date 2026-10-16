@@ -2,6 +2,7 @@
 #include "core/drawing_sheets.hpp"
 #include "io/drawing_sheet_paint.hpp"
 #include "io/new_file.hpp"
+#include "io/pdf_info.hpp"
 #include "sketchyup/version.hpp"
 #include <QCryptographicHash>
 #include <QDir>
@@ -803,6 +804,7 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
     report["findings"] = findingList;
 
     BoundedOutput output;
+    const auto created = QDateTime::currentDateTimeUtc();
     {
         QPdfWriter pdf(&output);
         pdf.setResolution(2540); // 100 device units per paper millimetre.
@@ -832,6 +834,7 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
         require(painter.end(), "PDF painter could not finish");
     }
     require(!output.exceeded && !output.bytes.isEmpty(), "Sheet PDF exceeds 512 MiB or is empty");
+    repairQtPdfInfo(output.bytes, created); // D-036: Qt 6.8.0/6.8.1 document information.
     SheetExport result;
     result.bytes = std::move(output.bytes);
     report["sha256"] = QString::fromLatin1(

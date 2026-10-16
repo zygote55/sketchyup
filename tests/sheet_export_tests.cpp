@@ -5,7 +5,9 @@
 #include "core/scenes.hpp"
 #include "io/document_io.hpp"
 #include "io/drawing_sheet_paint.hpp"
+#include "io/pdf_info.hpp"
 #include "io/sheet_export.hpp"
+#include "pdf_info_check.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -17,6 +19,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QTemporaryDir>
+#include <QTimeZone>
 #include <cmath>
 #include <iostream>
 #include <string>
@@ -187,6 +190,38 @@ void pagesAndPaperSizes() {
     check(mediaBoxes(single.bytes).size() == 1 && nearPt(mediaBoxes(single.bytes)[0].width(), 210),
           "Range exports only its pages");
     std::cout << "pages and paper sizes: ok\n";
+}
+
+// D-036: the document information dictionary is well formed on every Qt. Qt 6.8.0 and
+// 6.8.1 left it unclosed ("2" for ">>"), and Qt 6.8.0 wrote "D:00000000-1-1-1Z" dates
+// without a known system time zone; repairQtPdfInfo fixes both in place.
+void documentInformation() {
+    Fixture f;
+    const auto exported = renderSheetsPdf(f.doc, {});
+    const auto problem =
+        pdfcheck::infoProblem(exported.bytes, "SketchyUp drawing sheets", "SketchyUp");
+    check(problem.empty(), "Well-formed PDF document information: " + problem);
+    auto unchanged = exported.bytes;
+    check(!repairQtPdfInfo(unchanged, QDateTime::currentDateTimeUtc()) &&
+              unchanged == exported.bytes,
+          "A well-formed PDF is left byte for byte unchanged");
+    const auto broken = pdfcheck::qt680Info(exported.bytes);
+    check(broken.size() == exported.bytes.size(), "Qt 6.8.0 shaped document information");
+    check(pdfcheck::infoProblem(broken, "SketchyUp drawing sheets", "SketchyUp")
+              .starts_with("Dictionary key must be a name object"),
+          "The checker rejects the unclosed Qt 6.8.0 dictionary");
+    auto repaired = broken;
+    const QDateTime created(QDate(2026, 10, 15), QTime(22, 9, 18), QTimeZone(QTimeZone::UTC));
+    check(repairQtPdfInfo(repaired, created) && repaired.size() == broken.size(),
+          "The Qt 6.8.0 dictionary is repaired at the same length");
+    const auto after = pdfcheck::infoProblem(repaired, "SketchyUp drawing sheets", "SketchyUp");
+    check(after.empty(), "Repaired document information: " + after);
+    check(repaired.count("(D:20261015220918Z)") == 2 && !repaired.contains("-1-1-1Z"),
+          "Invalid dates become the export time in UTC");
+    check(QByteArrayView(repaired).sliced(repaired.indexOf("/Pages")) ==
+              QByteArrayView(exported.bytes).sliced(exported.bytes.indexOf("/Pages")),
+          "Nothing after the document information changes");
+    std::cout << "document information: ok\n";
 }
 
 void realTextAndClipping() {
@@ -543,6 +578,11 @@ void cliRoundTrip() {
               QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256).toHex() ==
                   exported.out["exportReport"].toObject()["sha256"].toString().toLatin1(),
           "CLI report hash matches the file");
+    QFile written(pdf);
+    check(written.open(QIODevice::ReadOnly), "CLI PDF readable");
+    const auto info =
+        pdfcheck::infoProblem(written.readAll(), "SketchyUp drawing sheets", "SketchyUp");
+    check(info.empty(), "CLI PDF document information is well formed: " + info);
     auto again = cli({"--export-sheets", pdf, "--input", model});
     check(again.code == 1 && again.err["status"] == "failed", "CLI never replaces a file");
     // A broken view blocks until --allow-broken.
@@ -582,6 +622,7 @@ int main(int argc, char **argv) {
         if (app.arguments().contains("--pdf-real"))
             return popplerChecks();
         pagesAndPaperSizes();
+        documentInformation();
         realTextAndClipping();
         preflightFindings();
         atomicAndReadOnly();
