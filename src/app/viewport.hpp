@@ -447,11 +447,13 @@ class Viewport : public QOpenGLWidget {
         Transform world;
         std::shared_ptr<BodyGeometry> geometry;
         std::shared_ptr<BodyMesh> mesh;
-        // Canonical definition member this body projects, when it may share.
+        // Canonical member record this body projects, when it may share: the
+        // definition member, or the variant's member when its placement shows a variant.
         BodyPtr source;
         Id owner{};
         InstancePtr instance;
         DefinitionPtr definition;
+        std::shared_ptr<const ComponentVariant> variant;
         Bounds bounds;
         std::vector<SectionCut> sectionCuts;
         SectionRecords sections;

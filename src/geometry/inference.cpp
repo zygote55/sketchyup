@@ -1,4 +1,5 @@
 #include "geometry/inference.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/hierarchy_changes.hpp"
 #include "geometry/inference_detail.hpp"
 #include "geometry/constraints.hpp"
@@ -288,12 +289,18 @@ void InferenceIndex::sync(const Document &doc, const std::function<bool()> &canc
                 const auto definition = doc.definitions().find(instance->definition);
                 if (definition == doc.definitions().end())
                     continue;
+                // R094.g: a placement showing a variant binds to the variant's member
+                // records, so equal variants share one local index per driven member
+                // and undriven members share the template's with default placements.
+                const auto variant = doc.componentVariant(root);
+                const auto &members = variant ? variant->members : definition->second->members;
+                const auto &references =
+                    variant ? variant->references : definition->second->references;
                 // A reference member's record is the nested instance root, bound
                 // by that nested instance's own entry.
                 for (const auto &[member, target] : instance->members)
-                    if (const auto source = definition->second->members.find(member);
-                        source != definition->second->members.end() &&
-                        !definition->second->references.contains(member))
+                    if (const auto source = members.find(member);
+                        source != members.end() && !references.contains(member))
                         (*bound)[target] = source->second;
             }
             for (const auto &[placementId, placement] : next)
