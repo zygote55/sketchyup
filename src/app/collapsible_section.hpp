@@ -1,6 +1,8 @@
 #pragma once
 #include <QAccessible>
 #include <QBoxLayout>
+#include <QEvent>
+#include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -24,6 +26,9 @@ class CollapsibleSection : public QWidget {
         header_->setAutoDefault(false);
         header_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         header_->setMinimumHeight(28);
+        // A narrow Tray elides the title instead of widening the section (ADR 0166 §8).
+        header_->setMinimumWidth(48);
+        header_->installEventFilter(this);
         layout->addWidget(header_);
         layout->addWidget(content_);
         QObject::connect(header_, &QPushButton::toggled, this, [this] { refreshHeader(); });
@@ -35,10 +40,38 @@ class CollapsibleSection : public QWidget {
         refreshHeader();
     }
     QString title() const { return title_; }
+    // Muted text at the header's end, such as a count ("2 overridden"; ADR 0166 §1.1). It
+    // follows the expanded state in the header's accessible description.
+    void setDetail(const QString &detail) {
+        if (!detail_) {
+            // The header row becomes the header button and the detail beside it.
+            auto *row = new QWidget;
+            auto *box = new QHBoxLayout(row);
+            box->setContentsMargins(0, 0, 8, 0);
+            box->setSpacing(4);
+            auto *column = static_cast<QVBoxLayout *>(layout());
+            column->removeWidget(header_);
+            column->insertWidget(0, row);
+            box->addWidget(header_, 1);
+            detail_ = new QLabel;
+            detail_->setObjectName("sectionHeaderDetail");
+            detail_->setTextFormat(Qt::PlainText);
+            box->addWidget(detail_);
+        }
+        detail_->setText(detail);
+        detail_->setVisible(!detail.isEmpty());
+        refreshHeader();
+    }
+    QString detail() const { return detail_ ? detail_->text() : QString{}; }
     bool expanded() const { return header_->isChecked(); }
     void setExpanded(bool expanded) { header_->setChecked(expanded); }
     QPushButton *header() const { return header_; }
     QWidget *content() const { return content_; }
+    bool eventFilter(QObject *object, QEvent *event) override {
+        if (object == header_ && event->type() == QEvent::Resize)
+            showTitle();
+        return QWidget::eventFilter(object, event);
+    }
     // The stretch this section takes in its parent's box layout while expanded.
     void setExpandedStretch(int stretch) {
         stretch_ = stretch;
@@ -48,13 +81,24 @@ class CollapsibleSection : public QWidget {
   private:
     QPushButton *header_{};
     QWidget *content_{};
+    QLabel *detail_{};
     QString title_;
     int stretch_{0};
+    void showTitle() {
+        const auto full = QString(header_->isChecked() ? "▾ " : "▸ ") + title_;
+        // The style sheet's header padding and border.
+        const int room = header_->width() - 20;
+        header_->setText(header_->isVisible() && room > 0
+                             ? header_->fontMetrics().elidedText(full, Qt::ElideRight, room)
+                             : full);
+    }
     void refreshHeader() {
         const bool open = header_->isChecked();
-        header_->setText(QString(open ? "▾ " : "▸ ") + title_);
+        showTitle();
         header_->setAccessibleName(title_);
-        header_->setAccessibleDescription(open ? "Expanded" : "Collapsed");
+        const auto detail = this->detail();
+        header_->setAccessibleDescription(QString(open ? "Expanded" : "Collapsed") +
+                                          (detail.isEmpty() ? QString{} : ", " + detail));
         header_->setToolTip((open ? "Collapse " : "Expand ") + title_);
         content_->setVisible(open);
         // A collapsed section gives its stretch back to the open ones.

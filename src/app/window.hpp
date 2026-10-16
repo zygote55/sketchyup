@@ -27,6 +27,7 @@ class QStackedWidget;
 class QToolBar;
 class QPrinter;
 namespace sketchy {
+class ComponentParametersSection;
 class DesktopInspection;
 class RenderPanel;
 class DrawingViewRenderCache;
@@ -103,6 +104,10 @@ class Window : public QMainWindow {
     QTabWidget *sideTabs_{};
     QPointer<QDialog> assistantSheet_;
     QPointer<QDialog> diagnosticsSheet_;
+    // R094.c: Entity info's placement parameters and the Measurements box routed to them.
+    ComponentParametersSection *parameters_{};
+    bool parameterMeasurement_{};
+    void syncParameterMeasurement();
     void showGeometryDiagnostics();
     bool assistantShown_{}, assistantFenced_{};
     int assistantRecoveryInterval_{};

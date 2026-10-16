@@ -1,4 +1,5 @@
 #include "app/entity_info_panel.hpp"
+#include "app/component_parameters_section.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
@@ -45,6 +46,28 @@ QString unavailable(const std::string &status) {
         return "Select a whole entity for volume";
     return "No closed surface";
 }
+// The Info tab's stack of sections (ADR 0166 §1.1). Its height for a width counts each
+// section at no less than its minimum height, as the box layout places them, so the scroll
+// area never squeezes a section below the height its wrapped text needs.
+class SectionStack final : public QWidget {
+  public:
+    int heightForWidth(int width) const override {
+        auto *box = static_cast<QBoxLayout *>(layout());
+        const auto margins = box->contentsMargins();
+        const int inner = width - margins.left() - margins.right();
+        int height = margins.top() + margins.bottom(), shown = 0;
+        for (int i = 0; i < box->count(); ++i) {
+            auto *item = box->itemAt(i);
+            if (item->isEmpty())
+                continue;
+            height += std::max(item->minimumSize().height(), item->hasHeightForWidth()
+                                                                 ? item->heightForWidth(inner)
+                                                                 : item->sizeHint().height());
+            ++shown;
+        }
+        return height + std::max(0, shown - 1) * box->spacing();
+    }
+};
 QLabel *value(QFormLayout *form, const QString &label, const QString &name) {
     auto *result = new QLabel;
     result->setObjectName(name);
@@ -60,18 +83,32 @@ EntityInfoPanel::EntityInfoPanel(Document &doc, Viewport &view, QWidget *parent)
     setObjectName("entityInfoPanel");
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(2, 2, 2, 2);
-    frame_ = new QComboBox;
-    frame_->setObjectName("entityInfoFrame");
-    frame_->setAccessibleName("Measurement coordinate frame");
-    frame_->addItems({"World coordinates", "Parent coordinates", "Intrinsic entity coordinates"});
-    layout->addWidget(frame_);
-    setFocusProxy(frame_);
+    // One scroll area holds the stack of sections; rows wrap rather than scroll sideways.
     auto *scroll = new QScrollArea;
     scroll->setObjectName("entityInfoScroll");
     scroll->setAccessibleName("Selected entity properties");
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto *sections = new SectionStack;
+    sections->setObjectName("entityInfoSections");
+    // The stack takes the Tray's width: a wide control clips itself instead of widening
+    // every section past the Tray (ADR 0166 §8).
+    sections->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    auto *stack = new QVBoxLayout(sections);
+    stack->setContentsMargins(0, 0, 0, 0);
+    stack->setSpacing(4);
+    auto *body = new QWidget;
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(0, 0, 0, 0);
+    frame_ = new QComboBox;
+    frame_->setObjectName("entityInfoFrame");
+    frame_->setAccessibleName("Measurement coordinate frame");
+    frame_->addItems({"World coordinates", "Parent coordinates", "Intrinsic entity coordinates"});
+    bodyLayout->addWidget(frame_);
+    setFocusProxy(frame_);
     auto *content = new QWidget;
+    content->setObjectName("entityInfoForm");
     auto *form = new QFormLayout(content);
     form->setContentsMargins(2, 2, 2, 2);
     form->setRowWrapPolicy(QFormLayout::WrapLongRows);
@@ -87,24 +124,35 @@ EntityInfoPanel::EntityInfoPanel(Document &doc, Viewport &view, QWidget *parent)
     tag_ = value(form, "Tag", "entityInfoTag");
     color_ = value(form, "Materials", "entityInfoColor");
     properties_ = value(form, "Semantic properties", "entityInfoProperties");
-    scroll->setWidget(content);
-    layout->addWidget(scroll, 1);
+    bodyLayout->addWidget(content);
     edit_ = new QPushButton("Edit entity…");
     edit_->setObjectName("entityInfoEdit");
     edit_->setToolTip("Edit name, tag, origin and dimensions (F2)");
-    layout->addWidget(edit_);
+    bodyLayout->addWidget(edit_);
     editAction_ = new QAction(this);
     editAction_->setShortcut(Qt::Key_F2);
     editAction_->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     addAction(editAction_);
     problems_ = new QPushButton("Inspect problem geometry");
     problems_->setObjectName("entityInfoProblems");
-    layout->addWidget(problems_);
+    bodyLayout->addWidget(problems_);
     error_ = new QLabel;
     error_->setObjectName("entityInfoError");
     error_->setTextFormat(Qt::PlainText);
     error_->setWordWrap(true);
-    layout->addWidget(error_);
+    bodyLayout->addWidget(error_);
+    info_ = new CollapsibleSection("Entity info", body);
+    info_->setObjectName("entityInfoSection");
+    stack->addWidget(info_);
+    parameters_ = new ComponentParametersSection(doc_, view_);
+    stack->addWidget(parameters_);
+    stack->addStretch(1);
+    scroll->setWidget(sections);
+    layout->addWidget(scroll, 1);
+    // A collapsed Entity info section hides the frame; Tab into the tab then lands on its header.
+    connect(info_->header(), &QPushButton::toggled, this, [this](bool open) {
+        setFocusProxy(open ? static_cast<QWidget *>(frame_) : info_->header());
+    });
     connect(frame_, &QComboBox::currentIndexChanged, this, [this] { refresh(); });
     connect(edit_, &QPushButton::clicked, this, [this] { edit(); });
     connect(editAction_, &QAction::triggered, this, [this] { edit(); });
@@ -115,6 +163,8 @@ void EntityInfoPanel::showEvent(QShowEvent *event) {
     refresh();
 }
 void EntityInfoPanel::refresh() {
+    // The parameters also answer the Measurements box while this tab is hidden.
+    parameters_->refresh();
     if (!isVisible())
         return;
     const auto &selected = view_.selectionState().entities();

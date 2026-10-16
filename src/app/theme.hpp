@@ -9,6 +9,9 @@ struct ThemeColors {
     // in both themes because it represents print; the pasteboard is the area around it.
     QColor selectionStroke{}, warning{}, warningSurface{}, warningBorder{}, failure{},
         failureSurface{}, paper{"#ffffff"}, pasteboard{};
+    // ADR 0166 §1.2 (R094.c). Information blue and its fill: an overridden component
+    // parameter's caption, border and field.
+    QColor information{}, informationSurface{};
 };
 inline ThemeColors themeColors(bool dark) {
     if (dark) {
@@ -21,6 +24,8 @@ inline ThemeColors themeColors(bool dark) {
         colors.failure = QColor("#f9c0b8");
         colors.failureSurface = QColor("#3d2624");
         colors.pasteboard = QColor("#252e28");
+        colors.information = QColor("#b3cdf8");
+        colors.informationSurface = QColor("#1f2b3d");
         return colors;
     }
     ThemeColors colors{"#f7f7f2", "#263a32", "#c9d4c5", "#dce7dc", "#e6ebdf",
@@ -32,6 +37,8 @@ inline ThemeColors themeColors(bool dark) {
     colors.failure = QColor("#a8322b");
     colors.failureSurface = QColor("#fbf1f0");
     colors.pasteboard = QColor("#e9ebe4");
+    colors.information = QColor("#2c5aa0");
+    colors.informationSurface = QColor("#eef3fb");
     return colors;
 }
 } // namespace sketchy

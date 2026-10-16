@@ -1,4 +1,5 @@
 #include "app/accessible_names.hpp"
+#include "app/component_parameters_section.hpp"
 #include "app/inspection_service.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
@@ -19,6 +20,9 @@
 #include <QVBoxLayout>
 namespace sketchy {
 Window::~Window() {
+    // The document goes before the widgets: a field losing focus must not commit (R094.c).
+    if (parameters_)
+        parameters_->detach();
     delete assistant_;
     delete render_;
     delete recovery_;

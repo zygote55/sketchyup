@@ -271,6 +271,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/placement_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/entity_info_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
@@ -394,6 +395,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/placement_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/entity_info_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
@@ -510,6 +512,7 @@ jobs:
           scripts/test-wayland.sh build/dev/material_viewport_tests
           scripts/test-wayland.sh build/dev/placement_viewport_tests
           scripts/test-wayland.sh build/dev/entity_info_input_tests
+          scripts/test-wayland.sh build/dev/component_parameter_input_tests
           scripts/test-wayland.sh build/dev/organization_input_tests
           scripts/test-wayland.sh build/dev/component_input_tests
           scripts/test-wayland.sh build/dev/hosted_input_tests
@@ -623,6 +626,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_viewport_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/placement_viewport_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/entity_info_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_parameter_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/organization_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_input_tests
@@ -740,6 +744,9 @@ jobs:
               xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR="$factor" LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 "build/dev/$target"
             done
           done
+          # R094.c (ADR 0166 §8): placement parameter rows at fractional 1.5 on both platforms.
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/component_parameter_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_input_tests
           # R091.f (ADR 0164 §6): page layout at fractional 1.5 on both platforms.
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_layout_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_annotation_input_tests
