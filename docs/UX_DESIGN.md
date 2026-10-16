@@ -117,7 +117,13 @@ use View → Reset sidebar width, to return to the defaults (248 px panel,
 340 px tabbed panel with the Assistant, 340 px Assistant column, as before;
 capped at 320 / 420 px at large text). View → Widen sidebar (`Ctrl+Alt+]`) and
 Narrow sidebar (`Ctrl+Alt+[`) step the edge column by 40 px; both are rebindable.
-The handles are named "Resize sidebar" and "Resize between Tray and Assistant".
+The handles are named "Resize sidebar" and "Resize between Tray and Assistant"
+and reach AT-SPI as vertical split panes. Each handle is 6 px wide (scaled by
+text size), filled with the theme's panel hover tone, a step darker than the
+Tray, with a centred grip of two 1 px dotted lines about 28 px tall in the muted
+text colour (at least 3:1 against the fill in both themes). Hovering or dragging
+tints the fill with the accent (25 % over the surface); keyboard focus in the
+sidebar does not change it. The pointer is the horizontal split cursor.
 
 - **Bounds:** each column is at least 240 px and at most 720 px, both scaled by
   interface text size. The workspace (viewport or sheet canvas) always keeps

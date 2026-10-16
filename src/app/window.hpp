@@ -123,6 +123,7 @@ class Window : public QMainWindow {
     void storeSidebarWidth(QWidget *column, int width);
     void stepSidebar(int direction);
     void resetSidebar();
+    void themeSidebar(const ThemeColors &colors);
     void toggleAssistant();
     void assistantFence(bool uncertain);
     std::unique_ptr<DesktopInspection> inspection_;

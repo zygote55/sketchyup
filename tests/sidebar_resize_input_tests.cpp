@@ -3,16 +3,19 @@
 // (minimum, maximum, viewport minimum on window shrink), the tabbed and column layouts, both
 // workspaces and the interface text-size rule.
 #include "app/surface_format.hpp"
+#include "app/theme.hpp"
 #include "app/window.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QEnterEvent>
 #include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
+#include <cmath>
 #include <iostream>
 #include <memory>
 using namespace sketchy;
@@ -95,6 +98,46 @@ int stored(const char *key) {
     preferences.sync();
     return preferences.value(key, -1).toInt();
 }
+double luminance(const QColor &color) {
+    auto linear = [](double v) {
+        return v <= .04045 ? v / 12.92 : std::pow((v + .055) / 1.055, 2.4);
+    };
+    return .2126 * linear(color.redF()) + .7152 * linear(color.greenF()) +
+           .0722 * linear(color.blueF());
+}
+double contrast(const QColor &a, const QColor &b) {
+    const auto x = luminance(a), y = luminance(b);
+    return (std::max(x, y) + .05) / (std::min(x, y) + .05);
+}
+// The handle is drawn: a fill other than the plain panel colour and a dotted grip in the muted
+// text colour with at least 3:1 contrast, in the resting and hovered states.
+void checkHandleLook(QSplitterHandle *handle, bool dark, const std::string &where) {
+    const auto colors = themeColors(dark);
+    auto look = [&](const std::string &state) {
+        const auto image = handle->grab().toImage();
+        check(!image.isNull(), where + ": handle captured");
+        const QColor fill = image.pixelColor(0, 0);
+        int grip = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                grip += image.pixelColor(x, y) == colors.muted;
+        check(fill != colors.surface, where + " " + state + ": the handle is not the panel colour");
+        check(grip > 0, where + " " + state + ": grip pixels are present");
+        check(contrast(colors.muted, fill) >= 3, where + " " + state + ": grip contrast " +
+                                                     std::to_string(contrast(colors.muted, fill)) +
+                                                     " is at least 3:1");
+        return fill;
+    };
+    const auto resting = look("resting");
+    check(resting == colors.hover, where + ": the resting fill is the panel hover tone");
+    QEnterEvent enter(QPointF(1, 1), QPointF(1, 1), handle->mapToGlobal(QPointF(1, 1)));
+    QApplication::sendEvent(handle, &enter);
+    const auto hovered = look("hovered");
+    check(hovered != resting, where + ": hovering tints the handle");
+    QEvent leave(QEvent::Leave);
+    QApplication::sendEvent(handle, &leave);
+    check(look("after hover") == resting, where + ": leaving restores the fill");
+}
 QString accessibleName(QWidget *widget) {
     auto *accessible = QAccessible::queryAccessibleInterface(widget);
     return accessible ? accessible->text(QAccessible::Name) : QString();
@@ -129,6 +172,21 @@ int main(int argc, char **argv) {
                   "Default side panel width is 248 px, got " + std::to_string(f.width(f.side)));
             check(accessibleName(f.handle(1)) == "Resize sidebar",
                   "The sidebar handle is named for assistive technology");
+            check(QAccessible::queryAccessibleInterface(f.handle(1))->role() ==
+                      QAccessible::Splitter,
+                  "The handle's accessible role is splitter");
+            check(f.splitter->handleWidth() == 6 && f.handle(1)->width() == 6,
+                  "The handle is 6 px wide at 100% text");
+            check(f.handle(1)->cursor().shape() == Qt::SplitHCursor,
+                  "The handle shows the horizontal split cursor");
+            f.action("view.theme.1")->trigger();
+            f.settle();
+            checkHandleLook(f.handle(1), false, "Light theme");
+            f.action("view.theme.2")->trigger();
+            f.settle();
+            checkHandleLook(f.handle(1), true, "Dark theme");
+            f.action("view.theme.1")->trigger();
+            f.settle();
             f.checkGeometry("Default");
             // Drag the sidebar's left edge.
             f.drag(1, -100);
@@ -202,6 +260,7 @@ int main(int argc, char **argv) {
             check(accessibleName(f.handle(1)) == "Resize sidebar" &&
                       accessibleName(f.handle(2)) == "Resize between Tray and Assistant",
                   "Both handles are named");
+            checkHandleLook(f.handle(2), false, "Tray|Assistant handle");
             f.drag(2, -60);
             check(f.width(f.side) == 260 && f.width(assistant) == 400,
                   "The middle handle trades width between Tray and Assistant, got " +
@@ -268,6 +327,7 @@ int main(int argc, char **argv) {
             Fixture f(1600);
             check(f.width(f.side) == 450,
                   "300 px at 150% text is 450 px, got " + std::to_string(f.width(f.side)));
+            check(f.handle(1)->width() == 9, "The handle width scales with text (9 px at 150%)");
             f.drag(1, 2000);
             check(f.width(f.side) == 360, "The minimum scales with text (240 at 150% is 360)");
             f.key(Qt::Key_BracketRight);

@@ -1144,6 +1144,7 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
     setContextLabelColor(breadcrumb_, colors.accent);
     setContextLabelColor(componentBanner_, colors.accent);
     themeSheets(colors);
+    themeSidebar(colors);
 }
 void Window::run(const std::function<void()> &fn, bool viewOnly) {
     if (!viewOnly && assistant_ && assistant_->uncertain()) {
