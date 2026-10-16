@@ -274,7 +274,6 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     workspaceStack_->addWidget(modelTabs);
     sheets_ = new SheetWorkspace(doc_, *sheetCache_);
     workspaceStack_->addWidget(sheets_);
-    content->addWidget(workspaceStack_, 1);
     breadcrumb_ = new QLabel(viewport_);
     breadcrumb_->setObjectName("contextBreadcrumb");
     breadcrumb_->setAccessibleName("Editing context breadcrumb");
@@ -331,10 +330,11 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     sideTabs_->setAccessibleName("Model panels and assistant");
     sideTabs_->setTabBarAutoHide(true);
     sideTabs_->addTab(tray_, "Model");
-    sideTabs_->setFixedWidth(248);
-    content->addWidget(sideTabs_);
     assistant_ = new AssistantPanel(doc_, *viewport_, std::move(assistantServices), root);
     assistant_->hide();
+    // R094.a: the workspace and the side panel share a splitter, built here so the GL viewport
+    // is never reparented later.
+    setupSidebar(workspaceStack_);
     vertical->addLayout(content, 1);
     auto *bottom = new QWidget;
     bottom->setObjectName("footer");
@@ -902,6 +902,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     panel->setCheckable(true);
     panel->setChecked(true);
     view->addAction(panel);
+    // R094.a: keyboard equivalents of dragging the sidebar's edge.
+    view->addAction(action("view.sidebar.wider", "Widen sidebar", QKeySequence("Ctrl+Alt+]"),
+                           [this] { stepSidebar(1); }));
+    view->addAction(action("view.sidebar.narrower", "Narrow sidebar", QKeySequence("Ctrl+Alt+["),
+                           [this] { stepSidebar(-1); }));
+    view->addAction(
+        action("view.sidebar.reset", "Reset sidebar width", {}, [this] { resetSidebar(); }));
     view->addAction(action("view.textSize", "Interface text size…", {}, [this] {
         const QStringList sizes{"75%", "100%", "125%", "150%", "175%", "200%"};
         bool accepted = false;

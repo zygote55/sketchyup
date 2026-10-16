@@ -109,6 +109,32 @@ Each action result shows its shortcut, so the palette also teaches the keyboard.
 | 800 ≤ width < 1100 px | Side panel collapses to an icon strip and opens as an overlay sheet; menu bar becomes one menu button |
 | < 800 px | Tool rail shows the active group only; status instruction truncates; Measurements box and job chips remain |
 
+**Resizable sidebar (R094.a).** The side panel and, in the ≥ 1500 px layout,
+the Assistant column sit in one splitter with the workspace. Drag the handle on
+the sidebar's left edge to resize it; in the column layout a second handle
+between Tray and Assistant trades width between them. Double-click a handle, or
+use View → Reset sidebar width, to return to the defaults (248 px panel,
+340 px tabbed panel with the Assistant, 340 px Assistant column, as before;
+capped at 320 / 420 px at large text). View → Widen sidebar (`Ctrl+Alt+]`) and
+Narrow sidebar (`Ctrl+Alt+[`) step the edge column by 40 px; both are rebindable.
+The handles are named "Resize sidebar" and "Resize between Tray and Assistant".
+
+- **Bounds:** each column is at least 240 px and at most 720 px, both scaled by
+  interface text size. The workspace (viewport or sheet canvas) always keeps
+  400 px, unscaled because it is drawing area; that leaves the panel about
+  240 px at 800 px with 200 % text. When the window shrinks, the rightmost
+  column narrows first, then the panel, and only when the window cannot hold
+  the minimum do the columns go below it. The sidebar never overlaps the workspace.
+- **Persistence:** widths are per layout (panel alone, tabbed panel with the
+  Assistant, Assistant column) in QSettings keys `sidebarTrayWidth`,
+  `sidebarTabbedWidth` and `sidebarAssistantWidth`, saved when the user drags or
+  steps a width and removed on reset. A missing, corrupt or out-of-range value
+  (outside 240–720) uses the default. Window-size clamping never rewrites them, so
+  a wider window restores the chosen width. Model and Sheets share the widths.
+- **Text size:** widths are stored in logical pixels at 100 % text and scaled by
+  the current interface text size, so a text-size change keeps the user's width
+  in proportion (then clamps to the bounds).
+
 Validate at 640, 900, 1200 and 1600 logical pixels, including fractional scale.
 On the smallest tile collapse job detail before reducing Measurements access.
 The supplied narrow illustration is 900 px; add 640 px and split-column wide

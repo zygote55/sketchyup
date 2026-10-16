@@ -322,6 +322,8 @@ def main():
                                 return rows if any(r["name"] == "Model hierarchy" for r in rows) else None
 
                             rows = wait_for(bridge, ready, "Model hierarchy did not appear")
+                            # R094.a: the sidebar's resize handle is named for assistive technology.
+                            sidebar_handle = find(rows, "Resize sidebar")
                             measurements = find(rows, "Measurements in meters", "text")
                             with bridge.at_path(app, measurements["path"]) as control:
                                 with bridge.owned(bridge.accessible_get_text_iface(control)) as text:
@@ -368,6 +370,7 @@ def main():
                                 "selectionDescription": summary["description"],
                                 "entityInfo": expected,
                                 "sheets": sheets,
+                                "sidebarHandle": {key: sidebar_handle[key] for key in ("name", "role")},
                                 "accessibleNodes": len(rows),
                                 "passes": True,
                                 "releaseAcceptance": False,
