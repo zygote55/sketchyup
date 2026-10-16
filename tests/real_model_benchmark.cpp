@@ -167,7 +167,10 @@ int main(int argc, char **argv) {
             instances.push_back(component.instance);
             if (scenario == "variant") {
                 // R094.g: every placement overrides a parameter, so every placement
-                // shows one non-default variant (a 2.5 m prism stretched from 2 m).
+                // shows one non-default variant: the prism stretched from 2 m to
+                // 2.001 m. The 1 mm keeps the rasterized area of the repeated family,
+                // so software frame times compare the instancing path rather than
+                // llvmpipe fill rate (a 2.5 m override draws about 20 % more area).
                 // The placements are made as a user makes them: the first is set,
                 // then copied as a row and the row copied, carrying the overrides.
                 const auto member = component.movedGeometry.at(body);
@@ -185,7 +188,7 @@ int main(int argc, char **argv) {
                 driveComponent(doc, component.definition, 0, stretch);
                 overrideComponentParameters(
                     doc, component.instance,
-                    {{"width", ParameterQuantity{quantizeParameterLength(2.5), {1, 0}}}});
+                    {{"width", ParameterQuantity{quantizeParameterLength(2.001), {1, 0}}}});
                 std::vector<Id> row{component.instance};
                 if (const int width = std::min(count, columns); width > 1) {
                     CopyArray array;
