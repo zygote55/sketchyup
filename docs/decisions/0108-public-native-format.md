@@ -316,6 +316,20 @@ remapped records so it stays bound. Template bundles and instantiated templates 
 parameter records, overrides and the allocator. A bundle or template with parameters
 holds a schema-28 model.
 
+**Addendum: assembly identity (R094.b, 2026-10-16).** Schema 28 is still open (ADR 0165
+open item 2), so this field is added without a schema 29. A `componentParameters`
+record may carry one optional field, `assembly {id, version}`, naming the library
+assembly the definition was built from ([ADR 0166](0166-configurable-component-interface.md)
+§6.2). `id` matches `[a-z0-9_-]{1,64}(/[a-z0-9_-]{1,64})?` (for example
+`sketchyup/interior-door`) and `version` is an integer from 1 to 2,147,483,647. It is
+the only optional field in the tables: the writer omits it when the definition has no
+identity, and a reader refuses `null`, a malformed `id` or `version`, or unknown fields
+inside it. Component bundles capture it and insertion keeps it; making a placement
+unique (including the ancestors `component.replace` makes unique) leaves it off the
+copy, and removing a definition's last parameter and driver removes it with the
+record. The `component-parameters-v28.sketchyup` fixture was regenerated once to carry
+it on the room definition.
+
 **Older readers.** SketchyUp 1.1.0 (package `sketchyup-1.1.0-1`) and 1.0.1
 (`sketchyup-1.0.1-1`) refuse a schema-28 file at `decodeContainer`, before reading the
 document, and leave it unchanged. Their manifest check sees the new allocator floor, so

@@ -720,9 +720,12 @@ int main(int argc, char **argv) {
         std::cout << QJsonDocument(result).toJson().toStdString();
         return 0;
     } catch (const sketchy::InspectionError &e) {
-        std::cerr << QJsonDocument(QJsonObject{{"status", "failed"},
-                                               {"code", QString::fromStdString(e.code())},
-                                               {"error", e.what()}})
+        QJsonObject failure{{"status", "failed"},
+                            {"code", QString::fromStdString(e.code())},
+                            {"error", e.what()}};
+        if (!e.details().isEmpty())
+            failure["details"] = e.details();
+        std::cerr << QJsonDocument(failure)
                          .toJson(QJsonDocument::Compact)
                          .toStdString()
                   << '\n';

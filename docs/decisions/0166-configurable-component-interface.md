@@ -905,3 +905,62 @@ R094.g requires R093.b only and may merge at any point. R094.h requires all of t
   with a JSON summary (the Verify line, the X11 and Wayland 1× and 2× matrix, the
   R094.g measurements, installed smoke of the assemblies); this ADR's status and the
   roadmap status.
+
+## Implementation notes (R094.b)
+
+R094.b settled these points in the core and command layers. They refine §§1.4, 2, 4.2,
+5 and 6.2; where they differ, these notes govern.
+
+- **`component_parameter.promote {body}`** (catalogue label "Make a placement's
+  parameter values its definition's defaults") refuses a nested placement and a
+  placement whose definition has no parameter record with `INVALID_TARGET`, a missing
+  one with `NOT_FOUND`, and a locked placement (or one under a locked ancestor) with
+  `LOCKED_ENTITY`. It makes the placement unique only when another placement, nested
+  or top-level, shares its definition; an unshared placement is promoted in place and
+  keeps its definition and assembly identity. Either way the batch is one History
+  entry, and its `componentOperations` entry adds `madeUnique` and
+  `parametersPromoted`. A placement whose variant has repeat copies still has a variant
+  after promotion (copies are generated even at the defaults); its values all come
+  from the defaults.
+- **Assembly identity.** `ComponentParameters::assembly` (`ComponentAssembly {id,
+  version}`) with `setComponentAssembly(Document&, definition, identity)`, a core
+  builder that is one edit and changes no geometry, for R094.f's bundle builder; no
+  command sets it. `version` is 1–2,147,483,647. Record validation and the reader
+  refuse a malformed identity (`PARAMETER_NAME` from the builder). The field is written
+  only when set, so records without one and their canonical encoding are unchanged. A
+  unique copy made by `component.make_unique`, `component.edit_instance`,
+  `component_parameter.promote` or the ancestor chain of `component.replace` has none.
+  Removing a definition's last parameter and driver removes the record and the
+  identity with it.
+- **Error details.** `InspectionError` carries an optional `details` object, which the
+  session, MCP and CLI failure objects report as `details` when present (an additive
+  field; errors without details keep their shape). Every component parameter error
+  converted by `executeBatch` and the inspection queries carries
+  `componentParameterErrorDetails`: `definition`, `body` (the placement the error names,
+  so `LOCKED_ENTITY` from an override, a reset, a promotion or a definition edit names
+  the locked placement), `parameter`, `driver`, `offset`, `excerpt`, `cycle`,
+  `referrers` and, for a bounds `PARAMETER_DOMAIN`, `bound` (`min`, `max` or `step`),
+  `limit` and `value` in SI units. `component_parameters.evaluate` returns the same
+  fields inside its `error`.
+- **`evaluate` target type.** R093.d's optional `type` already checks an expression
+  against a parameter type, which covers every driver kind (stretch, position and
+  repeat spacing are lengths, rotation an angle, visibility a boolean, repeat count a
+  count, child parameter the child parameter's type from `describe`), so no `for`
+  field was added. One gap remains: `type: "choice"` checks a choice result against
+  the options of the evaluated definition's own choice parameters, so a child
+  parameter of a choice type is checked against its options only by the 300 ms dry run
+  of `component_parameter.drive` (§3.5).
+- **Dry-run geometry.** `previewBatch` and `previewAmend` had no cap on the bodies
+  they return, so no separate `regenerated` section was needed. Both now return
+  `geometry` only for changed bodies that are shown (a body or ancestor `hidden` is
+  not drawn) and add `removed`: ascending IDs of bodies shown before that the dry run
+  deletes or hides, which covers removed repeat copies and members a visibility
+  driver hides.
+- **History labels.** `Viewport::commitCommands(commands, shared, historyLabel)`
+  passes a non-empty label as `history: {label}`; existing callers are unchanged.
+- **Persistence.** The ADR 0108 "Schema 28" section has an addendum for the field.
+  The `component-parameters-v28.sketchyup` fixture was regenerated once, with the room
+  definition carrying `sketchyup-tests/room` version 1; the fuzz seeds built from the
+  same fixture carry it, and a malformed identity is a rejected `native-json` seed.
+  `docs/api/native-format-v1.json` describes versions and features only, so it did not
+  change.

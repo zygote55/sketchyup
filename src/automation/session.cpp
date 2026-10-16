@@ -283,8 +283,11 @@ QJsonObject AutomationSession::execute(const QJsonObject &request) {
 }
 QJsonObject automationFailure(const std::exception &error) {
     QString code = "INVALID_OPERATION";
-    if (auto typed = dynamic_cast<const InspectionError *>(&error))
+    QJsonObject details;
+    if (auto typed = dynamic_cast<const InspectionError *>(&error)) {
         code = QString::fromStdString(typed->code());
+        details = typed->details();
+    }
     else if (auto typed = dynamic_cast<const OutcomeStoreError *>(&error))
         code = QString::fromStdString(typed->code());
     else if (auto typed = dynamic_cast<const PlanarError *>(&error))
@@ -299,7 +302,10 @@ QJsonObject automationFailure(const std::exception &error) {
         code = QString::fromStdString(typed->code());
     else if (auto typed = dynamic_cast<const BooleanError *>(&error))
         code = QString::fromStdString(typed->code());
-    return {{"code", code}, {"message", QString::fromUtf8(error.what()).left(2048)}};
+    QJsonObject failure{{"code", code}, {"message", QString::fromUtf8(error.what()).left(2048)}};
+    if (!details.isEmpty())
+        failure["details"] = details;
+    return failure;
 }
 QJsonObject AutomationSession::respond(const QJsonObject &envelope) {
     QJsonValue id = QJsonValue::Null;

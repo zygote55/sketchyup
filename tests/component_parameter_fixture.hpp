@@ -61,6 +61,7 @@ struct Table {
 // `maxShelves`) and a visibility on the shelf. A room assembly nests one table and
 // drives its width through childParameter. Another table overrides width, shelves and
 // finish, so two shelf copies exist. One retired driver ID sits below the allocator.
+// The room definition has the assembly identity sketchyup-tests/room, version 1.
 inline Table makeTable(std::uint32_t maxShelves = 4) {
     using Kind = ComponentDriverKind;
     using Mode = ComponentParameterMode;
@@ -133,6 +134,8 @@ inline Table makeTable(std::uint32_t maxShelves = 4) {
     child.parameter = "width";
     t.child = driveComponent(doc, t.room, 0, child).createdDrivers.at(0);
     overrideComponentParameters(doc, t.roomPlacement, {{"table_width", metres(1.8)}});
+    // The room carries a library assembly identity (ADR 0166 §6.2; R094.b).
+    setComponentAssembly(doc, t.room, ComponentAssembly{"sketchyup-tests/room", 1});
     // Two top-level tables: one at its defaults, one overridden with shelf copies.
     t.defaults =
         placeComponent(doc, t.definition, Transform::translation({0, 4, 0})).instance;

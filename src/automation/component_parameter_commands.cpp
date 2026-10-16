@@ -356,21 +356,9 @@ const DefinitionPtr &requireDefinition(const Document &doc, Id definition) {
     return found->second;
 }
 QJsonObject errorJson(const ComponentParameterError &error) {
-    const auto &context = error.context();
-    QJsonObject result{{"code", QString::fromStdString(error.code())},
-                       {"message", QString::fromUtf8(error.what())}};
-    if (context.offset)
-        result["offset"] = double(context.offset);
-    if (!context.excerpt.empty())
-        result["excerpt"] = QString::fromStdString(context.excerpt);
-    if (!context.parameter.empty())
-        result["parameter"] = QString::fromStdString(context.parameter);
-    if (context.driver)
-        result["driver"] = QString::number(context.driver);
-    if (!context.cycle.empty())
-        result["cycle"] = strings(context.cycle);
-    if (!context.referrers.empty())
-        result["referrers"] = strings(context.referrers);
+    auto result = componentParameterErrorDetails(error);
+    result["code"] = QString::fromStdString(error.code());
+    result["message"] = QString::fromUtf8(error.what());
     return result;
 }
 struct Symbols final : ParameterSymbols {
@@ -384,8 +372,76 @@ struct Symbols final : ParameterSymbols {
 };
 } // namespace
 
+QJsonObject componentParameterErrorDetails(const ComponentParameterError &error) {
+    const auto &context = error.context();
+    QJsonObject result;
+    if (context.definition)
+        result["definition"] = QString::number(context.definition);
+    // The placement the error names, e.g. the locked placement of LOCKED_ENTITY.
+    if (context.placement)
+        result["body"] = QString::number(context.placement);
+    if (context.offset)
+        result["offset"] = double(context.offset);
+    if (!context.excerpt.empty())
+        result["excerpt"] = QString::fromStdString(context.excerpt);
+    if (!context.parameter.empty())
+        result["parameter"] = QString::fromStdString(context.parameter);
+    if (context.driver)
+        result["driver"] = QString::number(context.driver);
+    if (!context.cycle.empty())
+        result["cycle"] = strings(context.cycle);
+    if (!context.referrers.empty())
+        result["referrers"] = strings(context.referrers);
+    if (!context.bound.empty()) {
+        result["bound"] = QString::fromStdString(context.bound);
+        result["limit"] = context.limit;
+        result["value"] = context.value;
+    }
+    return result;
+}
 bool isComponentParameterCommand(const QString &name) {
     return name.startsWith(QStringLiteral("component_parameter."));
+}
+ComponentParameterPromotion executeComponentParameterPromotion(Document &doc,
+                                                               const QJsonObject &command) {
+    onlyFields(command, {"command", "body"}, "component_parameter.promote");
+    const auto placement = decimal(command["body"]);
+    const auto found = doc.instances().find(placement);
+    if (found == doc.instances().end())
+        throw ComponentParameterError("NOT_FOUND",
+                                      "Placement #" + std::to_string(placement) +
+                                          " is not a component placement",
+                                      {.placement = placement});
+    const auto definition = found->second->definition;
+    const Context context{.definition = definition, .placement = placement};
+    if (!requireDefinition(doc, definition)->parameters)
+        throw ComponentParameterError("INVALID_TARGET",
+                                      "Placement #" + std::to_string(placement) +
+                                          " has no parameters to promote",
+                                      context);
+    bool shared = false;
+    for (const auto &[root, instance] : doc.instances()) {
+        for (const auto &[member, target] : instance->members)
+            if (target == placement && root != placement)
+                throw ComponentParameterError(
+                    "INVALID_TARGET",
+                    "Placement #" + std::to_string(placement) +
+                        " is nested; its values come from its parent",
+                    context);
+        shared = shared || (root != placement && instance->definition == definition);
+    }
+    for (Id id = placement; id && doc.bodies().contains(id); id = doc.bodies().at(id)->parent)
+        if (doc.bodies().at(id)->locked)
+            throw ComponentParameterError(
+                "LOCKED_ENTITY",
+                "Placement #" + std::to_string(placement) +
+                    " is locked; unlock it before changing its parameters",
+                context);
+    ComponentParameterPromotion result;
+    if (shared)
+        result.unique = makeComponentUnique(doc, placement);
+    result.promoted = promoteComponentParameters(doc, placement);
+    return result;
 }
 ComponentResult executeComponentParameterCommand(Document &doc, const QJsonObject &command) {
     const auto name = command["command"].toString();
@@ -618,6 +674,11 @@ QJsonArray componentParameterCommandSpecs() {
              {{"body", stableId()}, {"values", overrideValues}}, {"body", "values"},
              "Instance-scoped: set input values on a top-level placement. Values outside the "
              "parameter's type, bounds or step are refused, never clamped"),
+        spec("component_parameter.promote", "Make a placement's parameter values its definition's defaults",
+             {{"body", stableId()}}, {"body"},
+             "Instance-scoped: make the top-level placement unique when its definition is "
+             "shared, then make its current values the definition's defaults and clear its "
+             "overrides. Geometry is unchanged; the copy has no assembly identity"),
         spec("component_parameter.reset", "Reset component parameter values on a placement",
              {{"body", stableId()},
               {"names", QJsonObject{{"type", "array"},
