@@ -1,6 +1,19 @@
 # Changelog
 
-## 1.1.0 — unreleased
+## 1.1.1 — unreleased
+
+A patch release for one defect in 1.1.0. No format, schema or API change.
+
+- Fixed D-036: on Qt 6.8.0 and 6.8.1, sheet PDF exports (desktop and
+  `sketchyup-cli --export-sheets`) and measured PDF exports had a malformed document
+  information dictionary, because `QPdfWriter` closes it with `2` instead of `>>`
+  (and Qt 6.8.0 writes invalid dates without a system time zone). SketchyUp now
+  repairs exactly those patterns in place, before the export report's SHA-256 is
+  computed; other PDFs are unchanged. The desktop Print path through `QPrinter` is not
+  repaired, and on Qt 6.8.0 without a time zone the XMP dates stay empty.
+- Package: Arch `sketchyup` 1.1.1-1, upgrading from 1.1.0-1.
+
+## 1.1.0 — 2026-10-15
 
 A minor release that adds documentation sheets (scope row F01). Additive: existing
 commands, queries and schemas keep their shapes.
