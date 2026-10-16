@@ -1,9 +1,13 @@
 #include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "core/assets.hpp"
+#include "core/component_parameters.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
+#include "core/copy_array.hpp"
+#include "core/transform_selection.hpp"
 #include "drm_memory.hpp"
 #include "io/document_io.hpp"
 #include "io/model_style_io.hpp"
@@ -108,14 +112,14 @@ int main(int argc, char **argv) {
     qputenv("XDG_DATA_HOME", settings.path().toUtf8());
     QApplication app(argc, argv);
     try {
-        check(argc <= 4, "Usage: real_model_benchmark [count] [repeated|unique|deep|far|textures] "
-                         "[rendered-history-cycles]");
+        check(argc <= 4, "Usage: real_model_benchmark [count] "
+                         "[repeated|unique|deep|far|textures|variant] [rendered-history-cycles]");
         bool ok = argc == 1;
         const int count = argc == 1 ? 1000 : QString::fromLocal8Bit(argv[1]).toInt(&ok);
         check(ok && count >= 1 && count <= 10000, "Instance count must be 1..10000");
         const QString scenario = argc >= 3 ? QString::fromLocal8Bit(argv[2]) : "repeated";
         check(scenario == "repeated" || scenario == "unique" || scenario == "deep" ||
-                  scenario == "far" || scenario == "textures",
+                  scenario == "far" || scenario == "textures" || scenario == "variant",
               "Unknown benchmark scenario");
         const bool renderHistory = argc == 4;
         bool cyclesValid = !renderHistory;
@@ -161,7 +165,55 @@ int main(int argc, char **argv) {
             }
             const auto component = createComponent(doc, body, "26-sided benchmark prism");
             instances.push_back(component.instance);
-            for (int i = 1; i < count; ++i)
+            if (scenario == "variant") {
+                // R094.g: every placement overrides a parameter, so every placement
+                // shows one non-default variant (a 2.5 m prism stretched from 2 m).
+                // The placements are made as a user makes them: the first is set,
+                // then copied as a row and the row copied, carrying the overrides.
+                const auto member = component.movedGeometry.at(body);
+                ComponentParameterSpec width;
+                width.name = "width";
+                width.label = "Width";
+                width.expression = "2 m";
+                defineComponentParameter(doc, component.definition, width);
+                ComponentDriverSpec stretch;
+                stretch.kind = ComponentDriverKind::Stretch;
+                stretch.member = member;
+                stretch.expression = "width";
+                stretch.axis = ComponentAxis::X;
+                stretch.at = 0;
+                driveComponent(doc, component.definition, 0, stretch);
+                overrideComponentParameters(
+                    doc, component.instance,
+                    {{"width", ParameterQuantity{quantizeParameterLength(2.5), {1, 0}}}});
+                std::vector<Id> row{component.instance};
+                if (const int width = std::min(count, columns); width > 1) {
+                    CopyArray array;
+                    array.delta = {4, 0, 0};
+                    array.copies = unsigned(width - 1);
+                    for (const auto &copy :
+                         copyArraySelected(doc, {{component.instance}}, array).instances)
+                        row.push_back(copy.copies.at(component.instance));
+                }
+                instances = row;
+                for (int r = 1; r * columns < count; ++r) {
+                    const int n = std::min(columns, count - r * columns);
+                    TransformTargets targets;
+                    for (int j = 0; j < n; ++j)
+                        targets.insert({row[size_t(j)]});
+                    const auto copied =
+                        transformSelected(doc, targets, Transform::translation({0, 4.0 * r, 0}),
+                                          {}, TransformSpace::World, true);
+                    for (int j = 0; j < n; ++j)
+                        instances.push_back(copied.copies.at(row[size_t(j)]));
+                }
+                check(instances.size() == size_t(count) &&
+                          std::all_of(instances.begin(), instances.end(),
+                                      [&](Id id) { return doc.componentVariant(id) != nullptr; }) &&
+                          doc.componentVariants().variants.size() == 1,
+                      "Every placement shows the one overridden variant");
+            }
+            for (int i = 1; i < count && scenario != "variant"; ++i)
                 instances.push_back(placeComponent(doc, component.definition,
                                                    Transform::translation({4.0 * (i % columns),
                                                                            4.0 * (i / columns), 0}))
@@ -551,7 +603,14 @@ int main(int argc, char **argv) {
             {"timingScope", "OpenGL scene through glFinish; excludes painter overlays and "
                             "compositor. Edits include framebuffer readback."},
             {"releaseAcceptance", false}};
-        std::cout << QJsonDocument(report).toJson().toStdString();
+        if (scenario == "variant") {
+            check(doc.componentVariants().variants.size() == 1 &&
+                      std::all_of(instances.begin(), instances.end(),
+                                  [&](Id id) { return doc.componentVariant(id) != nullptr; }),
+                  "Every loaded placement still shows the one overridden variant");
+            report["variants"] = qint64(doc.componentVariants().variants.size());
+        }
+                std::cout << QJsonDocument(report).toJson().toStdString();
         return 0;
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
