@@ -267,3 +267,9 @@ All of these ran on 2026-10-11, offline, with `--parallel 3`.
     `UBSAN_OPTIONS=halt_on_error=1` and no sanitizer report.
 - **v1 equivalence:** 17 of 17 v1 fixture evaluations were identical between
   the original and new scorers.
+
+## Successor
+
+[Corpus version 3](R086d-corpus-v3.md) supersedes this version for 1.2.0, after
+PR #338 changed the ChatGPT-plan limits and assistant instructions. This
+manifest and its scoring remain unchanged for the 1.0.0 and 1.1.0 records.

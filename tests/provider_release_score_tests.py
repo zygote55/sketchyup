@@ -174,7 +174,7 @@ class VersionTwoScoreTests(ScoreTests):
     def test_complete_synthetic_set_requires_all_postconditions(self):
         result = self.evaluate()
         self.assertTrue(result['corpusPassed'])
-        self.assertEqual(result['corpusVersion'], 2)
+        self.assertEqual(result['corpusVersion'], self.manifest['corpusVersion'])
         for field in SCORE.POSTCONDITIONS:
             self.assertEqual(result['postconditions'][field],
                              {'passed': 24, 'runs': 24, 'required': 24})
@@ -241,6 +241,42 @@ class VersionTwoScoreTests(ScoreTests):
                     manifest['requiredPostconditions'] = ['undoRestores']
                 with self.assertRaises(ValueError):
                     SCORE.score(manifest, self.bundle, self.root)
+
+
+
+class VersionThreeScoreTests(VersionTwoScoreTests):
+    """v2 rules unchanged; the ChatGPT-plan profile carries the PR #338 native limits."""
+    MANIFEST = 'tests/provider-release-corpus-v3.json'
+
+    def test_profile_freezes_native_chatgpt_limits(self):
+        profile = self.manifest['profiles']['chatgpt-astra']
+        self.assertEqual(self.manifest['deadlineSeconds'], 300)
+        self.assertEqual((profile['taskTurns'], profile['taskReportedTokens'],
+                          profile['outputTokensPerTurn'], profile['outputTokenLimitEnforced']),
+                         (16, 524288, None, False))
+
+    def test_version_two_budget_report_rejected(self):
+        """A report produced with the pre-#338 ChatGPT-plan budget is configuration drift."""
+        for field, value in (('outputTokensPerTurn', 8192), ('taskReportedTokens', 262144),
+                             ('outputTokenLimitEnforced', True)):
+            with self.subTest(field=field):
+                self.setUp()
+                self.data[0][field] = value
+                self.write()
+                with self.assertRaisesRegex(ValueError, 'Configuration drift: ' + field):
+                    self.evaluate()
+
+    def test_missing_output_limit_declaration_fails_closed(self):
+        del self.data[0]['outputTokenLimitEnforced']
+        self.write()
+        with self.assertRaises(KeyError):
+            self.evaluate()
+
+    def test_version_two_report_rejected_by_version_three_manifest(self):
+        self.data[0]['corpusVersion'] = 2
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'Wrong corpus task'):
+            self.evaluate()
 
 
 if __name__ == '__main__':

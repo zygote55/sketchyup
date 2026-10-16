@@ -116,3 +116,9 @@ remote CI, ordered merges and the full release gate remain open.
 profiles and thresholds unchanged. It adds automatically scored undo and
 recovery postconditions, required at 100%. This version 1 manifest and its
 scoring remain unchanged for historical records.
+
+[Corpus version 3](R086d-corpus-v3.md) keeps the same tasks, inputs, prompts
+and thresholds, and the version 2 postconditions. It freezes the native
+ChatGPT-plan limits of PR #338 for `chatgpt-astra`: 16 turns, 524,288 reported
+tokens per task and no per-reply output cap. The version 1 and 2 manifests
+remain unchanged.
