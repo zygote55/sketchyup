@@ -566,8 +566,13 @@ VariantPtr ComponentVariantEngine::State::build(const PlanPtr &plan) {
     if (previous)
         if (const auto found = previous->variants.find(variantKey);
             found != previous->variants.end() &&
-            found->second->dependencies == closure(plan->definition))
+            found->second->dependencies == closure(plan->definition)) {
+            // The reused variant's nested variants stay in use too: register them, so
+            // the index lists every distinct variant as a fresh computation does.
+            for (const auto &[member, child] : plan->nested)
+                (void)build(child);
             return variants.emplace(variantKey, found->second).first->second;
+        }
     std::map<Id, VariantPtr> nested;
     for (const auto &[member, child] : plan->nested)
         nested[member] = build(child);
