@@ -1,6 +1,7 @@
 #pragma once
 #include "core/asset_records.hpp"
 #include "core/body.hpp"
+#include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
 #include "core/material_records.hpp"
 #include "core/tag_records.hpp"
@@ -22,16 +23,24 @@ struct ComponentDefinition {
     // referenced definition, and the node provides placement and instance state.
     std::map<Id, Id> references;
     std::optional<ComponentGlue> glue;
+    // R093.b: at most one parameter record (null when the definition has none). The
+    // members are then the template: the geometry at the default values.
+    ComponentParametersPtr parameters;
 };
 using DefinitionPtr = std::shared_ptr<const ComponentDefinition>;
 using ComponentDefinitions = std::map<Id, DefinitionPtr>;
 struct ComponentInstance {
     Id definition{};
-    std::map<Id, Id> members; // definition member -> resolved scene record
+    // Definition member -> resolved scene record. For a parametric placement this is
+    // the variant's members: the template's plus each repeat copy that exists.
+    std::map<Id, Id> members;
+    // R093.b: values for the definition's input parameters; top-level placements only.
+    ComponentOverrides overrides;
     bool operator==(const ComponentInstance &) const = default;
 };
 using InstancePtr = std::shared_ptr<const ComponentInstance>;
 using ComponentInstances = std::map<Id, InstancePtr>; // keyed by scene root
+struct ComponentVariantIndex;
 struct ComponentSize {
     size_t records{}, vertices{}, faces{}, wires{}, edges{}, curves{}, guides{}, depth{};
     // Materialized component instances, the placement itself and nested ones.
@@ -59,9 +68,15 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
 // The canonical comparison of a resolved record with its projection: exact equality,
 // except that scene allocator floors may exceed (never fall below) the projected floors.
 bool matchesComponentProjection(const Body &expected, const Body &actual);
+// Placements of parametric definitions are checked against their variants, computed
+// here (or taken from `variants` when given).
 void validateComponentInstances(const ComponentDefinitions &definitions,
                                 const ComponentInstances &instances,
                                 const std::map<Id, BodyPtr> &scene);
+void validateComponentInstances(const ComponentDefinitions &definitions,
+                                const ComponentInstances &instances,
+                                const std::map<Id, BodyPtr> &scene,
+                                const ComponentVariantIndex &variants);
 // Include staged definitions, bindings and tags when publishing a compound edit.
 void appendSceneMetadataChanges(Edit &edit, const Document &before, const Document &after);
 } // namespace sketchy

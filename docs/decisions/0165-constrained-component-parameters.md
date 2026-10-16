@@ -670,6 +670,43 @@ Verify lines. Each requires its predecessor.
   and the native formats with the new seeds, the measured budget values, and the
   previous-release check. The ADR's status records R093.a–e as complete.
 
+## Implementation notes (R093.b)
+
+R093.b settled these points against the real component code. They refine the decision
+above; where they differ, these notes govern.
+
+- **Visibility is relative**, like every driver: `false` hides the member, `true` shows
+  it when the default is `false`. A `false` default hides the template member, which
+  re-baselining enforces. The whole-model reveal is refused while a visibility driver
+  hides a member at the defaults. Several visibility drivers on one member combine
+  with AND.
+- **Stretch planes are not crossed by re-baselining.** A default change that would move
+  template geometry across its own stretch plane is refused (`PARAMETER_REGENERATION`);
+  otherwise later variants would silently stop stretching those vertices.
+- **A driver whose kind, member, axis or plane changes** starts from the template
+  instead of being re-baselined.
+- **Repeated subtrees may not overlap** (no nested repeats). A template edit that
+  changes a repeated subtree re-reserves the block, so those copies get new scene IDs.
+- **One `childParameter` driver per (member, child parameter).**
+- **`bound`** covers the member record without allocator floors; for `childParameter`
+  it covers the child definition's parameter list, not its drivers.
+- **Nesting and explode.** A placement with overrides cannot become a member of a new
+  component (`INVALID_TARGET`) rather than silently losing its overrides. Explode turns
+  the parent-supplied values of nested placements into overrides.
+- **Promotion** (`component.edit_instance`, §4) requires a definition with exactly one
+  placement, which `edit_instance` guarantees after making the placement unique.
+  Promoted values are written as the shortest literal giving the same value.
+- **Bounds** compare quantized values, so a 2.4 m maximum accepts 2.4 m.
+- **Labels** that break the label rule are `PARAMETER_NAME`.
+- **Document evaluation budget** counts each parametric definition's default
+  evaluation plus each distinct placement evaluation.
+- **Unsaved until R093.c.** Until schema 28 exists, the native writer refuses a
+  document with parameter records (`UNSUPPORTED_FORMAT`). No command creates them
+  before R093.d.
+- **Rendering.** The viewport and inference still match scene records against
+  definition members, so a variant placement renders with its own meshes rather than
+  shared ones: correct, not instanced. Instanced variant rendering is R094 work.
+
 ## What R094 needs from R093
 
 - `component_parameters.describe`, `.values` and `.evaluate` for the inspector and live
