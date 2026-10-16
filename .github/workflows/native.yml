@@ -17,19 +17,37 @@ env:
     cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa
     xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema
     nodejs npm blender ffmpeg poppler at-spi2-core gdb
+  # Added to CI_PACKAGES where a job compiles; python-yaml reads this workflow for
+  # scripts/ci-line-inventory.py.
+  CI_BUILD_PACKAGES: ccache python-yaml
+  # Native test jobs run prebuilt binaries: CI_PACKAGES without the build-only and
+  # Node tools. Blender, Poppler and FFmpeg stay, because the application probes for
+  # them and the tests' behaviour depends on what it finds.
+  CI_TEST_PACKAGES: >-
+    openssl qt6-base qt6-wayland wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu
+    weston python blender ffmpeg poppler at-spi2-core gdb
+# Every job must pass. The development build runs once; the native test jobs reuse its
+# build tree (the dev-build artifact) and run in parallel.
 jobs:
-  arch:
-    name: Development build and native tests
+  build:
+    name: Development build and checks
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
       QT_FORCE_STDERR_LOGGING: "1"
+      # ccache is content-addressed: the compiler binary, flags and every preprocessed
+      # input are hashed, so a stale or partial cache can only miss, never mis-build.
+      CCACHE_DIR: /ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     runs-on: ubuntu-latest
     # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
     container:
       image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
       options: --cap-add=SYS_PTRACE
-    timeout-minutes: 240
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v6
       - name: Install build and software-rendering dependencies
@@ -37,12 +55,32 @@ jobs:
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
-            pacman -Syyuu --noconfirm --needed $CI_PACKAGES && break
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 30))
           done
       - name: Record toolchain
-        run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
+        id: toolchain
+        run: |
+          pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa ccache
+          echo "gcc=$(pacman -Q gcc | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Check the test-line inventory
+        # Every test line of the former single job must appear exactly once across the
+        # split jobs, with the same container and environment.
+        run: python scripts/ci-line-inventory.py check .github/workflows/native.yml .github/ci-line-inventory.txt
+      - name: Restore the compiler cache
+        id: ccache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: /ccache
+          key: ccache-dev-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json') }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-dev-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json') }}-
+            ccache-dev-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-
+      - name: Prepare the compiler cache
+        run: |
+          ccache --zero-stats
+          ccache --show-config
       - name: Configure desktop tests without the optional CLI
         run: |
           cmake -S . -B build/configure-desktop-no-cli -G Ninja -DSKETCHYUP_BUILD_DESKTOP=ON -DSKETCHYUP_BUILD_CLI=OFF -DBUILD_TESTING=ON
@@ -50,6 +88,28 @@ jobs:
         run: |
           cmake --preset dev
           cmake --build --preset dev --parallel 4
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats --verbose
+      # Pushes to main refresh the shared cache; a pull request saves its own only when
+      # nothing was restored, so pull requests do not evict main's entries.
+      - name: Save the compiler cache
+        if: success() && (github.event_name == 'push' || steps.ccache-restore.outputs.cache-matched-key == '')
+        uses: actions/cache/save@v5
+        with:
+          path: /ccache
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
+      - name: Pack the development build tree
+        # Executables, CTest files and generated data, with debug sections stripped:
+        # the unstripped tree is about 37 GB (see the script).
+        run: scripts/ci-pack-build.sh build/dev dev-build.tar.zst
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dev-build
+          path: dev-build.tar.zst
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
       - name: Geometry, document and persistence tests
         run: |
           rm -f build/mcp-transcript.jsonl
@@ -69,9 +129,6 @@ jobs:
           mkdir -p build/gltf-validator
           cp tests/gltf-validator/package*.json build/gltf-validator/
           npm ci --prefix build/gltf-validator --ignore-scripts --no-audit --no-fund
-      - name: Actual Blender worker lifecycle
-        run: |
-          SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^(blender_real|blender_handoff_real|animation_export_real|m7_presentation_real|gltf_import_real|stl_export_real|stl_import_real|obj_import_real|obj_export_real)$' --output-on-failure
       - name: Independent DXF consumer
         run: |
           python -m venv build/dxf-oracle
@@ -79,354 +136,6 @@ jobs:
           SKETCHYUP_DXF_TEST="$PWD/build/dxf-oracle/bin/python" ctest --test-dir build/dev -R '^dxf_export_real$' --output-on-failure
       - name: Independent measured PDF consumer
         run: SKETCHYUP_PDF_TEST=/usr/bin/pdftoppm ctest --test-dir build/dev -R '^(measured_export_real|sheet_export_real)$' --output-on-failure
-      - name: Native interaction and OpenGL tests
-        run: |
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_panel_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_panel_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_preview_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_preview_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 SKETCHYUP_BLENDER_TEST=/usr/bin/blender scripts/test-deadline.sh 90 build/dev/render_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/render_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_mcp_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_mcp_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 70 build/dev/desktop_inspection_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 70 build/dev/desktop_inspection_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m4_workflow_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m4_workflow_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/units_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/units_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/history_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/history_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/recovery_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/recovery_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/file_operation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/file_operation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/formline_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/formline_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/dxf_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/stl_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/obj_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/gltf_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/scene_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/reference_image_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/extension_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/library_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/preference_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_modeling_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_outliner_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_panel_tabs_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_reachability_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/sheet_workspace_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_layout_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_acceptance_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
-          # -noreset: libatspi opens and closes a display before the demo starts; a server left
-          # without clients resets, and the demo's connection can fail during the reset (D-033).
-          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/theme_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_size_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_label_overlap_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/shortcut_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/measured_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/raster_export_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/solar_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/scene_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/reference_image_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/extension_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/library_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/preference_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_modeling_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_outliner_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_panel_tabs_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_reachability_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/sheet_workspace_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_layout_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_acceptance_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
-          # -noreset: libatspi opens and closes a display before the demo starts; a server left
-          # without clients resets, and the demo's connection can fail during the reset (D-033).
-          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/theme_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_size_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_label_overlap_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/shortcut_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/measured_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/raster_export_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/solar_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/texture_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/texture_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/smooth_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/smooth_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/texture_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/texture_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/placement_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/placement_viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/entity_info_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/entity_info_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/recipe_hosted_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/roof_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/stair_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/furniture_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m6_workflow_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_precision_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/recipe_hosted_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/roof_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/stair_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/furniture_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m6_workflow_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_precision_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/navigation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/navigation_input_tests
-          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/navigation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/selection_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/selection_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/guide_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/guide_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/constraint_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/constraint_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/inference_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/inference_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/curve_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/drawing_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/numeric_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/diagnostics_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/orientation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/diagnostics_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/orientation_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/boolean_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/boolean_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/intersection_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/intersection_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/sweep_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/sweep_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/offset_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/offset_input_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/tool_lifecycle_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/interaction_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/sketchyup --smoke
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/viewport_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 30 build/dev/dialog_tests
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/shell_tests
-      - name: Keyboard layouts through physical key input
-        run: |
-          for layout in us de fr; do
-            for platform in xcb wayland; do
-              SKETCHYUP_TEST_KEYBOARD_LAYOUT=$layout scripts/test-keyboard-layout.sh $platform build/dev/keyboard_layout_input_tests
-            done
-          done
-      - name: Isolated Wayland interaction and rendering
-        run: |
-          scripts/test-wayland.sh build/dev/diagnostics_input_tests
-          scripts/test-wayland.sh build/dev/orientation_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/diagnostics_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/orientation_input_tests
-          scripts/test-wayland.sh build/dev/boolean_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/boolean_input_tests
-          scripts/test-wayland.sh build/dev/intersection_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/intersection_input_tests
-          scripts/test-wayland.sh build/dev/sweep_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sweep_input_tests
-          scripts/test-wayland.sh build/dev/offset_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/offset_input_tests
-          scripts/test-wayland.sh build/dev/assistant_panel_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/assistant_panel_tests
-          scripts/test-wayland.sh build/dev/assistant_preview_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/assistant_preview_tests
-          scripts/test-wayland.sh build/dev/render_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/render_input_tests
-          scripts/test-wayland.sh build/dev/native_mcp_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/native_mcp_tests
-          scripts/test-wayland.sh build/dev/desktop_inspection_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/desktop_inspection_tests
-          scripts/test-wayland.sh build/dev/m4_workflow_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m4_workflow_tests
-          scripts/test-wayland.sh build/dev/units_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/units_input_tests
-          scripts/test-wayland.sh build/dev/history_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/history_input_tests
-          scripts/test-wayland.sh build/dev/recovery_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/recovery_input_tests
-          scripts/test-wayland.sh build/dev/file_operation_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/file_operation_input_tests
-          scripts/test-wayland.sh build/dev/formline_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/formline_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m7_presentation_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/dxf_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/stl_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/obj_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/gltf_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/scene_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/section_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/text_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/reference_image_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/extension_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/library_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/preference_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_modeling_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_outliner_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_panel_tabs_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_reachability_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_workspace_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_layout_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_annotation_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_acceptance_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_export_input_tests
-          SKETCHYUP_TEST_SCALE=1 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-1.json
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/theme_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/visible_focus_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/visible_focus_input_tests --workspace=sheets
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/text_size_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/viewport_label_overlap_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/shortcut_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/measured_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/raster_export_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/solar_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/annotation_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/annotation_viewport_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/section_viewport_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/style_input_tests
-          SKETCHYUP_TEST_SCALE=2 SKETCHYUP_RENDER_SECTION_FIXTURE=1 SKETCHYUP_RENDER_MODEL="$PWD/examples/section-nested.sketchyup" scripts/test-wayland.sh build/dev/render_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/scene_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/section_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/text_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/reference_image_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/extension_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/library_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/preference_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_modeling_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_outliner_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_panel_tabs_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_reachability_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_workspace_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_layout_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_annotation_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_acceptance_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_export_input_tests
-          SKETCHYUP_TEST_SCALE=2 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-2.json
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/theme_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/visible_focus_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/visible_focus_input_tests --workspace=sheets
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/text_size_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/viewport_label_overlap_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/shortcut_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/measured_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/raster_export_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/solar_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/annotation_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/annotation_viewport_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/section_viewport_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/style_input_tests
-          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/style_viewport_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/style_viewport_tests
-          scripts/test-wayland.sh build/dev/texture_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/texture_input_tests
-          scripts/test-wayland.sh build/dev/material_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_input_tests
-          scripts/test-wayland.sh build/dev/edge_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/edge_input_tests
-          scripts/test-wayland.sh build/dev/smooth_viewport_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/smooth_viewport_tests
-          scripts/test-wayland.sh build/dev/texture_viewport_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/texture_viewport_tests
-          scripts/test-wayland.sh build/dev/material_viewport_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_viewport_tests
-          scripts/test-wayland.sh build/dev/placement_viewport_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/placement_viewport_tests
-          scripts/test-wayland.sh build/dev/entity_info_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/entity_info_input_tests
-          scripts/test-wayland.sh build/dev/organization_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/organization_input_tests
-          scripts/test-wayland.sh build/dev/component_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_input_tests
-          scripts/test-wayland.sh build/dev/hosted_input_tests
-          scripts/test-wayland.sh build/dev/hosted_array_input_tests
-          scripts/test-wayland.sh build/dev/recipe_hosted_input_tests
-          scripts/test-wayland.sh build/dev/roof_recipe_input_tests
-          scripts/test-wayland.sh build/dev/stair_recipe_input_tests
-          scripts/test-wayland.sh build/dev/furniture_recipe_input_tests
-          scripts/test-wayland.sh build/dev/m6_workflow_input_tests
-          scripts/test-wayland.sh build/dev/viewport_precision_tests
-          scripts/test-wayland.sh build/dev/site_recipe_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_array_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/recipe_hosted_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/roof_recipe_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/stair_recipe_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/furniture_recipe_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m6_workflow_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/viewport_precision_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/site_recipe_input_tests
-          scripts/test-wayland.sh build/dev/group_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/group_input_tests
-          scripts/test-wayland.sh build/dev/selection_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/selection_input_tests
-          scripts/test-wayland.sh build/dev/transform_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/transform_input_tests
-          scripts/test-wayland.sh build/dev/array_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/array_input_tests
-          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sketchyup --smoke
-      - name: All-dialog keyboard audit
-        run: |
-          # The inventory fails if a "…" command has no audited dialog; it also lists the
-          # groups. CI covers both platforms and both scales as X11 2x plus Wayland 1x; the
-          # full four-way matrix (Wayland 2x up to 50 s per group) is local evidence in R084.u.
-          mkdir -p build/dialog-keyboard
-          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/native_accessibility_audit --dialogs-keyboard=inventory > build/dialog-keyboard/inventory.json
-          groups=$(python -c 'import json; print(" ".join(json.load(open("build/dialog-keyboard/inventory.json"))["groups"]))')
-          for group in $groups; do
-            xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/x11-2-$group.json
-            scripts/test-wayland.sh build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/wayland-1-$group.json
-          done
-      - name: Reproducible M5 offline acceptance and recordings
-        run: scripts/verify-m5-offline.sh build/dev "$PWD/build/m5-evidence" /usr/bin/blender
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: m5-offline-evidence
-          path: build/m5-evidence
-          if-no-files-found: ignore
       - name: Headless recipe
         run: |
           build/dev/sketchyup-cli --script examples/asserted-solid.json --output /tmp/asserted-solid.sketchyup
@@ -477,6 +186,548 @@ jobs:
           build/dev/sketchyup-cli --input /tmp/profile-sweep.sketchyup
           build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
           build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1
+  x11-1x:
+    name: "Native tests: X11 1x"
+    needs: build
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
+    runs-on: ubuntu-latest
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install native test runtime dependencies
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q gcc qt6-base qt6-wayland mesa weston
+      - uses: actions/download-artifact@v7
+        with:
+          name: dev-build
+      - name: Unpack the development build tree
+        run: |
+          tar --zstd -xf dev-build.tar.zst
+          rm dev-build.tar.zst
+      - name: Native interaction and OpenGL tests
+        run: |
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_panel_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_preview_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 SKETCHYUP_BLENDER_TEST=/usr/bin/blender scripts/test-deadline.sh 90 build/dev/render_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_mcp_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 70 build/dev/desktop_inspection_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m4_workflow_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/units_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/history_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/recovery_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/file_operation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/formline_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/scene_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/reference_image_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/extension_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/library_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/preference_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_modeling_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_outliner_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_panel_tabs_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_reachability_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/sheet_workspace_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_layout_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_acceptance_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/theme_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_size_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_label_overlap_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/shortcut_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/measured_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/raster_export_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/solar_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/texture_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/smooth_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/texture_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/placement_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/entity_info_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/recipe_hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/roof_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/stair_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/furniture_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m6_workflow_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_precision_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/navigation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/selection_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/guide_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/constraint_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/inference_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/curve_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/drawing_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/numeric_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/diagnostics_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/orientation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/boolean_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/intersection_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/sweep_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/offset_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/tool_lifecycle_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/interaction_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/sketchyup --smoke
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 30 build/dev/dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/shell_tests
+  x11-2x:
+    name: "Native tests: X11 2x"
+    needs: build
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
+    runs-on: ubuntu-latest
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install native test runtime dependencies
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q gcc qt6-base qt6-wayland mesa weston
+      - uses: actions/download-artifact@v7
+        with:
+          name: dev-build
+      - name: Unpack the development build tree
+        run: |
+          tar --zstd -xf dev-build.tar.zst
+          rm dev-build.tar.zst
+      - name: Native interaction and OpenGL tests
+        run: |
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_panel_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/assistant_preview_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/render_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_mcp_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 70 build/dev/desktop_inspection_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m4_workflow_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/units_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/history_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/recovery_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/file_operation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/formline_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/dxf_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/stl_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/obj_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/gltf_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/scene_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/reference_image_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/extension_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/library_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/preference_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_modeling_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_outliner_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_panel_tabs_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/keyboard_reachability_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/sheet_workspace_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_layout_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_acceptance_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/theme_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_size_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_label_overlap_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/shortcut_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/measured_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/raster_export_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/solar_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/annotation_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/texture_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/smooth_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/texture_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/placement_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/entity_info_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/recipe_hosted_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/roof_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/stair_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/furniture_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m6_workflow_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_precision_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/navigation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/selection_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/guide_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/constraint_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/inference_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/diagnostics_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/orientation_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/boolean_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/intersection_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/sweep_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/offset_input_tests
+  wayland-1x:
+    name: "Native tests: Wayland 1x"
+    needs: build
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
+    runs-on: ubuntu-latest
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install native test runtime dependencies
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q gcc qt6-base qt6-wayland mesa weston
+      - uses: actions/download-artifact@v7
+        with:
+          name: dev-build
+      - name: Unpack the development build tree
+        run: |
+          tar --zstd -xf dev-build.tar.zst
+          rm dev-build.tar.zst
+      - name: Isolated Wayland interaction and rendering
+        run: |
+          scripts/test-wayland.sh build/dev/diagnostics_input_tests
+          scripts/test-wayland.sh build/dev/orientation_input_tests
+          scripts/test-wayland.sh build/dev/boolean_input_tests
+          scripts/test-wayland.sh build/dev/intersection_input_tests
+          scripts/test-wayland.sh build/dev/sweep_input_tests
+          scripts/test-wayland.sh build/dev/offset_input_tests
+          scripts/test-wayland.sh build/dev/assistant_panel_tests
+          scripts/test-wayland.sh build/dev/assistant_preview_tests
+          scripts/test-wayland.sh build/dev/render_input_tests
+          scripts/test-wayland.sh build/dev/native_mcp_tests
+          scripts/test-wayland.sh build/dev/desktop_inspection_tests
+          scripts/test-wayland.sh build/dev/m4_workflow_tests
+          scripts/test-wayland.sh build/dev/units_input_tests
+          scripts/test-wayland.sh build/dev/history_input_tests
+          scripts/test-wayland.sh build/dev/recovery_input_tests
+          scripts/test-wayland.sh build/dev/file_operation_input_tests
+          scripts/test-wayland.sh build/dev/formline_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/scene_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/section_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/text_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/reference_image_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/extension_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/library_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/preference_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_modeling_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_outliner_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_panel_tabs_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_reachability_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_workspace_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_layout_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_annotation_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_acceptance_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_export_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/theme_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/visible_focus_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/visible_focus_input_tests --workspace=sheets
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/text_size_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/viewport_label_overlap_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/shortcut_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/measured_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/raster_export_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/solar_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/annotation_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/annotation_viewport_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/section_viewport_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/style_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/style_viewport_tests
+          scripts/test-wayland.sh build/dev/texture_input_tests
+          scripts/test-wayland.sh build/dev/material_input_tests
+          scripts/test-wayland.sh build/dev/edge_input_tests
+          scripts/test-wayland.sh build/dev/smooth_viewport_tests
+          scripts/test-wayland.sh build/dev/texture_viewport_tests
+          scripts/test-wayland.sh build/dev/material_viewport_tests
+          scripts/test-wayland.sh build/dev/placement_viewport_tests
+          scripts/test-wayland.sh build/dev/entity_info_input_tests
+          scripts/test-wayland.sh build/dev/organization_input_tests
+          scripts/test-wayland.sh build/dev/component_input_tests
+          scripts/test-wayland.sh build/dev/hosted_input_tests
+          scripts/test-wayland.sh build/dev/hosted_array_input_tests
+          scripts/test-wayland.sh build/dev/recipe_hosted_input_tests
+          scripts/test-wayland.sh build/dev/roof_recipe_input_tests
+          scripts/test-wayland.sh build/dev/stair_recipe_input_tests
+          scripts/test-wayland.sh build/dev/furniture_recipe_input_tests
+          scripts/test-wayland.sh build/dev/m6_workflow_input_tests
+          scripts/test-wayland.sh build/dev/viewport_precision_tests
+          scripts/test-wayland.sh build/dev/site_recipe_input_tests
+          scripts/test-wayland.sh build/dev/group_input_tests
+          scripts/test-wayland.sh build/dev/selection_input_tests
+          scripts/test-wayland.sh build/dev/transform_input_tests
+          scripts/test-wayland.sh build/dev/array_input_tests
+  wayland-2x:
+    name: "Native tests: Wayland 2x"
+    needs: build
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
+    runs-on: ubuntu-latest
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install native test runtime dependencies
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q gcc qt6-base qt6-wayland mesa weston
+      - uses: actions/download-artifact@v7
+        with:
+          name: dev-build
+      - name: Unpack the development build tree
+        run: |
+          tar --zstd -xf dev-build.tar.zst
+          rm dev-build.tar.zst
+      - name: Isolated Wayland interaction and rendering
+        run: |
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/navigation_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/diagnostics_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/orientation_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/boolean_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/intersection_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sweep_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/offset_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/assistant_panel_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/assistant_preview_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/render_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/native_mcp_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/desktop_inspection_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m4_workflow_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/units_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/history_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/recovery_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/file_operation_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/formline_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m7_presentation_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/dxf_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/stl_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/obj_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/gltf_input_tests
+          SKETCHYUP_TEST_SCALE=2 SKETCHYUP_RENDER_SECTION_FIXTURE=1 SKETCHYUP_RENDER_MODEL="$PWD/examples/section-nested.sketchyup" scripts/test-wayland.sh build/dev/render_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/scene_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/section_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/text_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/reference_image_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/extension_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/library_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/preference_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_modeling_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_outliner_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_panel_tabs_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/keyboard_reachability_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_workspace_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_layout_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_annotation_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_acceptance_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sheet_export_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/theme_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/visible_focus_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/visible_focus_input_tests --workspace=sheets
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/text_size_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/viewport_label_overlap_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/shortcut_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/measured_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/raster_export_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/solar_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/annotation_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/annotation_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/section_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/style_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/style_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/texture_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/edge_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/smooth_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/texture_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/placement_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/entity_info_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/organization_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_array_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/recipe_hosted_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/roof_recipe_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/stair_recipe_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/furniture_recipe_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m6_workflow_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/viewport_precision_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/site_recipe_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/group_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/selection_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/transform_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/array_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sketchyup --smoke
+  audit:
+    name: "Native tests: audit and accessibility"
+    needs: build
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
+    runs-on: ubuntu-latest
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install native test runtime dependencies
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q gcc qt6-base qt6-wayland mesa weston
+      - uses: actions/download-artifact@v7
+        with:
+          name: dev-build
+      - name: Unpack the development build tree
+        run: |
+          tar --zstd -xf dev-build.tar.zst
+          rm dev-build.tar.zst
+      - name: Accessibility bridge on X11 and Wayland
+        run: |
+          # -noreset: libatspi opens and closes a display before the demo starts; a server left
+          # without clients resets, and the demo's connection can fail during the reset (D-033).
+          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-1.json
+          xvfb-run -a -s '-screen 0 640x480x24 -noreset' env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 dbus-run-session -- python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-x11-2.json
+          SKETCHYUP_TEST_SCALE=1 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-1.json
+          SKETCHYUP_TEST_SCALE=2 dbus-run-session -- scripts/test-wayland.sh python tests/accessibility_bridge_test.py build/dev/sketchyup build/accessibility-wayland-2.json
+      - name: Keyboard layouts through physical key input
+        run: |
+          for layout in us de fr; do
+            for platform in xcb wayland; do
+              SKETCHYUP_TEST_KEYBOARD_LAYOUT=$layout scripts/test-keyboard-layout.sh $platform build/dev/keyboard_layout_input_tests
+            done
+          done
+      - name: All-dialog keyboard audit
+        run: |
+          # The inventory fails if a "…" command has no audited dialog; it also lists the
+          # groups. CI covers both platforms and both scales as X11 2x plus Wayland 1x; the
+          # full four-way matrix (Wayland 2x up to 50 s per group) is local evidence in R084.u.
+          mkdir -p build/dialog-keyboard
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/native_accessibility_audit --dialogs-keyboard=inventory > build/dialog-keyboard/inventory.json
+          groups=$(python -c 'import json; print(" ".join(json.load(open("build/dialog-keyboard/inventory.json"))["groups"]))')
+          for group in $groups; do
+            xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/x11-2-$group.json
+            scripts/test-wayland.sh build/dev/native_accessibility_audit --dialogs-keyboard=$group > build/dialog-keyboard/wayland-1-$group.json
+          done
+  fractional:
+    name: "Native tests: fractional scaling, Blender worker and M5"
+    needs: build
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
+    runs-on: ubuntu-latest
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install native test runtime dependencies
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES cmake && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q gcc qt6-base qt6-wayland mesa weston
+      - uses: actions/download-artifact@v7
+        with:
+          name: dev-build
+      - name: Unpack the development build tree
+        run: |
+          tar --zstd -xf dev-build.tar.zst
+          rm dev-build.tar.zst
       - name: Fractional client scaling on native Wayland and X11
         run: |
           for factor in 1.5 1.75; do
@@ -494,8 +745,27 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_annotation_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_acceptance_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
+      - name: Actual Blender worker lifecycle
+        run: |
+          SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^(blender_real|blender_handoff_real|animation_export_real|m7_presentation_real|gltf_import_real|stl_export_real|stl_import_real|obj_import_real|obj_export_real)$' --output-on-failure
+      - name: Reproducible M5 offline acceptance and recordings
+        run: scripts/verify-m5-offline.sh build/dev "$PWD/build/m5-evidence" /usr/bin/blender
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: m5-offline-evidence
+          path: build/m5-evidence
+          if-no-files-found: ignore
   blender:
     name: Blender interoperability
+    env:
+      # ccache is content-addressed: the compiler binary, flags and every preprocessed
+      # input are hashed, so a stale or partial cache can only miss, never mis-build.
+      CCACHE_DIR: /ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     runs-on: ubuntu-latest
     container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 90
@@ -506,24 +776,50 @@ jobs:
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
-            pacman -Syyuu --noconfirm --needed $CI_PACKAGES && break
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 30))
           done
       - name: Record toolchain
-        run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
+        id: toolchain
+        run: |
+          pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa ccache
+          echo "gcc=$(pacman -Q gcc | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Restore the compiler cache
+        id: ccache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: /ccache
+          key: ccache-dev-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json') }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-dev-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json') }}-
+            ccache-dev-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-
+      - name: Prepare the compiler cache
+        run: |
+          ccache --zero-stats
+          ccache --show-config
       - name: Build the GLB export fixtures
         run: |
           cmake --preset dev
           cmake --build --preset dev --parallel 4 --target glb_export_tests texture_export_tests section_export_tests smooth_export_tests
       - name: GLB validator and Blender interoperability
         run: scripts/ci-blender-interop.sh 4
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats --verbose
   sanitize:
     name: Sanitized builds
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
       QT_FORCE_STDERR_LOGGING: "1"
+      # ccache is content-addressed: the compiler binary, flags and every preprocessed
+      # input are hashed, so a stale or partial cache can only miss, never mis-build.
+      CCACHE_DIR: /ccache
+      CCACHE_MAXSIZE: 3G
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     runs-on: ubuntu-latest
     # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
     container:
@@ -537,12 +833,28 @@ jobs:
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
-            pacman -Syyuu --noconfirm --needed $CI_PACKAGES && break
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 30))
           done
       - name: Record toolchain
-        run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
+        id: toolchain
+        run: |
+          pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa ccache
+          echo "gcc=$(pacman -Q gcc | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Restore the compiler cache
+        id: ccache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: /ccache
+          key: ccache-sanitize-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json') }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-sanitize-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json') }}-
+            ccache-sanitize-v1-51dd3d24-${{ steps.toolchain.outputs.gcc }}-
+      - name: Prepare the compiler cache
+        run: |
+          ccache --zero-stats
+          ccache --show-config
       - name: Sanitized core without Qt
         run: |
           cmake --preset sanitize
@@ -611,6 +923,17 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/assistant_preview_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/render_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose scripts/test-wayland.sh build/sanitize/native_mcp_tests
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats --verbose
+      # Pushes to main refresh the shared cache; a pull request saves its own only when
+      # nothing was restored, so pull requests do not evict main's entries.
+      - name: Save the compiler cache
+        if: success() && (github.event_name == 'push' || steps.ccache-restore.outputs.cache-matched-key == '')
+        uses: actions/cache/save@v5
+        with:
+          path: /ccache
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
   package:
     name: Arch package acceptance
     runs-on: ubuntu-latest
