@@ -6,13 +6,38 @@
  "version": "1.1.0",
  "recordComplete": true,
  "ownerApproval": {
-  "tag": "pending",
-  "release": "pending",
-  "corpusGate": "pending (scorer releaseAccepted=false)",
-  "note": "The owner's approval of the tag v1.1.0 and the release has not been given."
+  "tag": "approved",
+  "release": "approved",
+  "corpusGate": "accepted by the owner with the tag and the release (scorer output unedited, releaseAccepted=false)",
+  "date": "2026-10-15",
+  "decision": "Tag and publish",
+  "note": "Given after the release record PR #332 merged (main f7232781, push CI 4/4 passed)."
  },
- "tagCreated": false,
- "releaseCreated": false,
+ "tagCreated": true,
+ "releaseCreated": true,
+ "publishedRelease": {
+  "tag": "v1.1.0",
+  "tagType": "annotated",
+  "tagObject": "bf915501b1d77d9c3d5d6e09f808d58e392c775c",
+  "taggerDate": "2026-10-15T20:51:02-07:00",
+  "pointsAt": "093484f941fb3439b5033b2d9fa5fae951a2c09c",
+  "url": "https://github.com/zygote55/sketchyup/releases/tag/v1.1.0",
+  "title": "SketchyUp 1.1.0",
+  "publishedAt": "2026-10-16T03:51:14Z",
+  "latest": true,
+  "prerelease": false,
+  "draft": false,
+  "assets": [
+   "sketchyup-1.1.0.tar.gz",
+   "sketchyup-1.1.0-1-x86_64.pkg.tar.zst",
+   "PKGBUILD",
+   "SHA256SUMS",
+   "MANIFEST.json",
+   "THIRD_PARTY_NOTICES"
+  ],
+  "assetsVerified": "downloaded from the release; sha256sum -c SHA256SUMS passes",
+  "knownLimitationInNotes": "D-036 (Qt 6.8 sheet PDF Info dictionary malformed)"
+ },
  "rc": {
   "commit": "093484f941fb3439b5033b2d9fa5fae951a2c09c",
   "mergeOf": "PR #331",
@@ -684,7 +709,11 @@
   "manual walkthrough on the installed RC"
  ],
  "openForOwner": [
-  "approve the tag v1.1.0 and the release",
+  {
+   "resolved": "2026-10-15",
+   "item": "approve the tag v1.1.0 and the release",
+   "decision": "Tag and publish; tag v1.1.0 on the RC and the GitHub release created"
+  },
   {
    "resolved": "2026-10-15",
    "item": "Qt range in SUPPORT_MATRIX.md",

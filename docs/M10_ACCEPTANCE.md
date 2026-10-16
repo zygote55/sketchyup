@@ -52,11 +52,31 @@ the manual walkthrough on the installed RC) stay **untested**, not passed, and t
 owner covers them in daily use. Everything below is required at the RC, including
 every automated check.
 
+## Owner trim of the local walkthrough
+
+On 2026-10-15 the owner decided, at the 1.1.0 RC, that the local walkthrough does not
+repeat what CI runs. The rule applies to every later M10 release:
+
+- CI at the exact RC commit is the evidence for every step the workflow runs with the
+  same invocation: the `ctest` presets and opt-in consumers, the native lines, the
+  sanitize job, Blender interoperability and the CI package acceptance. Those steps are
+  not repeated locally. A CI step that did not pass at the RC, or ran with a different
+  invocation, is not covered and runs locally.
+- The local walkthrough runs only what CI does not run: the release artifacts, the clean
+  machines, the native cells that are not CI lines, and the row's own detail checks.
+  When the sanitize job passed in CI, the local sanitized build is skipped.
+- The release record lists which steps CI covered and which ran locally. Anything neither
+  ran is stated as not run. It is not claimed to pass.
+
+The 1.1.0 package shipped the text of this file without the trim, because the installed
+documents are fixed at the RC. The 1.1.0 record
+([F01-1.1.0](verification/F01-1.1.0.md)) applies the rule.
+
 ## Required evidence at the RC
 
 | Area | Required at the RC | Frozen inputs and supporting evidence |
 | --- | --- | --- |
-| CI | All four jobs pass at the RC commit: development build and native tests, Blender interoperability, sanitized builds, and Arch package acceptance (which includes the real previous-release check below) | `.github/workflows/native.yml` |
+| CI | Every job passes at the RC commit: the development build and checks, the six native test jobs (X11 and Wayland at 1× and 2×, audit and accessibility, and fractional scaling with the Blender worker and M5), Blender interoperability, sanitized builds, and Arch package acceptance (which includes the real previous-release check below). Releases up to 1.1.0 ran the same lines as four jobs | `.github/workflows/native.yml` |
 | Regression and sanitizer suites | `ctest --preset dev` and `ctest --preset sanitize` pass on the RC, without suppressed application findings, with the opt-in `*_real` consumers that CI runs | [M9 walkthrough](M9_ACCEPTANCE.md#combined-release-candidate-walkthrough) |
 | Native matrix | Every native suite in `native.yml`, with its exact invocation, on X11 and Wayland at 1× and 2×: the row's suites (for F01 `sheet_workspace_input_tests`, `sheet_layout_input_tests`, `sheet_annotation_input_tests`, `sheet_acceptance_input_tests`, `sheet_export_input_tests` and `visible_focus_input_tests --workspace=sheets`) and every existing suite, the AT-SPI bridge test, keyboard reachability and the all-dialog keyboard audit. The fractional 1.5× cells that CI runs also pass | Isolated Xvfb and Weston sessions with software rendering; they do not prove physical display, GPU or compositor behavior |
 | Package acceptance | `packaging/arch/verify-package.sh` passes in the pinned image: install, desktop launch, MIME, recipes, GLB, reopen, the installed migrations, preferences and removal, with the upgrade from the previous release (for 1.1.0-1, from 1.0.1-1). With `SKETCHYUP_PRIOR_RELEASE_PACKAGE` set to the published previous release (SHA-256 pinned in the script), its CLI refuses every retained fixture newer than it reads, unchanged, and accepts a sheet-free document saved by the RC package | [Packaging README](../packaging/arch/README.md), [ADR 0163](decisions/0163-documentation-sheets.md) (downgrade window) |
@@ -76,7 +96,8 @@ with a machine-readable summary, records:
 - tool, platform and Qt versions, and the result of each check above, with the
   commands and evidence hashes;
 - which checks were re-run at the RC and which earlier evidence is relied on, with
-  the reason;
+  the reason, and which steps CI covered, which ran locally and which did not run (see
+  the owner trim above);
 - the provider model, configuration, latency and cost (or the R086.a reason it is
   unreported);
 - the triage result, the unresolved limits and the checks waived by ADR 0161.
