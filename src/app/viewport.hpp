@@ -290,7 +290,9 @@ class Viewport : public QOpenGLWidget {
     void keyReleaseEvent(QKeyEvent *) override;
 
   private:
-    QJsonObject commitCommands(const QJsonArray &commands, bool shared = true);
+    // `historyLabel` (at most 512 UTF-8 bytes) names the History entry when not empty.
+    QJsonObject commitCommands(const QJsonArray &commands, bool shared = true,
+                               const QString &historyLabel = {});
     Id selectedComponent() const;
     void paintAt(QPointF point, bool sample);
     Id paintMaterial_{};

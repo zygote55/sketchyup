@@ -1,4 +1,5 @@
 #pragma once
+#include "core/component_parameter_records.hpp"
 #include "core/components.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
@@ -11,9 +12,26 @@ namespace sketchy {
 // LOCKED_ENTITY, NOT_FOUND, INVALID_TARGET); executeBatch reports them as
 // InspectionError so sessions, MCP and staging see the code.
 bool isComponentParameterCommand(const QString &name);
+// The structured fields of a parameter error (ADR 0165 §6, ADR 0166 §5): definition,
+// `body` (the placement it names, e.g. the locked one), parameter, driver, offset,
+// excerpt, cycle, referrers and, for a bound, {bound, limit, value} in SI units. The
+// refusal surfaces report it as the error's `details`.
+QJsonObject componentParameterErrorDetails(const ComponentParameterError &error);
 // Runs one component_parameter.* command against the batch's working document.
+// component_parameter.promote is two edits (make unique, then promote) and goes
+// through executeComponentParameterPromotion instead.
 ComponentResult executeComponentParameterCommand(Document &doc, const QJsonObject &command);
-// The nine command catalogue entries.
+// component_parameter.promote {body} (ADR 0166 §4.2): makes the top-level placement
+// unique when its definition has other placements, then makes its current values the
+// definition's defaults and clears its overrides. `unique` is set when a copy was
+// made; the caller composes both results into the batch's one history entry.
+struct ComponentParameterPromotion {
+    std::optional<ComponentResult> unique;
+    ComponentResult promoted;
+};
+ComponentParameterPromotion executeComponentParameterPromotion(Document &doc,
+                                                               const QJsonObject &command);
+// The ten command catalogue entries.
 QJsonArray componentParameterCommandSpecs();
 // ---- Batch result fields (ADR 0165 §6) ----
 // Driver IDs present after the edit and absent before it, ascending.

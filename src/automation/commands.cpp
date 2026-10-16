@@ -725,7 +725,17 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         } else if (isDrawingSheetCommand(name)) {
             executeDrawingSheetCommand(staged, command, baseRevision);
         } else if (isComponentParameterCommand(name)) {
-            const auto result = executeComponentParameterCommand(staged, command);
+            ComponentResult result;
+            std::optional<bool> madeUnique;
+            if (name == "component_parameter.promote") {
+                auto promotion = executeComponentParameterPromotion(staged, command);
+                if (promotion.unique)
+                    compose(promotion.unique->changes);
+                madeUnique = promotion.unique.has_value();
+                result = std::move(promotion.promoted);
+            } else {
+                result = executeComponentParameterCommand(staged, command);
+            }
             compose(result.changes);
             QJsonArray drivers, warnings;
             for (const auto driver : result.createdDrivers)
@@ -741,6 +751,10 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                                             {"variants", double(result.regenerated.variants)}}}};
             if (result.instance)
                 operation["instance"] = QString::number(result.instance);
+            if (madeUnique) {
+                operation["madeUnique"] = *madeUnique;
+                operation["parametersPromoted"] = result.parametersPromoted;
+            }
             componentOperations.append(operation);
         } else if (name == "document.solar") {
             staged.setSolar(decodeSolarSettings(command["solar"]));
@@ -1939,9 +1953,50 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
     try {
         return executeBatchWithReferences(doc, request, response);
     } catch (const ComponentParameterError &error) {
-        // Keep ADR 0165's codes for sessions, MCP, staging and the CLI.
-        throw InspectionError(error.code(), error.what());
+        // Keep ADR 0165's codes and context for sessions, MCP, staging and the CLI.
+        throw InspectionError(error.code(), error.what(), componentParameterErrorDetails(error));
     }
+}
+// The dry run's drawable result (ADR 0166 §2): `geometry` holds every body that is
+// shown in the candidate and new, changed or moved (regenerated members, repeat
+// copies, re-cut host faces) with its world transform; `removed` lists the bodies
+// shown before that the candidate deletes or hides (a removed repeat copy, a member a
+// visibility driver hides), ascending. Nothing is capped: one regeneration is bounded
+// by ADR 0165's limits.
+void previewGeometry(const Document &doc, const Document &candidate, QJsonObject &result) {
+    auto shown = [](const Document &document, Id id) {
+        for (std::size_t depth = 0; id && depth <= 256; ++depth) {
+            const auto found = document.bodies().find(id);
+            if (found == document.bodies().end() || found->second->hidden)
+                return false;
+            id = found->second->parent;
+        }
+        return true;
+    };
+    QJsonObject geometry;
+    std::set<Id> removed, hiddenNow;
+    for (const auto &[id, body] : candidate.bodies()) {
+        const auto before = doc.bodies().find(id);
+        if (before != doc.bodies().end() && before->second == body &&
+            doc.worldTransform(id) == candidate.worldTransform(id))
+            continue;
+        if (shown(candidate, id))
+            geometry[QString::number(id)] = topologyDescription(candidate, id);
+        else if (before != doc.bodies().end() && body->hidden && !before->second->hidden)
+            hiddenNow.insert(id);
+    }
+    // Deleted bodies, and (only when some body became hidden) every body that was
+    // shown before and is not now, which covers the members under a hidden group.
+    for (const auto &[id, body] : doc.bodies())
+        if (!candidate.bodies().contains(id) ? shown(doc, id)
+                                             : !hiddenNow.empty() && shown(doc, id) &&
+                                                   !shown(candidate, id))
+            removed.insert(id);
+    QJsonArray removedIds;
+    for (const auto id : removed)
+        removedIds.append(QString::number(id));
+    result["geometry"] = geometry;
+    result["removed"] = removedIds;
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {
@@ -1973,12 +2028,7 @@ QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
     auto result = executeAmend(candidate, stamp, request);
     result["status"] = "preview";
     result["baseRevision"] = QString::number(doc.revision());
-    QJsonObject geometry;
-    for (const auto &[id, body] : candidate.bodies())
-        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body ||
-            doc.worldTransform(id) != candidate.worldTransform(id))
-            geometry[QString::number(id)] = topologyDescription(candidate, id);
-    result["geometry"] = geometry;
+    previewGeometry(doc, candidate, result);
     return result;
 }
 QJsonObject previewBatch(const Document &doc, const QJsonObject &request) {
@@ -1986,12 +2036,7 @@ QJsonObject previewBatch(const Document &doc, const QJsonObject &request) {
     auto result = executeBatch(candidate, request);
     result["status"] = "preview";
     result["baseRevision"] = QString::number(doc.revision());
-    QJsonObject geometry;
-    for (const auto &[id, body] : candidate.bodies())
-        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body ||
-            doc.worldTransform(id) != candidate.worldTransform(id))
-            geometry[QString::number(id)] = topologyDescription(candidate, id);
-    result["geometry"] = geometry;
+    previewGeometry(doc, candidate, result);
     return result;
 }
 } // namespace sketchy
