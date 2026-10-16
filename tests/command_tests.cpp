@@ -1343,34 +1343,17 @@ int main(int argc, char **argv) {
                 doc.apply({"Duplicate fixture", {{1, before, body}}}, doc.revision());
             }
             const auto baseline = doc;
-            // Parameter records are not written until schema 28 (R093.c); until then a
-            // parametric document is compared by its revision, history and records.
-            auto encoded = [](const Document &value) {
-                bool parametric = false;
-                for (const auto &[id, definition] : value.definitions())
-                    parametric = parametric || bool(definition->parameters);
-                if (!parametric)
-                    return encodeDocument(value);
-                std::string bytes = std::to_string(value.revision()) + ":" +
-                                    std::to_string(value.historyBytes()) + ":";
-                for (const auto &[id, definition] : value.definitions())
-                    if (definition->parameters)
-                        appendCanonicalParameters(bytes, *definition->parameters);
-                for (const auto &[id, instance] : value.instances())
-                    appendCanonicalOverrides(bytes, instance->overrides);
-                return QByteArray::fromStdString(bytes);
-            };
-            const auto original = encoded(doc);
+            const auto original = encodeDocument(doc);
             for (auto key : schema["required"].toArray()) {
                 auto missing = command;
                 missing.remove(key.toString());
                 rejects([&] { executeBatch(doc, request(doc, missing)); });
-                check(encoded(doc) == original, "Missing field never mutates document");
+                check(encodeDocument(doc) == original, "Missing field never mutates document");
             }
             auto unknown = command;
             unknown["unrecognized"] = true;
             rejects([&] { executeBatch(doc, request(doc, unknown)); });
-            check(encoded(doc) == original, "Unknown field never mutates document");
+            check(encodeDocument(doc) == original, "Unknown field never mutates document");
             const auto revision = doc.revision();
             const auto response = executeBatch(doc, request(doc, command));
             if (command["command"] == "group.selection") {
