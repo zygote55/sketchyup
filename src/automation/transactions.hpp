@@ -3,13 +3,14 @@
 namespace sketchy {
 inline constexpr int transactionRequestBytes = 64 * 1024;
 inline constexpr int transactionResponseBytes = 272 * 1024;
-QJsonArray transactionCatalog();
+QJsonArray transactionCatalog(int maximumTtlSeconds = 300);
 QJsonObject transactionCapabilities();
 class TransactionDispatcher {
   public:
     struct Limits {
         size_t drafts{4};
         size_t retainedBytes{128 * 1024 * 1024};
+        int maximumTtlSeconds{300};
     };
     explicit TransactionDispatcher(TransactionCoordinator &actor);
     TransactionDispatcher(TransactionCoordinator &actor, Limits limits,

@@ -1,13 +1,17 @@
 #pragma once
 #include "automation/assistant.hpp"
 namespace sketchy {
+// Routine modeling authorization shared by the native panel and opt-in workflow trials.
+QStringList nativeAssistantCommands();
+TransactionCoordinator::Options nativeAssistantTransactionOptions();
 // Trusted in-process bridge to the existing native document. It never saves to
 // the user's file. The host serializes GUI operations and honors uncertain().
 class NativeAssistantSession {
   public:
-    NativeAssistantSession(Document &document, const QString &outcomes,
-                           const Selection *selection = nullptr, std::function<bool()> busy = {},
-                           TransactionCoordinator::Options options = {});
+    NativeAssistantSession(
+        Document &document, const QString &outcomes, const Selection *selection = nullptr,
+        std::function<bool()> busy = {},
+        TransactionCoordinator::Options options = nativeAssistantTransactionOptions());
     ~NativeAssistantSession();
     AssistantBackend backend();
     QJsonObject state() const;

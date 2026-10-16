@@ -18,7 +18,7 @@ QJsonObject object(QJsonObject properties, QJsonArray required = {}) {
             {"additionalProperties", false}};
 }
 } // namespace
-QJsonArray transactionCatalog() {
+QJsonArray transactionCatalog(int maximumTtlSeconds) {
     const auto revision = text(20, "^(0|[1-9][0-9]*)$");
     const auto draft = text(36, "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     const auto requestId = text(20, "^[1-9][0-9]*$");
@@ -45,7 +45,7 @@ QJsonArray transactionCatalog() {
     };
     add("transaction.begin", "Create an empty private draft at the current revision", "staging",
         {{"expectedRevision", revision},
-         {"ttlSeconds", integer(1, 300)},
+         {"ttlSeconds", integer(1, maximumTtlSeconds)},
          {"history", object({{"label", text(512)},
                              {"taskId", text(128)},
                              {"request", QJsonObject{{"type", "string"}, {"maxLength", 4096}}},

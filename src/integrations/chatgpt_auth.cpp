@@ -1,5 +1,6 @@
 #include "integrations/chatgpt_auth.hpp"
 #include "integrations/credential_store.hpp"
+#include "integrations/openai_provider.hpp"
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -526,7 +527,8 @@ struct ChatGptAuth::Impl {
     void credentialChanged() {
         using P = OpenAiCredentialStore::Phase;
         if (!working) {
-            if (store.phase() != P::Working) lock.reset();
+            if (store.phase() != P::Working)
+                lock.reset();
             return;
         }
         const auto phase = store.phase();
@@ -567,7 +569,7 @@ struct ChatGptAuth::Impl {
                 validSecret(field(record, "refresh_token")) &&
                 field(record, "scope").split(' ').contains("chatgpt.tokens.use.direct"));
         if (record.value("expires_at").toDouble() <=
-            double(QDateTime::currentSecsSinceEpoch() + 330)) {
+            double(QDateTime::currentSecsSinceEpoch() + chatGptAssistantLimits().seconds + 30)) {
             refreshing = true;
             QUrlQuery data;
             data.addQueryItem("grant_type", "refresh_token");
@@ -584,6 +586,10 @@ struct ChatGptAuth::Impl {
     void ready() {
         fetchModels([this] {
             if (action == "prepare") {
+                require(record.value("expires_at").toDouble() >
+                            double(QDateTime::currentSecsSinceEpoch() +
+                                   chatGptAssistantLimits().seconds),
+                        "ChatGPT credential lifetime is too short for this task. Connect again.");
                 bool allowed{};
                 for (auto entry : catalog)
                     allowed |= field(entry.toObject(), "slug") == model;

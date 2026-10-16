@@ -10,7 +10,7 @@ class AssistantPanel : public QWidget {
     struct HostServices {
         QString outcomeRoot, credentialExecutable;
         QNetworkAccessManager *network{};
-        TransactionCoordinator::Options transactions;
+        TransactionCoordinator::Options transactions{nativeAssistantTransactionOptions()};
     };
     AssistantPanel(Document &document, Viewport &viewport, HostServices services,
                    QWidget *parent = nullptr);

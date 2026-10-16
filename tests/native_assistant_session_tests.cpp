@@ -48,7 +48,10 @@ struct Driver {
     QJsonObject last;
     std::unique_ptr<AssistantTask> task;
     int serial{};
-    Driver(NativeAssistantSession &session, Document &doc) : session(session), doc(doc) {
+    Driver(NativeAssistantSession &session, Document &doc,
+           QStringList commands = {"geometry.translate"}, int seconds = 180,
+           AssistantTask::Now now = AssistantTask::Clock::now)
+        : session(session), doc(doc) {
         auto backend = session.backend();
         auto original = backend.call;
         backend.call = [this, original](const QJsonObject &request) {
@@ -59,9 +62,10 @@ struct Driver {
         options.provider = "fixture";
         options.model = "native";
         options.prompt = "Move the selected face half a metre along X, then preview it.";
-        options.allowedCommands = {"geometry.translate"};
+        options.allowedCommands = std::move(commands);
+        options.limits.seconds = seconds;
         options.context = {query(doc, "selection.get")};
-        task = std::make_unique<AssistantTask>(backend, options);
+        task = std::make_unique<AssistantTask>(backend, options, std::move(now));
     }
     QJsonObject send(QString name, QJsonObject args) {
         const auto request = task->nextRequest();
@@ -97,6 +101,185 @@ int main(int argc, char **argv) {
     try {
         QTemporaryDir files;
         check(files.isValid(), "Native session test directory");
+        for (const auto action : {"apply", "review-expire", "expire", "cancel", "stale"}) {
+            Fixture fixture;
+            auto &doc = fixture.doc;
+            const auto original = encodeBodies(doc.bodies());
+            const auto history = doc.history().total;
+            auto now = AssistantTask::Clock::now();
+            const auto start = now;
+            const auto wallStart = QDateTime::currentDateTimeUtc();
+            auto configuration = nativeAssistantTransactionOptions();
+            configuration.monotonic = [&] { return now; };
+            configuration.wallClock = [&] {
+                return wallStart.addMSecs(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count());
+            };
+            NativeAssistantSession session(doc, files.path() + "/slow-" + action,
+                                           &fixture.selection, {}, configuration);
+            Driver driver(session, doc, {"geometry.translate"}, 900, [&] { return now; });
+            now += std::chrono::seconds(30);
+            const auto begun =
+                driver.send("transaction.begin",
+                            operation(doc, "transaction.begin",
+                                      {{"expectedRevision", QString::number(doc.revision())}}));
+            const auto draft = begun.value("transactionId");
+            check(begun["expiresInMs"].toInteger() == 870000,
+                  "Native draft lifetime is bounded by the original task deadline");
+            driver.send("transaction.apply",
+                        operation(doc, "transaction.apply",
+                                  {{"transactionId", draft},
+                                   {"expectedVersion", 0},
+                                   {"operationId", "slow-edit"},
+                                   {"commands",
+                                    QJsonArray{QJsonObject{{"command", "geometry.translate"},
+                                                           {"body", QString::number(fixture.body)},
+                                                           {"delta", QJsonArray{.5, 0, 0}}}}}}));
+            now = start + std::chrono::seconds(350);
+            const auto inspected = driver.send(
+                "transaction.inspect",
+                operation(doc, "transaction.inspect",
+                          {{"transactionId", draft},
+                           {"request",
+                            QJsonObject{{"apiVersion", 1},
+                                        {"query", "document.describe"},
+                                        {"documentId", QString::fromStdString(doc.identity())},
+                                        {"expectedRevision", driver.last["proposedRevision"]}}}}));
+            check(inspected.contains("data") && encodeBodies(doc.bodies()) == original,
+                  "Private geometry remains inspectable beyond five minutes without publication");
+            if (QString(action) == "apply" || QString(action) == "review-expire") {
+                now = start + std::chrono::seconds(400);
+                driver.send("transaction.preview",
+                            operation(doc, "transaction.preview",
+                                      {{"transactionId", draft}, {"expectedVersion", 1}}));
+                check(driver.task->phase() == AssistantTask::Phase::PreviewReady,
+                      "Slow task seals a native preview after the former deadline");
+                now = start + std::chrono::seconds(QString(action) == "apply" ? 650 : 700);
+                driver.task->apply();
+                if (QString(action) == "review-expire") {
+                    check(driver.task->result()["applied"] == false &&
+                              encodeBodies(doc.bodies()) == original,
+                          "An expired sealed review cannot publish even inside the task deadline");
+                    continue;
+                }
+                check(driver.task->result()["applied"] == true &&
+                          doc.history().total == history + 1,
+                      "Host Apply succeeds inside the sealed preview's five-minute review window");
+                doc.undo();
+                check(encodeBodies(doc.bodies()) == original, "Slow task still has one-entry Undo");
+            } else {
+                const auto pending = driver.task->nextRequest();
+                check(pending.has_value(), "Slow task can continue after five minutes");
+                if (QString(action) == "expire") {
+                    now = start + std::chrono::seconds(900);
+                    check(!driver.task->accept(pending->value("attemptId").toString(), {}),
+                          "Reply at the exact task deadline cannot execute tools");
+                    check(driver.task->result()["error"].toObject()["code"] == "TIME_LIMIT" &&
+                              driver.task->result()["error"]
+                                  .toObject()["message"]
+                                  .toString()
+                                  .contains("900-second limit"),
+                          "Extended task still expires at a fixed, diagnosed deadline");
+                } else if (QString(action) == "cancel") {
+                    driver.task->cancel();
+                    check(driver.task->phase() == AssistantTask::Phase::Canceled,
+                          "Cancel remains available throughout a long task");
+                } else {
+                    doc.move(fixture.body, {1, 0, 0});
+                    driver.task->nextRequest();
+                    check(driver.task->phase() == AssistantTask::Phase::Stale,
+                          "Long task still rejects a changed public document");
+                    doc.undo();
+                }
+                check(encodeBodies(doc.bodies()) == original &&
+                          driver.task->result()["applied"] == false,
+                      "Expired, canceled and stale long tasks never publish their draft");
+                rejects("TRANSACTION_UNAVAILABLE", [&] {
+                    session.execute(
+                        operation(doc, "transaction.describe", {{"transactionId", draft}}));
+                });
+            }
+        }
+        {
+            Fixture fixture;
+            auto &doc = fixture.doc;
+            const auto original = encodeBodies(doc.bodies());
+            const auto history = doc.history().total;
+            NativeAssistantSession session(doc, files.path() + "/face-receipts",
+                                           &fixture.selection);
+            Driver driver(session, doc, nativeAssistantCommands());
+            const QJsonValue draft =
+                driver.send("transaction.begin",
+                            operation(doc, "transaction.begin",
+                                      {{"expectedRevision",
+                                        QString::number(doc.revision())}}))["transactionId"];
+            QJsonArray profiles;
+            for (int i = 0; i < 14; ++i) {
+                const double x = 3.0 * i;
+                profiles.append(QJsonObject{
+                    {"command", "geometry.face"},
+                    {"loops",
+                     QJsonArray{QJsonArray{QJsonArray{x, 0, 0}, QJsonArray{x + 2, 0, 0},
+                                           QJsonArray{x + 2, .02, 0}, QJsonArray{x, .02, 0}}}}});
+            }
+            const auto receipt =
+                driver.send("transaction.apply", operation(doc, "transaction.apply",
+                                                           {{"transactionId", draft},
+                                                            {"expectedVersion", 0},
+                                                            {"operationId", "profiles"},
+                                                            {"commands", profiles}}));
+            const auto faces = receipt["createdIds"].toObject()["createdFaces"].toArray();
+            check(faces.size() == 14, "Each newly created profile supplies its face reference");
+            QJsonArray extrusions;
+            for (const auto &value : faces) {
+                const auto ref = value.toObject();
+                check(ref["kind"] == "face" &&
+                          ref["documentId"] == QString::fromStdString(doc.identity()),
+                      "Creation references are bound to this native document");
+                extrusions.append(QJsonObject{{"command", "geometry.extrude_isolated"},
+                                              {"body", ref["body"]},
+                                              {"face", ref["id"]},
+                                              {"distance", .1}});
+            }
+            driver.send("transaction.apply", operation(doc, "transaction.apply",
+                                                       {{"transactionId", draft},
+                                                        {"expectedVersion", 1},
+                                                        {"operationId", "extrusions"},
+                                                        {"commands", extrusions}}));
+            driver.send(
+                "transaction.apply",
+                operation(
+                    doc, "transaction.apply",
+                    {{"transactionId", draft},
+                     {"expectedVersion", 2},
+                     {"operationId", "slats"},
+                     {"commands",
+                      QJsonArray{QJsonObject{
+                          {"command", "geometry.array_selection"},
+                          {"entities", QJsonArray{QJsonObject{{"body", faces[0].toObject()["body"]},
+                                                              {"kind", "context"},
+                                                              {"entity", "0"}}}},
+                          {"mode", "linear"},
+                          {"count", 11},
+                          {"delta", QJsonArray{0, 0, .15}}}}}}));
+            driver.send("transaction.preview",
+                        operation(doc, "transaction.preview",
+                                  {{"transactionId", draft}, {"expectedVersion", 3}}));
+            check(driver.task->phase() == AssistantTask::Phase::PreviewReady &&
+                      driver.task->result()["providerTurns"] == 5 &&
+                      encodeBodies(doc.bodies()) == original,
+                  "Fourteen profiles extrude and array in five turns without topology rediscovery");
+            driver.task->apply();
+            const auto measured =
+                measureEntity(doc, {doc.bodies().rbegin()->first, SelectionKind::Body, 0});
+            check(driver.task->result()["applied"] == true && doc.bodies().size() == 26 &&
+                      doc.history().total == history + 1 && measured.world.bounds &&
+                      std::abs(measured.world.bounds->high.z - 1.75) < 1e-6,
+                  "Native assistant array creates exactly eleven copies at the requested spacing");
+            doc.undo();
+            check(encodeBodies(doc.bodies()) == original,
+                  "One undo restores the pre-assistant model");
+        }
         {
             Fixture fixture;
             auto &doc = fixture.doc;

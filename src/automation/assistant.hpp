@@ -38,6 +38,8 @@ class AssistantTask {
         uint64_t totalReportedTokens{131072};
         qsizetype responseBytes{64 * 1024}, contextBytes{256 * 1024},
             conversationBytes{4 * 1024 * 1024};
+        // Providers without a generation cap use the aggregate reported-token budget.
+        bool enforceOutputTokenLimit{true};
     };
     struct Options {
         QString prompt, provider, model;

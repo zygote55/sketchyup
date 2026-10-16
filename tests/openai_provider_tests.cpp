@@ -1,3 +1,4 @@
+#include "automation/native_assistant_session.hpp"
 #include "integrations/credential_store.hpp"
 #include "integrations/openai_provider.hpp"
 #include <QCoreApplication>
@@ -334,15 +335,31 @@ int main(int argc, char **argv) {
                                        "sk-fixture-only", &network);
             });
         }
-        for (bool plan : {false, true}) {
-            auto model = session();
+        for (int profile : {0, 1, 2}) {
+            const bool plan = profile != 0;
+            const bool legacyBudget = profile == 1;
+            Document document;
+            NativeAssistantSession model(document, files.path() + "/native-profile-" +
+                                                       QString::number(profile));
             Network network;
             network.plan = plan;
-            const auto state =
-                model->execute({{"apiVersion", 1}, {"operation", "session.describe"}});
+            const auto state = model.state();
             QString draft;
-            network.respond = [&](QJsonObject body, int turn) {
+            network.respond = [&](QJsonObject body, int wireTurn) {
                 QJsonObject args{{"apiVersion", 1}, {"documentId", state.value("documentId")}};
+                // Exercise repeated context costs while a real edit remains privately staged.
+                if (plan && wireTurn >= 3 && wireTurn < 14) {
+                    args["query"] = "document.describe";
+                    args["expectedRevision"] = state.value("revision");
+                    auto result = completed(
+                        QJsonArray{call(body, "document.describe", args, 100 + wireTurn)});
+                    result["usage"] =
+                        QJsonObject{{"input_tokens", 23034},
+                                    {"input_tokens_details", QJsonObject{{"cached_tokens", 20000}}},
+                                    {"output_tokens", 163}};
+                    return Response{200, 1, json(result)};
+                }
+                const int turn = plan && wireTurn >= 14 ? wireTurn - 11 : wireTurn;
                 QString name;
                 if (turn == 0) {
                     name = "document.describe";
@@ -381,10 +398,17 @@ int main(int argc, char **argv) {
                 }
                 if (turn == 3) {
                     const auto input = body.value("input").toArray();
-                    const auto receipt =
-                        QJsonDocument::fromJson(
-                            input.last().toObject().value("output").toString().toUtf8())
-                            .object();
+                    QJsonObject receipt;
+                    for (const auto &value : input) {
+                        const auto item = value.toObject();
+                        if (item.value("type") == "function_call_output" &&
+                            item.value("call_id") == "call_2")
+                            receipt =
+                                QJsonDocument::fromJson(item.value("output").toString().toUtf8())
+                                    .object();
+                    }
+                    check(!receipt.isEmpty(),
+                          "Staged revision remains available after inspections");
                     args["request"] =
                         QJsonObject{{"apiVersion", 1},
                                     {"query", "document.describe"},
@@ -421,18 +445,45 @@ int main(int argc, char **argv) {
                         output.append(call(body, name, args, 30 + i));
                 else
                     output.append(call(body, name, args, turn));
-                response.bytes = json(completed(output));
+                auto result = completed(output);
+                if (plan)
+                    result["usage"] = QJsonObject{
+                        {"input_tokens", 23034},
+                        {"input_tokens_details", QJsonObject{{"cached_tokens", 20000}}},
+                        {"output_tokens", 12000},
+                        {"output_tokens_details", QJsonObject{{"reasoning_tokens", 11000}}}};
+                response.bytes = json(result);
                 return response;
             };
-            OpenAiProvider provider(std::make_unique<AssistantTask>(*model, options()),
+            auto settings = options();
+            if (plan)
+                settings.limits = chatGptAssistantLimits();
+            if (legacyBudget)
+                settings.limits.totalReportedTokens = 262144;
+            OpenAiProvider provider(std::make_unique<AssistantTask>(model.backend(), settings),
                                     "sk-fixture-only", &network, nullptr, plan);
             provider.start();
             wait([&] {
                 return provider.task().phase() == Phase::PreviewReady ||
                        provider.task().phase() == Phase::Failed;
             });
-            check(provider.task().phase() == Phase::PreviewReady && network.calls == 5,
-                  "Actual tool loop reaches sealed preview");
+            if (legacyBudget) {
+                const auto error = provider.task().result().value("error").toObject();
+                check(provider.task().phase() == Phase::Failed &&
+                          error.value("budget") == "remaining task tokens" &&
+                          error.value("used") == "23034 input + 163 output" &&
+                          provider.task().result().value("applied") == false,
+                      "Previous plan budget reproduces the reported failure during staged work");
+                check(model.state().value("revision") == state.value("revision"),
+                      "Exhausted plan budget leaves the public document unchanged");
+                continue;
+            }
+            check(provider.task().phase() == Phase::PreviewReady &&
+                      network.calls == (plan ? 16 : 5),
+                  QJsonDocument(provider.task().result()).toJson().constData());
+            check(
+                provider.task().result().value("reportedTokens") == (plan ? 430337 : 700),
+                "All sixteen plan turns fit with repeated input, cached input and reasoning usage");
             check(provider.task().result().value("applied") == false,
                   "Provider never applies edits");
             const auto input = network.requests.back().value("input").toArray();

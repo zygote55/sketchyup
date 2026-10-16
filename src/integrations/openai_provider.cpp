@@ -31,6 +31,16 @@ uint64_t tokens(QJsonValue value, bool positive) {
     return uint64_t(number);
 }
 } // namespace
+AssistantTask::Limits chatGptAssistantLimits() {
+    AssistantTask::Limits limits;
+    limits.seconds = maximumTrustedStagingTtlSeconds;
+    limits.outputTokens = 8192;
+    // ChatGPT omits max_output_tokens; bound all reported usage at the task level.
+    limits.enforceOutputTokenLimit = false;
+    // Replayed schemas/history can consume over 23,000 input tokens on each of 16 turns.
+    limits.totalReportedTokens = 524288;
+    return limits;
+}
 QJsonObject OpenAiConversation::request(const QJsonObject &source) {
     require(source.value("provider") == "OpenAI", "Expected explicitly selected OpenAI provider");
     const auto model = source.value("model").toString();

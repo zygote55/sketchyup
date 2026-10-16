@@ -7,15 +7,73 @@ namespace {
 [[noreturn]] void fail(const char *code, const char *message) {
     throw InspectionError(code, message);
 }
+TransactionDispatcher::Limits draftLimits(const TransactionCoordinator::Options &options) {
+    TransactionDispatcher::Limits limits;
+    limits.maximumTtlSeconds = options.staging.maximumTtlSeconds;
+    return limits;
+}
 } // namespace
+TransactionCoordinator::Options nativeAssistantTransactionOptions() {
+    TransactionCoordinator::Options options;
+    options.staging.maximumTtlSeconds = maximumTrustedStagingTtlSeconds;
+    return options;
+}
+QStringList nativeAssistantCommands() {
+    return {"assert.measurement",
+            "assembly.roof",
+            "assembly.stairs",
+            "assembly.table",
+            "assembly.cabinet",
+            "assembly.site_place",
+            "assembly.room",
+            "assembly.room.adopt_hosted",
+            "assembly.window.resize",
+            "geometry.face",
+            "geometry.rectangle",
+            "geometry.circle",
+            "geometry.polygon",
+            "geometry.polyline",
+            "geometry.wire",
+            "geometry.extrude_isolated",
+            "geometry.offset",
+            "geometry.sweep",
+            "geometry.intersect",
+            "geometry.boolean",
+            "geometry.reverse_faces",
+            "geometry.orient_faces",
+            "geometry.edge_appearance",
+            "geometry.trim",
+            "geometry.split",
+            "geometry.outer_shell",
+            "geometry.push_pull",
+            "geometry.translate",
+            "geometry.transform_selection",
+            "geometry.array_selection",
+            "entity.position",
+            "entity.dimensions",
+            "entity.properties",
+            "group.create",
+            "group.selection",
+            "component.create",
+            "component.instance",
+            "component.make_unique",
+            "component.edit_instance",
+            "component.attach",
+            "component.bind",
+            "component.detach",
+            "material.assign",
+            "material.color",
+            "material.create",
+            "material.edit"};
+}
 NativeAssistantSession::NativeAssistantSession(Document &document, const QString &outcomes,
                                                const Selection *selection,
                                                std::function<bool()> busy,
                                                TransactionCoordinator::Options options)
     : document_(document), scope_(document.saveStamp()), selection_(selection),
       busy_(std::move(busy)),
-      actor_(TransactionCoordinator::BorrowedDocument{document}, outcomes, std::move(options)),
-      transactions_(actor_) {}
+      actor_(TransactionCoordinator::BorrowedDocument{document}, outcomes, options),
+      transactions_(actor_, draftLimits(options), options.monotonic) {}
 NativeAssistantSession::~NativeAssistantSession() {
     try {
         close();
