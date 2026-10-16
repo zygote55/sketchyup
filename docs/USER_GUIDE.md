@@ -46,6 +46,13 @@ recent files. **Ctrl+Shift+T** toggles the Model panel; in its text controls,
 Outliner supports keyboard navigation, renaming, visibility/locking actions and
 undo. Entity info exposes host-computed measurements for the current selection.
 
+Drag the left edge of the sidebar to make it wider or narrower; with the Tray and
+Assistant side by side, the handle between them shares width between the two.
+**Ctrl+Alt+]** and **Ctrl+Alt+[** (View → Widen sidebar / Narrow sidebar) do the same
+in 40 px steps, and double-clicking a handle or View → Reset sidebar width restores the
+default. The sidebar keeps at least 240 px, leaves the viewport at least 400 px, and
+remembers its width in both Model and Sheets and on the next launch.
+
 Use **View → Interface text size** for 75–200% text independently of display
 scaling. Light, Dark and System themes are under View. Navigation preferences
 include trackpad gestures, field of view and reduced motion. The

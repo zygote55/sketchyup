@@ -1063,7 +1063,8 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                        : componentParametersEvaluation(doc, decimal(request["definition"]),
                                                        request);
         } catch (const ComponentParameterError &error) {
-            throw InspectionError(error.code(), error.what());
+            throw InspectionError(error.code(), error.what(),
+                                  componentParameterErrorDetails(error));
         }
         break;
     case Operation::Diagnose: {

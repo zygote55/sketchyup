@@ -9,15 +9,19 @@ Id Viewport::componentScope() const {
             return context;
     return 0;
 }
-QJsonObject Viewport::commitCommands(const QJsonArray &commands, bool shared) {
+QJsonObject Viewport::commitCommands(const QJsonArray &commands, bool shared,
+                                     const QString &historyLabel) {
     const auto scope = shared ? componentScope() : 0;
-    const auto result = executeBatch(
-        doc_, {{"apiVersion", 1},
-               {"documentId", QString::fromStdString(doc_.identity())},
-               {"expectedRevision", QString::number(doc_.revision())},
-               {"commands",
-                scope ? QJsonArray{componentScopeCommand(doc_, scope, commands)} : commands}});
-    return componentScopeResult(result, scope);
+    QJsonObject request{
+        {"apiVersion", 1},
+        {"documentId", QString::fromStdString(doc_.identity())},
+        {"expectedRevision", QString::number(doc_.revision())},
+        {"commands", scope ? QJsonArray{componentScopeCommand(doc_, scope, commands)} : commands}};
+    // ADR 0166 §1.4: an optional History label; without one the batch keeps the
+    // command's catalogue label.
+    if (!historyLabel.isEmpty())
+        request["history"] = QJsonObject{{"label", historyLabel}};
+    return componentScopeResult(executeBatch(doc_, request), scope);
 }
 void Viewport::applyPreparedEdit(const Document::PreparedEdit &edit) {
     if (!doc_.canApply(edit))

@@ -150,6 +150,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `component_parameter.undrive` | Remove a component driver | `definition`, `driver`, `command` |
 | `component_parameter.rebind` | Rebind component drivers to their current targets | `definition`, `command` |
 | `component_parameter.override` | Set component parameter values on a placement | `body`, `values`, `command` |
+| `component_parameter.promote` | Make a placement's parameter values its definition's defaults | `body`, `command` |
 | `component_parameter.reset` | Reset component parameter values on a placement | `body`, `command` |
 
 ## Bounded queries

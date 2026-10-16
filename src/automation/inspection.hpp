@@ -5,12 +5,17 @@
 namespace sketchy {
 class InspectionError : public std::runtime_error {
   public:
-    InspectionError(std::string code, std::string message)
-        : std::runtime_error(std::move(message)), code_(std::move(code)) {}
+    InspectionError(std::string code, std::string message, QJsonObject details = {})
+        : std::runtime_error(std::move(message)), code_(std::move(code)),
+          details_(std::move(details)) {}
     const std::string &code() const { return code_; }
+    // Optional structured fields of the refusal (component parameter errors carry
+    // ADR 0165's context; R094.b). Reported as `details` when not empty.
+    const QJsonObject &details() const { return details_; }
 
   private:
     std::string code_;
+    QJsonObject details_;
 };
 inline constexpr int inspectionRequestBytes = 16 * 1024;
 inline constexpr int inspectionResponseBytes = 256 * 1024;

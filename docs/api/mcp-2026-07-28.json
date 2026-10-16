@@ -11550,6 +11550,27 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Instance-scoped: make the top-level placement unique when its definition is shared, then make its current values the definition's defaults and clear its overrides. Geometry is unchanged; the copy has no assembly identity",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "component_parameter.promote"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Instance-scoped: remove the named overrides, or every override (all: true)",
                                     "maxProperties": 3,
                                     "minProperties": 3,

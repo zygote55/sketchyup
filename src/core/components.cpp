@@ -463,6 +463,9 @@ ComponentParametersPtr renumberComponentDrivers(const ComponentParametersPtr &re
     auto copy = std::make_shared<ComponentParameters>(*record);
     for (auto &driver : copy->drivers)
         driver.id = allocate(nextDriver);
+    // Only unique copies are renumbered; a copy is no longer the library's assembly
+    // (ADR 0166 §6.2).
+    copy->assembly.reset();
     return copy;
 }
 void reserveRepeatBlocks(ComponentDefinition &definition, ComponentParameters &record,

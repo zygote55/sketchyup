@@ -254,8 +254,13 @@ QJsonArray encodeComponentParameters(const ComponentDefinitions &definitions) {
             parameters.append(encodeParameter(parameter));
         for (const auto &driver : definition->parameters->drivers)
             drivers.append(encodeDriver(driver));
-        result.append(QJsonObject{
-            {"definition", sid(key)}, {"parameters", parameters}, {"drivers", drivers}});
+        QJsonObject record{
+            {"definition", sid(key)}, {"parameters", parameters}, {"drivers", drivers}};
+        // ADR 0166 §6.2: written only when the definition has a library identity.
+        if (const auto &assembly = definition->parameters->assembly)
+            record["assembly"] = QJsonObject{{"id", str(assembly->id)},
+                                             {"version", qint64(assembly->version)}};
+        result.append(record);
     }
     return result;
 }
@@ -274,7 +279,10 @@ QJsonArray encodeComponentParameterOverrides(const ComponentInstances &instances
 void decodeComponentParameters(const QJsonValue &value, ComponentDefinitions &definitions) {
     Id previous = 0;
     for (const auto &entry : array(value, ComponentParameterLimits::parametricDefinitions)) {
-        const auto record = object(entry, {"definition", "parameters", "drivers"});
+        const bool identified = entry.isObject() && entry.toObject().contains("assembly");
+        const auto record =
+            object(entry, identified ? QStringList{"definition", "parameters", "drivers", "assembly"}
+                                     : QStringList{"definition", "parameters", "drivers"});
         const auto definition = id(record["definition"]);
         if (definition <= previous)
             refuse("Component parameter records must be stored once each in definition order");
@@ -290,6 +298,16 @@ void decodeComponentParameters(const QJsonValue &value, ComponentDefinitions &de
             if (!parameters->drivers.empty() && driver.id <= parameters->drivers.back().id)
                 refuse("Component drivers must be stored once each in ID order");
             parameters->drivers.push_back(std::move(driver));
+        }
+        if (identified) {
+            const auto assembly = object(record["assembly"], {"id", "version"});
+            const auto version = number(assembly["version"]);
+            if (!assembly["id"].isString() ||
+                !validComponentAssembly(assembly["id"].toString().toStdString(), version))
+                refuse("Component assembly identity requires an id matching "
+                       "[a-z0-9_-]{1,64}(/[a-z0-9_-]{1,64})? and a version 1-2147483647");
+            parameters->assembly =
+                ComponentAssembly{text(assembly["id"]), std::uint32_t(version)};
         }
         auto updated = std::make_shared<ComponentDefinition>(*found->second);
         updated->parameters = std::move(parameters);

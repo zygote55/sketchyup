@@ -1137,6 +1137,7 @@ int main(int argc, char **argv) {
         parameterCase("component_parameter.override",
                       {{"body", "1"}, {"values", QJsonObject{{"width", "2 m"}}}});
         parameterCase("component_parameter.reset", {{"body", "1"}, {"all", true}});
+        parameterCase("component_parameter.promote", {{"body", "1"}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -1278,7 +1279,8 @@ int main(int argc, char **argv) {
                         draft.move(member, {0, 0, .01});
                         return ChangeReport{};
                     });
-                if (command["command"] == "component_parameter.reset")
+                if (command["command"] == "component_parameter.reset" ||
+                    command["command"] == "component_parameter.promote")
                     overrideComponentParameters(
                         doc, component.instance,
                         {{"width", ParameterQuantity{2, parameterDimension(ParameterType::Length)}}});

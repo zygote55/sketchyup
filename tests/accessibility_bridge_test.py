@@ -40,6 +40,8 @@ class Bridge:
             "action_do_action": ([pointer, integer, pointer], integer),
             "accessible_get_text_iface": ([pointer], pointer),
             "text_get_text": ([pointer, integer, integer, pointer], pointer),
+            "accessible_get_state_set": ([pointer], pointer),
+            "state_set_contains": ([pointer, integer], integer),
         }
         for name, (args, result) in signatures.items():
             function = getattr(self.at, "atspi_" + name)
@@ -322,6 +324,16 @@ def main():
                                 return rows if any(r["name"] == "Model hierarchy" for r in rows) else None
 
                             rows = wait_for(bridge, ready, "Model hierarchy did not appear")
+                            # R094.a: the sidebar's resize handle is a named, vertical split pane
+                            # (AT-SPI states 14 horizontal, 29 vertical).
+                            sidebar_handle = find(rows, "Resize sidebar", "split pane")
+                            with bridge.at_path(app, sidebar_handle["path"]) as control:
+                                with bridge.owned(bridge.accessible_get_state_set(control)) as states:
+                                    sidebar_handle["orientation"] = (
+                                        "vertical" if bridge.state_set_contains(states, 29) else
+                                        "horizontal" if bridge.state_set_contains(states, 14) else "none")
+                            assert sidebar_handle["orientation"] == "vertical", \
+                                f"Sidebar handle orientation is {sidebar_handle['orientation']}"
                             measurements = find(rows, "Measurements in meters", "text")
                             with bridge.at_path(app, measurements["path"]) as control:
                                 with bridge.owned(bridge.accessible_get_text_iface(control)) as text:
@@ -368,6 +380,7 @@ def main():
                                 "selectionDescription": summary["description"],
                                 "entityInfo": expected,
                                 "sheets": sheets,
+                                "sidebarHandle": {key: sidebar_handle[key] for key in ("name", "role", "orientation")},
                                 "accessibleNodes": len(rows),
                                 "passes": True,
                                 "releaseAcceptance": False,

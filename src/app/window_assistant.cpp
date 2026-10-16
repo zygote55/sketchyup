@@ -5,6 +5,7 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QShortcut>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -25,31 +26,34 @@ void Window::toggleAssistant() {
 void Window::layoutAssistant() {
     if (!assistant_ || !sideTabs_)
         return;
-    // Reparent only the assistant, never the live GL viewport.
-    content_->removeWidget(assistant_);
-    const auto index = sideTabs_->indexOf(assistant_);
-    if (index >= 0)
-        sideTabs_->removeTab(index);
-    if (assistantSheet_ && assistantSheet_->layout())
-        assistantSheet_->layout()->removeWidget(assistant_);
-    assistant_->setParent(centralWidget());
-    assistant_->setMinimumWidth(240);
-    assistant_->setMaximumWidth(QWIDGETSIZE_MAX);
+    // R094.a: at >= 1500 px the Assistant is a splitter column beside the side panel. It stays
+    // in place while that layout holds, so its resize handle survives window resizes.
+    const bool column = assistantShown_ && width() >= 1500;
+    if (!column || sidebarSplitter_->indexOf(assistant_) < 0) {
+        // Reparent only the assistant, never the live GL viewport.
+        const auto index = sideTabs_->indexOf(assistant_);
+        if (index >= 0)
+            sideTabs_->removeTab(index);
+        if (assistantSheet_ && assistantSheet_->layout())
+            assistantSheet_->layout()->removeWidget(assistant_);
+        assistant_->setParent(centralWidget());
+        assistant_->setMinimumWidth(240);
+        assistant_->setMaximumWidth(QWIDGETSIZE_MAX);
+    }
     if (assistantSheet_)
         assistantSheet_->hide();
     const auto textPercent = interfaceTextPercent();
-    sideTabs_->setFixedWidth(std::min(320, interfaceExtent(248, textPercent)));
     sideTabs_->setVisible(width() >= 800);
     if (!assistantShown_) {
         assistant_->hide();
+        layoutSidebar();
         return;
     }
-    if (width() >= 1500) {
-        assistant_->setFixedWidth(std::min(420, interfaceExtent(340, textPercent)));
-        content_->addWidget(assistant_);
+    if (column) {
+        if (sidebarSplitter_->indexOf(assistant_) < 0)
+            sidebarSplitter_->addWidget(assistant_);
         assistant_->show();
     } else if (width() >= 1100) {
-        sideTabs_->setFixedWidth(std::min(420, interfaceExtent(340, textPercent)));
         sideTabs_->addTab(assistant_, "Assistant");
         sideTabs_->setCurrentWidget(assistant_);
         sideTabs_->show();
@@ -89,6 +93,7 @@ void Window::layoutAssistant() {
         // Keep the existing model viewport available beside the nonmodal sheet.
         sideTabs_->hide();
     }
+    layoutSidebar();
 }
 void Window::assistantFence(bool uncertain) {
     if (assistantFenced_ == uncertain)
