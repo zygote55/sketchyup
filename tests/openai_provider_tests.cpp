@@ -278,6 +278,46 @@ int main(int argc, char **argv) {
             check(model->execute({{"apiVersion", 1}, {"operation", "session.describe"}})
                           .value("revision") == state.value("revision"),
                   "Rejected mixed provider batch cannot execute or publish a mutation");
+            // R086.e corpus v4: a completed reply batching private draft reads (several
+            // transaction.inspect calls plus transaction.diff with the advertised maximum page)
+            // is a read-only batch (ADR 0025 transaction reads, sideEffects "none").
+            const QString draft = "00000000-0000-4000-8000-000000000000";
+            const QJsonObject draftArgs{{"apiVersion", 1},
+                                        {"documentId", state.value("documentId")},
+                                        {"transactionId", draft}};
+            QJsonArray draftReads;
+            for (int i = 0; i < 4; ++i) {
+                auto inspect = draftArgs;
+                inspect["operation"] = "transaction.inspect";
+                auto request = args;
+                request["expectedRevision"] = "1";
+                inspect["request"] = request;
+                draftReads.append(call(wire, "transaction.inspect", inspect, 30 + i));
+            }
+            auto diff = draftArgs;
+            diff["operation"] = "transaction.diff";
+            diff["limit"] = 100;
+            draftReads.append(call(wire, "transaction.diff", diff, 34));
+            auto describe = draftArgs;
+            describe["operation"] = "transaction.describe";
+            draftReads.append(call(wire, "transaction.describe", describe, 35));
+            const auto draftBatch = conversation.decode(json(completed(draftReads)));
+            check(draftBatch.calls.size() == 6 && draftBatch.calls[4].name == "transaction.diff" &&
+                      draftBatch.calls[4].arguments.value("limit") == 100 &&
+                      draftBatch.calls[5].name == "transaction.describe",
+                  "Private draft inspect, diff and describe reads form one bounded batch");
+            check(task.accept(next->value("attemptId").toString(), draftBatch) &&
+                      task.phase() != Phase::Failed,
+                  "Host accepts the read-only draft batch instead of failing the task");
+            auto statefulDraft = draftReads;
+            statefulDraft[5] = call(wire, "transaction.preview",
+                                    QJsonObject{{"apiVersion", 1},
+                                                {"operation", "transaction.preview"},
+                                                {"documentId", state.value("documentId")},
+                                                {"transactionId", draft},
+                                                {"expectedVersion", 1}},
+                                    36);
+            rejects([&] { conversation.decode(json(completed(statefulDraft))); });
         }
         {
             auto model = session();
