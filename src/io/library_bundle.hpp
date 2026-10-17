@@ -18,9 +18,14 @@ struct ComponentBundle {
     QByteArray thumbnailPng;
 };
 // Capture only the selected definition, its recursive references and used resources.
-Document captureLibraryComponent(const Document &source, Id definition);
+// `identity`, when not empty, is the captured document's identity (32 lowercase hex
+// digits) in place of a fresh random one, so a build-time bundle is byte-identical
+// across builds (ADR 0166 §6.1, R094.f).
+Document captureLibraryComponent(const Document &source, Id definition,
+                                 const std::string &identity = {});
 QByteArray encodeComponentBundle(const Document &source, Id definition,
-                                 const TemplateMetadata &metadata, const QByteArray &thumbnailPng);
+                                 const TemplateMetadata &metadata, const QByteArray &thumbnailPng,
+                                 const std::string &identity = {});
 ComponentBundle decodeComponentBundle(const QByteArray &bytes);
 ComponentBundle loadComponentBundle(const QString &path);
 void writeComponentBundle(const QByteArray &bytes, const QString &newPath);

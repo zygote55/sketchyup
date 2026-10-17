@@ -9,6 +9,7 @@
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
 #include "integrations/render_snapshot.hpp"
+#include "io/component_library.hpp"
 #include "io/drawing_view.hpp"
 #include "io/measured_export.hpp"
 #include <QElapsedTimer>
@@ -296,7 +297,33 @@ class Viewport : public QOpenGLWidget {
     void clearParameterGhost();
     bool parameterGhostShown() const;
     std::size_t parameterGhostEdges() const { return ghostEdges_.size(); }
+    // ADR 0166 §6.3 (R094.f, viewport_assembly.cpp): placing a configurable assembly from the
+    // Components tab. The ghost is the assembly at the form's values (a dry run of
+    // component_parameter.override on a private copy of the bundle's document, once per value
+    // change) moved with the pointer: a gluing assembly onto the hovered face, with the
+    // opening outline and, 150 ms after the pointer rests, the cut of a dry run of the full
+    // placement; a free one onto the hovered face's plane or the ground. A click commits one
+    // edit (placeLibraryAssembly); Enter places a gluing assembly on the selected face at its
+    // centre; the Measurements box takes anchor coordinates or an inset (gluing) or [x,y,z]
+    // (free), and re-entry amends the placement. Esc cancels. `values` are override literals;
+    // a refusal of the values is returned ({code, message, details}) and leaves the ghost.
+    QJsonObject beginAssemblyPlacement(std::shared_ptr<const ComponentBundle> bundle,
+                                       const QJsonObject &values);
+    QJsonObject setAssemblyValues(const QJsonObject &values);
+    void endAssemblyPlacement();
+    bool assemblyPlacing() const;
+    // The Measurements box is the assembly's while placing and while re-entry can amend.
+    bool assemblyMeasurementsActive() const;
+    QString assemblyPlacementStatus() const;
+    // Why the pointer has no valid placement (empty while it has one).
+    QString assemblyPlacementError() const { return assembly_ ? assembly_->error : QString{}; }
+    std::size_t assemblyGhostEdges() const;
+    std::optional<Transform> assemblyGhostTransform() const;
+    // The opening outline in logical viewport pixels (a gluing assembly's ghost).
+    QPolygonF assemblyOpeningOutline() const;
   signals:
+    // Placement mode ended: by placing (`placed`, the new placement) or by cancelling.
+    void assemblyPlacementEnded(bool placed, qulonglong placement);
     void stretchPlaneMoved(double at, bool finished);
     void materialChanged();
     void selected(qulonglong body, qulonglong face);
@@ -737,5 +764,39 @@ class Viewport : public QOpenGLWidget {
     bool stretchRelease(QMouseEvent *event);
     double stretchAtPointer(QPointF point, bool snap) const;
     void paintParameterOverlay(QPainter &painter);
+    // R094.f: assembly placement (viewport_assembly.cpp).
+    struct AssemblyPlacementState {
+        std::shared_ptr<const ComponentBundle> bundle;
+        QJsonObject values;
+        bool gluing{};
+        DrawingPlane glue{};                           // bundle-local glue frame
+        std::vector<std::array<Vec3, 2>> edges;        // bundle-local ghost
+        std::vector<std::vector<Vec3>> faces;
+        std::vector<Vec3> outline;                     // bundle-local glue outline
+        std::optional<AssemblyPlacement> target;       // where a click places
+        std::optional<Transform> world;                // where the ghost is drawn
+        std::vector<Vec3> cut;                         // the dry run's opening, world
+        QString error;
+    };
+    std::optional<AssemblyPlacementState> assembly_;
+    struct AssemblyAmend {
+        std::shared_ptr<const ComponentBundle> bundle;
+        QJsonObject values;
+        AssemblyPlacement placement;
+        Document::AmendStamp stamp;
+        Id placed{};
+    };
+    std::optional<AssemblyAmend> assemblyAmend_;
+    QTimer *assemblyDryRun_{};
+    std::optional<AssemblyPlacement> assemblyOnFace(Id host, Id face, std::optional<Vec3> anchor,
+                                                    Transform &world) const;
+    void updateAssemblyTarget(QPointF position);
+    void assemblyFullDryRun();
+    void placeAssembly(const AssemblyPlacement &placement);
+    bool assemblyPress(QMouseEvent *event);
+    void assemblyMove(QMouseEvent *event);
+    bool assemblyKey(QKeyEvent *event);
+    bool assemblyMeasurements(const QString &text);
+    void paintAssemblyOverlay(QPainter &painter);
 };
 } // namespace sketchy

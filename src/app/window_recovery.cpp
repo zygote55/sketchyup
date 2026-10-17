@@ -6,6 +6,7 @@
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/window.hpp"
+#include "app/components_tab.hpp"
 #include <QAction>
 #include <QCheckBox>
 #include <QDialog>
@@ -36,6 +37,9 @@ Window::~Window() {
         driversSection_->detach();
     if (previewTimer_)
         previewTimer_->stop();
+    // R094.f: the Components tab's form and placement callbacks likewise.
+    if (auto *components = findChild<ComponentsTab *>())
+        components->detach();
     // The sidebar's callbacks must not run while the widgets below are torn down (R094.a).
     detachSidebar();
     delete assistant_;

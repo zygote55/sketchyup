@@ -1,10 +1,13 @@
 #include "io/component_library.hpp"
+#include "automation/component_parameter_commands.hpp"
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
+#include "core/hosted_components.hpp"
 #include <QCryptographicHash>
 #include <set>
 namespace sketchy {
-Document captureLibraryComponent(const Document &source, Id definition) {
+Document captureLibraryComponent(const Document &source, Id definition,
+                                 const std::string &identity) {
     if (!source.definitions().contains(definition))
         throw std::runtime_error("Choose an existing component definition");
     ComponentDefinitions definitions;
@@ -55,7 +58,7 @@ Document captureLibraryComponent(const Document &source, Id definition) {
         }
     }
     Document result;
-    result.restore(result.identity(), 1, {}, 0, definitions, {}, source.nextDefinitionId(), tags,
+    result.restore(identity.empty() ? result.identity() : identity, 1, {}, 0, definitions, {}, source.nextDefinitionId(), tags,
                    source.nextTagId(), materials, source.nextMaterialId(), assets,
                    source.nextAssetId(), source.displayUnits(),
                    std::make_shared<const HostedComponents>(), {}, {}, 1, {}, 1, {}, {},
@@ -260,6 +263,72 @@ LibraryInsertion insertLibraryComponent(Document &destination, const ComponentBu
     insertion.nextIdFloor = draft.nextId();
     appendSceneMetadataChanges(insertion, destination, draft);
     result.component.changes = destination.apply(std::move(insertion), destination.revision());
+    return result;
+}
+std::optional<ComponentAssembly> libraryAssemblyIdentity(const ComponentBundle &bundle) {
+    const auto found = bundle.document.definitions().find(bundle.definition);
+    if (found == bundle.document.definitions().end() || !found->second->parameters)
+        return std::nullopt;
+    return found->second->parameters->assembly;
+}
+Id findLibraryAssembly(const Document &doc, const ComponentAssembly &identity) {
+    for (const auto &[id, definition] : doc.definitions())
+        if (definition->parameters && definition->parameters->assembly == identity)
+            return id;
+    return 0;
+}
+AssemblyPlacementResult placeLibraryAssembly(Document &destination, const ComponentBundle &bundle,
+                                             const AssemblyPlacement &placement,
+                                             const QJsonObject &overrides,
+                                             std::string label) {
+    placement.transform.validate();
+    if (label.empty())
+        label = "Place " + bundle.metadata.name.toStdString();
+    if (destination.readSnapshotBytes() > 256 * 1024 * 1024)
+        throw std::runtime_error("Library insertion exceeds snapshot budget");
+    // Every step runs on one private draft; the document receives one edit (§6.3).
+    auto draft = destination.readSnapshot();
+    AssemblyPlacementResult result;
+    const auto identity = libraryAssemblyIdentity(bundle);
+    const auto reuse = identity ? findLibraryAssembly(draft, *identity) : Id{};
+    const auto transform = placement.host ? Transform{} : placement.transform;
+    if (reuse) {
+        result.definition = reuse;
+        result.reused = true;
+        result.placement = placeComponent(draft, reuse, transform, placement.parent,
+                                          bundle.metadata.name.toStdString())
+                               .instance;
+    } else {
+        const auto inserted = insertLibraryComponent(draft, bundle, transform, placement.parent);
+        result.definition = inserted.component.definition;
+        result.placement = inserted.component.instance;
+    }
+    if (!overrides.isEmpty())
+        executeComponentParameterCommand(draft, {{"command", "component_parameter.override"},
+                                                 {"body", QString::number(result.placement)},
+                                                 {"values", overrides}});
+    if (placement.host) {
+        const auto &host = *placement.host;
+        FacePlacementOptions options;
+        options.anchor = host.anchor;
+        options.tangent = host.tangent;
+        attachComponent(draft, result.placement, host.host, host.face, options, host.inset);
+    }
+    if (draft.readSnapshotBytes() > 256 * 1024 * 1024)
+        throw std::runtime_error("Library insertion result exceeds snapshot budget");
+    Edit edit{label, {}};
+    for (const auto &[id, body] : draft.bodies()) {
+        const auto found = destination.bodies().find(id);
+        const auto old = found == destination.bodies().end() ? nullptr : found->second;
+        if (!old || *old != *body)
+            edit.changes.push_back({id, old, body, {}, {}, {}, true});
+    }
+    for (const auto &[id, body] : destination.bodies())
+        if (!draft.bodies().contains(id))
+            edit.changes.push_back({id, body, nullptr, {}, {}, {}, true});
+    edit.nextIdFloor = draft.nextId();
+    appendSceneMetadataChanges(edit, destination, draft);
+    result.changes = destination.apply(std::move(edit), destination.revision());
     return result;
 }
 } // namespace sketchy

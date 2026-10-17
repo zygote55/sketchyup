@@ -1,5 +1,6 @@
 #include "app/organization_panel.hpp"
 #include "app/annotations_panel.hpp"
+#include "app/components_tab.hpp"
 #include "app/entity_info_panel.hpp"
 #include "app/history_panel.hpp"
 #include "app/materials_panel.hpp"
@@ -327,9 +328,15 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tabs_->addTab(solar_, "Sun");
     references_ = new ReferenceImagesPanel(doc_, view_);
     tabs_->addTab(references_, "Images");
+    // ADR 0166 §6.3 (R094.f): appended, so the index-based focus proxy only gains a case.
+    components_ = new ComponentsTab(doc_, view_);
+    tabs_->addTab(components_, "Components");
+    // After placing, the placement is selected and Entity info shows its parameters.
+    connect(components_, &ComponentsTab::placed, this, [this] { showInfo(); });
     setFocusProxy(outliner_);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
-        setFocusProxy(index == 11   ? static_cast<QWidget *>(references_)
+        setFocusProxy(index == 12   ? static_cast<QWidget *>(components_)
+                      : index == 11 ? static_cast<QWidget *>(references_)
                       : index == 10 ? static_cast<QWidget *>(solar_)
                       : index == 9  ? static_cast<QWidget *>(text_)
                       : index == 8  ? static_cast<QWidget *>(annotations_)
@@ -404,8 +411,14 @@ void OrganizationPanel::enter() {
         return;
     syncing_ = true;
     attempt([&] {
-        view_.enterContext(id);
-        view_.setFocus();
+        // R094.e (ADR 0166 §4.1): a placement with its own values opens through the "has its own
+        // values" dialog, as Enter and double-click in the viewport do. Cancelling it leaves
+        // focus in the Outliner.
+        view_.openContext(id);
+        if (view_.selectionState().context() == id)
+            view_.setFocus();
+        else
+            outliner_->setFocus(Qt::OtherFocusReason);
     });
     syncing_ = false;
     QTimer::singleShot(0, this, [this] { refresh(); });
@@ -573,6 +586,7 @@ void OrganizationPanel::showReferenceImages() {
     references_->setFocus();
 }
 void OrganizationPanel::showSolar() { tabs_->setCurrentWidget(solar_); }
+void OrganizationPanel::showComponents() { tabs_->setCurrentWidget(components_); }
 void OrganizationPanel::showText() { tabs_->setCurrentWidget(text_); }
 void OrganizationPanel::showAnnotations() { tabs_->setCurrentWidget(annotations_); }
 void OrganizationPanel::showSections() { tabs_->setCurrentWidget(sections_); }
@@ -690,6 +704,9 @@ void OrganizationPanel::refresh() {
     text_->refresh();
     solar_->refresh();
     references_->refresh();
+    // Rescanning bundles waits for the tab to be shown (its showEvent refreshes it).
+    if (components_->isVisible())
+        components_->refresh();
     // Save acknowledgements can move the saved marker without advancing content revision.
     history_->refresh(true);
 }

@@ -261,6 +261,34 @@ void cancel(Fixture &f) {
 }
 
 // Edit definition at defaults, closed without an edit: the reset is undone (§4.3).
+// R094.f: Enter (and double-click, which activates the row) on a placement with its own values
+// in the Outliner opens the same dialog as the viewport; Cancel leaves focus in the Outliner.
+void outlinerOpen(Fixture &f) {
+    auto &doc = f.doc();
+    const State before(doc);
+    auto *tabs = f.window.findChild<QTabWidget *>("organizationTabs");
+    auto *outliner = f.window.findChild<QTreeWidget *>("outlinerTree");
+    f.view()->enterContext(0);
+    f.select(f.t.wide);
+    tabs->setCurrentIndex(0);
+    check(QTest::qWaitFor([&] { return outliner->isVisible() && outliner->currentItem(); }) &&
+              outliner->currentItem()->data(0, Qt::UserRole).toULongLong() == f.t.wide,
+          "The Outliner shows the selected placement");
+    f.focus(outliner);
+    const bool opened = f.withDialog(
+        [&] { QTest::keyClick(outliner, Qt::Key_Return); },
+        [&](ParametersScopeDialog &dialog) {
+            check(dialog.windowTitle() == nameOf(doc, f.t.wide) + " has its own values",
+                  "Enter in the Outliner opens the placement's dialog");
+            QTest::keyClick(QApplication::focusWidget(), Qt::Key_Escape);
+        });
+    check(opened, "Enter in the Outliner offers the dialog before opening the placement");
+    check(QTest::qWaitFor([&] { return outliner->hasFocus(); }) &&
+              !f.view()->selectionState().context() && State(doc) == before,
+          "Cancel opens nothing, changes nothing and leaves focus in the Outliner");
+    tabs->setCurrentIndex(2);
+    QTest::qWait(20);
+}
 void defaultsUnchanged(Fixture &f) {
     auto &doc = f.doc();
     const State before(doc);
@@ -867,6 +895,8 @@ int main(int argc, char **argv) {
         Fixture f{window, table};
         cancel(f);
         std::cout << "The dialog, Cancel and Esc passed\n";
+        outlinerOpen(f);
+        std::cout << "Enter in the Outliner offers the dialog passed\n";
         defaultsUnchanged(f);
         std::cout << "Edit definition at defaults without an edit leaves nothing passed\n";
         defaultsEdited(f);

@@ -34,6 +34,7 @@ const PanelTab kTabs[] = {
     {"3D Text", "view.text", "3D text"},
     {"Sun", "view.solar", "Sun and shadows"},
     {"Images", "view.reference_images", "Reference images"},
+    {"Components", "view.components", "Components"},
 };
 constexpr int kTabCount = int(sizeof(kTabs) / sizeof(kTabs[0]));
 void check(bool value, const std::string &message) {

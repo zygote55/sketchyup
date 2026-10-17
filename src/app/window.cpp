@@ -2,6 +2,7 @@
 #include "app/accessible_names.hpp"
 #include "app/component_drivers_section.hpp"
 #include "app/component_parameters_section.hpp"
+#include "app/components_tab.hpp"
 #include "app/context_label.hpp"
 #include "app/file_operation.hpp"
 #include "app/inspection_service.hpp"
@@ -897,6 +898,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                            [showPanel] { showPanel(&OrganizationPanel::showSolar); }));
     view->addAction(action("view.reference_images", "Reference images", {},
                            [showPanel] { showPanel(&OrganizationPanel::showReferenceImages); }));
+    view->addAction(action("view.components", "Components", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showComponents); }));
     auto *reducedMotion = action("view.reduced_motion", "Reduced camera motion", {}, [this] {
         const auto enabled = findChild<QAction *>("view.reduced_motion")->isChecked();
         QSettings().setValue("reducedMotion", enabled);
@@ -1010,6 +1013,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         syncParameterMeasurement();
     });
     connect(viewport_, &Viewport::changed, this, &Window::sync);
+    connect(viewport_, &Viewport::assemblyPlacementEnded, this,
+            [this] { syncParameterMeasurement(); });
     connect(viewport_, &Viewport::message, status_, &QLabel::setText);
     connect(viewport_, &Viewport::selected, this, [this](qulonglong, qulonglong) { sync(); });
     connect(viewport_, &Viewport::measurementsRequested, this, [this](const QString &text) {
@@ -1202,6 +1207,11 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
 #parameterEditor,#driverEditor {border:1px solid $border;border-radius:6px;}
 #driverChangedState,#driverChangedNote {color:$warning;font-weight:600;}
 #driverRowRebind {padding:1px 8px;border:1px solid $warning;}
+#assemblyValuesTitle,#assembliesAboutTitle {font-weight:600;}
+#assemblyValuesNote,#assembliesAboutTitle,#componentsShowLabel,#componentsMessage,#assemblyCancelKey {color:$muted;}
+#assemblyCancelKey {font-family:'DejaVu Sans Mono';}
+#componentCards {background:transparent;border:1px solid transparent;border-radius:4px;}
+#componentCards:focus {border:1px solid $accent;}
 #parametersScopeError {color:$failure;font-weight:600;}
 #parametersScopeError[tone="warning"],#parameterError[tone="warning"],#parameterErrorIcon[tone="warning"],#parameterPreviewError[tone="warning"],#parameterEditorError[tone="warning"],#driverEditorError[tone="warning"] {color:$warning;}
 #parametersScopeHeading {font-size:$sectionHeadingPx;font-weight:700;}
@@ -1254,6 +1264,8 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     setContextLabelColor(componentBanner_, colors.accent);
     themeSheets(colors);
     themeSidebar(colors);
+    if (auto *components = findChild<ComponentsTab *>())
+        components->setTheme(colors);
 }
 void Window::run(const std::function<void()> &fn, bool viewOnly) {
     if (!viewOnly && assistant_ && assistant_->uncertain()) {
@@ -1272,7 +1284,9 @@ void Window::syncParameterMeasurement() {
         parameterMeasurement_ = planeMeasurement_ = false;
         return;
     }
-    const bool select = viewport_->tool() == Viewport::Tool::Select && !assistantFenced_;
+    // While an assembly is placed (or re-entry can amend it) the box is the viewport's (R094.f).
+    const bool select = viewport_->tool() == Viewport::Tool::Select && !assistantFenced_ &&
+                        !viewport_->assemblyMeasurementsActive();
     // The Stretch form's plane (R094.d) comes before the placement parameters (R094.c): in a
     // definition context no placement is selected outside it.
     const bool plane = select && driversSection_ && driversSection_->planeActive();

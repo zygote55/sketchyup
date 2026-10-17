@@ -206,9 +206,10 @@ Document instantiateTemplate(const TemplateBundle &bundle) {
     return result;
 }
 QByteArray encodeComponentBundle(const Document &source, Id definition,
-                                 const TemplateMetadata &metadata, const QByteArray &thumbnailPng) {
+                                 const TemplateMetadata &metadata, const QByteArray &thumbnailPng,
+                                 const std::string &identity) {
     require(!metadata.defaultScene, "Component bundles do not contain default scenes");
-    const auto captured = captureLibraryComponent(source, definition);
+    const auto captured = captureLibraryComponent(source, definition, identity);
     return encodeBundle(captured, metadata, thumbnailPng, definition);
 }
 ComponentBundle decodeComponentBundle(const QByteArray &bytes) {
