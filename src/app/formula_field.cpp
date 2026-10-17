@@ -54,15 +54,6 @@ QString reasonOf(const QJsonObject &error) {
     const auto match = prefix.match(message);
     return match.hasMatch() ? match.captured(1) : message;
 }
-QString sentence(QString text) {
-    text = text.trimmed();
-    if (text.isEmpty())
-        return text;
-    text[0] = text[0].toUpper();
-    if (!text.endsWith('.'))
-        text += '.';
-    return text;
-}
 bool unitWord(const QString &word) {
     static const QStringList units{"mm", "cm", "m", "in", "ft", "deg", "rad"};
     return units.contains(word);
@@ -88,118 +79,7 @@ std::vector<Literal> bareNumbers(const QString &text) {
     }
     return result;
 }
-QString kindOfUnit(const QString &unit) {
-    return unit == "deg" || unit == "rad" ? "an angle" : "a length";
-}
 } // namespace
-
-QString formulaErrorSentence(const QJsonObject &error, const QString &text,
-                             const std::function<QString(const QString &)> &label,
-                             const QString &fix) {
-    const auto code = error["code"].toString();
-    const auto details = detailsOf(error);
-    const auto reason = reasonOf(error);
-    const int offset = details["offset"].toInt();
-    const auto at = [&](int character) {
-        return QString(" at character %1.").arg(character);
-    };
-    const auto named = [&](const QString &name) { return label ? label(name) : name; };
-    if (code == "PARAMETER_SYNTAX") {
-        if (reason == "empty expression")
-            return "Type a formula.";
-        if (reason == "unexpected end of expression") {
-            if (text.count('(') > text.count(')'))
-                return "A closing \")\" is missing" + at(int(text.size()) + 1);
-            return "The formula ends too early" + at(int(text.size()) + 1);
-        }
-        if (reason.startsWith("unexpected") && offset > 0 && offset <= text.size())
-            return "Unexpected \"" + text.mid(offset - 1, 1) + "\"" + at(offset);
-        auto result = sentence(reason);
-        result.chop(1);
-        return result + (offset > 0 ? at(offset) : QString("."));
-    }
-    if (code == "PARAMETER_NAME") {
-        static const QRegularExpression unknown(R"(unknown (parameter|function) '([^']*)')");
-        if (const auto match = unknown.match(reason); match.hasMatch())
-            return "No " + match.captured(1) + " is called " + match.captured(2) + ".";
-        if (details.contains("referrers")) {
-            QStringList referrers;
-            for (const auto &entry : details["referrers"].toArray())
-                referrers << entry.toString();
-            return "Still used by " + referrers.join(" · ") + ".";
-        }
-        return sentence(reason);
-    }
-    if (code == "PARAMETER_TYPE") {
-        if (!fix.isEmpty()) {
-            const auto unit = fix.section(' ', -1);
-            const auto kind = kindOfUnit(unit == "°" ? "deg" : unit);
-            const auto op = offset > 0 && offset <= text.size() ? text[offset - 1] : QChar();
-            QString first;
-            const auto literal = fix.section(' ', 0, 0);
-            const int literalAt = int(text.indexOf(literal, std::max(0, offset - 1)));
-            const bool after = literalAt >= offset;
-            if (op == '-')
-                first = after ? "Can't subtract a number from " + kind
-                              : "Can't subtract " + kind + " from a number";
-            else if (op == '+')
-                first = "Can't add a number to " + kind;
-            else if (op == '<' || op == '>')
-                first = "Can't compare a number with " + kind;
-            else if (reason.startsWith("expression is"))
-                first = QString(kind == "an angle" ? "An angle" : "A length") + " needs a unit";
-            else
-                first = "This number needs a unit";
-            return first + ". Add a unit, for example " + fix + ".";
-        }
-        static const QRegularExpression result(R"(^expression is (.+); the \w+ needs (.+)$)");
-        if (const auto match = result.match(reason); match.hasMatch())
-            return "The formula gives " + match.captured(1) + ", but " + match.captured(2) +
-                   " is needed.";
-        auto text = sentence(reason);
-        text.chop(1);
-        return text + (offset > 0 ? at(offset) : QString("."));
-    }
-    if (code == "PARAMETER_CYCLE") {
-        QStringList chain;
-        for (const auto &entry : details["cycle"].toArray())
-            chain << named(entry.toString());
-        if (!chain.isEmpty())
-            chain << chain.front();
-        return "These depend on each other: " + chain.join(" → ") +
-               ". One of them needs a value instead of a formula.";
-    }
-    if (code == "PARAMETER_DOMAIN") {
-        if (reason == "division by zero")
-            return "Division by zero" + at(std::max(1, offset));
-        if (reason == "sqrt() of a negative value")
-            return "The square root of a negative value" + at(std::max(1, offset));
-        if (reason.startsWith("count is not a whole number"))
-            return "The value must be a whole number; use round().";
-        auto text = sentence(reason);
-        if (offset > 0) {
-            text.chop(1);
-            text += at(offset);
-        }
-        return text;
-    }
-    if (code == "PARAMETER_DRIVER_TARGET") {
-        if (reason.contains("crosses the stretch plane"))
-            return "The arc crosses the stretch plane; move the plane.";
-        if (reason.contains("glue face off"))
-            return "This would move the glue face off its wall.";
-        if (reason.contains("stretch drives Geometry members only"))
-            return "Only geometry can be stretched.";
-        static const QRegularExpression driver(R"(driver #\d+: (.*)$)");
-        const auto match = driver.match(reason);
-        return sentence(match.hasMatch() ? match.captured(1) : reason);
-    }
-    if (code == "PARAMETER_REGENERATION")
-        return "The shape can't be regenerated with this formula. Nothing was changed.";
-    if (code == "STALE_REVISION")
-        return "The model changed. Try again.";
-    return sentence(error["message"].toString());
-}
 
 FormulaField::FormulaField(QWidget *parent) : QWidget(parent) {
     setObjectName("formulaField");
@@ -239,9 +119,14 @@ FormulaField::FormulaField(QWidget *parent) : QWidget(parent) {
     fix_->setObjectName("formulaUnitFix");
     fix_->setAutoDefault(false);
     fix_->hide();
+    action_ = new QPushButton;
+    action_->setObjectName("formulaAction");
+    action_->setAutoDefault(false);
+    action_->hide();
     auto *fixRow = new QHBoxLayout;
     fixRow->setContentsMargins(0, 4, 0, 0);
     fixRow->addWidget(fix_);
+    fixRow->addWidget(action_);
     fixRow->addStretch();
     layout->addLayout(fixRow);
     dryRunTimer_ = new QTimer(this);
@@ -253,6 +138,9 @@ FormulaField::FormulaField(QWidget *parent) : QWidget(parent) {
     connect(edit_, &QLineEdit::returnPressed, this, [this] {
         if (!syncing_)
             emit commitRequested();
+    });
+    connect(action_, &QPushButton::clicked, this, [this] {
+        emit actionRequested(int(message_.action), message_.target, message_.definition);
     });
     connect(fix_, &QPushButton::clicked, this, [this] {
         if (fixed_.isEmpty())
@@ -364,12 +252,29 @@ void FormulaField::present(const QJsonObject &error) {
     fixed_ = error.isEmpty() ? QString{} : unitFix(error, literal);
     shownError_ = error;
     QString sentence;
+    message_ = {};
     if (!error.isEmpty() && sentence_)
         sentence = sentence_(error, edit_->text());
-    if (!error.isEmpty() && sentence.isEmpty())
-        sentence = error["code"].toString() == "LIMIT"
-                       ? error["message"].toString() + "."
-                       : formulaErrorSentence(error, edit_->text(), label_, literal);
+    if (!error.isEmpty() && sentence.isEmpty()) {
+        if (error["code"].toString() == "LIMIT") {
+            sentence = error["message"].toString() + ".";
+        } else {
+            // The §5 message table (parameter_messages).
+            ParameterMessageContext context;
+            context.place = ParameterMessagePlace::Formula;
+            context.document = document_;
+            context.formula = edit_->text();
+            context.label = label_;
+            context.fix = literal;
+            message_ = parameterMessage(error, context);
+            sentence = message_.sentence;
+        }
+    }
+    const bool action = !sentence.isEmpty() &&
+                        (message_.action == ParameterMessageAction::ShowDriver ||
+                         message_.action == ParameterMessageAction::SelectLocked);
+    action_->setText(message_.actionText);
+    action_->setVisible(action);
     const bool changed = sentence != error_;
     error_ = sentence;
     errorText_->setText(sentence);

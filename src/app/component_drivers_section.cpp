@@ -234,17 +234,32 @@ ComponentDriversSection::ComponentDriversSection(Document &doc, Viewport &view, 
     form->addRow(formLabel("Child parameter"), child_);
     childRow_ = child_;
     editorLayout->addLayout(form);
-    error_ = new QLabel;
+    error_ = new ParameterMessageLabel;
     error_->setObjectName("driverEditorError");
-    error_->setWordWrap(true);
-    error_->setTextFormat(Qt::PlainText);
     error_->hide();
+    error_->installEventFilter(this);
     editorLayout->addWidget(error_);
     auto *commitRow = new QHBoxLayout;
     commit_ = new QPushButton("Add");
     commit_->setObjectName("driverCommit");
     commit_->setAutoDefault(false);
     commitRow->addWidget(commit_);
+    // The message's action (ADR 0166 §5): "Select #1" for a locked placement.
+    action_ = new QPushButton;
+    action_->setObjectName("driverEditorAction");
+    action_->setAutoDefault(false);
+    action_->hide();
+    commitRow->addWidget(action_);
+    connect(action_, &QPushButton::clicked, this, [this] {
+        emit view_.parameterAction(int(message_.action), message_.target, message_.definition);
+    });
+    for (auto *field : {formula_, spacing_}) {
+        field->setDocument(&doc_);
+        connect(field, &FormulaField::actionRequested, this,
+                [this](int action, qulonglong target, qulonglong definition) {
+                    emit view_.parameterAction(action, target, definition);
+                });
+    }
     commitRow->addStretch();
     editorLayout->addLayout(commitRow);
     editor_->hide();
@@ -332,6 +347,8 @@ ComponentDriversSection::ComponentDriversSection(Document &doc, Viewport &view, 
             syncPlane();
             check_->start();
         } catch (const std::exception &error) {
+            static_cast<ParameterMessageLabel *>(error_)->setTone(ParameterMessageTone::Failure);
+            action_->hide();
             error_->setText(QString::fromUtf8(error.what()));
             error_->show();
         }
@@ -895,21 +912,30 @@ QString ComponentDriversSection::present(const QJsonObject &error) {
         error_->hide();
         return field->error();
     }
-    auto text = formulaErrorSentence(error, formula_->text(),
-                                     [this](const QString &name) { return labelOf(name); });
-    // The member's type names what can't be stretched (ADR 0166 §5).
-    if (text == "Only geometry can be stretched.") {
-        const auto &definition = *doc_.definitions().at(scope_.definition);
-        if (definition.members.contains(member_) && definition.members.at(member_)->textSource)
-            text = "Text can't be stretched.";
-    }
-    if (error["code"].toString() == "PARAMETER_DRIVER_TARGET" &&
-        error["message"].toString().contains("has no input parameter"))
-        text = memberName(member_) + " has no parameter " + child_->currentData().toString() + ".";
-    error_->setText(text);
+    // The §5 message table: the member names what can't be stretched and the child that has no
+    // such parameter.
+    ParameterMessageContext context;
+    context.place = ParameterMessagePlace::Driver;
+    context.document = &doc_;
+    context.units = doc_.displayUnits();
+    context.precision = doc_.displayPrecision();
+    context.formula = formula_->text();
+    context.placement = scope_.placement;
+    context.label = [this](const QString &name) { return labelOf(name); };
+    context.member = memberName(member_);
+    if (const auto &definition = *doc_.definitions().at(scope_.definition);
+        definition.members.contains(member_))
+        context.textMember = bool(definition.members.at(member_)->textSource);
+    context.childParameter = child_->currentData().toString();
+    message_ = parameterMessage(error, context);
+    static_cast<ParameterMessageLabel *>(error_)->setTone(message_.tone);
+    error_->setText(message_.sentence);
     error_->setToolTip(error["message"].toString());
     error_->show();
-    return text;
+    action_->setText(message_.actionText);
+    action_->setVisible(message_.action == ParameterMessageAction::SelectLocked ||
+                        message_.action == ParameterMessageAction::ShowDriver);
+    return message_.sentence;
 }
 QString ComponentDriversSection::checkForm() {
     check_->stop();
@@ -918,6 +944,8 @@ QString ComponentDriversSection::checkForm() {
     QString problem;
     const auto command = driveCommand(formula_->text(), spacing_->text(), problem);
     if (!problem.isEmpty()) {
+        static_cast<ParameterMessageLabel *>(error_)->setTone(ParameterMessageTone::Failure);
+        action_->hide();
         error_->setText(problem);
         error_->show();
         return problem;
@@ -933,6 +961,8 @@ QString ComponentDriversSection::commit() {
     QString problem;
     const auto command = driveCommand(formula_->text(), spacing_->text(), problem);
     if (!problem.isEmpty()) {
+        static_cast<ParameterMessageLabel *>(error_)->setTone(ParameterMessageTone::Failure);
+        action_->hide();
         error_->setText(problem);
         error_->show();
         return problem;
@@ -1026,6 +1056,9 @@ QString ComponentDriversSection::rebind(bool all) {
     return {};
 }
 bool ComponentDriversSection::eventFilter(QObject *object, QEvent *event) {
+    // The action belongs to the message: it goes when the line goes.
+    if (object == error_ && event->type() == QEvent::Hide)
+        action_->hide();
     const bool press = event->type() == QEvent::KeyPress;
     if (!press && event->type() != QEvent::ShortcutOverride)
         return CollapsibleSection::eventFilter(object, event);
@@ -1061,6 +1094,8 @@ bool ComponentDriversSection::eventFilter(QObject *object, QEvent *event) {
                 if (object == plane_) {
                     QString error;
                     if (!plane_->text().isEmpty() && !setPlaneText(plane_->text(), error)) {
+                        static_cast<ParameterMessageLabel *>(error_)->setTone(ParameterMessageTone::Failure);
+                        action_->hide();
                         error_->setText(error);
                         error_->show();
                         return true;

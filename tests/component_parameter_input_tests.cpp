@@ -220,7 +220,8 @@ void validation(Fixture &f) {
     check(row->error().isEmpty(), "A readable value waits for the check");
     check(QTest::qWaitFor([&] { return !row->error().isEmpty(); }, 2000),
           "The bounds check runs after the pause");
-    check(row->error() == "2.6m is above the maximum, 2400 mm. Nothing was changed.",
+    // The value and the bound in the document's units (ADR 0166 §5, R094.e).
+    check(row->error() == "2600 mm is above the maximum, 2400 mm. Nothing was changed.",
           "Bounds sentence, got " + row->error().toStdString());
     check(State(doc) == before, "Checking never changes the document");
     f.enter(width);
@@ -238,7 +239,7 @@ void validation(Fixture &f) {
           "Esc restores the stored value and clears the error");
     f.type(width, "0.3 m");
     QTest::qWait(300);
-    check(row->error() == "0.3 m is below the minimum, 400 mm. Nothing was changed.",
+    check(row->error() == "300 mm is below the minimum, 400 mm. Nothing was changed.",
           "Below the minimum, got " + row->error().toStdString());
     QTest::keyClick(width, Qt::Key_Escape);
     // A count step outside the bounds is refused, never clamped.
@@ -290,7 +291,8 @@ void regeneration(Fixture &f) {
     f.type(size, "-200");
     QTest::qWait(300);
     check(f.field("size")->error() ==
-              "At -200 mm the shape can't be regenerated. Nothing was changed.",
+              "At -200 mm Slab would pass its stretch plane (Stretch Slab). Nothing was "
+              "changed.",
           "The check refuses an unregenerable value, got " +
               f.field("size")->error().toStdString());
     f.enter(size);

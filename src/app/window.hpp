@@ -22,6 +22,7 @@
 class QTabWidget;
 class QSplitter;
 class QDialog;
+class QPushButton;
 class QHBoxLayout;
 class QStackedWidget;
 class QTimer;
@@ -128,6 +129,38 @@ class Window : public QMainWindow {
     void previewDefaults();
     void preview();
     void addDriver();
+    // R094.e (ADR 0166 §§4, 5; window_components.cpp): the "has its own values" dialog, the
+    // overrides suspended while a definition is edited at its defaults, the changed-since-bound
+    // strip and the §5 messages' actions.
+    struct ParameterSuspension {
+        std::string document;
+        Id placement{};
+        QJsonObject values; // the placement's overrides, SI values by parameter name
+        QJsonObject labels; // their labels, for a parameter the definition no longer has
+        QString name;       // the placement's name, for labels and the status bar
+        Document::AmendStamp stamp;
+    };
+    std::optional<ParameterSuspension> suspension_;
+    Id templateScope_{};
+    bool templateScopeOwn_{}, parameterStatesBusy_{}, parameterStatesDetached_{};
+    QWidget *statusStrip_{};
+    QLabel *statusStripText_{};
+    QPushButton *statusRebind_{}, *statusUndo_{}, *previewAction_{};
+    Id previewActionDriver_{}, previewActionDefinition_{};
+    std::string stripDocument_;
+    Id stripDefinition_{};
+    std::uint64_t stripRevision_{};
+    std::size_t stripPosition_{};
+    std::set<Id> stripChanged_;
+    QJsonArray stripDrivers_;
+    void setupParameterStates();
+    void detachParameterStates();
+    bool openPlacement(Id placement);
+    void syncParameterStates();
+    void finishSuspension();
+    void syncStatusStrip(Id scope, bool parametric);
+    void placeParameterStrips();
+    void parameterAction(int action, Id target, Id definition);
     void showGeometryDiagnostics();
     bool assistantShown_{}, assistantFenced_{};
     int assistantRecoveryInterval_{};

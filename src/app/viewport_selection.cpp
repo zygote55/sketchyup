@@ -102,6 +102,11 @@ void Viewport::enterContext(Id context) {
     selection_.enter(doc_, context);
     selectionChanged(true);
 }
+void Viewport::openContext(Id context) {
+    if (contextOpener_ && contextOpener_(context))
+        return;
+    enterContext(context);
+}
 void Viewport::leaveContext() {
     const auto context = selection_.context();
     enterContext(context && doc_.bodies().contains(context) ? doc_.bodies().at(context)->parent
@@ -813,7 +818,7 @@ void Viewport::mouseDoubleClickEvent(QMouseEvent *event) {
     const auto entity = selectionAt(event->position());
     if (entity) {
         if (entity->kind == SelectionKind::Body)
-            enterContext(entity->body);
+            openContext(entity->body);
         else
             selectEntities(selection_.boundary(doc_, *entity), selectionMode(event->modifiers()));
     }
@@ -847,7 +852,7 @@ bool Viewport::selectionKey(QKeyEvent *event) {
         if (selection_.entities().size() == 1) {
             const auto entity = *selection_.entities().begin();
             if (entity.kind == SelectionKind::Body)
-                enterContext(entity.body);
+                openContext(entity.body);
             else
                 selectEntities(selection_.boundary(doc_, entity));
         }

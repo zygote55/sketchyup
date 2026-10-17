@@ -542,7 +542,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         findChild<QAction *>(name)->setProperty("command", "scene.state");
     edit->addAction(action("context.enter", "Edit selected context", {}, [this] {
         if (viewport_->selectedBody())
-            viewport_->enterContext(viewport_->selectedBody());
+            viewport_->openContext(viewport_->selectedBody());
     }));
     edit->addAction(action("context.leave", "Close editing context", {},
                            [this] { viewport_->leaveContext(); }));
@@ -1202,6 +1202,18 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
 #parameterEditor,#driverEditor {border:1px solid $border;border-radius:6px;}
 #driverChangedState,#driverChangedNote {color:$warning;font-weight:600;}
 #driverRowRebind {padding:1px 8px;border:1px solid $warning;}
+#parametersScopeError {color:$failure;font-weight:600;}
+#parametersScopeError[tone="warning"],#parameterError[tone="warning"],#parameterErrorIcon[tone="warning"],#parameterPreviewError[tone="warning"],#parameterEditorError[tone="warning"],#driverEditorError[tone="warning"] {color:$warning;}
+#parametersScopeHeading {font-size:$sectionHeadingPx;font-weight:700;}
+#parametersScopeNote {color:$muted;}
+#parametersScopeDefaults,#parametersScopeUnique[accentFill="true"] {background:$accent;color:$onAccent;font-weight:600;border:2px solid $accent;}
+#parametersScopeDefaults:focus,#parametersScopeUnique[accentFill="true"]:focus {border:2px solid $surface;}
+#parameterStatusStrip {background:$warningSurface;border:1px solid $warningBorder;border-radius:6px;}
+#parameterStatusStrip QLabel,#parameterStatusIcon {background:transparent;color:$warning;}
+#parameterStatusStrip QPushButton {background:$input;}
+#parameterStatusRebind {border:1px solid $warning;}
+#parameterStatusUndo QLabel {color:$ink;} #parameterStatusUndo QLabel#parameterStatusShortcut {color:$muted;font-family:'DejaVu Sans Mono';}
+#parameterStatusStrip QPushButton:focus {border:2px solid $accent;padding:6px 10px;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
@@ -1221,6 +1233,8 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     // R094.c (ADR 0166 §1.2): longer token names first.
     style.replace("$informationSurface", colors.informationSurface.name());
     style.replace("$information", colors.information.name());
+    style.replace("$warningSurface", colors.warningSurface.name());
+    style.replace("$warningBorder", colors.warningBorder.name());
     style.replace("$warning", colors.warning.name());
     style.replace("$failureSurface", colors.failureSurface.name());
     style.replace("$failure", colors.failure.name());

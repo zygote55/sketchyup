@@ -1,4 +1,5 @@
 #pragma once
+#include "app/parameter_messages.hpp"
 #include <QJsonObject>
 #include <QWidget>
 #include <functional>
@@ -8,15 +9,6 @@ class QLineEdit;
 class QPushButton;
 class QTimer;
 namespace sketchy {
-// The sentence a formula field shows for an error (ADR 0166 §5, the rows that apply to formula
-// fields): `error` is a component_parameters.evaluate error or a refusal's {code, message,
-// details}; `text` is the formula; `label` names a parameter by its label (for cycles). When
-// `fix` is not empty it is the one-click unit fix's literal ("120 mm") and the sentence offers
-// it. The core message is the fallback.
-QString formulaErrorSentence(const QJsonObject &error, const QString &text,
-                             const std::function<QString(const QString &)> &label,
-                             const QString &fix = {});
-
 // One formula or default-expression field (ADR 0166 §3.5), shared by the parameter editor
 // and the driver editor: a monospace line edit of at most 1,024 ASCII characters, checked as
 // you type. Each edit calls `evaluate` at once (syntax, names and units, no geometry); 300 ms
@@ -40,6 +32,10 @@ class FormulaField : public QWidget {
     void setFixUnits(const QStringList &units) { units_ = units; }
     // Names parameters by label in sentences.
     void setLabels(std::function<QString(const QString &)> label) { label_ = std::move(label); }
+    // Names the document's placements, members and drivers in its §5 sentences (R094.e).
+    void setDocument(const Document *document) { document_ = document; }
+    // The action button of a sentence that offers one ("Show the driver", "Select #1").
+    QPushButton *actionButton() const { return action_; }
     // Writes the sentence for errors the owner words itself (bounds); empty for the default.
     using Sentence = std::function<QString(const QJsonObject &error, const QString &text)>;
     void setSentence(Sentence sentence) { sentence_ = std::move(sentence); }
@@ -64,6 +60,8 @@ class FormulaField : public QWidget {
     void commitRequested(); // Enter
     void escaped();         // Esc with nothing to restore
     void checked();         // a check finished (the error may have changed)
+    // The sentence's action button was pressed (a ParameterMessageAction and its targets).
+    void actionRequested(int action, qulonglong target, qulonglong definition);
 
   protected:
     bool eventFilter(QObject *object, QEvent *event) override;
@@ -73,7 +71,9 @@ class FormulaField : public QWidget {
     QLineEdit *edit_{};
     QWidget *caretRow_{}, *errorRow_{};
     QLabel *caret_{}, *errorText_{};
-    QPushButton *fix_{};
+    QPushButton *fix_{}, *action_{};
+    const Document *document_{};
+    ParameterMessage message_;
     QTimer *dryRunTimer_{};
     Check evaluate_, dryRun_;
     std::function<QString(const QString &)> label_;
