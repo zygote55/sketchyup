@@ -1,6 +1,6 @@
 # SketchyUp UX design
 
-Status: proposed design, not an implemented interface. Updated: 2026-10-03.
+Status: proposed design, not an implemented interface. Updated: 2026-10-17.
 
 This document designs the user experience for the native editor described in
 the [build plan](BUILD_PLAN.md). It covers the window, tools, numeric entry,
