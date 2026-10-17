@@ -99,6 +99,8 @@ class SidebarHandle : public QSplitterHandle {
 };
 // AT-SPI exposes the handles as splitters with their orientation (a vertical bar between
 // side-by-side panes), not as Qt's default "grip", which the bridge reports as unknown.
+// QAccessible::Attribute::Orientation is new in Qt 6.11; older Qt gets the role and name only (D-037).
+#if QT_VERSION >= QT_VERSION_CHECK(6, 11, 0)
 class SidebarHandleAccessible : public QAccessibleWidget, public QAccessibleAttributesInterface {
   public:
     explicit SidebarHandleAccessible(QWidget *handle)
@@ -120,6 +122,13 @@ class SidebarHandleAccessible : public QAccessibleWidget, public QAccessibleAttr
                                                                            : Qt::Horizontal);
     }
 };
+#else
+class SidebarHandleAccessible : public QAccessibleWidget {
+  public:
+    explicit SidebarHandleAccessible(QWidget *handle)
+        : QAccessibleWidget(handle, QAccessible::Splitter) {}
+};
+#endif
 QAccessibleInterface *sidebarHandleAccessible(const QString &, QObject *object) {
     if (auto *handle = dynamic_cast<SidebarHandle *>(object))
         return new SidebarHandleAccessible(handle);

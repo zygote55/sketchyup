@@ -8,6 +8,11 @@ deterministic undo and recovery postconditions recorded by provider_trial on
 every run; any failure is a blocking engine defect, not model variance.
 Version 3 keeps the version 2 rules and freezes the native ChatGPT-plan limits
 of PR #338; reports must also match a profile's outputTokenLimitEnforced.
+Version 4 keeps the version 3 rules and runs through the native assistant session
+with its 15-minute task lifetime (R086.e). Every report must also match the frozen
+assistant surface: the native session and draft ceiling, each task's command
+authorization and tool-list hash, and the profile's instruction hash, which every
+recorded provider request must carry.
 """
 import argparse
 import hashlib
@@ -26,6 +31,45 @@ def digest(data):
 
 POSTCONDITIONS = ('undoRestores', 'recoveryRestores')
 POSTCONDITION_BLOCKERS = ('undoNotRestored', 'recoveryNotRestored', 'testFaultInjected')
+# Per-turn host budget and binding follow this marker in the provider instructions.
+HOST_BUDGET_MARKER = '\nHost task budget: '
+
+
+def recorded_instructions(exchange):
+    """The instructions a recorded provider request carried, or None for other requests."""
+    request = exchange.get('request')
+    if not isinstance(request, dict):
+        return None
+    if 'instructions' in request:  # OpenAI Responses
+        return request['instructions']
+    messages = request.get('messages')
+    if isinstance(messages, list) and messages and isinstance(messages[0], dict) and \
+            messages[0].get('role') == 'system':  # Ollama chat
+        return messages[0].get('content')
+    return None
+
+
+def check_assistant_surface(manifest, data, trial):
+    """Version 4: the run used the frozen native session, tools and instructions."""
+    assistant = manifest['assistant']
+    surface = assistant['surfaces'][trial]
+    require(data['assistantSession'] == assistant['session'] and
+            data['maximumDraftTtlSeconds'] == assistant['maximumDraftTtlSeconds'],
+            'Assistant session drift')
+    require(data['clarificationAvailable'] is assistant['clarificationAvailable'] and
+            data['allowedCommands'] == surface['allowedCommands'] and
+            data['toolsSha256'] == surface['toolsSha256'], 'Assistant tool surface drift')
+    instructions = data['instructionsSha256']
+    require(isinstance(instructions, str) and len(instructions) == 64,
+            'Missing instructions hash')
+    for exchange in data['exchanges']:
+        text = recorded_instructions(exchange)
+        if text is None:
+            continue
+        require(isinstance(text, str), 'Recorded instructions are not text')
+        static, marker, _ = text.partition(HOST_BUDGET_MARKER)
+        require(marker and digest(static.encode()) == instructions,
+                'Recorded instructions differ from instructionsSha256')
 
 
 def postcondition_failures(data):
@@ -73,11 +117,17 @@ def postcondition_failures(data):
 
 def score(manifest, bundle, root):
     version = manifest['corpusVersion']
-    require(type(version) is int and version in (1, 2, 3), 'Unsupported corpus')
+    require(type(version) is int and version in (1, 2, 3, 4), 'Unsupported corpus')
     if version >= 2:
         require(manifest['requiredPostconditions'] == list(POSTCONDITIONS) and
                 all(name in manifest['hardZero'] for name in POSTCONDITION_BLOCKERS),
                 'Corpus v2+ requires blocking undo and recovery postconditions')
+    if version >= 4:
+        assistant = manifest['assistant']
+        require(assistant['session'] == 'native' and
+                assistant['maximumDraftTtlSeconds'] == manifest['deadlineSeconds'] and
+                set(assistant['surfaces']) == {task['trial'] for task in manifest['tasks']},
+                'Corpus v4 requires the native session surface for every task')
     postcondition_totals = dict.fromkeys(POSTCONDITIONS, 0)
     profile = manifest['profiles'][bundle['profile']]
     tasks = {task['trial']: task for task in manifest['tasks']}
@@ -108,13 +158,15 @@ def score(manifest, bundle, root):
                 'Retained input mismatch')
         require(data['model'] == profile['model'], 'Wrong model')
         require(data['taskSeconds'] == manifest['deadlineSeconds'], 'Wrong deadline')
+        if version >= 4:
+            check_assistant_surface(manifest, data, trial)
         if trial == 'unavailable':
             require(data['connection'] == 'ollama' and
                     data['endpoint'] == 'http://127.0.0.1:1', 'Wrong offline control')
         else:
             for field in ('connection', 'provider', 'outputTokensPerTurn',
                           'outputTokenLimitEnforced', 'taskTurns', 'taskReportedTokens',
-                          'contextTokens', 'threads'):
+                          'contextTokens', 'threads', 'instructionsSha256'):
                 if field in profile:
                     require(data[field] == profile[field], 'Configuration drift: ' + field)
         review = entry['review']

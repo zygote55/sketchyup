@@ -21,6 +21,9 @@ class ScoreTests(unittest.TestCase):
     def postconditions(self, data, edit):
         """Version 1 reports carry no undo/recovery postconditions."""
 
+    def surface(self, data, trial):
+        """Versions 1 to 3 freeze no assistant session, tools or instructions."""
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -43,7 +46,8 @@ class ScoreTests(unittest.TestCase):
                             trial=trial, corpusVersion=self.manifest['corpusVersion'],
                             inputSha256=task['inputSha256'],
                             promptSha256=task['promptSha256'], prompt=task['prompt'],
-                            taskSeconds=300, geometryVerified=edit,
+                            taskSeconds=self.manifest['deadlineSeconds'],
+                            geometryVerified=edit,
                             inspectionVerified=trial in ('measure', 'metadata'),
                             metadataObserved=trial == 'metadata', editAttempted=edit,
                             revisionUnchanged=not edit, manualEditSaveReopenVerified=True,
@@ -55,6 +59,7 @@ class ScoreTests(unittest.TestCase):
                     data.update(connection='ollama', endpoint='http://127.0.0.1:1')
                     data['result']['phase'] = 'failed'
                 self.postconditions(data, edit)
+                self.surface(data, trial)
                 files = self.root / (name + '.files')
                 files.mkdir()
                 (files / 'input.sketchyup').write_bytes(b'synthetic input')
@@ -277,6 +282,129 @@ class VersionThreeScoreTests(VersionTwoScoreTests):
         self.write()
         with self.assertRaisesRegex(ValueError, 'Wrong corpus task'):
             self.evaluate()
+
+
+INSTRUCTIONS = 'Synthetic assistant instructions.'
+
+
+class VersionFourScoreTests(VersionThreeScoreTests):
+    """v3 rules unchanged; runs use the native session, its 15-minute lifetime and the
+    frozen tool surface and instructions."""
+    MANIFEST = 'tests/provider-release-corpus-v4.json'
+
+    def surface(self, data, trial):
+        assistant = self.manifest['assistant']
+        frozen = assistant['surfaces'][trial]
+        data.update(assistantSession=assistant['session'],
+                    maximumDraftTtlSeconds=assistant['maximumDraftTtlSeconds'],
+                    clarificationAvailable=assistant['clarificationAvailable'],
+                    allowedCommands=list(frozen['allowedCommands']),
+                    toolsSha256=frozen['toolsSha256'])
+
+    def wire(self, text):
+        return {'path': '/v1/responses', 'status': 200,
+                'request': {'instructions': text + '\nHost task budget: {"remainingSeconds":899}'}}
+
+    def test_profile_freezes_native_chatgpt_limits(self):
+        profile = self.manifest['profiles']['chatgpt-astra']
+        self.assertEqual(self.manifest['deadlineSeconds'], 900)
+        self.assertEqual((profile['taskTurns'], profile['taskReportedTokens'],
+                          profile['outputTokensPerTurn'], profile['outputTokenLimitEnforced']),
+                         (16, 524288, None, False))
+        assistant = self.manifest['assistant']
+        self.assertEqual((assistant['session'], assistant['maximumDraftTtlSeconds'],
+                          assistant['clarificationAvailable']), ('native', 900, False))
+        for value in [profile['instructionsSha256'],
+                      self.manifest['profiles']['ollama-qwen4b']['instructionsSha256']] + \
+                [row['toolsSha256'] for row in assistant['surfaces'].values()]:
+            self.assertRegex(value, '^[0-9a-f]{64}$')
+
+    def test_tasks_identical_to_version_three(self):
+        v3 = json.loads((ROOT / 'tests/provider-release-corpus-v3.json').read_text())
+        v4 = json.loads((ROOT / self.MANIFEST).read_text())  # setUp rewrites input hashes
+        self.assertEqual(v4['tasks'], v3['tasks'])
+        for key in ('repetitions', 'hardZero', 'requiredPostconditions', 'postconditionPolicy',
+                    'costPolicy'):
+            self.assertEqual(v4[key], v3[key])
+        for name in ('chatgpt-astra', 'ollama-qwen4b'):
+            for key, value in v3['profiles'][name].items():
+                self.assertEqual(v4['profiles'][name][key], value)
+
+    def test_headless_deadline_report_rejected(self):
+        """A report from the public headless session's 300 s ceiling is not a v4 run."""
+        for field, value in (('taskSeconds', 300), ('maximumDraftTtlSeconds', 300),
+                             ('assistantSession', 'headless')):
+            with self.subTest(field=field):
+                self.setUp()
+                self.data[0][field] = value
+                self.write()
+                with self.assertRaisesRegex(ValueError, 'Wrong deadline|Assistant session drift'):
+                    self.evaluate()
+
+    def test_changed_instructions_rejected(self):
+        self.data[0]['instructionsSha256'] = SCORE.digest(b'other instructions')
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'Configuration drift: instructionsSha256'):
+            self.evaluate()
+
+    def test_recorded_requests_must_carry_frozen_instructions(self):
+        frozen = SCORE.digest(INSTRUCTIONS.encode())
+        self.manifest['profiles']['chatgpt-astra']['instructionsSha256'] = frozen
+        for data in self.data:
+            data['instructionsSha256'] = frozen
+        self.data[0]['exchanges'] = [self.wire(INSTRUCTIONS)]
+        self.write()
+        self.assertTrue(self.evaluate()['corpusPassed'])
+        for exchanges in ([self.wire(INSTRUCTIONS + ' Changed.')],
+                          [{'request': {'instructions': INSTRUCTIONS}}],
+                          [{'request': {'messages': [{'role': 'system',
+                                                      'content': 'Other local instructions.'
+                                                                 '\nHost task budget: {}'}]}}]):
+            with self.subTest(exchanges=exchanges):
+                self.data[0]['exchanges'] = exchanges
+                self.write()
+                with self.assertRaisesRegex(ValueError, 'Recorded instructions differ'):
+                    self.evaluate()
+
+    def test_tool_surface_drift_rejected(self):
+        for field, value in (('toolsSha256', SCORE.digest(b'other tools')),
+                             ('allowedCommands', ['assembly.room']),
+                             ('clarificationAvailable', True)):
+            with self.subTest(field=field):
+                self.setUp()
+                self.data[0][field] = value
+                self.write()
+                with self.assertRaisesRegex(ValueError, 'Assistant tool surface drift'):
+                    self.evaluate()
+
+    def test_missing_surface_fields_fail_closed(self):
+        for field in ('instructionsSha256', 'toolsSha256', 'assistantSession',
+                      'allowedCommands', 'maximumDraftTtlSeconds'):
+            with self.subTest(field=field):
+                self.setUp()
+                del self.data[0][field]
+                self.write()
+                with self.assertRaises(KeyError):
+                    self.evaluate()
+
+    def test_version_three_report_rejected_by_version_four_manifest(self):
+        self.data[0]['corpusVersion'] = 3
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'Wrong corpus task'):
+            self.evaluate()
+
+    def test_manifest_must_declare_native_surface(self):
+        for change in ('session', 'ttl', 'surfaces'):
+            with self.subTest(change=change):
+                manifest = copy.deepcopy(self.manifest)
+                if change == 'session':
+                    manifest['assistant']['session'] = 'headless'
+                elif change == 'ttl':
+                    manifest['assistant']['maximumDraftTtlSeconds'] = 300
+                else:
+                    del manifest['assistant']['surfaces']['site']
+                with self.assertRaisesRegex(ValueError, 'native session surface'):
+                    SCORE.score(manifest, self.bundle, self.root)
 
 
 if __name__ == '__main__':

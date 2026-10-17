@@ -1,6 +1,10 @@
 // Explicit opt-in corpus. Only synthetic models are sent to the selected provider.
+// Corpus v4 (R086.e) runs every task through the native assistant session, its transaction
+// options and the desktop's 15-minute task lifetime, not the public headless session.
 #include "automation/commands.hpp"
+#include "automation/native_assistant_session.hpp"
 #include "core/entity_measure.hpp"
+#include "core/selection.hpp"
 #include "integrations/chatgpt_auth.hpp"
 #include "integrations/credential_store.hpp"
 #include "integrations/ollama_provider.hpp"
@@ -21,6 +25,12 @@
 #include <iostream>
 #include <optional>
 using namespace sketchy;
+// R086.e: the frozen corpus version this harness writes, and its native task lifetime.
+constexpr int corpusVersion = 4;
+constexpr int corpusTaskSeconds = maximumTrustedStagingTtlSeconds;
+// The per-turn host budget and binding follow this marker; everything before it is the
+// static assistant instruction text that corpus v4 freezes as instructionsSha256.
+const QString hostBudgetMarker = QStringLiteral("\nHost task budget: ");
 void check(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -224,14 +234,19 @@ int main(int argc, char **argv) {
         const auto output = files.path() + "/output.sketchyup";
         saveDocument(fixture, input);
         const auto outcomes = files.path() + "/outcomes";
+        // The desktop panel's path: the opened document, its selection state and a
+        // NativeAssistantSession with the default native transaction options (900 s drafts).
+        // The public headless session and its 300 s ceiling are not involved.
+        Document live = loadDocument(input);
+        Selection selection;
+        selection.sync(live);
+        const auto transactionOptions = nativeAssistantTransactionOptions();
         // Optional so the v2 recovery postcondition can drop it without saving.
-        std::optional<AutomationSession> session;
-        session.emplace(AutomationSession::Options{input, output, outcomes, false});
-        const auto inputCanonical = canonicalSha256(session->document());
-        const auto inputHistory = session->document().history().total;
-        auto state = [&] {
-            return session->execute({{"apiVersion", 1}, {"operation", "session.describe"}});
-        };
+        std::optional<NativeAssistantSession> session;
+        session.emplace(live, outcomes, &selection, std::function<bool()>{}, transactionOptions);
+        const auto inputCanonical = canonicalSha256(live);
+        const auto inputHistory = live.history().total;
+        auto state = [&] { return session->state(); };
         QElapsedTimer timer;
         timer.start();
         QJsonArray receipts, activity;
@@ -256,15 +271,17 @@ int main(int argc, char **argv) {
         // --openai explicitly authorizes this bounded synthetic corpus, not user models.
         options.remoteContextApproved = remote;
         options.model = config.model;
-        options.limits.seconds = 300;
         options.limits.outputTokens = remote ? 2048 : 768;
         options.limits.turns = 12;
-        if (plan) {
+        // Every v4 task has the native 15-minute lifetime. ChatGPT-plan tasks use the
+        // desktop panel's shared limit profile unchanged; the other connections keep their
+        // per-reply caps and take the same corpus deadline.
+        options.limits.seconds = corpusTaskSeconds;
+        if (plan)
             options.limits = chatGptAssistantLimits();
-            // This frozen corpus uses the public headless session's five-minute draft ceiling.
-            // Native lifetime qualification runs through assistant_workflow_trial instead.
-            options.limits.seconds = 300;
-        }
+        check(options.limits.seconds == corpusTaskSeconds &&
+                  transactionOptions.staging.maximumTtlSeconds == corpusTaskSeconds,
+              "Native task lifetime and draft ceiling match the corpus deadline");
         if (trial == "advanced") {
             options.prompt =
                 "Preserve the existing room and both hosted windows exactly. Add four editable "
@@ -323,10 +340,46 @@ int main(int argc, char **argv) {
         };
         const auto inputHash = hash(encodeContainer(fixture));
         const auto promptHash = hash(prompt.toUtf8());
+        // What the provider is told: the static instructions and the tool list of the first
+        // request, built by the same AssistantTask code the run uses. The probe never
+        // dispatches a tool call or reaches a provider.
+        auto surface = [&](bool remoteConnection) {
+            auto probeOptions = options;
+            probeOptions.remote = probeOptions.remoteContextApproved = remoteConnection;
+            AssistantTask probe(AssistantBackend{[](const QJsonObject &) -> QJsonObject {
+                                                     throw std::runtime_error("Probe dispatch");
+                                                 },
+                                                 state},
+                                probeOptions);
+            const auto request = probe.nextRequest();
+            check(bool(request), "Assistant surface probe produced a first request");
+            const auto system = request->value("system").toString();
+            const auto cut = system.indexOf(hostBudgetMarker);
+            check(cut > 0, "Assistant instructions precede the host task budget");
+            return std::pair{hash(system.left(cut).toUtf8()),
+                             hash(QJsonDocument(request->value("tools").toArray())
+                                      .toJson(QJsonDocument::Compact))};
+        };
+        const auto [instructionsHash, toolsHash] = surface(remote);
+        QJsonArray allowedCommands;
+        for (const auto &name : options.allowedCommands)
+            allowedCommands.append(name);
         if (describe) {
-            const QJsonObject description{{"corpusVersion", 3},       {"trial", trial},
-                                          {"inputSha256", inputHash}, {"promptSha256", promptHash},
-                                          {"prompt", prompt},         {"networkRequested", false}};
+            const QJsonObject description{
+                {"corpusVersion", corpusVersion},
+                {"trial", trial},
+                {"inputSha256", inputHash},
+                {"promptSha256", promptHash},
+                {"prompt", prompt},
+                {"assistantSession", "native"},
+                {"maximumDraftTtlSeconds", transactionOptions.staging.maximumTtlSeconds},
+                {"taskSeconds", options.limits.seconds},
+                {"allowedCommands", allowedCommands},
+                {"clarificationAvailable", options.clarificationAvailable},
+                {"toolsSha256", toolsHash},
+                {"instructionsSha256", instructionsHash},
+                {"localInstructionsSha256", surface(false).first},
+                {"networkRequested", false}};
             QSaveFile file(args[4]);
             check(file.open(QIODevice::WriteOnly) &&
                       file.setPermissions(QFile::ReadOwner | QFile::WriteOwner),
@@ -394,7 +447,7 @@ int main(int argc, char **argv) {
                provider.task().phase() == Phase::Backoff) {
             QCoreApplication::processEvents();
             QThread::msleep(5);
-            if (timer.elapsed() > 310000)
+            if (timer.elapsed() > (options.limits.seconds + 10) * qint64(1000))
                 provider.cancel();
         }
         const auto proposal = provider.task().result();
@@ -449,10 +502,8 @@ int main(int argc, char **argv) {
                 inspectionVerified = true;
         }
         if (result.value("applied") == true) {
-            session->execute({{"apiVersion", 1},
-                              {"operation", "document.save"},
-                              {"documentId", endState.value("documentId")},
-                              {"expectedRevision", endState.value("revision")}});
+            // The native session has no save operation; the host saves the document.
+            saveDocument(live, output);
             auto actual = loadDocument(output);
             if (trial == "advanced") {
                 unrelatedPreserved = preservedBaseline(fixture, actual);
@@ -578,7 +629,6 @@ int main(int argc, char **argv) {
         session->close();
         // Corpus v2 postconditions, computed offline from this run's own document state.
         const auto taskId = result.value("taskId").toString();
-        const auto &live = session->document();
         const auto committedCanonical = canonicalSha256(live);
         const auto committedContainer = encodeContainer(live);
         const auto liveHistory = live.history().total;
@@ -683,7 +733,7 @@ int main(int argc, char **argv) {
         const bool manualVerified = loadDocument(manualPath).revision() == oldRevision + 1;
         QJsonObject report{
             {"trial", trial},
-            {"corpusVersion", 3},
+            {"corpusVersion", corpusVersion},
             {"inputSha256", inputHash},
             {"promptSha256", promptHash},
             {"metadataObserved", metadataObserved},
@@ -707,6 +757,12 @@ int main(int argc, char **argv) {
             {"taskSeconds", options.limits.seconds},
             {"taskTurns", options.limits.turns},
             {"taskReportedTokens", double(options.limits.totalReportedTokens)},
+            {"assistantSession", "native"},
+            {"maximumDraftTtlSeconds", transactionOptions.staging.maximumTtlSeconds},
+            {"allowedCommands", allowedCommands},
+            {"clarificationAvailable", options.clarificationAvailable},
+            {"toolsSha256", toolsHash},
+            {"instructionsSha256", instructionsHash},
             {"prompt", prompt},
             {"elapsedMs", timer.elapsed()},
             {"proposal", proposal},
