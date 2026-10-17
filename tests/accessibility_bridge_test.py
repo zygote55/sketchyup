@@ -310,12 +310,19 @@ def parameters_phase(bridge, application, root, environment):
                     seen = []
 
                     def authoring():
-                        current = bridge.snapshot(app)
+                        # The Tray rebuilds its sections as the context opens: a child that
+                        # goes away mid-walk is retried on the next pump.
+                        try:
+                            current = bridge.snapshot(app)
+                        except AssertionError:
+                            return None
                         seen[:] = [(r["name"], r["role"]) for r in current
                                    if "definition" in r["name"].lower() or "driver" in r["name"].lower()]
                         headers = [r for r in current if r["name"] == "Parameters · definition"
                                    and r["role"] == "check box"]
-                        return current if headers else None
+                        rows = [r for r in current if r["role"] == "table cell" and
+                                r["name"] == "Width, width, Length, 0.5–2 m, 1 m"]
+                        return current if headers and rows else None
 
                     try:
                         rows = wait_for(bridge, authoring, "The definition sections are not exposed")
@@ -332,8 +339,14 @@ def parameters_phase(bridge, application, root, environment):
                     assert {r["name"] for r in trees} == {"Definition parameters", "Drivers"}, trees
                     cells = [r for r in rows if r["role"] == "table cell" and
                              r["name"] == "Width, width, Length, 0.5–2 m, 1 m"]
-                    assert cells, "The parameter row reads label, name, type, bounds and default"
-                    strip = find(rows, "Width", "text")
+                    assert cells, ("The parameter row reads label, name, type, bounds and "
+                                   f"default: {[r['name'] for r in rows if r['role'] == 'table cell']}")
+                    # The Preview strip's field; the placement section's hidden Width field
+                    # (described by its caption) stays in the tree.
+                    strips = [r for r in rows if r["name"] == "Width" and r["role"] == "text"
+                              and not r["description"]]
+                    assert len(strips) == 1, f"The Preview strip's Width field: {strips}"
+                    strip = strips[0]
                     return {"field": {"name": field["name"], "description": field["description"]},
                             "header": {"name": header["name"],
                                        "description": header["description"]},
