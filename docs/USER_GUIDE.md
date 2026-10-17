@@ -1,6 +1,6 @@
 # SketchyUp user guide
 
-This guide describes SketchyUp 1.1.1. Check the [support matrix](SUPPORT_MATRIX.md)
+This guide describes SketchyUp 1.2.0. Check the [support matrix](SUPPORT_MATRIX.md)
 before choosing an exchange format or relying on a platform configuration, and the
 [release notes](RELEASE_NOTES.md) for upgrade notes and known limitations.
 
@@ -117,7 +117,7 @@ canvas exposes no geometry, positions or hover targets, so a screen reader canno
 read the model from it. Names and measurements come from the panels: the
 **Selection summary** label (its description adds the selected entity's name,
 editing context and face area), the Outliner and Entity info. No interactive
-screen-reader session has been run (waived for 1.0 and 1.1, [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)),
+screen-reader session has been run (waived for 1.0, 1.1 and 1.2, [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)),
 so how a particular reader announces a change is unverified.
 
 Some interactions remain pointer-first:
@@ -140,7 +140,7 @@ Assistant preferences dialogs ([record](https://github.com/zygote55/sketchyup/bl
 dialog. Physical keyboard layouts and input methods are untested, and no Orca,
 speech or braille session has been validated. These physical checks, and the physical
 checks for displays (a 150% output, hotplug on X11, suspend/resume) and Intel graphics,
-were not run for 1.0 or 1.1 ([ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)); AMD discrete-GPU
+were not run for 1.0, 1.1 or 1.2 ([ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)); AMD discrete-GPU
 results are recorded (R082.ii).
 
 ## Save, recover and migrate
@@ -160,7 +160,9 @@ path. The status distinguishes a verified recovery copy from newer in-memory
 edits. See [recovery semantics](decisions/0016-native-recovery.md).
 
 The current document schema is **26**, inside container version **2**; a model
-with documentation sheets is schema **27** (see [Documentation sheets](#documentation-sheets)). The CLI
+with documentation sheets is schema **27** (see [Documentation sheets](#documentation-sheets)),
+and a model with configurable components is schema **28** (see
+[Configurable components](#configurable-components)). The CLI
 can validate an older file and migrate it to a new destination without replacing
 the original:
 
@@ -263,11 +265,110 @@ someone on 1.0.x, save a copy, delete its pages, and save the copy. Schema 27 is
 fixed from 1.1.0, the first release that writes it; files with sheets from a
 development build before 1.1.0 may need to be re-created.
 
+## Configurable components
+
+Configurable components are new in SketchyUp 1.2.0
+([ADR 0165](decisions/0165-constrained-component-parameters.md) for the parameters and
+formulas, [ADR 0166](decisions/0166-configurable-component-interface.md) for the
+interface). A component definition can have named **parameters**, such as a width or a
+shelf count, and **drivers** that tie them to its parts. Each placement keeps its own
+values, and its geometry is regenerated from the definition. At the default values a
+placement shows exactly the definition's own geometry. A wider Tray helps here: drag
+the sidebar's edge or press **Ctrl+Alt+]** (see
+[Navigate and adapt the interface](#navigate-and-adapt-the-interface)).
+
+**Change a placement's values.** Select one placement of a configurable component.
+**Parameters · this placement** in the Tray's Info tab lists its values; the header
+counts the overridden ones. Each row says where its value comes from ("Override ·
+default 900 mm", "Default", "Derived · width - 60 mm", "From *parent*") and its bounds.
+Type a value as in the Measurements box (`1.2m`, `1200`, `3'11"`; the document unit when
+none is given). It is checked as you type and applied with Enter or when focus leaves
+the field; Esc restores the stored value. A value outside its bounds is refused with a
+sentence such as "2.6 m is above the maximum, 2.4 m. Nothing was changed."; it is never
+clamped. **↺** next to an overridden value, or **Ctrl+Backspace** in an unchanged field,
+resets that value; **Reset all** resets them all. Each change is one Undo step. With the
+Select tool, the Measurements box shows and sets the parameter you last focused; reach
+it with F6, Tab or a click, because digits typed in the canvas are view shortcuts.
+Derived values and the values of a nested placement are read-only.
+
+**Author the definition.** Open the component (Enter, double-click, Edit → Edit selected
+context or **Edit definition…**). The banner says you are editing the shared definition
+at its default values, and **Close definition** (Esc) leaves. The Info tab then adds:
+
+- **Parameters · definition**: **+ Parameter** adds one, choosing its type (length,
+  area, angle, number, count, yes/no or choice) and whether it is an input with a
+  default or a derived formula. Select a row to edit its label, name, default or
+  formula, bounds, step and options; Enter applies and Esc cancels. F2 renames, Delete
+  removes (refused while a formula or driver still uses it), Alt+Up and Alt+Down
+  reorder. Changing a default reshapes the definition and keeps each placement's own
+  values.
+- **Drivers**: select a part inside the definition and press **Shift+D** (Add driver,
+  also in the Component menu and as **+ Driver**). Only the kinds that part accepts are
+  offered: **Stretch** (the points past a plane move by the change in value),
+  **Position**, **Rotation**, **Visibility**, **Repeat** (copies along an axis, up to
+  1,000) and **Child parameter** (a nested component's value). Each axis shows its
+  colour and its letter. For a stretch, drag the dashed plane in the viewport (it snaps
+  to the part's points; Alt turns snapping off) or type **Plane at**; the form counts
+  the points that will move. Enter or **Add** applies.
+- **Formula fields** accept the definition's parameter names, numbers with `mm`, `cm`,
+  `m`, `in`, `ft`, `deg` or `rad`, arithmetic, comparisons, `and`, `or`, `not`, and
+  functions such as `if`, `min`, `max`, `clamp`, `round` and `sqrt`. They are checked as
+  you type; an error marks the character and says what is wrong, and a missing unit
+  offers a fix ("Use 120 mm"). The model keeps the last valid formula until you fix it.
+- **The Preview strip** under the banner takes other values and shows the regenerated
+  shape as a ghost. Nothing changes until you apply a value elsewhere; **Back to
+  defaults** clears it.
+
+A change to a default, formula or driver regenerates every placement in the same edit
+and keeps the open context, the selection and materials. If you edit a part that a
+driver acts on, an amber strip says the driver now starts from a changed shape:
+**Rebind** accepts the new shape and **Undo** reverts the edit. The Drivers list keeps
+the **Changed** state until you rebind.
+
+**A placement that has its own values.** Opening a placement whose values differ from
+the defaults asks how to continue:
+
+- **Edit definition at defaults** (the default) resets the placement for as long as the
+  definition is open, so you edit the shared shape, and restores its values when you
+  close it. If you changed nothing, closing leaves no History entry; otherwise there are
+  two ("Edit *Definition* at defaults" and "Restore *placement* values"). A value the
+  changed definition no longer accepts is left out, and the status bar names it.
+- **Make unique and edit** makes a copy of the definition for this placement alone,
+  with its current values as the copy's defaults, and opens the copy.
+- **Cancel** (Esc) changes nothing.
+
+A nested placement whose values come from its parent offers only Make unique and edit.
+
+**Place an assembly.** <!-- R094.f: confirm --> The **Components** tab in the Tray lists
+six assemblies that ship with SketchyUp: interior door, casement window, dining table,
+bookshelf, base cabinet and straight stair. Choose one (arrow keys and Enter, or a
+click), set its values in the form (**Use defaults** resets them), and click to place
+it; Esc cancels. Click a wall face to place a door or window: its opening is cut in the
+same step, and changing its width later re-cuts the opening. With a face already
+selected, Enter places it on that face. Placing an assembly that is already in the model
+reuses its definition, so every door is one definition with its own values. The
+assemblies are MIT-licensed project content with no third-party models, textures or
+fonts.
+
+**Limits.** Formulas are one-way: editing geometry never changes a parameter, and a
+formula reads only its own definition's parameters. SketchUp Dynamic Components are not
+imported or converted. The in-app assistant cannot change component parameters; MCP
+clients and the transaction APIs can (`component_parameter.*` operations and
+`component_parameters.*` queries in the [tool reference](TOOL_REFERENCE.md)).
+
+**Files with parameters and older releases.** A model with no configurable component is
+saved as schema **26**, or **27** with sheets, which SketchyUp 1.1.x opens. Adding a
+parameter saves it as schema **28**. SketchyUp 1.1.x and 1.0.x refuse a schema-28 file
+with "Unsupported container field" and leave it unchanged. Removing every parameter and
+driver saves the model as schema 26 or 27 again. Schema 28 is fixed from 1.2.0, the first
+release that writes it; files with parameters from a development build before 1.2.0 may
+need to be re-created.
+
 ## Use the assistant
 
 Open **View → Assistant** or press **Ctrl+J**. Preferences offers the implemented
 OpenAI connections and an experimental numeric-loopback Ollama adapter. The
-supported provider for 1.0 and 1.1 is the remote OpenAI connection: choose **Continue with
+supported provider for 1.0, 1.1 and 1.2 is the remote OpenAI connection: choose **Continue with
 ChatGPT** to sign in with a ChatGPT plan (the subscription that includes Codex;
 SketchyUp does not use the Codex tool or its credentials). The local adapter is
 experimental and is not a 1.0 requirement ([provider scope](decisions/0160-provider-scope-for-1-0.md)).
@@ -283,8 +384,9 @@ before further editing or saving.
 Model prose is not the measurement oracle. The [agent guide](AI_MODELING.md),
 [tool reference](TOOL_REFERENCE.md) and [frozen provider corpus](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086a-frozen-provider-corpus.md)
 describe the supported commands and evaluation boundary. The assistant does not work
-with drawing sheets in 1.1: the sheet operations in the tool reference are available
-over MCP and the transaction APIs, not in the assistant panel. The retained local
+with drawing sheets or component parameters in 1.2: the sheet and component parameter
+operations in the tool reference are available over MCP and the transaction APIs, not
+in the assistant panel. The retained local
 CPU profile is experimental, with no quality guarantee, automatic model download
 or cloud fallback.
 
