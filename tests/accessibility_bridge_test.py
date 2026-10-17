@@ -329,9 +329,12 @@ def parameters_phase(bridge, application, root, environment):
                     assert dialog["description"] == (
                         "Width 1.5 m differs from the defaults. Shape edits are made on the shared "
                         "definition at its default values, or on a unique copy."), dialog
-                    choices = [find(rows, name, "button")["name"] for name in
+                    # The buttons are looked up inside the dialog: the Components tab's values
+                    # form (R094.f) also has a Cancel button, hidden in another Tray tab.
+                    inside = [r for r in rows if r["path"][:len(dialog["path"])] == dialog["path"]]
+                    choices = [find(inside, name, "button")["name"] for name in
                                ("Cancel", "Make unique and edit", "Edit definition at defaults")]
-                    with bridge.at_path(app, find(rows, "Edit definition at defaults", "button")["path"]) \
+                    with bridge.at_path(app, find(inside, "Edit definition at defaults", "button")["path"]) \
                             as control:
                         with bridge.owned(bridge.accessible_get_action_iface(control)) as action:
                             names = [bridge.string(bridge.action_get_name(action, i, None))
