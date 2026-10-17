@@ -1,4 +1,6 @@
 #include "app/accessible_names.hpp"
+#include "app/component_definition_section.hpp"
+#include "app/component_drivers_section.hpp"
 #include "app/component_parameters_section.hpp"
 #include "app/inspection_service.hpp"
 #include "app/render_panel.hpp"
@@ -6,6 +8,7 @@
 #include "app/window.hpp"
 #include <QAction>
 #include <QCheckBox>
+#include <QTimer>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -23,6 +26,13 @@ Window::~Window() {
     // The document goes before the widgets: a field losing focus must not commit (R094.c).
     if (parameters_)
         parameters_->detach();
+    // R094.d: the definition sections and the strip likewise stop before the document goes.
+    if (definitionSection_)
+        definitionSection_->detach();
+    if (driversSection_)
+        driversSection_->detach();
+    if (previewTimer_)
+        previewTimer_->stop();
     delete assistant_;
     delete render_;
     delete recovery_;

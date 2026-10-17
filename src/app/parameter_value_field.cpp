@@ -374,17 +374,16 @@ QString ParameterValueField::text() const {
         return check_->text();
     return choice_->currentText();
 }
-QJsonValue ParameterValueField::parse(const QString &text) const {
-    const auto kind = type();
+QJsonValue parseParameterText(const QString &text, const QString &kind, DisplayUnit units) {
     try {
         if (text.trimmed().isEmpty())
             throw std::runtime_error("empty");
         if (kind == "length")
-            return parseLength(text, inputUnit(units_), QLocale());
+            return parseLength(text, inputUnit(units), QLocale());
         if (kind == "angle")
             return parseAngle(text, "deg", QLocale());
         if (kind == "area")
-            return area(text, units_);
+            return area(text, units);
         if (kind == "count") {
             const auto value = number(text);
             if (std::floor(value) != value)
@@ -395,6 +394,9 @@ QJsonValue ParameterValueField::parse(const QString &text) const {
     } catch (const std::exception &) {
         throw std::runtime_error(typeHint(kind).toStdString());
     }
+}
+QJsonValue ParameterValueField::parse(const QString &text) const {
+    return parseParameterText(text, type(), units_);
 }
 QJsonValue ParameterValueField::value() const {
     if (check_)

@@ -44,25 +44,22 @@ class CollapsibleSection : public QWidget {
     // follows the expanded state in the header's accessible description.
     void setDetail(const QString &detail) {
         if (!detail_) {
-            // The header row becomes the header button and the detail beside it.
-            auto *row = new QWidget;
-            auto *box = new QHBoxLayout(row);
-            box->setContentsMargins(0, 0, 8, 0);
-            box->setSpacing(4);
-            auto *column = static_cast<QVBoxLayout *>(layout());
-            column->removeWidget(header_);
-            column->insertWidget(0, row);
-            box->addWidget(header_, 1);
             detail_ = new QLabel;
             detail_->setObjectName("sectionHeaderDetail");
             detail_->setTextFormat(Qt::PlainText);
-            box->addWidget(detail_);
+            headerRow()->insertWidget(1, detail_);
         }
         detail_->setText(detail);
         detail_->setVisible(!detail.isEmpty());
         refreshHeader();
     }
     QString detail() const { return detail_ ? detail_->text() : QString{}; }
+    // A control at the header's end, such as "+ Parameter" (ADR 0166 §3.2). It follows the
+    // header in the Tab order and stays shown while the section is collapsed.
+    void addHeaderWidget(QWidget *widget) {
+        headerRow()->addWidget(widget);
+        QWidget::setTabOrder(header_, widget);
+    }
     bool expanded() const { return header_->isChecked(); }
     void setExpanded(bool expanded) { header_->setChecked(expanded); }
     QPushButton *header() const { return header_; }
@@ -79,6 +76,21 @@ class CollapsibleSection : public QWidget {
     }
 
   private:
+    QHBoxLayout *row_{};
+    // The header row: the header button, then the detail and header controls beside it.
+    QHBoxLayout *headerRow() {
+        if (!row_) {
+            auto *row = new QWidget;
+            row_ = new QHBoxLayout(row);
+            row_->setContentsMargins(0, 0, 8, 0);
+            row_->setSpacing(4);
+            auto *column = static_cast<QVBoxLayout *>(layout());
+            column->removeWidget(header_);
+            column->insertWidget(0, row);
+            row_->addWidget(header_, 1);
+        }
+        return row_;
+    }
     QPushButton *header_{};
     QWidget *content_{};
     QLabel *detail_{};

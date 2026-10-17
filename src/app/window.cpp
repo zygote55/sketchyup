@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "app/accessible_names.hpp"
+#include "app/component_drivers_section.hpp"
 #include "app/component_parameters_section.hpp"
 #include "app/context_label.hpp"
 #include "app/file_operation.hpp"
@@ -298,8 +299,20 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     componentBanner_->setTextInteractionFlags(Qt::LinksAccessibleByMouse |
                                               Qt::LinksAccessibleByKeyboard);
     componentBanner_->setFocusPolicy(Qt::StrongFocus);
-    connect(componentBanner_, &QLabel::linkActivated, this,
-            [this] { run([this] { viewport_->makeComponentUnique(true); }); });
+    connect(componentBanner_, &QLabel::linkActivated, this, [this](const QString &link) {
+        // ADR 0166 §3.1: Close definition (Esc) returns to the placement's own context.
+        if (link == "close") {
+            const auto scope = viewport_->componentScope();
+            run([this, scope] {
+                viewport_->enterContext(scope && doc_.bodies().contains(scope)
+                                            ? doc_.bodies().at(scope)->parent
+                                            : 0);
+                viewport_->setFocus();
+            });
+            return;
+        }
+        run([this] { viewport_->makeComponentUnique(true); });
+    });
     viewport_->setContextOverlay(breadcrumb_, componentBanner_);
     backtabOutOfLinks(breadcrumb_);
     backtabOutOfLinks(componentBanner_);
@@ -1032,9 +1045,25 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                     status->setText(*saved);
                 }
             });
+    setupDefinitionAuthoring();
     connect(measurements_, &QLineEdit::returnPressed, this, [this] {
         if (assistant_ && assistant_->uncertain())
             return;
+        // ADR 0166 §3.4: "Plane" moves the stretch plane; it does not commit the driver.
+        if (workspace_ == Workspace::Model && planeMeasurement_) {
+            QString error;
+            if (driversSection_->setPlaneText(measurements_->text(), error)) {
+                measurementError(false);
+                measurements_->clear();
+                viewport_->setFocus();
+                syncParameterMeasurement();
+            } else {
+                status_->setText(error);
+                measurementError(true);
+                measurements_->selectAll();
+            }
+            return;
+        }
         if (workspace_ == Workspace::Model && parameterMeasurement_) {
             QString error;
             if (parameters_->measurements(measurements_->text(), error)) {
@@ -1162,6 +1191,17 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
 *[parameterField="true"][invalid="true"],*[parameterField="true"][invalid="true"]:focus {border:2px solid $failure;background:$failureSurface;}
 #parameterError,#parameterErrorIcon {color:$failure;}
 #parameterFewer,#parameterMore,*[parameterReset="true"] {padding:2px 8px;}
+#componentScopeBanner[parametric="true"] {background:$informationSurface;color:$information;border:1px solid $information;padding:4px 8px;}
+#componentScopeBanner[parametric="true"]:focus {border:2px solid $accent;padding:3px 7px;}
+#parameterPreviewStrip {background:$input;border:1px solid $border;border-radius:8px;}
+#parameterPreviewFields,#parameterPreviewPair,#parameterPreviewStrip QLabel,#parameterPreviewStrip QCheckBox {background:transparent;}
+#parameterPreviewTitle,#parameterEditorTitle,#driverEditorTitle {font-weight:600;}
+#parameterPreviewNote,#parameterEditorNote,#definitionParametersEmpty,#driversEmpty,#driverMoving {color:$muted;}
+#parameterPreviewError,#parameterEditorError,#driverEditorError,#formulaCaret {color:$failure;font-weight:600;}
+#formulaCaret {font-family:'DejaVu Sans Mono';}
+#parameterEditor,#driverEditor {border:1px solid $border;border-radius:6px;}
+#driverChangedState,#driverChangedNote {color:$warning;font-weight:600;}
+#driverRowRebind {padding:1px 8px;border:1px solid $warningBorder;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
@@ -1181,6 +1221,8 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     // R094.c (ADR 0166 §1.2): longer token names first.
     style.replace("$informationSurface", colors.informationSurface.name());
     style.replace("$information", colors.information.name());
+    style.replace("$warningBorder", colors.warningBorder.name());
+    style.replace("$warning", colors.warning.name());
     style.replace("$failureSurface", colors.failureSurface.name());
     style.replace("$failure", colors.failure.name());
     setStyleSheet(style);
@@ -1214,22 +1256,27 @@ void Window::run(const std::function<void()> &fn, bool viewOnly) {
 }
 void Window::syncParameterMeasurement() {
     if (!parameters_ || workspace_ != Workspace::Model) {
-        parameterMeasurement_ = false;
+        parameterMeasurement_ = planeMeasurement_ = false;
         return;
     }
-    const auto label = viewport_->tool() == Viewport::Tool::Select && !assistantFenced_
-                           ? parameters_->measurementLabel()
-                           : QString{};
+    const bool select = viewport_->tool() == Viewport::Tool::Select && !assistantFenced_;
+    // The Stretch form's plane (R094.d) comes before the placement parameters (R094.c): in a
+    // definition context no placement is selected outside it.
+    const bool plane = select && driversSection_ && driversSection_->planeActive();
+    const auto label = plane ? QString("Plane") : select ? parameters_->measurementLabel() : QString{};
     const bool routed = !label.isEmpty();
-    if (!routed && !parameterMeasurement_)
+    if (!routed && !parameterMeasurement_ && !planeMeasurement_)
         return;
-    parameterMeasurement_ = routed;
+    planeMeasurement_ = plane;
+    parameterMeasurement_ = routed && !plane;
     measurementStep_->setText(label);
     measurementStep_->setVisible(routed);
     measurements_->setAccessibleName((routed ? label + ", " : QString{}) + "Measurements in " +
                                      unitName(doc_.displayUnits()).toLower());
     if (!measurements_->hasFocus())
-        measurements_->setText(routed ? parameters_->measurementValue() : QString{});
+        measurements_->setText(plane    ? driversSection_->planeText()
+                               : routed ? parameters_->measurementValue()
+                                        : QString{});
 }
 void Window::measurementError(bool invalid) {
     measurements_->setProperty("invalid", invalid);
@@ -1238,6 +1285,17 @@ void Window::measurementError(bool invalid) {
     measurements_->style()->polish(measurements_);
 }
 bool Window::eventFilter(QObject *object, QEvent *event) {
+    // Esc in the Preview strip goes back to the defaults and clears the ghost (ADR 0166 §2);
+    // it never reaches the viewport, where it would close the context.
+    if (previewStrip_ && object->isWidgetType() &&
+        previewStrip_->isAncestorOf(static_cast<QWidget *>(object)) &&
+        (event->type() == QEvent::KeyPress || event->type() == QEvent::ShortcutOverride) &&
+        static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+        event->accept();
+        if (event->type() == QEvent::KeyPress)
+            previewDefaults();
+        return true;
+    }
     if (object == measurements_ && event->type() == QEvent::KeyPress &&
         static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
         if (workspace_ == Workspace::Model)
@@ -1354,10 +1412,15 @@ void Window::sync() {
          context = doc_.bodies().at(context)->parent)
         path.push_back(context);
     QString breadcrumb = "<a href=\"0\">Model</a>";
-    for (auto it = path.rbegin(); it != path.rend(); ++it)
-        breadcrumb += QString(" &rsaquo; <a href=\"%1\">%2</a>")
-                          .arg(*it)
-                          .arg(QString::fromStdString(doc_.bodies().at(*it)->name).toHtmlEscaped());
+    for (auto it = path.rbegin(); it != path.rend(); ++it) {
+        auto name = QString::fromStdString(doc_.bodies().at(*it)->name);
+        // A parametric definition's context reads "Definition (definition)" (ADR 0166 §3.1).
+        if (const auto instance = doc_.instances().find(*it); instance != doc_.instances().end())
+            if (const auto &definition = doc_.definitions().at(instance->second->definition);
+                definition->parameters)
+                name = QString::fromStdString(definition->name) + " (definition)";
+        breadcrumb += QString(" &rsaquo; <a href=\"%1\">%2</a>").arg(*it).arg(name.toHtmlEscaped());
+    }
     setContextLabelText(breadcrumb_, breadcrumb);
     breadcrumb_->setToolTip(path.empty() ? "Editing the model"
                                          : "Click an ancestor to close nested contexts");
