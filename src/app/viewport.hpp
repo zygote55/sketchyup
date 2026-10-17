@@ -20,6 +20,7 @@
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLWidget>
 #include <QPointF>
+#include <QPolygonF>
 #include <QPointer>
 #include <QRect>
 #include <functional>
@@ -261,7 +262,37 @@ class Viewport : public QOpenGLWidget {
     // must be captured at the document's current revision.
     QImage renderDrawingViewRaster(const DrawingViewEvaluationInput &view, QSize pixels);
     void exportRaster(const QString &path, QSize pixels);
+    // ADR 0166 §3.4 (R094.d, viewport_parameters.cpp): the stretch plane of the driver form, a
+    // dashed quad across a member's bounds at `at` (member-local metres) perpendicular to
+    // `axis` (0 x, 1 y, 2 z). Dragging it moves it along the axis, snapping within 8 logical px
+    // to the member's distinct vertex coordinates and the midpoints between neighbours; Alt
+    // drags without snapping. Points past the plane, which the stretch moves, are marked.
+    struct StretchPlane {
+        Id body{}; // the scene record of the member in the open context
+        int axis{};
+        double at{};
+        QString label;
+    };
+    void setStretchPlane(std::optional<StretchPlane> plane);
+    const std::optional<StretchPlane> &stretchPlane() const { return stretchPlane_; }
+    std::vector<double> stretchSnaps() const;
+    // The member's distinct points past the plane and all of them.
+    std::pair<std::size_t, std::size_t> stretchMoving() const;
+    // The plane's outline in logical viewport pixels (empty without a plane).
+    QPolygonF stretchPlaneOutline() const;
+    // Where the plane would be at member-local `at`, in logical viewport pixels.
+    QPointF stretchPlanePoint(double at) const;
+    // ADR 0166 §2: the Preview ghost, a dry run (previewBatch) of
+    // component_parameter.override {body: placement, values}. Draws the regenerated members
+    // with dashed edges and hatch over the current geometry; never commits. Returns the
+    // dry run's refusal ({code, message, details}) or an empty object. The ghost belongs to
+    // the revision it was computed at: any committed edit clears it.
+    QJsonObject previewParameters(Id placement, const QJsonObject &values);
+    void clearParameterGhost();
+    bool parameterGhostShown() const;
+    std::size_t parameterGhostEdges() const { return ghostEdges_.size(); }
   signals:
+    void stretchPlaneMoved(double at, bool finished);
     void materialChanged();
     void selected(qulonglong body, qulonglong face);
     void toolChanged(int tool);
@@ -681,5 +712,18 @@ class Viewport : public QOpenGLWidget {
     void updateToolPreview(QPointF point);
     void finishExtrusion(double distance);
     void clearPreview();
+    std::optional<StretchPlane> stretchPlane_;
+    bool stretchDragging_{};
+    std::vector<std::array<Vec3, 2>> ghostEdges_;
+    std::vector<std::vector<Vec3>> ghostFaces_;
+    std::string ghostDocument_;
+    std::uint64_t ghostRevision_{};
+    // The plane's member frame: world transform, local bounds and distinct coordinates.
+    bool stretchFrame(Transform &world, Vec3 &low, Vec3 &high) const;
+    bool stretchPress(QMouseEvent *event);
+    bool stretchMove(QMouseEvent *event);
+    bool stretchRelease(QMouseEvent *event);
+    double stretchAtPointer(QPointF point, bool snap) const;
+    void paintParameterOverlay(QPainter &painter);
 };
 } // namespace sketchy

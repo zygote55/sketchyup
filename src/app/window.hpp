@@ -24,10 +24,13 @@ class QSplitter;
 class QDialog;
 class QHBoxLayout;
 class QStackedWidget;
+class QTimer;
 class QToolBar;
 class QPrinter;
 namespace sketchy {
 class ComponentParametersSection;
+class ComponentDefinitionSection;
+class ComponentDriversSection;
 class DesktopInspection;
 class RenderPanel;
 class DrawingViewRenderCache;
@@ -108,6 +111,23 @@ class Window : public QMainWindow {
     ComponentParametersSection *parameters_{};
     bool parameterMeasurement_{};
     void syncParameterMeasurement();
+    // R094.d (ADR 0166 §2, §3; window_components.cpp): the definition context's sections, the
+    // Preview strip under the banner, the rail's Add driver and the Measurements box "Plane".
+    ComponentDefinitionSection *definitionSection_{};
+    ComponentDriversSection *driversSection_{};
+    bool planeMeasurement_{};
+    QWidget *previewStrip_{};
+    QLabel *previewError_{};
+    QTimer *previewTimer_{};
+    QString previewSignature_, previewKey_;
+    Id previewScope_{}, statusScope_{};
+    std::vector<std::pair<QJsonObject, QWidget *>> previewFields_;
+    QAction *railSeparator_{}, *railAddDriver_{};
+    void setupDefinitionAuthoring();
+    void syncPreviewStrip(Id scope, bool parametric);
+    void previewDefaults();
+    void preview();
+    void addDriver();
     void showGeometryDiagnostics();
     bool assistantShown_{}, assistantFenced_{};
     int assistantRecoveryInterval_{};

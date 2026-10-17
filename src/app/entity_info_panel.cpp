@@ -1,4 +1,6 @@
 #include "app/entity_info_panel.hpp"
+#include "app/component_definition_section.hpp"
+#include "app/component_drivers_section.hpp"
 #include "app/component_parameters_section.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/unit_display.hpp"
@@ -149,6 +151,10 @@ EntityInfoPanel::EntityInfoPanel(Document &doc, Viewport &view, QWidget *parent)
     stack->addWidget(info_);
     parameters_ = new ComponentParametersSection(doc_, view_);
     stack->addWidget(parameters_);
+    definition_ = new ComponentDefinitionSection(doc_, view_);
+    stack->addWidget(definition_);
+    drivers_ = new ComponentDriversSection(doc_, view_);
+    stack->addWidget(drivers_);
     stack->addStretch(1);
     scroll->setWidget(sections);
     layout->addWidget(scroll, 1);
@@ -168,6 +174,8 @@ void EntityInfoPanel::showEvent(QShowEvent *event) {
 void EntityInfoPanel::refresh() {
     // The parameters also answer the Measurements box while this tab is hidden.
     parameters_->refresh();
+    definition_->refresh();
+    drivers_->refresh();
     if (!isVisible())
         return;
     const auto &selected = view_.selectionState().entities();

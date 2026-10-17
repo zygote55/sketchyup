@@ -19,6 +19,10 @@ void relayoutAncestors(QWidget *widget);
 // A value in document units for a parameter type (ADR 0166 §1.2): lengths and areas in the
 // document's units and precision, angles in degrees, counts as whole numbers.
 QString parameterValueText(double si, const QString &type, DisplayUnit units, int precision);
+// Reads text in the Measurements box syntax for a quantity type (length, area, angle, number
+// or count) in the document's units: a JSON number in SI units. Throws std::runtime_error with
+// the type's hint ("Type a length, such as 1200 mm or 3'11\".") when it cannot be read.
+QJsonValue parseParameterText(const QString &text, const QString &type, DisplayUnit units);
 // The sentence a refusal shows under a value field (ADR 0166 §5, the rows that apply to
 // placement values). `error` is a component_parameters.evaluate error or a refusal's
 // {code, message, details}; `typed` is the text the user entered and `value` what it reads

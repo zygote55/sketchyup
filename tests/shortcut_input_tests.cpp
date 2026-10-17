@@ -7,6 +7,8 @@
 #include <QDialogButtonBox>
 #include <QJsonDocument>
 #include <QKeySequenceEdit>
+#include <QLabel>
+#include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSettings>
@@ -241,6 +243,45 @@ int main(int argc, char **argv) {
                       action(window, "textCreate")->shortcut() == QKeySequence("Ctrl+Alt+Shift+T"),
                   "Model-panel toggle and local text creation have separate defaults");
             keyboardShortcutTask(window);
+            // R094.d (ADR 0166 §8): Add driver is Shift+D in the Model scope, a key no other
+            // default uses; it works on the viewport and never consumes typing in text fields.
+            auto *addDriver = action(window, "component.add_driver");
+            check(addDriver->property("defaultShortcut").value<QKeySequence>() ==
+                          QKeySequence("Shift+D") &&
+                      addDriver->property("shortcutScope").toInt() == int(ShortcutScope::Model) &&
+                      addDriver->shortcutContext() == Qt::WidgetShortcut,
+                  "Add driver defaults to Shift+D on the viewport in the Model scope");
+            for (auto *entry : window.findChildren<QAction *>()) {
+                const auto declared = entry->property("defaultShortcut");
+                if (entry != addDriver && declared.isValid())
+                    if (!declared.value<QKeySequence>().isEmpty() &&
+                        declared.value<QKeySequence>().matches(QKeySequence("Shift+D")) !=
+                            QKeySequence::NoMatch)
+                        throw std::runtime_error("Another default binds Shift+D: " +
+                                                 entry->objectName().toStdString());
+            }
+            check(!addDriver->isEnabled(), "Add driver is off outside a definition context");
+            {
+                addDriver->setEnabled(true);
+                QSignalSpy triggered(addDriver, &QAction::triggered);
+                window.activateWindow();
+                window.viewport()->setFocus();
+                check(QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }),
+                      "Viewport focused for Shift+D");
+                QTest::keyClick(window.viewport(), Qt::Key_D, Qt::ShiftModifier);
+                check(triggered.count() == 1 &&
+                          window.findChild<QLabel *>("statusMessage")->text() ==
+                              "Select a part inside the definition, then Shift+D",
+                      "Shift+D on the viewport triggers Add driver");
+                auto *box = window.findChild<QLineEdit *>("measurements");
+                box->setFocus();
+                box->clear();
+                QTest::keyClick(box, 'D', Qt::ShiftModifier);
+                check(triggered.count() == 1 && box->text() == "D",
+                      "Shift+D types D in a text field");
+                box->clear();
+                window.viewport()->setFocus();
+            }
             settings.sync();
             const auto before = settings.value("shortcuts/v1").toByteArray();
             editor(window, [&](QDialog &dialog) {

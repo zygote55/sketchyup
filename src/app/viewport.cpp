@@ -1636,6 +1636,7 @@ void Viewport::paintScene(QPaintDevice *device) {
     paintGuides(p);
     paintSelection(p);
     paintAssistantPreview(p);
+    paintParameterOverlay(p);
     if (hasFocus()) {
         p.setPen(QPen(colors_.accent, 2));
         p.setBrush(Qt::NoBrush);
@@ -2746,6 +2747,9 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     pushControlPending_ = false;
     transformControlPending_ = false;
     previous_ = e->position();
+    // The stretch plane takes the drag before Alt-orbit: Alt drags it without snapping.
+    if (stretchPress(e))
+        return;
     if (tool_ == Tool::Paint && e->button() == Qt::LeftButton) {
         try {
             paintAt(e->position(), e->modifiers().testFlag(Qt::AltModifier));
@@ -2889,6 +2893,10 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     update();
 }
 void Viewport::mouseMoveEvent(QMouseEvent *e) {
+    if (stretchMove(e)) {
+        previous_ = e->position();
+        return;
+    }
     if (dragging_ && !e->buttons().testFlag(dragButton_)) {
         dragging_ = false;
         dragButton_ = Qt::NoButton;
@@ -2948,6 +2956,8 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
     update();
 }
 void Viewport::mouseReleaseEvent(QMouseEvent *e) {
+    if (stretchRelease(e))
+        return;
     if (e->button() == dragButton_) {
         dragging_ = false;
         dragButton_ = Qt::NoButton;

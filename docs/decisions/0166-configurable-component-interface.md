@@ -1043,3 +1043,104 @@ differ from §1, these notes govern.
   invalid fields use `failure` and `failureSurface`; focus on an override field shows the
   accent border. `theme_input_tests` checks the text pairs at 4.5:1 and the borders at 3:1 in
   both themes.
+
+## Implementation notes (R094.d)
+
+R094.d built §§2 and 3 in the desktop. These points settle what the ADR left open; where they
+differ from §§2 and 3, these notes govern.
+
+- **Widgets.** `ComponentDefinitionSection` (`src/app/component_definition_section.*`,
+  "Parameters · definition") and `ComponentDriversSection` (`src/app/component_drivers_section.*`,
+  "Drivers") are `CollapsibleSection`s in the Info tab's stack after "Parameters · this
+  placement". They show while any component context is open (parametric or not, so the first
+  parameter or driver can be added). `CollapsibleSection::addHeaderWidget` puts "+ Parameter"
+  and "+ Driver" in the header row after the header (accessible names "Add parameter" and
+  "Add driver"). `FormulaField` (`src/app/formula_field.*`) is every default, formula and
+  spacing field. Shared helpers (`authoring::query`, `dryRun`, `publish`, `memberOf`,
+  `sceneOf`) are in `component_definition_section.hpp`. Each commit is one batch through
+  `executeBatch` with `history: {label}`, as R094.c's section commits; a dry run is
+  `previewBatch`.
+- **Parameter tree and editor.** Rows are ordered by `position`: Name ("Width" over "width"),
+  Type (with the bounds, or "derived"), Default or formula (the default's display, or "= " and
+  the formula). Cells do not wrap (Qt's delegates cannot size a wrapped cell to its column): a
+  narrow Tray elides them and each cell's tooltip has its text; a row's accessible text is
+  "Width, width, Length, 400–2400 mm, 900 mm". The editor (Label, Name, Type and Mode in create
+  mode, Default or Formula, Bounds, Step, Options, Used by, the re-baseline note) has no button:
+  Enter commits and Esc cancels or restores, as §3.2 says. Bounds and Step are typed in
+  document units (R094.c's parsing, now the free function `parseParameterText`). Options are
+  typed as `oak = Oak; ash = Ash`. A name is checked at the field ("Use lowercase letters,
+  digits and _, starting with a letter.", "*name* is a reserved word.", "*name* is already a
+  parameter."). One Enter that renames and edits commits `update` then `rename` as one
+  "Edit parameter *Label*" entry; a rename alone is "Rename parameter *name*" (the old name).
+  Delete refused while referenced lists the referrers by label ("Still used by Leg
+  position · Stretch Top."). Used by names drivers "*Kind* *member*". Tree keys (F2, Delete,
+  Alt+Up/Down, Enter) are taken through `ShortcutOverride`, so they win over Entity info's F2.
+- **Drivers.** Columns Kind, Target ("Top · x past 450 mm", "Leg left front · about z",
+  "Shelf · z, 300 mm", "Table · width"), Formula, State. A Changed row's state cell is "⚠
+  Changed" in the warning colour with the in-row Rebind (no focus); its accessible text is
+  "Changed" and its description the sentence. Rebind shows while any driver is Changed and is
+  enabled for a Changed selection; Rebind all shows while two or more are. Labels: "Add
+  *Kind* driver", "Edit *Kind* driver", "Remove *Kind* driver", "Rebind driver", "Rebind *n*
+  drivers". The form's button reads Add in create mode and Apply when editing a driver (the ADR
+  names only Add). Repeat's Max count starts at the first count parameter's maximum, else 10;
+  Child parameter's formula starts at the same-named parameter, else the first of the child
+  parameter's type. Each axis shows a colour swatch and its letter; its accessible text is
+  "x axis (red), the part's own frame" (or parent frame). A dry run of `drive` 150 ms after a
+  form change shows refusals under the form; formula errors go to the field whose text holds
+  the error's excerpt.
+- **Add driver.** `component.add_driver` (Shift+D, Model scope, viewport `WidgetShortcut`) is
+  in the Component menu and the palette. It is **enabled in any definition context** (not only
+  with one member selected), so that Shift+D can say what to select: "Select a part inside the
+  definition, then Shift+D", "The definition itself can't be driven; …" or "A repeat copy can't
+  be driven; select the part it copies, then Shift+D". On success the Tray shows the Info tab
+  and focus goes to the form's Kind. Kinds offered follow §3.3 (a repeat copy is a placement
+  member that is not a definition member; the glue member and its ancestors lose Rotation, and
+  Position's axes leave out the glue normal). The rail action is a separate, non-public
+  `QAction` ("railAddDriver") after a separator, both visible only in a definition context.
+  At 1280 × 900 the rail already overflows its height (Orbit and Pan are in its extension
+  menu), so Add driver is reached there at that size.
+- **Stretch plane.** `Viewport::setStretchPlane` draws a dashed quad (8 % margin past the
+  member's bounds) in `selectionStroke`, the points past the plane with arrows, and the label
+  "Stretch · *formula*". It is drawn on the context placement's scene record of the member,
+  which is the template when the placement has no overrides (§4, R094.e). Dragging starts on
+  the quad or within 8 logical px of its outline, before Alt-orbit; snapping and the "Plane"
+  Measurements box follow §3.4. The default plane is the middle of the member's bounds on the
+  longest axis, so the table's top gets exactly 0.45 m.
+- **Formula fields.** The field refuses non-ASCII input and text over 1,024 characters with a
+  sentence, keeping the previous text. The caret is a label positioned from the edit's cursor
+  rectangle (`Qt::ImCursorRectangle`) and font metrics. A missing ")" points one past the end
+  ("A closing ")" is missing at character 16."). The core reports a `-`/`+` dimension mismatch
+  at the operator, not the literal, so the unit fix tries each bare number literal nearest
+  that offset with the document's length unit (mm, m or in) and then `deg` (angles: `deg`
+  first), and offers the first text that `evaluate` checks clean. Sentences ("Can't subtract
+  a number from a length. Add a unit, for example 120 mm.", "No parameter is called depth.",
+  the cycle by labels, division by zero, whole numbers, the stretch plane) are composed by
+  `formulaErrorSentence` until R094.e moves them to `parameter_messages`; bounds use R094.c's
+  `parameterErrorSentence`.
+- **Context, banner and strip.** The breadcrumb names a parametric placement's context
+  "*Definition* (definition)". The banner's parametric text carries `parametric="true"`
+  (information fill, text and border; links in `information`) and the link Close definition,
+  which returns to the placement's parent context. Entering a parametric context sets the
+  status text to the design's footer hint. The Preview strip is placed **under the banner**,
+  as §3.1 says (the design draws it at the canvas's foot), the banner's width, with the fields
+  in a wrapping row and the note and Back to defaults below them. Quantities (counts too) are
+  line edits, booleans check boxes, choices combo boxes. Its fields follow the banner in the
+  focus chain. Esc in the strip is Back to defaults and never reaches the viewport. The strip
+  rebuilds its fields only when the inputs change; any new revision refills the defaults and
+  clears the ghost.
+- **Ghost.** `Viewport::previewParameters` is `previewBatch` of
+  `component_parameter.override {body: context placement, values}` (all strip values); it
+  keeps the changed bodies' edges and outer face loops and draws them with dashed edges and a
+  diagonal hatch in `selectionStroke` over the geometry, tied to the document and revision it
+  was computed at. Values equal to the stored ones ("Batch has no committed changes") give no
+  ghost and no error. Window grabs do not include the viewport's painter overlay;
+  `grabFramebuffer` does.
+- **Teardown.** `~Window` detaches both sections and stops the strip's timer before the
+  document goes, as R094.c did for its section.
+- **Tests.** `component_authoring_input_tests` defines the ADR 0165 table (eight parameters,
+  six drivers and the retired one, the room's parameter and child driver) through the
+  interface and compares `encodeComponentParameters` and the overrides byte for byte with
+  `parameter_fixture::makeTable()`. It runs in native.yml's X11 and Wayland 1× and 2× lines
+  and, with `component_parameter_input_tests`, in the sanitized Wayland step.
+  `shortcut_input_tests` checks Shift+D; `accessibility_bridge_test.py` reads the sections,
+  header buttons, trees, a parameter row and the strip field over AT-SPI.
