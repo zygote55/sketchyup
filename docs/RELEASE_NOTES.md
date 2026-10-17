@@ -58,12 +58,13 @@ defines the parameters, formulas and limits and
   an edit changes a part that a driver acts on, an amber strip says the driver now
   starts from a changed shape and offers **Rebind** and **Undo**; the Drivers list
   keeps the **Changed** state.
-- **Assemblies.** <!-- R094.f: confirm --> Six configurable assemblies ship with
-  SketchyUp: interior door, casement window, dining table, bookshelf, base cabinet and
-  straight stair. The new **Components** tab in the Tray lists them; choose one, set its
-  values and click to place it. The door and the window cut their opening in the wall
-  in the same step. Placing an assembly that is already in the model reuses its
-  definition. The assemblies are authored by the project, MIT-licensed, and contain no
+- **Assemblies.** Six configurable assemblies ship with SketchyUp: interior door,
+  casement window, dining table, bookshelf, base cabinet and straight stair. The new
+  **Components** tab in the Tray (View → Components) lists them; choose one, set its
+  values and click to place it, following the status bar. The door and the window snap
+  to the wall face under the pointer, moving in whole millimetres, and cut their opening
+  in the wall in the same step; with a face selected, Enter places them at its centre.
+  Placing an assembly that is already in the model reuses its definition. The assemblies are authored by the project, MIT-licensed, and contain no
   third-party models, textures or fonts.
 - **Instanced variants.** Placements with equal values share one regenerated geometry,
   so 1,000 placements of one non-default variant cost the same body-cache and GPU
@@ -97,7 +98,8 @@ Sheets alike.
 - **`--inspect-native`** adds `componentParameters`, `componentDrivers` and
   `componentParameterOverrides` counts.
 - **CLI:** `sketchyup-cli --build-assembly SOURCE OUTPUT.sketchylib` builds an assembly
-  bundle from its source. <!-- R094.f: confirm -->
+  bundle from its source; the output must be a new path. Two builds of a source are
+  byte-identical.
 - **In-app assistant: it cannot change component parameters.** Its tool list is
   unchanged from 1.0.x and 1.1.x; it does not see the `component_parameter*` operations
   and queries, which are available over MCP and the transaction APIs. Its existing
@@ -177,8 +179,8 @@ delivered. For configurable components:
   exact records.
 - **Edit definition at defaults leaves two History entries** ("Edit *Definition* at
   defaults" and "Restore *placement* values") when something was edited, and none when
-  nothing was. The Outliner's Enter opens such a placement without asking.
-  <!-- R094.f: confirm (R094.f owns the Outliner's Enter) -->
+  nothing was. Enter or a double-click in the Outliner asks the same question as the
+  viewport.
 - **The Select tool's digits stay view shortcuts.** Reach the Measurements box with F6,
   Tab or a click to type a parameter value.
 - **Limits:** 128 parameters and 256 drivers per definition, 1,024 configurable

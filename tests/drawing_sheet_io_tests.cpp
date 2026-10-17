@@ -273,6 +273,21 @@ int runPriorCli(const QString &cli, const QString &path, QByteArray &stderrText)
     stderrText = process.readAllStandardError();
     return process.exitCode();
 }
+// The newest document schema a prior release reads (its --format-capabilities).
+int priorReads(const QString &cli) {
+    QProcess process;
+    process.start(cli, {"--format-capabilities"});
+    check(process.waitForFinished(30000) && process.exitStatus() == QProcess::NormalExit &&
+              process.exitCode() == 0,
+          "The prior release describes its formats");
+    int reads{};
+    for (const auto &value : QJsonDocument::fromJson(process.readAllStandardOutput())
+                                 .object()["readDocumentVersions"]
+                                 .toArray())
+        reads = std::max(reads, value.toInt());
+    check(reads >= 26, "The prior release reads schema 26 or later");
+    return reads;
+}
 } // namespace
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -1084,10 +1099,13 @@ int main(int argc, char **argv) {
             // The opt-in release check: SKETCHYUP_PRIOR_CLI names a previous release's
             // sketchyup-cli (the R090.b scripted check uses it). SketchyUp 1.0.0 reports
             // "Unsupported container field": its manifest check runs before the
-            // required-feature check, so it never reaches the features message.
+            // required-feature check, so it never reaches the features message. A prior
+            // release that reads schema 27 (1.1.x, the 1.2.0 package's upgrade baseline)
+            // opens the sheet documents instead, unchanged.
             const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
             if (!prior.isEmpty()) {
                 QByteArray error;
+                const auto reads = priorReads(prior);
                 const auto freePath = files.filePath("prior-free.sketchyup");
                 write(freePath, again);
                 check(runPriorCli(prior, freePath, error) == 0,
@@ -1095,21 +1113,33 @@ int main(int argc, char **argv) {
                 const auto sheetPath = files.filePath("prior-sheet.sketchyup");
                 const auto sheetBytes = read(path);
                 write(sheetPath, sheetBytes);
-                check(runPriorCli(prior, sheetPath, error) != 0 &&
-                          error.contains("\"status\":\"failed\"") &&
-                          error.contains("Unsupported") &&
-                          read(sheetPath) == sheetBytes,
-                      "The prior release rejects schema 27 with items and leaves the file "
-                      "unchanged");
                 const auto fixturePath = files.filePath("prior-fixture.sketchyup");
                 const auto fixtureBytes =
                     read(fixtures.filePath("drawing-sheets-v27.sketchyup"));
                 write(fixturePath, fixtureBytes);
-                check(runPriorCli(prior, fixturePath, error) != 0 &&
-                          error.contains("\"status\":\"failed\"") &&
-                          read(fixturePath) == fixtureBytes,
-                      "The prior release rejects the v27 item fixture unchanged");
-                std::cout << "prior release CLI checked: " << prior.toStdString() << '\n';
+                if (reads >= 27) {
+                    check(runPriorCli(prior, sheetPath, error) == 0 &&
+                              read(sheetPath) == sheetBytes,
+                          "The prior release opens schema 27 with items unchanged: " +
+                              error.toStdString());
+                    check(runPriorCli(prior, fixturePath, error) == 0 &&
+                              read(fixturePath) == fixtureBytes,
+                          "The prior release opens the v27 item fixture unchanged: " +
+                              error.toStdString());
+                } else {
+                    check(runPriorCli(prior, sheetPath, error) != 0 &&
+                              error.contains("\"status\":\"failed\"") &&
+                              error.contains("Unsupported") &&
+                              read(sheetPath) == sheetBytes,
+                          "The prior release rejects schema 27 with items and leaves the file "
+                          "unchanged");
+                    check(runPriorCli(prior, fixturePath, error) != 0 &&
+                              error.contains("\"status\":\"failed\"") &&
+                              read(fixturePath) == fixtureBytes,
+                          "The prior release rejects the v27 item fixture unchanged");
+                }
+                std::cout << "prior release CLI checked: " << prior.toStdString()
+                          << " (reads up to " << reads << ")\n";
             }
         }
 

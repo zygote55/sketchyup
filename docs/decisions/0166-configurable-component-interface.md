@@ -1,7 +1,9 @@
 # Configurable component interface
 
-Status: **Accepted (2026-10-16)** for the decisions below; the layers are implemented by
-R094.a–h (see "Layer plan"). Roadmap [R094](../PR_ROADMAP.md#r094) (M10, scope row
+Status: **Accepted (2026-10-16)** for the decisions below. **R094.a–h are complete**
+(see "Layer plan" and the implementation notes); R094.h's
+[acceptance record](../verification/R094h-configurable-components.md) verifies the
+roadmap's Verify line locally. CI is not yet claimed. Roadmap [R094](../PR_ROADMAP.md#r094) (M10, scope row
 [F02](../SCOPE.md)). This builds on [ADR 0165](0165-constrained-component-parameters.md)
 (R093). The interaction design is the owner-approved
 [R094 UX design (canvas; private to the owner)](https://claude.ai/artifact/2jGARq96WrYiFnSAmcyptY),
@@ -1431,3 +1433,33 @@ open; where they differ from §6, these notes govern.
   reuse and amend, `[x,y,z]` with amend, and the window, table, bookshelf, cabinet and stair
   at their defaults. `keyboard_panel_tabs_tests` gains the Components tab and its action;
   `library_input_tests` is unchanged.
+
+## Implementation notes (R094.h)
+
+R094.h is the acceptance layer. It adds no product code.
+
+- **The §10 script.** `component_acceptance_input_tests` opens a model holding the ADR 0165 §1
+  table fixture (`parameter_fixture::makeTable`: a table at its defaults, one with its own
+  Width, Shelves and Finish, and one nested in a room that supplies its width) and a plain wall,
+  and runs the script through the interface. The script's "dining table with values" is the
+  Dining table assembly placed from the Components tab with a width of 1800 mm. The steps on
+  "width and shelves" use the fixture's table, the only definition with both a Shelves
+  parameter and a shelf driven by Repeat and Visibility: the bundled dining table has no
+  shelves. The three placements are the fixture's three tables; the overrides go on the one at
+  its defaults, and the promotion on the one with its own values. Inside the definition the
+  script paints the top before changing the default Width, so regeneration is checked to keep
+  the context, the selection and the colour. The driver added with Shift+D is a Visibility
+  driver (`open`) on the right back leg. The hand edit is a Move of the shelf inside the
+  definition, which makes Repeat Shelf and Visibility Shelf Changed; the strip names them and
+  offers Rebind, and Drivers' Rebind all is one "Rebind 3 drivers" entry.
+- **A paint makes a driver Changed.** A driver's `bound` digest covers its target member's
+  whole record (ADR 0165 §4), so painting the top makes Stretch Top Changed, and the strip
+  says the driver "now starts from a changed shape". This is the specified state; the wording
+  speaks of shape although only the colour changed. The script records it as found.
+- **Checks.** Every step's History label and count, the 16 labels in order, undo to the start
+  (records equal to the opened model's, minus the revision and allocator marks that undo keeps)
+  and redo to the end (equal to the finished session's), and a save, reopen and second save
+  whose files are byte-identical. The suite prints a JSON summary.
+- **CI.** The suite runs in native.yml's X11 and Wayland 1× and 2× lines (120 s deadline on X11)
+  and in the sanitized Wayland step. `keyboard_reachability_tests` gains the Components tab case
+  that R094.f left out.

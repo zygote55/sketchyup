@@ -1,0 +1,694 @@
+{
+ "layer": "R094.h",
+ "date": "2026-10-17",
+ "branch": "build/r094h-acceptance",
+ "sourceCommit": "8dbf91f9",
+ "base": {
+  "f02/integration": "0f966c17",
+  "mergedIntegration": "c6265f77"
+ },
+ "commits": [
+  "5b45a404",
+  "f3b3a9d8",
+  "bb2533a1",
+  "8dbf91f9"
+ ],
+ "image": "sketchyup-ci-pinned:r094a",
+ "host": {
+  "gcc": "16.2.1",
+  "qt6-base": "6.11.2-3",
+  "cpus": 22,
+  "loadAverageDuringMatrix": "2-13"
+ },
+ "verifyLine": {
+  "overridesAndSharedDefaultsAcrossUndoRedoSaveReopen": "pass",
+  "regenerationKeepsEditScopeAndMaterials": "pass",
+  "handEditShowsChangedWithRebind": "pass",
+  "adrRecordsR094aToHComplete": "done"
+ },
+ "acceptanceScript": {
+  "suite": "component_acceptance_input_tests",
+  "cells": {
+   "m3-wayland-1x-component_acceptance_input_tests": {
+    "platform": "wayland",
+    "scale": 1,
+    "checks": 180,
+    "passed": true,
+    "history": [
+     "Place Dining table",
+     "Change Width",
+     "Change Shelves",
+     "Reset Shelves",
+     "Edit Table at defaults",
+     "Edit shared component definition",
+     "Edit parameter Width",
+     "Add Visibility driver",
+     "Edit shared component definition",
+     "Rebind 3 drivers",
+     "Restore Table values",
+     "Make Table unique",
+     "Edit parameter Shelves",
+     "Place Interior door",
+     "Place Casement window",
+     "Change Width"
+    ],
+    "roundTrip": {
+     "fileBytes": 64600,
+     "fileSha256": "c87f4668b51d9f9386820dbc7df132c4a32525e65675ea9204fe91663348e65f",
+     "secondSaveIdentical": true
+    },
+    "place": {
+     "placement": "27",
+     "width": "1800 mm"
+    },
+    "override": {
+     "shelvesReset": true,
+     "width": "1500 mm"
+    },
+    "editAtDefaults": {
+     "changedDrivers": 3,
+     "moveLabel": "Edit shared component definition",
+     "paintLabel": "Edit shared component definition",
+     "restored": "Width 1500 mm"
+    },
+    "promotion": {
+     "copy": "4"
+    },
+    "openings": {
+     "doorOpeningMm": 1100,
+     "openings": 2,
+     "windowOpeningMm": 1200
+    }
+   },
+   "m3-wayland-2x-component_acceptance_input_tests": {
+    "platform": "wayland",
+    "scale": 2,
+    "checks": 180,
+    "passed": true,
+    "history": [
+     "Place Dining table",
+     "Change Width",
+     "Change Shelves",
+     "Reset Shelves",
+     "Edit Table at defaults",
+     "Edit shared component definition",
+     "Edit parameter Width",
+     "Add Visibility driver",
+     "Edit shared component definition",
+     "Rebind 3 drivers",
+     "Restore Table values",
+     "Make Table unique",
+     "Edit parameter Shelves",
+     "Place Interior door",
+     "Place Casement window",
+     "Change Width"
+    ],
+    "roundTrip": {
+     "fileBytes": 64600,
+     "fileSha256": "910d527d0e096feccb400440d5caba603ea67439c061e871d47ee5f466a4c90a",
+     "secondSaveIdentical": true
+    },
+    "place": {
+     "placement": "27",
+     "width": "1800 mm"
+    },
+    "override": {
+     "shelvesReset": true,
+     "width": "1500 mm"
+    },
+    "editAtDefaults": {
+     "changedDrivers": 3,
+     "moveLabel": "Edit shared component definition",
+     "paintLabel": "Edit shared component definition",
+     "restored": "Width 1500 mm"
+    },
+    "promotion": {
+     "copy": "4"
+    },
+    "openings": {
+     "doorOpeningMm": 1100,
+     "openings": 2,
+     "windowOpeningMm": 1200
+    }
+   },
+   "m3-x11-1x-component_acceptance_input_tests": {
+    "platform": "xcb",
+    "scale": 1,
+    "checks": 180,
+    "passed": true,
+    "history": [
+     "Place Dining table",
+     "Change Width",
+     "Change Shelves",
+     "Reset Shelves",
+     "Edit Table at defaults",
+     "Edit shared component definition",
+     "Edit parameter Width",
+     "Add Visibility driver",
+     "Edit shared component definition",
+     "Rebind 3 drivers",
+     "Restore Table values",
+     "Make Table unique",
+     "Edit parameter Shelves",
+     "Place Interior door",
+     "Place Casement window",
+     "Change Width"
+    ],
+    "roundTrip": {
+     "fileBytes": 64600,
+     "fileSha256": "0ca0aceb64ac2293a142c1d30fbc6f4ad2158f2687a5b60a1a4475379b2dfe7e",
+     "secondSaveIdentical": true
+    },
+    "place": {
+     "placement": "27",
+     "width": "1800 mm"
+    },
+    "override": {
+     "shelvesReset": true,
+     "width": "1500 mm"
+    },
+    "editAtDefaults": {
+     "changedDrivers": 3,
+     "moveLabel": "Edit shared component definition",
+     "paintLabel": "Edit shared component definition",
+     "restored": "Width 1500 mm"
+    },
+    "promotion": {
+     "copy": "4"
+    },
+    "openings": {
+     "doorOpeningMm": 1100,
+     "openings": 2,
+     "windowOpeningMm": 1200
+    }
+   },
+   "m3-x11-2x-component_acceptance_input_tests": {
+    "platform": "xcb",
+    "scale": 2,
+    "checks": 180,
+    "passed": true,
+    "history": [
+     "Place Dining table",
+     "Change Width",
+     "Change Shelves",
+     "Reset Shelves",
+     "Edit Table at defaults",
+     "Edit shared component definition",
+     "Edit parameter Width",
+     "Add Visibility driver",
+     "Edit shared component definition",
+     "Rebind 3 drivers",
+     "Restore Table values",
+     "Make Table unique",
+     "Edit parameter Shelves",
+     "Place Interior door",
+     "Place Casement window",
+     "Change Width"
+    ],
+    "roundTrip": {
+     "fileBytes": 64600,
+     "fileSha256": "14d8b997afde11911c21841bd692696ef21a5e2d972d89cd41eb694347672d0d",
+     "secondSaveIdentical": true
+    },
+    "place": {
+     "placement": "27",
+     "width": "1800 mm"
+    },
+    "override": {
+     "shelvesReset": true,
+     "width": "1500 mm"
+    },
+    "editAtDefaults": {
+     "changedDrivers": 3,
+     "moveLabel": "Edit shared component definition",
+     "paintLabel": "Edit shared component definition",
+     "restored": "Width 1500 mm"
+    },
+    "promotion": {
+     "copy": "4"
+    },
+    "openings": {
+     "doorOpeningMm": 1100,
+     "openings": 2,
+     "windowOpeningMm": 1200
+    }
+   },
+   "san2-component_acceptance_input_tests": {
+    "platform": "wayland",
+    "scale": 2,
+    "checks": 180,
+    "passed": true,
+    "history": [
+     "Place Dining table",
+     "Change Width",
+     "Change Shelves",
+     "Reset Shelves",
+     "Edit Table at defaults",
+     "Edit shared component definition",
+     "Edit parameter Width",
+     "Add Visibility driver",
+     "Edit shared component definition",
+     "Rebind 3 drivers",
+     "Restore Table values",
+     "Make Table unique",
+     "Edit parameter Shelves",
+     "Place Interior door",
+     "Place Casement window",
+     "Change Width"
+    ],
+    "roundTrip": {
+     "fileBytes": 64600,
+     "fileSha256": "716cb6e187584fa596ea80bdf2ee30e3172ca2cd5451c73a64e8dd2405cb9dc9",
+     "secondSaveIdentical": true
+    },
+    "place": {
+     "placement": "27",
+     "width": "1800 mm"
+    },
+    "override": {
+     "shelvesReset": true,
+     "width": "1500 mm"
+    },
+    "editAtDefaults": {
+     "changedDrivers": 3,
+     "moveLabel": "Edit shared component definition",
+     "paintLabel": "Edit shared component definition",
+     "restored": "Width 1500 mm"
+    },
+    "promotion": {
+     "copy": "4"
+    },
+    "openings": {
+     "doorOpeningMm": 1100,
+     "openings": 2,
+     "windowOpeningMm": 1200
+    }
+   }
+  }
+ },
+ "nativeMatrix": {
+  "lines": 74,
+  "passed": 74,
+  "environmentReruns": {
+   "accessibility_bridge_test.py": "4 cells exited 127 as uid 1000 (dbus-run-session needs a passwd entry); rerun as root, as CI runs, 4 of 4 pass"
+  },
+  "earlierRun": {
+   "commit": "5b45a404 binaries, f3b3a9d8 bridge test",
+   "lines": 70,
+   "passed": 70,
+   "note": "bridge cells first failed on two accessible 'Cancel' buttons (Components tab's hidden form); fixed in the test; package check() failed on drawing_sheet_io with the 1.1.1 prior, fixed in bb2533a1"
+  },
+  "waylandReruns": 0,
+  "cells": {
+   "x11-1x-library_input_tests": {
+    "passed": true,
+    "seconds": 4.3
+   },
+   "x11-1x-keyboard_panel_tabs_tests": {
+    "passed": true,
+    "seconds": 5.0
+   },
+   "x11-1x-keyboard_reachability_tests": {
+    "passed": true,
+    "seconds": 7.4
+   },
+   "x11-1x-theme_input_tests": {
+    "passed": true,
+    "seconds": 4.2
+   },
+   "x11-1x-visible_focus_input_tests": {
+    "passed": true,
+    "seconds": 10.4
+   },
+   "x11-1x-text_size_input_tests": {
+    "passed": true,
+    "seconds": 7.0
+   },
+   "x11-1x-visible_focus_input_tests-2": {
+    "passed": true,
+    "seconds": 8.5
+   },
+   "x11-1x-shortcut_input_tests": {
+    "passed": true,
+    "seconds": 5.0
+   },
+   "x11-1x-sidebar_resize_input_tests": {
+    "passed": true,
+    "seconds": 6.2
+   },
+   "x11-1x-entity_info_input_tests": {
+    "passed": true,
+    "seconds": 4.5
+   },
+   "x11-1x-component_parameter_input_tests": {
+    "passed": true,
+    "seconds": 6.0
+   },
+   "x11-1x-variant_instancing_input_tests": {
+    "passed": true,
+    "seconds": 12.2
+   },
+   "x11-1x-component_authoring_input_tests": {
+    "passed": true,
+    "seconds": 8.0
+   },
+   "x11-1x-assembly_library_input_tests": {
+    "passed": true,
+    "seconds": 6.9
+   },
+   "x11-1x-component_parameter_state_input_tests": {
+    "passed": true,
+    "seconds": 7.2
+   },
+   "x11-1x-component_acceptance_input_tests": {
+    "passed": true,
+    "seconds": 6.0
+   },
+   "x11-1x-hosted_input_tests": {
+    "passed": true,
+    "seconds": 5.1
+   },
+   "x11-2x-library_input_tests": {
+    "passed": true,
+    "seconds": 4.5
+   },
+   "x11-2x-theme_input_tests": {
+    "passed": true,
+    "seconds": 4.5
+   },
+   "x11-2x-keyboard_panel_tabs_tests": {
+    "passed": true,
+    "seconds": 7.7
+   },
+   "x11-2x-keyboard_reachability_tests": {
+    "passed": true,
+    "seconds": 17.1
+   },
+   "x11-2x-visible_focus_input_tests-2": {
+    "passed": true,
+    "seconds": 18.3
+   },
+   "x11-2x-text_size_input_tests": {
+    "passed": true,
+    "seconds": 8.8
+   },
+   "x11-2x-visible_focus_input_tests": {
+    "passed": true,
+    "seconds": 27.5
+   },
+   "x11-2x-shortcut_input_tests": {
+    "passed": true,
+    "seconds": 7.5
+   },
+   "x11-2x-sidebar_resize_input_tests": {
+    "passed": true,
+    "seconds": 9.0
+   },
+   "x11-2x-entity_info_input_tests": {
+    "passed": true,
+    "seconds": 4.8
+   },
+   "x11-2x-component_parameter_input_tests": {
+    "passed": true,
+    "seconds": 6.1
+   },
+   "x11-2x-variant_instancing_input_tests": {
+    "passed": true,
+    "seconds": 13.4
+   },
+   "x11-2x-component_authoring_input_tests": {
+    "passed": true,
+    "seconds": 9.8
+   },
+   "x11-2x-assembly_library_input_tests": {
+    "passed": true,
+    "seconds": 7.5
+   },
+   "x11-2x-hosted_input_tests": {
+    "passed": true,
+    "seconds": 5.7
+   },
+   "x11-2x-component_parameter_state_input_tests": {
+    "passed": true,
+    "seconds": 8.5
+   },
+   "x11-2x-component_acceptance_input_tests": {
+    "passed": true,
+    "seconds": 7.9
+   },
+   "wayland-1x-library_input_tests": {
+    "passed": true,
+    "seconds": 2.3
+   },
+   "wayland-1x-theme_input_tests": {
+    "passed": true,
+    "seconds": 2.1
+   },
+   "wayland-1x-keyboard_panel_tabs_tests": {
+    "passed": true,
+    "seconds": 4.6
+   },
+   "wayland-1x-keyboard_reachability_tests": {
+    "passed": true,
+    "seconds": 14.8
+   },
+   "wayland-1x-visible_focus_input_tests-2": {
+    "passed": true,
+    "seconds": 13.2
+   },
+   "wayland-1x-text_size_input_tests": {
+    "passed": true,
+    "seconds": 5.2
+   },
+   "wayland-1x-visible_focus_input_tests": {
+    "passed": true,
+    "seconds": 18.3
+   },
+   "wayland-1x-sidebar_resize_input_tests": {
+    "passed": true,
+    "seconds": 5.1
+   },
+   "wayland-1x-entity_info_input_tests": {
+    "passed": true,
+    "seconds": 2.4
+   },
+   "wayland-1x-shortcut_input_tests": {
+    "passed": true,
+    "seconds": 4.0
+   },
+   "wayland-1x-component_parameter_input_tests": {
+    "passed": true,
+    "seconds": 3.7
+   },
+   "wayland-1x-component_authoring_input_tests": {
+    "passed": true,
+    "seconds": 6.7
+   },
+   "wayland-1x-assembly_library_input_tests": {
+    "passed": true,
+    "seconds": 4.6
+   },
+   "wayland-1x-variant_instancing_input_tests": {
+    "passed": true,
+    "seconds": 13.3
+   },
+   "wayland-1x-component_parameter_state_input_tests": {
+    "passed": true,
+    "seconds": 6.2
+   },
+   "wayland-1x-hosted_input_tests": {
+    "passed": true,
+    "seconds": 3.1
+   },
+   "wayland-1x-component_acceptance_input_tests": {
+    "passed": true,
+    "seconds": 5.1
+   },
+   "wayland-2x-library_input_tests": {
+    "passed": true,
+    "seconds": 3.4
+   },
+   "wayland-2x-theme_input_tests": {
+    "passed": true,
+    "seconds": 2.1
+   },
+   "wayland-2x-keyboard_panel_tabs_tests": {
+    "passed": true,
+    "seconds": 7.0
+   },
+   "wayland-2x-keyboard_reachability_tests": {
+    "passed": true,
+    "seconds": 30.4
+   },
+   "wayland-2x-visible_focus_input_tests-2": {
+    "passed": true,
+    "seconds": 32.1
+   },
+   "wayland-2x-text_size_input_tests": {
+    "passed": true,
+    "seconds": 9.6
+   },
+   "wayland-2x-visible_focus_input_tests": {
+    "passed": true,
+    "seconds": 42.4
+   },
+   "wayland-2x-sidebar_resize_input_tests": {
+    "passed": true,
+    "seconds": 8.6
+   },
+   "wayland-2x-shortcut_input_tests": {
+    "passed": true,
+    "seconds": 10.3
+   },
+   "wayland-2x-entity_info_input_tests": {
+    "passed": true,
+    "seconds": 5.0
+   },
+   "wayland-2x-component_parameter_input_tests": {
+    "passed": true,
+    "seconds": 4.2
+   },
+   "wayland-2x-assembly_library_input_tests": {
+    "passed": true,
+    "seconds": 6.7
+   },
+   "wayland-2x-component_authoring_input_tests": {
+    "passed": true,
+    "seconds": 9.9
+   },
+   "wayland-2x-variant_instancing_input_tests": {
+    "passed": true,
+    "seconds": 15.3
+   },
+   "wayland-2x-hosted_input_tests": {
+    "passed": true,
+    "seconds": 4.6
+   },
+   "wayland-2x-component_acceptance_input_tests": {
+    "passed": true,
+    "seconds": 7.8
+   },
+   "wayland-2x-component_parameter_state_input_tests": {
+    "passed": true,
+    "seconds": 12.9
+   },
+   "fractional-scaling-blender-worker-and-m5-component_parameter_input_tests": {
+    "passed": true,
+    "seconds": 3.7
+   },
+   "fractional-scaling-blender-worker-and-m5-component_parameter_input_tests-2": {
+    "passed": true,
+    "seconds": 6.0
+   },
+   "audit-dialogs": {
+    "passed": true,
+    "seconds": 154.9
+   },
+   "audit-and-accessibility-accessibility_bridge_test.py": {
+    "passed": true,
+    "seconds": 8.9
+   },
+   "audit-and-accessibility-accessibility_bridge_test.py-2": {
+    "passed": true,
+    "seconds": 9.4
+   },
+   "audit-and-accessibility-accessibility_bridge_test.py-3": {
+    "passed": true,
+    "seconds": 7.5
+   },
+   "audit-and-accessibility-accessibility_bridge_test.py-4": {
+    "passed": true,
+    "seconds": 11.8
+   }
+  }
+ },
+ "dialogAudit": {
+  "inventoryDialogs": 108,
+  "uncoveredEllipsisActions": 0,
+  "groups": 17,
+  "x11_2x": "17/17",
+  "wayland_1x": "17/17",
+  "seconds": 154.9,
+  "extraCellsEarlierRun": {
+   "components x11 1x": "pass",
+   "components wayland 2x": "pass"
+  }
+ },
+ "sanitized": {
+  "preset": "sanitize",
+  "waylandClient": "scripts/ci-wayland-client.sh (probe passed)",
+  "ubsanOptions": "print_stacktrace=1:halt_on_error=1",
+  "lines": {
+   "component_acceptance_input_tests": {
+    "passed": true,
+    "checks": 180,
+    "runtimeErrors": 0,
+    "sanitizerReports": 0
+   },
+   "component_parameter_input_tests": {
+    "passed": true,
+    "checks": 232,
+    "runtimeErrors": 0,
+    "sanitizerReports": 0
+   }
+  }
+ },
+ "ctest": {
+  "build": "cmake --build --preset dev (host, -DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF: disk)",
+  "command": "ctest --preset dev -E \"_real$\"",
+  "passed": 198,
+  "total": 198
+ },
+ "r094gMeasurements": {
+  "record": "R094g-variant-instancing.md",
+  "payloadRatio": 1.0,
+  "hashesEqualSharingOnOff": true,
+  "note": "unchanged by R094.h"
+ },
+ "installedSmoke": {
+  "commit": "8dbf91f9",
+  "image": "sketchyup-ci-pinned:r094a",
+  "job": "Arch package acceptance (native.yml steps)",
+  "priorRelease": {
+   "package": "sketchyup-1.1.1-1-x86_64.pkg.tar.zst",
+   "sha256": "58ddfed5332f57fc3cef422d91938337f136f8c5f29fa19003ccec5c9afd9c2b",
+   "cli": "sketchyup-cli 1.1.1"
+  },
+  "sourceArchiveSha256": "2e4582558d975a6728084cf81710c3693a39c39134907e32ab13c71a03cfc532",
+  "check": {
+   "tests": 210,
+   "passed": "100%",
+   "optionalSkipped": 12
+  },
+  "upgrade": "1.1.1-1 -> 1.2.0-1, 261 files, 0 altered",
+  "assembliesLine": "Installed 6 configurable assemblies, byte-identical to a rebuild from their sources.",
+  "priorReleaseLine": "Prior release reads schemas up to 27: refused 1 newer fixtures unchanged and accepted this package's sheet-free save.",
+  "migrationLine": "Installed CLI migrated 32 historical fixtures; all preservation checks passed.",
+  "result": "Install, desktop launch, MIME, upgrade, reopen and removal acceptance passed.",
+  "passed": true
+ },
+ "testFixes": {
+  "accessibility_bridge_test.py": "dialog buttons looked up inside the dialog",
+  "drawing_sheet_io_tests": "prior-release check accepts a prior that reads schema 27"
+ },
+ "releaseDocMarkers": {
+  "resolved": 8,
+  "claimsChanged": [
+   "RELEASE_NOTES known limitation: the Outliner's Enter now asks (was: opens without asking)"
+  ],
+  "claimsExtended": [
+   "CHANGELOG",
+   "RELEASE_NOTES assemblies",
+   "RELEASE_NOTES CLI",
+   "USER_GUIDE",
+   "SUPPORT_MATRIX",
+   "M10_ACCEPTANCE package"
+  ],
+  "confirmedUnchanged": [
+   "M10_ACCEPTANCE native matrix"
+  ]
+ },
+ "findings": [
+  "A paint makes a driver Changed (ADR 0165 digest covers the whole member record); the strip says 'changed shape'. Owner question."
+ ]
+}

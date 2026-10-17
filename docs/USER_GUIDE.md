@@ -339,13 +339,17 @@ the defaults asks how to continue:
 
 A nested placement whose values come from its parent offers only Make unique and edit.
 
-**Place an assembly.** <!-- R094.f: confirm --> The **Components** tab in the Tray lists
+**Place an assembly.** The **Components** tab in the Tray (View → Components) lists
 six assemblies that ship with SketchyUp: interior door, casement window, dining table,
 bookshelf, base cabinet and straight stair. Choose one (arrow keys and Enter, or a
 click), set its values in the form (**Use defaults** resets them), and click to place
-it; Esc cancels. Click a wall face to place a door or window: its opening is cut in the
-same step, and changing its width later re-cuts the opening. With a face already
-selected, Enter places it on that face. Placing an assembly that is already in the model
+it; the status bar says what to click, and Esc cancels. Click a wall face to place a
+door or window: it snaps to the face under the pointer, moving in whole millimetres, its
+opening is cut in the same step, and changing its width later re-cuts the opening. With
+a face already selected, Enter places it at the face's centre. The Measurements box
+places by typing instead: `[x,y,z]` for furniture, or, for a door or window on the
+selected (or hovered) face, an anchor `[x,y,z]` in the wall's own coordinates or one
+inset length. Typing again right after placing moves it within the same step. Placing an assembly that is already in the model
 reuses its definition, so every door is one definition with its own values. The
 assemblies are MIT-licensed project content with no third-party models, textures or
 fonts.
