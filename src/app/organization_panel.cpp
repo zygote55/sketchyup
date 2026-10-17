@@ -411,8 +411,14 @@ void OrganizationPanel::enter() {
         return;
     syncing_ = true;
     attempt([&] {
-        view_.enterContext(id);
-        view_.setFocus();
+        // R094.e (ADR 0166 §4.1): a placement with its own values opens through the "has its own
+        // values" dialog, as Enter and double-click in the viewport do. Cancelling it leaves
+        // focus in the Outliner.
+        view_.openContext(id);
+        if (view_.selectionState().context() == id)
+            view_.setFocus();
+        else
+            outliner_->setFocus(Qt::OtherFocusReason);
     });
     syncing_ = false;
     QTimer::singleShot(0, this, [this] { refresh(); });

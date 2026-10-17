@@ -638,8 +638,11 @@ void memberKinds(Fixture &f) {
     check(!add->isEnabled() && !railAction->isVisible(), "Closing the context hides the rail");
 }
 void repeatCopies(Fixture &f, const Table &t) {
-    // The wide placement has shelf copies; a copy is generated, so it cannot be driven.
-    f.openContext(t.wide);
+    // The wide placement has shelf copies; a copy is generated, so it cannot be driven. Its
+    // context is opened directly: Enter on a placement with its own values asks first (R094.e).
+    f.closeContexts();
+    f.view()->enterContext(t.wide);
+    QTest::qWait(10);
     const auto &instance = *f.doc().instances().at(t.wide);
     const auto &definition = *f.doc().definitions().at(t.definition);
     Id copy = 0;
@@ -759,7 +762,7 @@ void previewGhost(Fixture &f, const Table &t) {
     f.type(width, "2600");
     auto *error = strip->findChild<QLabel *>("parameterPreviewError");
     check(QTest::qWaitFor([&] { return error->isVisible(); }, 2000) &&
-              error->text() == "2600 is above the maximum, 2400 mm. Nothing was changed." &&
+              error->text() == "2600 mm is above the maximum, 2400 mm. Nothing was changed." &&
               !view->parameterGhostShown(),
           "A bounds error shows in the strip, got " + text(error->text()));
     // Esc in the strip goes back to the defaults; the context stays open.

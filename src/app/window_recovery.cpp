@@ -24,6 +24,9 @@
 #include <QVBoxLayout>
 namespace sketchy {
 Window::~Window() {
+    // R094.e: the context opener, the message actions and a suspended placement's restore must
+    // not reach the window while it is torn down.
+    detachParameterStates();
     // The document goes before the widgets: a field losing focus must not commit (R094.c).
     if (parameters_)
         parameters_->detach();

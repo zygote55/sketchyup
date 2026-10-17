@@ -1,5 +1,6 @@
 #pragma once
 #include "app/collapsible_section.hpp"
+#include "app/parameter_messages.hpp"
 #include "app/viewport.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
@@ -71,6 +72,7 @@ class ComponentDefinitionSection : public CollapsibleSection {
     QLineEdit *optionsEdit() const { return options_; }
     QLabel *usedByLabel() const { return usedBy_; }
     QLabel *editorError() const { return error_; }
+    QPushButton *editorAction() const { return action_; }
     // The parameter the editor shows ("" in create mode or when closed).
     QString current() const { return current_; }
     bool creating() const { return creating_; }
@@ -121,7 +123,11 @@ class ComponentDefinitionSection : public CollapsibleSection {
     QJsonArray editorCommands(QString &label, QString &problem) const;
     QJsonObject checkExpression(const QString &text) const;
     QJsonObject dryRunExpression(const QString &text) const;
+    ParameterMessage message(const QJsonObject &error) const;
     QString sentence(const QJsonObject &error) const;
     QString present(const QJsonObject &error);
+    // R094.e: the editor message's action ("Select #1") and the message it acts on.
+    QPushButton *action_{};
+    ParameterMessage message_;
 };
 } // namespace sketchy

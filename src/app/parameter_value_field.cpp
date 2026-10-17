@@ -48,6 +48,15 @@ class ErrorMark : public QWidget {
         painter.setRenderHint(QPainter::Antialiasing);
         const double side = std::min(width(), height());
         painter.setPen(QPen(palette().color(QPalette::WindowText), std::max(1.2, side / 9)));
+        // A warning (a locked placement, ADR 0166 §5) is a padlock, as the design draws it.
+        if (property("tone").toString() == "warning") {
+            painter.drawRoundedRect(QRectF(side * .2, side * .46, side * .6, side * .44),
+                                    side * .07, side * .07);
+            painter.drawArc(QRectF(side * .33, side * .12, side * .34, side * .5), 0, 180 * 16);
+            painter.drawLine(QPointF(side * .33, side * .37), QPointF(side * .33, side * .46));
+            painter.drawLine(QPointF(side * .67, side * .37), QPointF(side * .67, side * .46));
+            return;
+        }
         const QRectF circle(side * .1, side * .1, side * .8, side * .8);
         painter.drawEllipse(circle);
         const auto c = circle.center();
@@ -122,44 +131,6 @@ QString parameterValueText(double si, const QString &type, DisplayUnit units, in
         return QString::number(qlonglong(std::llround(si)));
     return displayDecimal(si, 8);
 }
-QString parameterErrorSentence(const QJsonObject &error, const QString &typed,
-                               const QJsonObject &parameter, DisplayUnit units, int precision,
-                               const QJsonValue &value) {
-    const auto code = error["code"].toString();
-    const auto details = error.contains("details") ? error["details"].toObject() : error;
-    const auto type = parameter["type"].toString();
-    const auto shown = [&](const QJsonValue &value) {
-        return typed.trimmed().isEmpty() && value.isDouble()
-                   ? parameterValueText(value.toDouble(), type, units, precision)
-                   : typed.trimmed();
-    };
-    if (code == "PARAMETER_DOMAIN" && details.contains("bound")) {
-        const auto bound = details["bound"].toString();
-        const auto limit = parameterValueText(details["limit"].toDouble(), type, units, precision);
-        const auto given = shown(details["value"]);
-        if (bound == "max")
-            return given + " is above the maximum, " + limit + ". Nothing was changed.";
-        if (bound == "min")
-            return given + " is below the minimum, " + limit + ". Nothing was changed.";
-        return given + " is not a step of " + limit + ". Nothing was changed.";
-    }
-    if (code == "PARAMETER_REGENERATION")
-        return "At " +
-               (value.isDouble() ? parameterValueText(value.toDouble(), type, units, precision)
-                                 : shown({})) +
-               " the shape can't be regenerated. Nothing was changed.";
-    if (code == "STALE_REVISION")
-        return "The model changed. Try again.";
-    if (code == "NOT_FOUND")
-        return "The placement was removed.";
-    if (code == "INVALID_TARGET")
-        return "This placement can't hold values.";
-    auto message = error["message"].toString().trimmed();
-    if (!message.isEmpty() && !message.endsWith('.'))
-        message += '.';
-    return (message.isEmpty() ? QString{} : message + " ") + "Nothing was changed.";
-}
-
 ParameterValueField::ParameterValueField(const QJsonObject &parameter, QWidget *parent)
     : QWidget(parent), parameter_(parameter) {
     const auto id = name();
@@ -285,7 +256,8 @@ ParameterValueField::ParameterValueField(const QJsonObject &parameter, QWidget *
     auto *errorLine = new QHBoxLayout(errorRow_);
     errorLine->setContentsMargins(0, 0, 0, 0);
     errorLine->setSpacing(4);
-    errorLine->addWidget(new ErrorMark, 0, Qt::AlignTop);
+    errorMark_ = new ErrorMark;
+    errorLine->addWidget(errorMark_, 0, Qt::AlignTop);
     errorText_ = new QLabel;
     errorText_->setObjectName("parameterError");
     errorText_->setTextFormat(Qt::PlainText);
@@ -293,6 +265,20 @@ ParameterValueField::ParameterValueField(const QJsonObject &parameter, QWidget *
     errorLine->addWidget(errorText_, 1);
     errorRow_->hide();
     column->addWidget(errorRow_);
+    // The message's action (ADR 0166 §5): "Show the driver", "Select #1". A normal Tab stop
+    // after the field, shown only with a message that offers it.
+    action_ = new QPushButton;
+    action_->setObjectName("parameterAction_" + id);
+    action_->setAutoDefault(false);
+    action_->hide();
+    auto *actionRow = new QHBoxLayout;
+    actionRow->setContentsMargins(0, 0, 0, 0);
+    actionRow->addWidget(action_);
+    actionRow->addStretch();
+    column->addLayout(actionRow);
+    connect(action_, &QPushButton::clicked, this, [this] {
+        emit actionRequested(int(message_.action), message_.target, message_.definition);
+    });
 }
 void ParameterValueField::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
@@ -414,10 +400,31 @@ bool ParameterValueField::equalsStored(const QJsonValue &value) const {
     return value == stored;
 }
 void ParameterValueField::setError(const QString &sentence, const QString &detail) {
-    error_ = sentence;
-    errorText_->setText(sentence);
-    errorText_->setToolTip(detail);
-    errorRow_->setVisible(!sentence.isEmpty());
+    ParameterMessage message;
+    message.sentence = sentence;
+    message.detail = detail;
+    setMessage(message);
+}
+void ParameterValueField::setMessage(const ParameterMessage &message) {
+    message_ = message;
+    error_ = message.sentence;
+    warning_ = !error_.isEmpty() && message.tone == ParameterMessageTone::Warning;
+    errorText_->setText(error_);
+    errorText_->setToolTip(message.detail);
+    errorRow_->setVisible(!error_.isEmpty());
+    const auto tone = warning_ ? QString("warning") : QString("failure");
+    if (errorRow_->property("tone").toString() != tone) {
+        for (QWidget *widget : {errorRow_, static_cast<QWidget *>(errorText_), errorMark_})
+            widget->setProperty("tone", tone);
+        for (QWidget *widget : {errorRow_, static_cast<QWidget *>(errorText_), errorMark_})
+            repolish(widget);
+    }
+    // UseUnit belongs to formula fields; a value field offers the other actions.
+    const bool action = !error_.isEmpty() && message.action != ParameterMessageAction::None &&
+                        message.action != ParameterMessageAction::UseUnit &&
+                        !message.actionText.isEmpty();
+    action_->setText(message.actionText);
+    action_->setVisible(action);
     refreshState();
 }
 void ParameterValueField::clearError() {
@@ -465,7 +472,8 @@ QString ParameterValueField::captionText(const QString &separator) const {
 QString ParameterValueField::caption() const { return captionText(" · ").remove(QChar(0x200B)); }
 void ParameterValueField::refreshState() {
     const bool override = source_ == "override";
-    const bool invalid = !error_.isEmpty();
+    // A warning (a locked placement) refuses the commit but the value itself is valid.
+    const bool invalid = !error_.isEmpty() && !warning_;
     caption_->setText(captionText(" · "));
     auto *field = control();
     if (edit_)
@@ -493,7 +501,9 @@ void ParameterValueField::refreshState() {
         caption_->setProperty("override", override);
         repolish(caption_);
     }
-    const auto description = (invalid ? "Invalid: " + error_ + " " : QString{}) +
+    const auto description = (invalid    ? "Invalid: " + error_ + " "
+                              : warning_ ? "Warning: " + error_ + " "
+                                         : QString{}) +
                              captionText(", ").remove(QChar(0x200B));
     if (field->accessibleDescription() != description) {
         field->setAccessibleDescription(description);

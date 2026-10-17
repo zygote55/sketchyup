@@ -117,6 +117,11 @@ class Viewport : public QOpenGLWidget {
     QString selectionSummary() const;
     void enterContext(Id context);
     void leaveContext();
+    // R094.e (ADR 0166 §4.1): double-click, Enter, Edit selected context and Edit definition…
+    // open a context through openContext, which first offers it to the opener (the window's
+    // "has its own values" dialog); the opener returns true when it handled the request.
+    void setContextOpener(std::function<bool(Id)> opener) { contextOpener_ = std::move(opener); }
+    void openContext(Id context);
     void makeGroup();
     void explodeGroups();
     void mergeContextGeometry();
@@ -332,6 +337,10 @@ class Viewport : public QOpenGLWidget {
     void changed();
     void sceneRecalled(qulonglong scene);
     void message(const QString &text);
+    // R094.e (ADR 0166 §5): a message's action (Show the driver, Select the locked placement,
+    // close the definition), asked for at the control that showed it. `action` is a
+    // ParameterMessageAction; `target` the driver or placement, `definition` the driver's.
+    void parameterAction(int action, qulonglong target, qulonglong definition);
 
   protected:
     bool event(QEvent *) override;
@@ -352,6 +361,7 @@ class Viewport : public QOpenGLWidget {
     QJsonObject commitCommands(const QJsonArray &commands, bool shared = true,
                                const QString &historyLabel = {});
     Id selectedComponent() const;
+    std::function<bool(Id)> contextOpener_;
     void paintAt(QPointF point, bool sample);
     Id paintMaterial_{};
     int paintSide_{2};
@@ -507,11 +517,13 @@ class Viewport : public QOpenGLWidget {
         Transform world;
         std::shared_ptr<BodyGeometry> geometry;
         std::shared_ptr<BodyMesh> mesh;
-        // Canonical definition member this body projects, when it may share.
+        // Canonical member record this body projects, when it may share: the
+        // definition member, or the variant's member when its placement shows a variant.
         BodyPtr source;
         Id owner{};
         InstancePtr instance;
         DefinitionPtr definition;
+        std::shared_ptr<const ComponentVariant> variant;
         Bounds bounds;
         std::vector<SectionCut> sectionCuts;
         SectionRecords sections;

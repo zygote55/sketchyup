@@ -1,5 +1,6 @@
 #pragma once
 #include "app/collapsible_section.hpp"
+#include "app/parameter_messages.hpp"
 #include "app/viewport.hpp"
 #include <QJsonObject>
 #include <QPointer>
@@ -72,10 +73,11 @@ class ComponentParametersSection : public CollapsibleSection {
     void validate();
     QJsonObject overrides() const;
     QJsonObject evaluate(const QString &name, const QJsonValue &value) const;
-    // Checks and commits one value; returns the refusal's sentence (and the core message in
-    // `detail`), empty on success.
-    QString apply(ParameterValueField *field, const QJsonValue &value, const QString &typed,
-                  bool amend, QString &detail);
+    // Checks and commits one value; returns the refusal's §5 message, empty on success.
+    ParameterMessage apply(ParameterValueField *field, const QJsonValue &value,
+                           const QString &typed, bool amend);
+    ParameterMessage message(const QJsonObject &error, const ParameterValueField *field,
+                             const QString &typed, const QJsonValue &value) const;
     void commit(ParameterValueField *field);
     void reset(ParameterValueField *field);
     void resetAll();

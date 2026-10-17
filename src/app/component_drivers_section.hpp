@@ -43,6 +43,7 @@ class ComponentDriversSection : public CollapsibleSection {
     QLabel *movingLabel() const { return moving_; }
     QSpinBox *maxCountSpin() const { return maxCount_; }
     QLabel *editorError() const { return error_; }
+    QPushButton *editorAction() const { return action_; }
     QPushButton *commitButton() const { return commit_; }
     // The kinds the core accepts for a definition member (ADR 0166 §3.3), in the form's
     // order: stretch, position, rotation, visibility, repeat, childParameter. Empty for the
@@ -111,6 +112,9 @@ class ComponentDriversSection : public CollapsibleSection {
                              QString &problem) const;
     QJsonObject checkFormula(const QString &text, bool spacing) const;
     QString present(const QJsonObject &error);
+    // R094.e: the form message's action ("Select #1") and the message it acts on.
+    QPushButton *action_{};
+    ParameterMessage message_;
     QString labelOf(const QString &name) const;
 };
 } // namespace sketchy
