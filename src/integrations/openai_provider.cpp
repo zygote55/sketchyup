@@ -57,8 +57,12 @@ QJsonObject OpenAiConversation::request(const QJsonObject &source) {
         names_[alias] = name;
         const auto properties =
             entry.value("inputSchema").toObject().value("properties").toObject();
+        // Read-only batches: advertised inspection queries plus the private draft reads that
+        // ADR 0025 exposes through the inspection registry and direct-record pages (catalog
+        // sideEffects "none"). Every state-changing call still rejects a multi-call reply.
         if (properties.value("query").toObject().value("const") == name ||
-            name == "transaction.inspect")
+            name == "transaction.inspect" || name == "transaction.diff" ||
+            name == "transaction.describe")
             inspectionNames_.insert(name);
         tools.append(
             QJsonObject{{"type", "function"},

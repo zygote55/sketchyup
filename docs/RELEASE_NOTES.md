@@ -81,7 +81,8 @@ width. **Ctrl+Alt+]** (View → Widen sidebar) and **Ctrl+Alt+[** (View → Narr
 step 40 px; double-clicking a handle or View → Reset sidebar width restores the
 default. Each column keeps 240–720 px, scaled by the interface text size, and the
 viewport keeps at least 400 px. The width is remembered across launches, in Model and
-Sheets alike.
+Sheets alike. Screen readers announce each handle as a split pane; with Qt 6.11 or
+later they also report that it is vertical.
 
 ### Command line and automation
 
