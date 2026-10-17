@@ -1,27 +1,26 @@
 {
- "layer": "F02 RC walkthrough 1.2.0 (second candidate)",
+ "layer": "F02 RC walkthrough 1.2.0 (third candidate, delta of RC2)",
  "date": "2026-10-17",
  "procedure": "docs/M10_ACCEPTANCE.md (RC text)",
- "result": "RC2 passes every local check and CI; the owner-approved corpus v4 run at RC2 failed on product defect D-041 (Major), fix in PR #344 as RC3; RC3 is checked as a delta",
+ "result": "RC3 passes every re-run check and CI; provider corpus pending at RC3 (orchestrator)",
  "rc": {
-  "name": "RC2",
-  "commit": "d80fb7294f03c1ee3bfbafbada3aeaf98b338cc3",
-  "mergeOf": "PR #343",
-  "prHead": "90a5c301bf0bd7eee4ece09a3cc726d04c5d228d",
+  "name": "RC3",
+  "commit": "d9af0396bd0f43c7d8635771623d46996a02d9ae",
+  "mergeOf": "PR #344",
+  "prHead": "de5f22a7",
   "sourceArchive": {
    "file": "sketchyup-1.2.0.tar.gz",
-   "sha256": "91637330ebc63b928eeb8421c1d6b17535326a5ebafba2e7350597452692122c"
+   "sha256": "b1dfe11cd074c404e9477eed8424ef5c7586cde90176868df17c7bfffaa574aa"
   },
   "package": {
    "file": "sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
    "name": "sketchyup",
    "version": "1.2.0-1",
-   "sha256": "c940e1a51c54448d43fe6b184493f16972d71835442f573915485dfb97774916"
+   "sha256": "b95fc18909040de68c8c8cb425f1bd01f3573249b48b4c3b61fe0be53d31295d"
   },
   "thirdPartyNotices": {
    "file": "THIRD_PARTY_NOTICES",
-   "sha256": "1a661058e5ed772dbd71c91e78350f747a698cd300a4b013b00457e12c161536",
-   "unchangedFromRc1": true
+   "sha256": "1a661058e5ed772dbd71c91e78350f747a698cd300a4b013b00457e12c161536"
   },
   "priorRelease": {
    "file": "sketchyup-1.1.1-1-x86_64.pkg.tar.zst",
@@ -31,8 +30,8 @@
    "equalsReleaseAssetDigest": true
   },
   "manifestBuildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
-  "manifestSha256": "cc8a7411939cc57ffa2179af93b56c7b051de6ed06af26085d1529fc4b39ca1b",
-  "sha256sumsSha256": "0ad221eaea3a8a758dc71a55b88781941a84601e9a04d9ab5531a1bf51fbfb83",
+  "manifestSha256": "16fc609948659f09759cbf8daebabf4045f350bc7d960365ac4e5e324afa1c7f",
+  "sha256sumsSha256": "6cc5898351763f215c4f820d091bb6ca58a1d60754b74411d16d3c5be41f9e6b",
   "releaseArtifactsRuns": 2,
   "archiveStableAcrossRuns": true
  },
@@ -65,43 +64,12 @@
    }
   }
  },
- "toolVersions": {
-  "native": {
-   "gcc": "16.2.1+r23+gd564253eb6c8-1",
-   "cmake": "4.4.3-2",
-   "ninja": "1.13.2-3",
-   "qt6-base": "6.11.2-3",
-   "qt6-wayland": "6.11.2-1",
-   "mesa": "1:26.2.3-2",
-   "weston": "15.0.1-3",
-   "xorg-server-xvfb": "21.1.24-1",
-   "wayland": "1.26.0-1",
-   "at-spi2-core": "2.60.7-1",
-   "python": "3.14.7-1",
-   "ffmpeg": "2:9.0.2-1",
-   "poppler": "26.08.0-1",
-   "gdb": "18.1-1",
-   "git": "2.56.0-1"
-  },
-  "hostPoppler": "26.08.0",
-  "reference": {
-   "gcc": "14.2.1+r134+gab884fffe3fc-1",
-   "cmake": "3.30.5-1",
-   "pacman": "7.0.0.r3.g7736133-1",
-   "glibc": "2.40+r16+gaa533d58ff-2",
-   "qt6-base": "6.8.0-1",
-   "qt6-wayland": "6.8.0-1",
-   "mesa": "1:24.2.4-1",
-   "python": "3.12.7-1"
-  }
- },
  "ciAtRc": {
-  "run": 39045895392,
-  "url": "https://github.com/zygote55/sketchyup/actions/runs/39045895392",
-  "event": "push",
-  "headSha": "d80fb7294f03c1ee3bfbafbada3aeaf98b338cc3",
+  "run": 39053949658,
+  "url": "https://github.com/zygote55/sketchyup/actions/runs/39053949658",
+  "headSha": "d9af0396bd0f43c7d8635771623d46996a02d9ae",
   "conclusion": "success",
-  "completedAt": "2026-10-17T16:18:31Z",
+  "completedAt": "2026-10-17T18:01:54Z",
   "jobs": {
    "Development build and checks": "success",
    "Native tests: X11 1x": "success",
@@ -129,66 +97,45 @@
   },
   "lineInventory": "Inventory matches: 514 lines (509 distinct).",
   "nativeLinesDev": 337,
-  "packageJob": [
-   "Installed 6 configurable assemblies, byte-identical to a rebuild from their sources.",
-   "Prior release reads schemas up to 27: refused 1 newer fixtures unchanged and accepted this package's sheet-free save.",
-   "Installed CLI migrated 32 historical fixtures; all preservation checks passed."
-  ],
-  "logSha256": "482fb159558bc8510e92a47b0d386c70db9ac75058929ffb273d98a431887da6",
+  "logSha256": "f290d7b7c7b0c58588bd1d5aed0b05227fcfc7b4e67d3cf57b5696ad81509227",
   "prRun": {
-   "run": 39043523031,
-   "headSha": "90a5c301bf0bd7eee4ece09a3cc726d04c5d228d",
+   "run": 39051436954,
+   "headSha": "de5f22a7",
    "conclusion": "success",
    "jobs": 10
   }
  },
- "ownerTrim": {
-  "date": "2026-10-15",
-  "source": "docs/M10_ACCEPTANCE.md, Owner trim of the local walkthrough (in the RC text)",
-  "ranLocally": [
-   "release artifacts",
-   "package acceptance",
-   "clean machines: pinned, fresh, Qt 6.8 reference",
-   "Qt 6.8 D-036 PDF check and downgrade window",
-   "47 non-CI native cells",
-   "dialog audit non-CI cells",
-   "F02 fractional CI lines",
-   "M5-M8 studies (M6 regression 210/210)",
-   "F02 detail (nine ctest entries with -V)"
+ "delta": {
+  "from": "d80fb729",
+  "files": 6,
+  "source": [
+   "src/integrations/openai_provider.cpp (D-041)"
   ],
-  "coveredByCi": [
-   "ctest --preset dev 210/210",
-   "opt-in *_real consumers",
-   "CI line inventory",
-   "MCP schema validation, recipes, generated reference and API schemas",
-   "337 native lines in the X11/Wayland 1x/2x jobs",
-   "AT-SPI bridge in four cells",
-   "keyboard layouts",
-   "CI audit cells",
-   "fractional 1.5x/1.75x lines",
-   "Blender worker and M5 with Blender",
-   "sanitize job",
-   "Blender interoperability",
-   "CI package acceptance 210/210"
+  "tests": [
+   "tests/openai_provider_tests.cpp"
   ],
-  "notRunLocally": [
-   "sanitized build and its non-CI cells (sanitize job passed in CI)",
-   "provider corpus (run separately by the orchestrator)"
+  "docs": [
+   "docs/RELEASE_NOTES.md (sidebar orientation sentence)"
+  ],
+  "unchanged": [
+   ".github",
+   "CMakeLists.txt",
+   "packaging",
+   "fixtures",
+   "assemblies",
+   "corpus manifests",
+   "notices"
   ]
  },
- "checks": {
+ "rerunAtRc3": {
   "packageAcceptance": {
-   "run": "rc120b-package-acceptance",
-   "runner": "wide",
+   "run": "rc120c-package-acceptance",
    "exit": 0,
-   "ctest": "210/210 (12 opt-in *_real skipped)",
-   "priorReleaseCli": "sketchyup-cli 1.1.1",
-   "priorReleaseCheck": "reads schemas up to 27: refused 1 newer fixture unchanged; accepted the package's sheet-free save",
-   "assemblies": "Installed 6 configurable assemblies, byte-identical to a rebuild from their sources.",
+   "ctest": "210/210",
+   "assemblies": "6 byte-identical",
+   "priorReleaseCheck": "reads up to 27: refused 1 newer fixture unchanged; accepted sheet-free save",
    "installedMigrations": 32,
-   "upgrade": "1.1.1-1 -> 1.2.0-1",
-   "logSha256": "f95656c48fad8e7474351f240c6051283e03d3948442eaba9668a96f9fc3d376",
-   "hostLogSha256": "a06629297f2534fd554483ed316da7d72e50efb637b5624426eba700ac88f135"
+   "logSha256": "b07f37d8e09b5e26418f35f187274de9a7cb55516cdb704e6c08eb70c5488fe1"
   },
   "cleanMachines": {
    "passed": true,
@@ -196,9 +143,6 @@
    "environments": [
     {
      "name": "pinned",
-     "role": "current (pinned CI image)",
-     "image": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
-     "archiveDate": "2026-10-02",
      "passed": true,
      "steps": {
       "network-isolated": "true",
@@ -224,26 +168,6 @@
       "qt6-wayland": "6.11.2-1",
       "mesa": "1:26.2.3-2"
      },
-     "dependencyClosure": {
-      "newPackages": 60,
-      "directElfNeeded": [
-       "libQt6Core.so.6",
-       "libQt6Gui.so.6",
-       "libQt6Network.so.6",
-       "libQt6OpenGL.so.6",
-       "libQt6OpenGLWidgets.so.6",
-       "libQt6PrintSupport.so.6",
-       "libQt6Widgets.so.6",
-       "libc.so.6",
-       "libcrypto.so.3",
-       "libgcc_s.so.1",
-       "libm.so.6",
-       "libstdc++.so.6",
-       "libwayland-client.so.0"
-      ],
-      "forbiddenPresent": [],
-      "closureSha256": "86a8c432b83f1abf75adf29df74943c54c420e200bdf772655ce16e547bdfd98"
-     },
      "migrations": {
       "passed": true,
       "fixtures": 32
@@ -278,62 +202,6 @@
         "edit.shortcuts": "Ctrl+Alt+J",
         "future.command": "Ctrl+Shift+F9"
        }
-      }
-     },
-     "sheetsSmoke": {
-      "fixture": "tests/fixtures/drawing-sheets-v27.sketchyup",
-      "exits": [
-       "preflight exit=0",
-       "plain-export exit=1",
-       "opted-export exit=0 flags=--allow-broken --allow-changed",
-       "mcp tools/list exit=0"
-      ],
-      "preflight": {
-       "blocked": true,
-       "pageCount": 2,
-       "findingCodes": [
-        "viewBroken",
-        "viewChanged",
-        "rasterUnavailable",
-        "fontSubstituted",
-        "itemBroken",
-        "scaleSummary",
-        "rasterViews"
-       ]
-      },
-      "plainExport": "EXPORT_BLOCKED",
-      "export": {
-       "pageCount": 2,
-       "sha256": "b3ad97cf679eae13a629f44ec7c3a50ceb19c1c1c3dd086d77b2a128c76d8799",
-       "exportedEmpty": [
-        "3",
-        "4"
-       ]
-      },
-      "hostPoppler": {
-       "pdfinfo": {
-        "Title": "           SketchyUp drawing sheets",
-        "Author": "          ",
-        "Creator": "         SketchyUp",
-        "Producer": "        Qt 6.11.2",
-        "CreationDate": "    Sat Oct 17 09:17:56 2026 PDT",
-        "ModDate": "         Sat Oct 17 09:17:56 2026 PDT",
-        "Custom Metadata": " no",
-        "Metadata Stream": " yes",
-        "Tagged": "          no",
-        "UserProperties": "  no",
-        "Suspects": "        no",
-        "Form": "            none",
-        "JavaScript": "      no",
-        "Pages": "           2",
-        "Encrypted": "       no",
-        "Page size": "       842 x 1192 pts (A3)",
-        "Page rot": "        0",
-        "File size": "       31143 bytes",
-        "Optimized": "       no",
-        "PDF version": "     1.4"
-       },
-       "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
       }
      },
      "mcpToolsList": {
@@ -377,17 +245,10 @@
        "component_parameters.evaluate"
       ],
       "mcpSha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
-     },
-     "usrLeftovers": {
-      "afterRemove": [],
-      "afterUpgradeRemove": []
      }
     },
     {
      "name": "fresh",
-     "role": "current (latest archlinux:base-devel, created 2026-10-12, re-pulled 2026-10-17 unchanged)",
-     "image": "archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1",
-     "archiveDate": "2026-10-16",
      "passed": true,
      "steps": {
       "network-isolated": "true",
@@ -413,26 +274,6 @@
       "qt6-wayland": "6.12.0-1",
       "mesa": "1:26.2.4-1"
      },
-     "dependencyClosure": {
-      "newPackages": 60,
-      "directElfNeeded": [
-       "libQt6Core.so.6",
-       "libQt6Gui.so.6",
-       "libQt6Network.so.6",
-       "libQt6OpenGL.so.6",
-       "libQt6OpenGLWidgets.so.6",
-       "libQt6PrintSupport.so.6",
-       "libQt6Widgets.so.6",
-       "libc.so.6",
-       "libcrypto.so.3",
-       "libgcc_s.so.1",
-       "libm.so.6",
-       "libstdc++.so.6",
-       "libwayland-client.so.0"
-      ],
-      "forbiddenPresent": [],
-      "closureSha256": "585dd308507faa7c3abfe98fe598a9592ecbd1cd15f0dbf2d7938a56a7fbf35f"
-     },
      "migrations": {
       "passed": true,
       "fixtures": 32
@@ -467,62 +308,6 @@
         "edit.shortcuts": "Ctrl+Alt+J",
         "future.command": "Ctrl+Shift+F9"
        }
-      }
-     },
-     "sheetsSmoke": {
-      "fixture": "tests/fixtures/drawing-sheets-v27.sketchyup",
-      "exits": [
-       "preflight exit=0",
-       "plain-export exit=1",
-       "opted-export exit=0 flags=--allow-broken --allow-changed",
-       "mcp tools/list exit=0"
-      ],
-      "preflight": {
-       "blocked": true,
-       "pageCount": 2,
-       "findingCodes": [
-        "viewBroken",
-        "viewChanged",
-        "rasterUnavailable",
-        "fontSubstituted",
-        "itemBroken",
-        "scaleSummary",
-        "rasterViews"
-       ]
-      },
-      "plainExport": "EXPORT_BLOCKED",
-      "export": {
-       "pageCount": 2,
-       "sha256": "48e64f6dde628918e15dec6aca78a2a6bd587ea26a7085b148ec2964680edddf",
-       "exportedEmpty": [
-        "3",
-        "4"
-       ]
-      },
-      "hostPoppler": {
-       "pdfinfo": {
-        "Title": "           SketchyUp drawing sheets",
-        "Author": "          ",
-        "Creator": "         SketchyUp",
-        "Producer": "        Qt 6.12.0",
-        "CreationDate": "    Sat Oct 17 09:19:32 2026 PDT",
-        "ModDate": "         Sat Oct 17 09:19:32 2026 PDT",
-        "Custom Metadata": " no",
-        "Metadata Stream": " yes",
-        "Tagged": "          no",
-        "UserProperties": "  no",
-        "Suspects": "        no",
-        "Form": "            none",
-        "JavaScript": "      no",
-        "Pages": "           2",
-        "Encrypted": "       no",
-        "Page size": "       842 x 1192 pts (A3)",
-        "Page rot": "        0",
-        "File size": "       31143 bytes",
-        "Optimized": "       no",
-        "PDF version": "     1.4"
-       },
-       "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
       }
      },
      "mcpToolsList": {
@@ -566,17 +351,10 @@
        "component_parameters.evaluate"
       ],
       "mcpSha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
-     },
-     "usrLeftovers": {
-      "afterRemove": [],
-      "afterUpgradeRemove": []
      }
     },
     {
      "name": "reference",
-     "role": "reference (declared minimum Qt 6.8)",
-     "image": "archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
-     "archiveDate": "2024-10-15",
      "passed": true,
      "steps": {
       "network-isolated": "true",
@@ -602,26 +380,6 @@
       "qt6-wayland": "6.8.0-1",
       "mesa": "1:24.2.4-1"
      },
-     "dependencyClosure": {
-      "newPackages": 64,
-      "directElfNeeded": [
-       "libQt6Core.so.6",
-       "libQt6Gui.so.6",
-       "libQt6Network.so.6",
-       "libQt6OpenGL.so.6",
-       "libQt6OpenGLWidgets.so.6",
-       "libQt6PrintSupport.so.6",
-       "libQt6Widgets.so.6",
-       "libc.so.6",
-       "libcrypto.so.3",
-       "libgcc_s.so.1",
-       "libm.so.6",
-       "libstdc++.so.6",
-       "libwayland-client.so.0"
-      ],
-      "forbiddenPresent": [],
-      "closureSha256": "0501b0e5c711c9f7508765bc7d16f1bdf367371b21e367b0c4d9f8369132bb34"
-     },
      "migrations": {
       "passed": true,
       "fixtures": 32
@@ -656,61 +414,6 @@
         "edit.shortcuts": "Ctrl+Alt+J",
         "future.command": "Ctrl+Shift+F9"
        }
-      }
-     },
-     "sheetsSmoke": {
-      "fixture": "tests/fixtures/drawing-sheets-v27.sketchyup",
-      "exits": [
-       "preflight exit=0",
-       "plain-export exit=1",
-       "opted-export exit=0 flags=--allow-broken --allow-changed",
-       "mcp tools/list exit=0"
-      ],
-      "preflight": {
-       "blocked": true,
-       "pageCount": 2,
-       "findingCodes": [
-        "viewBroken",
-        "viewChanged",
-        "rasterUnavailable",
-        "fontSubstituted",
-        "itemBroken",
-        "scaleSummary",
-        "rasterViews"
-       ]
-      },
-      "plainExport": "EXPORT_BLOCKED",
-      "export": {
-       "pageCount": 2,
-       "sha256": "8675b1faba0df9d711adac324436ae061902984f681bf115d24e771b10858f3b",
-       "exportedEmpty": [
-        "3",
-        "4"
-       ]
-      },
-      "hostPoppler": {
-       "pdfinfo": {
-        "Title": "           SketchyUp drawing sheets",
-        "Creator": "         SketchyUp",
-        "Producer": "        Qt 6.8.0",
-        "CreationDate": "    Sat Oct 17 09:21:50 2026 PDT",
-        "ModDate": "         Sat Oct 17 09:21:50 2026 PDT",
-        "Custom Metadata": " no",
-        "Metadata Stream": " yes",
-        "Tagged": "          no",
-        "UserProperties": "  no",
-        "Suspects": "        no",
-        "Form": "            none",
-        "JavaScript": "      no",
-        "Pages": "           2",
-        "Encrypted": "       no",
-        "Page size": "       842 x 1192 pts (A3)",
-        "Page rot": "        0",
-        "File size": "       30903 bytes",
-        "Optimized": "       no",
-        "PDF version": "     1.4"
-       },
-       "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
       }
      },
      "mcpToolsList": {
@@ -754,165 +457,52 @@
        "component_parameters.evaluate"
       ],
       "mcpSha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
-     },
-     "usrLeftovers": {
-      "afterRemove": [],
-      "afterUpgradeRemove": []
      }
     }
    ],
-   "summarySha256": "9b4aaaa21ac014648e84e0699ecc6e445fe86755dd73fe7be6527db6edf5365e",
+   "summarySha256": "0e2b6b65eb588307b92043af735271e2da17c03e75a05d3a3f23a3c650ed84b2",
+   "snapshotCaches": "copies of RC2's prepared caches",
    "logs": {
     "life-pinned": "0ff99e7a39f99b8175c3da4474dca0442dc1454a77467ef0372751b6119a2743",
     "life-fresh": "cc286fc0c8f578335461171c261997a820f43695a86ca8280f038ed6d548b150",
     "life-reference": "04ad6b163fdf4533162a027248d6673007c707726a730b32a6b3af94beb07eeb",
-    "prep-pinned": "0bcbdb4fc6d85dd4f1ef09cfe7210df1e4b7b1069ba5a747a09623bd87f0c6ab",
-    "prep-fresh": "f1dcdfd29debde4e7283eb697096b1007939250c4dd4632e123d24a424fa34fa",
-    "prep-reference": "92e96140190c1b0c33a60e13806cbc12e8f09ae2f45651f1b28540c36accffb9",
-    "build-reference": "5636f661cae3995aeedeb69be5e2e408ce153bc05989bbad020ad08a05e21db9",
-    "out-qt68-compat": "06774fdb5e9b4eac6e6427e6fae2808991d640cc0a20f3b91d1b30cacc0fd174"
-   },
-   "hostPdf": {
-    "machines": [
-     "pinned",
-     "fresh",
-     "reference"
-    ],
-    "syntaxErrors": 0,
-    "qpdfCheck": "clean",
-    "producer": {
-     "pinned": "Qt 6.11.2",
-     "fresh": "Qt 6.12.0",
-     "reference": "Qt 6.8.0"
-    },
-    "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940",
-    "textIdenticalAcrossMachines": true,
-    "textIdenticalTo110Rc": true
+    "build-reference": "943635dd06921ec90ccdb668dde862e6c65cd7bdbcdc0764f7d933b71c207b11",
+    "out-qt68-compat": "cff6c2f6e3b807e576fd49b05ee52cec22f70185a2f010f5714381dceb75d732"
    },
    "qt68Reference": {
-    "ran": true,
-    "passed": true,
-    "build": "pass (D-037 guard compiles on Qt 6.8.0)",
+    "package": {
+     "sha256": "f3b0c035a58eb6a1451543b7ab186388495a612e011495b43ac76d5a85746395",
+     "buildSeconds": 1472
+    },
     "lifecycle": "pass",
     "d036": {
      "passed": true,
-     "pdfs": [
-      "lifecycle sheets export",
-      "F01.a sheet export",
-      "F01.a measured export"
-     ],
      "syntaxErrors": 0,
-     "qpdf": "clean",
-     "hostCheckSha256": "cc0a6a49a0e0377e6c03011ad8d94948f24ada1ab9c4e3e13df638b1889ea1a2"
+     "hostCheckSha256": "164c64e6279b7f96781549d4eb501bd1464ad4ba8954c39ff35fcaac76c6674b"
     },
     "downgradeWindow": {
      "passed": true,
-     "savesBy": "reference-built 1.2.0-1",
-     "results": {
-      "1.1.1": {
-       "readsUpTo": 27,
-       "refusedUnchanged": [
-        "fixture-params-v28",
-        "params-v28"
-       ],
-       "opened": [
-        "sheets-v27",
-        "demo-v26"
-       ],
-       "resultsSha256": "4c3a61cb3b6020ebdf1039143b1c14196741a833bdc599a084da139d001e8d51"
-      },
-      "1.0.1": {
-       "readsUpTo": 26,
-       "refusedUnchanged": [
-        "fixture-params-v28",
-        "params-v28",
-        "sheets-v27"
-       ],
-       "opened": [
-        "demo-v26"
-       ],
-       "resultsSha256": "4d09c7cdd661980ef04077d87aabcb5e910345a1afde229a834aee8e5ed7cce7"
-      }
-     },
-     "refusal": "Unsupported container field"
+     "resultsIdenticalToRc2": true
     }
-   }
-  },
-  "nativeNonCiCells": {
-   "run": "rc120b-dev-pattern",
-   "suites": 96,
-   "cells": 384,
-   "ciCells": 337,
-   "nonCiCells": 47,
-   "passed": 47,
-   "firstAttempt": 47,
-   "caseListSha256": "64aad145c39f454cb2775ef7e61e43c0436dbc71678b5d7890ef7217101a86cb",
-   "fullCaseListSha256": "51f866e8034791eaa2ec9432723fa4674b08c173bee3f00a5b60424a1454a7c4",
-   "identicalToRc1": true,
-   "resultsSha256": "64338c41e1b9e88561902ef0a578f04d50c3ca867734032af2b0bd13e764136d"
-  },
-  "dialogAudit": {
-   "run": "rc120b-audit-trim",
-   "inventory": {
-    "exit": 0,
-    "groups": 17,
-    "dialogs": 108,
-    "uncoveredEllipsisActions": 0
    },
-   "runs": 34,
-   "passed": 34,
-   "dialogChecks": 216,
-   "failedDialogs": 0,
-   "resultsSha256": "b370ec193105576a73e0772e7aab7165ac7fbb919d72a488a7db5becd24dc2b0"
-  },
-  "f02Fractional": {
-   "suite": "component_parameter_input_tests",
-   "cells": [
-    "wayland 1.5",
-    "x11 1.5"
-   ],
-   "passed": 2,
-   "of": 2
-  },
-  "f02Detail": {
-   "ctest": "9/9",
-   "assemblyBundleChecks": 501,
-   "assemblyPlacementChecks": 36,
-   "readsDocumentVersions": "1-28",
-   "logSha256": "7eb1b49e7dd1e6cd980f99a33144ea6861d5cf00dba10bc24b658d49d82faa94"
-  },
-  "studies": {
-   "m5": "pass (deterministic)",
-   "m6": "pass (regression 210/210)",
-   "m7": "1/1 headless and four native runs",
-   "m8": "pass",
-   "stepsSha256": "6f606f13effba7c9bf42eae7901b672460324133c302999a71885d406480d5b2"
-  },
-  "devBuild": {
-   "configure": "cmake --preset dev -DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF",
-   "targets": "all plus 27 native targets",
-   "buildSeconds": 859,
-   "treeDeleted": true
+   "hostPdf": {
+    "syntaxErrors": 0,
+    "textIdenticalAcrossMachines": true
+   },
+   "assemblyHashesEqualRc2": true
   }
  },
- "rowAcceptance": {
-  "row": "F02",
-  "result": "pass on Qt 6.8.0, 6.11.2 and 6.12.0",
-  "records": [
-   "docs/verification/R093e-component-parameters.md",
-   "docs/verification/R094g-variant-instancing.md",
-   "docs/verification/R094h-configurable-components.md"
-  ],
-  "note": "on Qt 6.8-6.10 the sidebar handles expose no orientation attribute (D-037 fix)"
+ "reliedOnFromRc2": {
+  "nativeNonCiCells": "no pattern suite or the audit uses the OpenAI codec; CI at RC3 ran every native line",
+  "dialogAudit": "same",
+  "f02FractionalAndDetail": "no F02 code changed; CI ran the F02 suites and ctest",
+  "studies": "M5's provider/assistant-panel suites ran in CI ctest and CI's M5 study at RC3; M6 regression = CI ctest; M7/M8 do not use the assistant",
+  "rowAcceptance": "no F02 code changed"
  },
  "providerCorpus": {
-  "status": "failed at RC2 (D-041); run again at RC3",
-  "profile": "chatgpt-astra",
+  "status": "pending at RC3 (orchestrator, after owner approval)",
   "corpus": "v4",
-  "manifest": "tests/provider-release-corpus-v4.json",
   "manifestSha256": "d35a6cc5bfc5ddfb6f8a9da0a1d7cab850747a7f9011642e8e1bbe99a6648f4d",
-  "manifestSha256CheckedAtRc": true,
-  "ranBy": "orchestrator (owner-approved); not this walkthrough",
   "rc2Outcome": {
    "failedTasks": {
     "resize": "0/3",
@@ -926,126 +516,1072 @@
   }
  },
  "triage": {
-  "open": 31,
+  "open": 30,
   "releaseBlocking": 0,
-  "major": [
-   "D-041"
-  ],
+  "major": 0,
   "minor": 16,
   "limitation": 14,
-  "fixed": [
-   "D-037 (verified on Qt 6.8 at RC2)"
-  ],
-  "newByGate": {
-   "RC1": "D-037",
-   "RC2": "D-041"
-  },
-  "nonDefectFollowUps": {
-   "ciDiskMargin": "not release-blocking (CI capacity)",
-   "corpusManifestInstructionsHash": "not release-blocking (process gap)"
+  "fixedByGate": {
+   "D-037": "found RC1, fixed RC2",
+   "D-041": "found RC2, fixed RC3"
   }
  },
  "documentation": {
-  "accurate": [
-   "version",
-   "package",
-   "native format",
-   "API",
-   "provider plan (corpus v4)",
-   "upgrade and rollback",
-   "Qt 6.8.0-6.12.0 range",
-   "assemblies",
-   "D-036 fix present"
-  ],
-  "omission": [
-   "release notes do not state that on Qt 6.8-6.10 the sidebar handles expose no orientation to screen readers"
-  ],
-  "fixedOnBranch": []
+  "result": "pass",
+  "rc2OmissionClosed": "release notes now state the sidebar orientation needs Qt 6.11"
  },
- "failures": [],
- "runners": {
-  "wide": {
-   "sha256": "41b5c40587d69e2f43d8bf27402f0c76d0d4999d9ed2f837fabd8932b181a3d0",
-   "cpus": "6 (6-11)",
-   "memory": "10 GiB",
-   "jobs": 4
-  },
-  "queueSha256": "0d8b0a2987dd1042257673cf1fef5180806189baa825173e61c6de228810f14f"
- },
- "evidenceRoot": "~/sketchyup-verification/rc-1.2.0b/ (RC1: ~/sketchyup-verification/rc-1.2.0/; not published)",
- "deviations": [
-  "CI is ten jobs",
-  "dev build with native fixtures out of all (disk)",
-  "F02 row re-run replaces F01's",
-  "F02 smoke and Qt 6.8 D-036/downgrade check",
-  "reference prior is the reference-built 1.1.1-1",
-  "preps and reference build unlocked alongside package acceptance",
-  "queue stopped at 11G free (host dip outside this run), resumed at the dev build at 39G"
- ],
- "supersededRc": {
-  "commit": "71a6b4f3e6068f3d8a4924d063faf30c7ce797fb",
-  "mergeOf": "PR #342",
-  "ci": {
-   "run": 39031115333,
-   "conclusion": "success",
-   "jobs": 10
-  },
-  "sourceArchiveSha256": "c074134ab16334d02b3f06e1f7de9a905506cfb591b96e4e57976bf59cee0140",
-  "packageSha256": "fe9dfd85d0d90fc63b9090fe81662f173fde33f0e421f86f54dd612a7555c425",
-  "localChecks": "all passed on the first attempt except the Qt 6.8 reference build",
-  "failure": {
-   "area": "clean machine, Qt 6.8 reference, package build",
-   "attempt": 1,
-   "observed": "window_sidebar.cpp: 'Orientation' is not a member of 'QAccessible::Attribute'; makepkg exit 4",
-   "classification": "product defect D-037 (Major); deterministic, not repeated"
-  },
-  "defect": "D-037 (Major), fixed at RC2",
-  "qt68DowngradeWindow": {
-   "1.1.1": {
-    "readsUpTo": 27,
-    "refusedUnchanged": [
-     "fixture-params-v28",
-     "params-v28"
-    ],
-    "opened": [
-     "sheets-v27",
-     "demo-v26"
-    ],
-    "refusal": "Unsupported container field",
-    "resultsSha256": "4c3a61cb3b6020ebdf1039143b1c14196741a833bdc599a084da139d001e8d51"
+ "evidenceRoot": "~/sketchyup-verification/rc-1.2.0c/ (not published)",
+ "history": {
+  "RC2": {
+   "layer": "F02 RC walkthrough 1.2.0 (second candidate)",
+   "date": "2026-10-17",
+   "procedure": "docs/M10_ACCEPTANCE.md (RC text)",
+   "result": "RC2 passes every local check and CI; the owner-approved corpus v4 run at RC2 failed on product defect D-041 (Major), fix in PR #344 as RC3; RC3 is checked as a delta",
+   "rc": {
+    "name": "RC2",
+    "commit": "d80fb7294f03c1ee3bfbafbada3aeaf98b338cc3",
+    "mergeOf": "PR #343",
+    "prHead": "90a5c301bf0bd7eee4ece09a3cc726d04c5d228d",
+    "sourceArchive": {
+     "file": "sketchyup-1.2.0.tar.gz",
+     "sha256": "91637330ebc63b928eeb8421c1d6b17535326a5ebafba2e7350597452692122c"
+    },
+    "package": {
+     "file": "sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+     "name": "sketchyup",
+     "version": "1.2.0-1",
+     "sha256": "c940e1a51c54448d43fe6b184493f16972d71835442f573915485dfb97774916"
+    },
+    "thirdPartyNotices": {
+     "file": "THIRD_PARTY_NOTICES",
+     "sha256": "1a661058e5ed772dbd71c91e78350f747a698cd300a4b013b00457e12c161536",
+     "unchangedFromRc1": true
+    },
+    "priorRelease": {
+     "file": "sketchyup-1.1.1-1-x86_64.pkg.tar.zst",
+     "source": "https://github.com/zygote55/sketchyup/releases/download/v1.1.1/sketchyup-1.1.1-1-x86_64.pkg.tar.zst",
+     "sha256": "58ddfed5332f57fc3cef422d91938337f136f8c5f29fa19003ccec5c9afd9c2b",
+     "verified": true,
+     "equalsReleaseAssetDigest": true
+    },
+    "manifestBuildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+    "manifestSha256": "cc8a7411939cc57ffa2179af93b56c7b051de6ed06af26085d1529fc4b39ca1b",
+    "sha256sumsSha256": "0ad221eaea3a8a758dc71a55b88781941a84601e9a04d9ab5531a1bf51fbfb83",
+    "releaseArtifactsRuns": 2,
+    "archiveStableAcrossRuns": true
    },
-   "1.0.1": {
-    "readsUpTo": 26,
-    "refusedUnchanged": [
-     "fixture-params-v28",
-     "params-v28",
-     "sheets-v27"
+   "images": {
+    "packageBuild": {
+     "tag": "sketchyup-build:20261002",
+     "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+    },
+    "nativeTests": {
+     "tag": "sketchyup-native-fonts-check:20261008",
+     "id": "sha256:873ba0787bccd851a46f068e265f7d2922f90df0857e782bbf6d441f0c51bd08"
+    },
+    "pinned": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+    "fresh": {
+     "image": "archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1",
+     "rePulled": "2026-10-17, unchanged",
+     "archiveDate": "2026-10-16"
+    },
+    "reference": {
+     "image": "archlinux:base-devel-20241013.0.269705",
+     "id": "sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+     "archiveDate": "2024-10-15",
+     "signatureTimeEvaluatedAt": "2024-10-16T00:00:00",
+     "package": {
+      "file": "sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+      "fromArchiveSha256": "91637330ebc63b928eeb8421c1d6b17535326a5ebafba2e7350597452692122c",
+      "sha256": "b4f1559bbcf2c2de2f7853f30427534e15a6262e42a4220073d2e64982ece3ad",
+      "buildSeconds": 2100,
+      "logSha256": "5636f661cae3995aeedeb69be5e2e408ce153bc05989bbad020ad08a05e21db9"
+     }
+    }
+   },
+   "toolVersions": {
+    "native": {
+     "gcc": "16.2.1+r23+gd564253eb6c8-1",
+     "cmake": "4.4.3-2",
+     "ninja": "1.13.2-3",
+     "qt6-base": "6.11.2-3",
+     "qt6-wayland": "6.11.2-1",
+     "mesa": "1:26.2.3-2",
+     "weston": "15.0.1-3",
+     "xorg-server-xvfb": "21.1.24-1",
+     "wayland": "1.26.0-1",
+     "at-spi2-core": "2.60.7-1",
+     "python": "3.14.7-1",
+     "ffmpeg": "2:9.0.2-1",
+     "poppler": "26.08.0-1",
+     "gdb": "18.1-1",
+     "git": "2.56.0-1"
+    },
+    "hostPoppler": "26.08.0",
+    "reference": {
+     "gcc": "14.2.1+r134+gab884fffe3fc-1",
+     "cmake": "3.30.5-1",
+     "pacman": "7.0.0.r3.g7736133-1",
+     "glibc": "2.40+r16+gaa533d58ff-2",
+     "qt6-base": "6.8.0-1",
+     "qt6-wayland": "6.8.0-1",
+     "mesa": "1:24.2.4-1",
+     "python": "3.12.7-1"
+    }
+   },
+   "ciAtRc": {
+    "run": 39045895392,
+    "url": "https://github.com/zygote55/sketchyup/actions/runs/39045895392",
+    "event": "push",
+    "headSha": "d80fb7294f03c1ee3bfbafbada3aeaf98b338cc3",
+    "conclusion": "success",
+    "completedAt": "2026-10-17T16:18:31Z",
+    "jobs": {
+     "Development build and checks": "success",
+     "Native tests: X11 1x": "success",
+     "Native tests: X11 2x": "success",
+     "Native tests: Wayland 1x": "success",
+     "Native tests: Wayland 2x": "success",
+     "Native tests: audit and accessibility": "success",
+     "Native tests: fractional scaling, Blender worker and M5": "success",
+     "Blender interoperability": "success",
+     "Sanitized builds": "success",
+     "Arch package acceptance": "success"
+    },
+    "ctest": {
+     "dev": "210/210",
+     "blenderReal": "9/9",
+     "dxfReal": "1/1",
+     "pdfReal": "2/2",
+     "sanitize": [
+      "68/68",
+      "110/110",
+      "7/7",
+      "1/1"
+     ],
+     "package": "210/210"
+    },
+    "lineInventory": "Inventory matches: 514 lines (509 distinct).",
+    "nativeLinesDev": 337,
+    "packageJob": [
+     "Installed 6 configurable assemblies, byte-identical to a rebuild from their sources.",
+     "Prior release reads schemas up to 27: refused 1 newer fixtures unchanged and accepted this package's sheet-free save.",
+     "Installed CLI migrated 32 historical fixtures; all preservation checks passed."
     ],
-    "opened": [
-     "demo-v26"
+    "logSha256": "482fb159558bc8510e92a47b0d386c70db9ac75058929ffb273d98a431887da6",
+    "prRun": {
+     "run": 39043523031,
+     "headSha": "90a5c301bf0bd7eee4ece09a3cc726d04c5d228d",
+     "conclusion": "success",
+     "jobs": 10
+    }
+   },
+   "ownerTrim": {
+    "date": "2026-10-15",
+    "source": "docs/M10_ACCEPTANCE.md, Owner trim of the local walkthrough (in the RC text)",
+    "ranLocally": [
+     "release artifacts",
+     "package acceptance",
+     "clean machines: pinned, fresh, Qt 6.8 reference",
+     "Qt 6.8 D-036 PDF check and downgrade window",
+     "47 non-CI native cells",
+     "dialog audit non-CI cells",
+     "F02 fractional CI lines",
+     "M5-M8 studies (M6 regression 210/210)",
+     "F02 detail (nine ctest entries with -V)"
     ],
-    "refusal": "Unsupported container field",
-    "resultsSha256": "4d09c7cdd661980ef04077d87aabcb5e910345a1afde229a834aee8e5ed7cce7"
+    "coveredByCi": [
+     "ctest --preset dev 210/210",
+     "opt-in *_real consumers",
+     "CI line inventory",
+     "MCP schema validation, recipes, generated reference and API schemas",
+     "337 native lines in the X11/Wayland 1x/2x jobs",
+     "AT-SPI bridge in four cells",
+     "keyboard layouts",
+     "CI audit cells",
+     "fractional 1.5x/1.75x lines",
+     "Blender worker and M5 with Blender",
+     "sanitize job",
+     "Blender interoperability",
+     "CI package acceptance 210/210"
+    ],
+    "notRunLocally": [
+     "sanitized build and its non-CI cells (sanitize job passed in CI)",
+     "provider corpus (run separately by the orchestrator)"
+    ]
+   },
+   "checks": {
+    "packageAcceptance": {
+     "run": "rc120b-package-acceptance",
+     "runner": "wide",
+     "exit": 0,
+     "ctest": "210/210 (12 opt-in *_real skipped)",
+     "priorReleaseCli": "sketchyup-cli 1.1.1",
+     "priorReleaseCheck": "reads schemas up to 27: refused 1 newer fixture unchanged; accepted the package's sheet-free save",
+     "assemblies": "Installed 6 configurable assemblies, byte-identical to a rebuild from their sources.",
+     "installedMigrations": 32,
+     "upgrade": "1.1.1-1 -> 1.2.0-1",
+     "logSha256": "f95656c48fad8e7474351f240c6051283e03d3948442eaba9668a96f9fc3d376",
+     "hostLogSha256": "a06629297f2534fd554483ed316da7d72e50efb637b5624426eba700ac88f135"
+    },
+    "cleanMachines": {
+     "passed": true,
+     "attempts": 1,
+     "environments": [
+      {
+       "name": "pinned",
+       "role": "current (pinned CI image)",
+       "image": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+       "archiveDate": "2026-10-02",
+       "passed": true,
+       "steps": {
+        "network-isolated": "true",
+        "install-and-closure": "pass",
+        "cli-open-save": "pass",
+        "offscreen-launch": "pass",
+        "xvfb-launch": "pass",
+        "migrations": "32",
+        "sheets-preflight-blocks": "pass",
+        "sheets-cli-smoke": "pass",
+        "mcp-sheet-queries": "pass",
+        "assemblies-rebuild-identical": "6",
+        "f02-parameter-fixture": "save-v28-validate-pass,reopen-inspection-pass",
+        "mcp-parameter-queries": "pass",
+        "remove-clean": "pass",
+        "upgrade-preferences-remove": "pass",
+        "lifecycle": "pass"
+       },
+       "installedVersions": {
+        "pacman": "7.1.0.r9.g54d9411-2",
+        "glibc": "2.44+r50+g1848099f063e-1",
+        "qt6-base": "6.11.2-3",
+        "qt6-wayland": "6.11.2-1",
+        "mesa": "1:26.2.3-2"
+       },
+       "dependencyClosure": {
+        "newPackages": 60,
+        "directElfNeeded": [
+         "libQt6Core.so.6",
+         "libQt6Gui.so.6",
+         "libQt6Network.so.6",
+         "libQt6OpenGL.so.6",
+         "libQt6OpenGLWidgets.so.6",
+         "libQt6PrintSupport.so.6",
+         "libQt6Widgets.so.6",
+         "libc.so.6",
+         "libcrypto.so.3",
+         "libgcc_s.so.1",
+         "libm.so.6",
+         "libstdc++.so.6",
+         "libwayland-client.so.0"
+        ],
+        "forbiddenPresent": [],
+        "closureSha256": "86a8c432b83f1abf75adf29df74943c54c420e200bdf772655ce16e547bdfd98"
+       },
+       "migrations": {
+        "passed": true,
+        "fixtures": 32
+       },
+       "upgrade": {
+        "passed": true,
+        "versions": [
+         "1.1.1-1",
+         "1.2.0-1"
+        ],
+        "executablesChanged": true,
+        "addedInspectionFields": {},
+        "retainedPreferences": {
+         "General": {
+          "fieldofview": "67",
+          "interfacetextpercent": "150",
+          "packagesentinel": "retain",
+          "recoveryseconds": "0",
+          "reducedmotion": "true",
+          "theme": "1",
+          "trackpadnavigation": "true"
+         },
+         "futureNamespace": {
+          "data": "opaque-upgrade-sentinel"
+         },
+         "shortcuts": {}
+        },
+        "retainedShortcutBindings": {
+         "apiVersion": 1,
+         "bindings": {
+          "file.importDxf": "Ctrl+Alt+K",
+          "edit.shortcuts": "Ctrl+Alt+J",
+          "future.command": "Ctrl+Shift+F9"
+         }
+        }
+       },
+       "sheetsSmoke": {
+        "fixture": "tests/fixtures/drawing-sheets-v27.sketchyup",
+        "exits": [
+         "preflight exit=0",
+         "plain-export exit=1",
+         "opted-export exit=0 flags=--allow-broken --allow-changed",
+         "mcp tools/list exit=0"
+        ],
+        "preflight": {
+         "blocked": true,
+         "pageCount": 2,
+         "findingCodes": [
+          "viewBroken",
+          "viewChanged",
+          "rasterUnavailable",
+          "fontSubstituted",
+          "itemBroken",
+          "scaleSummary",
+          "rasterViews"
+         ]
+        },
+        "plainExport": "EXPORT_BLOCKED",
+        "export": {
+         "pageCount": 2,
+         "sha256": "b3ad97cf679eae13a629f44ec7c3a50ceb19c1c1c3dd086d77b2a128c76d8799",
+         "exportedEmpty": [
+          "3",
+          "4"
+         ]
+        },
+        "hostPoppler": {
+         "pdfinfo": {
+          "Title": "           SketchyUp drawing sheets",
+          "Author": "          ",
+          "Creator": "         SketchyUp",
+          "Producer": "        Qt 6.11.2",
+          "CreationDate": "    Sat Oct 17 09:17:56 2026 PDT",
+          "ModDate": "         Sat Oct 17 09:17:56 2026 PDT",
+          "Custom Metadata": " no",
+          "Metadata Stream": " yes",
+          "Tagged": "          no",
+          "UserProperties": "  no",
+          "Suspects": "        no",
+          "Form": "            none",
+          "JavaScript": "      no",
+          "Pages": "           2",
+          "Encrypted": "       no",
+          "Page size": "       842 x 1192 pts (A3)",
+          "Page rot": "        0",
+          "File size": "       31143 bytes",
+          "Optimized": "       no",
+          "PDF version": "     1.4"
+         },
+         "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
+        }
+       },
+       "mcpToolsList": {
+        "tools": 54,
+        "drawingSheetQueries": [
+         "drawing_sheets.query",
+         "drawing_sheet.describe",
+         "drawing_views.status",
+         "drawing_view.describe",
+         "drawing_items.query",
+         "drawing_item.describe",
+         "drawing_item.reattach_candidates",
+         "drawing_sheets.export_preflight"
+        ],
+        "sha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
+       },
+       "f02Smoke": {
+        "assemblies": [
+         "base-cabinet.sketchylib",
+         "bookshelf.sketchylib",
+         "casement-window.sketchylib",
+         "dining-table.sketchylib",
+         "interior-door.sketchylib",
+         "straight-stair.sketchylib"
+        ],
+        "assembliesRebuildIdentical": "6",
+        "assembliesSha256": {
+         "base-cabinet.sketchylib": "d5cea78136ebd1fcb2e4e00f936d508059c3c4134995b4954c3b6693242e5177",
+         "bookshelf.sketchylib": "ac59ac469f7c86803738655818c5bd6d8195a67ff6bb33259e64648f0a543511",
+         "casement-window.sketchylib": "a5d70abc1fb807b03b1d952c00d5e19ca670f85ac2b2efa3a8c965de925e6024",
+         "dining-table.sketchylib": "61ae4e8fa35ffbf54ffa7bfc7a1e0b9c4cbeda80526322f23a66338a6086ed57",
+         "interior-door.sketchylib": "661c94662ba1e55b23555c86a0cff3a515b89e62c948567021dd6a49e7fa086f",
+         "straight-stair.sketchylib": "3526a9cb0c79983f0d1b17fbe8cbd559d5cb152181266c77b298e79ebb26466a"
+        },
+        "parameterFixture": "save-v28-validate-pass,reopen-inspection-pass",
+        "savedEncoding": "json-v28 SketchyUp/1.2.0 scene-v2,topology-v1,curves-v1,guides-v1,groups-v1,face-colors-v1,components-v1,tags-v1,materials-v1,assets-v1,display-units-v1,edge-appearance-v1,component-glue-v1,hosted-components-v1,texture-mapping-v1,model-style-v1,saved-scenes-v1,section-planes-v1,section-scenes-v1,annotations-v1,editable-text-v1,solar-study-v1,reference-images-v1,display-precision-v1,instanced-placements-v1,drawing-sheets-v1,component-parameters-v1",
+        "mcpTools": 54,
+        "parameterQueries": [
+         "component_parameters.describe",
+         "component_parameters.values",
+         "component_parameters.evaluate"
+        ],
+        "mcpSha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
+       },
+       "usrLeftovers": {
+        "afterRemove": [],
+        "afterUpgradeRemove": []
+       }
+      },
+      {
+       "name": "fresh",
+       "role": "current (latest archlinux:base-devel, created 2026-10-12, re-pulled 2026-10-17 unchanged)",
+       "image": "archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1",
+       "archiveDate": "2026-10-16",
+       "passed": true,
+       "steps": {
+        "network-isolated": "true",
+        "install-and-closure": "pass",
+        "cli-open-save": "pass",
+        "offscreen-launch": "pass",
+        "xvfb-launch": "pass",
+        "migrations": "32",
+        "sheets-preflight-blocks": "pass",
+        "sheets-cli-smoke": "pass",
+        "mcp-sheet-queries": "pass",
+        "assemblies-rebuild-identical": "6",
+        "f02-parameter-fixture": "save-v28-validate-pass,reopen-inspection-pass",
+        "mcp-parameter-queries": "pass",
+        "remove-clean": "pass",
+        "upgrade-preferences-remove": "pass",
+        "lifecycle": "pass"
+       },
+       "installedVersions": {
+        "pacman": "7.1.0.r9.g54d9411-3",
+        "glibc": "2.44+r50+g1848099f063e-1",
+        "qt6-base": "6.12.0-3",
+        "qt6-wayland": "6.12.0-1",
+        "mesa": "1:26.2.4-1"
+       },
+       "dependencyClosure": {
+        "newPackages": 60,
+        "directElfNeeded": [
+         "libQt6Core.so.6",
+         "libQt6Gui.so.6",
+         "libQt6Network.so.6",
+         "libQt6OpenGL.so.6",
+         "libQt6OpenGLWidgets.so.6",
+         "libQt6PrintSupport.so.6",
+         "libQt6Widgets.so.6",
+         "libc.so.6",
+         "libcrypto.so.3",
+         "libgcc_s.so.1",
+         "libm.so.6",
+         "libstdc++.so.6",
+         "libwayland-client.so.0"
+        ],
+        "forbiddenPresent": [],
+        "closureSha256": "585dd308507faa7c3abfe98fe598a9592ecbd1cd15f0dbf2d7938a56a7fbf35f"
+       },
+       "migrations": {
+        "passed": true,
+        "fixtures": 32
+       },
+       "upgrade": {
+        "passed": true,
+        "versions": [
+         "1.1.1-1",
+         "1.2.0-1"
+        ],
+        "executablesChanged": true,
+        "addedInspectionFields": {},
+        "retainedPreferences": {
+         "General": {
+          "fieldofview": "67",
+          "interfacetextpercent": "150",
+          "packagesentinel": "retain",
+          "recoveryseconds": "0",
+          "reducedmotion": "true",
+          "theme": "1",
+          "trackpadnavigation": "true"
+         },
+         "futureNamespace": {
+          "data": "opaque-upgrade-sentinel"
+         },
+         "shortcuts": {}
+        },
+        "retainedShortcutBindings": {
+         "apiVersion": 1,
+         "bindings": {
+          "file.importDxf": "Ctrl+Alt+K",
+          "edit.shortcuts": "Ctrl+Alt+J",
+          "future.command": "Ctrl+Shift+F9"
+         }
+        }
+       },
+       "sheetsSmoke": {
+        "fixture": "tests/fixtures/drawing-sheets-v27.sketchyup",
+        "exits": [
+         "preflight exit=0",
+         "plain-export exit=1",
+         "opted-export exit=0 flags=--allow-broken --allow-changed",
+         "mcp tools/list exit=0"
+        ],
+        "preflight": {
+         "blocked": true,
+         "pageCount": 2,
+         "findingCodes": [
+          "viewBroken",
+          "viewChanged",
+          "rasterUnavailable",
+          "fontSubstituted",
+          "itemBroken",
+          "scaleSummary",
+          "rasterViews"
+         ]
+        },
+        "plainExport": "EXPORT_BLOCKED",
+        "export": {
+         "pageCount": 2,
+         "sha256": "48e64f6dde628918e15dec6aca78a2a6bd587ea26a7085b148ec2964680edddf",
+         "exportedEmpty": [
+          "3",
+          "4"
+         ]
+        },
+        "hostPoppler": {
+         "pdfinfo": {
+          "Title": "           SketchyUp drawing sheets",
+          "Author": "          ",
+          "Creator": "         SketchyUp",
+          "Producer": "        Qt 6.12.0",
+          "CreationDate": "    Sat Oct 17 09:19:32 2026 PDT",
+          "ModDate": "         Sat Oct 17 09:19:32 2026 PDT",
+          "Custom Metadata": " no",
+          "Metadata Stream": " yes",
+          "Tagged": "          no",
+          "UserProperties": "  no",
+          "Suspects": "        no",
+          "Form": "            none",
+          "JavaScript": "      no",
+          "Pages": "           2",
+          "Encrypted": "       no",
+          "Page size": "       842 x 1192 pts (A3)",
+          "Page rot": "        0",
+          "File size": "       31143 bytes",
+          "Optimized": "       no",
+          "PDF version": "     1.4"
+         },
+         "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
+        }
+       },
+       "mcpToolsList": {
+        "tools": 54,
+        "drawingSheetQueries": [
+         "drawing_sheets.query",
+         "drawing_sheet.describe",
+         "drawing_views.status",
+         "drawing_view.describe",
+         "drawing_items.query",
+         "drawing_item.describe",
+         "drawing_item.reattach_candidates",
+         "drawing_sheets.export_preflight"
+        ],
+        "sha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
+       },
+       "f02Smoke": {
+        "assemblies": [
+         "base-cabinet.sketchylib",
+         "bookshelf.sketchylib",
+         "casement-window.sketchylib",
+         "dining-table.sketchylib",
+         "interior-door.sketchylib",
+         "straight-stair.sketchylib"
+        ],
+        "assembliesRebuildIdentical": "6",
+        "assembliesSha256": {
+         "base-cabinet.sketchylib": "d5cea78136ebd1fcb2e4e00f936d508059c3c4134995b4954c3b6693242e5177",
+         "bookshelf.sketchylib": "ac59ac469f7c86803738655818c5bd6d8195a67ff6bb33259e64648f0a543511",
+         "casement-window.sketchylib": "a5d70abc1fb807b03b1d952c00d5e19ca670f85ac2b2efa3a8c965de925e6024",
+         "dining-table.sketchylib": "61ae4e8fa35ffbf54ffa7bfc7a1e0b9c4cbeda80526322f23a66338a6086ed57",
+         "interior-door.sketchylib": "661c94662ba1e55b23555c86a0cff3a515b89e62c948567021dd6a49e7fa086f",
+         "straight-stair.sketchylib": "3526a9cb0c79983f0d1b17fbe8cbd559d5cb152181266c77b298e79ebb26466a"
+        },
+        "parameterFixture": "save-v28-validate-pass,reopen-inspection-pass",
+        "savedEncoding": "json-v28 SketchyUp/1.2.0 scene-v2,topology-v1,curves-v1,guides-v1,groups-v1,face-colors-v1,components-v1,tags-v1,materials-v1,assets-v1,display-units-v1,edge-appearance-v1,component-glue-v1,hosted-components-v1,texture-mapping-v1,model-style-v1,saved-scenes-v1,section-planes-v1,section-scenes-v1,annotations-v1,editable-text-v1,solar-study-v1,reference-images-v1,display-precision-v1,instanced-placements-v1,drawing-sheets-v1,component-parameters-v1",
+        "mcpTools": 54,
+        "parameterQueries": [
+         "component_parameters.describe",
+         "component_parameters.values",
+         "component_parameters.evaluate"
+        ],
+        "mcpSha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
+       },
+       "usrLeftovers": {
+        "afterRemove": [],
+        "afterUpgradeRemove": []
+       }
+      },
+      {
+       "name": "reference",
+       "role": "reference (declared minimum Qt 6.8)",
+       "image": "archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+       "archiveDate": "2024-10-15",
+       "passed": true,
+       "steps": {
+        "network-isolated": "true",
+        "install-and-closure": "pass",
+        "cli-open-save": "pass",
+        "offscreen-launch": "pass",
+        "xvfb-launch": "pass",
+        "migrations": "32",
+        "sheets-preflight-blocks": "pass",
+        "sheets-cli-smoke": "pass",
+        "mcp-sheet-queries": "pass",
+        "assemblies-rebuild-identical": "6",
+        "f02-parameter-fixture": "save-v28-validate-pass,reopen-inspection-pass",
+        "mcp-parameter-queries": "pass",
+        "remove-clean": "pass",
+        "upgrade-preferences-remove": "pass",
+        "lifecycle": "pass"
+       },
+       "installedVersions": {
+        "pacman": "7.0.0.r3.g7736133-1",
+        "glibc": "2.40+r16+gaa533d58ff-2",
+        "qt6-base": "6.8.0-1",
+        "qt6-wayland": "6.8.0-1",
+        "mesa": "1:24.2.4-1"
+       },
+       "dependencyClosure": {
+        "newPackages": 64,
+        "directElfNeeded": [
+         "libQt6Core.so.6",
+         "libQt6Gui.so.6",
+         "libQt6Network.so.6",
+         "libQt6OpenGL.so.6",
+         "libQt6OpenGLWidgets.so.6",
+         "libQt6PrintSupport.so.6",
+         "libQt6Widgets.so.6",
+         "libc.so.6",
+         "libcrypto.so.3",
+         "libgcc_s.so.1",
+         "libm.so.6",
+         "libstdc++.so.6",
+         "libwayland-client.so.0"
+        ],
+        "forbiddenPresent": [],
+        "closureSha256": "0501b0e5c711c9f7508765bc7d16f1bdf367371b21e367b0c4d9f8369132bb34"
+       },
+       "migrations": {
+        "passed": true,
+        "fixtures": 32
+       },
+       "upgrade": {
+        "passed": true,
+        "versions": [
+         "1.1.1-1",
+         "1.2.0-1"
+        ],
+        "executablesChanged": true,
+        "addedInspectionFields": {},
+        "retainedPreferences": {
+         "General": {
+          "fieldofview": "67",
+          "interfacetextpercent": "150",
+          "packagesentinel": "retain",
+          "recoveryseconds": "0",
+          "reducedmotion": "true",
+          "theme": "1",
+          "trackpadnavigation": "true"
+         },
+         "futureNamespace": {
+          "data": "opaque-upgrade-sentinel"
+         },
+         "shortcuts": {}
+        },
+        "retainedShortcutBindings": {
+         "apiVersion": 1,
+         "bindings": {
+          "file.importDxf": "Ctrl+Alt+K",
+          "edit.shortcuts": "Ctrl+Alt+J",
+          "future.command": "Ctrl+Shift+F9"
+         }
+        }
+       },
+       "sheetsSmoke": {
+        "fixture": "tests/fixtures/drawing-sheets-v27.sketchyup",
+        "exits": [
+         "preflight exit=0",
+         "plain-export exit=1",
+         "opted-export exit=0 flags=--allow-broken --allow-changed",
+         "mcp tools/list exit=0"
+        ],
+        "preflight": {
+         "blocked": true,
+         "pageCount": 2,
+         "findingCodes": [
+          "viewBroken",
+          "viewChanged",
+          "rasterUnavailable",
+          "fontSubstituted",
+          "itemBroken",
+          "scaleSummary",
+          "rasterViews"
+         ]
+        },
+        "plainExport": "EXPORT_BLOCKED",
+        "export": {
+         "pageCount": 2,
+         "sha256": "8675b1faba0df9d711adac324436ae061902984f681bf115d24e771b10858f3b",
+         "exportedEmpty": [
+          "3",
+          "4"
+         ]
+        },
+        "hostPoppler": {
+         "pdfinfo": {
+          "Title": "           SketchyUp drawing sheets",
+          "Creator": "         SketchyUp",
+          "Producer": "        Qt 6.8.0",
+          "CreationDate": "    Sat Oct 17 09:21:50 2026 PDT",
+          "ModDate": "         Sat Oct 17 09:21:50 2026 PDT",
+          "Custom Metadata": " no",
+          "Metadata Stream": " yes",
+          "Tagged": "          no",
+          "UserProperties": "  no",
+          "Suspects": "        no",
+          "Form": "            none",
+          "JavaScript": "      no",
+          "Pages": "           2",
+          "Encrypted": "       no",
+          "Page size": "       842 x 1192 pts (A3)",
+          "Page rot": "        0",
+          "File size": "       30903 bytes",
+          "Optimized": "       no",
+          "PDF version": "     1.4"
+         },
+         "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940"
+        }
+       },
+       "mcpToolsList": {
+        "tools": 54,
+        "drawingSheetQueries": [
+         "drawing_sheets.query",
+         "drawing_sheet.describe",
+         "drawing_views.status",
+         "drawing_view.describe",
+         "drawing_items.query",
+         "drawing_item.describe",
+         "drawing_item.reattach_candidates",
+         "drawing_sheets.export_preflight"
+        ],
+        "sha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
+       },
+       "f02Smoke": {
+        "assemblies": [
+         "base-cabinet.sketchylib",
+         "bookshelf.sketchylib",
+         "casement-window.sketchylib",
+         "dining-table.sketchylib",
+         "interior-door.sketchylib",
+         "straight-stair.sketchylib"
+        ],
+        "assembliesRebuildIdentical": "6",
+        "assembliesSha256": {
+         "base-cabinet.sketchylib": "d5cea78136ebd1fcb2e4e00f936d508059c3c4134995b4954c3b6693242e5177",
+         "bookshelf.sketchylib": "ac59ac469f7c86803738655818c5bd6d8195a67ff6bb33259e64648f0a543511",
+         "casement-window.sketchylib": "a5d70abc1fb807b03b1d952c00d5e19ca670f85ac2b2efa3a8c965de925e6024",
+         "dining-table.sketchylib": "61ae4e8fa35ffbf54ffa7bfc7a1e0b9c4cbeda80526322f23a66338a6086ed57",
+         "interior-door.sketchylib": "661c94662ba1e55b23555c86a0cff3a515b89e62c948567021dd6a49e7fa086f",
+         "straight-stair.sketchylib": "3526a9cb0c79983f0d1b17fbe8cbd559d5cb152181266c77b298e79ebb26466a"
+        },
+        "parameterFixture": "save-v28-validate-pass,reopen-inspection-pass",
+        "savedEncoding": "json-v28 SketchyUp/1.2.0 scene-v2,topology-v1,curves-v1,guides-v1,groups-v1,face-colors-v1,components-v1,tags-v1,materials-v1,assets-v1,display-units-v1,edge-appearance-v1,component-glue-v1,hosted-components-v1,texture-mapping-v1,model-style-v1,saved-scenes-v1,section-planes-v1,section-scenes-v1,annotations-v1,editable-text-v1,solar-study-v1,reference-images-v1,display-precision-v1,instanced-placements-v1,drawing-sheets-v1,component-parameters-v1",
+        "mcpTools": 54,
+        "parameterQueries": [
+         "component_parameters.describe",
+         "component_parameters.values",
+         "component_parameters.evaluate"
+        ],
+        "mcpSha256": "ab5b5571a47a058476a3b6be9deaedb023d289612066bdb5f822690f97da7139"
+       },
+       "usrLeftovers": {
+        "afterRemove": [],
+        "afterUpgradeRemove": []
+       }
+      }
+     ],
+     "summarySha256": "9b4aaaa21ac014648e84e0699ecc6e445fe86755dd73fe7be6527db6edf5365e",
+     "logs": {
+      "life-pinned": "0ff99e7a39f99b8175c3da4474dca0442dc1454a77467ef0372751b6119a2743",
+      "life-fresh": "cc286fc0c8f578335461171c261997a820f43695a86ca8280f038ed6d548b150",
+      "life-reference": "04ad6b163fdf4533162a027248d6673007c707726a730b32a6b3af94beb07eeb",
+      "prep-pinned": "0bcbdb4fc6d85dd4f1ef09cfe7210df1e4b7b1069ba5a747a09623bd87f0c6ab",
+      "prep-fresh": "f1dcdfd29debde4e7283eb697096b1007939250c4dd4632e123d24a424fa34fa",
+      "prep-reference": "92e96140190c1b0c33a60e13806cbc12e8f09ae2f45651f1b28540c36accffb9",
+      "build-reference": "5636f661cae3995aeedeb69be5e2e408ce153bc05989bbad020ad08a05e21db9",
+      "out-qt68-compat": "06774fdb5e9b4eac6e6427e6fae2808991d640cc0a20f3b91d1b30cacc0fd174"
+     },
+     "hostPdf": {
+      "machines": [
+       "pinned",
+       "fresh",
+       "reference"
+      ],
+      "syntaxErrors": 0,
+      "qpdfCheck": "clean",
+      "producer": {
+       "pinned": "Qt 6.11.2",
+       "fresh": "Qt 6.12.0",
+       "reference": "Qt 6.8.0"
+      },
+      "pdftotextSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940",
+      "textIdenticalAcrossMachines": true,
+      "textIdenticalTo110Rc": true
+     },
+     "qt68Reference": {
+      "ran": true,
+      "passed": true,
+      "build": "pass (D-037 guard compiles on Qt 6.8.0)",
+      "lifecycle": "pass",
+      "d036": {
+       "passed": true,
+       "pdfs": [
+        "lifecycle sheets export",
+        "F01.a sheet export",
+        "F01.a measured export"
+       ],
+       "syntaxErrors": 0,
+       "qpdf": "clean",
+       "hostCheckSha256": "cc0a6a49a0e0377e6c03011ad8d94948f24ada1ab9c4e3e13df638b1889ea1a2"
+      },
+      "downgradeWindow": {
+       "passed": true,
+       "savesBy": "reference-built 1.2.0-1",
+       "results": {
+        "1.1.1": {
+         "readsUpTo": 27,
+         "refusedUnchanged": [
+          "fixture-params-v28",
+          "params-v28"
+         ],
+         "opened": [
+          "sheets-v27",
+          "demo-v26"
+         ],
+         "resultsSha256": "4c3a61cb3b6020ebdf1039143b1c14196741a833bdc599a084da139d001e8d51"
+        },
+        "1.0.1": {
+         "readsUpTo": 26,
+         "refusedUnchanged": [
+          "fixture-params-v28",
+          "params-v28",
+          "sheets-v27"
+         ],
+         "opened": [
+          "demo-v26"
+         ],
+         "resultsSha256": "4d09c7cdd661980ef04077d87aabcb5e910345a1afde229a834aee8e5ed7cce7"
+        }
+       },
+       "refusal": "Unsupported container field"
+      }
+     }
+    },
+    "nativeNonCiCells": {
+     "run": "rc120b-dev-pattern",
+     "suites": 96,
+     "cells": 384,
+     "ciCells": 337,
+     "nonCiCells": 47,
+     "passed": 47,
+     "firstAttempt": 47,
+     "caseListSha256": "64aad145c39f454cb2775ef7e61e43c0436dbc71678b5d7890ef7217101a86cb",
+     "fullCaseListSha256": "51f866e8034791eaa2ec9432723fa4674b08c173bee3f00a5b60424a1454a7c4",
+     "identicalToRc1": true,
+     "resultsSha256": "64338c41e1b9e88561902ef0a578f04d50c3ca867734032af2b0bd13e764136d"
+    },
+    "dialogAudit": {
+     "run": "rc120b-audit-trim",
+     "inventory": {
+      "exit": 0,
+      "groups": 17,
+      "dialogs": 108,
+      "uncoveredEllipsisActions": 0
+     },
+     "runs": 34,
+     "passed": 34,
+     "dialogChecks": 216,
+     "failedDialogs": 0,
+     "resultsSha256": "b370ec193105576a73e0772e7aab7165ac7fbb919d72a488a7db5becd24dc2b0"
+    },
+    "f02Fractional": {
+     "suite": "component_parameter_input_tests",
+     "cells": [
+      "wayland 1.5",
+      "x11 1.5"
+     ],
+     "passed": 2,
+     "of": 2
+    },
+    "f02Detail": {
+     "ctest": "9/9",
+     "assemblyBundleChecks": 501,
+     "assemblyPlacementChecks": 36,
+     "readsDocumentVersions": "1-28",
+     "logSha256": "7eb1b49e7dd1e6cd980f99a33144ea6861d5cf00dba10bc24b658d49d82faa94"
+    },
+    "studies": {
+     "m5": "pass (deterministic)",
+     "m6": "pass (regression 210/210)",
+     "m7": "1/1 headless and four native runs",
+     "m8": "pass",
+     "stepsSha256": "6f606f13effba7c9bf42eae7901b672460324133c302999a71885d406480d5b2"
+    },
+    "devBuild": {
+     "configure": "cmake --preset dev -DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF",
+     "targets": "all plus 27 native targets",
+     "buildSeconds": 859,
+     "treeDeleted": true
+    }
+   },
+   "rowAcceptance": {
+    "row": "F02",
+    "result": "pass on Qt 6.8.0, 6.11.2 and 6.12.0",
+    "records": [
+     "docs/verification/R093e-component-parameters.md",
+     "docs/verification/R094g-variant-instancing.md",
+     "docs/verification/R094h-configurable-components.md"
+    ],
+    "note": "on Qt 6.8-6.10 the sidebar handles expose no orientation attribute (D-037 fix)"
+   },
+   "providerCorpus": {
+    "status": "failed at RC2 (D-041); run again at RC3",
+    "profile": "chatgpt-astra",
+    "corpus": "v4",
+    "manifest": "tests/provider-release-corpus-v4.json",
+    "manifestSha256": "d35a6cc5bfc5ddfb6f8a9da0a1d7cab850747a7f9011642e8e1bbe99a6648f4d",
+    "manifestSha256CheckedAtRc": true,
+    "ranBy": "orchestrator (owner-approved); not this walkthrough",
+    "rc2Outcome": {
+     "failedTasks": {
+      "resize": "0/3",
+      "advanced": "0/3",
+      "site": "0/3"
+     },
+     "rootCause": "OpenAiConversation::decode rejected multi-call replies batching transaction.inspect with transaction.diff",
+     "defect": "D-041",
+     "fix": "PR #344 (head 522fe3cd), RC3",
+     "privateEvidence": "kept outside the repository"
+    }
+   },
+   "triage": {
+    "open": 31,
+    "releaseBlocking": 0,
+    "major": [
+     "D-041"
+    ],
+    "minor": 16,
+    "limitation": 14,
+    "fixed": [
+     "D-037 (verified on Qt 6.8 at RC2)"
+    ],
+    "newByGate": {
+     "RC1": "D-037",
+     "RC2": "D-041"
+    },
+    "nonDefectFollowUps": {
+     "ciDiskMargin": "not release-blocking (CI capacity)",
+     "corpusManifestInstructionsHash": "not release-blocking (process gap)"
+    }
+   },
+   "documentation": {
+    "accurate": [
+     "version",
+     "package",
+     "native format",
+     "API",
+     "provider plan (corpus v4)",
+     "upgrade and rollback",
+     "Qt 6.8.0-6.12.0 range",
+     "assemblies",
+     "D-036 fix present"
+    ],
+    "omission": [
+     "release notes do not state that on Qt 6.8-6.10 the sidebar handles expose no orientation to screen readers"
+    ],
+    "fixedOnBranch": []
+   },
+   "failures": [],
+   "runners": {
+    "wide": {
+     "sha256": "41b5c40587d69e2f43d8bf27402f0c76d0d4999d9ed2f837fabd8932b181a3d0",
+     "cpus": "6 (6-11)",
+     "memory": "10 GiB",
+     "jobs": 4
+    },
+    "queueSha256": "0d8b0a2987dd1042257673cf1fef5180806189baa825173e61c6de228810f14f"
+   },
+   "evidenceRoot": "~/sketchyup-verification/rc-1.2.0b/ (RC1: ~/sketchyup-verification/rc-1.2.0/; not published)",
+   "deviations": [
+    "CI is ten jobs",
+    "dev build with native fixtures out of all (disk)",
+    "F02 row re-run replaces F01's",
+    "F02 smoke and Qt 6.8 D-036/downgrade check",
+    "reference prior is the reference-built 1.1.1-1",
+    "preps and reference build unlocked alongside package acceptance",
+    "queue stopped at 11G free (host dip outside this run), resumed at the dev build at 39G"
+   ],
+   "supersededRc": {
+    "commit": "71a6b4f3e6068f3d8a4924d063faf30c7ce797fb",
+    "mergeOf": "PR #342",
+    "ci": {
+     "run": 39031115333,
+     "conclusion": "success",
+     "jobs": 10
+    },
+    "sourceArchiveSha256": "c074134ab16334d02b3f06e1f7de9a905506cfb591b96e4e57976bf59cee0140",
+    "packageSha256": "fe9dfd85d0d90fc63b9090fe81662f173fde33f0e421f86f54dd612a7555c425",
+    "localChecks": "all passed on the first attempt except the Qt 6.8 reference build",
+    "failure": {
+     "area": "clean machine, Qt 6.8 reference, package build",
+     "attempt": 1,
+     "observed": "window_sidebar.cpp: 'Orientation' is not a member of 'QAccessible::Attribute'; makepkg exit 4",
+     "classification": "product defect D-037 (Major); deterministic, not repeated"
+    },
+    "defect": "D-037 (Major), fixed at RC2",
+    "qt68DowngradeWindow": {
+     "1.1.1": {
+      "readsUpTo": 27,
+      "refusedUnchanged": [
+       "fixture-params-v28",
+       "params-v28"
+      ],
+      "opened": [
+       "sheets-v27",
+       "demo-v26"
+      ],
+      "refusal": "Unsupported container field",
+      "resultsSha256": "4c3a61cb3b6020ebdf1039143b1c14196741a833bdc599a084da139d001e8d51"
+     },
+     "1.0.1": {
+      "readsUpTo": 26,
+      "refusedUnchanged": [
+       "fixture-params-v28",
+       "params-v28",
+       "sheets-v27"
+      ],
+      "opened": [
+       "demo-v26"
+      ],
+      "refusal": "Unsupported container field",
+      "resultsSha256": "4d09c7cdd661980ef04077d87aabcb5e910345a1afde229a834aee8e5ed7cce7"
+     }
+    },
+    "evidenceRoot": "~/sketchyup-verification/rc-1.2.0/"
+   },
+   "rcDelta": {
+    "files": 18,
+    "source": [
+     "src/app/window_sidebar.cpp (D-037 guard)"
+    ],
+    "tests": [
+     "tests/sidebar_resize_input_tests.cpp",
+     "tests/accessibility_bridge_test.py",
+     "tests/local_provider_trial.cpp",
+     "tests/provider-release-corpus-v4.json",
+     "tests/provider_release_corpus_tests.py",
+     "tests/provider_release_score_tests.py"
+    ],
+    "scripts": [
+     "scripts/score-provider-release.py"
+    ],
+    "githubUnchanged": true
    }
-  },
-  "evidenceRoot": "~/sketchyup-verification/rc-1.2.0/"
- },
- "rcDelta": {
-  "files": 18,
-  "source": [
-   "src/app/window_sidebar.cpp (D-037 guard)"
-  ],
-  "tests": [
-   "tests/sidebar_resize_input_tests.cpp",
-   "tests/accessibility_bridge_test.py",
-   "tests/local_provider_trial.cpp",
-   "tests/provider-release-corpus-v4.json",
-   "tests/provider_release_corpus_tests.py",
-   "tests/provider_release_score_tests.py"
-  ],
-  "scripts": [
-   "scripts/score-provider-release.py"
-  ],
-  "githubUnchanged": true
+  }
  }
 }
