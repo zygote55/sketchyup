@@ -1,0 +1,436 @@
+{
+ "layer": "F02 1.2.0 release record",
+ "date": "2026-10-17",
+ "procedure": "docs/M10_ACCEPTANCE.md (Required evidence at the RC; Release record)",
+ "row": "F02",
+ "version": "1.2.0",
+ "recordComplete": true,
+ "gateStatus": "ready for the owner's tag decision",
+ "ownerApproval": "pending",
+ "tagCreated": false,
+ "releaseCreated": false,
+ "published": false,
+ "rc": {
+  "commit": "d9af0396bd0f43c7d8635771623d46996a02d9ae",
+  "mergeOf": "PR #344",
+  "name": "RC3",
+  "walkthrough": "docs/verification/F02-rc-1.2.0.md",
+  "sourceArchive": {
+   "file": "sketchyup-1.2.0.tar.gz",
+   "sha256": "b1dfe11cd074c404e9477eed8424ef5c7586cde90176868df17c7bfffaa574aa"
+  },
+  "package": {
+   "file": "sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+   "name": "sketchyup",
+   "version": "1.2.0-1",
+   "sha256": "b95fc18909040de68c8c8cb425f1bd01f3573249b48b4c3b61fe0be53d31295d"
+  },
+  "thirdPartyNotices": {
+   "file": "THIRD_PARTY_NOTICES",
+   "sha256": "1a661058e5ed772dbd71c91e78350f747a698cd300a4b013b00457e12c161536"
+  },
+  "priorRelease": {
+   "file": "sketchyup-1.1.1-1-x86_64.pkg.tar.zst",
+   "source": "https://github.com/zygote55/sketchyup/releases/download/v1.1.1/sketchyup-1.1.1-1-x86_64.pkg.tar.zst",
+   "sha256": "58ddfed5332f57fc3cef422d91938337f136f8c5f29fa19003ccec5c9afd9c2b",
+   "verified": true,
+   "equalsReleaseAssetDigest": true
+  },
+  "qt68ReferencePackageSha256": "f3b0c035a58eb6a1451543b7ab186388495a612e011495b43ac76d5a85746395",
+  "releaseVersionScript": "1.2.0"
+ },
+ "images": {
+  "packageBuild": {
+   "tag": "sketchyup-build:20261002",
+   "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+  },
+  "nativeTests": {
+   "tag": "sketchyup-native-fonts-check:20261008",
+   "id": "sha256:873ba0787bccd851a46f068e265f7d2922f90df0857e782bbf6d441f0c51bd08"
+  },
+  "pinned": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+  "fresh": {
+   "image": "archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1",
+   "rePulled": "2026-10-17, unchanged",
+   "archiveDate": "2026-10-16"
+  },
+  "reference": {
+   "image": "archlinux:base-devel-20241013.0.269705",
+   "id": "sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+   "archiveDate": "2024-10-15",
+   "signatureTimeEvaluatedAt": "2024-10-16T00:00:00",
+   "package": {
+    "file": "sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+    "fromArchiveSha256": "91637330ebc63b928eeb8421c1d6b17535326a5ebafba2e7350597452692122c",
+    "sha256": "b4f1559bbcf2c2de2f7853f30427534e15a6262e42a4220073d2e64982ece3ad",
+    "buildSeconds": 2100,
+    "logSha256": "5636f661cae3995aeedeb69be5e2e408ce153bc05989bbad020ad08a05e21db9"
+   }
+  }
+ },
+ "frozenProviderInputs": {
+  "manifest": {
+   "file": "tests/provider-release-corpus-v4.json",
+   "sha256": "d35a6cc5bfc5ddfb6f8a9da0a1d7cab850747a7f9011642e8e1bbe99a6648f4d"
+  },
+  "scorer": "b709520a24c1f88a404d29635442db941e21fc2cb1fb474502e9db238d5593a5",
+  "providerTrial": "8682318b42aac9ce81483cb12ec6cbc93074236aae45a12739396654f6bc5829",
+  "instructions": "313b9f911735f28e21bb1c9310d727416568d0c460971c43315faf4dd1f376be"
+ },
+ "supersededRcs": [
+  {
+   "name": "RC1",
+   "commit": "71a6b4f3e6068f3d8a4924d063faf30c7ce797fb",
+   "mergeOf": "PR #342",
+   "ci": 39031115333,
+   "failure": "Qt 6.8 reference build (D-037)",
+   "archiveSha256": "c074134ab16334d02b3f06e1f7de9a905506cfb591b96e4e57976bf59cee0140",
+   "packageSha256": "fe9dfd85d0d90fc63b9090fe81662f173fde33f0e421f86f54dd612a7555c425"
+  },
+  {
+   "name": "RC2",
+   "commit": "d80fb7294f03c1ee3bfbafbada3aeaf98b338cc3",
+   "mergeOf": "PR #343",
+   "ci": 39045895392,
+   "failure": "corpus v4: resize, advanced, site 0/3 (D-041)",
+   "archiveSha256": "91637330ebc63b928eeb8421c1d6b17535326a5ebafba2e7350597452692122c",
+   "packageSha256": "c940e1a51c54448d43fe6b184493f16972d71835442f573915485dfb97774916"
+  }
+ ],
+ "prs": {
+  "R093 ADR": [
+   337
+  ],
+  "R093.a": [
+   339
+  ],
+  "R093.b": [
+   341
+  ],
+  "R093.c-e, R094.a-h, 1.2.0 preparation, corpus v3, CI disk step (f02/integration)": [
+   342
+  ],
+  "D-037 and corpus v4 (RC2)": [
+   343
+  ],
+  "D-041 (RC3)": [
+   344
+  ]
+ },
+ "otherPrsInRange": [
+  330,
+  332,
+  333,
+  334,
+  336,
+  338,
+  340
+ ],
+ "ciAtPrHeads": {
+  "#330": {
+   "head": "703960f8",
+   "conclusion": "success"
+  },
+  "#332": {
+   "head": "fecd9832",
+   "conclusion": "success"
+  },
+  "#333": {
+   "head": "cb684c0c",
+   "conclusion": "success"
+  },
+  "#334": {
+   "head": "3e453695",
+   "conclusion": "success"
+  },
+  "#336": {
+   "head": "d3cffecd",
+   "conclusion": "success"
+  },
+  "#337": {
+   "head": "d1fa943e",
+   "conclusion": "success"
+  },
+  "#338": {
+   "head": "463cd4db",
+   "conclusion": "success"
+  },
+  "#339": {
+   "head": "f1fa38b4",
+   "conclusion": "success"
+  },
+  "#340": {
+   "head": "6d6c7108",
+   "conclusion": "success"
+  },
+  "#341": {
+   "head": "4c5e7e30",
+   "conclusion": "success"
+  },
+  "#342": {
+   "head": "2f570aee",
+   "conclusion": "success"
+  },
+  "#343": {
+   "head": "90a5c301",
+   "conclusion": "success"
+  },
+  "#344": {
+   "head": "de5f22a7",
+   "conclusion": "success"
+  }
+ },
+ "ciAtMergeCommits": {
+  "#330": {
+   "merge": "e44546ed",
+   "run": 38851311716,
+   "conclusion": "success"
+  },
+  "#332": {
+   "merge": "f7232781",
+   "run": 38841964417,
+   "conclusion": "success"
+  },
+  "#333": {
+   "merge": "39635968",
+   "run": 38855868830,
+   "conclusion": "success"
+  },
+  "#334": {
+   "merge": "131e4d76",
+   "run": 38855336250,
+   "conclusion": "success"
+  },
+  "#336": {
+   "merge": "9d3a786c",
+   "run": 38920762782,
+   "conclusion": "failure (Wayland 2x only: D-040 Weston segfault)"
+  },
+  "#337": {
+   "merge": "761a5194",
+   "run": 38924049843,
+   "conclusion": "success"
+  },
+  "#338": {
+   "merge": "997386d8",
+   "run": 38925483787,
+   "conclusion": "success"
+  },
+  "#339": {
+   "merge": "6201f6f1",
+   "run": 38928873939,
+   "conclusion": "success"
+  },
+  "#340": {
+   "merge": "c8e244a4",
+   "run": 38937786467,
+   "conclusion": "success"
+  },
+  "#341": {
+   "merge": "c3aef615",
+   "run": 38946741700,
+   "conclusion": "success"
+  },
+  "#342": {
+   "merge": "71a6b4f3",
+   "run": 39031115333,
+   "conclusion": "success"
+  },
+  "#343": {
+   "merge": "d80fb729",
+   "run": 39045895392,
+   "conclusion": "success"
+  },
+  "#344": {
+   "merge": "d9af0396",
+   "run": 39053949658,
+   "conclusion": "success"
+  }
+ },
+ "ciAtRc": {
+  "run": 39053949658,
+  "url": "https://github.com/zygote55/sketchyup/actions/runs/39053949658",
+  "headSha": "d9af0396bd0f43c7d8635771623d46996a02d9ae",
+  "conclusion": "success",
+  "completedAt": "2026-10-17T18:01:54Z",
+  "jobs": {
+   "Development build and checks": "success",
+   "Native tests: X11 1x": "success",
+   "Native tests: X11 2x": "success",
+   "Native tests: Wayland 1x": "success",
+   "Native tests: Wayland 2x": "success",
+   "Native tests: audit and accessibility": "success",
+   "Native tests: fractional scaling, Blender worker and M5": "success",
+   "Blender interoperability": "success",
+   "Sanitized builds": "success",
+   "Arch package acceptance": "success"
+  },
+  "ctest": {
+   "dev": "210/210",
+   "blenderReal": "9/9",
+   "dxfReal": "1/1",
+   "pdfReal": "2/2",
+   "sanitize": [
+    "68/68",
+    "110/110",
+    "7/7",
+    "1/1"
+   ],
+   "package": "210/210"
+  },
+  "lineInventory": "Inventory matches: 514 lines (509 distinct).",
+  "nativeLinesDev": 337,
+  "logSha256": "f290d7b7c7b0c58588bd1d5aed0b05227fcfc7b4e67d3cf57b5696ad81509227",
+  "prRun": {
+   "run": 39051436954,
+   "headSha": "de5f22a7",
+   "conclusion": "success",
+   "jobs": 10
+  }
+ },
+ "toolVersions": {
+  "native": {
+   "gcc": "16.2.1+r23+gd564253eb6c8-1",
+   "cmake": "4.4.3-2",
+   "ninja": "1.13.2-3",
+   "qt6-base": "6.11.2-3",
+   "qt6-wayland": "6.11.2-1",
+   "mesa": "1:26.2.3-2",
+   "weston": "15.0.1-3",
+   "xorg-server-xvfb": "21.1.24-1",
+   "wayland": "1.26.0-1",
+   "at-spi2-core": "2.60.7-1",
+   "python": "3.14.7-1",
+   "ffmpeg": "2:9.0.2-1",
+   "poppler": "26.08.0-1",
+   "gdb": "18.1-1",
+   "git": "2.56.0-1"
+  },
+  "hostPoppler": "26.08.0",
+  "reference": {
+   "gcc": "14.2.1+r134+gab884fffe3fc-1",
+   "cmake": "3.30.5-1",
+   "pacman": "7.0.0.r3.g7736133-1",
+   "glibc": "2.40+r16+gaa533d58ff-2",
+   "qt6-base": "6.8.0-1",
+   "qt6-wayland": "6.8.0-1",
+   "mesa": "1:24.2.4-1",
+   "python": "3.12.7-1"
+  }
+ },
+ "ownerTrim": {
+  "date": "2026-10-15",
+  "inPackagedM10": true
+ },
+ "requiredEvidence": {
+  "ci": "pass",
+  "regressionAndSanitizer": "pass (CI)",
+  "nativeMatrix": "pass (CI 337 lines; RC2 local 47/47 and audit 34/34)",
+  "packageAcceptance": "pass (RC3)",
+  "cleanMachines": "pass (RC3: pinned, fresh, Qt 6.8 reference)",
+  "providerCorpus": "pass (R086.f)",
+  "rowAcceptance": "pass",
+  "triage": "pass (30 open, 0 release-blocking, 0 Major)",
+  "documentation": "pass"
+ },
+ "reRunAtRc": [
+  "release artifacts",
+  "package acceptance",
+  "clean machines pinned/fresh/Qt 6.8 reference with sheets smoke, MCP tools/list, F02 smoke, D-036 PDFs, downgrade window",
+  "provider corpus (R086.f)"
+ ],
+ "reliedOnFromRc2": {
+  "nativeNonCiCells": "no pattern suite or the audit uses the OpenAI codec; CI at RC3 ran every native line",
+  "dialogAudit": "same",
+  "f02FractionalAndDetail": "no F02 code changed; CI ran the F02 suites and ctest",
+  "studies": "M5's provider/assistant-panel suites ran in CI ctest and CI's M5 study at RC3; M6 regression = CI ctest; M7/M8 do not use the assistant",
+  "rowAcceptance": "no F02 code changed"
+ },
+ "notRun": [
+  "local sanitized build and non-CI sanitized cells (owner trim)",
+  "timing, GPU and display checks",
+  "ADR 0161 waived checks"
+ ],
+ "provider": {
+  "profile": "chatgpt-astra",
+  "model": "gpt-6-astra",
+  "connection": "chatgpt-plan",
+  "corpus": "v4",
+  "session": "NativeAssistantSession, 900 s, 16 turns, 524,288 tokens, no per-reply cap",
+  "window": "2026-10-17T17:56:07Z/2026-10-17T18:07:50Z",
+  "totalSeconds": 701.279,
+  "reportedTokens": 1393165,
+  "largestRunTokens": 155383,
+  "attempts": 110,
+  "successfulResponses": 101,
+  "cost": "unknown (R086.a)",
+  "reviewBundleSha256": "3186be6f97f5ff8871de36e9bf7d372ee675ad3de409f21ab57227fdc0e599b7",
+  "corpusPassed": true,
+  "releaseAccepted": false
+ },
+ "corpusHistory": [
+  {
+   "run": "corpus v3",
+   "result": "superseded without a live run"
+  },
+  {
+   "run": "corpus v4 at RC2",
+   "rc": "d80fb729",
+   "result": "failed: resize, advanced, site 0/3 (D-041)"
+  },
+  {
+   "run": "R086.f",
+   "rc": "d9af0396",
+   "result": "passed 24/24"
+  }
+ ],
+ "triage": {
+  "open": 30,
+  "releaseBlocking": 0,
+  "major": 0,
+  "minor": 16,
+  "limitation": 14,
+  "newByGate": {
+   "D-037": "Major, RC1, fixed RC2",
+   "D-041": "Major, RC2, fixed RC3"
+  },
+  "addedMinor": [
+   "D-038",
+   "D-039",
+   "D-040"
+  ]
+ },
+ "unresolvedLimits": [
+  "sidebar handle orientation absent on Qt 6.8-6.10 (stated)",
+  "D-038 wording",
+  "D-039 per-edit cost",
+  "configurable-component limits in the release notes",
+  "open Minor and Limitation items",
+  "one remote provider configuration"
+ ],
+ "waivedAdr0161Untested": [
+  "Intel campaigns and sharing-off control",
+  "X11 output hotplug",
+  "suspend/resume",
+  "physical 150% output",
+  "physical pointer capture",
+  "input methods",
+  "D-020 on Hyprland",
+  "automatic X11 output placement",
+  "interactive Orca session",
+  "manual walkthrough on the installed RC"
+ ],
+ "openForOwner": [
+  "approve tag v1.2.0 and the release; accept the remote corpus gate",
+  "D-038"
+ ],
+ "evidenceRecords": [
+  "docs/verification/F02-rc-1.2.0.md",
+  "docs/verification/R086f-rc120-remote-evaluation.md",
+  "docs/verification/R093e-component-parameters.md",
+  "docs/verification/R094g-variant-instancing.md",
+  "docs/verification/R094h-configurable-components.md",
+  "docs/verification/R089a-defect-triage.md"
+ ],
+ "credentialsPublished": false
+}
