@@ -1,4 +1,5 @@
 #pragma once
+#include "app/parameter_messages.hpp"
 #include "core/units.hpp"
 #include <QJsonObject>
 #include <QJsonValue>
@@ -23,14 +24,6 @@ QString parameterValueText(double si, const QString &type, DisplayUnit units, in
 // or count) in the document's units: a JSON number in SI units. Throws std::runtime_error with
 // the type's hint ("Type a length, such as 1200 mm or 3'11\".") when it cannot be read.
 QJsonValue parseParameterText(const QString &text, const QString &type, DisplayUnit units);
-// The sentence a refusal shows under a value field (ADR 0166 §5, the rows that apply to
-// placement values). `error` is a component_parameters.evaluate error or a refusal's
-// {code, message, details}; `typed` is the text the user entered and `value` what it reads
-// as. The core message is the fallback.
-QString parameterErrorSentence(const QJsonObject &error, const QString &typed,
-                               const QJsonObject &parameter, DisplayUnit units, int precision,
-                               const QJsonValue &value = {});
-
 // One parameter row of Entity info's "Parameters · this placement" (ADR 0166 §1.2, §1.3):
 // the label column (label and caption), the value control for the parameter's type, the
 // reset button of an override row and the error line under the field. The row parses what is
@@ -75,8 +68,13 @@ class ParameterValueField : public QWidget {
     void setEdited(bool edited) { edited_ = edited; }
     bool equalsStored(const QJsonValue &value) const;
     void setError(const QString &sentence, const QString &detail = {});
+    // A §5 message (R094.e): its sentence, tone (a warning is amber with a lock, not invalid)
+    // and action button ("Show the driver", "Select #1").
+    void setMessage(const ParameterMessage &message);
     void clearError();
     QString error() const { return error_; }
+    bool warning() const { return warning_; }
+    QPushButton *actionButton() const { return action_; }
     // Shows the stored value again and clears the error (Esc).
     void restore();
     QString caption() const;
@@ -86,6 +84,8 @@ class ParameterValueField : public QWidget {
     void commitRequested(); // Enter, focus loss, a step, a check or a choice
     void resetRequested();  // the reset button or Ctrl+Backspace
     void focusEntered();
+    // The message's action button was pressed (a ParameterMessageAction and its targets).
+    void actionRequested(int action, qulonglong target, qulonglong definition);
 
   protected:
     bool eventFilter(QObject *object, QEvent *event) override;
@@ -106,7 +106,10 @@ class ParameterValueField : public QWidget {
     QToolButton *fewer_{}, *more_{};
     QCheckBox *check_{};
     QComboBox *choice_{};
-    QPushButton *reset_{};
+    QPushButton *reset_{}, *action_{};
+    QWidget *errorMark_{};
+    ParameterMessage message_;
+    bool warning_{};
     void showStored();
     void markEdited();
     void refreshState();

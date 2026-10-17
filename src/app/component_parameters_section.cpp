@@ -30,11 +30,6 @@ QJsonObject refusal(const InspectionError &error) {
             {"message", QString::fromUtf8(error.what())},
             {"details", error.details()}};
 }
-QJsonObject failure(const std::exception &error) {
-    if (const auto *coded = dynamic_cast<const InspectionError *>(&error))
-        return refusal(*coded);
-    return {{"message", QString::fromUtf8(error.what())}};
-}
 bool parametric(const Document &doc, Id body) {
     const auto instance = doc.instances().find(body);
     if (instance == doc.instances().end())
@@ -273,9 +268,14 @@ void ComponentParametersSection::rebuild(const QJsonArray &parameters) {
             emit measurementChanged();
         });
         // Tab goes field → its reset → next field, after the header.
+        connect(field, &ParameterValueField::actionRequested, this,
+                [this](int action, qulonglong target, qulonglong definition) {
+                    emit view_.parameterAction(action, target, definition);
+                });
         QWidget::setTabOrder(previous, field->control());
         QWidget::setTabOrder(field->control(), field->resetButton());
-        previous = field->resetButton();
+        QWidget::setTabOrder(field->resetButton(), field->actionButton());
+        previous = field->actionButton();
     }
     QWidget::setTabOrder(previous, resetAll_);
     QWidget::setTabOrder(resetAll_, editDefinition_);
@@ -327,9 +327,26 @@ void ComponentParametersSection::validate() {
     if (error.isEmpty())
         field->clearError();
     else
-        field->setError(parameterErrorSentence(error, field->text(), field->parameter(),
-                                               doc_.displayUnits(), doc_.displayPrecision(), value),
-                        error["message"].toString());
+        field->setMessage(message(error, field, field->text(), value));
+}
+ParameterMessage ComponentParametersSection::message(const QJsonObject &error,
+                                                     const ParameterValueField *field,
+                                                     const QString &typed,
+                                                     const QJsonValue &value) const {
+    ParameterMessageContext context;
+    context.place = ParameterMessagePlace::Value;
+    context.document = &doc_;
+    context.units = doc_.displayUnits();
+    context.precision = doc_.displayPrecision();
+    context.parameter = field->parameter();
+    context.typed = typed;
+    context.value = value;
+    context.placement = placement_;
+    context.label = [this](const QString &name) {
+        const auto *row = this->field(name);
+        return row ? row->label() : name;
+    };
+    return parameterMessage(error, context);
 }
 void ComponentParametersSection::publish(const QJsonObject &command, const QString &label,
                                          bool amend) {
@@ -352,14 +369,10 @@ void ComponentParametersSection::publish(const QJsonObject &command, const QStri
     view_.refresh();
     emit view_.changed();
 }
-QString ComponentParametersSection::apply(ParameterValueField *field, const QJsonValue &value,
-                                          const QString &typed, bool amend, QString &detail) {
-    const auto parameter = field->parameter();
-    auto sentence = [&](const QJsonObject &error) {
-        detail = error["message"].toString();
-        return parameterErrorSentence(error, typed, parameter, doc_.displayUnits(),
-                                      doc_.displayPrecision(), value);
-    };
+ParameterMessage ComponentParametersSection::apply(ParameterValueField *field,
+                                                   const QJsonValue &value, const QString &typed,
+                                                   bool amend) {
+    auto sentence = [&](const QJsonObject &error) { return message(error, field, typed, value); };
     if (const auto error = evaluate(field->name(), value); !error.isEmpty())
         return sentence(error);
     const QJsonObject command{{"command", "component_parameter.override"},
@@ -373,7 +386,7 @@ QString ComponentParametersSection::apply(ParameterValueField *field, const QJso
     } catch (const std::exception &error) {
         if (alive)
             alive->setEdited(edited);
-        return sentence(failure(error));
+        return sentence(parameterRefusal(error));
     }
     if (alive)
         alive->clearError();
@@ -397,10 +410,9 @@ void ComponentParametersSection::commit(ParameterValueField *field) {
         return;
     }
     QPointer<ParameterValueField> alive(field);
-    QString detail;
-    if (const auto error = apply(field, value, field->text(), false, detail);
-        !error.isEmpty() && alive)
-        alive->setError(error, detail);
+    if (const auto refused = apply(field, value, field->text(), false);
+        !refused.sentence.isEmpty() && alive)
+        alive->setMessage(refused);
 }
 void ComponentParametersSection::reset(ParameterValueField *field) {
     if (busy_ || field->readOnly() || field->source() != "override" || placement_ == 0)
@@ -421,9 +433,7 @@ void ComponentParametersSection::reset(ParameterValueField *field) {
     } catch (const std::exception &error) {
         if (alive) {
             alive->setEdited(edited);
-            alive->setError(parameterErrorSentence(failure(error), {}, alive->parameter(),
-                                                   doc_.displayUnits(), doc_.displayPrecision()),
-                            QString::fromUtf8(error.what()));
+            alive->setMessage(message(parameterRefusal(error), alive, {}, {}));
         }
         return;
     }
@@ -443,7 +453,10 @@ void ComponentParametersSection::resetAll() {
                  {"all", true}},
                 "Reset all parameters", false);
     } catch (const std::exception &error) {
-        emit view_.message(QString::fromUtf8(error.what()));
+        ParameterMessageContext context;
+        context.document = &doc_;
+        context.placement = placement_;
+        emit view_.message(parameterMessage(parameterRefusal(error), context).sentence);
         return;
     }
     for (auto *field : fields_)
@@ -453,12 +466,9 @@ void ComponentParametersSection::editDefinition() {
     if (placement_ == 0)
         return;
     const auto placement = placement_;
-    if (!overrides().isEmpty()) {
-        // R094.e hook: a placement with its own values opens "… has its own values"
-        // (ParametersScopeDialog: Cancel, Make unique and edit, Edit definition at defaults;
-        // ADR 0166 §4.1) here. Until then it opens the context as Enter does today.
-    }
-    view_.enterContext(placement);
+    // A placement with its own values asks first ("… has its own values", ADR 0166 §4.1):
+    // openContext offers the request to the window's ParametersScopeDialog.
+    view_.openContext(placement);
     view_.setFocus(Qt::OtherFocusReason);
 }
 ParameterValueField *ComponentParametersSection::routed() const {
@@ -499,8 +509,7 @@ bool ComponentParametersSection::measurements(const QString &text, QString &erro
     }
     if (field->equalsStored(value))
         return true;
-    QString detail;
-    error = apply(field, value, text, true, detail);
+    error = apply(field, value, text, true).sentence;
     return error.isEmpty();
 }
 } // namespace sketchy

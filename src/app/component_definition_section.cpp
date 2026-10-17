@@ -6,7 +6,9 @@
 #include "core/parameter_expression.hpp"
 #include <QComboBox>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QHeaderView>
+#include <QPushButton>
 #include <QJsonDocument>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -30,13 +32,7 @@ QJsonObject query(const Document &doc, const QString &name, QJsonObject fields) 
     fields["query"] = name;
     return inspectDocument(doc, fields)["data"].toObject();
 }
-QJsonObject failure(const std::exception &error) {
-    if (const auto *coded = dynamic_cast<const InspectionError *>(&error))
-        return {{"code", QString::fromStdString(coded->code())},
-                {"message", QString::fromUtf8(coded->what())},
-                {"details", coded->details()}};
-    return {{"message", QString::fromUtf8(error.what())}};
-}
+QJsonObject failure(const std::exception &error) { return parameterRefusal(error); }
 namespace {
 QJsonObject batch(const Document &doc, const QJsonArray &commands, const QString &label) {
     QJsonObject request{{"apiVersion", 1},
@@ -267,12 +263,24 @@ ComponentDefinitionSection::ComponentDefinitionSection(Document &doc, Viewport &
     form->addRow("Used by", usedBy_);
     usedRow_ = usedBy_;
     editorLayout->addLayout(form);
-    error_ = new QLabel;
+    error_ = new ParameterMessageLabel;
     error_->setObjectName("parameterEditorError");
-    error_->setWordWrap(true);
-    error_->setTextFormat(Qt::PlainText);
     error_->hide();
+    error_->installEventFilter(this);
     editorLayout->addWidget(error_);
+    // The message's action (ADR 0166 §5): "Select #1" for a locked placement, "Show the driver".
+    action_ = new QPushButton;
+    action_->setObjectName("parameterEditorAction");
+    action_->setAutoDefault(false);
+    action_->hide();
+    auto *actionRow = new QHBoxLayout;
+    actionRow->setContentsMargins(0, 0, 0, 0);
+    actionRow->addWidget(action_);
+    actionRow->addStretch();
+    editorLayout->addLayout(actionRow);
+    connect(action_, &QPushButton::clicked, this, [this] {
+        emit view_.parameterAction(int(message_.action), message_.target, message_.definition);
+    });
     note_ = new QLabel(
         "Changing the default re-baselines the shape and keeps each placement's own values.");
     note_->setObjectName("parameterEditorNote");
@@ -285,6 +293,11 @@ ComponentDefinitionSection::ComponentDefinitionSection(Document &doc, Viewport &
                                                            step_, options_})
         input->installEventFilter(this);
     expression_->setLabels([this](const QString &name) { return labelOf(name); });
+    expression_->setDocument(&doc_);
+    connect(expression_, &FormulaField::actionRequested, this,
+            [this](int action, qulonglong target, qulonglong definition) {
+                emit view_.parameterAction(action, target, definition);
+            });
     expression_->setChecks([this](const QString &text) { return checkExpression(text); },
                            [this](const QString &text) { return dryRunExpression(text); });
     expression_->setSentence([this](const QJsonObject &error, const QString &) -> QString {
@@ -683,29 +696,28 @@ QJsonArray ComponentDefinitionSection::editorCommands(QString &historyLabel,
                          : authoring::historyLabel("Rename parameter", current_);
     return commands;
 }
-QString ComponentDefinitionSection::sentence(const QJsonObject &error) const {
+ParameterMessage ComponentDefinitionSection::message(const QJsonObject &error) const {
     const auto details = error.contains("details") ? error["details"].toObject() : error;
-    const auto code = error["code"].toString();
-    if (code == "PARAMETER_DOMAIN" && details.contains("bound")) {
-        auto parameter = parameterNamed(details["parameter"].toString());
-        if (parameter.isEmpty())
-            parameter = {{"type", editorType()}};
-        return parameterErrorSentence(error, {}, parameter, doc_.displayUnits(),
-                                      doc_.displayPrecision());
-    }
-    if (code == "PARAMETER_NAME" && details.contains("referrers")) {
-        QStringList users;
-        for (const auto &entry : details["referrers"].toArray()) {
-            const auto user = entry.toString();
-            if (user.startsWith("parameter "))
-                users << labelOf(user.mid(10));
-            else
-                users << user;
-        }
-        return "Still used by " + users.join(" · ") + ".";
-    }
-    return formulaErrorSentence(error, expression_->text(),
-                                [this](const QString &name) { return labelOf(name); });
+    ParameterMessageContext context;
+    context.place = ParameterMessagePlace::Definition;
+    context.document = &doc_;
+    context.units = doc_.displayUnits();
+    context.precision = doc_.displayPrecision();
+    context.formula = expression_->text();
+    context.placement = scope_.placement;
+    context.label = [this](const QString &name) { return labelOf(name); };
+    // The parameter the error names, else the one the editor shows (bounds and locked
+    // placements name it).
+    auto parameter = parameterNamed(details["parameter"].toString());
+    if (parameter.isEmpty() && !current_.isEmpty())
+        parameter = parameterNamed(current_);
+    if (parameter.isEmpty())
+        parameter = {{"type", editorType()}};
+    context.parameter = parameter;
+    return parameterMessage(error, context);
+}
+QString ComponentDefinitionSection::sentence(const QJsonObject &error) const {
+    return message(error).sentence;
 }
 QString ComponentDefinitionSection::present(const QJsonObject &error) {
     const auto details = error.contains("details") ? error["details"].toObject() : error;
@@ -715,10 +727,16 @@ QString ComponentDefinitionSection::present(const QJsonObject &error) {
         error_->hide();
         return expression_->error();
     }
-    const auto text = sentence(error);
+    message_ = message(error);
+    const auto &text = message_.sentence;
+    static_cast<ParameterMessageLabel *>(error_)->setTone(message_.tone);
     error_->setText(text);
     error_->setToolTip(error["message"].toString());
     error_->setVisible(!text.isEmpty());
+    action_->setText(message_.actionText);
+    action_->setVisible(!text.isEmpty() &&
+                        (message_.action == ParameterMessageAction::SelectLocked ||
+                         message_.action == ParameterMessageAction::ShowDriver));
     return text;
 }
 QString ComponentDefinitionSection::commit() {
@@ -727,6 +745,8 @@ QString ComponentDefinitionSection::commit() {
     QString label, problem;
     const auto commands = editorCommands(label, problem);
     if (!problem.isEmpty()) {
+        static_cast<ParameterMessageLabel *>(error_)->setTone(ParameterMessageTone::Failure);
+        action_->hide();
         error_->setText(problem);
         error_->setToolTip({});
         error_->show();
@@ -815,6 +835,9 @@ QString ComponentDefinitionSection::move(int delta) {
     return {};
 }
 bool ComponentDefinitionSection::eventFilter(QObject *object, QEvent *event) {
+    // The action belongs to the message: it goes when the line goes.
+    if (object == error_ && event->type() == QEvent::Hide)
+        action_->hide();
     const bool press = event->type() == QEvent::KeyPress;
     if (!press && event->type() != QEvent::ShortcutOverride)
         return CollapsibleSection::eventFilter(object, event);

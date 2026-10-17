@@ -307,6 +307,37 @@ def parameters_phase(bridge, application, root, environment):
                                      for i in range(bridge.action_get_n_actions(action, None))]
                             assert "Press" in names and bridge.action_do_action(
                                 action, names.index("Press"), None), "Could not open the definition"
+                    # R094.e (ADR 0166 §4.1, §8): the placement has its own Width, so Edit
+                    # definition… asks first. The dialog, its text and its three buttons are named;
+                    # Edit definition at defaults (the default) opens the definition.
+                    asked = []
+
+                    def scope_dialog():
+                        try:
+                            current = bridge.snapshot(app)
+                        except AssertionError:
+                            return None
+                        asked[:] = [(r["name"], r["role"]) for r in current if r["role"] == "dialog"]
+                        dialogs = [r for r in current if r["role"] == "dialog" and
+                                   r["name"] == "Shelf unit has its own values"]
+                        return (current, dialogs[0]) if dialogs else None
+
+                    try:
+                        rows, dialog = wait_for(bridge, scope_dialog, "The values dialog is not exposed")
+                    except AssertionError as error:
+                        raise AssertionError(f"{error}; observed {asked}") from None
+                    assert dialog["description"] == (
+                        "Width 1.5 m differs from the defaults. Shape edits are made on the shared "
+                        "definition at its default values, or on a unique copy."), dialog
+                    choices = [find(rows, name, "button")["name"] for name in
+                               ("Cancel", "Make unique and edit", "Edit definition at defaults")]
+                    with bridge.at_path(app, find(rows, "Edit definition at defaults", "button")["path"]) \
+                            as control:
+                        with bridge.owned(bridge.accessible_get_action_iface(control)) as action:
+                            names = [bridge.string(bridge.action_get_name(action, i, None))
+                                     for i in range(bridge.action_get_n_actions(action, None))]
+                            assert "Press" in names and bridge.action_do_action(
+                                action, names.index("Press"), None), "Could not edit at defaults"
                     seen = []
 
                     def authoring():
@@ -351,6 +382,8 @@ def parameters_phase(bridge, application, root, environment):
                             "header": {"name": header["name"],
                                        "description": header["description"]},
                             "buttons": [reset["name"], reset_all["name"], edit["name"]],
+                            "dialog": {"name": dialog["name"], "description": dialog["description"],
+                                       "buttons": choices},
                             "authoring": {"sections": [definition["name"], drivers["name"]],
                                           "buttons": [add_parameter["name"], "Add driver"],
                                           "trees": sorted(r["name"] for r in trees),

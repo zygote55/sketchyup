@@ -1144,3 +1144,111 @@ differ from §§2 and 3, these notes govern.
   and, with `component_parameter_input_tests`, in the sanitized Wayland step.
   `shortcut_input_tests` checks Shift+D; `accessibility_bridge_test.py` reads the sections,
   header buttons, trees, a parameter row and the strip field over AT-SPI.
+
+## Implementation notes (R094.e)
+
+R094.e built §§4 and 5 in the desktop. These points settle what the ADR left open; where they
+differ from §§4 and 5, these notes govern.
+
+- **Opening.** `Viewport::openContext` is the gesture path (double-click, Enter, Edit › Edit
+  selected context, and Entity info's Edit definition…, whose R094.c hook now calls it). It offers
+  the request to the window's opener, which shows `ParametersScopeDialog`
+  (`src/app/parameters_scope_dialog.*`) when the placement does not show its template
+  (`requireComponentTemplateScope` refuses it); otherwise the context opens directly.
+  `enterContext` stays the raw path for the breadcrumb, programmatic callers and the Outliner's
+  Enter (`organization_panel.cpp`, which R094.f owns), so the Outliner still opens such a
+  placement without asking.
+- **The dialog.** A `Settled<QDialog>` (R091.h): title and heading "*Placement* has its own
+  values", the design's sentence with the differing values in display order ("Width 1200 mm,
+  Shelves 3 and Finish Ash "natural" differ from the defaults. …"), Cancel, Make unique and
+  edit, and Edit definition at defaults (the default, focused, `accentFill`), then the
+  footnote. The dialog's accessible name is the title and its description the sentence. Each
+  choice is checked first by a dry run of its batch; a refusal (or a revision that changed while
+  it was open: "The model changed. Try again.") is shown in the dialog with the §5 mark, joins
+  its accessible description, and the dialog stays open. A nested placement reads
+  "*Width 1800 mm* differs from the defaults. Its values come from *Room*." and offers Cancel and
+  Make unique and edit, which is then the accent-filled default.
+- **Make unique and edit.** One batch labelled "Make *placement* unique":
+  `component_parameter.promote` for a top-level placement. `promote` refuses a nested placement
+  (R094.b), so a nested one gets `component.make_unique` followed by one
+  `component_parameter.update` per parent-supplied value, setting the copy's default to that
+  value, in the same entry. The copy's ID is the document's next definition ID
+  (`makeComponentUnique` allocates the placement's copy first); a wrong prediction would only
+  make the dry run refuse. The copy then shows its template, so its context accepts edits.
+- **Edit definition at defaults.** One batch `component_parameter.reset {all}` labelled "Edit
+  *Definition* at defaults"; the window keeps the placement, its overrides (SI JSON), its name
+  and the `Document::AmendStamp` taken right after the reset. Each `sync` checks it: when the
+  context no longer contains the placement, a stamp that `canAmend` still accepts means nothing
+  was edited and the reset is undone (it moves to the redo branch); otherwise the values are
+  checked with `evaluate`, those the definition no longer has or refuses are left out one by one
+  (the status bar: "*Placement*'s values are restored except Width, which the definition no
+  longer accepts"), and one batch "Restore *placement* values" restores the rest. When the
+  placement shows its own values again while open (Undo of the reset, another client) the
+  context closes with "*Placement* has its own values again; the definition was closed" and the
+  restore is forgotten. The banner adds "*Placement*'s own values return when you close the
+  definition." Every way of closing (Esc, Close definition, the breadcrumb, a click outside,
+  Select #1) goes through the same check, because it watches the context, not the gesture.
+- **PARAMETER_TEMPLATE_SCOPE.** Without a suspension, a context whose placement starts to show
+  its own values while it is open closes with "*Placement* now has its own values. Close the
+  definition and open it again." Only that transition closes it: a placement opened directly
+  with values (Outliner, programmatic) stays open.
+- **Message table.** `src/app/parameter_messages.*` holds every §5 sentence;
+  `parameterErrorSentence` and `formulaErrorSentence` are thin wrappers, and R094.c's and R094.d's
+  interim sentences (bounds, regeneration, stale, removed, can't hold values, the formula rows,
+  "Text can't be stretched", "*Child* has no parameter *name*", referrers) moved there. It reads
+  the error's `details` and the document (driver kind and member, placement names), never the
+  sentence. Bounds use the document's display unit for both the value and the bound
+  ("2600 mm is above the maximum, 2400 mm."; in metres "2.6 m is above the maximum, 2.4 m.").
+  PARAMETER_REGENERATION names the driver: "At -200 mm Slab would pass its stretch plane
+  (Stretch Slab). Nothing was changed." (other kinds: "… can't be regenerated (*Kind* *member*)");
+  the referrers of a refused removal name drivers as "Stretch Top". `parameterRefusal` maps
+  executeBatch's plain "STALE_REVISION" to its code. LIMIT_EXCEEDED quotes the core message and
+  adds "Nothing was changed.".
+- **LOCKED_ENTITY wording.** The ADR gives the definition-default sentence ("Changing the default
+  Width would change *Table*, which is locked. Unlock it or keep the default."). Other definition
+  edits read "Changing the definition would change *Table*, which is locked. Unlock it or keep
+  the definition as it is.", and a value field "*Table* is locked. Unlock it to change its
+  values.". The action reads "Select #1" when the name ends in "#1", else "Select *name*"; a value
+  field offers none when the locked placement is the one it edits. A warning is amber
+  (`warning`) with a padlock mark, not a red invalid border; its field description starts
+  "Warning:" rather than "Invalid:".
+- **Actions.** Value fields, formula fields, the definition editor, the driver form and the
+  Preview strip each show the message's action as a normal Tab stop after the message; they
+  emit `Viewport::parameterAction`, which the window handles: Show the driver opens the
+  definition through §4 (asking when the placement has values) and selects the driver in
+  Drivers; Select #1 enters the locked placement's parent context (closing a suspended one) and
+  selects it, but a locked placement is not selectable in the canvas (`Selection::selectable`),
+  so the Tray shows the Outliner with its row current and focused, where it can be unlocked;
+  PARAMETER_TEMPLATE_SCOPE closes the context. Because a locked placement cannot be selected,
+  its own value fields never show, and the value-field LOCKED_ENTITY sentence is reached only by a
+  race. `ParameterMessageLabel` draws the
+  crossed circle or the padlock in the text colour for the editor, form, strip and dialog lines.
+- **Changed since bound.** The strip (`parameterStatusStrip`) is a `QFrame` on the viewport, the
+  banner's width, under the Preview strip when that shows (else under the banner) and after it
+  in the Tab chain. It compares the open definition's driver states before and after each new
+  revision, so it reacts to every commit path (tools, sections, MCP): drivers that became
+  Changed show it with "*History label*. **Repeat Shelf** now starts from a changed shape.
+  Placements may not look as expected until you rebind."; any later revision (Rebind, Undo,
+  another edit) or closing the context hides it. Rebind commits `component_parameter.rebind`
+  for those drivers ("Rebind driver", "Rebind *n* drivers"); Undo triggers Edit › Undo and shows
+  the key in the design's muted monospace. Its accessible description is the plain sentence and
+  an `Alert` event is sent when it shows.
+- **Theme.** The dialog's default uses the `accentFill` rule; warnings use `warning`, the strip
+  `warningSurface` and `warningBorder` (the border is decorative: the mark and text carry the
+  state).
+- **Teardown.** `~Window` calls `detachParameterStates` first: the opener, the action
+  connection and a pending restore are dropped before the document goes.
+- **Tests.** `component_parameter_state_input_tests` covers the dialog and its three choices,
+  undo when nothing changed, the two labelled entries and restored values, partial restore
+  (by removing a parameter: a bound that excludes the value takes the same `evaluate` loop, but
+  the fixture's nested room table at 1800 mm blocks lowering the maximum below the wide table's
+  1200 mm), undoing the reset, promotion, the nested case, the §5 rows at their controls (bounds,
+  regeneration with Show the driver, locked in the editor with Select, syntax, type with Use
+  120 mm, name, domain, cycle, LIMIT_EXCEEDED in the editor, TEMPLATE_SCOPE and
+  STALE_REVISION in the dialog), the rows the desktop cannot produce from its own thread
+  (NOT_FOUND, INVALID_TARGET, a locked value field, driver targets) through the table, and the
+  strip with Rebind, Undo and Drivers' Rebind all. `native_accessibility_audit` has the dialog
+  in the dialog-keyboard inventory ("parameters-scope", Enter on a placement with its own values),
+  `visible_focus_input_tests` sweeps it and probes each button, and
+  `accessibility_bridge_test.py` reads the dialog, its description and buttons over AT-SPI before
+  editing at defaults.
