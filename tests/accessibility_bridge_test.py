@@ -299,10 +299,49 @@ def parameters_phase(bridge, application, root, environment):
                     reset = find(rows, "Reset Width to the default, 1 m", "button")
                     reset_all = find(rows, "Reset all", "button")
                     edit = find(rows, "Edit definition…", "button")
+                    # R094.d (ADR 0166 §3, §8): Edit definition… opens the definition context;
+                    # its sections, trees, header buttons and the Preview strip are named.
+                    with bridge.at_path(app, edit["path"]) as control:
+                        with bridge.owned(bridge.accessible_get_action_iface(control)) as action:
+                            names = [bridge.string(bridge.action_get_name(action, i, None))
+                                     for i in range(bridge.action_get_n_actions(action, None))]
+                            assert "Press" in names and bridge.action_do_action(
+                                action, names.index("Press"), None), "Could not open the definition"
+                    seen = []
+
+                    def authoring():
+                        current = bridge.snapshot(app)
+                        seen[:] = [(r["name"], r["role"]) for r in current
+                                   if "definition" in r["name"].lower() or "driver" in r["name"].lower()]
+                        headers = [r for r in current if r["name"] == "Parameters · definition"
+                                   and r["role"] == "check box"]
+                        return current if headers else None
+
+                    try:
+                        rows = wait_for(bridge, authoring, "The definition sections are not exposed")
+                    except AssertionError as error:
+                        raise AssertionError(f"{error}; observed {seen}") from None
+                    definition = find(rows, "Parameters · definition", "check box")
+                    drivers = find(rows, "Drivers", "check box")
+                    assert definition["description"].startswith("Expanded"), definition
+                    add_parameter = find(rows, "Add parameter", "button")
+                    add_driver = [r for r in rows if r["name"] == "Add driver" and r["role"] == "button"]
+                    assert add_driver, "The Drivers header's + Driver is named"
+                    trees = [r for r in rows if r["name"] in ("Definition parameters", "Drivers")
+                             and r["role"] != "check box"]
+                    assert {r["name"] for r in trees} == {"Definition parameters", "Drivers"}, trees
+                    cells = [r for r in rows if r["role"] == "table cell" and
+                             r["name"] == "Width, width, Length, 0.5–2 m, 1 m"]
+                    assert cells, "The parameter row reads label, name, type, bounds and default"
+                    strip = find(rows, "Width", "text")
                     return {"field": {"name": field["name"], "description": field["description"]},
                             "header": {"name": header["name"],
                                        "description": header["description"]},
-                            "buttons": [reset["name"], reset_all["name"], edit["name"]]}
+                            "buttons": [reset["name"], reset_all["name"], edit["name"]],
+                            "authoring": {"sections": [definition["name"], drivers["name"]],
+                                          "buttons": [add_parameter["name"], "Add driver"],
+                                          "trees": sorted(r["name"] for r in trees),
+                                          "row": cells[0]["name"], "preview": strip["name"]}}
         finally:
             process.terminate()
             try:

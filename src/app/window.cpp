@@ -1201,7 +1201,7 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
 #formulaCaret {font-family:'DejaVu Sans Mono';}
 #parameterEditor,#driverEditor {border:1px solid $border;border-radius:6px;}
 #driverChangedState,#driverChangedNote {color:$warning;font-weight:600;}
-#driverRowRebind {padding:1px 8px;border:1px solid $warningBorder;}
+#driverRowRebind {padding:1px 8px;border:1px solid $warning;}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
@@ -1221,7 +1221,6 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     // R094.c (ADR 0166 §1.2): longer token names first.
     style.replace("$informationSurface", colors.informationSurface.name());
     style.replace("$information", colors.information.name());
-    style.replace("$warningBorder", colors.warningBorder.name());
     style.replace("$warning", colors.warning.name());
     style.replace("$failureSurface", colors.failureSurface.name());
     style.replace("$failure", colors.failure.name());
