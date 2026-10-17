@@ -17,6 +17,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -421,13 +422,24 @@ void freeAssemblies(Fixture &f) {
             }
         throw std::runtime_error("No clear ground point is in view");
     };
+    // The bookshelf by a click on the ground; the cabinet and the stair by [x,y,z], which
+    // keeps the sanitized run inside its deadline.
+    double x = -4;
     for (const char *name : {"Bookshelf", "Base cabinet", "Straight stair"}) {
         history = f.doc.history().total;
         f.startByKeyboard(name);
-        const auto point = clearGround();
-        check(f.hover(point), std::string("The ") + name + " ghost follows the pointer: " +
-                                  f.status.toStdString());
-        QTest::mouseClick(&view, Qt::LeftButton, {}, point);
+        const bool pointer = std::string(name) == "Bookshelf";
+        if (pointer) {
+            const auto point = clearGround();
+            check(f.hover(point), std::string("The ") + name + " ghost follows the pointer: " +
+                                      f.status.toStdString());
+            QTest::mouseClick(&view, Qt::LeftButton, {}, point);
+        } else {
+            f.focus(box);
+            box->setText(QString("[%1,-4000,0]").arg(int(x * 1000)));
+            QTest::keyClick(box, Qt::Key_Return);
+            x += 2.5;
+        }
         check(QTest::qWaitFor([&] { return !view.assemblyPlacing(); }) &&
                   f.doc.history().total == history + 1 &&
                   latestLabel(f.doc) == std::string("Place ") + name,
@@ -467,17 +479,19 @@ int main(int argc, char **argv) {
         window.activateWindow();
         check(QTest::qWaitForWindowActive(&window), "Window active");
         Fixture f(window);
+        QElapsedTimer clock;
+        clock.start();
         tabAndCards(f);
-        std::cout << "Components tab, filter, cards and accessible text passed\n";
+        std::cout << "Components tab, filter, cards and accessible text passed (" << clock.elapsed() << " ms)\n";
         valuesForm(f);
-        std::cout << "Values form, live validation, Use defaults, Cancel and Esc passed\n";
+        std::cout << "Values form, live validation, Use defaults, Cancel and Esc passed (" << clock.elapsed() << " ms)\n";
         doorOnWall(f);
         std::cout << "Door on a wall with the opening cut in one entry, re-cut from Entity "
-                     "info passed\n";
+                     "info passed (" << clock.elapsed() << " ms)\n";
         keyboardOnFace(f);
-        std::cout << "Keyboard placement on a selected face, reuse and amend passed\n";
+        std::cout << "Keyboard placement on a selected face, reuse and amend passed (" << clock.elapsed() << " ms)\n";
         freeAssemblies(f);
-        std::cout << "Window, table, bookshelf, cabinet and stair at their defaults passed\n";
+        std::cout << "Window, table, bookshelf, cabinet and stair at their defaults passed (" << clock.elapsed() << " ms)\n";
         if (argc == 2) {
             f.startByKeyboard("Interior door");
             f.hover(f.onWall(5.2, 1.3));
