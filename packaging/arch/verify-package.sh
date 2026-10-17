@@ -29,9 +29,10 @@ package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
 # in the series: a later pkgrel upgrades from the previous pkgrel of the same version;
 # the first pkgrel of a patch version x.y.z (z >= 1) upgrades from x.y.(z-1)-1; and the
 # first pkgrel of x.y.0 upgrades from the newest earlier entry of released_packages
-# (1.0.0-1 from the development package 0.1.0-3, 1.1.0-1 from 1.0.1-1). Add each
+# (1.0.0-1 from the development package 0.1.0-3, 1.1.0-1 from 1.0.1-1, 1.2.0-1 from
+# 1.1.1-1). Add each
 # published release to this table, oldest first.
-released_packages=(0.1.0-3 1.0.0-1 1.0.1-1)
+released_packages=(0.1.0-3 1.0.0-1 1.0.1-1 1.1.0-1 1.1.1-1)
 for (( index = 1; index < ${#released_packages[@]}; index++ )); do
   (( $(vercmp "${released_packages[index]}" "${released_packages[index - 1]}") > 0 )) || {
     echo "released_packages is not in vercmp order at ${released_packages[index]}." >&2
@@ -75,6 +76,8 @@ source_dir=/work/package/src/sketchyup-$package_version
 declare -A known_release_sha256=(
   [sketchyup-1.0.0-1-x86_64.pkg.tar.zst]=9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7
   [sketchyup-1.0.1-1-x86_64.pkg.tar.zst]=91e807851d40525ce5429814f88b59c4fef9321de121f165e9e33429b82869f5
+  [sketchyup-1.1.0-1-x86_64.pkg.tar.zst]=e718b8fb0e52bb5ec40b6817b99c92a824242f4a20907a02f50f47e3f0c0d00a
+  [sketchyup-1.1.1-1-x86_64.pkg.tar.zst]=58ddfed5332f57fc3cef422d91938337f136f8c5f29fa19003ccec5c9afd9c2b
 )
 prior_release_cli=
 if [[ -n ${SKETCHYUP_PRIOR_RELEASE_PACKAGE:-} ]]; then
