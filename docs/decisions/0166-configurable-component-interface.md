@@ -964,3 +964,63 @@ R094.b settled these points in the core and command layers. They refine §§1.4,
   same fixture carry it, and a malformed identity is a rejected `native-json` seed.
   `docs/api/native-format-v1.json` describes versions and features only, so it did not
   change.
+
+## Implementation notes (R094.g)
+
+R094.g settled these points against the R082 viewport and inference code. They refine
+§7; [the verification record](../verification/R094g-variant-instancing.md) has the
+measurements and commands.
+
+- **Sharing key.** The viewport resolves a placement body's sharing source as
+  `variant->members.at(member)` when `Document::componentVariant(owner)` is non-null,
+  and as the definition member otherwise. References are excluded the same way, from
+  `variant->references`. That record keys the shared tessellation, the placement mesh
+  (`PlacementKey.source`) and, in the inference index, the local-space index. Equal
+  values share one `VariantPtr`, so their driven members share one record. Undriven
+  members are the template's own `BodyPtr`, so they share with default placements. The
+  displayed-content check is unchanged, and a body whose record differs from the
+  variant member still draws its own world-space mesh. The body cache also keeps the
+  variant pointer, so a body re-resolves its source when its placement's variant
+  changes (override, reset, parent value, undo). A document without parameters has no
+  variants and takes exactly the previous path. Its benchmark hashes, counters and
+  payloads match the base build.
+- **Suite.** `variant_instancing_input_tests` uses a window definition with stretch,
+  position, repeat and visibility drivers. It has default placements, equal-value
+  placements, a second variant and a mirrored variant placement. Every coordinate,
+  driver delta and translation is a small dyadic rational, so the shared path and the
+  per-body path round identically. The framebuffer and picking hashes are therefore
+  required to be equal with sharing on and off, in ten states. R082.dd's prism fixture
+  differs by 3–4 pixels, so it reports pixel differences instead of asserting them.
+- **Benchmark family.** `real_model_benchmark N variant` gives the R082 prism a width
+  parameter (default 2 m) with a stretch driver. It overrides the first placement to
+  2.001 m and copies it as a row and then the row as a grid, at the repeated family's
+  positions. Every placement then shows one variant with one driven member record. The
+  family is saved and reloaded (schema 28) like the others. The 1 mm override keeps the
+  rasterized area of the repeated family, so software frame times compare the
+  instancing path, not llvmpipe fill. An earlier 2.5 m override drew prisms 25 % wider.
+- **Measurements.** The variant family's body-cache and GPU payloads equal the default
+  family's at 1,000 and at 10,000 placements, for both the suite's window and the
+  benchmark prism. That meets the 10 % criterion with a ratio of exactly 1.
+  - In a Release build with R082.jj's single-CPU container controls, the 1 mm variant
+    family is within run-to-run noise of the repeated family for complete-frame and
+    edit-to-feedback p95 at 10,000 placements, in two interleaved rounds of three runs
+    per family. The medians are within +10 % for the frame and −29 % to −3 % for the
+    edit, inside a spread of up to 2.9× between repeated runs. A round with the 2.5 m
+    override was 20–43 % slower, which is consistent with its wider prisms' raster area.
+  - Software rendering does not meet the absolute M9 budgets for either family. One
+    llvmpipe CPU takes 0.9–4.3 s per frame at a million triangles, against the 33.3 ms
+    and 100 ms targets.
+  - This is acceptable for R094.g. The budgets are hardware budgets, met on the AMD
+    machine by R082.jj. The AMD session is waived ([ADR 0161](0161-m9-hardware-evidence-waiver.md)),
+    and the release criterion is parity with the repeated family, which holds.
+- **Remaining per-edit cost (R093.b code, not changed here).** Per-phase thread CPU
+  time shows `Document::apply` of a placement move costs 1.1–1.5 ms in the variant
+  family against 0.4–0.6 ms in the repeated family at 10,000 placements. At 1,000
+  placements the costs are 0.37–0.53 ms against 0.33 ms. The cause is
+  `checkUniqueGeometry` (`src/core/model.cpp`), which every apply runs. While any
+  placement shows a variant, it loops over `ComponentVariantIndex::placements` and
+  calls `variantDirect`, a walk of the variant's member records, once per variant
+  placement. The cost is O(variant placements × members per variant). Keeping
+  per-variant placement counts in the variant index, or caching `variantDirect` per
+  variant, would make it O(distinct variants). `Viewport::refresh` is equal within
+  noise.
