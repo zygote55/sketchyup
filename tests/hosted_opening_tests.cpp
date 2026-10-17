@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iostream>
 #include <limits>
+#include <random>
 using namespace sketchy;
 namespace {
 void check(bool condition, const std::string &message) {
@@ -207,8 +208,41 @@ void concavityAndTransforms() {
         point = shear.point(point);
     const auto result = cutHostedOpening(sheared, entry, profile);
     near(nativeVolume(result.edit.surface), 96, "Exact native sheared host material", 1e-9);
-    // The solid analyzer uses face-local triangulation quantized to 1e-7.
-    near(volume(result.edit.surface), 96, "Sheared triangulated material volume", 1e-6);
+    // The solid analyzer measures the face tessellation at its exact loop corners.
+    near(volume(result.edit.surface), 96, "Sheared triangulated material volume", 1e-9);
+}
+void floatAnchors() {
+    // Pointer picks carry single-precision low bits. The analyzer used to test each
+    // face's 1e-7 m grid tessellation, so the long shallow triangle from a hole corner
+    // to the far top corner of the wall crossed the exact jamb plane up to ten grid
+    // errors along its length, outside the shared-edge tube, and about one such
+    // opening in fourteen was refused as a self-intersection.
+    const auto wall = box({}, {5, .2, 2.7});
+    const auto entry = facing(wall, {0, -1, 0}, 0);
+    const auto cut = [&](double x, double z, double width) {
+        const std::vector<Vec3> profile{{x - width / 2, 0, z - 1},
+                                        {x + width / 2, 0, z - 1},
+                                        {x + width / 2, 0, z + 1},
+                                        {x - width / 2, 0, z + 1}};
+        try {
+            near(volume(cutHostedOpening(wall, entry, profile).edit.surface),
+                 5 * .2 * 2.7 - width * 2 * .2, "Float-anchored opening material", 1e-9);
+        } catch (const std::exception &error) {
+            throw std::runtime_error("Float-anchored opening at x " + std::to_string(x) + ", z " +
+                                     std::to_string(z) + ": " + error.what());
+        }
+    };
+    cut(1.1324900388717651, 1.3612432479858398, 1.119);
+    // mt19937_64 output is standardized; distributions are not, so map it directly.
+    std::mt19937_64 random(20261016);
+    const auto uniform = [&](double low, double high) {
+        return low + (high - low) * double(random() >> 11) * 0x1p-53;
+    };
+    for (int i = 0; i < 100; ++i) {
+        const auto w = std::round(uniform(.8, 1.2) * 1000) / 1000;
+        const double px = float(uniform(1, 4)), pz = float(uniform(1.15, 1.5));
+        cut(px, pz, w);
+    }
 }
 void failures() {
     auto host = box({}, {10, 10, 1});
@@ -235,9 +269,10 @@ int main() {
         openings();
         roomAndObstructions();
         concavityAndTransforms();
+        floatAnchors();
         failures();
-        std::cout << "Bounded hosted openings, first wall exit, native identities, multiple holes "
-                     "and transformed material volumes passed\n";
+        std::cout << "Bounded hosted openings, first wall exit, native identities, multiple holes, "
+                     "transformed material volumes and float-precision anchors passed\n";
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;
