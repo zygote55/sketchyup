@@ -14,8 +14,9 @@ commands, queries and schemas keep their shapes.
   dialog (Edit definition at defaults, Make unique and edit); refusals shown at their
   control; Rebind for drivers whose part changed.
 - Six bundled assemblies (interior door, casement window, dining table, bookshelf, base
-  cabinet, straight stair) in a new Components tab; doors and windows cut their opening
-  when placed. CLI: `sketchyup-cli --build-assembly`. <!-- R094.f: confirm -->
+  cabinet, straight stair) in a new Components tab (View → Components), placed with
+  values; doors and windows cut their opening when placed, and placing one already in
+  the model reuses its definition. CLI: `sketchyup-cli --build-assembly`.
 - Resizable sidebar: drag the handle, Ctrl+Alt+] / Ctrl+Alt+[ or View → Reset sidebar
   width; 240–720 px per column, remembered.
 - API: new `component_parameter.*` transaction operations and
