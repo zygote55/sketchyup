@@ -2,7 +2,7 @@
  "layer": "F02 RC walkthrough 1.2.0 (third candidate, delta of RC2)",
  "date": "2026-10-17",
  "procedure": "docs/M10_ACCEPTANCE.md (RC text)",
- "result": "RC3 passes every re-run check and CI; provider corpus pending at RC3 (orchestrator)",
+ "result": "RC3 passes every re-run check, CI and the provider corpus (R086.f)",
  "rc": {
   "name": "RC3",
   "commit": "d9af0396bd0f43c7d8635771623d46996a02d9ae",
@@ -500,9 +500,15 @@
   "rowAcceptance": "no F02 code changed"
  },
  "providerCorpus": {
-  "status": "pending at RC3 (orchestrator, after owner approval)",
+  "status": "pass at RC3",
+  "record": "docs/verification/R086f-rc120-remote-evaluation.md",
   "corpus": "v4",
   "manifestSha256": "d35a6cc5bfc5ddfb6f8a9da0a1d7cab850747a7f9011642e8e1bbe99a6648f4d",
+  "corpusPassed": true,
+  "tasks": "8/8 at 3/3",
+  "blockers": 0,
+  "undoRecovery": "24/24",
+  "releaseAccepted": false,
   "rc2Outcome": {
    "failedTasks": {
     "resize": "0/3",
