@@ -3,6 +3,7 @@
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/appearance.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/hierarchy_changes.hpp"
 #include "core/shading_normals.hpp"
 #include <QElapsedTimer>
@@ -912,12 +913,14 @@ void Viewport::rebuild() {
              (!cache.owner || !doc_.instances().contains(cache.owner) ||
               doc_.instances().at(cache.owner) != cache.instance ||
               !doc_.definitions().contains(cache.instance->definition) ||
-              doc_.definitions().at(cache.instance->definition) != cache.definition));
+              doc_.definitions().at(cache.instance->definition) != cache.definition ||
+              doc_.componentVariant(cache.owner) != cache.variant));
         if (!stale)
             return cache.source;
         cache.owner = 0;
         cache.instance.reset();
         cache.definition.reset();
+        cache.variant.reset();
         if (!placementSharing_ || body.kind != BodyKind::Geometry || body.referenceImage ||
             body.surface.faces.empty())
             return {};
@@ -936,16 +939,23 @@ void Viewport::rebuild() {
         cache.owner = owner;
         cache.instance = instance;
         cache.definition = definition->second;
+        // R094.g: a placement showing a variant shares by the variant's member
+        // records. Placements with equal values share one variant, and members no
+        // driver changes are the template's own records, shared with default placements.
+        cache.variant = doc_.componentVariant(owner);
+        const auto &records = cache.variant ? cache.variant->members : definition->second->members;
+        const auto &references =
+            cache.variant ? cache.variant->references : definition->second->references;
         auto [reverse, inserted] = members.try_emplace(owner);
         if (inserted)
             for (const auto &[member, target] : instance->members)
                 reverse->second.emplace(target, member);
         const auto member = reverse->second.find(id);
         if (member == reverse->second.end() || member->second == definition->second->root ||
-            definition->second->references.contains(member->second))
+            references.contains(member->second))
             return {};
-        const auto found = definition->second->members.find(member->second);
-        if (found == definition->second->members.end())
+        const auto found = records.find(member->second);
+        if (found == records.end())
             return {};
         if (!recordChanged && found->second == cache.source)
             return cache.source; // Already compared with this unchanged record.
