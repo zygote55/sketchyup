@@ -142,9 +142,11 @@ ChatGPT-plan report therefore carries `taskSeconds: 300`, and the scorer
 requires it to equal `deadlineSeconds`. Freezing 900 would reject every run.
 The 15-minute native lifetime is covered by the injected-clock tests in
 `native_assistant_session_tests` and by the opt-in `assistant_workflow_trial`,
-not by this corpus. **The owner decides whether that is enough for 1.2.0.**
-The alternative is to run the corpus through the native transaction options,
-which changes the harness and needs a new corpus version.
+not by this corpus. **Decided (owner, 2026-10-17):** that is not enough for
+1.2.0. The corpus deadline is raised to the native 15-minute limit, and the
+corpus runs through the native assistant limits and transaction options as
+[corpus version 4](R086e-corpus-v4.md). The public headless ceiling and the
+published API schemas are unchanged.
 
 ## Code and scorer changes
 
@@ -171,9 +173,11 @@ which changes the harness and needs a new corpus version.
   - a missing `outputTokenLimitEnforced` fails closed;
   - a v2 report against the v3 manifest is rejected.
 
-## Live evaluation still required
+## Live evaluation (superseded)
 
-Version 3 has **no live result**. 1.2.0 requires a complete, owner-approved
+Version 3 has **no live result** and will not get one: [corpus version 4](R086e-corpus-v4.md)
+replaces it for 1.2.0, and `provider_trial` now writes `corpusVersion: 4`. The
+procedure below records what version 3 required: a complete, owner-approved
 ChatGPT-plan evaluation of all 24 runs at the 1.2.0 release candidate, after
 the writer-string regeneration. Follow the R086.by live-run procedure with
 `tests/provider-release-corpus-v3.json` in place of the v2 manifest. Record
@@ -200,3 +204,10 @@ All of these ran on 2026-10-16, offline, with `-j6`:
 - `cmake --build --preset dev -j6` built cleanly. The full
   `QT_QPA_PLATFORM=offscreen ctest --preset dev -j6` passed 204/204 in 411 s.
   The 12 `*_real` external-tool tests skipped as usual.
+
+## Successor
+
+[Corpus version 4](R086e-corpus-v4.md) supersedes this version for 1.2.0 by owner
+decision on 2026-10-17. It keeps the same eight tasks, prompts and thresholds and runs
+them through the native assistant session with the 15-minute task limit. This manifest
+and its scoring remain unchanged.

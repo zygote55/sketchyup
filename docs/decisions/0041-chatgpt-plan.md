@@ -139,6 +139,17 @@ Reloaded geometry again measured 16 feet overall, 6 feet high and a centered
 4-foot clear gate opening. This run finished within the former deadline; the
 injected-clock cases, rather than that timing, establish behavior beyond it.
 
+## Release corpora from version 4
+
+By owner decision on 2026-10-17, release corpora from
+[version 4](../verification/R086e-corpus-v4.md) (SketchyUp 1.2.0) run every task through
+the native assistant session: `NativeAssistantSession` with
+`nativeAssistantTransactionOptions()`, the shared ChatGPT-plan limit profile and its
+fifteen-minute task lifetime (`taskSeconds: 900`). The earlier statement that the frozen
+headless corpus keeps its public five-minute draft ceiling applies to versions 1 to 3
+only. The headless session's public 300-second ceiling, its defaults and the published
+API schemas are unchanged.
+
 ## Sources
 
 Verified 2026-10-05 against official OpenAI documentation:

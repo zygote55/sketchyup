@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Offline corpus checks; no provider requests leave the machine.
 
-1. Freeze: generated inputs/prompts must match every committed manifest (v1 and
-   v2 are retained for history; v3 is authoritative), reproduced twice.
-2. Corpus v3 postconditions (the v2 rules): a deterministic replayed
-   Ollama-protocol provider on loopback drives the real provider_trial for 3 x 8 runs. Every run must record
-   passing undo and recovery postconditions, and the complete set must score as
-   passing. An injected extra history step must be detected and block scoring.
+1. Freeze: generated inputs/prompts must match every committed manifest (v1, v2
+   and v3 are retained for history; v4 is authoritative), reproduced twice. The
+   native assistant surface (session, draft ceiling, task lifetime, per-task
+   authorization and tool hash, and both instruction hashes) must match v4.
+2. Corpus v4 postconditions (the v2 rules): a deterministic replayed
+   Ollama-protocol provider on loopback drives the real provider_trial for 3 x 8 runs
+   through the native assistant session with its 15-minute lifetime. Every run must
+   record passing undo and recovery postconditions, every edit draft must outlive the
+   public 300 s ceiling, and the complete set must score as passing, including the
+   recorded wire instructions. An injected extra history step must be detected and
+   block scoring.
 """
 import copy
 import hashlib
@@ -25,9 +30,10 @@ sys.dont_write_bytecode = True
 TESTS = Path(__file__).resolve().parent
 MANIFESTS = [json.loads((TESTS / name).read_text()) for name in
              ('provider-release-corpus.json', 'provider-release-corpus-v2.json',
-              'provider-release-corpus-v3.json')]
-CURRENT = TESTS / 'provider-release-corpus-v3.json'
-VERSION = 3
+              'provider-release-corpus-v3.json', 'provider-release-corpus-v4.json')]
+CURRENT = TESTS / 'provider-release-corpus-v4.json'
+VERSION = 4
+NATIVE_SECONDS = 900
 SPEC = importlib.util.spec_from_file_location('score', TESTS.parent / 'scripts/score-provider-release.py')
 SCORE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SCORE)
@@ -157,7 +163,7 @@ def freeze(trial_binary, root, env):
     for task in MANIFESTS[-1]['tasks']:
         for manifest in MANIFESTS[:-1]:
             check(task == next(t for t in manifest['tasks'] if t['trial'] == task['trial']),
-                  'v3 must keep the v1/v2 task inputs, prompts and thresholds')
+                  'v4 must keep the v1/v2/v3 task inputs, prompts and thresholds')
         for repeat in range(2):
             report = root / f"describe-{task['trial']}-{repeat}.json"
             subprocess.run([trial_binary, '--describe', 'gpt-6-astra', task['trial'], str(report)],
@@ -171,6 +177,21 @@ def freeze(trial_binary, root, env):
                 fail('Retained input differs: ' + task['trial'])
             if data['networkRequested'] is not False or data['corpusVersion'] != VERSION:
                 fail('Description mode requested network or has the wrong version')
+            current = MANIFESTS[-1]
+            assistant, profiles = current['assistant'], current['profiles']
+            frozen = assistant['surfaces'][task['trial']]
+            expected = {'assistantSession': assistant['session'],
+                        'maximumDraftTtlSeconds': assistant['maximumDraftTtlSeconds'],
+                        'taskSeconds': current['deadlineSeconds'],
+                        'clarificationAvailable': assistant['clarificationAvailable'],
+                        'allowedCommands': frozen['allowedCommands'],
+                        'toolsSha256': frozen['toolsSha256'],
+                        'instructionsSha256': profiles['chatgpt-astra']['instructionsSha256'],
+                        'localInstructionsSha256': profiles['ollama-qwen4b']['instructionsSha256']}
+            for field, value in expected.items():
+                if data[field] != value:
+                    fail('Frozen assistant surface drift: ' + task['trial'] + '/' + field)
+            check(data['taskSeconds'] == NATIVE_SECONDS, 'Native 15-minute task lifetime')
 
 
 def run(trial_binary, root, env, port, trial, name, fault=None):
@@ -208,11 +229,19 @@ def postconditions(trial_binary, root, env):
                 name = f'{trial}-{repeat}.json'
                 path, data = run(trial_binary, root, env, server.server_port, trial, name)
                 post = data['postconditions']
-                check(data['corpusVersion'] == VERSION and data['testFault'] is None, 'v3 report')
+                check(data['corpusVersion'] == VERSION and data['testFault'] is None and
+                      data['taskSeconds'] == NATIVE_SECONDS and
+                      data['assistantSession'] == 'native', 'v4 native report')
                 check(data['undoRestores'] and data['recoveryRestores'],
                       f'Postconditions failed for {name}: ' + json.dumps(post))
                 check(post['committed'] == (trial in EDITS), 'Commit classification: ' + name)
                 if trial in EDITS:
+                    # The draft lifetime comes from the native 900 s ceiling, which the
+                    # public headless session (300 s) would reject.
+                    begins = [r['request'] for r in data['executedReceipts']
+                              if r['request'].get('operation') == 'transaction.begin']
+                    check(len(begins) == 1 and 300 < begins[0]['ttlSeconds'] <= NATIVE_SECONDS,
+                          'Native draft lifetime exceeds the headless ceiling: ' + name)
                     check(data['geometryVerified'] and data['result']['applied'] is True and
                           post['recovery']['mode'] == 'recover-latest' and
                           post['committedCanonicalSha256'] != post['inputCanonicalSha256'],
@@ -235,7 +264,7 @@ def postconditions(trial_binary, root, env):
         check(scored['corpusPassed'] and not scored['blockers'] and
               all(row == {'passed': 24, 'runs': 24, 'required': 24}
                   for row in scored['postconditions'].values()),
-              'Offline replay corpus v3 passes: ' + json.dumps(scored['blockers']))
+              'Offline replay corpus v4 passes: ' + json.dumps(scored['blockers']))
         # Injected defect: one extra host history step after the assistant commit.
         path, data = run(trial_binary, root, env, server.server_port, 'room', 'room-fault.json',
                          'extra-history-step')
@@ -268,5 +297,6 @@ with tempfile.TemporaryDirectory(prefix='sketchyup-corpus-') as name:
                NO_PROXY='127.0.0.1', no_proxy='127.0.0.1')
     freeze(sys.argv[1], root, env)
     postconditions(sys.argv[1], root, env)
-print('Eight frozen fixtures reproduced twice; 24 replayed v3 runs restore undo and recovery; '
-      'injected split commit blocks scoring; no provider requests.')
+print('Eight frozen fixtures and the native assistant surface reproduced twice; 24 replayed '
+      'v4 native-session runs restore undo and recovery; injected split commit blocks scoring; '
+      'no provider requests.')

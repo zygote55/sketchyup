@@ -116,8 +116,10 @@ The ChatGPT-plan connection now allows 524,288 reported tokens per task, up from
 the Assistant panel. Its instructions now guide batched modeling and inspection
 ([ADR 0041](decisions/0041-chatgpt-plan.md)). Because the provider profile and the
 instructions changed, 1.2.0 is evaluated against a new provider corpus,
-[version 3](verification/R086d-corpus-v3.md), at the release candidate; the version 2
-results are 1.1.x evidence only.
+[version 4](verification/R086e-corpus-v4.md), at the release candidate. Version 4 runs
+the same eight tasks through the Assistant panel's native limits, including the
+15-minute task limit; the public headless session keeps its 300-second ceiling. The
+version 2 results are 1.1.x evidence only.
 
 ### File format
 
@@ -156,7 +158,7 @@ adding parameters to it.
 | Arch package | `sketchyup` 1.2.0-1, x86_64 |
 | Native document | Schema `sketchyup-document-v28` in SKUPDOC container version 2 for documents with component parameters; v27 for documents with sheets and no parameters; v26 otherwise. Reads versions 1 through 28. Saves record the writer `SketchyUp/1.2.0` |
 | MCP, inspection, transactions and other public schemas | Same versions as 1.0.0 (below), with the additive sheet (1.1.0) and component parameter operations and queries |
-| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the limits above. Evaluated at the release candidate against [corpus v3](verification/R086d-corpus-v3.md); the results are in the release record |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the limits above. Evaluated at the release candidate against [corpus v4](verification/R086e-corpus-v4.md) (native limits, 15 minutes per task); the results are in the release record |
 
 Qt, OpenGL and Blender requirements are unchanged from 1.0.0.
 
