@@ -175,6 +175,16 @@ int main(int argc, char **argv) {
             check(QAccessible::queryAccessibleInterface(f.handle(1))->role() ==
                       QAccessible::Splitter,
                   "The handle's accessible role is splitter");
+#if QT_VERSION >= QT_VERSION_CHECK(6, 11, 0) // Attribute::Orientation is new in Qt 6.11 (D-037).
+            {
+                auto *attributes =
+                    QAccessible::queryAccessibleInterface(f.handle(1))->attributesInterface();
+                check(attributes &&
+                          attributes->attributeValue(QAccessible::Attribute::Orientation)
+                                  .value<Qt::Orientation>() == Qt::Vertical,
+                      "The handle reports a vertical orientation");
+            }
+#endif
             check(f.splitter->handleWidth() == 6 && f.handle(1)->width() == 6,
                   "The handle is 6 px wide at 100% text");
             check(f.handle(1)->cursor().shape() == Qt::SplitHCursor,

@@ -32,6 +32,7 @@ class Bridge:
             "accessible_get_name": ([pointer, pointer], pointer),
             "accessible_get_description": ([pointer, pointer], pointer),
             "accessible_get_role_name": ([pointer, pointer], pointer),
+            "accessible_get_toolkit_version": ([pointer, pointer], pointer),
             "accessible_get_selection_iface": ([pointer], pointer),
             "selection_select_child": ([pointer, integer, pointer], integer),
             "accessible_get_action_iface": ([pointer], pointer),
@@ -553,8 +554,13 @@ def main():
                                     sidebar_handle["orientation"] = (
                                         "vertical" if bridge.state_set_contains(states, 29) else
                                         "horizontal" if bridge.state_set_contains(states, 14) else "none")
-                            assert sidebar_handle["orientation"] == "vertical", \
-                                f"Sidebar handle orientation is {sidebar_handle['orientation']}"
+                            # The bridge reports the running Qt; QAccessible::Attribute::Orientation
+                            # is new in Qt 6.11, so older Qt exposes no orientation (D-037).
+                            qt_version = bridge.string(bridge.accessible_get_toolkit_version(app, None))
+                            qt_release = tuple(int(part) for part in qt_version.split(".")[:2])
+                            if qt_release >= (6, 11):
+                                assert sidebar_handle["orientation"] == "vertical", \
+                                    f"Sidebar handle orientation is {sidebar_handle['orientation']}"
                             measurements = find(rows, "Measurements in meters", "text")
                             with bridge.at_path(app, measurements["path"]) as control:
                                 with bridge.owned(bridge.accessible_get_text_iface(control)) as text:
@@ -605,6 +611,7 @@ def main():
                                 "sheets": sheets,
                                 "parameters": parameters,
                                 "sidebarHandle": {key: sidebar_handle[key] for key in ("name", "role", "orientation")},
+                                "qtVersion": qt_version,
                                 "accessibleNodes": len(rows),
                                 "passes": True,
                                 "releaseAcceptance": False,

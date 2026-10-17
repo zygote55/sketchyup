@@ -62,6 +62,10 @@ does not compile against Qt 6.8.0, the declared minimum. It adds the F02 follow-
 (Minor, a paint marks a driver Changed with "changed shape" wording) and D-039 (Minor,
 `checkUniqueGeometry` cost per edit), and D-040 (Minor, a Weston segfault in one CI Wayland 2×
 line on `main`). D-021 is extended with the F02 integration's CI exposure timeouts. See the counts.
+**Updated 2026-10-17 (D-037 fixed; branch `fix/d037-qt68-orientation`).** The 1.2.0 RC
+walkthrough found D-037 (Major: 1.2.0 does not compile against Qt 6.8.0, the declared
+minimum) on the Qt 6.8 reference clean machine. The Qt 6.8 minimum stays and
+the attribute is guarded at compile time; see "Closed by the D-037 fix" below.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -221,6 +225,33 @@ Closed by the D-033 harness fix (2026-10-15, branch `fix/startup-abort`):
   The Wayland lines start no Xvfb; for them only the logging changes. The journald routing applies to every native
   test in CI, so D-031's message-less Wayland exit (recorded by R091.h) may also have lost a Qt
   message the same way; that is not shown.
+
+Closed by the D-037 fix (2026-10-17, branch `fix/d037-qt68-orientation`):
+
+- **D-037** (SketchyUp 1.2.0 does not compile against Qt 6.8.0, the declared minimum). Class:
+  **Major** (a supported configuration had no working 1.2.0). Found by the 1.2.0 RC gate
+  (`71a6b4f3`) on the Qt 6.8 reference (`archlinux:base-devel-20241013.0.269705`, 2024-10-15
+  archive, Qt 6.8.0, GCC 14.2.1): `src/app/window_sidebar.cpp:112: error: 'Orientation' is not
+  a member of 'QAccessible::Attribute'`. **Cause.** R094.a (`c3cfd6ac`) reports the sidebar
+  handles' orientation through `QAccessible::Attribute::Orientation`, which first appears in
+  Qt 6.11.0: qtbase's `src/gui/accessible/qaccessible_base.h` declares `Custom, Level` at
+  `v6.8.0`, `v6.8.3`, `v6.9.0` and `v6.9.3`, `Custom, Level, Locale` at `v6.10.0` to `v6.10.2`,
+  and `Custom, Level, Locale, Orientation` at `v6.11.0`. The installed headers agree: the
+  reference's `qt6-base 6.8.0-1` has `Custom, Level`; the pinned image's `qt6-base 6.11.2-3`
+  has all four. **Fix.** The handle's `QAccessibleAttributesInterface` is compiled only for
+  `QT_VERSION >= QT_VERSION_CHECK(6, 11, 0)`. On older Qt the handle still reports role
+  `QAccessible::Splitter` and its name; only the orientation is omitted. `CMakeLists.txt` and
+  the support matrix keep Qt 6.8. `sidebar_resize_input_tests` now also checks the handle's
+  orientation attribute when built against Qt 6.11 or later, and `accessibility_bridge_test.py`
+  asserts the AT-SPI vertical state when the running Qt (the bridge's toolkit version, now in
+  its report as `qtVersion`) is 6.11 or later. **Verified.** The whole tree (dev preset, every
+  native fixture, 1117 targets) builds on the Qt 6.8 reference with no errors, so no other
+  F02 code needs a newer Qt. There `sidebar_resize_input_tests` (X11 1×) and the bridge test
+  (X11 1×, orientation "none", `qtVersion` 6.8.0) pass, and the D-036 check on 1.2.0 passes:
+  the sheet and measured PDFs have 0 Poppler syntax errors, readable Title and Creator, a clean
+  `qpdf --check`, and the same text as 1.1.1 on Qt 6.8 (`c4812bec…`, `ef6cbd21…`). In the
+  pinned image (Qt 6.11.2) the native.yml 1× lines for both tests pass on X11 and Wayland,
+  with orientation "vertical". Shipping the fix needs a new 1.2.0 RC.
 
 Closed by the 1.1.1 patch release:
 
@@ -401,11 +432,11 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | Class | Count | IDs |
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
-| Major | 1 | D-037 |
+| Major | 0 | None |
 | Minor | 16 | D-006–D-009, D-019, D-021–D-023, D-027, D-028, D-031, D-032, D-034, D-038–D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **31** | |
-| Fixed since the 2026-10-11 refresh | 6 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1) |
+| **Total open** | **30** | |
+| Fixed since the 2026-10-11 refresh | 7 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
