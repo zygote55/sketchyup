@@ -8,7 +8,6 @@
 #include "app/window.hpp"
 #include <QAction>
 #include <QCheckBox>
-#include <QTimer>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -20,6 +19,7 @@
 #include <QSettings>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QVBoxLayout>
 namespace sketchy {
 Window::~Window() {
@@ -33,6 +33,8 @@ Window::~Window() {
         driversSection_->detach();
     if (previewTimer_)
         previewTimer_->stop();
+    // The sidebar's callbacks must not run while the widgets below are torn down (R094.a).
+    detachSidebar();
     delete assistant_;
     delete render_;
     delete recovery_;

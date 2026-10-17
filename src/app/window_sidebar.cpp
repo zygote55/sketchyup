@@ -199,9 +199,18 @@ void Window::setupSidebar(QWidget *workspace) {
         layoutSidebar();
     });
     auto *watcher = new SidebarWatcher(this, [this] { queueSidebarLayout(); });
+    watcher->setObjectName("sidebarWatcher");
     sideTabs_->installEventFilter(watcher);
     assistant_->installEventFilter(watcher);
     splitter->installEventFilter(watcher);
+}
+void Window::detachSidebar() {
+    // Closing the window hides and resizes the sidebar's widgets while ~QWidget runs, after the
+    // Window is gone: no callback may reach it from here on. Deleting the watcher removes its
+    // event filters.
+    delete findChild<QObject *>("sidebarWatcher", Qt::FindDirectChildrenOnly);
+    if (sidebarSplitter_)
+        disconnect(sidebarSplitter_, nullptr, this, nullptr);
 }
 void Window::queueSidebarLayout() {
     if (sidebarLayoutQueued_)
