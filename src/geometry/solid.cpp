@@ -336,7 +336,9 @@ SolidReport inspectShells(const Surface &surface, const Topology &topology,
     }
     std::vector<BoundedTriangle> triangles;
     for (const auto &[face, record] : surface.faces) {
-        for (auto triangle : surface.triangulate(face)) {
+        // Exact corners: grid-quantized faces can miss a shared edge by more than
+        // the contact tube where a triangle meets the neighbouring face shallowly.
+        for (auto triangle : surface.triangulateExact(face)) {
             // A cross product has area units; linear direction tolerances would
             // reject valid small triangles (including 1 cm faceted cylinders).
             const auto area = length(cross(triangle.b - triangle.a, triangle.c - triangle.a));

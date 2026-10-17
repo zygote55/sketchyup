@@ -48,6 +48,12 @@ struct Surface {
     Id addFaceIds(std::vector<std::vector<Id>> loops);
     Vec3 normal(Id face) const;
     std::vector<Triangle> triangulate(Id face) const;
+    // The same tessellation with each corner at its authoritative loop vertex
+    // instead of the face's 1e-7 m grid. Faces sharing an edge then meet exactly,
+    // which geometric validation needs: independently quantized faces can miss
+    // each other by more than the contact tolerance where a triangle edge meets
+    // a neighbouring face at a shallow angle.
+    std::vector<Triangle> triangulateExact(Id face) const;
     std::vector<Triangle> triangles() const;
     std::vector<Edge> edges() const;
     void validate() const;

@@ -71,13 +71,20 @@ Vec3 Surface::normal(Id id) const {
         throw std::runtime_error("Face area is below tolerance");
     return n * (1 / magnitude);
 }
-std::vector<Triangle> Surface::triangulate(Id id) const {
+namespace {
+// Tessellates on a 1e-7 m grid in the face's own plane frame. With `sources`,
+// also reports the loop vertex each output corner was quantized from (0 when
+// two loop vertices share one grid point and the corner is ambiguous).
+std::vector<Triangle> tessellate(const Surface &surface, Id id,
+                                 std::vector<std::array<Id, 3>> *sources) {
     using namespace Clipper2Lib;
-    const auto &face = faces.at(id);
-    auto n = normal(id);
+    const auto &vertices = surface.vertices;
+    const auto &face = surface.faces.at(id);
+    auto n = surface.normal(id);
     auto origin = vertices.at(face.loops[0][0]);
     auto u = normalized(vertices.at(face.loops[0][1]) - origin), v = cross(n, u);
     Paths64 paths;
+    std::map<std::pair<int64_t, int64_t>, Id> grid;
     constexpr double scale = 1e7;
     for (const auto &loop : face.loops) {
         if (loop.size() < 3 || loop.size() > 10000)
@@ -93,6 +100,12 @@ std::vector<Triangle> Surface::triangulate(Id id) const {
             if (std::abs(dot(d, n)) > tolerance)
                 throw std::runtime_error("Face is not planar");
             path.emplace_back(std::llround(dot(d, u) * scale), std::llround(dot(d, v) * scale));
+            if (sources) {
+                const auto [slot, added] =
+                    grid.try_emplace({path.back().x, path.back().y}, vertexId);
+                if (!added)
+                    slot->second = 0;
+            }
         }
         if (std::abs(Area(path)) < 1)
             throw std::runtime_error("Face area is below tolerance");
@@ -122,9 +135,19 @@ std::vector<Triangle> Surface::triangulate(Id id) const {
             return origin + u * (double(p.x) / scale) + v * (double(p.y) / scale);
         };
         Triangle tri{point(t[0]), point(t[1]), point(t[2]), id};
-        if (dot(cross(tri.b - tri.a, tri.c - tri.a), n) < 0)
+        std::array<Id, 3> corners{};
+        if (sources)
+            for (size_t i = 0; i < 3; ++i) {
+                const auto found = grid.find({t[i].x, t[i].y});
+                corners[i] = found == grid.end() ? 0 : found->second;
+            }
+        if (dot(cross(tri.b - tri.a, tri.c - tri.a), n) < 0) {
             std::swap(tri.b, tri.c);
+            std::swap(corners[1], corners[2]);
+        }
         output.push_back(tri);
+        if (sources)
+            sources->push_back(corners);
     }
     double expected = 0, actual = 0;
     for (const auto &p : paths)
@@ -133,6 +156,24 @@ std::vector<Triangle> Surface::triangulate(Id id) const {
         actual += length(cross(t.b - t.a, t.c - t.a)) * 0.5;
     if (output.empty() || std::abs(actual - expected) > std::max(1e-8, std::abs(expected) * 1e-8))
         throw std::runtime_error("Triangulation area mismatch");
+    return output;
+}
+} // namespace
+std::vector<Triangle> Surface::triangulate(Id id) const { return tessellate(*this, id, nullptr); }
+std::vector<Triangle> Surface::triangulateExact(Id id) const {
+    std::vector<std::array<Id, 3>> sources;
+    auto output = tessellate(*this, id, &sources);
+    const auto n = normal(id);
+    for (size_t i = 0; i < output.size(); ++i) {
+        const auto &corners = sources[i];
+        if (!corners[0] || !corners[1] || !corners[2])
+            continue;
+        const Triangle exact{vertices.at(corners[0]), vertices.at(corners[1]),
+                             vertices.at(corners[2]), id};
+        // A sliver whose exact winding disagrees with the grid's keeps the grid corners.
+        if (dot(cross(exact.b - exact.a, exact.c - exact.a), n) > 0)
+            output[i] = exact;
+    }
     return output;
 }
 std::vector<Triangle> Surface::triangles() const {
