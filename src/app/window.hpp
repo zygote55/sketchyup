@@ -122,6 +122,7 @@ class Window : public QMainWindow {
     std::array<int, 3> sidebarWidths_{};
     bool sidebarLayoutQueued_{};
     void setupSidebar(QWidget *workspace);
+    void detachSidebar();
     void layoutSidebar();
     void queueSidebarLayout();
     void rememberSidebar(int handle);

@@ -23,6 +23,8 @@ Window::~Window() {
     // The document goes before the widgets: a field losing focus must not commit (R094.c).
     if (parameters_)
         parameters_->detach();
+    // The sidebar's callbacks must not run while the widgets below are torn down (R094.a).
+    detachSidebar();
     delete assistant_;
     delete render_;
     delete recovery_;
