@@ -1294,6 +1294,7 @@ The [retained tooltip progress follow-up](verification/R082bb-public-tooltip-pro
 Each Extended row ships in its own gated release ([M10 acceptance](M10_ACCEPTANCE.md)).
 
 - **F01 release: SketchyUp 1.1.0 (package 1.1.0-1).** Delivered. [SketchyUp 1.1.0 is released](https://github.com/zygote55/sketchyup/releases/tag/v1.1.0): tag `v1.1.0` on the release candidate `093484f9`, approved by the owner on 2026-10-15. R090–R092 deliver the row. R092.c prepared the release: the version from its single source, package acceptance upgrading from 1.0.1-1 with the real 1.0.1-1 prior-release check, the [1.1.0 release notes](RELEASE_NOTES.md), the [support matrix](SUPPORT_MATRIX.md) and the gate procedure. The [release record](verification/F01-1.1.0.md) ([summary](verification/F01-1.1.0.json)) was taken at the release candidate. **Track:** Release. **Scope:** F01.
+- **F02 release: SketchyUp 1.2.0 (package 1.2.0-1).** Pending the gate. [R093](#r093) and [R094](#r094) deliver the row. The release preparation sets the version from its single source, upgrades package acceptance from 1.1.1-1 with the real 1.1.1-1 prior-release check, regenerates the provider corpus `inputSha256` values for the `SketchyUp/1.2.0` writer (prompts unchanged; [corpus v3](verification/R086d-corpus-v3.md)), and writes the [1.2.0 release notes](RELEASE_NOTES.md) and the [support matrix](SUPPORT_MATRIX.md). The release record will be `docs/verification/F02-1.2.0.md`, taken at the release candidate under the [M10 gate](M10_ACCEPTANCE.md). **Track:** Release. **Scope:** F02.
 
 <a id="r090"></a>
 

@@ -1,5 +1,201 @@
 # SketchyUp release notes
 
+## 1.2.0
+
+SketchyUp 1.2.0 is a minor release. It adds configurable components, Extended
+[scope row F02](SCOPE.md), in its own gated release ([M10 acceptance](M10_ACCEPTANCE.md)).
+Existing commands, queries and schemas keep their shapes; everything new is additive,
+as a minor version allows ([ADR 0162](decisions/0162-release-versioning.md)). The release
+record, with the release-candidate evidence, will be `docs/verification/F02-1.2.0.md`.
+The [support matrix](SUPPORT_MATRIX.md) states what is supported. 1.2.0 also contains the
+1.1.1 fix (D-036).
+
+### Configurable components
+
+A component definition can have named parameters (a width, a shelf count, a hinge
+side) and drivers that tie them to its parts. Each placement keeps its own values, and
+its geometry is regenerated from the definition. Formulas are data: a closed
+expression language with units, checked before anything changes, that cannot run
+programs or read files. The [user guide](USER_GUIDE.md#configurable-components) walks
+through the workflow; [ADR 0165](decisions/0165-constrained-component-parameters.md)
+defines the parameters, formulas and limits and
+[ADR 0166](decisions/0166-configurable-component-interface.md) the interface.
+
+- **Parameters.** Types: length, area, angle, number, count, yes/no and choice. An
+  input parameter has a default that placements may override, with optional minimum,
+  maximum and step; a derived parameter is a formula over the others (for example
+  `width - 60 mm`). A value outside its bounds is refused, never clamped. Formulas
+  take `mm`, `cm`, `m`, `in`, `ft`, `deg` and `rad`, arithmetic, comparisons,
+  `and`/`or`/`not`, `if`, `min`, `max`, `clamp`, rounding and trigonometric functions,
+  and only the definition's own parameter names. Units are checked: a length cannot be
+  added to a plain number.
+- **Drivers.** Stretch (parts of a piece past a plane move by the change in value),
+  Position, Rotation, Visibility, Repeat (copies along an axis, up to 1,000) and Child
+  parameter (sets a nested component's value). At the default values the definition
+  shows exactly its own geometry.
+- **Parameters in Entity info.** Select one placement: **Parameters · this placement**
+  in the Tray's Info tab lists its values. Type a value in the Measurements box syntax
+  (`1.2m`, `3'11"`); it is checked as you type and applied with Enter or when focus
+  leaves. Each change is one Undo step. **↺** or **Ctrl+Backspace** resets one value
+  and **Reset all** all of them. With the Select tool, the Measurements box sets the
+  last focused parameter (else the first input).
+- **Definition authoring.** In a component's context, **Parameters · definition** adds,
+  edits, renames, reorders and removes parameters, and **Drivers** lists drivers with
+  their state. **Add driver** (**Shift+D**, the Component menu or **+ Driver**) offers
+  only the kinds the selected part accepts. The stretch plane is dragged in the
+  viewport or typed. Formula fields are checked as you type, point at the character
+  in error, and offer a unit fix ("Use 120 mm"). The Preview strip under the banner
+  shows the regenerated shape as a ghost for other values without changing the model.
+  A default, formula or driver change regenerates every placement in the same edit,
+  and keeps scene IDs, materials, the open context and the selection.
+- **A placement that has its own values.** Opening it asks how: **Edit definition at
+  defaults** (the default) shows the definition at its defaults while you edit and
+  restores the placement's values when you close it; **Make unique and edit** makes a
+  copy whose defaults are this placement's values.
+- **Errors at the control.** Every refusal is shown under the field, form, strip or
+  dialog that caused it, in words ("2.6 m is above the maximum, 2.4 m. Nothing was
+  changed."), never by colour alone. A refused change leaves the model unchanged. When
+  an edit changes a part that a driver acts on, an amber strip says the driver now
+  starts from a changed shape and offers **Rebind** and **Undo**; the Drivers list
+  keeps the **Changed** state.
+- **Assemblies.** <!-- R094.f: confirm --> Six configurable assemblies ship with
+  SketchyUp: interior door, casement window, dining table, bookshelf, base cabinet and
+  straight stair. The new **Components** tab in the Tray lists them; choose one, set its
+  values and click to place it. The door and the window cut their opening in the wall
+  in the same step. Placing an assembly that is already in the model reuses its
+  definition. The assemblies are authored by the project, MIT-licensed, and contain no
+  third-party models, textures or fonts.
+- **Instanced variants.** Placements with equal values share one regenerated geometry,
+  so 1,000 placements of one non-default variant cost the same body-cache and GPU
+  payload as 1,000 default placements
+  ([R094.g](verification/R094g-variant-instancing.md)).
+- **SketchUp Dynamic Components are not imported or converted.** SketchyUp neither
+  reads nor writes Dynamic Component attributes, and its formulas are not compatible
+  with theirs.
+
+### Resizable sidebar
+
+Drag the sidebar's left edge, or the handle between Tray and Assistant, to change its
+width. **Ctrl+Alt+]** (View → Widen sidebar) and **Ctrl+Alt+[** (View → Narrow sidebar)
+step 40 px; double-clicking a handle or View → Reset sidebar width restores the
+default. Each column keeps 240–720 px, scaled by the interface text size, and the
+viewport keeps at least 400 px. The width is remembered across launches, in Model and
+Sheets alike.
+
+### Command line and automation
+
+- **New transaction operations:** `component_parameter.define`, `.update`, `.rename`,
+  `.remove`, `.drive`, `.undrive`, `.rebind`, `.override`, `.reset` and `.promote`.
+- **New inspection queries:** `component_parameters.describe`,
+  `component_parameters.values` and `component_parameters.evaluate` (a read-only dry
+  run). MCP, the headless session, `--inspect` and the CLI expose all of them.
+- **Additive result and error fields.** Batch results add `createdComponentDrivers`,
+  `regenerated {placements, variants}` and `parameterWarnings`; `component.edit_instance`
+  reports `parametersPromoted` and `component.replace` `droppedOverrides`. Errors from
+  the parameter commands carry the `PARAMETER_*` codes and a `details` object; errors
+  without details keep their shape.
+- **`--inspect-native`** adds `componentParameters`, `componentDrivers` and
+  `componentParameterOverrides` counts.
+- **CLI:** `sketchyup-cli --build-assembly SOURCE OUTPUT.sketchylib` builds an assembly
+  bundle from its source. <!-- R094.f: confirm -->
+- **In-app assistant: it cannot change component parameters.** Its tool list is
+  unchanged from 1.0.x and 1.1.x; it does not see the `component_parameter*` operations
+  and queries, which are available over MCP and the transaction APIs. Its existing
+  commands follow the parameter rules when they touch a configurable placement (for
+  example, editing a placement alone makes its values the copy's defaults).
+- The schema files keep their names and versions (`transactions-v1`, `inspection-v1`,
+  MCP 2026-07-28 and the others listed under 1.0.0). They gain these entries, and no
+  existing response shape changes.
+
+### Assistant
+
+The ChatGPT-plan connection now allows 524,288 reported tokens per task, up from
+262,144, still in 16 turns, with no per-reply output cap and 15 minutes per task in
+the Assistant panel. Its instructions now guide batched modeling and inspection
+([ADR 0041](decisions/0041-chatgpt-plan.md)). Because the provider profile and the
+instructions changed, 1.2.0 is evaluated against a new provider corpus,
+[version 3](verification/R086d-corpus-v3.md), at the release candidate; the version 2
+results are 1.1.x evidence only.
+
+### File format
+
+1.2.0 writes schema `sketchyup-document-v28` (container version 2, required feature
+`component-parameters-v1` after `drawing-sheets-v1`) **only when the document has a
+component with parameters**. Otherwise it writes schema 27 (with sheets) or 26
+(without), which differ from a 1.1.x save only in the writer string, so SketchyUp 1.1.x
+opens them, and 1.0.x opens schema 26. SketchyUp 1.1.x and 1.0.x refuse a schema-28 file
+with "Unsupported container field" and leave it unchanged (checked against the
+published 1.1.0-1 and 1.0.1-1 packages,
+[R093.e](verification/R093e-component-parameters.md#previous-releases)). Removing every
+parameter and driver saves the model as schema 27 or 26 again. Component bundles and
+templates that contain parameters are schema 28 too. 1.2.0 reads document versions 1
+through 28. Files with parameters saved by development builds before 1.2.0 may need to
+be re-created, because schema 28 could still change until this release
+([ADR 0108](decisions/0108-public-native-format.md#schema-28-component-parameters-r093c)).
+
+### Upgrade from 1.1.1-1
+
+Run `pacman -U sketchyup-1.2.0-1-x86_64.pkg.tar.zst`. pacman orders 1.2.0-1 after
+1.1.1-1. Package acceptance upgrades a 1.1.1-1 package built from the release source to
+1.2.0-1 and checks that preferences survive. It also checks that the published 1.1.1-1
+CLI refuses schema-28 files unchanged and opens a parameter-free file saved by 1.2.0.
+
+To roll back, install `sketchyup-1.1.1-1-x86_64.pkg.tar.zst` with `pacman -U`. Documents
+without parameters open in 1.1.1; documents with parameters do not. When 1.2.0 saves
+over an existing document, the previous bytes are kept as `NAME.sketchyup.bak`, which
+holds only one previous version, so copy any document you may need in 1.1.x before
+adding parameters to it.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.2.0 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch package | `sketchyup` 1.2.0-1, x86_64 |
+| Native document | Schema `sketchyup-document-v28` in SKUPDOC container version 2 for documents with component parameters; v27 for documents with sheets and no parameters; v26 otherwise. Reads versions 1 through 28. Saves record the writer `SketchyUp/1.2.0` |
+| MCP, inspection, transactions and other public schemas | Same versions as 1.0.0 (below), with the additive sheet (1.1.0) and component parameter operations and queries |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the limits above. Evaluated at the release candidate against [corpus v3](verification/R086d-corpus-v3.md); the results are in the release record |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.0.0.
+
+### Known limitations
+
+The 1.1.0 and 1.0.0 limitations below still apply, except that F01 and F02 are now
+delivered. For configurable components:
+
+- **One-way formulas only.** No geometric constraints or solving; editing geometry
+  never changes a parameter. A formula reads only its own definition's parameters, not
+  another component's, a parent's or a sibling's. There are no per-copy formulas and no
+  material, text or tag drivers.
+- **Nested placements have no values of their own.** Their values come from their
+  defaults or the parent's Child parameter drivers; Make unique and edit is the way to
+  change one.
+- **Curves and stretch planes.** A circle, arc or pie must lie wholly on one side of
+  every stretch plane of its part; a driver or edit that would cross one is refused.
+- **Re-baselining is not byte-exact.** Changing a default and changing it back
+  (900 → 1200 → 900 mm) may leave last-bit differences in the shape; Undo restores the
+  exact records.
+- **Edit definition at defaults leaves two History entries** ("Edit *Definition* at
+  defaults" and "Restore *placement* values") when something was edited, and none when
+  nothing was. The Outliner's Enter opens such a placement without asking.
+  <!-- R094.f: confirm (R094.f owns the Outliner's Enter) -->
+- **The Select tool's digits stay view shortcuts.** Reach the Measurements box with F6,
+  Tab or a click to type a parameter value.
+- **Limits:** 128 parameters and 256 drivers per definition, 1,024 configurable
+  definitions and 4,096 distinct variants per document, 1,024-byte formulas, 8 levels of
+  configurable nesting, and a document evaluation budget
+  ([ADR 0165 §3](decisions/0165-constrained-component-parameters.md#3-dependency-graph-and-limits)).
+- **Performance is measured in software only.** At 10,000 placements of one variant,
+  frame and edit times are within run-to-run noise of default placements on llvmpipe,
+  which meets neither hardware budget for either kind. Applying a placement move takes
+  1.1–1.5 ms with variant placements against 0.4–0.6 ms with default placements. No
+  hardware run was made (waived,
+  [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md);
+  [R094.g](verification/R094g-variant-instancing.md)).
+
+The open-defect list is [R089.a](verification/R089a-defect-triage.md).
+Extended rows F03–F07 and the Investigate rows remain outside this release.
+
 ## 1.1.1
 
 SketchyUp 1.1.1 is a patch release for 1.1.0. It fixes one defect and changes no
