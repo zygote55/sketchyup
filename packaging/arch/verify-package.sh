@@ -223,6 +223,20 @@ runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEV
 pacman -U --noconfirm "sketchyup-$package_version-$package_release-x86_64.pkg.tar.zst"
 pacman -Qkk sketchyup
 [[ $(pacman -Q sketchyup) == "sketchyup $package_version-$package_release" ]]
+# ADR 0166 §6.1 (R094.f): the package installs the six configurable assemblies, built at
+# package build time from resources/assemblies, as component bundles the desktop reads.
+assemblies=(interior-door casement-window dining-table bookshelf base-cabinet straight-stair)
+[[ $(find /usr/share/sketchyup/assemblies -maxdepth 1 -type f -name '*.sketchylib' | wc -l) == "${#assemblies[@]}" ]]
+for assembly in "${assemblies[@]}"; do
+  bundle=/usr/share/sketchyup/assemblies/$assembly.sketchylib
+  [[ -s $bundle && -r $bundle && $(head -c 6 "$bundle") == SKYLIB ]]
+  [[ $(pacman -Qoq "$bundle") == sketchyup ]]
+  # The installed bytes are the ones the packaged CLI builds from the packaged source.
+  runuser -u builder -- sketchyup-cli --build-assembly "$source_dir/resources/assemblies/$assembly.json" \
+    "/work/acceptance/$assembly.sketchylib" > /dev/null
+  cmp "$bundle" "/work/acceptance/$assembly.sketchylib"
+done
+printf 'Installed %s configurable assemblies, byte-identical to a rebuild from their sources.\n' "${#assemblies[@]}"
 [[ $(runuser -u builder -- sketchyup-cli --version) == "sketchyup-cli $package_version" ]]
 if [[ -n $prior_release_cli ]]; then
   # The released CLI refuses, unchanged, every retained fixture newer than it reads,
@@ -299,6 +313,7 @@ done < /work/acceptance/package-owned-paths.txt
 [[ ! -e /usr/share/applications/io.sketchyup.SketchyUp.desktop ]]
 [[ ! -e /usr/share/icons/hicolor/scalable/apps/io.sketchyup.SketchyUp.svg ]]
 [[ ! -e /usr/share/mime/packages/io.sketchyup.SketchyUp.xml ]]
+[[ ! -e /usr/share/sketchyup/assemblies ]]
 [[ -s '/work/acceptance/Room model.sketchyup' ]]
 [[ -s /work/acceptance/migrations/m4-complete-v11.sketchyup/migrated.sketchyup ]]
 jq -e '.passed and (.fixtures | length >= 20)' /work/acceptance/migrations/report.json

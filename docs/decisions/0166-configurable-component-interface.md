@@ -1144,3 +1144,122 @@ differ from §§2 and 3, these notes govern.
   and, with `component_parameter_input_tests`, in the sanitized Wayland step.
   `shortcut_input_tests` checks Shift+D; `accessibility_bridge_test.py` reads the sections,
   header buttons, trees, a parameter row and the strip field over AT-SPI.
+
+## Implementation notes (R094.f)
+
+R094.f built §6 in the core, the CLI and the desktop. These points settle what the ADR left
+open; where they differ from §6, these notes govern.
+
+- **Sources.** `resources/assemblies/*.json` (`format` `"sketchyup-assembly-source"`,
+  `version` 1, `license` `"MIT"`, `assembly`, `name`, `description`, `labels`, `units`,
+  `commands`) and a README stating the licence, the format and how to build. Each file is one
+  batch of at most 100 public commands applied to a new document; its IDs are the ones a new
+  document allocates in order. Members are boxes (`geometry.face` and `geometry.push_pull`)
+  with plain-colour materials; no third-party models, textures or fonts.
+- **Parameter sets** (Open item 7's default; all quantity inputs are bounded):
+  - Interior door: width 600–1200 mm, height 1900–2400 mm, hinge side (Left, Right: two
+    leaves with `visibility`; the right leaf's frame is turned 180° about z so one stretch
+    and a `position` on width keep it hinged on the right jamb), leaf open 0–90°. The frame
+    is a ring with a threshold whose front face is the glue face, so the opening is the
+    full width × height.
+  - Casement window: width 600–2400 mm, height 600–2000 mm, panes 1–4 (the sash is
+    stretched to `(width - 100 mm) / panes` and repeated at that spacing), frame depth
+    60–200 mm (a stretch of the glue member's back face along the glue normal, which leaves
+    the glue face in place), opening angle 0–90°.
+  - Dining table: width 1200–2400 mm, depth 700–1200 mm, height 700–780 mm, legs (Square,
+    Tapered: two leg sets with `visibility`), apron (boolean). The leg spacing is derived
+    inline (`width - 140 mm`, `depth - 140 mm` in the legs' `position` drivers), not a named
+    parameter.
+  - Bookshelf: width 400–1200 mm, height 800–2400 mm, depth 200–450 mm, shelves 1–8 (a
+    `repeat` whose spacing `(height - 36 mm) / (shelves + 1)` is derived inline).
+  - Base cabinet: width 300–1200 mm, height 700–950 mm, depth 300–650 mm, doors 1–2, shelves
+    0–3, toe-kick height 50–150 mm.
+  - Straight stair: total rise 700–4000 mm, going 220–350 mm, width 600–1500 mm, riser count
+    (derived, `round(rise / 175 mm)`), nosing 10–50 mm. **The pitched frame works**: the
+    Flight group is pitched by a `rotation` driver about y, the Step group (tread, nosing,
+    riser) counter-rotates by the same Δ and is repeated `risers` times along the flight at
+    the step's diagonal `sqrt((rise / risers) ^ 2 + going ^ 2)`. No core change was needed.
+  The card's count is the definition's parameters (inputs and derived), which gives the
+  design's 4, 5, 5, 4, 6 and 5; the values form lists the inputs only.
+- **`--build-assembly`.** `sketchyup-cli --build-assembly <source> <output.sketchylib>` is a
+  standalone mode; the output must be a new path. The build lives in
+  `src/io/assembly_source.{hpp,cpp}` (`buildAssemblyBundle`), so the headless tests build
+  bundles without the CLI. It applies the batch, stamps the identity with
+  `setComponentAssembly` on the one top-level placement's definition and encodes the bundle.
+  **Byte-identical builds** need a fixed document identity: `captureLibraryComponent` and
+  `encodeComponentBundle` take an optional identity, and an assembly's is 32 hex digits of
+  SHA-256 over its `id` and `version`. The thumbnail (320 × 240 PNG) is the measured-drawing
+  hidden-line pass (`captureMeasuredDrawing`, the R078/R092 export path) of an orthographic
+  view from the front left, painted with QPainter on a QImage; it draws no text, so it does
+  not depend on installed fonts.
+- **Build tree and package.** CMake builds each source into
+  `<build>/share/sketchyup/assemblies/` (target `sketchyup_assemblies`, in `ALL`, only with
+  the CLI) and installs them to `share/sketchyup/assemblies/`. The executables sit at the
+  build root, not in `bin/`, so the desktop looks in `applicationDirPath()/../share/
+  sketchyup/assemblies` (the package) and then `applicationDirPath()/share/sketchyup/
+  assemblies` (the build tree). `verify-package.sh` checks the six installed bundles, that the
+  package owns them, that each is byte-identical to a rebuild from the packaged source with
+  the packaged CLI, and that removal deletes the folder.
+- **`placeLibraryAssembly(Document&, bundle, AssemblyPlacement, overrides, label)`.** The
+  placement is a transform (free) or an `AssemblyHostFace` (`host`, `face`, host-local
+  `anchor` and `tangent`, `inset`: `component.attach`'s parameters). Overrides are
+  `component_parameter.override` literals (a `QJsonObject`) and go through that command's
+  builder, so refusals keep the core's codes. Reuse picks the lowest-ID definition with the
+  bundle's identity; a bundle without one is inserted as before. Every step runs on one
+  `readSnapshot` draft and the document receives one edit labelled "Place *Name*"; a refusal
+  leaves it unchanged. `libraryAssemblyIdentity` and `findLibraryAssembly` are the helpers.
+- **Components tab** (`src/app/components_tab.*`, tab 12, focus proxy the Show box, and a
+  View → Components action like every other Tray tab). "Components" is a
+  `CollapsibleSection`; the cards are a `QListView` in icon mode with a painted card
+  delegate, two columns sized from font metrics (names and captions wrap), one Tab stop and
+  arrow keys. A card's accessible text is "Interior door, cuts opening, 4 parameters" (",
+  in this model" when the model has the assembly); its caption adds "In this model" too.
+  Enter or a click starts placing. All components adds the user library folder's component
+  bundles (caption "Component"; decoded when activated). The values form uses
+  `ParameterValueField` (no reset buttons: the form has Use defaults), shows defaults and
+  bounds in the model's units, checks each value with `component_parameters.evaluate` on the
+  bundle's document 150 ms after typing and at once on Enter, and stores only values that
+  differ from the defaults. Esc anywhere in the tab, or Cancel, ends placement; the form
+  closes when placement ends. After placing, the Tray shows the Info tab.
+- **Colours.** Cards use `input` with a `muted` border (the design's `#c9d4c5` is 1.5:1
+  against the card fill, below the 3:1 for borders), the pressed (current) card `selected`
+  with a 2 px `accent` border, and with focus in the list a 2 px `ink` border. The name is
+  `ink`; the caption is `muted`, and `ink` on the pressed card, where `muted` on `selected` is
+  below 4.5:1. The note, Show label and "Esc" key are `muted`. Both themes come from
+  `ThemeColors` through `Window::applyTheme`.
+- **Placing** (`src/app/viewport_assembly.cpp`). Placement is a mode over the Select tool;
+  the status bar shows the design's text ("Placing Interior door · Click a wall face to place ·
+  the opening is cut in the same step · Esc cancels"; "… · Click to place · Esc cancels").
+  The ghost is the assembly at the form's values from a dry run of
+  `component_parameter.override` on a private copy of the bundle's document (all visible
+  members, not only the changed ones that `previewBatch` returns), redrawn under the pointer
+  with the parameter ghost's dashed edges and hatch. A gluing assembly snaps to the hovered
+  face of ordinary geometry through `componentPlacementOnFace` with a tangent horizontal
+  along the face (so a door stands upright), draws the opening outline, the anchor and the
+  opening width in the information colour, and 150 ms after the pointer rests runs
+  `placeLibraryAssembly` on a private snapshot, whose cut outline (or refusal) is shown. A
+  free assembly goes onto the hovered face's plane, else the ground. A host anchor from the
+  pointer or a face's centre moves in whole millimetres across the face (from its first corner
+  along the tangent): the core refuses about one opening in seven cut from anchors with
+  single-precision low-order bits, as pointer rays carry, with "Opening requires validated
+  closed geometry: self_intersection" (measured over 770 anchors for widths 800–1200 mm;
+  none with millimetre anchors). That core defect also affects Shift+H and is left to a core
+  slice. The glue anchor of the
+  door and the window is the opening's centre at the defaults, so Enter with a face selected
+  centres the opening on the face. The Measurements box takes host-local anchor coordinates
+  or an inset (gluing) or `[x,y,z]` (free); after placing, re-entry amends the entry
+  (`Document::amendLast`) until another edit or a tool change. While placing or amending, the
+  box is the placement's, not Entity info's parameter routing (§1.3).
+- **Tests.** `assembly_bundle_tests` builds every source twice and compares the bytes with each
+  other and with the CLI-built bundle, decodes each, checks the parameters, identity, glue
+  and the 320 × 240 thumbnail, and places each at its defaults, every input at its minimum
+  and maximum, every choice option and boolean, and all inputs at their minimum and at their
+  maximum; the door and window cut through a fixture wall. `assembly_placement_tests` covers
+  one entry that inserts, overrides and cuts a 1000 mm opening, the re-cut on a width change
+  in one entry, reuse by identity, undo and redo, refusals that leave the document unchanged,
+  a unique copy losing the identity, and a bundle without one. `assembly_library_input_tests`
+  covers the tab, the filter, the cards by keyboard, the form, the ghost, the door on a wall
+  in one entry and its re-cut from Entity info, keyboard placement on a selected face with
+  reuse and amend, `[x,y,z]` with amend, and the window, table, bookshelf, cabinet and stair
+  at their defaults. `keyboard_panel_tabs_tests` gains the Components tab and its action;
+  `library_input_tests` is unchanged.

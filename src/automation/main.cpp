@@ -7,11 +7,13 @@
 #include "automation/recipe.hpp"
 #include "automation/session.hpp"
 #include "integrations/glb_export.hpp"
+#include "io/assembly_source.hpp"
 #include "io/document_io.hpp"
 #include "io/dxf_export.hpp"
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
 #include "io/measured_request.hpp"
+#include "io/new_file.hpp"
 #include "io/native_format.hpp"
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
@@ -134,6 +136,10 @@ int main(int argc, char **argv) {
     parser.addOption(
         {"preview", "Validate a script and return prospective geometry without committing"});
     parser.addOption({"script", "Read a command array from a local JSON file", "path"});
+    parser.addOption({"build-assembly",
+                      "Build an assembly source into a new .sketchylib bundle given as the one "
+                      "positional argument",
+                      "source"});
     try {
         // Parse without QCommandLineParser's unstructured error exit.
         if (!parser.parse(measuredExport ? originalArguments : app.arguments()))
@@ -154,6 +160,27 @@ int main(int argc, char **argv) {
                 throw sketchy::InspectionError("INVALID_REQUEST",
                                                "Extension discovery is a standalone operation");
             std::cout << QJsonDocument(sketchy::extensionCapabilities())
+                             .toJson(QJsonDocument::Compact)
+                             .toStdString()
+                      << '\n';
+            return 0;
+        }
+        if (parser.isSet("build-assembly")) {
+            // ADR 0166 §6.1 (R094.f): sketchyup-cli --build-assembly <source> <output.sketchylib>
+            if (parser.optionNames().size() != 1 || parser.positionalArguments().size() != 1)
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST",
+                    "--build-assembly takes a source and one new .sketchylib output path");
+            QFile source(parser.value("build-assembly"));
+            if (!source.open(QIODevice::ReadOnly) || source.size() > 1024 * 1024)
+                throw std::runtime_error("Cannot read a bounded assembly source");
+            const auto output = parser.positionalArguments().first();
+            const auto bundle = sketchy::buildAssemblyBundle(source.readAll());
+            // Checks the bundle decodes before the new file is published.
+            sketchy::writeComponentBundle(bundle, output);
+            std::cout << QJsonDocument(QJsonObject{{"status", "built"},
+                                                   {"output", output},
+                                                   {"bytes", double(bundle.size())}})
                              .toJson(QJsonDocument::Compact)
                              .toStdString()
                       << '\n';

@@ -1637,6 +1637,7 @@ void Viewport::paintScene(QPaintDevice *device) {
     paintSelection(p);
     paintAssistantPreview(p);
     paintParameterOverlay(p);
+    paintAssemblyOverlay(p);
     if (hasFocus()) {
         p.setPen(QPen(colors_.accent, 2));
         p.setBrush(Qt::NoBrush);
@@ -1960,6 +1961,7 @@ void Viewport::setSelection(Id body, Id face) {
 
 void Viewport::setTool(Tool tool) {
     cancel();
+    assemblyAmend_.reset();
     tool_ = tool;
     if (tool == Tool::Walk || tool == Tool::LookAround)
         setOrthographic(false);
@@ -2007,6 +2009,7 @@ void Viewport::clearPreview() {
     update();
 }
 void Viewport::cancel() {
+    endAssemblyPlacement();
     stopWalking();
     stopSceneTransition();
     hostedCommand_.reset();
@@ -2448,6 +2451,8 @@ bool Viewport::measurements(const QString &text) {
             finishShape(*origin + line.direction * length(*base - *origin));
             return doc_.revision() != revision || measurementCompleted_;
         }
+        if (assemblyMeasurementsActive())
+            return assemblyMeasurements(trimmed);
         if (tool_ == Tool::HostedPlacement)
             return hostedMeasurements(trimmed);
         if (transformTool())
@@ -2750,6 +2755,8 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     // The stretch plane takes the drag before Alt-orbit: Alt drags it without snapping.
     if (stretchPress(e))
         return;
+    if (assemblyPress(e))
+        return;
     if (tool_ == Tool::Paint && e->button() == Qt::LeftButton) {
         try {
             paintAt(e->position(), e->modifiers().testFlag(Qt::AltModifier));
@@ -2897,6 +2904,7 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
         previous_ = e->position();
         return;
     }
+    assemblyMove(e);
     if (dragging_ && !e->buttons().testFlag(dragButton_)) {
         dragging_ = false;
         dragButton_ = Qt::NoButton;
@@ -3002,6 +3010,8 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     }
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
+    if (assemblyKey(e))
+        return;
     if (tool_ == Tool::HostedPlacement &&
         (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)) {
         try {
