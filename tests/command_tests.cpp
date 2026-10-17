@@ -11,6 +11,7 @@
 #include "core/assets.hpp"
 #include "core/reference_images.hpp"
 #include "core/components.hpp"
+#include "core/component_parameters.hpp"
 #include "core/face_orientation.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
@@ -1115,6 +1116,28 @@ int main(int argc, char **argv) {
         cases.append(QJsonObject{{"command", "reference_image.calibrate"}, {"body", "1"},
                                   {"first", QJsonArray{0,0}}, {"second", QJsonArray{1,0}},
                                   {"knownLength", 4}});
+        // Component parameter operations (R093.d) on a parametric definition #1.
+        auto parameterCase = [&](const char *name, QJsonObject fields) {
+            fields["command"] = name;
+            cases.append(fields);
+        };
+        parameterCase("component_parameter.define",
+                      {{"definition", "1"}, {"name", "height"}, {"label", "Height"},
+                       {"type", "length"}, {"mode", "input"}, {"expression", "2 m"}});
+        parameterCase("component_parameter.update",
+                      {{"definition", "1"}, {"name", "width"}, {"expression", "3 m"}});
+        parameterCase("component_parameter.rename",
+                      {{"definition", "1"}, {"name", "width"}, {"newName", "span"}});
+        parameterCase("component_parameter.remove", {{"definition", "1"}, {"name", "spare"}});
+        parameterCase("component_parameter.drive",
+                      {{"definition", "1"}, {"kind", "visibility"}, {"member", "1"},
+                       {"expression", "width > 1 m"}, {"data", QJsonObject{}}});
+        parameterCase("component_parameter.undrive", {{"definition", "1"}, {"driver", "1"}});
+        parameterCase("component_parameter.rebind", {{"definition", "1"}, {"all", true}});
+        parameterCase("component_parameter.override",
+                      {{"body", "1"}, {"values", QJsonObject{{"width", "2 m"}}}});
+        parameterCase("component_parameter.reset", {{"body", "1"}, {"all", true}});
+        parameterCase("component_parameter.promote", {{"body", "1"}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -1228,6 +1251,39 @@ int main(int argc, char **argv) {
                     const auto raw = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});
                     createComponent(doc, raw);
                 }
+            }
+            if (command["command"].toString().startsWith("component_parameter.")) {
+                const auto component = createComponent(doc, 1);
+                const auto &definition = *doc.definitions().at(component.definition);
+                Id member = 0;
+                for (const auto &[id, body] : definition.members)
+                    if (id != definition.root && !member)
+                        member = id;
+                if (command.contains("member"))
+                    command["member"] = QString::number(member);
+                if (command.contains("body"))
+                    command["body"] = QString::number(component.instance);
+                ComponentParameterSpec width{"width", "Width", ParameterType::Length,
+                                             ComponentParameterMode::Input, "1 m"};
+                defineComponentParameter(doc, component.definition, width);
+                ComponentParameterSpec spare{"spare", "Spare", ParameterType::Number,
+                                             ComponentParameterMode::Input, "1"};
+                defineComponentParameter(doc, component.definition, spare);
+                ComponentDriverSpec visible;
+                visible.kind = ComponentDriverKind::Visibility;
+                visible.member = member;
+                visible.expression = "width > 0 m";
+                driveComponent(doc, component.definition, 0, visible);
+                if (command["command"] == "component_parameter.rebind")
+                    editComponentDefinition(doc, component.definition, [&](Document &draft) {
+                        draft.move(member, {0, 0, .01});
+                        return ChangeReport{};
+                    });
+                if (command["command"] == "component_parameter.reset" ||
+                    command["command"] == "component_parameter.promote")
+                    overrideComponentParameters(
+                        doc, component.instance,
+                        {{"width", ParameterQuantity{2, parameterDimension(ParameterType::Length)}}});
             }
             if (command["command"] == "component.glue" ||
                 command["command"] == "component.attach" ||

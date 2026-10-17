@@ -67,4 +67,39 @@ QJsonObject componentScopeResult(QJsonObject result, Id instance) {
     }
     return result;
 }
+void rejectScopedParameterCommands(const QJsonArray &commands, Id scopedDefinition) {
+    for (const auto &value : commands) {
+        const auto command = value.toObject();
+        const auto name = command.value("command").toString();
+        if (!name.startsWith(QStringLiteral("component_parameter")))
+            continue;
+        bool ok{};
+        const auto named = command.value("definition").toString().toULongLong(&ok);
+        if (!ok || named != scopedDefinition)
+            throw std::runtime_error("Edit another definition's parameters, or a placement's "
+                                     "values, outside this component's edit scope");
+        throw std::runtime_error("Change the scoped definition's parameters in the outer batch, "
+                                 "beside the template edit");
+    }
+}
+std::set<Id> scopedCommandRecords(const QJsonArray &commands) {
+    std::set<Id> result;
+    auto add = [&](const QJsonValue &value) {
+        bool ok{};
+        const auto id = value.toString().toULongLong(&ok);
+        if (value.isString() && ok && id)
+            result.insert(id);
+    };
+    for (const auto &value : commands) {
+        const auto command = value.toObject();
+        for (const auto *key : {"body", "context", "parent", "tool"})
+            if (command.contains(key))
+                add(command.value(key));
+        for (const auto &member : command.value("members").toArray())
+            add(member);
+        for (const auto &entity : command.value("entities").toArray())
+            add(entity.toObject().value("body"));
+    }
+    return result;
+}
 } // namespace sketchy

@@ -1,8 +1,10 @@
 #include "io/document_io.hpp"
 #include "core/components.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/document_limits.hpp"
 #include "io/annotations_io.hpp"
 #include "io/assets.hpp"
+#include "io/component_parameters_io.hpp"
 #include "io/document_decode_p.hpp"
 #include "io/drawing_items_io.hpp"
 #include "io/drawing_sheets_io.hpp"
@@ -87,18 +89,25 @@ std::set<Id> placementMembers(const ComponentInstances &instances) {
 QJsonObject placementFloors(const Document &doc, Id root, const ComponentInstance &instance) {
     QJsonObject floors;
     const auto &definition = *doc.definitions().at(instance.definition);
+    // A parametric placement projects its variant's members (ADR 0165 §5), repeat
+    // copies included; a nested placement starts from its own variant's root.
+    const auto variant = doc.componentVariant(root);
+    const auto &members = variant ? variant->members : definition.members;
+    const auto &references = variant ? variant->references : definition.references;
     for (const auto &[member, target] : instance.members) {
         if (target == root)
             continue;
-        const auto &prototype =
-            definition.references.contains(member)
-                ? *doc.definitions()
-                       .at(definition.references.at(member))
-                       ->members.at(doc.definitions().at(definition.references.at(member))->root)
-                : *definition.members.at(member);
+        const Body *prototype{};
+        if (const auto reference = references.find(member); reference != references.end()) {
+            const auto &child = *doc.definitions().at(reference->second);
+            const auto nested = doc.componentVariant(target);
+            prototype = nested ? nested->members.at(child.root).get()
+                               : child.members.at(child.root).get();
+        } else
+            prototype = members.at(member).get();
         const auto &body = *doc.bodies().at(target);
-        if (body.surface.nextId != prototype.surface.nextId ||
-            body.topology.nextId != prototype.topology.nextId)
+        if (body.surface.nextId != prototype->surface.nextId ||
+            body.topology.nextId != prototype->topology.nextId)
             floors[sid(target)] = QJsonArray{sid(body.surface.nextId), sid(body.topology.nextId)};
     }
     return floors;
@@ -120,7 +129,8 @@ std::vector<Id> topLevelPlacements(const ComponentInstances &instances) {
 // Bound the expansion before allocating it, using validated definition sizes.
 void boundPlacements(const std::map<Id, BodyPtr> &stored, const ComponentDefinitions &definitions,
                      const ComponentInstances &instances, const std::vector<Id> &roots,
-                     const std::map<Id, ComponentSize> &sizes) {
+                     const std::map<Id, ComponentSize> &sizes,
+                     const ComponentVariantIndex &variants) {
     ComponentSize total;
     for (const auto &[id, body] : stored) {
         total.records += 1;
@@ -135,7 +145,13 @@ void boundPlacements(const std::map<Id, BodyPtr> &stored, const ComponentDefinit
         // The stored root is replaced by its projection, which the size already counts.
         if (!instances.at(root) || !sizes.contains(instances.at(root)->definition))
             throw std::runtime_error("Dangling component instance");
-        const auto &size = sizes.at(instances.at(root)->definition);
+        // A parametric placement materializes its variant (ADR 0165 §5).
+        const auto variant = variants.placements.find(root);
+        const auto size =
+            variant == variants.placements.end()
+                ? sizes.at(instances.at(root)->definition)
+                : componentVariantSize(*definitions.at(instances.at(root)->definition),
+                                       variant->second, sizes);
         total.records += size.records - 1;
         total.vertices += size.vertices;
         total.faces += size.faces;
@@ -174,11 +190,13 @@ void verifyStoredPlacements(const ComponentDefinitions &definitions,
         }
     }
 }
-// Schema 26: rebuild every placement member from its definition and binding.
+// Schema 26: rebuild every placement member from its definition and binding. From
+// schema 28 a parametric placement is rebuilt from its variant, evaluated once for the
+// whole document before any placement is projected.
 void projectPlacements(const ComponentDefinitions &definitions,
                        const ComponentInstances &instances,
                        const std::map<Id, std::map<Id, std::pair<Id, Id>>> &floors,
-                       std::map<Id, BodyPtr> &bodies) {
+                       std::map<Id, BodyPtr> &bodies, const ComponentVariantIndex &variants) {
     const auto members = placementMembers(instances);
     for (const auto &[id, body] : bodies)
         if (members.contains(id))
@@ -197,7 +215,8 @@ void projectPlacements(const ComponentDefinitions &definitions,
         if (!bodies.contains(root))
             throw std::runtime_error("Dangling component instance");
         for (auto &[id, body] :
-             projectComponentPlacement(definitions, instances, root, *bodies.at(root), allFloors)) {
+             projectComponentPlacement(definitions, instances, root, *bodies.at(root), allFloors,
+                                       &variants)) {
             if (id == root)
                 continue; // The stored root keeps its exact record; restore validates it.
             if (!bodies.emplace(id, std::move(body)).second)
@@ -351,16 +370,6 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
     return bodies;
 }
 QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
-    // Component parameter records and overrides (ADR 0165) are stored from schema 28
-    // (R093.c). Until then no writer path may drop them: refuse before encoding.
-    for (const auto &[id, definition] : doc.definitions())
-        if (definition->parameters)
-            throw std::runtime_error("UNSUPPORTED_FORMAT: component parameters cannot be saved "
-                                     "until native schema 28");
-    for (const auto &[root, instance] : doc.instances())
-        if (!instance->overrides.empty())
-            throw std::runtime_error("UNSUPPORTED_FORMAT: component parameters cannot be saved "
-                                     "until native schema 28");
     QJsonArray bodies;
     {
         const auto members = placementMembers(doc.instances());
@@ -459,6 +468,11 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
                 {"assets", assets},
                 {"nextAssetId", sid(doc.nextAssetId())},
                 {"assetStorage", assetStorage == AssetStorage::Inline ? "inline" : "external"}};
+    if (version >= 28) {
+        root["componentParameters"] = encodeComponentParameters(doc.definitions());
+        root["componentParameterOverrides"] = encodeComponentParameterOverrides(doc.instances());
+        root["nextComponentDriverId"] = sid(doc.nextComponentDriverId());
+    }
     if (version >= 27) {
         root["drawingSheets"] = encodeDrawingSheets(doc.drawingSheets());
         root["nextDrawingSheetId"] = sid(doc.nextDrawingSheetId());
@@ -796,7 +810,16 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     if (root["version"].toInt() >= 27)
         rootFields += {"drawingSheets", "nextDrawingSheetId", "drawingViews", "nextDrawingViewId",
                        "drawingItems", "nextDrawingItemId"};
+    // Component parameters (ADR 0165 §5); older schemas load with empty tables.
+    const bool parameters = root["version"].toInt() >= 28;
+    if (parameters)
+        rootFields += {"componentParameters", "componentParameterOverrides",
+                       "nextComponentDriverId"};
     supportedFields(root, rootFields);
+    // Every schema-28 field is required.
+    for (const auto &field : rootFields)
+        if (parameters && !root.contains(field))
+            throw std::runtime_error("Missing document field: " + field.toStdString());
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         inputBytes > modelLimit)
         throw std::runtime_error("Packaged model exceeds the 32 MiB JSON limit");
@@ -980,15 +1003,30 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
                 }
             }
         }
+        if (parameters) {
+            decodeComponentParameters(root["componentParameters"], definitions);
+            decodeComponentParameterOverrides(root["componentParameterOverrides"], definitions,
+                                              instances);
+        }
         if (!instances.empty()) {
             // Expansion follows definitions, so reject cycles and dangling records first.
             const auto sizes = validateComponentDefinitions(definitions, nextDefinitionId, tags,
                                                             nextTagId, materials, nextMaterialId,
                                                             assets, nextAssetId);
             if (root["version"].toInt() >= 26) {
+                // Schema 28: check every parameter record (names, types, canonical text,
+                // the acyclic graph, driver targets, the allocator) and evaluate every
+                // placement once, within the document evaluation budget, before any
+                // placement is projected (ADR 0165 §5). Restore checks them again.
+                auto variants = emptyComponentVariants();
+                if (parameters) {
+                    validateComponentParameterRecords(definitions, nullptr,
+                                                      readId(root["nextComponentDriverId"]));
+                    variants = computeComponentVariants(definitions, instances);
+                }
                 boundPlacements(bodies, definitions, instances, topLevelPlacements(instances),
-                                sizes);
-                projectPlacements(definitions, instances, floors, bodies);
+                                sizes, *variants);
+                projectPlacements(definitions, instances, floors, bodies, *variants);
             } else
                 verifyStoredPlacements(definitions, instances, bodies);
         }
@@ -1036,7 +1074,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         root["version"].toInt() >= 25 ? storedDisplayPrecision(root["displayPrecision"])
                                       : fullDisplayPrecision,
         std::move(drawingSheets.first), nextDrawingSheetId, std::move(drawingSheets.second),
-        nextDrawingViewId, std::move(drawingItems), nextDrawingItemId);
+        nextDrawingViewId, std::move(drawingItems), nextDrawingItemId,
+        parameters ? readId(root["nextComponentDriverId"]) : 1);
     return doc;
 }
 } // namespace sketchy

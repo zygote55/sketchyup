@@ -295,6 +295,45 @@ void copiedBindings() {
     check(doc.hostedComponents().attachments.size() == 1,
           "One shared Undo removes all copied openings and bindings");
 }
+void floatAnchoredWall() {
+    // A wall anchor from a pointer pick carries single-precision low bits. This one was
+    // refused with "Opening requires validated closed geometry: self_intersection"
+    // because solid validation compared independently grid-quantized faces.
+    Document doc;
+    const auto host = doc.addFace({{{0, 0, 0}, {5, 0, 0}, {5, .2, 0}, {0, .2, 0}}});
+    doc.extrude(host, doc.bodies().at(host)->surface.faces.begin()->first, 2.7);
+    Id face{};
+    for (const auto &[id, value] : doc.bodies().at(host)->surface.faces)
+        if (doc.bodies().at(host)->surface.normal(id).y < -.99)
+            face = id;
+    const double width = 1.119, height = 2;
+    const auto source =
+        doc.addFace({{{0, 0, 0}, {width, 0, 0}, {width, height, 0}, {0, height, 0}}});
+    const auto sourceFace = doc.bodies().at(source)->surface.faces.begin()->first;
+    const auto made = createComponent(doc, source, "Door");
+    executeBatch(
+        doc,
+        batch(doc,
+              {QJsonObject{{"command", "component.glue"},
+                           {"definition", sid(made.definition)},
+                           {"glue", QJsonObject{{"member", sid(made.movedGeometry.at(source))},
+                                                {"face", sid(sourceFace)},
+                                                {"anchor", QJsonArray{width / 2, height / 2, 0}},
+                                                {"tangent", QJsonArray{1, 0, 0}},
+                                                {"cutsOpening", true}}}}}));
+    executeBatch(
+        doc,
+        batch(doc, {QJsonObject{{"command", "component.attach"},
+                                {"body", sid(made.instance)},
+                                {"host", sid(host)},
+                                {"face", sid(face)},
+                                {"anchor", QJsonArray{double(1.13249004f), 0, double(1.36124325f)}},
+                                {"tangent", QJsonArray{1, 0, 0}},
+                                {"inset", 0}}}));
+    check(doc.hostedComponents().hosts.at(host)->openings.contains(made.instance),
+          "Float-precision wall anchor cuts its opening");
+    volume(doc, host, 5 * .2 * 2.7 - width * height * .2);
+}
 void nativeAssistant() {
     for (int scenario : {0, 1, 2, 3}) {
         const bool locked = scenario == 1 || scenario == 2;
@@ -387,6 +426,7 @@ int main(int argc, char **argv) {
         metadataAndFailures();
         stagedRecordDiff();
         copiedBindings();
+        floatAnchoredWall();
         nativeAssistant();
         std::cout << "Hosted commands, inspection, atomic failures, metadata Undo and native "
                      "assistant policy passed\n";

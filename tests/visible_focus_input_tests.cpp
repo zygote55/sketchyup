@@ -2,6 +2,7 @@
 // visible focus indicator (WCAG 2.4.7) whose colour has at least 3:1 contrast with the
 // adjacent colours (WCAG 1.4.11), in both themes and at two interface text sizes. The
 // indicator is measured from pixels painted by the real main window and the real dialogs.
+#include "app/parameters_scope_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
@@ -767,6 +768,47 @@ int main(int argc, char **argv) {
                         create->click();
                     },
                     "materialDialog");
+                // R094.e (ADR 0166 §4.1): "… has its own values": every button, and the
+                // accent-filled default every time (the sweep samples two of a class).
+                {
+                    QString failure;
+                    bool captured{};
+                    QTimer::singleShot(0, &window, [&] {
+                        auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+                        try {
+                            check(dialog && dialog->objectName() == "parametersScopeDialog",
+                                  "The parameters dialog opened");
+                            check(QTest::qWaitForWindowExposed(dialog),
+                                  "Parameters dialog exposed");
+                            dialog->activateWindow();
+                            check(QTest::qWaitForWindowActive(dialog), "Parameters dialog active");
+                            check(QTest::qWaitFor([&] {
+                                      auto *focused = QApplication::focusWidget();
+                                      return focused && dialog->isAncestorOf(focused);
+                                  }),
+                                  "Parameters dialog owns keyboard focus");
+                            sweep(*dialog, "Placement has its own values");
+                            for (const char *name :
+                                 {"parametersScopeCancel", "parametersScopeUnique",
+                                  "parametersScopeDefaults"})
+                                probe(*dialog, *dialog->findChild<QPushButton *>(name),
+                                      QString("Placement has its own values / ") + name);
+                            captured = true;
+                        } catch (const std::exception &error) {
+                            failure = QString::fromUtf8(error.what());
+                        }
+                        if (dialog)
+                            dialog->reject();
+                    });
+                    ParametersScopeDialog dialog("Dining table #3", "Width 1200 mm and Shelves 2",
+                                                 2, {}, &window);
+                    dialog.exec();
+                    if (!failure.isEmpty())
+                        throw std::runtime_error(failure.toStdString());
+                    check(captured, "Parameters dialog sweep completed");
+                    window.activateWindow();
+                    check(QTest::qWaitForWindowActive(&window), "Main window regains focus");
+                }
                 if (!window.assistantPanel()->isVisible())
                     window.findChild<QAction *>("view.assistant")->trigger();
                 window.findChild<QPushButton *>("assistantPreferences")->click();
@@ -830,8 +872,8 @@ int main(int argc, char **argv) {
                            "and 200% interface text"
                          : "Painted boundary of every Tab-focusable public control in "
                            "the main window panels, tool rail, shortcut, drawing "
-                           "plane, command and assistant preference dialogs, in light "
-                           "and dark themes at 100% and 200% interface text"},
+                           "plane, command, placement-values and assistant preference "
+                           "dialogs, in light and dark themes at 100% and 200% interface text"},
                     {"releaseAcceptance", false}})
                 .toJson();
         if (!reportPath.isEmpty()) {

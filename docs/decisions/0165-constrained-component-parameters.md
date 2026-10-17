@@ -1,7 +1,9 @@
 # Constrained component parameters
 
-Status: **Accepted (2026-10-16)** for the decision; the layers are implemented by
-R093.a–e (see "Layer plan"). Roadmap [R093](../PR_ROADMAP.md#r093) (M10, scope
+Status: **Accepted (2026-10-16)** for the decision; **R093.a–e are complete** (see
+"Layer plan"). The [R093.e acceptance record](../verification/R093e-component-parameters.md)
+verifies the R093 line locally in `dev` and `sanitize` at `16a51681`; CI runs at the end
+of F02. Roadmap [R093](../PR_ROADMAP.md#r093) (M10, scope
 row [F02](../SCOPE.md)); shapes [R094](../PR_ROADMAP.md#r094). The choices that belong
 to the owner are listed under "Open for the owner". Work proceeds on the stated
 defaults; the owner has not yet decided them and may change any of them before the
@@ -700,12 +702,80 @@ above; where they differ, these notes govern.
 - **Labels** that break the label rule are `PARAMETER_NAME`.
 - **Document evaluation budget** counts each parametric definition's default
   evaluation plus each distinct placement evaluation.
-- **Unsaved until R093.c.** Until schema 28 exists, the native writer refuses a
-  document with parameter records (`UNSUPPORTED_FORMAT`). No command creates them
-  before R093.d.
+- **Unsaved until R093.c.** Until schema 28 existed, the native writer refused a
+  document with parameter records (`UNSUPPORTED_FORMAT`). R093.c replaced the refusal
+  with schema 28. No command creates them before R093.d.
 - **Rendering.** The viewport and inference still match scene records against
   definition members, so a variant placement renders with its own meshes rather than
   shared ones: correct, not instanced. Instanced variant rendering is R094 work.
+
+## Implementation notes (R093.d)
+
+R093.d settled these points in the command and inspection layer. They refine §4 and §6.
+
+- **Override literals.** A string override is a choice value for a `choice` parameter
+  and otherwise one signed quantity literal (`"1200 mm"`, `"-90 deg"`); a unitless
+  literal is read in SI units, like a JSON number. Anything else is `PARAMETER_SYNTAX`.
+- **Parameter operations inside an edit scope are refused.** `component.edit` and
+  `component.edit_instance` reject every nested `component_parameter.*` operation: one
+  on another definition or placement needs its own scope, as scene operations do, and
+  one on the scoped definition goes in the outer batch beside the template edit. A
+  batch such as `[component_parameter.undrive, component.edit]` is the "same batch" of
+  §4 that removes or retargets a driver whose target the edit deletes.
+- **Result fields.** Every committed batch reports `createdComponentDrivers`,
+  `regenerated {placements, variants}` and `parameterWarnings` at the top level (a
+  definition edit re-projects every placement of it, so `placements` counts those too).
+  Each parameter operation also appends an entry to `componentOperations` with its own
+  `createdDrivers`, `regenerated` and `parameterWarnings`. `component.edit_instance`
+  reports `parametersPromoted` (false for a definition without parameters), and
+  `component.replace` reports `droppedOverrides` when it drops any.
+- **Codes.** `executeBatch` reports a parameter error as its ADR code (not
+  `INVALID_OPERATION`), so the headless session, MCP, staging and the CLI see
+  `PARAMETER_*`, `LIMIT_EXCEEDED`, `LOCKED_ENTITY`, `NOT_FOUND` and `INVALID_TARGET`.
+  Request-shape errors (an unknown driver data field, both `drivers` and `all`) stay
+  ordinary invalid operations.
+- **`component_parameters.evaluate`** returns `{status: "ok", values, regeneration,
+  expression}` or `{status: "error", error {code, message, offset?, excerpt?, ...}}`;
+  failures are data, not refusals. It takes an optional `type` for the expression's
+  result; without one the first of length, area, angle, number, boolean and each
+  choice parameter's options that type-checks is used. `regeneration` is the
+  materialized size of one placement with those values.
+- **Promotion needs a top-level placement.** `component.edit_instance` on a nested
+  placement of a parametric definition is refused with `INVALID_TARGET`, because its
+  values come from its parent's drivers.
+- **`--inspect-native` counts** (`componentParameters`, `componentDrivers`,
+  `componentParameterOverrides`) live in `src/io/native_format.cpp` and land with the
+  schema-28 reader in R093.c.
+
+## Implementation notes (R093.c)
+
+R093.c added schema 28 ([ADR 0108](0108-public-native-format.md#schema-28-component-parameters-r093c)).
+These points refine §5; where they differ, these notes govern.
+
+- **The 1.1.0 refusal.** The published `sketchyup-1.1.0-1` package's
+  `sketchyup-cli --validate-native` refuses the schema-28 fixture with exit status 1
+  and exactly `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`
+  on stderr, and leaves it byte-identical. Its manifest check meets the new
+  `nextComponentDriverId` allocator floor before the required-feature check, so the
+  message names the container field, not the feature; `sketchyup-1.0.1-1` gives the
+  same message. Both open parameter-free saves from the new build (1.1.0 at schema 26
+  and 27, 1.0.1 at 26).
+- **Retained 1.1.0 output.** `release-1.1.0-v27.sketchyup` is the 1.1.0 package's own
+  `--migrate-native` output of the schema-27 writer fixture; the new build re-saves it
+  byte-identically apart from the writer string.
+- **Load order.** The reader attaches the stored records, checks them and evaluates
+  every placement once (`computeComponentVariants`, within the document evaluation
+  budget) before it bounds and projects the placements from their variants.
+  `projectComponentPlacement` takes that precomputed variant index. Restore then runs
+  its ordinary checks, which evaluate the document again.
+- **Bundle insertion keeps driver state.** Insertion remaps materials, tags and assets,
+  which a member's `bound` digest covers. A driver that was bound in the bundle is
+  restamped over the remapped records; one that had changed since it was bound keeps
+  its stored digest.
+- **Variant index fix.** Reusing a previous variant whose nested placements show
+  variants did not register those nested variants, so after some edits the in-memory
+  index listed fewer distinct variants than a fresh computation (and than the reopened
+  file). The engine now registers them when it reuses the parent.
 
 ## What R094 needs from R093
 

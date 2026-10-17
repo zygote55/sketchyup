@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.2.0 — unreleased
+
+A minor release that adds configurable components (scope row F02). Additive: existing
+commands, queries and schemas keep their shapes.
+
+- Configurable components: typed parameters with bounds and unit-checked formulas,
+  and Stretch, Position, Rotation, Visibility, Repeat and Child parameter drivers.
+  Placements keep their own values; equal values share one instanced variant.
+- Desktop: placement parameters in Entity info, definition authoring with the
+  parameter and driver lists, Add driver (Shift+D), a dragged or typed stretch plane,
+  formula fields checked as you type and a Preview ghost; the "has its own values"
+  dialog (Edit definition at defaults, Make unique and edit); refusals shown at their
+  control; Rebind for drivers whose part changed.
+- Six bundled assemblies (interior door, casement window, dining table, bookshelf, base
+  cabinet, straight stair) in a new Components tab (View → Components), placed with
+  values; doors and windows cut their opening when placed, and placing one already in
+  the model reuses its definition. CLI: `sketchyup-cli --build-assembly`.
+- Resizable sidebar: drag the handle, Ctrl+Alt+] / Ctrl+Alt+[ or View → Reset sidebar
+  width; 240–720 px per column, remembered.
+- API: new `component_parameter.*` transaction operations and
+  `component_parameters.*` inspection queries over MCP, the headless session and the
+  CLI. The in-app assistant cannot change component parameters.
+- Assistant: the ChatGPT-plan budget is 524,288 tokens per task with no per-reply
+  output cap; 1.2.0 is evaluated against provider corpus v3.
+- Format: schema 28 (`component-parameters-v1`) is written only for documents with
+  component parameters. SketchyUp 1.1.x and 1.0.x refuse those files unchanged and
+  still open parameter-free ones.
+- SketchUp Dynamic Components are not imported or converted.
+- Package: Arch `sketchyup` 1.2.0-1, upgrading from 1.1.1-1.
+
 ## 1.1.1 — 2026-10-16
 
 Patch release from `release/1.1.x` ([GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.1.1)).

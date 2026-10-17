@@ -1,6 +1,7 @@
 #include "automation/inspection.hpp"
 #include "automation/text_commands.hpp"
 #include "core/components.hpp"
+#include "core/component_parameters.hpp"
 #include "core/assets.hpp"
 #include "core/reference_images.hpp"
 #include "core/scenes.hpp"
@@ -434,6 +435,32 @@ int main(int argc, char **argv) {
         rejects("UNAVAILABLE_CONTEXT",
                 [&] { run(sceneDocument, "drawing_sheets.export_preflight"); });
         exercised.insert("drawing_sheets.export_preflight");
+        {
+            // Component parameter queries (R093.d; component_parameter_command_tests covers
+            // them in depth).
+            Document parametric;
+            const auto part = createComponent(
+                parametric, parametric.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}}));
+            defineComponentParameter(parametric, part.definition,
+                                     {"width", "Width", ParameterType::Length,
+                                      ComponentParameterMode::Input, "1 m"});
+            const auto definition = QString::number(part.definition);
+            check(run(parametric, "component_parameters.describe", {{"definition", definition}})
+                          ["parameters"].toArray().size() == 1,
+                  "Parameter description");
+            check(run(parametric, "component_parameters.values",
+                      {{"body", QString::number(part.instance)}})["values"]
+                          .toArray()[0]
+                          .toObject()["source"] == "default",
+                  "Placement parameter values");
+            check(run(parametric, "component_parameters.evaluate",
+                      {{"definition", definition}, {"expression", "width * 2"}})
+                          ["expression"].toObject()["value"] == 2,
+                  "Read-only parameter evaluation");
+            rejects("NOT_FOUND", [&] {
+                run(parametric, "component_parameters.describe", {{"definition", "999999"}});
+            });
+        }
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
                   QJsonDocument::fromJson(published.readAll()).object() == inspectionCapabilities(),

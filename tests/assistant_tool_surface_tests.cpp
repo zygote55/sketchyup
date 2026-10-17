@@ -39,7 +39,9 @@ std::vector<ToolSurface> surfaces() {
     QStringList every;
     for (const auto &entry : commandCatalog()) {
         const auto name = entry.toObject()["name"].toString();
-        if (!name.startsWith("drawing_"))
+        // Drawing-sheet and component parameter commands are never assistant-authorizable
+        // (ADR 0164, ADR 0165 §6).
+        if (!name.startsWith("drawing_") && !name.startsWith("component_parameter"))
             every.append(name);
     }
     return {{"inspection-only", {}, false},

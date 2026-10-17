@@ -1,6 +1,6 @@
 # SketchyUp UX design
 
-Status: proposed design, not an implemented interface. Updated: 2026-10-03.
+Status: proposed design, not an implemented interface. Updated: 2026-10-17.
 
 This document designs the user experience for the native editor described in
 the [build plan](BUILD_PLAN.md). It covers the window, tools, numeric entry,
@@ -109,6 +109,38 @@ Each action result shows its shortcut, so the palette also teaches the keyboard.
 | 800 ≤ width < 1100 px | Side panel collapses to an icon strip and opens as an overlay sheet; menu bar becomes one menu button |
 | < 800 px | Tool rail shows the active group only; status instruction truncates; Measurements box and job chips remain |
 
+**Resizable sidebar (R094.a).** The side panel and, in the ≥ 1500 px layout,
+the Assistant column sit in one splitter with the workspace. Drag the handle on
+the sidebar's left edge to resize it; in the column layout a second handle
+between Tray and Assistant trades width between them. Double-click a handle, or
+use View → Reset sidebar width, to return to the defaults (248 px panel,
+340 px tabbed panel with the Assistant, 340 px Assistant column, as before;
+capped at 320 / 420 px at large text). View → Widen sidebar (`Ctrl+Alt+]`) and
+Narrow sidebar (`Ctrl+Alt+[`) step the edge column by 40 px; both are rebindable.
+The handles are named "Resize sidebar" and "Resize between Tray and Assistant"
+and reach AT-SPI as vertical split panes. Each handle is 6 px wide (scaled by
+text size), filled with the theme's panel hover tone, a step darker than the
+Tray, with a centred grip of two 1 px dotted lines about 28 px tall in the muted
+text colour (at least 3:1 against the fill in both themes). Hovering or dragging
+tints the fill with the accent (25 % over the surface); keyboard focus in the
+sidebar does not change it. The pointer is the horizontal split cursor.
+
+- **Bounds:** each column is at least 240 px and at most 720 px, both scaled by
+  interface text size. The workspace (viewport or sheet canvas) always keeps
+  400 px, unscaled because it is drawing area; that leaves the panel about
+  240 px at 800 px with 200 % text. When the window shrinks, the rightmost
+  column narrows first, then the panel, and only when the window cannot hold
+  the minimum do the columns go below it. The sidebar never overlaps the workspace.
+- **Persistence:** widths are per layout (panel alone, tabbed panel with the
+  Assistant, Assistant column) in QSettings keys `sidebarTrayWidth`,
+  `sidebarTabbedWidth` and `sidebarAssistantWidth`, saved when the user drags or
+  steps a width and removed on reset. A missing, corrupt or out-of-range value
+  (outside 240–720) uses the default. Window-size clamping never rewrites them, so
+  a wider window restores the chosen width. Model and Sheets share the widths.
+- **Text size:** widths are stored in logical pixels at 100 % text and scaled by
+  the current interface text size, so a text-size change keeps the user's width
+  in proportion (then clamps to the bounds).
+
 Validate at 640, 900, 1200 and 1600 logical pixels, including fractional scale.
 On the smallest tile collapse job detail before reducing Measurements access.
 The supplied narrow illustration is 900 px; add 640 px and split-column wide
@@ -176,6 +208,7 @@ configurable (N05). The prototype's `V` remains an alias for Select. Its `F`
 | `P` | Push/pull | `E` | Eraser |
 | `B` | Paint | `G` | Make component |
 | `O` / `H` / `Z` | Orbit / pan / zoom | `Shift+Z` | Zoom to fit |
+| `Shift+D` | Add driver (in a component definition, section 14) | | |
 
 | Modifier during an operation | Effect |
 | --- | --- |
@@ -298,7 +331,7 @@ main source of confusion, so the current context is always visible.
 | History | Labeled undo stack | AI entries are marked and carry the request text; click to step back; redo branch disappears on a new edit | M4 |
 | Diagnostics | Open edges, non-manifold regions, reversed faces | Each finding selects and frames its entities; repairs are explicit, previewed and undoable (E09) | M6 |
 | Styles, Scenes, Shadows | Display modes, saved views, sun | Scenes also appear as tabs in the viewport (P02, P03, P06) | M7 |
-| Components | Local library with thumbnails | Missing assets shown as such, never silently substituted (O05) | M8 |
+| Components | Local library with thumbnails; the bundled configurable assemblies (section 14) | Missing assets shown as such, never silently substituted (O05) | M8 |
 
 ## 6. Document lifecycle
 
@@ -759,3 +792,129 @@ design ([ADR 0164](decisions/0164-sheet-layout-interface.md) "R092 export").
   one printer page per sheet.
 - Focus returns to the page canvas (or, from Model, the viewport) when the
   dialog, the report or a failure message closes.
+
+## 14. Configurable components
+
+Component definitions can carry typed parameters and drivers, and each
+placement can keep its own values ([ADR 0165](decisions/0165-constrained-component-parameters.md)
+records; [ADR 0166](decisions/0166-configurable-component-interface.md)
+interface and its implementation notes; R093, R094). This section describes
+what was built. Every change is one labelled, undoable History entry, and
+every refusal leaves the model unchanged.
+
+### 14.1 The Info tab's sections
+
+Entity info is a stack of collapsible sections in one scroll area with no
+horizontal scroll bar: **Entity info**, then **Parameters · this placement**
+when a configurable placement is selected, then **Parameters · definition**
+and **Drivers** while a component definition is open. A header shows a muted
+count when it has one ("2 overridden") and elides its title in a narrow Tray.
+
+- **Parameters · this placement.** One row per parameter in the definition's
+  order: the label and a caption ("Override · default 900 mm", "Default",
+  "Derived · *formula*", "From *parent*", and the bounds), then the control: a
+  line edit for quantities, a spin box for counts, a check box ("Shown" or
+  "Hidden") for booleans, a list for choices. A row is laid out beside its
+  label while the label fits next to 16 characters of value, else under it.
+  Values accept the Measurements box's syntax in the document's units
+  (`1200`, `1.2 m`, `3'11"`). The value is checked as you type; Enter or
+  leaving the field commits, Esc restores. An override row has a reset button,
+  and Ctrl+Backspace on an unchanged field resets it (while editing it deletes
+  a word). **Reset all** and **Edit definition…** close the section. Entries
+  read "Change *Label*", "Reset *Label*" and "Reset all parameters".
+- **Measurements box.** With the Select tool and one configurable placement
+  selected, the box is labelled with the parameter last focused in the section
+  (else the first quantity) and shows its value; Enter sets it, and typing
+  again amends the same entry. Digits typed in the canvas stay view
+  shortcuts: reach the box with F6, Tab or a click.
+- **Parameters · definition.** A tree (Name, Type with its bounds, Default or
+  "= *formula*") with an inline editor below it and **+ Parameter** in the
+  header. The editor has no button: Enter commits and Esc cancels. F2 edits,
+  Alt+Up and Alt+Down reorder and Delete removes; a parameter still in use is
+  refused with the names of its users. Entries read "Add parameter *Label*",
+  "Edit parameter *Label*", "Rename parameter *name*".
+- **Drivers.** A tree (Kind, Target, Formula, State) with **+ Driver**. A
+  driver whose part was edited by hand reads "⚠ Changed" in the warning
+  colour with an in-row Rebind; **Rebind** and **Rebind all** act on Changed
+  drivers ("Rebind driver", "Rebind *n* drivers").
+- **Formula fields** are checked as you type. An error is a sentence under
+  the field, with a caret under the character it names, and a missing unit
+  offers a one-click fix ("Use 120 mm").
+
+### 14.2 Definition authoring
+
+- Opening a parametric placement shows the breadcrumb "*Definition*
+  (definition)" and the banner in the information colour with **Close
+  definition**. A **Preview** strip under the banner holds one field per
+  input; changing one draws a dashed, hatched ghost of the regenerated shape
+  from a dry run, without changing the model. Esc in the strip is **Back to
+  defaults**.
+- **Add driver** (`Shift+D`, the Component menu, the palette, **+ Driver**
+  and a rail button in a definition) opens the driver form on the selected
+  part with focus on Kind. Only the kinds the part accepts are offered. With
+  nothing suitable selected, the status bar says what to select.
+- **Stretch plane.** A Stretch driver shows its plane as a dashed quad with
+  arrows on the points that move. Drag it (it snaps within 8 px to the part's
+  vertex coordinates and the midpoints between them; Alt turns snapping off),
+  or type its position in the form's Plane at field or the Measurements box.
+- Regeneration keeps the open context, the selection and the parts'
+  materials.
+
+### 14.3 A placement with its own values
+
+Opening a placement that has values of its own (Enter, double-click, Edit
+definition… or Enter in the Outliner) asks first. The dialog "*Placement* has
+its own values" names the differing values and offers **Cancel**, **Make
+unique and edit** and **Edit definition at defaults** (the focused,
+accent-filled default).
+
+- **Edit definition at defaults** suspends the placement's values ("Edit
+  *Definition* at defaults") and the banner says they return on close.
+  Closing by any route restores them ("Restore *placement* values"); values
+  the definition no longer accepts are left out and the status bar names
+  them. When nothing was edited, the suspension is undone and no entry
+  remains.
+- **Make unique and edit** gives the placement its own definition whose
+  defaults are its values ("Make *placement* unique"). A nested placement,
+  whose values come from its parent, offers only this choice.
+- **Refusals** are shown at the control that caused them, in words, with the
+  §5 table of ADR 0166 and its actions (**Use 120 mm**, **Show the driver**,
+  **Select *placement*** for a locked one). A hand edit that changes a part a
+  driver acts on shows an amber strip under the banner naming the drivers,
+  with **Rebind** and **Undo**.
+
+### 14.4 The Components tab and assemblies
+
+The Tray's **Components** tab (View → Components) lists the six bundled
+assemblies (interior door, casement window, dining table, bookshelf, base
+cabinet, straight stair) as cards in two columns. **Show** chooses
+Configurable assemblies or All components (adding the user library). The
+cards are one Tab stop; arrows move between them and Enter or a click starts
+placing. A card reads "Interior door, cuts opening, 4 parameters", and adds
+"In this model" once the model has that assembly.
+
+- A **values form** lists the assembly's inputs with their bounds in the
+  model's units, checks each value, and stores only values that differ from
+  the defaults. **Use defaults** resets it; Esc or **Cancel** ends placement.
+- **Placing** is a mode over the Select tool. The status bar says what to
+  click ("Placing Interior door · Click a wall face to place · the opening is
+  cut in the same step · Esc cancels"). The ghost follows the pointer; a door
+  or window snaps upright to the hovered wall face, moving in whole
+  millimetres, and draws its opening outline and width. A click places it, or
+  Enter on a selected face places it at the face's centre; the Measurements
+  box takes `[x,y,z]`, a wall anchor or an inset, and typing again amends the
+  placement. Placing is one entry, "Place *Name*", which also cuts the
+  opening; a later width change re-cuts it in one entry. An assembly already
+  in the model is reused, so all its placements share one definition. After
+  placing, the Tray shows Entity info.
+- SketchUp Dynamic Components are not imported or converted, and the tab
+  says so.
+
+### 14.5 Accessibility
+
+Every section header, field, reset button, tree, form, strip, dialog button
+and card is a Tab stop with an accessible name; a field's description carries
+its caption and, first, "Invalid: …" or "Warning: …" while it has a message.
+Override, information and warning states have text as well as colour, and the
+default button and focused controls draw the focus ring of section 10. The
+interface is checked on X11 and Wayland at 1× and 2× and at 200 % text.

@@ -5,10 +5,21 @@
 #include <QLabel>
 #include <QPushButton>
 namespace sketchy {
+class CollapsibleSection;
+class ComponentParametersSection;
+class ComponentDefinitionSection;
+class ComponentDriversSection;
+// The Info tab (ADR 0166 §1.1): a vertical stack of collapsible sections, "Entity info" (the
+// selection's measurements and the Edit entity dialog) and, for a parametric placement,
+// "Parameters · this placement"; in a definition context, "Parameters · definition" and
+// "Drivers" (§3, R094.d).
 class EntityInfoPanel : public QWidget {
   public:
     EntityInfoPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
     void refresh();
+    ComponentParametersSection *parameters() const { return parameters_; }
+    ComponentDefinitionSection *definition() const { return definition_; }
+    ComponentDriversSection *drivers() const { return drivers_; }
 
   protected:
     void showEvent(QShowEvent *event) override;
@@ -21,6 +32,10 @@ class EntityInfoPanel : public QWidget {
     QLabel *tag_{}, *color_{}, *properties_{}, *error_{};
     QPushButton *edit_{}, *problems_{};
     QAction *editAction_{};
+    CollapsibleSection *info_{};
+    ComponentParametersSection *parameters_{};
+    ComponentDefinitionSection *definition_{};
+    ComponentDriversSection *drivers_{};
     std::optional<SelectedEntity> entity_;
     std::optional<EntityMeasures> measured_;
     Document::SaveStamp stamp_;

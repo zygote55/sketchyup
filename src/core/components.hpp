@@ -47,9 +47,13 @@ std::map<Id, Id> componentScopeMembers(const Document &doc, const Document &draf
 // already validated definitions and complete member bindings, including nested
 // bindings. `placement` supplies the root's instance-owned state. `floors` restores
 // scene allocator floors that exceed the canonical member floor; each must be higher.
-// Returns the root and every resolved member, each a fresh unshared record.
+// Returns the root and every resolved member, each a fresh unshared record. When
+// `variants` is given it supplies the variant each placement shows (absent: the
+// template), so a caller that evaluated the whole document once (native load, ADR 0165
+// §5) does not evaluate again; otherwise the placement is evaluated here.
 std::map<Id, BodyPtr>
 projectComponentPlacement(const ComponentDefinitions &definitions,
                           const ComponentInstances &instances, Id root, const Body &placement,
-                          const std::map<Id, std::pair<Id, Id>> &floors = {});
+                          const std::map<Id, std::pair<Id, Id>> &floors = {},
+                          const ComponentVariantIndex *variants = nullptr);
 } // namespace sketchy

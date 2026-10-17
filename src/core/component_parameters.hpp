@@ -117,6 +117,11 @@ ComponentResult undriveComponent(Document &doc, Id definition, Id driver);
 // Restamps the listed drivers, or every driver when `drivers` is empty.
 ComponentResult rebindComponentDrivers(Document &doc, Id definition,
                                        const std::vector<Id> &drivers = {});
+// Sets or clears the definition's library assembly identity (ADR 0166 §6.2), a
+// shared-definition edit that changes no geometry. Requires a parameter record;
+// a malformed identity is PARAMETER_NAME.
+ComponentResult setComponentAssembly(Document &doc, Id definition,
+                                     std::optional<ComponentAssembly> assembly);
 // Instance scope: sets override values on a top-level placement.
 ComponentResult overrideComponentParameters(Document &doc, Id instance,
                                             const ComponentOverrides &values);

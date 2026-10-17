@@ -9,6 +9,7 @@
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
 #include "integrations/render_snapshot.hpp"
+#include "io/component_library.hpp"
 #include "io/drawing_view.hpp"
 #include "io/measured_export.hpp"
 #include <QElapsedTimer>
@@ -20,6 +21,7 @@
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLWidget>
 #include <QPointF>
+#include <QPolygonF>
 #include <QPointer>
 #include <QRect>
 #include <functional>
@@ -115,6 +117,11 @@ class Viewport : public QOpenGLWidget {
     QString selectionSummary() const;
     void enterContext(Id context);
     void leaveContext();
+    // R094.e (ADR 0166 §4.1): double-click, Enter, Edit selected context and Edit definition…
+    // open a context through openContext, which first offers it to the opener (the window's
+    // "has its own values" dialog); the opener returns true when it handled the request.
+    void setContextOpener(std::function<bool(Id)> opener) { contextOpener_ = std::move(opener); }
+    void openContext(Id context);
     void makeGroup();
     void explodeGroups();
     void mergeContextGeometry();
@@ -261,7 +268,63 @@ class Viewport : public QOpenGLWidget {
     // must be captured at the document's current revision.
     QImage renderDrawingViewRaster(const DrawingViewEvaluationInput &view, QSize pixels);
     void exportRaster(const QString &path, QSize pixels);
+    // ADR 0166 §3.4 (R094.d, viewport_parameters.cpp): the stretch plane of the driver form, a
+    // dashed quad across a member's bounds at `at` (member-local metres) perpendicular to
+    // `axis` (0 x, 1 y, 2 z). Dragging it moves it along the axis, snapping within 8 logical px
+    // to the member's distinct vertex coordinates and the midpoints between neighbours; Alt
+    // drags without snapping. Points past the plane, which the stretch moves, are marked.
+    struct StretchPlane {
+        Id body{}; // the scene record of the member in the open context
+        int axis{};
+        double at{};
+        QString label;
+    };
+    void setStretchPlane(std::optional<StretchPlane> plane);
+    const std::optional<StretchPlane> &stretchPlane() const { return stretchPlane_; }
+    std::vector<double> stretchSnaps() const;
+    // The member's distinct points past the plane and all of them.
+    std::pair<std::size_t, std::size_t> stretchMoving() const;
+    // The plane's outline in logical viewport pixels (empty without a plane).
+    QPolygonF stretchPlaneOutline() const;
+    // Where the plane would be at member-local `at`, in logical viewport pixels.
+    QPointF stretchPlanePoint(double at) const;
+    // ADR 0166 §2: the Preview ghost, a dry run (previewBatch) of
+    // component_parameter.override {body: placement, values}. Draws the regenerated members
+    // with dashed edges and hatch over the current geometry; never commits. Returns the
+    // dry run's refusal ({code, message, details}) or an empty object. The ghost belongs to
+    // the revision it was computed at: any committed edit clears it.
+    QJsonObject previewParameters(Id placement, const QJsonObject &values);
+    void clearParameterGhost();
+    bool parameterGhostShown() const;
+    std::size_t parameterGhostEdges() const { return ghostEdges_.size(); }
+    // ADR 0166 §6.3 (R094.f, viewport_assembly.cpp): placing a configurable assembly from the
+    // Components tab. The ghost is the assembly at the form's values (a dry run of
+    // component_parameter.override on a private copy of the bundle's document, once per value
+    // change) moved with the pointer: a gluing assembly onto the hovered face, with the
+    // opening outline and, 150 ms after the pointer rests, the cut of a dry run of the full
+    // placement; a free one onto the hovered face's plane or the ground. A click commits one
+    // edit (placeLibraryAssembly); Enter places a gluing assembly on the selected face at its
+    // centre; the Measurements box takes anchor coordinates or an inset (gluing) or [x,y,z]
+    // (free), and re-entry amends the placement. Esc cancels. `values` are override literals;
+    // a refusal of the values is returned ({code, message, details}) and leaves the ghost.
+    QJsonObject beginAssemblyPlacement(std::shared_ptr<const ComponentBundle> bundle,
+                                       const QJsonObject &values);
+    QJsonObject setAssemblyValues(const QJsonObject &values);
+    void endAssemblyPlacement();
+    bool assemblyPlacing() const;
+    // The Measurements box is the assembly's while placing and while re-entry can amend.
+    bool assemblyMeasurementsActive() const;
+    QString assemblyPlacementStatus() const;
+    // Why the pointer has no valid placement (empty while it has one).
+    QString assemblyPlacementError() const { return assembly_ ? assembly_->error : QString{}; }
+    std::size_t assemblyGhostEdges() const;
+    std::optional<Transform> assemblyGhostTransform() const;
+    // The opening outline in logical viewport pixels (a gluing assembly's ghost).
+    QPolygonF assemblyOpeningOutline() const;
   signals:
+    // Placement mode ended: by placing (`placed`, the new placement) or by cancelling.
+    void assemblyPlacementEnded(bool placed, qulonglong placement);
+    void stretchPlaneMoved(double at, bool finished);
     void materialChanged();
     void selected(qulonglong body, qulonglong face);
     void toolChanged(int tool);
@@ -274,6 +337,10 @@ class Viewport : public QOpenGLWidget {
     void changed();
     void sceneRecalled(qulonglong scene);
     void message(const QString &text);
+    // R094.e (ADR 0166 §5): a message's action (Show the driver, Select the locked placement,
+    // close the definition), asked for at the control that showed it. `action` is a
+    // ParameterMessageAction; `target` the driver or placement, `definition` the driver's.
+    void parameterAction(int action, qulonglong target, qulonglong definition);
 
   protected:
     bool event(QEvent *) override;
@@ -290,8 +357,11 @@ class Viewport : public QOpenGLWidget {
     void keyReleaseEvent(QKeyEvent *) override;
 
   private:
-    QJsonObject commitCommands(const QJsonArray &commands, bool shared = true);
+    // `historyLabel` (at most 512 UTF-8 bytes) names the History entry when not empty.
+    QJsonObject commitCommands(const QJsonArray &commands, bool shared = true,
+                               const QString &historyLabel = {});
     Id selectedComponent() const;
+    std::function<bool(Id)> contextOpener_;
     void paintAt(QPointF point, bool sample);
     Id paintMaterial_{};
     int paintSide_{2};
@@ -447,11 +517,13 @@ class Viewport : public QOpenGLWidget {
         Transform world;
         std::shared_ptr<BodyGeometry> geometry;
         std::shared_ptr<BodyMesh> mesh;
-        // Canonical definition member this body projects, when it may share.
+        // Canonical member record this body projects, when it may share: the
+        // definition member, or the variant's member when its placement shows a variant.
         BodyPtr source;
         Id owner{};
         InstancePtr instance;
         DefinitionPtr definition;
+        std::shared_ptr<const ComponentVariant> variant;
         Bounds bounds;
         std::vector<SectionCut> sectionCuts;
         SectionRecords sections;
@@ -679,5 +751,52 @@ class Viewport : public QOpenGLWidget {
     void updateToolPreview(QPointF point);
     void finishExtrusion(double distance);
     void clearPreview();
+    std::optional<StretchPlane> stretchPlane_;
+    bool stretchDragging_{};
+    std::vector<std::array<Vec3, 2>> ghostEdges_;
+    std::vector<std::vector<Vec3>> ghostFaces_;
+    std::string ghostDocument_;
+    std::uint64_t ghostRevision_{};
+    // The plane's member frame: world transform, local bounds and distinct coordinates.
+    bool stretchFrame(Transform &world, Vec3 &low, Vec3 &high) const;
+    bool stretchPress(QMouseEvent *event);
+    bool stretchMove(QMouseEvent *event);
+    bool stretchRelease(QMouseEvent *event);
+    double stretchAtPointer(QPointF point, bool snap) const;
+    void paintParameterOverlay(QPainter &painter);
+    // R094.f: assembly placement (viewport_assembly.cpp).
+    struct AssemblyPlacementState {
+        std::shared_ptr<const ComponentBundle> bundle;
+        QJsonObject values;
+        bool gluing{};
+        DrawingPlane glue{};                           // bundle-local glue frame
+        std::vector<std::array<Vec3, 2>> edges;        // bundle-local ghost
+        std::vector<std::vector<Vec3>> faces;
+        std::vector<Vec3> outline;                     // bundle-local glue outline
+        std::optional<AssemblyPlacement> target;       // where a click places
+        std::optional<Transform> world;                // where the ghost is drawn
+        std::vector<Vec3> cut;                         // the dry run's opening, world
+        QString error;
+    };
+    std::optional<AssemblyPlacementState> assembly_;
+    struct AssemblyAmend {
+        std::shared_ptr<const ComponentBundle> bundle;
+        QJsonObject values;
+        AssemblyPlacement placement;
+        Document::AmendStamp stamp;
+        Id placed{};
+    };
+    std::optional<AssemblyAmend> assemblyAmend_;
+    QTimer *assemblyDryRun_{};
+    std::optional<AssemblyPlacement> assemblyOnFace(Id host, Id face, std::optional<Vec3> anchor,
+                                                    Transform &world) const;
+    void updateAssemblyTarget(QPointF position);
+    void assemblyFullDryRun();
+    void placeAssembly(const AssemblyPlacement &placement);
+    bool assemblyPress(QMouseEvent *event);
+    void assemblyMove(QMouseEvent *event);
+    bool assemblyKey(QKeyEvent *event);
+    bool assemblyMeasurements(const QString &text);
+    void paintAssemblyOverlay(QPainter &painter);
 };
 } // namespace sketchy

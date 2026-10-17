@@ -351,7 +351,7 @@ class Document {
     // Not persisted until R091.b; restore starts with an empty item table.
     DrawingItemRecords drawingItems_;
     Id nextDrawingItemId_{1};
-    // Not persisted until schema 28 (R093.c).
+    // Persisted from schema 28 (R093.c); parameter-free saves do not store it.
     Id nextComponentDriverId_{1};
     ComponentVariantsPtr variants_;
     struct DefinitionFloor {

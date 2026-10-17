@@ -1,8 +1,12 @@
 #include "app/accessible_names.hpp"
+#include "app/component_definition_section.hpp"
+#include "app/component_drivers_section.hpp"
+#include "app/component_parameters_section.hpp"
 #include "app/inspection_service.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/window.hpp"
+#include "app/components_tab.hpp"
 #include <QAction>
 #include <QCheckBox>
 #include <QDialog>
@@ -16,9 +20,28 @@
 #include <QSettings>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QVBoxLayout>
 namespace sketchy {
 Window::~Window() {
+    // R094.e: the context opener, the message actions and a suspended placement's restore must
+    // not reach the window while it is torn down.
+    detachParameterStates();
+    // The document goes before the widgets: a field losing focus must not commit (R094.c).
+    if (parameters_)
+        parameters_->detach();
+    // R094.d: the definition sections and the strip likewise stop before the document goes.
+    if (definitionSection_)
+        definitionSection_->detach();
+    if (driversSection_)
+        driversSection_->detach();
+    if (previewTimer_)
+        previewTimer_->stop();
+    // R094.f: the Components tab's form and placement callbacks likewise.
+    if (auto *components = findChild<ComponentsTab *>())
+        components->detach();
+    // The sidebar's callbacks must not run while the widgets below are torn down (R094.a).
+    detachSidebar();
     delete assistant_;
     delete render_;
     delete recovery_;

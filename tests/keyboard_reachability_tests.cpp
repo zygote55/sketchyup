@@ -1,4 +1,8 @@
+#include "app/collapsible_section.hpp"
+#include "app/component_parameters_section.hpp"
+#include "app/components_tab.hpp"
 #include "app/file_operation.hpp"
+#include "app/parameter_value_field.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
@@ -6,6 +10,8 @@
 #include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "core/component_parameters.hpp"
+#include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include <QAccessible>
@@ -16,6 +22,7 @@
 #include <QDir>
 #include <QFile>
 #include <QLineEdit>
+#include <QListView>
 #include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
@@ -30,6 +37,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeWidget>
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <set>
@@ -549,6 +557,162 @@ void promptsReturnFocus(Fixture &f) {
     check(shown, "The file-operation surface was shown");
     returned("Closing the file-operation surface");
 }
+// R094.c (ADR 0166 §8): the Info tab's section headers, each parameter field, its reset
+// button, Reset all and Edit definition… are in the Tab cycle and named.
+void parameterSection(Fixture &f) {
+    auto &window = f.window;
+    auto &doc = window.document();
+    const auto body = doc.addFace({{{40, 40, 0}, {41, 40, 0}, {41, 41, 0}, {40, 41, 0}}}, "Box");
+    doc.extrude(body, doc.bodies().at(body)->surface.faces.begin()->first, 1);
+    const auto created = createComponent(doc, body, "Parametric box");
+    ComponentParameterSpec width;
+    width.name = "width";
+    width.label = "Width";
+    width.expression = "1 m";
+    width.min = .5;
+    width.max = 2;
+    defineComponentParameter(doc, created.definition, width);
+    ComponentParameterSpec shelves;
+    shelves.name = "shelves";
+    shelves.label = "Shelves";
+    shelves.type = ParameterType::Count;
+    shelves.expression = "2";
+    defineComponentParameter(doc, created.definition, shelves);
+    overrideComponentParameters(doc, created.instance, {{"width", ParameterQuantity{1.5, {1, 0}}}});
+    emit window.viewport()->changed();
+    window.findChild<QAction *>(toolId(Viewport::Tool::Pan))->trigger();
+    window.viewport()->setSelection(created.instance);
+    auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
+    tabs->setCurrentIndex(2);
+    auto *section = window.findChild<ComponentParametersSection *>("componentParametersSection");
+    check(QTest::qWaitFor([&] { return section->isVisible() && section->fields().size() == 2; }),
+          "The parameters section shows for the placement");
+    auto *info = window.findChild<QWidget *>("entityInfoSection");
+    auto *widthRow = section->field("width");
+    auto *shelvesRow = section->field("shelves");
+    const std::vector<QWidget *> targets{static_cast<CollapsibleSection *>(info)->header(),
+                                         section->header(),
+                                         widthRow->control(),
+                                         widthRow->resetButton(),
+                                         shelvesRow->control(),
+                                         section->resetAllButton(),
+                                         section->editDefinitionButton()};
+    std::set<QWidget *> reached;
+    for (const bool backwards : {false, true})
+        for (auto *stop : f.cycle(backwards))
+            reached.insert(stop);
+    for (auto *target : targets) {
+        check(reached.contains(target), "Tab or Shift+Tab reaches " + identity(target));
+        auto *accessible = QAccessible::queryAccessibleInterface(target);
+        check(accessible && !accessible->text(QAccessible::Name).isEmpty(),
+              "Accessible name for " + identity(target));
+    }
+    check(widthRow->control()->accessibleName() == "Width" &&
+              widthRow->resetButton()->accessibleName().startsWith("Reset Width to the default, "),
+          "Fields are named by their label and reset buttons say what they reset");
+    // Tab goes field → its reset → next field.
+    widthRow->control()->setFocus(Qt::TabFocusReason);
+    check(QTest::qWaitFor([&] { return widthRow->control()->hasFocus(); }), "Width focused");
+    key(Qt::Key_Tab);
+    f.expectFocus(widthRow->resetButton(), "Tab from Width");
+    key(Qt::Key_Tab);
+    f.expectFocus(shelvesRow->control(), "Tab from the reset button");
+    window.viewport()->setSelection(0);
+    tabs->setCurrentIndex(0);
+    window.document().markSaved();
+}
+// R094.h (ADR 0166 §8, §10): the Components tab (R094.f). View › Components shows the tab and
+// focuses its Show filter; Tab from the Tray's tab bar enters the page and Shift+Tab returns. The
+// section header, Show and the cards are Tab stops with names, and the cards are one stop (arrows
+// move between them). Enter on a card opens the values form, whose fields, Use defaults and Cancel
+// are Tab stops; Esc ends placement without losing keyboard focus.
+void componentsTab(Fixture &f) {
+    auto &window = f.window;
+    auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
+    auto *tab = window.findChild<ComponentsTab *>("componentsTab");
+    check(tab && tabs->indexOf(tab) == 12, "Components is the Tray's tab 12");
+    window.findChild<QAction *>(toolId(Viewport::Tool::Pan))->trigger();
+    window.findChild<QAction *>("view.components")->trigger();
+    check(QTest::qWaitFor([&] { return tabs->currentWidget() == tab; }),
+          "View › Components shows the tab");
+    f.expectFocus(tab->filter(), "View › Components");
+    tabs->tabBar()->setFocus(Qt::TabFocusReason);
+    f.expectFocus(tabs->tabBar(), "Focusing the Tray's tab bar");
+    f.intoPageAndBack(tabs, "Components");
+    // The page's stops: Tab from the bar until focus leaves the page, then Shift+Tab back to it.
+    auto pageStops = [&] {
+        std::vector<QWidget *> stops;
+        tabs->tabBar()->setFocus(Qt::TabFocusReason);
+        f.expectFocus(tabs->tabBar(), "The page walk starts at the tab bar");
+        key(Qt::Key_Tab);
+        for (int i = 0; i < 80 && tab->isAncestorOf(focused()); ++i) {
+            stops.push_back(focused());
+            key(Qt::Key_Tab);
+        }
+        check(!tab->isAncestorOf(focused()), "Tab leaves the Components page" + f.state());
+        key(Qt::Key_Backtab, Qt::ShiftModifier);
+        for (int i = 0; i < 80 && !tabs->tabBar()->hasFocus(); ++i) {
+            check(tab->isAncestorOf(focused()),
+                  "Shift+Tab stays in the Components page until its tab bar" + f.state());
+            stops.push_back(focused());
+            key(Qt::Key_Backtab, Qt::ShiftModifier);
+        }
+        check(tabs->tabBar()->hasFocus(), "Shift+Tab returns to the tab bar" + f.state());
+        return stops;
+    };
+    auto expectStops = [&](const std::vector<QWidget *> &stops,
+                           const std::vector<QWidget *> &targets) {
+        for (auto *target : targets) {
+            check(std::find(stops.begin(), stops.end(), target) != stops.end(),
+                  "Tab or Shift+Tab reaches " + identity(target));
+            auto *accessible = QAccessible::queryAccessibleInterface(target);
+            check(accessible && !accessible->text(QAccessible::Name).isEmpty(),
+                  "Accessible name for " + identity(target));
+        }
+    };
+    auto *cards = tab->cards();
+    auto *header =
+        static_cast<CollapsibleSection *>(tab->findChild<QWidget *>("componentsSection"))->header();
+    auto stops = pageStops();
+    expectStops(stops, {header, tab->filter(), cards});
+    // One stop each way: the forward walk and the backward walk each pass the cards once.
+    check(std::count(stops.begin(), stops.end(), cards) == 2,
+          "The cards are one Tab stop, visited " +
+              std::to_string(std::count(stops.begin(), stops.end(), cards)) +
+              " times in two walks");
+    check(cards->model()->rowCount() == 6, "The six assemblies are listed");
+    // Arrows move between the cards; Enter starts placing and opens the values form.
+    cards->setFocus(Qt::TabFocusReason);
+    f.expectFocus(cards, "Focusing the cards");
+    key(Qt::Key_Home);
+    key(Qt::Key_Right);
+    check(cards->currentIndex().row() == 1, "Right moves to the next card");
+    key(Qt::Key_Home);
+    key(Qt::Key_Return);
+    check(QTest::qWaitFor([&] {
+              return window.viewport()->assemblyPlacing() && tab->valuesSection()->isVisible();
+          }),
+          "Enter on a card opens the values form");
+    std::vector<QWidget *> form;
+    for (auto *field : tab->fields())
+        form.push_back(field->control());
+    form.push_back(tab->useDefaultsButton());
+    form.push_back(tab->cancelButton());
+    check(form.size() > 2, "The values form has fields");
+    stops = pageStops();
+    expectStops(stops, form);
+    // Esc in the form ends placement; focus stays in the tab.
+    tab->cancelButton()->setFocus(Qt::TabFocusReason);
+    f.expectFocus(tab->cancelButton(), "Focusing Cancel");
+    key(Qt::Key_Escape);
+    check(QTest::qWaitFor([&] { return !window.viewport()->assemblyPlacing(); }) &&
+              !tab->valuesSection()->isVisible(),
+          "Esc ends placement and hides the values form");
+    check(QTest::qWaitFor([] { return focused() != nullptr; }) && focused()->window() == &window,
+          "Focus stays in the model window" + f.state());
+    tabs->setCurrentIndex(0);
+    window.document().markSaved();
+}
 // R091.e: the Sheets workspace (ADR 0164 §4). One Tab stop for the sheet rail, the F6 order
 // search, sheet rail, canvas, page tabs, Tray (Pages), Assistant, Measurements, and the page
 // tabs and Pages tree reached by Tab.
@@ -888,6 +1052,10 @@ int main(int argc, char **argv) {
         promptsReturnFocus(f);
         std::cout << "Field of view… and the file-operation surface return focus to the "
                      "viewport passed\n";
+        parameterSection(f);
+        std::cout << "Info tab sections and placement parameters in the Tab cycle passed\n";
+        componentsTab(f);
+        std::cout << "Components tab: header, Show, one cards stop, values form and Esc passed\n";
         window.document().markSaved();
         window.hide();
         sheetsWorkspace();

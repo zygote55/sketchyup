@@ -3,6 +3,7 @@
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/appearance.hpp"
+#include "core/component_regeneration.hpp"
 #include "core/hierarchy_changes.hpp"
 #include "core/shading_normals.hpp"
 #include <QElapsedTimer>
@@ -912,12 +913,14 @@ void Viewport::rebuild() {
              (!cache.owner || !doc_.instances().contains(cache.owner) ||
               doc_.instances().at(cache.owner) != cache.instance ||
               !doc_.definitions().contains(cache.instance->definition) ||
-              doc_.definitions().at(cache.instance->definition) != cache.definition));
+              doc_.definitions().at(cache.instance->definition) != cache.definition ||
+              doc_.componentVariant(cache.owner) != cache.variant));
         if (!stale)
             return cache.source;
         cache.owner = 0;
         cache.instance.reset();
         cache.definition.reset();
+        cache.variant.reset();
         if (!placementSharing_ || body.kind != BodyKind::Geometry || body.referenceImage ||
             body.surface.faces.empty())
             return {};
@@ -936,16 +939,23 @@ void Viewport::rebuild() {
         cache.owner = owner;
         cache.instance = instance;
         cache.definition = definition->second;
+        // R094.g: a placement showing a variant shares by the variant's member
+        // records. Placements with equal values share one variant, and members no
+        // driver changes are the template's own records, shared with default placements.
+        cache.variant = doc_.componentVariant(owner);
+        const auto &records = cache.variant ? cache.variant->members : definition->second->members;
+        const auto &references =
+            cache.variant ? cache.variant->references : definition->second->references;
         auto [reverse, inserted] = members.try_emplace(owner);
         if (inserted)
             for (const auto &[member, target] : instance->members)
                 reverse->second.emplace(target, member);
         const auto member = reverse->second.find(id);
         if (member == reverse->second.end() || member->second == definition->second->root ||
-            definition->second->references.contains(member->second))
+            references.contains(member->second))
             return {};
-        const auto found = definition->second->members.find(member->second);
-        if (found == definition->second->members.end())
+        const auto found = records.find(member->second);
+        if (found == records.end())
             return {};
         if (!recordChanged && found->second == cache.source)
             return cache.source; // Already compared with this unchanged record.
@@ -1636,6 +1646,8 @@ void Viewport::paintScene(QPaintDevice *device) {
     paintGuides(p);
     paintSelection(p);
     paintAssistantPreview(p);
+    paintParameterOverlay(p);
+    paintAssemblyOverlay(p);
     if (hasFocus()) {
         p.setPen(QPen(colors_.accent, 2));
         p.setBrush(Qt::NoBrush);
@@ -1959,6 +1971,7 @@ void Viewport::setSelection(Id body, Id face) {
 
 void Viewport::setTool(Tool tool) {
     cancel();
+    assemblyAmend_.reset();
     tool_ = tool;
     if (tool == Tool::Walk || tool == Tool::LookAround)
         setOrthographic(false);
@@ -2006,6 +2019,7 @@ void Viewport::clearPreview() {
     update();
 }
 void Viewport::cancel() {
+    endAssemblyPlacement();
     stopWalking();
     stopSceneTransition();
     hostedCommand_.reset();
@@ -2447,6 +2461,8 @@ bool Viewport::measurements(const QString &text) {
             finishShape(*origin + line.direction * length(*base - *origin));
             return doc_.revision() != revision || measurementCompleted_;
         }
+        if (assemblyMeasurementsActive())
+            return assemblyMeasurements(trimmed);
         if (tool_ == Tool::HostedPlacement)
             return hostedMeasurements(trimmed);
         if (transformTool())
@@ -2746,6 +2762,11 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     pushControlPending_ = false;
     transformControlPending_ = false;
     previous_ = e->position();
+    // The stretch plane takes the drag before Alt-orbit: Alt drags it without snapping.
+    if (stretchPress(e))
+        return;
+    if (assemblyPress(e))
+        return;
     if (tool_ == Tool::Paint && e->button() == Qt::LeftButton) {
         try {
             paintAt(e->position(), e->modifiers().testFlag(Qt::AltModifier));
@@ -2889,6 +2910,11 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
     update();
 }
 void Viewport::mouseMoveEvent(QMouseEvent *e) {
+    if (stretchMove(e)) {
+        previous_ = e->position();
+        return;
+    }
+    assemblyMove(e);
     if (dragging_ && !e->buttons().testFlag(dragButton_)) {
         dragging_ = false;
         dragButton_ = Qt::NoButton;
@@ -2948,6 +2974,8 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
     update();
 }
 void Viewport::mouseReleaseEvent(QMouseEvent *e) {
+    if (stretchRelease(e))
+        return;
     if (e->button() == dragButton_) {
         dragging_ = false;
         dragButton_ = Qt::NoButton;
@@ -2992,6 +3020,8 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     }
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
+    if (assemblyKey(e))
+        return;
     if (tool_ == Tool::HostedPlacement &&
         (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)) {
         try {

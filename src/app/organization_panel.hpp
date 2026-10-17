@@ -15,6 +15,7 @@ class AnnotationsPanel;
 class TextPanel;
 class SolarPanel;
 class ReferenceImagesPanel;
+class ComponentsTab;
 class OrganizationPanel : public QWidget {
   public:
     OrganizationPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
@@ -32,6 +33,8 @@ class OrganizationPanel : public QWidget {
     void showText();
     void showSolar();
     void showReferenceImages();
+    // ADR 0166 §6.3 (R094.f): the Components tab, index 12.
+    void showComponents();
 
   private:
     Document &doc_;
@@ -50,6 +53,7 @@ class OrganizationPanel : public QWidget {
     TextPanel *text_{};
     SolarPanel *solar_{};
     ReferenceImagesPanel *references_{};
+    ComponentsTab *components_{};
     bool syncing_{};
     std::set<Id> knownBodies_, knownTags_;
     Document::SaveStamp session_;

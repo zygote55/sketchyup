@@ -248,3 +248,99 @@ The value is derived text and never stored on the dimension. The
 nondefault format (`ftIn`, 2 decimals, unit shown), and the schema-27 item seeds of the
 fuzz seeds and the parser fault corpus carry one too (`cm`, 1 decimal, unit shown).
 SketchyUp 1.0 still refuses the fixture unchanged.
+
+## Schema 28: component parameters (R093.c)
+
+2026-10-16. The public schema advances to **sketchyup-document-v28** under the same
+container version 2; see [constrained component parameters](0165-constrained-component-parameters.md)
+§5. The schema-28 document chunk uses `json-v28`, and `requiredFeatures` appends
+`component-parameters-v1` after `drawing-sheets-v1`: the feature set is exactly the
+schema-27 set plus `component-parameters-v1`. A schema-28 root always carries the
+schema-27 sheet tables and allocators, possibly empty. The document root adds three
+required fields, and `allocatorFloors` adds `nextComponentDriverId`, which must equal
+the root's:
+
+- `componentParameters`: one record per parametric definition, in ascending
+  `definition` order: `{definition, parameters, drivers}`.
+  - `parameters`, in display order: `{name, label, type, mode, expression, min, max,
+    step, options}`. `type` is `length`, `area`, `angle`, `number`, `count`, `boolean`
+    or `choice`; `mode` is `input` or `derived`. `min`, `max` and `step` are SI numbers,
+    or `null` when unset or when the type is `boolean` or `choice`. `options` is an
+    array of `{value, label}` for a `choice` and `null` otherwise.
+  - `drivers`, in ascending `id` order: `{id, kind, member, expression, bound, data}`.
+    `kind` is `stretch`, `position`, `rotation`, `visibility`, `repeat` or
+    `childParameter`, and `data` holds exactly that kind's fields: `stretch {axis, at}`,
+    `position {axis}`, `rotation {axis}`, `visibility {}`,
+    `repeat {axis, maxCount, spacing, firstMember}` and `childParameter {parameter}`.
+    `axis` is `x`, `y` or `z`; `at` is in metres; `maxCount` is an integer from 1 to
+    1,000.
+- `componentParameterOverrides`: in ascending `instance` order, `{instance, values}`
+  for each top-level placement with overrides. `values` is an object of 1–128 entries
+  keyed by input parameter name: an SI number for a quantity, a boolean, or a choice
+  value.
+- `nextComponentDriverId`.
+
+IDs, members, `firstMember` and the allocator are canonical nonzero decimal strings.
+Numbers are SI in shortest round-trip form. `expression` and `spacing` are canonical
+expression text (ADR 0165 §2); `bound` is 64 lowercase hexadecimal digits. Every field
+is required and unknown fields are rejected at every level. A record must name a stored
+definition, and overrides a stored top-level placement of a parametric definition.
+Instance bindings (schema 26 `members`) list exactly the members the placement's
+variant materializes, existing repeat copies included; no member body is stored.
+
+On load the reader checks every parameter record as an edit would (names, labels,
+types, bounds, canonical text, the acyclic graph, driver targets, unique driver IDs
+below the allocator, the ADR 0165 limits), evaluates every placement once within the
+document evaluation budget, and only then projects the placements from their variants.
+Override values must be the canonical (quantized, in-range) values of input
+parameters. The whole document then passes the ordinary restore validation. A file
+that fails any check is refused before anything is published and is not modified.
+
+**Writer policy** (extends decision 2 of ADR 0163): no sheets and no parameter records
+→ schema 26 in the 1.0 shape; sheets without parameter records → schema 27 in the 1.1
+shape; any parameter record → 28. Deleting every parameter record writes 27 or 26
+again. The driver allocator is then not stored and restarts at 1 on reopen, which is
+safe because overrides name parameters, not drivers. `--inspect-native` adds
+`componentParameters` (parametric definitions), `componentDrivers` and
+`componentParameterOverrides` (placements with overrides) counts and reports
+`migrationNeeded: false` for a parameter-free schema-26 or schema-27 container.
+Readers accept raw document versions 1–28; schemas 1–27 load with empty parameter
+tables and driver allocator 1.
+
+Component bundles ([ADR 0130](0130-contained-component-bundles.md)) capture the
+parameter records of every captured definition and the source driver allocator; the
+bundle's root placement must have no overrides. Insertion gives the drivers new IDs
+above the destination's allocator, in source order, and keeps members, repeat blocks
+and child parameters; a driver that was bound in the bundle is restamped over the
+remapped records so it stays bound. Template bundles and instantiated templates keep
+parameter records, overrides and the allocator. A bundle or template with parameters
+holds a schema-28 model.
+
+**Addendum: assembly identity (R094.b, 2026-10-16).** Schema 28 is still open (ADR 0165
+open item 2), so this field is added without a schema 29. A `componentParameters`
+record may carry one optional field, `assembly {id, version}`, naming the library
+assembly the definition was built from ([ADR 0166](0166-configurable-component-interface.md)
+§6.2). `id` matches `[a-z0-9_-]{1,64}(/[a-z0-9_-]{1,64})?` (for example
+`sketchyup/interior-door`) and `version` is an integer from 1 to 2,147,483,647. It is
+the only optional field in the tables: the writer omits it when the definition has no
+identity, and a reader refuses `null`, a malformed `id` or `version`, or unknown fields
+inside it. Component bundles capture it and insertion keeps it; making a placement
+unique (including the ancestors `component.replace` makes unique) leaves it off the
+copy, and removing a definition's last parameter and driver removes it with the
+record. The `component-parameters-v28.sketchyup` fixture was regenerated once to carry
+it on the room definition.
+
+**Older readers.** SketchyUp 1.1.0 (package `sketchyup-1.1.0-1`) and 1.0.1
+(`sketchyup-1.0.1-1`) refuse a schema-28 file at `decodeContainer`, before reading the
+document, and leave it unchanged. Their manifest check sees the new allocator floor, so
+`sketchyup-cli --validate-native` (and `--inspect-native`) exits 1 and writes exactly
+
+```json
+{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}
+```
+
+to stderr. Both open parameter-free saves from this build: 1.1.0 at schema 26 and 27,
+1.0.1 at schema 26. Acceptance retains `release-1.1.0-v27.sketchyup` (unmodified 1.1.0
+output) and the `component-parameters-v28.sketchyup` writer fixture. Package acceptance
+keeps its generic rule (the prior package refuses, unchanged, every retained fixture
+newer than it reads) and also passes the prior CLI to `component_parameter_io`.

@@ -14,17 +14,24 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPointer>
+#include <array>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <set>
 class QTabWidget;
+class QSplitter;
 class QDialog;
+class QPushButton;
 class QHBoxLayout;
 class QStackedWidget;
+class QTimer;
 class QToolBar;
 class QPrinter;
 namespace sketchy {
+class ComponentParametersSection;
+class ComponentDefinitionSection;
+class ComponentDriversSection;
 class DesktopInspection;
 class RenderPanel;
 class DrawingViewRenderCache;
@@ -101,12 +108,81 @@ class Window : public QMainWindow {
     QTabWidget *sideTabs_{};
     QPointer<QDialog> assistantSheet_;
     QPointer<QDialog> diagnosticsSheet_;
+    // R094.c: Entity info's placement parameters and the Measurements box routed to them.
+    ComponentParametersSection *parameters_{};
+    bool parameterMeasurement_{};
+    void syncParameterMeasurement();
+    // R094.d (ADR 0166 §2, §3; window_components.cpp): the definition context's sections, the
+    // Preview strip under the banner, the rail's Add driver and the Measurements box "Plane".
+    ComponentDefinitionSection *definitionSection_{};
+    ComponentDriversSection *driversSection_{};
+    bool planeMeasurement_{};
+    QWidget *previewStrip_{};
+    QLabel *previewError_{};
+    QTimer *previewTimer_{};
+    QString previewSignature_, previewKey_;
+    Id previewScope_{}, statusScope_{};
+    std::vector<std::pair<QJsonObject, QWidget *>> previewFields_;
+    QAction *railSeparator_{}, *railAddDriver_{};
+    void setupDefinitionAuthoring();
+    void syncPreviewStrip(Id scope, bool parametric);
+    void previewDefaults();
+    void preview();
+    void addDriver();
+    // R094.e (ADR 0166 §§4, 5; window_components.cpp): the "has its own values" dialog, the
+    // overrides suspended while a definition is edited at its defaults, the changed-since-bound
+    // strip and the §5 messages' actions.
+    struct ParameterSuspension {
+        std::string document;
+        Id placement{};
+        QJsonObject values; // the placement's overrides, SI values by parameter name
+        QJsonObject labels; // their labels, for a parameter the definition no longer has
+        QString name;       // the placement's name, for labels and the status bar
+        Document::AmendStamp stamp;
+    };
+    std::optional<ParameterSuspension> suspension_;
+    Id templateScope_{};
+    bool templateScopeOwn_{}, parameterStatesBusy_{}, parameterStatesDetached_{};
+    QWidget *statusStrip_{};
+    QLabel *statusStripText_{};
+    QPushButton *statusRebind_{}, *statusUndo_{}, *previewAction_{};
+    Id previewActionDriver_{}, previewActionDefinition_{};
+    std::string stripDocument_;
+    Id stripDefinition_{};
+    std::uint64_t stripRevision_{};
+    std::size_t stripPosition_{};
+    std::set<Id> stripChanged_;
+    QJsonArray stripDrivers_;
+    void setupParameterStates();
+    void detachParameterStates();
+    bool openPlacement(Id placement);
+    void syncParameterStates();
+    void finishSuspension();
+    void syncStatusStrip(Id scope, bool parametric);
+    void placeParameterStrips();
+    void parameterAction(int action, Id target, Id definition);
     void showGeometryDiagnostics();
     bool assistantShown_{}, assistantFenced_{};
     int assistantRecoveryInterval_{};
     std::map<QAction *, bool> assistantActionStates_;
     std::vector<std::pair<QWidget *, bool>> assistantWidgetStates_;
     void layoutAssistant();
+    // R094.a: the user-resizable sidebar (window_sidebar.cpp). The workspace, the side panel and,
+    // in the wide layout, the Assistant column share one splitter. Widths are kept per layout in
+    // logical pixels at 100% interface text (0 = default) and persist in QSettings.
+    enum SidebarWidth { SidebarTray, SidebarTabbed, SidebarAssistant };
+    QSplitter *sidebarSplitter_{};
+    std::array<int, 3> sidebarWidths_{};
+    bool sidebarLayoutQueued_{};
+    void setupSidebar(QWidget *workspace);
+    void detachSidebar();
+    void layoutSidebar();
+    void queueSidebarLayout();
+    void rememberSidebar(int handle);
+    void storeSidebarWidth(QWidget *column, int width);
+    void stepSidebar(int direction);
+    void resetSidebar();
+    void themeSidebar(const ThemeColors &colors);
     void toggleAssistant();
     void assistantFence(bool uncertain);
     std::unique_ptr<DesktopInspection> inspection_;

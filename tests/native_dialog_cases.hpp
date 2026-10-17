@@ -6,6 +6,7 @@
 #include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
 #include "automation/extension_store.hpp"
+#include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
@@ -72,6 +73,25 @@ inline ComponentFixture component(Context &context) {
     context.window.viewport()->refresh();
     context.window.viewport()->setSelection(made.instance);
     return result;
+}
+// R094.e (ADR 0166 §4.1): a placement of a parametric definition with its own Width, selected,
+// so Enter on it asks "… has its own values".
+inline void parametricPlacement(Context &context) {
+    const auto made = component(context);
+    auto &doc = context.window.document();
+    ComponentParameterSpec width;
+    width.name = "width";
+    width.label = "Width";
+    width.type = ParameterType::Length;
+    width.mode = ComponentParameterMode::Input;
+    width.expression = "1 m";
+    defineComponentParameter(doc, doc.instances().at(made.root)->definition, width);
+    overrideComponentParameters(
+        doc, made.root, {{"width", ParameterQuantity{quantizeParameterLength(1.5), {1, 0}}}});
+    doc.markSaved();
+    context.window.viewport()->refresh();
+    emit context.window.viewport()->changed();
+    context.window.viewport()->setSelection(made.root);
 }
 inline void selectTableFace(Context &context) {
     fresh(context);
@@ -691,6 +711,12 @@ inline std::vector<Case> cases(Context &ctx) {
          "Edit > Change component axes… (palette)", [](Context &context) { component(context); },
          viaPalette("Change component axes…"),
          namedTitle("componentDialog", "Change component axes"), Enter::Accept, "OK"});
+    add({"parameters-scope", "components", "Placement has its own values",
+         "Enter on a selected placement with its own values (also double-click and Edit "
+         "definition…)",
+         parametricPlacement,
+         [](Context &context) { QTest::keyClick(context.window.viewport(), Qt::Key_Return); },
+         named("parametersScopeDialog"), Enter::Accept, "Edit definition at defaults"});
     add({"component-library",
          "files",
          "Insert library component",

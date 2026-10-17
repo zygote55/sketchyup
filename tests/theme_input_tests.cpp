@@ -136,6 +136,17 @@ int main(int argc, char **argv) {
             token("selectionStroke", colors.selectionStroke, colors.surface, "selection on surface",
                   3);
             token("paper", colors.ink, colors.pasteboard, "text on pasteboard", 4.5);
+            // ADR 0166 §1.2, §5 (R094.c): parameter rows. Override captions are information
+            // text; override and invalid fields keep ink text on their fills; their borders are
+            // graphics against the Tray and the input background.
+            token("information", colors.information, colors.surface, "override caption", 4.5);
+            token("information", colors.information, colors.selected, "caption on selection", 4.5);
+            token("information", colors.ink, colors.informationSurface, "override field text", 4.5);
+            token("information", colors.information, colors.surface, "override field border", 3);
+            token("information", colors.information, colors.input, "override border by input", 3);
+            token("failure", colors.ink, colors.failureSurface, "invalid field text", 4.5);
+            token("failure", colors.failure, colors.input, "invalid field border", 3);
+            token("muted", colors.muted, colors.surface, "parameter caption and note", 4.5);
             check(colors.paper == QColor(Qt::white), "Paper is white in both themes");
         }
         const auto paper = themeColors(false);
@@ -163,7 +174,8 @@ int main(int argc, char **argv) {
                             {"scope",
                              "Effective active Qt palette for measurements, "
                              "selection, command button, secondary text and painted context link; "
-                             "Sheets warning, failure and selection tokens"},
+                             "Sheets warning, failure and selection tokens; component parameter "
+                             "information, failure and caption tokens"},
                             {"releaseAcceptance", false}})
                 .toJson();
         if (argc == 2) {

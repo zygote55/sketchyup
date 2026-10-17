@@ -463,6 +463,9 @@ ComponentParametersPtr renumberComponentDrivers(const ComponentParametersPtr &re
     auto copy = std::make_shared<ComponentParameters>(*record);
     for (auto &driver : copy->drivers)
         driver.id = allocate(nextDriver);
+    // Only unique copies are renumbered; a copy is no longer the library's assembly
+    // (ADR 0166 §6.2).
+    copy->assembly.reset();
     return copy;
 }
 void reserveRepeatBlocks(ComponentDefinition &definition, ComponentParameters &record,
@@ -910,16 +913,25 @@ ComponentResult setComponentGlue(Document &doc, Id id, std::optional<ComponentGl
 std::map<Id, BodyPtr> projectComponentPlacement(const ComponentDefinitions &definitions,
                                                 const ComponentInstances &instances, Id root,
                                                 const Body &placement,
-                                                const std::map<Id, std::pair<Id, Id>> &floors) {
+                                                const std::map<Id, std::pair<Id, Id>> &floors,
+                                                const ComponentVariantIndex *variants) {
     if (!instances.contains(root) || !instances.at(root))
         throw std::runtime_error("Missing component placement binding");
     const auto &top = *instances.at(root);
     if (!definitions.contains(top.definition) || !definitions.at(top.definition))
         throw std::runtime_error("Missing or mismatched component placement binding");
-    ComponentVariantEngine engine(definitions);
-    const auto variant = top.overrides.empty() && !engine.parametric(top.definition)
-                             ? VariantPtr{}
-                             : engine.variant(top.definition, top.overrides);
+    VariantPtr variant;
+    if (variants) {
+        if (const auto found = variants->placements.find(root);
+            found != variants->placements.end())
+            variant = found->second;
+    } else {
+        ComponentVariantEngine engine(definitions);
+        if (!top.overrides.empty() || engine.parametric(top.definition))
+            variant = engine.variant(top.definition, top.overrides);
+    }
+    if (variant && variant->definition != top.definition)
+        throw std::runtime_error("Missing or mismatched component placement binding");
     // Every binding must already name each member, so projection never allocates.
     auto complete = [&](auto &&self, Id placed, Id definitionId, const VariantPtr &shown,
                         size_t depth) -> void {

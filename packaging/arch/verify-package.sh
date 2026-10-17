@@ -29,9 +29,10 @@ package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
 # in the series: a later pkgrel upgrades from the previous pkgrel of the same version;
 # the first pkgrel of a patch version x.y.z (z >= 1) upgrades from x.y.(z-1)-1; and the
 # first pkgrel of x.y.0 upgrades from the newest earlier entry of released_packages
-# (1.0.0-1 from the development package 0.1.0-3, 1.1.0-1 from 1.0.1-1). Add each
+# (1.0.0-1 from the development package 0.1.0-3, 1.1.0-1 from 1.0.1-1, 1.2.0-1 from
+# 1.1.1-1). Add each
 # published release to this table, oldest first.
-released_packages=(0.1.0-3 1.0.0-1 1.0.1-1)
+released_packages=(0.1.0-3 1.0.0-1 1.0.1-1 1.1.0-1 1.1.1-1)
 for (( index = 1; index < ${#released_packages[@]}; index++ )); do
   (( $(vercmp "${released_packages[index]}" "${released_packages[index - 1]}") > 0 )) || {
     echo "released_packages is not in vercmp order at ${released_packages[index]}." >&2
@@ -75,6 +76,8 @@ source_dir=/work/package/src/sketchyup-$package_version
 declare -A known_release_sha256=(
   [sketchyup-1.0.0-1-x86_64.pkg.tar.zst]=9405d89c87c27443527973f7637794fe73455e1d4034a71029d7b23c103d57f7
   [sketchyup-1.0.1-1-x86_64.pkg.tar.zst]=91e807851d40525ce5429814f88b59c4fef9321de121f165e9e33429b82869f5
+  [sketchyup-1.1.0-1-x86_64.pkg.tar.zst]=e718b8fb0e52bb5ec40b6817b99c92a824242f4a20907a02f50f47e3f0c0d00a
+  [sketchyup-1.1.1-1-x86_64.pkg.tar.zst]=58ddfed5332f57fc3cef422d91938337f136f8c5f29fa19003ccec5c9afd9c2b
 )
 prior_release_cli=
 if [[ -n ${SKETCHYUP_PRIOR_RELEASE_PACKAGE:-} ]]; then
@@ -100,7 +103,8 @@ fi
 sed -i -e "s/^pkgver=$package_version$/pkgver=$prior_version/" \
   -e "s/^pkgrel=$package_release$/pkgrel=$prior_release/" \
   -e "s/^_srcname=.*$/_srcname=sketchyup-$package_version/" PKGBUILD
-# check() runs ctest; drawing_sheet_io_tests also drives the released CLI when set.
+# check() runs ctest; drawing_sheet_io_tests and component_parameter_io_tests also drive
+# the released CLI when set.
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" \
   SKETCHYUP_PRIOR_CLI="$prior_release_cli" makepkg --noconfirm --force
 grep -qx "project(SketchyUp VERSION $package_version LANGUAGES CXX)" "$source_dir/CMakeLists.txt" || {
@@ -222,6 +226,20 @@ runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEV
 pacman -U --noconfirm "sketchyup-$package_version-$package_release-x86_64.pkg.tar.zst"
 pacman -Qkk sketchyup
 [[ $(pacman -Q sketchyup) == "sketchyup $package_version-$package_release" ]]
+# ADR 0166 §6.1 (R094.f): the package installs the six configurable assemblies, built at
+# package build time from resources/assemblies, as component bundles the desktop reads.
+assemblies=(interior-door casement-window dining-table bookshelf base-cabinet straight-stair)
+[[ $(find /usr/share/sketchyup/assemblies -maxdepth 1 -type f -name '*.sketchylib' | wc -l) == "${#assemblies[@]}" ]]
+for assembly in "${assemblies[@]}"; do
+  bundle=/usr/share/sketchyup/assemblies/$assembly.sketchylib
+  [[ -s $bundle && -r $bundle && $(head -c 6 "$bundle") == SKYLIB ]]
+  [[ $(pacman -Qoq "$bundle") == sketchyup ]]
+  # The installed bytes are the ones the packaged CLI builds from the packaged source.
+  runuser -u builder -- sketchyup-cli --build-assembly "$source_dir/resources/assemblies/$assembly.json" \
+    "/work/acceptance/$assembly.sketchylib" > /dev/null
+  cmp "$bundle" "/work/acceptance/$assembly.sketchylib"
+done
+printf 'Installed %s configurable assemblies, byte-identical to a rebuild from their sources.\n' "${#assemblies[@]}"
 [[ $(runuser -u builder -- sketchyup-cli --version) == "sketchyup-cli $package_version" ]]
 if [[ -n $prior_release_cli ]]; then
   # The released CLI refuses, unchanged, every retained fixture newer than it reads,
@@ -298,6 +316,7 @@ done < /work/acceptance/package-owned-paths.txt
 [[ ! -e /usr/share/applications/io.sketchyup.SketchyUp.desktop ]]
 [[ ! -e /usr/share/icons/hicolor/scalable/apps/io.sketchyup.SketchyUp.svg ]]
 [[ ! -e /usr/share/mime/packages/io.sketchyup.SketchyUp.xml ]]
+[[ ! -e /usr/share/sketchyup/assemblies ]]
 [[ -s '/work/acceptance/Room model.sketchyup' ]]
 [[ -s /work/acceptance/migrations/m4-complete-v11.sketchyup/migrated.sketchyup ]]
 jq -e '.passed and (.fixtures | length >= 20)' /work/acceptance/migrations/report.json

@@ -11,6 +11,9 @@
 #include "automation/reference_image_commands.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/drawing_sheet_commands.hpp"
+#include "automation/component_parameter_commands.hpp"
+#include "core/component_parameters.hpp"
+#include "core/component_publish.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/texture_commands.hpp"
@@ -721,6 +724,38 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             executeSavedSceneCommand(staged, command);
         } else if (isDrawingSheetCommand(name)) {
             executeDrawingSheetCommand(staged, command, baseRevision);
+        } else if (isComponentParameterCommand(name)) {
+            ComponentResult result;
+            std::optional<bool> madeUnique;
+            if (name == "component_parameter.promote") {
+                auto promotion = executeComponentParameterPromotion(staged, command);
+                if (promotion.unique)
+                    compose(promotion.unique->changes);
+                madeUnique = promotion.unique.has_value();
+                result = std::move(promotion.promoted);
+            } else {
+                result = executeComponentParameterCommand(staged, command);
+            }
+            compose(result.changes);
+            QJsonArray drivers, warnings;
+            for (const auto driver : result.createdDrivers)
+                drivers.append(QString::number(driver));
+            for (const auto driver : result.parameterWarnings)
+                warnings.append(QString::number(driver));
+            QJsonObject operation{
+                {"command", name},
+                {"definition", QString::number(result.definition)},
+                {"createdDrivers", drivers},
+                {"parameterWarnings", warnings},
+                {"regenerated", QJsonObject{{"placements", double(result.regenerated.placements)},
+                                            {"variants", double(result.regenerated.variants)}}}};
+            if (result.instance)
+                operation["instance"] = QString::number(result.instance);
+            if (madeUnique) {
+                operation["madeUnique"] = *madeUnique;
+                operation["parametersPromoted"] = result.parametersPromoted;
+            }
+            componentOperations.append(operation);
         } else if (name == "document.solar") {
             staged.setSolar(decodeSolarSettings(command["solar"]));
         } else if (name == "document.style") {
@@ -1408,6 +1443,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             QJsonObject innerResult;
             std::map<Id, Id> scopeMembers;
             std::optional<Document> scopeDraft;
+            bool parametersPromoted = false;
             if (name == "component.create")
                 result = createComponent(staged, id(command["body"]),
                                          command.value("name").toString("Component").toStdString());
@@ -1443,7 +1479,16 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                     compose(unique.changes);
                     command["instance"] = QString::number(unique.instance);
                     command["definition"] = QString::number(unique.definition);
+                    // ADR 0165 §4: the unique copy keeps its parameters, and the
+                    // placement's current values become its defaults.
+                    if (staged.definitions().at(unique.definition)->parameters) {
+                        const auto promoted =
+                            promoteComponentParameters(staged, unique.instance);
+                        compose(promoted.changes);
+                        parametersPromoted = promoted.parametersPromoted;
+                    }
                 }
+                rejectScopedParameterCommands(commands, id(command["definition"]));
                 Transform frame;
                 if (command.contains("instance")) {
                     scopeInstance = id(command["instance"]);
@@ -1452,6 +1497,10 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                         throw std::runtime_error(
                             "Instance no longer belongs to the requested definition");
                     frame = staged.worldTransform(scopeInstance);
+                    // A template edit through a placement is allowed only while that
+                    // placement shows the template (ADR 0165 §4).
+                    requireComponentTemplateScope(staged, scopeInstance,
+                                                  scopedCommandRecords(commands));
                 }
                 for (auto value : commands) {
                     const auto nested = value.toObject().value("command");
@@ -1505,6 +1554,14 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             compose(result.changes);
             QJsonObject operation{{"definition", QString::number(result.definition)},
                                   {"instance", QString::number(result.instance)}};
+            if (name == "component.edit_instance")
+                operation["parametersPromoted"] = parametersPromoted;
+            if (name == "component.replace" && !result.droppedOverrides.empty()) {
+                QJsonArray dropped;
+                for (const auto &parameter : result.droppedOverrides)
+                    dropped.append(QString::fromStdString(parameter));
+                operation["droppedOverrides"] = dropped;
+            }
             if (name == "component.edit" || name == "component.edit_instance") {
                 QJsonObject normalized;
                 for (auto [source, target] : result.movedGeometry)
@@ -1782,7 +1839,16 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     };
     const auto survivingBooleans = pruneSolids(booleans);
     const auto survivingSolidOperations = pruneSolids(solidOperations);
+    const auto beforeDefinitions = doc.definitions();
+    const auto beforeVariants = doc.componentVariantRecords();
     const auto report = doc.apply(std::move(edit), doc.revision());
+    // ADR 0165 §6: drivers this batch created, the placements and variants it
+    // regenerated, and the drivers it moved from bound to changedSinceBound.
+    const auto createdDrivers = createdComponentDrivers(beforeDefinitions, doc.definitions());
+    const auto parameterWarnings = componentParameterWarnings(beforeDefinitions, doc.definitions());
+    const auto regeneration = componentRegeneration(doc, beforeDefinitions, *beforeVariants);
+    const QJsonObject regenerated{{"placements", double(regeneration.placements)},
+                                  {"variants", double(regeneration.variants)}};
     if (response == BatchResponse::CreatedIds)
         return {{"status", "committed"},
                 {"revision", QString::number(doc.revision())},
@@ -1798,6 +1864,9 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdDrawingSheets", createdDrawingSheets},
                 {"createdDrawingViews", createdDrawingViews},
                 {"createdDrawingItems", createdDrawingItems},
+                {"createdComponentDrivers", createdDrivers},
+                {"regenerated", regenerated},
+                {"parameterWarnings", parameterWarnings},
                 {"recipeOperations", recipeOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
@@ -1864,6 +1933,9 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"createdDrawingSheets", createdDrawingSheets},
                 {"createdDrawingViews", createdDrawingViews},
                 {"createdDrawingItems", createdDrawingItems},
+                {"createdComponentDrivers", createdDrivers},
+                {"regenerated", regenerated},
+                {"parameterWarnings", parameterWarnings},
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
                        {"assertions", assertions},
@@ -1878,7 +1950,53 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     return result;
 }
 QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchResponse response) {
-    return executeBatchWithReferences(doc, request, response);
+    try {
+        return executeBatchWithReferences(doc, request, response);
+    } catch (const ComponentParameterError &error) {
+        // Keep ADR 0165's codes and context for sessions, MCP, staging and the CLI.
+        throw InspectionError(error.code(), error.what(), componentParameterErrorDetails(error));
+    }
+}
+// The dry run's drawable result (ADR 0166 §2): `geometry` holds every body that is
+// shown in the candidate and new, changed or moved (regenerated members, repeat
+// copies, re-cut host faces) with its world transform; `removed` lists the bodies
+// shown before that the candidate deletes or hides (a removed repeat copy, a member a
+// visibility driver hides), ascending. Nothing is capped: one regeneration is bounded
+// by ADR 0165's limits.
+void previewGeometry(const Document &doc, const Document &candidate, QJsonObject &result) {
+    auto shown = [](const Document &document, Id id) {
+        for (std::size_t depth = 0; id && depth <= 256; ++depth) {
+            const auto found = document.bodies().find(id);
+            if (found == document.bodies().end() || found->second->hidden)
+                return false;
+            id = found->second->parent;
+        }
+        return true;
+    };
+    QJsonObject geometry;
+    std::set<Id> removed, hiddenNow;
+    for (const auto &[id, body] : candidate.bodies()) {
+        const auto before = doc.bodies().find(id);
+        if (before != doc.bodies().end() && before->second == body &&
+            doc.worldTransform(id) == candidate.worldTransform(id))
+            continue;
+        if (shown(candidate, id))
+            geometry[QString::number(id)] = topologyDescription(candidate, id);
+        else if (before != doc.bodies().end() && body->hidden && !before->second->hidden)
+            hiddenNow.insert(id);
+    }
+    // Deleted bodies, and (only when some body became hidden) every body that was
+    // shown before and is not now, which covers the members under a hidden group.
+    for (const auto &[id, body] : doc.bodies())
+        if (!candidate.bodies().contains(id) ? shown(doc, id)
+                                             : !hiddenNow.empty() && shown(doc, id) &&
+                                                   !shown(candidate, id))
+            removed.insert(id);
+    QJsonArray removedIds;
+    for (const auto id : removed)
+        removedIds.append(QString::number(id));
+    result["geometry"] = geometry;
+    result["removed"] = removedIds;
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request) {
@@ -1910,12 +2028,7 @@ QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
     auto result = executeAmend(candidate, stamp, request);
     result["status"] = "preview";
     result["baseRevision"] = QString::number(doc.revision());
-    QJsonObject geometry;
-    for (const auto &[id, body] : candidate.bodies())
-        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body ||
-            doc.worldTransform(id) != candidate.worldTransform(id))
-            geometry[QString::number(id)] = topologyDescription(candidate, id);
-    result["geometry"] = geometry;
+    previewGeometry(doc, candidate, result);
     return result;
 }
 QJsonObject previewBatch(const Document &doc, const QJsonObject &request) {
@@ -1923,12 +2036,7 @@ QJsonObject previewBatch(const Document &doc, const QJsonObject &request) {
     auto result = executeBatch(candidate, request);
     result["status"] = "preview";
     result["baseRevision"] = QString::number(doc.revision());
-    QJsonObject geometry;
-    for (const auto &[id, body] : candidate.bodies())
-        if (!doc.bodies().contains(id) || doc.bodies().at(id) != body ||
-            doc.worldTransform(id) != candidate.worldTransform(id))
-            geometry[QString::number(id)] = topologyDescription(candidate, id);
-    result["geometry"] = geometry;
+    previewGeometry(doc, candidate, result);
     return result;
 }
 } // namespace sketchy

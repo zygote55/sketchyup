@@ -1,5 +1,9 @@
+#include "app/collapsible_section.hpp"
+#include "app/component_parameters_section.hpp"
+#include "app/parameter_value_field.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include "core/entity_measure.hpp"
 #include "core/groups.hpp"
@@ -98,6 +102,27 @@ int main(int argc, char **argv) {
         QTest::qWait(30);
         auto *frame = window.findChild<QComboBox *>("entityInfoFrame");
         auto *volume = window.findChild<QLabel *>("entityInfoVolume");
+        // R094.c (ADR 0166 §1.1): the Info tab is a stack of collapsible sections. Entity info
+        // comes first; the placement parameters show only for a parametric placement.
+        auto *infoSection =
+            static_cast<CollapsibleSection *>(window.findChild<QWidget *>("entityInfoSection"));
+        auto *parameters =
+            window.findChild<ComponentParametersSection *>("componentParametersSection");
+        check(infoSection && infoSection->title() == "Entity info" && infoSection->expanded() &&
+                  infoSection->isAncestorOf(frame) && frame->isVisible(),
+              "Entity info is the Info tab's first section and holds the measurements");
+        check(parameters && !parameters->isVisible(),
+              "No parameters section for ordinary geometry");
+        auto *panel = window.findChild<QWidget *>("entityInfoPanel");
+        infoSection->header()->setFocus();
+        QTest::keyClick(infoSection->header(), Qt::Key_Space);
+        check(!infoSection->expanded() && !frame->isVisible() &&
+                  panel->focusProxy() == infoSection->header() &&
+                  infoSection->header()->accessibleDescription() == "Collapsed",
+              "Space collapses Entity info and Tab into the tab lands on its header");
+        QTest::keyClick(infoSection->header(), Qt::Key_Space);
+        check(infoSection->expanded() && frame->isVisible() && panel->focusProxy() == frame,
+              "Space expands Entity info again");
         check(volume->text().contains("72"), "Info reports mirrored world solid volume");
         frame->setCurrentIndex(2);
         check(volume->text().contains("24"), "Intrinsic readout excludes placement scale");
@@ -245,6 +270,21 @@ int main(int argc, char **argv) {
                                .x -
                            4) < tolerance,
               "Open component member fields publish through explicit shared scope");
+        // A definition with a parameter adds "Parameters · this placement" below Entity info.
+        view->enterContext(0);
+        ComponentParameterSpec depth;
+        depth.name = "depth";
+        depth.label = "Depth";
+        depth.expression = "2 m";
+        defineComponentParameter(doc, component.definition, depth);
+        QMetaObject::invokeMethod(view, "changed");
+        view->enterContext(group);
+        view->setSelection(peer);
+        QTest::qWait(30);
+        check(parameters->isVisible() && parameters->placement() == peer &&
+                  parameters->field("depth") &&
+                  parameters->mapTo(panel, QPoint()).y() > infoSection->mapTo(panel, QPoint()).y(),
+              "A parametric placement shows its parameters below Entity info");
         view->enterContext(0);
         const auto sheet = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
         QMetaObject::invokeMethod(view, "changed");

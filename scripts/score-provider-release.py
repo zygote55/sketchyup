@@ -6,6 +6,8 @@ This does not infer semantic correctness from provider completion text.
 Corpus version 1 scoring is unchanged. Version 2 additionally requires the
 deterministic undo and recovery postconditions recorded by provider_trial on
 every run; any failure is a blocking engine defect, not model variance.
+Version 3 keeps the version 2 rules and freezes the native ChatGPT-plan limits
+of PR #338; reports must also match a profile's outputTokenLimitEnforced.
 """
 import argparse
 import hashlib
@@ -71,11 +73,11 @@ def postcondition_failures(data):
 
 def score(manifest, bundle, root):
     version = manifest['corpusVersion']
-    require(type(version) is int and version in (1, 2), 'Unsupported corpus')
-    if version == 2:
+    require(type(version) is int and version in (1, 2, 3), 'Unsupported corpus')
+    if version >= 2:
         require(manifest['requiredPostconditions'] == list(POSTCONDITIONS) and
                 all(name in manifest['hardZero'] for name in POSTCONDITION_BLOCKERS),
-                'Corpus v2 requires blocking undo and recovery postconditions')
+                'Corpus v2+ requires blocking undo and recovery postconditions')
     postcondition_totals = dict.fromkeys(POSTCONDITIONS, 0)
     profile = manifest['profiles'][bundle['profile']]
     tasks = {task['trial']: task for task in manifest['tasks']}
@@ -110,8 +112,9 @@ def score(manifest, bundle, root):
             require(data['connection'] == 'ollama' and
                     data['endpoint'] == 'http://127.0.0.1:1', 'Wrong offline control')
         else:
-            for field in ('connection', 'provider', 'outputTokensPerTurn', 'taskTurns',
-                          'taskReportedTokens', 'contextTokens', 'threads'):
+            for field in ('connection', 'provider', 'outputTokensPerTurn',
+                          'outputTokenLimitEnforced', 'taskTurns', 'taskReportedTokens',
+                          'contextTokens', 'threads'):
                 if field in profile:
                     require(data[field] == profile[field], 'Configuration drift: ' + field)
         review = entry['review']
@@ -136,7 +139,7 @@ def score(manifest, bundle, root):
                 'Invalid applied state')
         if not data['manualEditSaveReopenVerified']:
             failures.append('manualWorkflowFailed')
-        if version == 2:
+        if version >= 2:
             failures.extend(postcondition_failures(data))
             for field in POSTCONDITIONS:
                 postcondition_totals[field] += int(data[field])
@@ -169,7 +172,7 @@ def score(manifest, bundle, root):
                    'rawReportSha256': raw_hash, 'phase': result['phase'],
                    'elapsedMs': data['elapsedMs'], 'reportedTokens': result['reportedTokens'],
                    'providerTurns': result['providerTurns'], 'toolCalls': result['toolCalls']}
-        if version == 2:
+        if version >= 2:
             summary.update({field: data[field] for field in POSTCONDITIONS})
         summaries.append(summary)
     thresholds = {name: {'successes': totals[name], 'runs': repeats,
@@ -180,7 +183,7 @@ def score(manifest, bundle, root):
               'profileStatus': profile['status'], 'corpusPassed': passed, 'releaseAccepted': False,
               'monetaryCost': None, 'costPolicy': manifest['costPolicy'],
               'thresholds': thresholds, 'blockers': blockers, 'runs': summaries}
-    if version == 2:
+    if version >= 2:
         # Deterministic engine properties: the profile passes only at 100%.
         runs = len(summaries)
         output['postconditions'] = {field: {'passed': postcondition_totals[field], 'runs': runs,

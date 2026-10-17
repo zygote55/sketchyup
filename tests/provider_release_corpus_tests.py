@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Offline corpus checks; no provider requests leave the machine.
 
-1. Freeze: generated inputs/prompts must match both committed manifests (v1 is
-   retained for history; v2 is authoritative), reproduced twice.
-2. Corpus v2 postconditions: a deterministic replayed Ollama-protocol provider on
-   loopback drives the real provider_trial for 3 x 8 runs. Every run must record
+1. Freeze: generated inputs/prompts must match every committed manifest (v1 and
+   v2 are retained for history; v3 is authoritative), reproduced twice.
+2. Corpus v3 postconditions (the v2 rules): a deterministic replayed
+   Ollama-protocol provider on loopback drives the real provider_trial for 3 x 8 runs. Every run must record
    passing undo and recovery postconditions, and the complete set must score as
    passing. An injected extra history step must be detected and block scoring.
 """
@@ -24,8 +24,10 @@ import threading
 sys.dont_write_bytecode = True
 TESTS = Path(__file__).resolve().parent
 MANIFESTS = [json.loads((TESTS / name).read_text()) for name in
-             ('provider-release-corpus.json', 'provider-release-corpus-v2.json')]
-V2 = TESTS / 'provider-release-corpus-v2.json'
+             ('provider-release-corpus.json', 'provider-release-corpus-v2.json',
+              'provider-release-corpus-v3.json')]
+CURRENT = TESTS / 'provider-release-corpus-v3.json'
+VERSION = 3
 SPEC = importlib.util.spec_from_file_location('score', TESTS.parent / 'scripts/score-provider-release.py')
 SCORE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SCORE)
@@ -152,10 +154,10 @@ class Replay(http.server.BaseHTTPRequestHandler):
 
 
 def freeze(trial_binary, root, env):
-    for task in MANIFESTS[1]['tasks']:
-        for manifest in MANIFESTS[:1]:
+    for task in MANIFESTS[-1]['tasks']:
+        for manifest in MANIFESTS[:-1]:
             check(task == next(t for t in manifest['tasks'] if t['trial'] == task['trial']),
-                  'v2 must keep the v1 task inputs, prompts and thresholds')
+                  'v3 must keep the v1/v2 task inputs, prompts and thresholds')
         for repeat in range(2):
             report = root / f"describe-{task['trial']}-{repeat}.json"
             subprocess.run([trial_binary, '--describe', 'gpt-6-astra', task['trial'], str(report)],
@@ -167,7 +169,7 @@ def freeze(trial_binary, root, env):
             actual = Path(str(report) + '.files/input.sketchyup').read_bytes()
             if hashlib.sha256(actual).hexdigest() != task['inputSha256']:
                 fail('Retained input differs: ' + task['trial'])
-            if data['networkRequested'] is not False or data['corpusVersion'] != 2:
+            if data['networkRequested'] is not False or data['corpusVersion'] != VERSION:
                 fail('Description mode requested network or has the wrong version')
 
 
@@ -193,7 +195,7 @@ def postconditions(trial_binary, root, env):
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Replay)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        manifest = json.loads(V2.read_text())
+        manifest = json.loads(CURRENT.read_text())
         # A test-only profile for the replay model; every frozen task field is unchanged.
         manifest['profiles'] = {'offline-replay': dict(
             manifest['profiles']['ollama-qwen4b'], model=MODEL, status='offline-fixture')}
@@ -206,7 +208,7 @@ def postconditions(trial_binary, root, env):
                 name = f'{trial}-{repeat}.json'
                 path, data = run(trial_binary, root, env, server.server_port, trial, name)
                 post = data['postconditions']
-                check(data['corpusVersion'] == 2 and data['testFault'] is None, 'v2 report')
+                check(data['corpusVersion'] == VERSION and data['testFault'] is None, 'v3 report')
                 check(data['undoRestores'] and data['recoveryRestores'],
                       f'Postconditions failed for {name}: ' + json.dumps(post))
                 check(post['committed'] == (trial in EDITS), 'Commit classification: ' + name)
@@ -233,7 +235,7 @@ def postconditions(trial_binary, root, env):
         check(scored['corpusPassed'] and not scored['blockers'] and
               all(row == {'passed': 24, 'runs': 24, 'required': 24}
                   for row in scored['postconditions'].values()),
-              'Offline replay corpus v2 passes: ' + json.dumps(scored['blockers']))
+              'Offline replay corpus v3 passes: ' + json.dumps(scored['blockers']))
         # Injected defect: one extra host history step after the assistant commit.
         path, data = run(trial_binary, root, env, server.server_port, 'room', 'room-fault.json',
                          'extra-history-step')
@@ -266,5 +268,5 @@ with tempfile.TemporaryDirectory(prefix='sketchyup-corpus-') as name:
                NO_PROXY='127.0.0.1', no_proxy='127.0.0.1')
     freeze(sys.argv[1], root, env)
     postconditions(sys.argv[1], root, env)
-print('Eight frozen fixtures reproduced twice; 24 replayed v2 runs restore undo and recovery; '
+print('Eight frozen fixtures reproduced twice; 24 replayed v3 runs restore undo and recovery; '
       'injected split commit blocks scoring; no provider requests.')

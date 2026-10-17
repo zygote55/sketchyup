@@ -1,6 +1,9 @@
+#include "app/component_parameters_section.hpp"
 #include "app/interface_preferences.hpp"
+#include "app/parameter_value_field.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "component_parameter_fixture.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
@@ -8,6 +11,7 @@
 #include <QDir>
 #include <QInputDialog>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSettings>
 #include <QTabWidget>
 #include <QTemporaryDir>
@@ -77,6 +81,11 @@ int main(int argc, char **argv) {
             auto *field = window.findChild<QLineEdit *>("measurements");
             check(field && field->font().pixelSize() == 12,
                   "Invalid persisted scale falls back to 100 percent");
+            // R094.c: a model with a parametric placement for the Info tab's parameter rows.
+            auto table = parameter_fixture::makeTable();
+            const auto model = QDir(files.path()).filePath("parameters.sketchyup");
+            saveDocument(table.doc, model);
+            window.openPath(model);
             const auto document = encodeContainer(window.document());
             const auto displayScale = window.devicePixelRatioF();
             choose(window, "200%", false);
@@ -128,6 +137,45 @@ int main(int argc, char **argv) {
                                   }),
                                   "Outliner and tag action labels fit after reflow");
                         }
+                        // R094.c (ADR 0166 §8): parameter rows lay out from font metrics; at
+                        // 200% text in a narrow Tray their labels wrap above the fields and no
+                        // control runs past the Info tab or clips its text.
+                        tabs->setCurrentIndex(2);
+                        window.viewport()->setSelection(table.wide);
+                        auto *parameters = window.findChild<ComponentParametersSection *>(
+                            "componentParametersSection");
+                        auto *scroll = window.findChild<QScrollArea *>("entityInfoScroll");
+                        check(QTest::qWaitFor([&] {
+                                  return parameters->isVisible() &&
+                                         parameters->fields().size() == 8;
+                              }),
+                              "Parameters show in the Info tab");
+                        QTest::qWait(50);
+                        const int right = scroll->viewport()->width();
+                        bool overflow = false;
+                        for (auto *widget : parameters->findChildren<QWidget *>()) {
+                            if (!widget->isVisible())
+                                continue;
+                            const auto end =
+                                widget->mapTo(scroll->viewport(), QPoint(widget->width(), 0));
+                            if (end.x() > right + 1)
+                                std::cerr << "Overflow: " << widget->metaObject()->className()
+                                          << "/" << widget->objectName().toStdString() << " in "
+                                          << widget->parentWidget()->objectName().toStdString()
+                                          << " ends at " << end.x() << " of " << right << " (min "
+                                          << widget->minimumSizeHint().width() << ")\n";
+                            overflow |= end.x() > right + 1;
+                        }
+                        check(!overflow, "Parameter controls stay inside the Info tab");
+                        for (auto *label : parameters->findChildren<QLabel *>())
+                            if (label->isVisible() && label->wordWrap())
+                                check(label->height() >= label->heightForWidth(label->width()),
+                                      "Wrapped parameter text is not clipped");
+                        for (auto *button : parameters->findChildren<QPushButton *>())
+                            if (button->isVisible() && button->objectName() != "sectionHeader")
+                                check(button->width() >= button->sizeHint().width(),
+                                      "Parameter button labels fit");
+                        window.viewport()->setSelection(0);
                         tabs->setCurrentIndex(0);
                         auto *hint = window.findChild<QLabel *>("hint");
                         check(hint->height() >= hint->heightForWidth(hint->width()),
