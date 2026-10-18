@@ -15,6 +15,12 @@ their 1.2.0 schema.
   sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain: the triangulation adapter for terrain import (R095.b, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095b)):
+  contours, breaklines, points, a boundary and holes in local metres become a constrained
+  Delaunay mesh, with flat triangles flipped and the rest reported, optional Steiner fill, and
+  bounded refusals that name crossing constraints, conflicting duplicates and too few points.
+  Vendors CDT 2.0.0 (MPL-2.0, header-only) under `third_party/cdt`. Nothing user-visible yet:
+  no command, file or format uses it until the terrain records land.
 - Sheets: paper dimensions and leader labels now survive edge splits (including face
   splits that split their edge) and make component, as model annotations survive edge
   splits: the model edit moves their anchors to the split piece, the new vertex or the

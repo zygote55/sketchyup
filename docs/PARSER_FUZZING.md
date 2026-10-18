@@ -51,6 +51,20 @@ node, depth, value-stack and node-visit counters stay within their limits. The
 in-ctest `parameter_expression_fuzz` runs the same harness over 20,000 generated
 formulas and seed mutations in the `dev` and `sanitize` presets.
 
+A `terrain-triangulation` input (R095.b; [ADR 0168 section 3](decisions/0168-terrain-import-and-surfaces.md))
+is a compact binary description of one adapter call, in the layout documented in
+`tests/fuzz/terrain_triangulation_harness.hpp`: contours, breaklines, points, an optional
+boundary and holes on a sixteenth-of-a-metre grid, and the options. It needs neither Qt nor
+the parsers, so its targets build with the rest of `parser_fuzzers`:
+`terrain_triangulation_fuzz_seeds DIR` writes the seeds (accepted terrains and the three
+refusal kinds), and `parser_fuzz_terrain_triangulation` runs with the options above and the
+same `fuzzer_allocation.cpp`. Every byte string is a valid input. The harness runs each input
+twice and requires identical bits, then checks that an accepted mesh has in-range, sorted,
+counter-clockwise, edge-manifold triangles with no unused vertex and within the triangle
+budget, and that a refusal returns no mesh and lists bounded counts, locations and messages.
+The in-ctest `terrain_triangulation_tests` run the same harness over generated inputs and
+seed mutations in the `dev` and `sanitize` presets.
+
 The harness caps generated inputs at 1 MiB. This is a campaign bound; the
 production file limits remain covered by separate boundary tests. Expected
 validation exceptions count as parser rejection. Allocation failure, crashes,

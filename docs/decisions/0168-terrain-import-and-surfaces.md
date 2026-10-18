@@ -694,6 +694,142 @@ coordinates", and the assistant surface.
 10. **Assistant visibility:** only `site.describe`, `terrain.describe` and `terrain.elevation_at`, after a corpus token measurement; MCP gets everything. *Decided 2026-10-18: yes.*
 11. **Import target:** terrain import adds to the open document in one labelled edit, unlike the other importers. *Decided 2026-10-18: add to the open document.*
 
+## Implementation notes (R095.b)
+
+R095.b vendors CDT and adds the triangulation adapter. It adds no command, document field or
+file format; R095.a (records) and the importer consume its output.
+
+**Vendoring.** CDT 2.0.0, tag `2.0.0`, commit `c888b30d83312114d3ff332855a97fd95ce95f17`;
+the GitHub source archive has SHA-256
+`81ed0c7a8cbdc059b26948a160c3ce68c7a147976334093fe3175c8fa161a447`. The eleven headers of
+`CDT/include` are copied byte for byte to `third_party/cdt/include/CDT/` with their MPL-2.0
+notices; nothing else is vendored, and `CDT_USE_AS_COMPILED_LIBRARY` is never defined, so no
+generated export header is needed. Two corrections to section 3: upstream has no
+`LICENSE-predicates.txt` or `LICENSE-LLVM.txt`, and the predicates (Lenthe) are BSD-3-Clause,
+not BSD-2. The package installs `third_party/cdt/LICENSE` (MPL-2.0) as `CDT-LICENSE` and the
+BSD notice, extracted verbatim from `predicates.h` into `third_party/cdt/LICENSE-predicates.txt`,
+as `CDT-predicates-LICENSE`. The Apache-2.0 with LLVM exception text in
+`portable_nth_element.hpp` stays in that file; the exception covers compiled object code, so
+no further notice ships. `dependencies.json`, the PKGBUILD `license` array and the Arch
+README record it. The Manifold and cgltf inventory gap stays as noted in the context.
+
+**API.** `src/geometry/terrain_triangulation.{hpp,cpp}`, a Qt-free library
+`sketchyup_terrain_triangulation` (binary64, `-ffp-contract=off -fno-fast-math`). One call,
+`triangulateTerrain(input, options)`, with local metres in and plain data out: vertices as
+local XYZ, triangles as counter-clockwise index triples, and a report. The input holds
+contours (one Z, open or closed), breaklines (a Z per vertex), points, an optional boundary
+and holes (polygons without Z). Each polyline carries a caller `sourceId` that is echoed in
+report locations. Options: flat mode (`Flip`, the default, or `ReportOnly`), Steiner fill
+(off), maximum edge length (none), the merge tolerances and the limits.
+
+**Method, in order.**
+
+1. *Numbers.* A non-finite coordinate or one beyond the local bound (1e6 m, section 1)
+   refuses; UTM-scale input is refused, not triangulated, so section 4's rule is enforced here.
+2. *Merging.* Vertices within 1e-7 m in x and y are one vertex, numbered by first occurrence
+   in the order contours, breaklines, points, then boundary and hole vertices that are not
+   already present. Same place with a Z differing by more than 1e-9 m refuses
+   (`ConflictingDuplicate`, located, both source references); otherwise it merges and counts.
+   Zero-length segments are dropped and counted; a repeated segment is one constraint.
+3. *Boundary and holes.* Sources outside the boundary or strictly inside a hole are dropped
+   with their segments, and counted. A segment is not clipped: one with a dropped end is lost
+   whole, so the importer should clip with Clipper2 first if it wants contours to run exactly
+   to the boundary. A hole entirely outside the boundary is dropped and counted; a hole around
+   the boundary, a hole inside a hole, and a polygon with fewer than three distinct or only
+   collinear vertices refuse (`InvalidPolygon`).
+4. *Constraint checks (exact predicates, not the library's).* A grid finds pairs of segments
+   that properly cross and vertices lying inside a segment. Both refuse as
+   `CrossingConstraints` with the crossing point and the two source references, except a
+   vertex that lies on a boundary or hole edge, which splits that edge (data pre-clipped to
+   the boundary ends exactly there). Collinear overlap shows as such a vertex and refuses. The
+   count of crossing pairs is complete up to 1,000,000. This check is why the library's own
+   `IntersectingConstraintsError` never fires; if it does, the adapter reports
+   `CrossingConstraints` and the fuzz harness fails. A collinear spike (a segment that doubles
+   back over its neighbour) is therefore refused as an overlap, where the table in section 1
+   says drop; the importer cleans spikes before this call.
+5. *Fewer than three non-collinear points* among the kept sources refuses
+   (`InsufficientPoints`, up to 32 of the points listed).
+6. *Polygon elevations.* A boundary or hole vertex that coincides with a source takes its
+   elevation. Any other is interpolated barycentrically from a first triangulation of all
+   sources (including those about to be dropped, constrained by the kept segments); outside
+   that triangulation's hull it takes the nearest source's elevation and is counted as
+   extrapolated.
+7. *Triangulation.* CDT constrained Delaunay (`Auto` insertion order, `NotAllowed`
+   intersections), every contour, breakline, boundary and hole segment a constraint edge,
+   super triangle erased. The adapter then checks that every constraint is one library edge.
+8. *Region.* Triangles outside the boundary and inside holes are removed by depth: crossing a
+   boundary or hole edge adds one and odd depth is terrain, from the outside of the hull
+   (the hull itself counts when there is no boundary, which is how holes work without one).
+   This is done on the adapter's own mesh, not by the library's depth routine, so contour
+   edges never change the depth.
+9. *Maximum edge length.* Triangles with an outer edge longer than the limit are removed
+   repeatedly. An edge that is a constraint is never the one that removes a triangle.
+10. *Budget.* More than 250,000 triangles refuses with the count and the limit
+    (`TriangleBudget`). It is checked again after Steiner fill.
+
+**Flat triangles.** A triangle is flat when its three vertices are contour vertices at the
+same elevation (within 1e-9 m); breakline and point vertices never make one. The flip pass
+visits flat triangles in index order (a first-in first-out queue) and flips an interior edge
+when it is not a constraint, the two triangles form a strictly convex quadrilateral
+(exact `orient2d`), and the pair then holds fewer flat triangles than before. This is the
+section 3 rule (flip when both are flat and the flipped pair is not) generalised to a flat
+triangle beside a non-flat one, which is where a Delaunay edge joins two points of one
+contour across a hairpin. Every flip lowers the flat count, so the pass ends, and a constraint
+is never flipped. What remains is reported: count, planar area and up to 32 centroids.
+`ReportOnly` skips the flips.
+
+**Steiner fill (off by default).** For each flat triangle left after the flips, in index
+order: take its longest edge that is not a constraint and whose neighbour's opposite vertex
+has a different elevation; insert the edge's midpoint with elevation halfway between the
+contour's and that vertex's; split the two triangles on the edge. Neither new triangle is
+flat, only one flat triangle is touched per split, and the points are counted. It is the
+"half an interval up or down toward the adjacent slope" of section 3 with the midpoint of the
+longest free edge standing in for the medial axis. It does not resolve a region wholly
+enclosed by one contour (a summit or a pit): every triangle there is flat or borders a
+constraint, so it stays reported. Steiner fill never moves or removes an input vertex or edge.
+
+**Determinism.** The same input in the same order gives identical vertices, triangles and
+report bit for bit; tests repeat runs, and the fuzz harness runs every input twice. Input
+order matters: it numbers the vertices, and it breaks co-circular ties. For points in general
+position a permuted input gives the same triangles under a different numbering (tested), but
+the adapter does not canonicalise; section 3's canonical source order is the caller's job.
+Output is canonical in itself: triangles are rotated to start at their smallest index and
+sorted, so the library's internal order does not show. The digests of the hill and UTM-origin
+fixtures are pinned in `terrain_triangulation_tests`; the CDT insertion order uses the
+library's fixed-seed SplitMix64 shuffle, so it is portable.
+
+**Report bounds.** At most 32 locations per problem kind, messages at most 256 bytes, counts
+complete (crossing pairs up to 1,000,000). Kinds: non-finite, extent exceeded, limit
+exceeded, conflicting duplicate, crossing constraints, insufficient points, invalid polygon,
+triangle budget, triangulation failed. Limits: 1,000,000 raw vertices, 250,000 merged,
+20,000 boundary and hole vertices, 250,000 triangles.
+
+**Timings.** `terrain_triangulation_benchmark`, Release (`-O3 -DNDEBUG`), GCC 16.2, one
+thread, whole adapter call, best of three, on the development machine with other jobs
+running (load average about 5):
+
+| Terrain | 10k triangles | 100k | 250k |
+| --- | --- | --- | --- |
+| Scattered points | 9 ms | 103 ms | 279 ms |
+| Concentric contours, every segment a constraint | 14 ms | 141 ms | 364 ms |
+| 8:1 elongated contours | 11 ms | 131 ms | 378 ms |
+| The same with Steiner fill | 11 ms | 132 ms | 403 ms |
+
+(The contour rows have 9,498, 99,498 and 248,498 triangles. On the elongated terrain the flips take the flat triangles from 1,672 to 498 at 10k and from 2,468 to 498 at 100k and 250k.) Against the
+3 s parse-and-triangulate budget of section 6 the adapter uses about an eighth at 250k
+triangles; the remaining 498 flat triangles are the summit ring, which only the importer's
+spot heights or a breakline can resolve.
+
+**Verification.** `terrain_triangulation_tests` (dev and sanitize presets) covers simple
+contours, a breakline, a boundary with a hole, crossing contours with locations (including
+over 32), a conflicting duplicate, collinear input, the flat flip, Steiner fill, determinism,
+the triangle budget at and over the limit, UTM-scale input converted to local coordinates
+with the origin added back exactly, bounded reports, a boundary-area property over 300 random
+inputs, and 3,000 generated inputs and seed mutations through the fuzz harness (more with
+`--fuzz-count`). The libFuzzer target `parser_fuzz_terrain_triangulation` (seeds from
+`terrain_triangulation_fuzz_seeds`) ran about 379,000 executions under ASan and UBSan without a
+finding; see [PARSER_FUZZING.md](../PARSER_FUZZING.md).
+
 ## Appendix: experiments
 
 Run on 2026-10-18 in a scratch directory (not committed), GCC `-O2`, x86_64.
