@@ -659,6 +659,9 @@ Closed by the D-039 fix (2026-10-17, branch `perf/d039-variant-geometry-count`):
   (median of 300, pinned to one CPU, before and after interleaved on a shared host at load
   average 13–18): 10,000 variant placements went from 2.01–2.32 ms to 0.67–0.71 ms, the
   same as 10,000 default placements (0.70 ms); 1,000 went from 0.46–0.56 ms to 0.39–0.44 ms.
+  **Committed check.** `variant_edit_cost` (`tests/variant_edit_cost_tests.cpp`, in the default
+  `ctest` run) times single-placement moves at 10,000 variant and 10,000 default placements and
+  fails if the variant edit costs more than 1.8 times the default edit.
 
 Closed by the D-027 fix (2026-10-18, branch `test/d027-d028-tooling`):
 
