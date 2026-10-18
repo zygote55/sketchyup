@@ -287,6 +287,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     breadcrumb_->setTextInteractionFlags(Qt::LinksAccessibleByMouse |
                                          Qt::LinksAccessibleByKeyboard);
     breadcrumb_->setFocusPolicy(Qt::StrongFocus);
+    breadcrumb_->setProperty("focusHalo", true);
     breadcrumb_->move(16, 12);
     connect(breadcrumb_, &QLabel::linkActivated, this, [this](const QString &link) {
         run([&] {
@@ -302,6 +303,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     componentBanner_->setTextInteractionFlags(Qt::LinksAccessibleByMouse |
                                               Qt::LinksAccessibleByKeyboard);
     componentBanner_->setFocusPolicy(Qt::StrongFocus);
+    componentBanner_->setProperty("focusHalo", true);
     connect(componentBanner_, &QLabel::linkActivated, this, [this](const QString &link) {
         // ADR 0166 §3.1: Close definition (Esc) returns to the placement's own context.
         if (link == "close") {
@@ -1188,10 +1190,25 @@ QAbstractSpinBox::up-arrow {image:url(:/sketchyup/control-arrow-up-$arrowTheme.p
 QAbstractSpinBox::down-arrow,QComboBox::down-arrow {image:url(:/sketchyup/control-arrow-down-$arrowTheme.png);width:9px;height:5px;}
 QCheckBox,QRadioButton {border:1px solid transparent;border-radius:4px;padding:1px 2px;}
 QTabWidget::pane {border:1px solid $border;}
+/* D-023 (c): scroll bars in the theme: the panel's background for the track, the muted ink for the handle
+   (3:1 or more against it) and the ink under the pointer; $barPx thick; no arrow buttons. */
+QScrollBar:vertical {background:$surface;border:0;margin:0;width:$barPx;}
+QScrollBar:horizontal {background:$surface;border:0;margin:0;height:$barPx;}
+QScrollBar::handle {background:$muted;border:0;border-radius:4px;}
+QScrollBar::handle:vertical {min-height:$barHandlePx;} QScrollBar::handle:horizontal {min-width:$barHandlePx;}
+QScrollBar::handle:hover,QScrollBar::handle:pressed {background:$ink;}
+QScrollBar::add-line,QScrollBar::sub-line {width:0;height:0;border:0;background:none;}
+QScrollBar::add-page,QScrollBar::sub-page {background:none;}
+QAbstractScrollArea::corner {background:$surface;border:0;}
 QTabBar::tab {padding:6px 12px;border:1px solid transparent;border-radius:4px;}
 QTabBar::tab:selected {background:$selected;color:$ink;} QTabBar::tab:hover:!selected {background:$hover;}
 QSlider,QScrollArea,#assistantContainer {border:1px solid transparent;border-radius:4px;}
-#contextBreadcrumb,#componentScopeBanner {border:1px solid transparent;border-radius:4px;padding:2px 4px;}
+/* D-023: where a control borders the 3D canvas, whose colour is the document's, its ring is two-tone:
+   the ring (the border) inside a halo in the control's own background, painted as the margin's
+   background. Qt anti-aliases the margin's rounded outer edge, so the margin is 2 px: one blended
+   pixel and the halo's own full pixel. The outer size is unchanged: the margin takes the padding. */
+*[focusHalo="true"] {margin:2px;background-clip:margin;}
+#contextBreadcrumb,#componentScopeBanner {border:1px solid transparent;border-radius:4px;padding:0 2px;}
 QListWidget,QTreeWidget {border:1px solid transparent;background:transparent;}
 QTreeWidget::item {padding:3px 1px;}
 QTreeWidget::item:selected {background:$selected;color:$ink;}
@@ -1241,8 +1258,8 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
 *[parameterField="true"][invalid="true"],*[parameterField="true"][invalid="true"]:focus {border:2px solid $failure;background:$failureSurface;}
 #parameterError,#parameterErrorIcon {color:$failure;}
 #parameterFewer,#parameterMore,*[parameterReset="true"] {padding:2px 8px;}
-#componentScopeBanner[parametric="true"] {background:$informationSurface;color:$information;border:1px solid $information;padding:4px 8px;}
-#componentScopeBanner[parametric="true"]:focus {border:2px solid $accent;padding:3px 7px;}
+#componentScopeBanner[parametric="true"] {background:$informationSurface;color:$information;border:1px solid $information;padding:2px 6px;}
+#componentScopeBanner[parametric="true"]:focus {border:2px solid $accent;padding:1px 5px;}
 #parameterPreviewStrip {background:$input;border:1px solid $border;border-radius:8px;}
 #parameterPreviewFields,#parameterPreviewPair,#parameterPreviewStrip QLabel,#parameterPreviewStrip QCheckBox {background:transparent;}
 #parameterPreviewTitle,#parameterEditorTitle,#driverEditorTitle {font-weight:600;}
@@ -1275,6 +1292,8 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     style.replace("$sectionHeadingPx", QString::number(interfaceExtent(14, textPercent)) + "px");
     style.replace("$hintPx", QString::number(interfaceExtent(11, textPercent)) + "px");
     style.replace("$arrowTheme", dark ? "dark" : "light");
+    style.replace("$barPx", QString::number(interfaceExtent(10, textPercent)) + "px");
+    style.replace("$barHandlePx", QString::number(interfaceExtent(24, textPercent)) + "px");
     // UX_DESIGN §3.3: the panel strip is 46 px with 36 px buttons and 24 px icons, all scaled by
     // text size; these paddings centre them.
     style.replace("$stripPad", QString::number((interfaceExtent(46, textPercent) - 2 -

@@ -92,6 +92,12 @@ destroy of the Weston input panel's slide animation and mitigated by starting th
 Weston without `weston-keyboard`. It is not reproduced and stays open until CI shows a clean
 period; the counts, recomputed from the table, are unchanged. The Wayland 2× output size was
 measured and kept; see the D-021 entry below.
+**Updated 2026-10-18 (D-023 fixed; branch `fix/d023-focus-contrast`).** The focus-ring contrast
+residuals next to the 3D canvas are fixed: the breadcrumb, the component scope banner and the
+Assistant container have a two-tone ring, the canvas's own ring clears 3:1 against dark chrome,
+native scroll bars are themed, and the controls that overflowed their scroll area are laid out;
+see "Closed by the D-023 fix" below. The counts are recomputed from the table: 25 open, 11 Minor.
+Another branch changes D-027 and D-028 at the same time, so the counts are resolved at merge.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -141,7 +147,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-019 | Qt Wayland protocol error when re-showing a window hidden during a file operation | [R083.f](R083f-file-worker-hang.md) | N01 | **Open.** Observed in 6 of 8 probe runs at 1×: the probe hid the window, ran a file operation, then showed the window again. The application never hides its main window during a file operation. | Minor | The path is not reachable from current product code. Recorded so a future hide/restore feature retests it. | [R085](../PR_ROADMAP.md#r085) |
 | D-021 | Wayland test-window exposure timeouts under host load | [R083.g](R083g-unexpected-modal-guard.md), [R084.r](R084r-display-precision.md), [R084.s](R084s-keyboard-panel-tabs.md), [R085.q](R085q-keypad-decimal.md), [R089.d](R089d-release-candidate.md#failures) | N03, N01, P05 (test harness) | **Fixed 2026-10-17** (see "Closed by the D-021 fix": Weston sends no frame callback until its desktop shell has drawn, which took 8–20 s under load, and Qt marks a window unexposed when a callback is 100 ms late). Before the fix, in local bounded-container Wayland 2× runs, fixtures fail in `qWaitForWindowExposed` before any test step: 2 of 4 `units_input_tests` runs (load average about 28), 3 of 6 `file_operation_input_tests` runs (load above 30; 6/6 passed at about 15), five Wayland 2× cases in the R084.s matrix (style, solar, reference image, annotation, audit) and one `numeric_input_tests` run. Identical reruns pass without a changed wait. These records attribute none to CI. The cause is not established beyond host load. **At the RC (2026-10-13)**, on the one-CPU runner: `annotation_input_tests` Wayland 2× failed its "Annotation window exposed" check once, and `interaction_tests` Wayland 2× exited 2 once (window not exposed and active within 5 s; the "active" part overlaps D-007). Both passed on re-run. CI run 38435734443 passed the annotation line; CI runs `interaction_tests` on X11 only. **At the 1.2.0 RC (2026-10-17)**: the F02 integration saw the same "window exposed" timeout in CI at roughly 1% of Wayland lines (a figure from the F02 integration's CI history, not counted line by line here); each passed on re-run. CI run 39022075019 at the RC's pre-merge head passed every line, and the 47 local non-CI cells at the RC are recorded in [F02-rc-1.2.0](F02-rc-1.2.0.md). | Minor | Test infrastructure. The failure precedes any product code in the test and is not a focus defect, so it is distinct from D-007 (focus lost after exposure). | Fixed (test harness): `scripts/test-wayland.sh` sets `QT_WAYLAND_FRAME_CALLBACK_TIMEOUT` to the 60 s deadline |
 | D-022 | Parser fuzz targets abort on their first seed under ASan with Qt 6.11.2 JSON parsing (F1) | [R083.e](R083e-parser-fuzzing.md) | D02, D06 (test tooling) | **Unverified.** Six of ten libFuzzer targets (native JSON, container, GLB, template, component, extension) abort on an unmodified valid seed with an alloc-dealloc mismatch whose stacks lie inside `libQt6Core.so.6` under `QJsonDocument::fromJson`. A three-line program that calls only `fromJson` reproduces it. `parser_fuzz_seeds` passes every seed through the instrumented parsers, and the six targets show no crash, leak or hang with that one check disabled. The record states that the root cause is not established and the finding stays open. **At the RC (2026-10-13)** the campaign was re-run with schema 26 seeds ([R083.h](R083h-rc-fuzzing-and-sanitized-matrix.md#f1-at-the-rc)): the same six targets stop on an unmodified seed with the same Qt-internal stacks, R083.e's minimized `{"":2}` reproduces, and with only that check disabled all six run to time with no other finding. | Minor | The evidence points to a Qt/libFuzzer/ASan interaction, not application code, but the six targets do not meet the documented fuzz options and the campaign is not in CI. | [R083](../PR_ROADMAP.md#r083): resolve F1 or document the option; continuous fuzzing |
-| D-023 | Focus-ring contrast residuals next to the 3D canvas and native scroll bars | [R084.q](R084q-visible-focus.md), [R084.s](R084s-keyboard-panel-tabs.md) | N05 | **Open.** R084.q records that the dark-theme ring has 1.64:1 contrast against the light default canvas where the tool rail, breadcrumb and assistant container touch it; the canvas's own ring is 2.997:1 against dark chrome; native scroll bars are not themed; 14 controls per run are wider than their scroll area at 200% text. R084.s leaves one or two tab-bar scroll buttons in the Tab order between the tab bar and its page; [R084.v](R084v-keyboard-reachability.md) removes them from the Tab order. | Minor | Cosmetic and keyboard-friction issues. Every ring keeps at least 3.93:1 against the colour directly inside it, and no control is unreachable. A mid-tone ring cannot satisfy all cases, so the next step is a design decision. | [R084](../PR_ROADMAP.md#r084) (UX decision) |
+| D-023 | Focus-ring contrast residuals next to the 3D canvas and native scroll bars | [R084.q](R084q-visible-focus.md), [R084.s](R084s-keyboard-panel-tabs.md) | N05 | **Fixed 2026-10-18** (see "Closed by the D-023 fix"). Was: R084.q recorded that the dark-theme ring has 1.64:1 contrast against the light default canvas where the tool rail, breadcrumb and assistant container touch it; the canvas's own ring is 2.997:1 against dark chrome; native scroll bars are not themed; 14 controls per run are wider than their scroll area at 200% text. R084.s left one or two tab-bar scroll buttons in the Tab order between the tab bar and its page; [R084.v](R084v-keyboard-reachability.md) removed them from the Tab order. | Minor | Cosmetic and keyboard-friction issues. Every ring kept at least 3.93:1 against the colour directly inside it, and no control was unreachable. | Fixed: a two-tone ring (ring inside a halo in the control's own background) where a control borders the canvas, a canvas ring token of 3.03:1 against dark chrome, themed `QScrollBar`, and two layout fixes for the 14 overflowing controls |
 | D-027 | `verify-m6-offline.sh` fails in its final summary when `git` is missing | [R089.d](R089d-release-candidate.md#failures) | E04–E07, O03 (study tooling) | **Open.** At the RC, attempt 1 completed every step, including 190/190 regressions, then raised `FileNotFoundError: … 'git'` in the summary. `verify-m5-offline.sh` handles a missing `git`; the M6 script does not. Attempt 2, with `git` installed from the same pinned archive, passed. No code was changed. | Minor | Test infrastructure only: every study check passed before the summary failed, and the study passes when `git` is present. | Study tooling: record a null source commit when `git` is absent, as the M5 script does |
 | D-028 | `visible_focus_input_tests` exceeds the 60 s Wayland harness limit at 2× on one CPU | [R089.d](R089d-release-candidate.md#failures) | N05 (test harness) | **Open.** Three attempts on the one-CPU runner ended at 60.2–60.3 s in `test-wayland.sh` with no failed check. The same build passed on six CPUs (Wayland 1× 14.4 s, 2× 28.4 s), and CI run 38435734443 passed the same line. | Minor | Test infrastructure: a harness timeout under a one-CPU quota. No check failed, and the suite passes with more CPU and in CI. | Test-only: a per-suite limit for this suite, or a split |
 | D-031 | `keyboard_reachability_tests` exits silently on Wayland with a Weston "finalizing a layer with views still on it" BUG line | [R091.h](R091h-sheet-layout.md#defect-note-d-031), [PR #320 run 38605636463, attempt 1](https://github.com/zygote55/sketchyup/actions/runs/38605636463/attempts/1) (job 115995661310) | N03 (test harness) | **Unverified.** Once, in CI on PR #320 (R091.d, `5bf306b8`), attempt 1: the Wayland 1× line `SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_reachability_tests` printed "Side tabs: … passed", then, 7 s after Weston started, the only further output was Weston's `BUG: finalizing a layer with views still on it.` and the step failed with exit 1. No check message was printed. Attempt 2 on the same commit passed every job, and R091.h's local matrix passed the suite on Wayland. R091.d changed no desktop code. The failure is in the window phase that follows "Side tabs" (Render with Blender reopening), with no application message, so the cause (a client crash, a compositor shutdown race, or the harness ending Weston early) is not established. | Minor | Test infrastructure: no check failed and no product code path is implicated; distinct from D-021 (exposure timeout with a named check) and D-007 (focus lost after exposure, with a named check). | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only): keep the Weston log and a core dump on failure |
@@ -358,6 +364,70 @@ Closed by the D-032 fix (2026-10-17, branch `fix/d032-fractional-focus`):
   1.5× and 2× and on Wayland at 1× and 2×; `native_accessibility_audit` and every
   `--dialogs-keyboard` group pass on X11 at 1× and 2×; and every other line of the
   fractional-scaling job (1.5× and 1.75×, X11 and Wayland) passes.
+
+Closed by the D-023 fix (2026-10-18, branch `fix/d023-focus-contrast`):
+
+- **D-023** (focus-ring contrast residuals next to the 3D canvas and native scroll bars).
+  Class: **Minor**. The residuals were four, and (e) was already closed.
+  1. **Two-tone ring where a control borders the canvas.** The tool rail's own background is
+     already a halo: a rail button's ring sits 4 to 5 px inside the rail, so since the rail
+     stopped being a Tab stop (R084.v) no rail ring touches the canvas; the new test measures
+     that chrome band and the gap. The breadcrumb, the component scope banner and the
+     Assistant container are the controls that do touch it. Each has the property
+     `focusHalo` and, in `Window::applyTheme`, `margin:2px; background-clip:margin`, so the
+     style sheet paints the control's own background as a halo outside its border (the ring):
+     chrome surface for the breadcrumb, the Assistant container and the plain banner, and the
+     information surface for the parametric banner. The padding gives up the margin, so the
+     outer size and the text position are unchanged. Qt anti-aliases the margin's rounded
+     outer edge, so of the 2 px one device pixel is a blend and the next is the full halo
+     (1 px at 1×, 3 device pixels at 2×); with a 1 px margin the halo was only that blend
+     (`#888d88` over `#202923` and the canvas), which is why the margin is 2 px. A border
+     cannot hold two colours, and `outline` is not drawn for a `QLabel` in a style sheet (checked
+     in Qt 6.11.2), so no custom paint was needed. **`focus_ring.cpp`**
+     reads a control with `focusHalo` as two straight runs, halo then ring, and at a
+     fractional factor fills the halo band as well, from the device pixel holding its outer
+     edge up to the ring; the unfocused state has no halo and is read as before. In the light
+     theme the same structure uses the light chrome surface. The light halo is
+     1.02 to 1.06:1 against the canvas, which no chrome token can change, so there the ring
+     itself is the separation (4.40:1 against the canvas).
+  2. **Canvas ring.** `ThemeColors::canvasRing`, used by `Viewport` for its own 2 px ring: the
+     accent in the dark palette, and `#547958` in the light palette instead of the accent
+     `#547858` (one step of green). The light accent is the ring on the default document, so
+     this is the ring beside dark chrome.
+  3. **Scroll bars.** `QScrollBar` in `Window::applyTheme`: the panel surface for the track,
+     the muted ink for the handle (4.76:1 light, 7.72:1 dark), the ink under the pointer
+     (11.27:1 and 13.18:1 against the track), 10 px thick at 100% text (20 px at 200%), a 4 px
+     round handle, no arrow buttons, and the corner themed. No scroll bar is among the Tab
+     stops the focus sweep finds, so there is no scroll bar ring to theme.
+  4. **The 14 overflowing controls.** 2 are in the Materials panel at 100% text (the swatch
+     list and the side selector; the panel's scroll area does not scroll sideways and its
+     two columns of buttons needed 258 px in 214), and 12 are in the Assistant preferences
+     dialog at 200% text (six runs of the Store button and of a spin box, 610 and 376 px in
+     456 px: the dialog was a fixed 500 × 620 and its widest row, the Store button, needs
+     about 630). `MaterialsPanel` now lays its buttons out in one column when two do not fit,
+     and the dialog is sized for the interface text size and at least as wide as its widest
+     row. Nothing is elided. The test's scroll step also brings in the whole control and not
+     only its centre.
+
+  | Measurement | Before | After |
+  | --- | ---: | ---: |
+  | Dark ring against the default canvas (breadcrumb, banner, Assistant container, rail) | 1.64 | ring against halo 8.05 (banner 7.68), halo against canvas 13.19 (12.57) |
+  | Light ring against halo, halo against canvas, ring against canvas | not measured | 4.65 (banner 4.48), 1.06 (1.02), 4.40 |
+  | Canvas ring against dark chrome `#202923` | 2.997 (`#547858`) | 3.032 (`#547958`) |
+  | Canvas ring against light chrome `#f7f7f2` and the canvas `#f0f1ec` | 4.648 and 4.400 | 4.595 and 4.350 |
+  | Scroll bar handle against track, light and dark | native, not themed | 4.76 and 7.72 |
+  | Controls skipped as wider than their scroll area (Model run) | 14 | 0 |
+
+  **Verified** in `sketchyup-ci-pinned:r094a` with the native.yml lines. `visible_focus_input_tests`
+  now measures each two-tone ring in both themes (the band colour is the background's own,
+  ring against halo at least 3:1, and halo against the canvas at least 3:1 in the dark theme),
+  the canvas ring against both chromes, and the scroll bars' handle against track at both text
+  sizes. 491 controls measured, 0 failures, 0 clipped in the Model run on X11 and Wayland at
+  1×, 1.5× and 2×; the Sheets run has 0 failures (on X11 the 640 × 480 screen makes the Export
+  sheets dialog scroll its findings, 2 to 8 skipped, by that dialog's design).
+  `theme_input_tests`, `text_size_input_tests` and `keyboard_reachability_tests` pass on X11
+  and Wayland at 1× and 2×, and `text_size_input_tests` at 1.5×.
+  `ctest --preset dev -E "_real$"` passes.
 
 Closed by the D-038 fix (2026-10-17, branch `fix/d038-paint-digest`):
 
@@ -662,10 +732,10 @@ Closed by the D-039 fix (2026-10-17, branch `perf/d039-variant-geometry-count`):
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 12 | D-006–D-009, D-019, D-022, D-023, D-027, D-028, D-031, D-034, D-040 |
+| Minor | 11 | D-006–D-009, D-019, D-022, D-027, D-028, D-031, D-034, D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **26** | |
-| Fixed since the 2026-10-11 refresh | 12 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0) |
+| **Total open** | **25** | |
+| Fixed since the 2026-10-11 refresh | 13 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-023 (Minor, fixed 2026-10-18) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
@@ -689,6 +759,9 @@ After the D-021 fix (2026-10-17, branch `test/wayland-activation-exposure`): 27 
 release-blocking, 0 Major, 13 Minor, 14 Limitation).
 After the D-032 fix (2026-10-17, branch `fix/d032-fractional-focus`): 26 open (0
 release-blocking, 0 Major, 12 Minor, 14 Limitation).
+After the D-023 fix (2026-10-18, branch `fix/d023-focus-contrast`): 25 open (0
+release-blocking, 0 Major, 11 Minor, 14 Limitation). Another branch is changing D-027 and D-028
+at the same time; the counts are resolved at merge.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).

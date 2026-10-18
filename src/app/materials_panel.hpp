@@ -1,8 +1,11 @@
 #pragma once
 #include "app/viewport.hpp"
 #include <QComboBox>
+#include <QGridLayout>
 #include <QLabel>
 #include <QListWidget>
+#include <QPushButton>
+#include <vector>
 namespace sketchy {
 class MaterialsPanel : public QWidget {
   public:
@@ -11,6 +14,7 @@ class MaterialsPanel : public QWidget {
 
   protected:
     void showEvent(QShowEvent *) override;
+    void resizeEvent(QResizeEvent *) override;
 
   private:
     Document &doc_;
@@ -22,6 +26,10 @@ class MaterialsPanel : public QWidget {
     MaterialRecords materials_;
     AssetRecords assets_;
     bool syncing_{};
+    QGridLayout *buttonGrid_{};
+    std::vector<QPushButton *> buttons_;
+    bool twoColumns_{true};
+    void arrangeButtons();
     void attempt(const std::function<void()> &operation);
     void edit(bool create);
     void attach(bool replace);

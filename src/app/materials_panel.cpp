@@ -15,6 +15,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
+#include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
 namespace sketchy {
@@ -72,6 +73,7 @@ MaterialsPanel::MaterialsPanel(Document &doc, Viewport &view, QWidget *parent)
         button->setObjectName(id);
         button->setMinimumHeight(button->fontMetrics().height() + 20);
         buttons->addWidget(button, n / 2, n % 2);
+        buttons_.push_back(button);
         connect(button, &QPushButton::clicked, this, [this, operation] { attempt(operation); });
     };
     add(0, "materialNew", "New…", [this] { edit(true); });
@@ -104,6 +106,7 @@ MaterialsPanel::MaterialsPanel(Document &doc, Viewport &view, QWidget *parent)
         view_.mapSelectedTextures(QJsonValue::Null, "local", side_->currentIndex());
     });
     layout->addLayout(buttons);
+    buttonGrid_ = buttons;
     findChild<QPushButton *>("materialAttach")
         ->setToolTip("Store a file in the model; PNG/JPEG images appear on painted faces");
     findChild<QPushButton *>("materialPurgeAssets")
@@ -133,7 +136,31 @@ MaterialsPanel::MaterialsPanel(Document &doc, Viewport &view, QWidget *parent)
 }
 void MaterialsPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
+    arrangeButtons();
     refresh();
+}
+void MaterialsPanel::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    arrangeButtons();
+}
+// D-023 (d): the panel's scroll area does not scroll sideways, so two columns of buttons that need
+// more than the panel is wide (the second column was cut off) become one column.
+void MaterialsPanel::arrangeButtons() {
+    if (!buttonGrid_)
+        return;
+    int widest[2]{};
+    for (size_t i = 0; i < buttons_.size(); ++i)
+        widest[i % 2] = std::max(widest[i % 2], buttons_[i]->sizeHint().width());
+    const int bar = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this);
+    const int spacing = std::max(0, buttonGrid_->spacing());
+    const bool two = width() - bar >= widest[0] + widest[1] + spacing;
+    if (two == twoColumns_)
+        return;
+    twoColumns_ = two;
+    for (auto *button : buttons_)
+        buttonGrid_->removeWidget(button);
+    for (size_t i = 0; i < buttons_.size(); ++i)
+        buttonGrid_->addWidget(buttons_[i], two ? int(i / 2) : int(i), two ? int(i % 2) : 0);
 }
 void MaterialsPanel::attempt(const std::function<void()> &operation) {
     try {

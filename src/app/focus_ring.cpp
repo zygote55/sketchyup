@@ -40,10 +40,11 @@ Key keyOf(const QWidget *widget) {
 struct Edge {
     int depth{}, width{}, from{}, to{};
     QColor inside; // The fill just inside the ring along its span, when uniform and opaque.
+    int haloWidth{}; // D-023: a halo of this width lies directly outside the ring (at depth).
 };
 struct Ring {
     Key key;
-    QColor color;
+    QColor color, halo;          // The halo's colour is only meaningful when the edges have a halo.
     std::array<Edge, 4> edges{}; // Top, right, bottom, left.
     bool valid{};
 };
@@ -52,7 +53,11 @@ struct Ring {
 // fill that reaches the boundary), in one colour along a straight span through the middle.
 // All four edges must agree on colour and width; anything else (a control without a border,
 // content) is not a ring and is left alone.
-Ring readRing(const QImage &image, const Key &key) {
+// D-023: a control that borders the 3D canvas (`haloed`) has a two-tone ring, a ring inside a
+// 1 px halo of the control's own background; each is a straight run of at most 3 px in one
+// colour. When both are found, `halo` and each edge's `haloWidth` describe the halo and `depth`
+// is where the ring itself starts; the unfocused state has neither and is read as any other.
+Ring readRing(const QImage &image, const Key &key, bool haloed) {
     Ring ring;
     ring.key = key;
     const auto area = key.area;
@@ -93,15 +98,31 @@ Ring readRing(const QImage &image, const Key &key) {
                 ++to;
             return 3 * (to - from) >= span;
         };
+        // The run of one colour at `at`, along the middle, in px.
+        const auto runAt = [&](int at) {
+            int run = 1;
+            while (at + run < across && pixel(at + run, mid) == pixel(at, mid))
+                ++run;
+            return run;
+        };
+        int haloWidth = 0;
+        QColor halo;
+        if (haloed) {
+            const int run = runAt(depth), next = depth + run;
+            if (run <= 3 && straight(depth) && next <= deepest && qAlpha(pixel(next, mid)) == 255 &&
+                pixel(next, mid) != pixel(depth, mid) && runAt(next) <= 3 && straight(next)) {
+                haloWidth = run;
+                halo = QColor::fromRgba(pixel(depth, mid));
+                depth = next;
+            }
+        }
         // The ring is the first straight run of at most 3 px within reach (past a margin the
         // control paints in its own background, such as a page tab's); failing that, a border
         // in the fill's own colour (an accent-filled control) is its first run's boundary pixel.
         int width = 0;
         bool filled = true;
         for (int at = depth; at <= deepest;) {
-            int run = 1;
-            while (at + run < across && pixel(at + run, mid) == pixel(at, mid))
-                ++run;
+            const int run = runAt(at);
             if (run <= 3 && qAlpha(pixel(at, mid)) == 255 && straight(at)) {
                 depth = at, width = run, filled = false;
                 break;
@@ -115,8 +136,9 @@ Ring readRing(const QImage &image, const Key &key) {
         }
         const auto color = pixel(depth, mid);
         if (edge == 0)
-            ring.color = QColor::fromRgba(color);
-        else if (QColor::fromRgba(color) != ring.color || width != ring.edges[0].width)
+            ring.color = QColor::fromRgba(color), ring.halo = halo;
+        else if (QColor::fromRgba(color) != ring.color || width != ring.edges[0].width ||
+                 haloWidth != ring.edges[0].haloWidth || halo != ring.halo)
             return ring;
         QColor inside;
         if (!filled) {
@@ -127,7 +149,7 @@ Ring readRing(const QImage &image, const Key &key) {
             if (uniform)
                 inside = QColor::fromRgba(fill);
         }
-        ring.edges[edge] = {depth, width, from, to, inside};
+        ring.edges[edge] = {depth, width, from, to, inside, haloWidth};
     }
     ring.valid = true;
     return ring;
@@ -220,7 +242,7 @@ class FractionalFocusRings final : public QObject {
             probing_ = widget;
             widget->render(&image, QPoint(), QRegion(), QWidget::RenderFlags());
             probing_ = nullptr;
-            ring = readRing(image, key);
+            ring = readRing(image, key, widget->property("focusHalo").toBool());
         }
         // A few states per control (focused and not, checked and not) are kept.
         auto &rings = rings_[widget];
@@ -287,6 +309,14 @@ class FractionalFocusRings final : public QObject {
                 return horizontal ? QRect(first, from, last - first, to - from)
                                   : QRect(from, first, to - from, last - first);
             };
+            // The halo, from the device pixel holding its outer edge to the ring.
+            if (e.haloWidth) {
+                const qreal edgeOuter = near ? outer - e.haloWidth : outer + e.haloWidth;
+                const int haloFrom = near ? down(across(edgeOuter)) : ringTo;
+                const int haloTo = near ? ringFrom : up(across(edgeOuter));
+                if (haloTo > haloFrom)
+                    painter.fillRect(band(haloFrom, haloTo), ring.halo);
+            }
             painter.fillRect(band(ringFrom, ringTo), ring.color);
             if (e.inside.isValid() && insideTo > insideFrom)
                 painter.fillRect(band(insideFrom, insideTo), e.inside);

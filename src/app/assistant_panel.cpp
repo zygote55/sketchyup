@@ -1,4 +1,5 @@
 #include "app/assistant_panel.hpp"
+#include "app/interface_preferences.hpp"
 #include "app/unit_display.hpp"
 #include "automation/commands.hpp"
 #include "automation/entity_info.hpp"
@@ -24,12 +25,14 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
 #include <QShortcut>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QStyle>
 #include <QTimer>
 #include <QUuid>
 #include <QVBoxLayout>
@@ -120,6 +123,8 @@ struct AssistantPanel::Impl {
         owner.setMinimumWidth(240);
         owner.setFocusPolicy(Qt::StrongFocus);
         owner.setAttribute(Qt::WA_StyledBackground); // Draw the themed focus border.
+        owner.setProperty("focusHalo",
+                          true); // Two-tone ring where it borders the 3D canvas (D-023).
         auto *layout = new QVBoxLayout(&owner);
         layout->setContentsMargins(8, 8, 8, 8);
         chip = label({}, "assistantProvider");
@@ -933,7 +938,16 @@ void AssistantPanel::Impl::showSetup() {
                 refresh();
             });
         });
-    dialog->resize(500, 620);
+    // D-023 (d): sized for the interface text size, and at least as wide as its widest row (the
+    // Store button's text at 200%), which the scroll area would otherwise cut off.
+    const auto percent = interfaceTextPercent();
+    const auto margins = outer->contentsMargins();
+    const int needed = body->minimumSizeHint().width() + margins.left() + margins.right() +
+                       2 * scroll->frameWidth() +
+                       dialog->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, scroll);
+    dialog->resize(
+        std::max(interfaceExtent(500, percent), needed),
+        std::min(interfaceExtent(620, percent), dialog->screen()->availableGeometry().height()));
     dialog->show();
 }
 void AssistantPanel::Impl::showQuestion(const QJsonObject &card) {
