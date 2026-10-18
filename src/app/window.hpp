@@ -190,6 +190,8 @@ class Window : public QMainWindow {
     enum class PanelKey { None, Info, Outliner, Materials, Tags, History, Assistant, More };
     QToolBar *panelStrip_{};
     QWidget *panelOverlay_{}, *overlayHandle_{}, *menuButton_{};
+    // The sheet's heading: the open panel's name, in place of the Tray's "MODEL".
+    QLabel *overlayHeading_{};
     // Owns the narrow layout's connections and the overlay's dismiss filter; deleted first in
     // ~Window so none of them reaches the window while it is torn down.
     QObject *narrowContext_{}, *overlayDismiss_{};
@@ -211,6 +213,9 @@ class Window : public QMainWindow {
     void closeOverlay(bool restoreFocus = true);
     void focusOverlay();
     void syncPanelStrip();
+    // The sheet shows the Tray's tab row only for More panels; a strip panel shows its name as
+    // the heading instead. Docked, the Tray has its row and its own heading.
+    void syncOverlayChrome();
     void themeNarrow(const ThemeColors &colors);
     PanelKey organizationKey() const;
     void stripClicked(PanelKey key);

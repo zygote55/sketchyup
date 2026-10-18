@@ -1149,7 +1149,7 @@ QMenuBar {padding:5px;background:$surface;border-bottom:1px solid $border;}
 QMenuBar::item {padding:5px 10px;} QMenuBar::item:selected,QMenu::item:selected {background:$selected;}
 QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #header {border-bottom:1px solid $border;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
-#tray {border-left:1px solid $border;} #section {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
+#tray {border-left:1px solid $border;} #section,#overlayHeading {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
 #hint {color:$muted;font-size:$hintPx;padding:12px 0;} #footer {border-top:1px solid $border;}
 QToolBar {border:1px solid transparent;border-right:1px solid $border;spacing:6px;padding:9px 5px 9px 4px;}
 QToolButton {padding:11px 4px;border:1px solid transparent;border-radius:4px;}

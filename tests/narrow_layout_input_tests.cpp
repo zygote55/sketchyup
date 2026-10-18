@@ -262,10 +262,28 @@ void accessibility(Fixture &f) {
     f.action("view.outliner")->setShortcut({});
     check(QTest::qWaitFor([&] { return f.button("outliner")->toolTip() == "Outliner"; }),
           "The tooltip follows a cleared binding");
+    // Exactly one handle is named "Resize sidebar": the sheet's edge, only while it shows.
+    auto named = [&] {
+        int count = 0;
+        for (auto *widget : f.window.findChildren<QWidget *>())
+            count += accessibleText(widget, QAccessible::Name) == "Resize sidebar";
+        return count;
+    };
+    check(named() == 0 && accessibleText(f.handle, QAccessible::Name).isEmpty(),
+          "No sidebar handle is named while the sheet is closed");
+    f.focusViewport();
+    f.click(f.button("info"));
     auto *handle = QAccessible::queryAccessibleInterface(f.handle);
-    check(handle && handle->role() == QAccessible::Splitter &&
-              handle->text(QAccessible::Name) == "Resize sidebar",
-          "The sheet's edge is the named R094.a splitter handle");
+    check(f.open() && handle && handle->role() == QAccessible::Splitter &&
+              handle->text(QAccessible::Name) == "Resize sidebar" && named() == 1,
+          "The open sheet's edge is the one named R094.a splitter handle");
+    f.key(Qt::Key_Escape);
+    check(!f.open() && named() == 0, "Closing the sheet unnames its edge");
+    f.resize(1200);
+    check(named() == 1 &&
+              accessibleText(f.splitter->handle(1), QAccessible::Name) == "Resize sidebar",
+          "Docked, the splitter's edge is the one named handle");
+    f.resize(900);
 }
 void openAndClose(Fixture &f) {
     auto &window = f.window;
@@ -277,6 +295,16 @@ void openAndClose(Fixture &f) {
     check(f.side->currentWidget() == f.tray &&
               f.organization->tabText(f.organization->currentIndex()) == "Info",
           "Info opens the Model panel on its Info tab");
+    // A strip panel's sheet has its name as the heading and no tab row (the strip is the row).
+    auto *heading = window.findChild<QLabel *>("overlayHeading");
+    QLabel *trayHeading{};
+    for (auto *label : window.findChildren<QLabel *>("section"))
+        if (label->text() == "MODEL")
+            trayHeading = label;
+    check(heading && heading->isVisible() && heading->text() == "INFO" &&
+              heading->accessibleName() == "Info" && !trayHeading->isVisible() &&
+              !f.organization->tabBar()->isVisible(),
+          "The Info sheet is headed INFO, without the Tray's heading and tab row");
     check(f.overlay->width() == 340 + 6,
           "The sheet is the default tabbed width (340 px) plus the handle, got " +
               std::to_string(f.overlay->width()));
@@ -341,8 +369,24 @@ void openAndClose(Fixture &f) {
     f.expectOpen("history", "View › History");
     f.click(f.button("tray"));
     f.expectOpen("tray", "More panels click");
-    check(f.side->currentWidget() == f.tray && f.organization->isVisible(),
-          "More panels shows the whole Model panel and its tabs");
+    check(f.side->currentWidget() == f.tray && f.organization->isVisible() &&
+              f.organization->tabBar()->isVisible() && heading->text() == "PANELS",
+          "More panels shows the whole Model panel, headed PANELS, with its tab row");
+    // Ctrl+Tab and Ctrl+Shift+Tab switch the Tray's tabs in the More panels sheet (the Tray has
+    // no Ctrl+PgDown binding).
+    {
+        auto *bar = f.organization->tabBar();
+        bar->setFocus(Qt::TabFocusReason);
+        check(QTest::qWaitFor([&] { return bar->hasFocus(); }), "Tray tab bar focused");
+        const int before = f.organization->currentIndex();
+        f.key(Qt::Key_Tab, Qt::ControlModifier);
+        check(f.organization->currentIndex() == (before + 1) % f.organization->count(),
+              "Ctrl+Tab moves to the next Tray tab");
+        f.key(Qt::Key_Backtab, Qt::ControlModifier | Qt::ShiftModifier);
+        check(f.organization->currentIndex() == before, "Ctrl+Shift+Tab moves back a tab");
+        check(f.open() && f.checked() == std::set<QString>{"tray"},
+              "Switching tabs keeps the More panels sheet");
+    }
     f.click(f.button("tray"));
     f.expectClosed(viewport, "More panels click again");
     // Ctrl+J: the Assistant in the sheet, its composer focused; Esc closes; Ctrl+J toggles.
@@ -355,6 +399,7 @@ void openAndClose(Fixture &f) {
     check(f.side->currentWidget() == assistant && composer &&
               QTest::qWaitFor([&] { return assistant->isAncestorOf(focused()); }),
           "The Assistant has focus" + f.state());
+    check(heading->text() == "ASSISTANT", "The Assistant's sheet is headed ASSISTANT");
     check(!window.findChild<QDialog *>("assistantSheet"),
           "No separate Assistant dialog at 800-1100 px");
     f.key(Qt::Key_Escape);
@@ -627,7 +672,7 @@ void breakpoints(Fixture &f) {
     tabBar->setFocus(Qt::TabFocusReason);
     check(QTest::qWaitFor([&] { return tabBar->hasFocus(); }), "Panel tab bar focused");
     f.resize(900);
-    f.expectOpen("materials", "Narrowing with focus in the panel");
+    f.expectOpen("tray", "Narrowing with focus in the panel (the whole panel, as More panels)");
     check(tabBar->hasFocus(), "Focus stays in the panel" + f.state());
     f.resize(1200);
     check(!f.open() && f.splitter->indexOf(f.side) == 1 && tabBar->hasFocus() &&
@@ -721,16 +766,6 @@ void pixels(Fixture &f, bool dark, const QString &directory) {
     check(contrast(colors.accent, colors.selected) >= 3 &&
               contrast(colors.muted, colors.surface) >= 3,
           theme + ": icon colours meet 3:1");
-    // The strip's focus ring is the accent (3:1 on the surface).
-    f.button("history")->setFocus(Qt::TabFocusReason);
-    QTest::qWait(30);
-    {
-        const auto image = f.button("history")->grab().toImage();
-        const auto edge = image.pixelColor(image.width() / 2, 0);
-        check(near(edge, colors.accent, 2) && contrast(edge, colors.surface) >= 3,
-              theme + ": a focused strip button has the accent ring, got " +
-                  edge.name().toStdString());
-    }
     // The sheet: the panel surface behind its text, and the R094.a edge.
     const auto sheet = f.overlay->grab().toImage();
     const auto scale = sheet.devicePixelRatio();
@@ -743,8 +778,9 @@ void pixels(Fixture &f, bool dark, const QString &directory) {
             grip += near(sheet.pixelColor(x, y), colors.muted, 1);
     check(grip > 0 && contrast(colors.muted, colors.hover) >= 3,
           theme + ": the edge's grip is drawn at 3:1");
-    const auto heading = window.findChild<QLabel *>("section");
-    check(heading && heading->isVisible(), theme + ": the panel heading shows in the sheet");
+    const auto heading = window.findChild<QLabel *>("overlayHeading");
+    check(heading && heading->isVisible() && heading->text() == "INFO",
+          theme + ": the sheet is headed with its panel's name");
     const auto background = sheet.pixelColor(int((f.overlay->width() - 4) * scale),
                                              int((f.overlay->height() - 4) * scale));
     check(near(heading->palette().color(heading->backgroundRole()), colors.surface, 1) ||
@@ -753,16 +789,41 @@ void pixels(Fixture &f, bool dark, const QString &directory) {
     check(contrast(colors.ink, colors.surface) >= 4.5 &&
               contrast(colors.muted, colors.surface) >= 4.5,
           theme + ": text in the sheet meets 4.5:1");
-    if (!directory.isEmpty()) {
+    // Screenshots with keyboard focus in the sheet and the pointer over its empty lower part.
+    auto shoot = [&](const QString &name) {
+        if (directory.isEmpty())
+            return;
+        check(f.focusInside(), theme + ": focus is in the sheet for the screenshot" + f.state());
+        QTest::mouseMove(f.overlay, QPoint(f.overlay->width() / 2, f.overlay->height() - 8));
+        QTest::qWait(50);
         check(window.grab().save(
                   directory +
-                  QString("/narrow-900-%1-overlay.png").arg(QString::fromStdString(theme))),
-              "Save the overlay screenshot");
+                  QString("/narrow-900-%1-%2.png").arg(QString::fromStdString(theme), name)),
+              "Save the " + name.toStdString() + " screenshot");
+    };
+    shoot("overlay");
+    if (!directory.isEmpty())
         check(
             f.overlay->grab().save(
                 directory + QString("/narrow-900-%1-sheet.png").arg(QString::fromStdString(theme))),
             "Save the sheet screenshot");
+    // The strip's focus ring is the accent (3:1 on the surface).
+    f.button("history")->setFocus(Qt::TabFocusReason);
+    QTest::qWait(30);
+    {
+        const auto image = f.button("history")->grab().toImage();
+        const auto edge = image.pixelColor(image.width() / 2, 0);
+        check(near(edge, colors.accent, 2) && contrast(edge, colors.surface) >= 3,
+              theme + ": a focused strip button has the accent ring, got " +
+                  edge.name().toStdString());
     }
+    // More panels: the whole panel with its tab row, headed PANELS.
+    f.focusViewport();
+    f.click(f.button("tray"));
+    f.expectOpen("tray", theme + " More panels");
+    check(heading->text() == "PANELS" && f.organization->tabBar()->isVisible(),
+          theme + ": the More panels sheet has its tab row");
+    shoot("more");
     f.key(Qt::Key_Escape);
     f.expectClosed(nullptr, theme + " Esc");
     if (!directory.isEmpty()) {

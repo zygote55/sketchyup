@@ -169,7 +169,11 @@ Menu button. Below 800 px the same strip, sheet and button apply.
   again (Ctrl+J and Ctrl+Shift+T toggle the same way), or a click in the workspace
   closes it and returns focus to where it was; the dismissing click does not select
   or draw. The side panel's own tab bar hides in the sheet; the strip chooses the
-  page. While the sheet is closed it takes no keys, so Measurements typing is
+  page. A sheet opened for one of the six strip panels has that panel's name as its
+  heading (in the Tray heading's style, in place of "MODEL") and no Tray tab row;
+  only More panels shows the tab row (Ctrl+Tab and Ctrl+Shift+Tab switch tabs), headed
+  "Panels". The sheet's edge is named "Resize sidebar" only while the sheet shows,
+  so assistive technology finds exactly one such handle at any width. While the sheet is closed it takes no keys, so Measurements typing is
   unaffected. The Assistant opens in this sheet below 1100 px (there is no
   separate Assistant dialog). In Sheets, the Model view tool does not open the
   sheet; More panels shows its New model view panel.
@@ -180,7 +184,7 @@ Menu button. Below 800 px the same strip, sheet and button apply.
 - **Breakpoints:** crossing 1100 px moves the side panel between the splitter and
   the sheet without changing its open tab, the selection or the dirty state.
   Widening docks it at the remembered widths; narrowing with focus in the panel
-  keeps it open, as the sheet, with focus where it was.
+  keeps it open, as the More panels sheet, with focus where it was.
 
 Validate at 640, 900, 1200 and 1600 logical pixels, including fractional scale.
 On the smallest tile collapse job detail before reducing Measurements access.

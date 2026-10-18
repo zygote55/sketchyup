@@ -974,6 +974,7 @@ void Window::setWorkspace(Workspace workspace) {
     for (auto *widget : modelTrayWidgets_)
         widget->setVisible(!sheets);
     sheetsTray_->setVisible(sheets);
+    syncOverlayChrome();
     if (const auto index = sideTabs_->indexOf(tray_); index >= 0)
         sideTabs_->setTabText(index, sheets ? "Sheets" : "Model");
     activeTool_->setVisible(sheets);

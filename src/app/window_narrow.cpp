@@ -20,6 +20,7 @@
 #include <QTabWidget>
 #include <QToolBar>
 #include <QToolButton>
+#include <QVBoxLayout>
 #include <algorithm>
 namespace sketchy {
 namespace {
@@ -114,6 +115,20 @@ void Window::setupNarrow(QWidget *header) {
     panelOverlay_ = overlay;
     overlayHandle_ = createOverlayHandle(overlay);
     overlayLayout->addWidget(overlayHandle_);
+    // The panel column: the heading over the side panel (added when the layout narrows).
+    auto *column = new QVBoxLayout;
+    column->setSpacing(0);
+    column->setContentsMargins(0, 0, 0, 0);
+    auto *headingRow = new QWidget;
+    auto *headingLayout = new QVBoxLayout(headingRow);
+    headingLayout->setContentsMargins(headingLayout->contentsMargins().left(), 0,
+                                      headingLayout->contentsMargins().right(), 0);
+    overlayHeading_ = new QLabel;
+    overlayHeading_->setObjectName("overlayHeading");
+    overlayHeading_->setTextFormat(Qt::PlainText);
+    headingLayout->addWidget(overlayHeading_);
+    column->addWidget(headingRow);
+    overlayLayout->addLayout(column, 1);
     overlay->hide();
     overlayDismiss_ = new OverlayFilter(narrowContext_, [this](QObject *object, QEvent *event) {
         return overlayFilter(object, event);
@@ -195,14 +210,16 @@ void Window::layoutNarrow() {
     if (narrow && docked) {
         // Only the side panel moves, never the live GL viewport. Its tab bar hides: the strip
         // chooses the page.
-        static_cast<QHBoxLayout *>(panelOverlay_->layout())->addWidget(sideTabs_, 1);
+        static_cast<QVBoxLayout *>(panelOverlay_->layout()->itemAt(1)->layout())
+            ->addWidget(sideTabs_, 1);
         sideTabs_->setTabBarAutoHide(false);
         sideTabs_->tabBar()->hide();
         sideTabs_->show();
-        // Working in the panel as the window narrows: it stays open, as the sheet.
+        // Working in the panel as the window narrows: it stays open, as the sheet, whole (More
+        // panels, with its tab row) so the focused control stays shown.
         if (focusInPanel) {
             openOverlay(sideTabs_->currentWidget() == assistant_ ? PanelKey::Assistant
-                                                                 : organizationKey());
+                                                                 : PanelKey::More);
             if (focus)
                 focus->setFocus(Qt::OtherFocusReason);
         }
@@ -250,6 +267,33 @@ void Window::openOverlay(PanelKey key, QWidget *returnTo) {
     }
     syncPanelStrip();
     focusOverlay();
+}
+void Window::syncOverlayChrome() {
+    if (!panelOverlay_ || !overlayHeading_)
+        return;
+    const bool sheet = sidebarSplitter_->indexOf(sideTabs_) < 0;
+    auto *tabs = organization_->findChild<QTabWidget *>("organizationTabs");
+    const bool row = !sheet || overlayKey_ == PanelKey::More || overlayKey_ == PanelKey::None;
+    if (tabs && tabs->tabBar()->isHidden() == row) {
+        // A hidden bar must not be a Tab stop (Qt forwards the policy to the bar, its proxy);
+        // Ctrl+Tab still switches tabs. The policy it had comes back with the row.
+        if (!row)
+            tabs->setProperty("rowFocusPolicy", int(tabs->focusPolicy()));
+        tabs->tabBar()->setVisible(row);
+        tabs->setFocusPolicy(row ? Qt::FocusPolicy(tabs->property("rowFocusPolicy").toInt())
+                                 : Qt::NoFocus);
+    }
+    if (!modelTrayWidgets_.empty())
+        modelTrayWidgets_.front()->setVisible(!sheet && workspace_ == Workspace::Model);
+    QString name = "Panels";
+    for (const auto &[key, entry] : stripActions_)
+        if (key == overlayKey_ && key != PanelKey::More)
+            name = entry->text();
+    // The Tray heading's style: upper case, as "MODEL".
+    overlayHeading_->setText(name.toUpper());
+    // The sheet's edge is the sidebar's resize handle only while the sheet shows.
+    overlayHandle_->setAccessibleName(overlayOpen_ ? "Resize sidebar" : QString());
+    overlayHeading_->setAccessibleName(name);
 }
 void Window::focusOverlay() {
     auto *page = sideTabs_->currentWidget();
@@ -319,6 +363,7 @@ void Window::syncPanelStrip() {
     if (narrowLayout())
         if (auto *panel = findChild<QAction *>("view.tray"))
             panel->setChecked(overlayOpen_ && overlayKey_ != PanelKey::Assistant);
+    syncOverlayChrome();
 }
 void Window::themeNarrow(const ThemeColors &colors) {
     if (!panelStrip_)

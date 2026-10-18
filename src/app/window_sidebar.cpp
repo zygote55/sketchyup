@@ -112,7 +112,6 @@ class OverlayHandle : public QWidget {
         : QWidget(parent), look_(look), guard_(guard), width_(std::move(width)),
           resize_(std::move(resize)), reset_(std::move(reset)) {
         setObjectName("overlayHandle");
-        setAccessibleName("Resize sidebar");
         setCursor(Qt::SplitHCursor);
         setAttribute(Qt::WA_Hover);
         setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
@@ -392,10 +391,17 @@ void Window::layoutSidebar() {
     if (splitter->sizes() != layout)
         splitter->setSizes(layout);
     // Handle i sits before widget i; the first visible column's handle is the sidebar's edge.
-    for (int index = 1; index < splitter->count(); ++index) {
+    // Only handles in use are named, so assistive technology finds one "Resize sidebar" (the
+    // narrow layout's open sheet names its own edge instead).
+    for (int index = 0; index < splitter->count(); ++index) {
         auto *handle = splitter->handle(index);
-        const bool edge = count && splitter->widget(index) == columns.front().first;
-        handle->setAccessibleName(edge ? "Resize sidebar" : "Resize between Tray and Assistant");
+        const auto found = std::find_if(columns.begin(), columns.end(), [&](const auto &c) {
+            return c.first == splitter->widget(index);
+        });
+        handle->setAccessibleName(index == 0 || found == columns.end() ? QString()
+                                  : found == columns.begin()
+                                      ? QString("Resize sidebar")
+                                      : QString("Resize between Tray and Assistant"));
     }
     placeOverlay();
 }

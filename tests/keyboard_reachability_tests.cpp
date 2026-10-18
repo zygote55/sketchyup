@@ -480,7 +480,8 @@ void narrowLayout(Fixture &f) {
     key(Qt::Key_Return);
     check(QTest::qWaitFor([&] { return overlay->isVisible() && overlay->isAncestorOf(focused()); }),
           "Enter on the strip opens the sheet with focus inside" + f.state());
-    // The sheet's controls keep the docked panel's order: Shift+Tab walks back inside it.
+    // The sheet's controls keep the docked panel's order (its hidden tab row is no stop), so
+    // Shift+Tab walks back inside it.
     auto *opened = focused();
     key(Qt::Key_Backtab, Qt::ShiftModifier);
     check(overlay->isAncestorOf(focused()) && focused() != opened,
