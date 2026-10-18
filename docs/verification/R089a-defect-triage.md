@@ -92,6 +92,11 @@ destroy of the Weston input panel's slide animation and mitigated by starting th
 Weston without `weston-keyboard`. It is not reproduced and stays open until CI shows a clean
 period; the counts, recomputed from the table, are unchanged. The Wayland 2× output size was
 measured and kept; see the D-021 entry below.
+**Updated 2026-10-18 (D-022 fixed; branch `test/d022-fuzz-asan`).** The parser fuzz targets'
+alloc-dealloc mismatch is root-caused to the libFuzzer link: the fuzzer runtime's private
+operator new and delete took over every form but the nothrow ones. The targets now define the
+nothrow forms, and all 11 run their seeds and a 60 s campaign under the documented options;
+see [R083.i](R083i-fuzz-asan.md), "Closed by the D-022 fix" below and the counts.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -140,7 +145,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-009 | X11 hardware fixture cannot place its window on a requested output without a compositor helper | [R085.h](R085h-physical-outputs.md), [R085.i](R085i-assisted-output-transitions.md) | N04 | **Open.** Both Qt-only X11 placement attempts fail the requested-output assertion. X11 transitions qualify only through the Hyprland-specific helper. | Minor | Test infrastructure: the placement is of the fixture's own window, as Qt documents for `setScreen`. Rendering on both outputs passes once placed. | [R085](../PR_ROADMAP.md#r085) (test-only) |
 | D-019 | Qt Wayland protocol error when re-showing a window hidden during a file operation | [R083.f](R083f-file-worker-hang.md) | N01 | **Open.** Observed in 6 of 8 probe runs at 1×: the probe hid the window, ran a file operation, then showed the window again. The application never hides its main window during a file operation. | Minor | The path is not reachable from current product code. Recorded so a future hide/restore feature retests it. | [R085](../PR_ROADMAP.md#r085) |
 | D-021 | Wayland test-window exposure timeouts under host load | [R083.g](R083g-unexpected-modal-guard.md), [R084.r](R084r-display-precision.md), [R084.s](R084s-keyboard-panel-tabs.md), [R085.q](R085q-keypad-decimal.md), [R089.d](R089d-release-candidate.md#failures) | N03, N01, P05 (test harness) | **Fixed 2026-10-17** (see "Closed by the D-021 fix": Weston sends no frame callback until its desktop shell has drawn, which took 8–20 s under load, and Qt marks a window unexposed when a callback is 100 ms late). Before the fix, in local bounded-container Wayland 2× runs, fixtures fail in `qWaitForWindowExposed` before any test step: 2 of 4 `units_input_tests` runs (load average about 28), 3 of 6 `file_operation_input_tests` runs (load above 30; 6/6 passed at about 15), five Wayland 2× cases in the R084.s matrix (style, solar, reference image, annotation, audit) and one `numeric_input_tests` run. Identical reruns pass without a changed wait. These records attribute none to CI. The cause is not established beyond host load. **At the RC (2026-10-13)**, on the one-CPU runner: `annotation_input_tests` Wayland 2× failed its "Annotation window exposed" check once, and `interaction_tests` Wayland 2× exited 2 once (window not exposed and active within 5 s; the "active" part overlaps D-007). Both passed on re-run. CI run 38435734443 passed the annotation line; CI runs `interaction_tests` on X11 only. **At the 1.2.0 RC (2026-10-17)**: the F02 integration saw the same "window exposed" timeout in CI at roughly 1% of Wayland lines (a figure from the F02 integration's CI history, not counted line by line here); each passed on re-run. CI run 39022075019 at the RC's pre-merge head passed every line, and the 47 local non-CI cells at the RC are recorded in [F02-rc-1.2.0](F02-rc-1.2.0.md). | Minor | Test infrastructure. The failure precedes any product code in the test and is not a focus defect, so it is distinct from D-007 (focus lost after exposure). | Fixed (test harness): `scripts/test-wayland.sh` sets `QT_WAYLAND_FRAME_CALLBACK_TIMEOUT` to the 60 s deadline |
-| D-022 | Parser fuzz targets abort on their first seed under ASan with Qt 6.11.2 JSON parsing (F1) | [R083.e](R083e-parser-fuzzing.md) | D02, D06 (test tooling) | **Unverified.** Six of ten libFuzzer targets (native JSON, container, GLB, template, component, extension) abort on an unmodified valid seed with an alloc-dealloc mismatch whose stacks lie inside `libQt6Core.so.6` under `QJsonDocument::fromJson`. A three-line program that calls only `fromJson` reproduces it. `parser_fuzz_seeds` passes every seed through the instrumented parsers, and the six targets show no crash, leak or hang with that one check disabled. The record states that the root cause is not established and the finding stays open. **At the RC (2026-10-13)** the campaign was re-run with schema 26 seeds ([R083.h](R083h-rc-fuzzing-and-sanitized-matrix.md#f1-at-the-rc)): the same six targets stop on an unmodified seed with the same Qt-internal stacks, R083.e's minimized `{"":2}` reproduces, and with only that check disabled all six run to time with no other finding. | Minor | The evidence points to a Qt/libFuzzer/ASan interaction, not application code, but the six targets do not meet the documented fuzz options and the campaign is not in CI. | [R083](../PR_ROADMAP.md#r083): resolve F1 or document the option; continuous fuzzing |
+| D-022 | Parser fuzz targets abort on their first seed under ASan with Qt 6.11.2 JSON parsing (F1) | [R083.e](R083e-parser-fuzzing.md), [R083.h](R083h-rc-fuzzing-and-sanitized-matrix.md#f1-at-the-rc), [R083.i](R083i-fuzz-asan.md) | D02, D06 (test tooling) | **Fixed 2026-10-18** (see "Closed by the D-022 fix"). Was: six of ten libFuzzer targets (native JSON, container, GLB, template, component, extension) aborted on an unmodified valid seed with an ASan `alloc-dealloc-mismatch (operator new vs free)` whose stacks lay inside `libQt6Core.so.6` under `QJsonDocument::fromJson`; the minimized `{"":2}` reproduced it in a three-line libFuzzer program, and it reproduced unchanged at the RC. **Cause:** the link, not Qt or SketchyUp. Qt's parser sorts object members with `std::stable_sort`, whose libstdc++ buffer allocates with `operator new(size_t, std::nothrow_t const&)` and frees with sized `operator delete(void*, size_t)`, a correct pair. In a `-fsanitize=fuzzer` link, `libclang_rt.fuzzer` (linked before the ASan C++ runtime) exports the weak `operator new`/`delete` of its private libc++, which call `malloc`/`free`, but keeps its nothrow `new` local, so only the nothrow `new` resolves to ASan's; the delete reaches `free`. **Fix:** the fuzz targets define the nothrow `new`/`delete` forms (`tests/fuzz/fuzzer_allocation.cpp`) so they use the same operators as the rest of the target; the check stays on. All 11 targets (with `parameter-expression`) pass their seeds and run 60 s each under the documented options with no finding. | Minor | Test tooling only: the mismatch came from the libFuzzer link, and no application or Qt frame mismatched. The sanitized test suites, which do not link libFuzzer, never had it. | Fixed (fuzz harness). Continuous fuzzing stays an owner decision ([R083.i](R083i-fuzz-asan.md#continuous-fuzzing-recommendation)) |
 | D-023 | Focus-ring contrast residuals next to the 3D canvas and native scroll bars | [R084.q](R084q-visible-focus.md), [R084.s](R084s-keyboard-panel-tabs.md) | N05 | **Open.** R084.q records that the dark-theme ring has 1.64:1 contrast against the light default canvas where the tool rail, breadcrumb and assistant container touch it; the canvas's own ring is 2.997:1 against dark chrome; native scroll bars are not themed; 14 controls per run are wider than their scroll area at 200% text. R084.s leaves one or two tab-bar scroll buttons in the Tab order between the tab bar and its page; [R084.v](R084v-keyboard-reachability.md) removes them from the Tab order. | Minor | Cosmetic and keyboard-friction issues. Every ring keeps at least 3.93:1 against the colour directly inside it, and no control is unreachable. A mid-tone ring cannot satisfy all cases, so the next step is a design decision. | [R084](../PR_ROADMAP.md#r084) (UX decision) |
 | D-027 | `verify-m6-offline.sh` fails in its final summary when `git` is missing | [R089.d](R089d-release-candidate.md#failures) | E04–E07, O03 (study tooling) | **Open.** At the RC, attempt 1 completed every step, including 190/190 regressions, then raised `FileNotFoundError: … 'git'` in the summary. `verify-m5-offline.sh` handles a missing `git`; the M6 script does not. Attempt 2, with `git` installed from the same pinned archive, passed. No code was changed. | Minor | Test infrastructure only: every study check passed before the summary failed, and the study passes when `git` is present. | Study tooling: record a null source commit when `git` is absent, as the M5 script does |
 | D-028 | `visible_focus_input_tests` exceeds the 60 s Wayland harness limit at 2× on one CPU | [R089.d](R089d-release-candidate.md#failures) | N05 (test harness) | **Open.** Three attempts on the one-CPU runner ended at 60.2–60.3 s in `test-wayland.sh` with no failed check. The same build passed on six CPUs (Wayland 1× 14.4 s, 2× 28.4 s), and CI run 38435734443 passed the same line. | Minor | Test infrastructure: a harness timeout under a one-CPU quota. No check failed, and the suite passes with more CPU and in CI. | Test-only: a per-suite limit for this suite, or a split |
@@ -628,6 +633,34 @@ Xcb hotplug, suspend/resume, input methods and automatic X11 placement (R085, N0
 interactive Orca session (N05). Wayland hotplug is owner-attested
 ([R085.r](R085r-hotplug-owner-attested.md)).
 
+Closed by the D-022 fix (2026-10-18, branch `test/d022-fuzz-asan`):
+
+- **D-022** (parser fuzz targets abort on their first seed under ASan). Class: **Minor** (test
+  tooling). Found by R083.e, unchanged at the RC (R083.h). **Cause.** Qt's JSON parser sorts
+  object members with `std::stable_sort`; libstdc++'s temporary buffer, compiled into
+  `libQt6Core.so.6` (`+0x241dbc` calls `_ZnwmRKSt9nothrow_t`, `+0x241f11` calls `_ZdlPvm`),
+  allocates with `operator new(size_t, std::nothrow_t const&)` and releases with
+  `operator delete(void*, size_t)`, a matching pair. Clang's `-fsanitize=fuzzer` link puts
+  `libclang_rt.fuzzer-x86_64.a` ahead of `libclang_rt.asan_cxx-x86_64.a`. The fuzzer archive
+  carries a private libc++ (`std::__Fuzzer`) whose plain, array and aligned `new` and every
+  non-nothrow `delete` are weak and exported, so they win and call `malloc`/`free`; its nothrow
+  `new` is local, so the nothrow `new` resolves to ASan's interceptor, which records the block as
+  `operator new`. The sized delete then reaches `free`, and ASan reports `operator new vs free`.
+  A plain ASan program has no fuzzer archive and reports nothing, which is why
+  `parser_fuzz_seeds` and the sanitized suites pass. Neither Qt nor SketchyUp mismatches; the
+  libstdc++/libc++ and `-fsized-deallocation` angles do not apply, because both calls are in
+  Qt's own GCC-built code. PR #350's shared libraries do not reach this build: it sets only
+  `SKETCHYUP_SANITIZE`, which the fuzz configuration does not use. **Fix.** The fuzz targets
+  link `tests/fuzz/fuzzer_allocation.cpp`, which defines the eight nothrow `new`/`delete`
+  forms on top of the ordinary operators, so every allocation in the target uses one family.
+  `alloc_dealloc_mismatch` stays enabled; the application's sanitized suites are unchanged.
+  **Verified** ([R083.i](R083i-fuzz-asan.md)): the same target relinked without the file still
+  aborts on `{"":2}` and on the `empty-document` seed; with it, all 11 targets pass every seed
+  and run 60 s each under the documented options with no finding. **Trade-off.** In a libFuzzer
+  link, ASan cannot see new/delete-family mismatches in any code, ours included (a `new[]`
+  freed with `free` is silent there, but reported in a plain ASan build); this was already so
+  before the fix, and the sanitized test suites keep that check.
+
 Closed by the D-039 fix (2026-10-17, branch `perf/d039-variant-geometry-count`):
 
 - **D-039** (`checkUniqueGeometry` costs O(variant placements × members) per edit). Class:
@@ -662,10 +695,10 @@ Closed by the D-039 fix (2026-10-17, branch `perf/d039-variant-geometry-count`):
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 12 | D-006–D-009, D-019, D-022, D-023, D-027, D-028, D-031, D-034, D-040 |
+| Minor | 11 | D-006–D-009, D-019, D-023, D-027, D-028, D-031, D-034, D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **26** | |
-| Fixed since the 2026-10-11 refresh | 12 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0) |
+| **Total open** | **25** | |
+| Fixed since the 2026-10-11 refresh | 13 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-022 (Minor, fixed 2026-10-18 in the fuzz harness) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
@@ -689,6 +722,8 @@ After the D-021 fix (2026-10-17, branch `test/wayland-activation-exposure`): 27 
 release-blocking, 0 Major, 13 Minor, 14 Limitation).
 After the D-032 fix (2026-10-17, branch `fix/d032-fractional-focus`): 26 open (0
 release-blocking, 0 Major, 12 Minor, 14 Limitation).
+After the D-022 fix (2026-10-18, branch `test/d022-fuzz-asan`): 25 open (0 release-blocking,
+0 Major, 11 Minor, 14 Limitation).
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
