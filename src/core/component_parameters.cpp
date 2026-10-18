@@ -853,6 +853,38 @@ ComponentDriverState componentDriverState(const ComponentDefinition &definition,
                ? ComponentDriverState::Bound
                : ComponentDriverState::ChangedSinceBound;
 }
+bool componentDriverAppearanceOnly(const ComponentDefinition &before,
+                                   const ComponentDefinition &after,
+                                   const ComponentDefinitions &definitions,
+                                   const ComponentDriver &driver) {
+    if (driver.kind == ComponentDriverKind::ChildParameter || !after.members.contains(driver.member))
+        return false;
+    const auto targets = driver.kind == ComponentDriverKind::Repeat
+                             ? subtree(after, driver.member)
+                             : std::vector<Id>{driver.member};
+    auto projected = after;
+    bool painted = false;
+    for (const auto member : targets) {
+        const auto found = before.members.find(member);
+        if (found == before.members.end())
+            continue;
+        const auto &previous = *found->second;
+        auto body = std::make_shared<Body>(*after.members.at(member));
+        if (body->color == previous.color && body->faceColors == previous.faceColors &&
+            body->materials == previous.materials &&
+            body->faceMaterials == previous.faceMaterials &&
+            body->faceTextureMappings == previous.faceTextureMappings)
+            continue;
+        body->color = previous.color;
+        body->faceColors = previous.faceColors;
+        body->materials = previous.materials;
+        body->faceMaterials = previous.faceMaterials;
+        body->faceTextureMappings = previous.faceTextureMappings;
+        projected.members[member] = std::move(body);
+        painted = true;
+    }
+    return painted && componentDriverDigest(projected, definitions, driver) == driver.bound;
+}
 } // namespace sketchy
 
 // ---- Edit builders ----

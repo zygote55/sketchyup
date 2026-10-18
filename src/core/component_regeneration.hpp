@@ -36,6 +36,10 @@ using EvaluationPtr = std::shared_ptr<const ComponentEvaluationEntry>;
 // parametric definition's defaults included) and the distinct variants.
 struct ComponentVariantIndex {
     std::map<Id, VariantPtr> placements;
+    // How many entries of `placements` show each variant object, kept with
+    // `placements` as the index is built, so per-edit limit checks scale with the
+    // distinct variants rather than the placements (D-039).
+    std::map<VariantPtr, std::size_t> placementUses;
     std::map<std::pair<Id, std::string>, EvaluationPtr> evaluations;
     std::map<std::pair<Id, ComponentDigest>, VariantPtr> variants;
     std::size_t visits{};

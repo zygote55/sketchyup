@@ -136,6 +136,22 @@ struct DocumentTotals {
     size_t records{}, vertices{}, faces{}, wires{}, edges{}, curves{}, guides{};
     bool operator==(const DocumentTotals &) const = default;
 };
+// Unique-geometry counts (ADR 0005, ADR 0165 §3): `totals` less every record a placement
+// owns (a variant placement owns its variant's records), plus each definition's members
+// and each distinct variant's own records once. `placementCounts` counts placements by
+// definition. Each edit and load compares this with DocumentLimits::unique.
+LimitCounts uniqueGeometryCounts(const DocumentTotals &totals,
+                                 const std::map<Id, size_t> &placementCounts,
+                                 const ComponentDefinitions &definitions,
+                                 const ComponentVariantIndex *variants);
+// Test hook (D-039; default none): called with the inputs and the result of every
+// unique-geometry check an edit or load makes, accepted or refused, before the limit
+// is applied. Not thread-safe to change while documents are validated.
+using UniqueGeometryObserver =
+    std::function<void(const DocumentTotals &, const std::map<Id, size_t> &,
+                       const ComponentDefinitions &, const ComponentVariantIndex *,
+                       const LimitCounts &)>;
+void setUniqueGeometryObserver(UniqueGeometryObserver observer);
 // Raised only by the test/debug full-validation oracle; never by ordinary validation.
 struct ValidationOracleMismatch : std::logic_error {
     using std::logic_error::logic_error;
