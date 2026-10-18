@@ -8,6 +8,9 @@ namespace sketchy {
 struct AssistantToolCall {
     QString id, name;
     QJsonObject arguments;
+    // Set by an adapter when a well-formed call breaks a host rule (ADR 0167). The task then
+    // executes no call from that reply and answers each one with this tool error.
+    QJsonObject refusal;
 };
 struct AssistantReply {
     QString text;
@@ -72,6 +75,8 @@ class AssistantTask {
     void reconcile();
     void answer(const QString &clarificationId, const QString &choiceId, const QString &text = {});
     Phase phase() const;
+    // The rule message when the last accepted reply was refused (ADR 0167); otherwise empty.
+    QString refusal() const;
 
   private:
     AssistantBackend backend_;
@@ -83,7 +88,7 @@ class AssistantTask {
     QString taskId_, documentId_, revision_, draft_, attempt_, modelText_;
     QJsonArray tools_, messages_;
     QJsonObject sealed_, receipt_, error_, context_, clarification_, draftState_;
-    QString clarificationCall_;
+    QString clarificationCall_, refusal_;
     std::set<QString> callIds_;
     int turns_{}, calls_{}, retries_{};
     uint64_t tokens_{};

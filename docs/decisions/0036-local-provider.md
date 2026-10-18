@@ -30,8 +30,9 @@ descriptions. This preserves the original wire-schema constraints while making
 the runtime's reduced prompt useful. The host still validates every argument
 against the original schema; provider hints never expand authority. Stable wire aliases map back to the advertised tool names before
 engine validation. Responses require a completed assistant message, matching
-model, valid reported usage and at most eight advertised function calls with
-object arguments. Host-generated call IDs are unique within each attempt. Full
+model, valid reported usage and at most eight function calls with
+object arguments; a call naming an unadvertised alias is refused with a tool error
+([ADR 0167](0167-recoverable-provider-replies.md)). Host-generated call IDs are unique within each attempt. Full
 accepted assistant messages and tool receipts are replayed; rejected replies are
 not added to replay. Provider prose remains explicitly unverified. Only the host
 can Apply a sealed preview or reconcile a durable publication outcome.
