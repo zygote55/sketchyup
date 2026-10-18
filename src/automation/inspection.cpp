@@ -225,6 +225,19 @@ void validate(const QJsonValue &value, const QJsonObject &schema, const QString 
         if (matched != 1)
             fail("INVALID_REQUEST", "Parameter must match exactly one supported schema");
     }
+    if (schema.contains("anyOf")) {
+        bool matched = false;
+        for (const auto &choice : schema["anyOf"].toArray()) {
+            try {
+                validate(value, choice.toObject(), path);
+                matched = true;
+                break;
+            } catch (const InspectionError &) {
+            }
+        }
+        if (!matched)
+            fail("INVALID_REQUEST", "Parameter must match at least one supported schema");
+    }
     if (schema["type"].isArray()) {
         for (const auto &type : schema["type"].toArray()) {
             auto choice = schema;

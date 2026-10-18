@@ -126,6 +126,14 @@ struct Edit {
     std::vector<DrawingItemChange> drawingItems{};
     Id nextDrawingItemFloor{};
     bool drawingSheetScope{};
+    // Paper anchor lineage (ADR 0164 §3, addendum). A model edit rewrites the anchors
+    // of bound dimensions and labels inside the same edit, from its topology lineage
+    // and these geometry transfers, and may carry those anchor-only item changes.
+    // Source context -> contexts that received some of its geometry with the
+    // vertex, edge and face IDs unchanged (make group or component from a selection,
+    // or a geometry body moved under a new component frame). Not persisted.
+    std::map<Id, std::set<Id>> transfers{};
+    bool drawingAnchorsResolved{};
     // Component parameter records ride on definitions and overrides on instances
     // (R093.b); driver IDs come from this document-global allocator.
     Id nextComponentDriverFloor{};
@@ -136,6 +144,22 @@ struct DocumentTotals {
     size_t records{}, vertices{}, faces{}, wires{}, edges{}, curves{}, guides{};
     bool operator==(const DocumentTotals &) const = default;
 };
+// Unique-geometry counts (ADR 0005, ADR 0165 §3): `totals` less every record a placement
+// owns (a variant placement owns its variant's records), plus each definition's members
+// and each distinct variant's own records once. `placementCounts` counts placements by
+// definition. Each edit and load compares this with DocumentLimits::unique.
+LimitCounts uniqueGeometryCounts(const DocumentTotals &totals,
+                                 const std::map<Id, size_t> &placementCounts,
+                                 const ComponentDefinitions &definitions,
+                                 const ComponentVariantIndex *variants);
+// Test hook (D-039; default none): called with the inputs and the result of every
+// unique-geometry check an edit or load makes, accepted or refused, before the limit
+// is applied. Not thread-safe to change while documents are validated.
+using UniqueGeometryObserver =
+    std::function<void(const DocumentTotals &, const std::map<Id, size_t> &,
+                       const ComponentDefinitions &, const ComponentVariantIndex *,
+                       const LimitCounts &)>;
+void setUniqueGeometryObserver(UniqueGeometryObserver observer);
 // Raised only by the test/debug full-validation oracle; never by ordinary validation.
 struct ValidationOracleMismatch : std::logic_error {
     using std::logic_error::logic_error;

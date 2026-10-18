@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Changes on `main` since 1.2.0. No format, schema or API change.
+
+- Sheets: paper dimensions and leader labels now survive edge splits (including face
+  splits that split their edge) and make component, as model annotations survive edge
+  splits: the model edit moves their anchors to the split piece, the new vertex or the
+  component's geometry in the same Undo step. Where that is ambiguous they still show as
+  broken and **Reattach** repairs them. This lifts the known limitation disclosed in 1.1.0
+  and 1.2.0 ([ADR 0164 addendum](docs/decisions/0164-sheet-layout-interface.md#addendum-2026-10-17-paper-anchor-lineage)).
+
 ## 1.2.0 — 2026-10-17
 
 A minor release that adds configurable components (scope row F02). Additive: existing

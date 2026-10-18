@@ -15,24 +15,33 @@ if(SKETCHYUP_BUILD_FUZZERS)
   add_compile_options(-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
 endif()
+# Each project library is normally a static archive. Under the sanitizers every
+# UBSan check site gets a static record that ASan then pads with a redzone and a
+# relocated descriptor, so a sanitized link of the desktop stack is ~800 MB. The
+# sanitize build therefore links each library as one shared object, so every test
+# loads the same instrumented code instead of embedding its own copy. Release and
+# development builds, and so the installed package, keep static libraries.
+set(SKETCHYUP_LIBRARY_TYPE STATIC)
 if(SKETCHYUP_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
+  set(SKETCHYUP_LIBRARY_TYPE SHARED)
+  set(BUILD_SHARED_LIBS ON)
 endif()
 # The project version above is the single source of truth (ADR 0162).
 configure_file(src/sketchyup/version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/generated/sketchyup/version.hpp" @ONLY)
 add_library(sketchyup_version INTERFACE)
 target_include_directories(sketchyup_version INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 add_subdirectory(third_party/manifold)
-add_library(sketchyup_cgltf STATIC third_party/cgltf/cgltf.cpp)
+add_library(sketchyup_cgltf ${SKETCHYUP_LIBRARY_TYPE} third_party/cgltf/cgltf.cpp)
 target_include_directories(sketchyup_cgltf SYSTEM PUBLIC third_party/cgltf)
-add_library(clipper2 STATIC
+add_library(clipper2 ${SKETCHYUP_LIBRARY_TYPE}
   third_party/clipper2/src/clipper.engine.cpp
   third_party/clipper2/src/clipper.offset.cpp
   third_party/clipper2/src/clipper.rectclip.cpp
   third_party/clipper2/src/clipper.triangulation.cpp)
 target_include_directories(clipper2 PUBLIC third_party/clipper2/include)
-add_library(sketchyup_core src/geometry/measured_view.cpp src/core/camera_motion.cpp src/core/reference_images.cpp src/core/reference_image.cpp src/core/text_source.cpp src/core/annotation_records.cpp src/core/annotations.cpp src/core/annotation_anchors.cpp src/core/section_records.cpp src/core/sections.cpp src/geometry/section.cpp src/core/scene_records.cpp src/core/scenes.cpp src/core/drawing_sheet_records.cpp src/core/drawing_item_records.cpp src/core/drawing_sheets.cpp src/core/face_textures.cpp src/core/texture_mapping.cpp src/core/hosted_components.cpp src/core/host_regeneration.cpp src/core/component_glue.cpp src/geometry/hosted_opening.cpp src/core/component_placement.cpp src/geometry/diagnostics.cpp src/core/shading_normals.cpp src/core/edge_appearance.cpp src/core/face_orientation.cpp src/geometry/orientation.cpp src/geometry/solid_operations.cpp src/core/solid_boolean.cpp src/geometry/boolean.cpp src/core/intersection_edit.cpp src/core/profile_sweep.cpp src/core/prepared_edit.cpp src/core/history.cpp src/core/entity_measure.cpp src/geometry/solid.cpp src/geometry/intersection.cpp src/core/tags.cpp src/core/asset_records.cpp src/core/assets.cpp src/core/material_records.cpp src/core/materials.cpp src/core/tag_records.cpp src/core/components.cpp src/core/component_records.cpp src/core/component_parameter_records.cpp src/core/component_parameters.cpp src/core/component_regeneration.cpp src/core/consolidation.cpp src/core/appearance.cpp src/core/geometry_subset.cpp src/core/groups.cpp src/core/transform_selection.cpp src/core/copy_array.cpp src/core/selection.cpp src/core/model.cpp src/core/document_limits.cpp src/core/transform.cpp src/geometry/surface.cpp src/geometry/arrangement.cpp src/geometry/topology.cpp src/geometry/planar.cpp src/geometry/offset.cpp src/geometry/sweep.cpp src/geometry/cleanup.cpp src/geometry/push_pull.cpp src/geometry/drawing.cpp src/geometry/curves.cpp src/geometry/inference.cpp src/geometry/constraints.cpp src/geometry/guides.cpp)
+add_library(sketchyup_core src/geometry/measured_view.cpp src/core/camera_motion.cpp src/core/reference_images.cpp src/core/reference_image.cpp src/core/text_source.cpp src/core/annotation_records.cpp src/core/annotations.cpp src/core/annotation_anchors.cpp src/core/section_records.cpp src/core/sections.cpp src/geometry/section.cpp src/core/scene_records.cpp src/core/scenes.cpp src/core/drawing_sheet_records.cpp src/core/drawing_item_records.cpp src/core/drawing_item_lineage.cpp src/core/drawing_sheets.cpp src/core/face_textures.cpp src/core/texture_mapping.cpp src/core/hosted_components.cpp src/core/host_regeneration.cpp src/core/component_glue.cpp src/geometry/hosted_opening.cpp src/core/component_placement.cpp src/geometry/diagnostics.cpp src/core/shading_normals.cpp src/core/edge_appearance.cpp src/core/face_orientation.cpp src/geometry/orientation.cpp src/geometry/solid_operations.cpp src/core/solid_boolean.cpp src/geometry/boolean.cpp src/core/intersection_edit.cpp src/core/profile_sweep.cpp src/core/prepared_edit.cpp src/core/history.cpp src/core/entity_measure.cpp src/geometry/solid.cpp src/geometry/intersection.cpp src/core/tags.cpp src/core/asset_records.cpp src/core/assets.cpp src/core/material_records.cpp src/core/materials.cpp src/core/tag_records.cpp src/core/components.cpp src/core/component_records.cpp src/core/component_parameter_records.cpp src/core/component_parameters.cpp src/core/component_regeneration.cpp src/core/consolidation.cpp src/core/appearance.cpp src/core/geometry_subset.cpp src/core/groups.cpp src/core/transform_selection.cpp src/core/copy_array.cpp src/core/selection.cpp src/core/model.cpp src/core/document_limits.cpp src/core/transform.cpp src/geometry/surface.cpp src/geometry/arrangement.cpp src/geometry/topology.cpp src/geometry/planar.cpp src/geometry/offset.cpp src/geometry/sweep.cpp src/geometry/cleanup.cpp src/geometry/push_pull.cpp src/geometry/drawing.cpp src/geometry/curves.cpp src/geometry/inference.cpp src/geometry/constraints.cpp src/geometry/guides.cpp)
 target_include_directories(sketchyup_core PUBLIC src)
 target_link_libraries(sketchyup_core PRIVATE clipper2 sketchyup_manifold)
 target_compile_options(sketchyup_core PRIVATE -Wall -Wextra -Wpedantic)
@@ -42,7 +51,7 @@ target_link_libraries(sketchyup_core PUBLIC sketchyup_solar)
 target_compile_options(sketchyup_solar PRIVATE -Wall -Wextra -Wpedantic)
 # R093.a parameter expression engine (ADR 0165 §2, §7): Qt-free, C++ standard
 # library and libm only. Deterministic binary64: no FP contraction, no fast-math.
-add_library(sketchyup_parameter_expression STATIC src/core/parameter_expression.cpp)
+add_library(sketchyup_parameter_expression ${SKETCHYUP_LIBRARY_TYPE} src/core/parameter_expression.cpp)
 target_include_directories(sketchyup_parameter_expression PUBLIC src)
 target_compile_options(sketchyup_parameter_expression PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off -fno-fast-math)
 # R093.b component parameters: the core evaluates and regenerates through the engine,

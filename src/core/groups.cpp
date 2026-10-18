@@ -197,6 +197,7 @@ GroupSelectionResult groupSelected(Document &doc, Selection &selection, std::str
         member->id = allocate();
         member->kind = BodyKind::Geometry;
         result.movedGeometry[id] = member->id;
+        edit.transfers[id].insert(member->id);
         edit.changes.push_back({member->id, nullptr, member});
         auto remaining = std::make_shared<Body>(*old);
         if (id == context)

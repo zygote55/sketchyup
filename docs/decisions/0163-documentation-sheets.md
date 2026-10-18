@@ -352,7 +352,9 @@ Implementation conventions (R090.d):
   material, asset, scene, section and annotation maps are *pointer-identical*
   before and after the edit. Shared immutable records make this exact and cheap.
 - The reverse test: geometry and scene edits leave the sheet tables
-  byte-identical.
+  byte-identical. (Since the ADR 0164 paper anchor lineage addendum, a model edit
+  whose topology lineage moves an anchored entity rewrites only those item anchors,
+  in the same edit.)
 
 ### Rendering and export reuse
 

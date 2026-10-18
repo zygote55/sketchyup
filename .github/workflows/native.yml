@@ -1064,8 +1064,10 @@ jobs:
     container:
       image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
       # The runner host's preinstalled SDKs are mounted so the first step can delete them:
-      # every sanitized native suite statically links the desktop library (~800 MB each),
-      # and the F02 suites filled the runner's disk at link time.
+      # when every sanitized native suite statically linked the desktop library (~800 MB
+      # each), the F02 suites filled the runner's disk at link time. The sanitize build now
+      # links the project libraries as shared objects (a few MB per suite); the cleanup
+      # stays as margin for the next suites.
       options: >-
         --cap-add=SYS_PTRACE
         -v /usr/share/dotnet:/host/usr/share/dotnet

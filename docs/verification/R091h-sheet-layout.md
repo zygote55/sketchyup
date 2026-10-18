@@ -319,6 +319,13 @@ X11 sessions without one and for the native suites.
 - **Edge splits and make component break paper dimensions** that model annotations survive
   (ADR 0164 §3 lineage table). Paper anchors resolve by ID; model edits never write sheet records.
   **Reattach** is the repair: it proposes the nearest vertex or edge point in the view.
+  *Resolved after 1.2.0 (Unreleased):* model edits now rewrite paper dimension and label
+  anchors inside the same edit, through the edit's topology lineage and, for make component,
+  its geometry transfers ([ADR 0164 addendum](../decisions/0164-sheet-layout-interface.md#addendum-2026-10-17-paper-anchor-lineage)).
+  Edge splits, face splits that split an anchored edge, and make component (from a body, or
+  from selected faces, nested or not) keep them current. Where lineage is missing or names
+  more than one successor the item still breaks and Reattach repairs it. The 1.1.x and 1.2.0
+  releases keep the limitation as published.
 - **Raster views use the viewport's visibility, not the scene's.** Rendered and perspective view
   content is captured with the editor's current tag and hidden-object visibility rather than the
   scene's saved visibility.

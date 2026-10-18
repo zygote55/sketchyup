@@ -444,6 +444,90 @@ int main(int argc, char **argv) {
             check(applied["stageVersion"] == 1 && applied["commandCount"] == 2,
                   "Transaction apply accepts annotation.create distance and label requests");
         }
+        {
+            // anyOf accepts a value that matches at least one choice, including several.
+            const QJsonObject schema{
+                {"type", "object"},
+                {"properties", QJsonObject{{"a", QJsonObject{{"type", "integer"}}},
+                                           {"b", QJsonObject{{"type", "string"}}}}},
+                {"anyOf", QJsonArray{QJsonObject{{"required", QJsonArray{"a"}}},
+                                     QJsonObject{{"required", QJsonArray{"b"}}}}}};
+            inspection_detail::validateParameters({{"a", 1}}, schema);
+            inspection_detail::validateParameters({{"b", "x"}}, schema);
+            inspection_detail::validateParameters({{"a", 1}, {"b", "x"}}, schema);
+            rejects("INVALID_REQUEST",
+                    [&] { inspection_detail::validateParameters({{"c", 1}}, schema); });
+            rejects("INVALID_REQUEST",
+                    [&] { inspection_detail::validateParameters(QJsonObject{}, schema); });
+
+            // Nested anyOf: the inner choice must also hold.
+            const QJsonObject nested{
+                {"type", "object"},
+                {"anyOf",
+                 QJsonArray{QJsonObject{{"required", QJsonArray{"a"}},
+                                        {"anyOf",
+                                         QJsonArray{QJsonObject{{"required", QJsonArray{"x"}}},
+                                                    QJsonObject{{"required", QJsonArray{"y"}}}}}},
+                            QJsonObject{{"required", QJsonArray{"b"}}}}}};
+            inspection_detail::validateParameters({{"a", 1}, {"x", 1}}, nested);
+            inspection_detail::validateParameters({{"a", 1}, {"y", 1}}, nested);
+            inspection_detail::validateParameters({{"b", 1}}, nested);
+            rejects("INVALID_REQUEST",
+                    [&] { inspection_detail::validateParameters({{"a", 1}}, nested); });
+            rejects("INVALID_REQUEST",
+                    [&] { inspection_detail::validateParameters({{"x", 1}}, nested); });
+
+            // anyOf inside a property and alongside oneOf.
+            const QJsonObject inner{
+                {"type", "object"},
+                {"properties",
+                 QJsonObject{{"v", QJsonObject{{"anyOf",
+                                                QJsonArray{QJsonObject{{"type", "integer"}},
+                                                           QJsonObject{{"const", "auto"}}}}}}}}};
+            inspection_detail::validateParameters({{"v", 3}}, inner);
+            inspection_detail::validateParameters({{"v", "auto"}}, inner);
+            rejects("INVALID_REQUEST",
+                    [&] { inspection_detail::validateParameters({{"v", "manual"}}, inner); });
+
+            // The shipped reference_image.update and text.update anyOf schemas through the
+            // transaction.apply schema (each update must name at least one change).
+            Document edited;
+            TransactionCoordinator actor(edited, files.path() + "/update-anyof");
+            TransactionDispatcher api(actor);
+            const auto &doc = actor.document();
+            const auto id = begin(api, doc)["transactionId"].toString();
+            QJsonObject apply;
+            for (const auto &entry : transactionCatalog())
+                if (entry.toObject()["name"] == "transaction.apply")
+                    apply = entry.toObject()["parameters"].toObject();
+            auto validates = [&](const QJsonObject &command) {
+                inspection_detail::validateParameters(
+                    applyRequest(doc, id, 0, "anyof", {command}), apply);
+            };
+            const QJsonObject image{{"command", "reference_image.update"}, {"body", "1"}};
+            rejects("INVALID_REQUEST", [&] { validates(image); });
+            for (const auto &[key, value] :
+                 std::initializer_list<std::pair<const char *, QJsonValue>>{
+                     {"opacity", 0.5}, {"name", "Plan"}, {"width", 2.0}}) {
+                auto changed = image;
+                changed[key] = value;
+                validates(changed);
+            }
+            const QJsonObject text{{"command", "text.update"}, {"body", "1"}};
+            rejects("INVALID_REQUEST", [&] { validates(text); });
+            auto noRegeneration = text;
+            noRegeneration["regenerate"] = false;
+            rejects("INVALID_REQUEST", [&] { validates(noRegeneration); });
+            auto regeneration = text;
+            regeneration["regenerate"] = true;
+            validates(regeneration);
+            auto renamed = text;
+            renamed["name"] = "Sign";
+            validates(renamed);
+            rejects("INVALID_REQUEST", [&] {
+                api.execute(applyRequest(doc, id, 0, "empty-image-update", {image}));
+            });
+        }
         std::cout << "Incremental transactions, immutable seals, retry receipts, schemas, expiry "
                      "and limits passed\n";
     } catch (const std::exception &e) {

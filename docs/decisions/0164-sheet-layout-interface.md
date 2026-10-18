@@ -415,7 +415,8 @@ schema 27.
     nearest vertex or edge in the view at the old anchor's paper position
     (`lastMm`); the user confirms or picks another before anything is committed.
   - `drawing_items.query` lists broken items with reasons, for R092's preflight.
-- **Why lazy resolution, not lineage remap.**
+- **Why lazy resolution, not lineage remap.** (Amended by the
+  [paper anchor lineage addendum](#addendum-2026-10-17-paper-anchor-lineage).)
   - Model annotations survive splits and merges because each model edit rewrites
     their anchors. ADR 0163 forbids model edits from writing sheet records, and
     its reverse test requires sheet tables to be byte-identical across model
@@ -518,7 +519,8 @@ schema 27.
   | Make a component (consolidation) | broken | broken | broken |
 
   Undo of each edit restores the item. No model edit writes item records.
-- **Known limitation: edge splits.** Edge splits are the only edits in the table
+- **Known limitation: edge splits.** *Superseded by the
+  [paper anchor lineage addendum](#addendum-2026-10-17-paper-anchor-lineage).* Edge splits are the only edits in the table
   where paper dimensions break and model annotations survive. Model annotations
   survive because `Document::apply` rewrites the annotation records inside the
   model edit (`resolveAnnotationEdit` → `remapAnnotationAnchor`), using the edit's
@@ -1271,3 +1273,82 @@ Added 2026-10-15 (owner decision, D-035 in [R089.a](../verification/R089a-defect
   `tests/assistant-tool-surface-baseline.json`, dumped from the v1.0.1 build. Adding a tool
   to the assistant means updating that baseline on purpose, with the corpus re-run that a
   larger per-turn input requires.
+
+## Addendum (2026-10-17): paper anchor lineage
+
+1.1.0 and 1.2.0 shipped the §3 known limitation: an edge split or make component broke
+paper dimensions and view-target labels that model annotations survive, and Reattach was the
+repair. This addendum removes that limitation after 1.2.0. It replaces §3's "Why lazy
+resolution, not lineage remap", its lineage table and its "Known limitation: edge splits"
+for the vertex and edge anchors of dimensions and view-target labels. Where it differs from
+§3, from ADR 0163's rule that model edits never write sheet records, or from Decisions,
+item 2, it governs. Lazy resolution by ID, the derived broken state and Reattach stay as
+they are for everything lineage does not name.
+
+- **Mechanism: the model annotations' one.** `Document::apply` already rewrites model
+  annotation anchors inside the model edit (`resolveAnnotationEdit` →
+  `remapAnnotationAnchor`, from the edit's `TopologyChanges`). Right after it, the same edit
+  calls `resolveDrawingAnchorEdit` (`src/core/drawing_item_lineage.*`) with the same
+  candidate document and report. For each bound anchor, `remapDrawingAnchor`:
+  - keeps the anchor when it still resolves by ID (IDs are never reassigned), so moves,
+    push/pull and every other edit that keeps the entity write nothing; it also keeps an
+    anchor that was already broken;
+  - in the same context, follows the edit's topology lineage through
+    `remapAnnotationAnchor`: an edge anchor goes to the one descendant piece that contains
+    its point. If that point is an endpoint of the pieces, such as the new vertex of a split
+    made at the anchor, it becomes a vertex anchor on that vertex (model annotations leave
+    the shared split vertex ambiguous; a paper anchor may be a vertex, so there is exactly
+    one successor);
+  - in another context, follows `Edit::transfers`: source context → the contexts that
+    received some of its geometry with vertex, edge and face IDs unchanged. Make group or
+    component from a selection (`groupSelected`) and make component from a body that has
+    its own geometry (`createComponent`, which moves it into the new "Geometry" member under
+    the component frame) record them. A transfer is followed only when exactly one target
+    holds the entity (an edge with the same endpoint IDs) at the same world point;
+  - otherwise keeps the anchor, which then breaks as before. Nothing is ever re-bound by
+    geometry, and lineage beyond its work budgets also keeps the anchor.
+- **Representation.** The rewritten anchor is the same ADR 0080 `{body, entity}` identity
+  that model annotations and linked views use. Component placements are materialized with
+  their own scene IDs, so the member body *is* the placement path; nested placements keep
+  their members' IDs. No new representation and no new stored field.
+- **What is written.** Only the anchors (kind, body, entity, parameter and the world
+  `fallback`). `lastMm` and every other field are untouched. The changes ride in the model
+  edit's `drawingItems`: one history entry, and Undo and Redo restore the exact records.
+- **The ADR 0163 guard.** A model edit may carry drawing item changes only when each one
+  rewrites just the anchors of an existing bound item (`drawingItemAnchorsOnly`). Composed
+  edits (batches, transactions, prepared edits) carry the rewrites their staged steps made
+  and are marked `drawingAnchorsResolved`, so they are not resolved twice. Any other sheet,
+  view or item change in a model edit is still refused ("Drawing sheet edits cannot change
+  model records"), and page edits still never change the model.
+- **Format.** Unchanged. `transfers` and `drawingAnchorsResolved` are in-memory `Edit`
+  fields; the anchors are stored as before, and save, reopen and save give identical
+  bytes. Files from 1.1.x and 1.2.0 open unchanged; their already-broken items stay broken
+  until reattached.
+- **Not covered.** Paper anchors have no face kind, so face splits matter only where they
+  split an anchored edge, which the edge rule covers. Cross-context consolidation (merging
+  contexts, explode), make unique and edits that give geometry new IDs without lineage
+  still break items, with Reattach. Model annotations are unchanged: they still break on
+  make component, because transfers are used only for paper anchors. Applying them to
+  model annotations is a separate change.
+
+Lineage table after this addendum (`drawing_dimension_tests`; "rewrites" marks rows whose
+model edit rewrites item anchors):
+
+| Model edit | Vertex anchors | Edge anchors | Model annotation |
+| --- | --- | --- | --- |
+| Move, rotate or scale the body | kept | kept | kept |
+| Move one vertex or one edge | kept, value updates | kept, value updates | kept |
+| Push/pull the face | kept | kept | kept |
+| Group the body | kept | kept | kept |
+| Split the anchored edge | kept | kept (rewrites) | kept |
+| Erase the anchored edge | kept | broken | broken |
+| Erase the body | broken | broken | broken |
+| Make a component of the body | kept (rewrites) | kept (rewrites) | broken |
+| Make a component from the face | kept (rewrites) | kept (rewrites) | broken |
+
+Tests: `drawing_dimension_tests` (the table, edge and face splits, make component with a
+nested placement and a split inside the definition, ambiguous and lineage-free edits that
+stay broken, Undo/Redo and the byte-identical round trip), `sheet_export_tests` (the page's
+annotations draw exactly as before a split, with no broken-item finding) and
+`sheet_annotation_input_tests` (the Sheets flow: a split under a dimension endpoint and make
+component in the Model workspace, current items without Reattach, and Undo from Sheets).

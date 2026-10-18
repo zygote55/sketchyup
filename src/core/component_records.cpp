@@ -58,6 +58,8 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
     });
     edit.nextDrawingViewFloor = after.nextDrawingViewId();
     difference(before.drawingItems(), after.drawingItems(), edit.drawingItems);
+    // The staged edits already rewrote paper anchors through their own lineage.
+    edit.drawingAnchorsResolved = true;
     std::erase_if(edit.drawingItems, [](const auto &change) {
         return change.before && change.after && *change.before == *change.after;
     });
