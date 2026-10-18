@@ -33,9 +33,15 @@ exec xvfb-run -a -s '-screen 0 1600x1000x24 -noreset' bash -c '
   trap "rm -rf \"$runtime\"" EXIT
   export XDG_RUNTIME_DIR=$runtime WAYLAND_DISPLAY=wayland-layout QT_QPA_PLATFORM=wayland
   export SKETCHYUP_TEST_EXIT_FILE=$runtime/test-status
+  # D-040: Weston 15 show_input_panel_surface() destroys the input panel slide animation
+  # without cancelling its queued idle destroy, the only double destroy found for the CI crash in
+  # weston_view_animation_destroy. An empty input-method path starts no weston-keyboard (--no-config
+  # does not stop it); the same mitigation as scripts/test-wayland.sh. Typing here is XTest key
+  # injection into the client, not the input method.
+  printf "[input-method]\npath=\n" > "$runtime/weston.ini"
   # Weston exits with zero even when its client fails; keep the client status.
   timeout 90s weston --backend=x11 --renderer=gl --width=1600 --height=1000 \
-    --idle-time=0 --socket="$WAYLAND_DISPLAY" --no-config --log="$runtime/weston.log" -- \
+    --idle-time=0 --socket="$WAYLAND_DISPLAY" --config="$runtime/weston.ini" --log="$runtime/weston.log" -- \
     bash -c "\"\$@\"; status=\$?; echo \$status > \"\$SKETCHYUP_TEST_EXIT_FILE\"; exit \$status" \
     bash "$@"
   weston_status=$?
