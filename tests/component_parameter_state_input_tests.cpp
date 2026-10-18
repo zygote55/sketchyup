@@ -797,6 +797,27 @@ void changedSinceBound(Fixture &f) {
     QTest::qWait(10);
     auto *strip = f.window.findChild<QWidget *>("parameterStatusStrip");
     check(strip && !strip->isVisible(), "No strip while every driver is bound");
+    // D-038: a paint changes no shape. Painting the shelf, which Repeat and Visibility
+    // act on, leaves both bound: no strip, and Drivers reads no row Changed.
+    const auto unpainted = applied(doc);
+    f.select(authoring::sceneOf(doc, f.t.defaults, f.t.shelf));
+    f.view()->paintSelection({.4f, .25f, .1f});
+    QTest::qWait(20);
+    check(applied(doc) == unpainted + 1 && latestLabel(doc) == "Edit shared component definition",
+          "Painting the shelf is one entry, got " + latestLabel(doc));
+    check(!strip->isVisible(), "Painting a driven member shows no strip");
+    {
+        auto *drivers = f.drivers();
+        QStringList rows;
+        for (int i = 0; i < drivers->tree()->topLevelItemCount(); ++i)
+            rows << drivers->tree()->topLevelItem(i)->data(0, Qt::AccessibleTextRole).toString();
+        check(!rows.isEmpty() && !rows.join("|").contains(", Changed") &&
+                  !drivers->rebindAllButton()->isVisible(),
+              "Painting leaves every driver bound in Drivers, got " + text(rows.join(" | ")));
+    }
+    f.undo();
+    QTest::qWait(10);
+    check(applied(doc) == unpainted && !strip->isVisible(), "Undo removes the paint");
     const auto before = applied(doc);
     const auto shelf = authoring::sceneOf(doc, f.t.defaults, f.t.shelf);
     f.select(shelf);

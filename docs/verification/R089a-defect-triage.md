@@ -72,6 +72,9 @@ The owner-approved corpus v4 run at RC2 failed resize, advanced and site 0/3 on 
 added as D-041 (Major, found by the gate); its fix (PR #344) becomes RC3. See the counts.
 **Updated 2026-10-17 (1.2.0 RC3 `d9af0396`).** PR #344 fixes D-041; RC3 is checked as a delta of
 the RC2 walkthrough ([F02-rc-1.2.0](F02-rc-1.2.0.md#triage-at-rc3)). See the counts.
+**Updated 2026-10-17 (D-038 fixed; branch `fix/d038-paint-digest`).** A paint inside a
+parametric definition no longer marks its drivers Changed; see "Closed by the D-038 fix" below
+and the counts.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -128,7 +131,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-032 | Focus ring under the threshold at fractional 1.5× | [R091.h](R091h-sheet-layout.md#native-matrix) | N05 | **Open.** `visible_focus_input_tests` at `QT_SCALE_FACTOR=1.5` (X11 and Wayland; not a CI cell, R084.q measured 1× and 2× only) reports about 137 failing measurements per run, most of them Model-window controls untouched by R091: 36 tool buttons, 20 panel tab bars, 15 breadcrumb, and controls in the material, solar, drawing-plane and assistant-preference dialogs. At a fractional factor the 1 px ring is antialiased across two device pixels, so its painted colour falls under 3:1 against the chrome next to it. The R091.h accent-fill rule (2 px rings) does not change this. | Minor | A rendering residual of a 1 px indicator at a fractional factor; the ring is still drawn and keyboard focus is unaffected. Every 1× and 2× cell passes. | [R084](../PR_ROADMAP.md#r084): a 2 px ring or device-pixel-aligned focus drawing, with the suite at 1.5 in CI |
 | D-034 | `render_input_tests` timed out on Wayland 2× with no output | [main run 38742605671](https://github.com/zygote55/sketchyup/actions/runs/38742605671) (job 116447893819, `68ff9ae2`, after #327) | N03 (test harness) | **Unverified.** Once on `main`: the section-fixture line `SKETCHYUP_TEST_SCALE=2 SKETCHYUP_RENDER_SECTION_FIXTURE=1 SKETCHYUP_RENDER_MODEL=…/section-nested.sketchyup scripts/test-wayland.sh build/dev/render_input_tests` printed nothing for 60 s and Weston was stopped. Blender is not involved: Wayland lines set no `SKETCHYUP_BLENDER_TEST`, so the fake worker runs. The silence does not place the hang: the suite prints one line, at its end, to `std::cout`, which is block-buffered into the CI pipe, so a hang anywhere in its 8–11 s flow, or at exit, prints nothing; the four "could not load cursor" lines are Weston's own keyboard and shell clients, not the test. No other `render_input_tests` timeout is in the 80 failed Native build runs since 2026-10-07, while the line has run on every run since 2026-10-06. Locally, at `68ff9ae2` in the CI image without Blender: 0 of 740 runs of the exact line hung (540 with six parallel lanes, 300 of them through the new harness; 200 with two). One six-lane run failed a 5 s "First native queued worker starts" wait under that load, which is not this signature. | Minor | One CI occurrence with no check failed and no frame known; treated as test infrastructure until a stack shows otherwise. | The harness now prints every thread's stack and flushes stdio at the deadline ([Harness diagnostics](#harness-diagnostics-d-034)); a recurrence names the frame, and the fix goes to its owner |
 | D-041 | The ChatGPT-plan decoder rejects replies that batch `transaction.inspect` with `transaction.diff` | [F02-rc-1.2.0](F02-rc-1.2.0.md#rc2-provider-corpus-d-041) | A04, A05 | **Fixed at RC3 `d9af0396`** (found by the 1.2.0 RC2 gate; fix [PR #344](https://github.com/zygote55/sketchyup/pull/344)). In the owner-approved corpus v4 run at RC2 (`d80fb729`, profile `chatgpt-astra`), resize, advanced and site scored 0/3 each: `OpenAiConversation::decode` (`src/integrations/openai_provider.cpp`) rejected multi-call replies that combine `transaction.inspect` with `transaction.diff`, so those turns failed. The private run evidence is kept outside the repository. | Major | A wrong result in the supported provider workflow (three corpus tasks cannot complete); no document is changed by a rejected reply, and no data is lost | [R086](../PR_ROADMAP.md#r086): fixed by PR #344 (RC3): `transaction.diff` and `transaction.describe` may share a read-only batch; `openai_provider_tests` covers it |
-| D-038 | A paint inside a definition marks its driver Changed, with "changed shape" wording | [R094.h Findings](R094h-configurable-components.md#findings) | F02 | **Open.** A driver's `bound` digest covers its target member's whole record, colour included (ADR 0165 §4). Painting the top makes Stretch Top Changed, and the amber strip says the driver "now starts from a changed shape" although only the colour changed. `component_acceptance_input_tests` expects it (three Changed drivers, "Rebind 3 drivers"). | Minor | Specified behaviour with misleading wording: Rebind or Undo clears it, and no geometry or document is wrong | Owner decision (whether a colour change counts, or the sentence changes); [R094](../PR_ROADMAP.md#r094) |
+| D-038 | A paint inside a definition marks its driver Changed, with "changed shape" wording | [R094.h Findings](R094h-configurable-components.md#findings) | F02 | **Fixed 2026-10-17** (see "Closed by the D-038 fix"). A driver's `bound` digest covers its target member's whole record, colour included (ADR 0165 §4), so painting the top made Stretch Top Changed and the strip said the driver "now starts from a changed shape". A template edit that changes only a driven member's appearance now restamps the digest, and the driver stays bound. | Minor | Specified behaviour with misleading wording: Rebind or Undo cleared it, and no geometry or document was wrong | Fixed: [ADR 0165 addendum](../decisions/0165-constrained-component-parameters.md#addendum-d-038-2026-10-17-a-paint-keeps-its-drivers-bound); no file-format change |
 | D-039 | `checkUniqueGeometry` costs O(variant placements × members) per edit | [R094.g](R094g-variant-instancing.md#the-22-edit-feedback-gap-in-the-first-report) | F02, N01 | **Open.** Every `Document::apply` walks each variant placement's member records while any placement shows a variant: 1.1–1.5 ms per placement move with 10,000 variant placements against 0.4–0.6 ms with default placements (software, R094.g). Per-variant placement counts in the variant index would make it O(distinct variants). | Minor | A performance cost about 1 ms at 10,000 placements, well inside the edit-feedback budget; disclosed in the 1.2.0 release notes | [R093](../PR_ROADMAP.md#r093) / [R094](../PR_ROADMAP.md#r094): keep per-variant counts |
 | D-040 | Weston 15.0.1 segfaulted in `weston_view_animation_destroy` during a CI Wayland 2× line | [main run 38920762782](https://github.com/zygote55/sketchyup/actions/runs/38920762782) (job 117047789178, `9d3a786c`) | N03 (test harness) | **Unverified.** Once on `main` (2026-10-16): after `section_viewport_tests` passed, the next line (`style_input_tests`, Wayland 2×) ended when the isolated Weston received SIGSEGV; the D-034 trace shows `wl_list_remove` ← `weston_view_animation_destroy` ← `wl_event_loop_dispatch_idle` in Weston's main thread. No SketchyUp check failed. Later `main` runs passed the line. | Minor | An external compositor crash in the isolated test session, like D-020 and D-031; no product frame is involved | [R085](../PR_ROADMAP.md#r085) (test-only): track Weston; keep the core dump on recurrence |
 | D-010 | System Wayland 1.26 client leaks a destroyed-proxy reference | [R062.b proxy](R062b-wayland-proxy.md), [R058.c](R058c-native-diagnostics.md) | N01 | **Open (external).** The leak is reproduced standalone without Qt or SketchyUp. Only sanitized CI uses the patched private client (`scripts/ci-wayland-client.sh`); users get the system library. | Limitation | A 96-byte leak per affected dialog event, in a third-party library. Disclosed in R062.b as "a documented external limitation until a fixed distribution library is available". | [R085](../PR_ROADMAP.md#r085): track the distribution fix |
@@ -232,6 +235,31 @@ Closed by the D-033 harness fix (2026-10-15, branch `fix/startup-abort`):
   The Wayland lines start no Xvfb; for them only the logging changes. The journald routing applies to every native
   test in CI, so D-031's message-less Wayland exit (recorded by R091.h) may also have lost a Qt
   message the same way; that is not shown.
+
+Closed by the D-038 fix (2026-10-17, branch `fix/d038-paint-digest`):
+
+- **D-038** (A paint inside a definition marks its driver Changed, with "changed shape"
+  wording). Class: **Minor**. **Cause.** A driver's stored `bound` digest is the SHA-256 of
+  its target member's canonical record (ADR 0165 §4, `componentDriverDigest`). That record
+  includes the colour, face colours, materials and texture mappings, so a paint changed the
+  digest, and the driver's derived state became `changedSinceBound`. No driver kind reads
+  appearance. `bound` is stored in schema 28 (`drivers[].bound`), so leaving appearance out
+  of it would have made every bound driver in a 1.2.0 file read Changed on open. **Fix.**
+  `component.edit` restamps a driver whose target the edit changed only in appearance: the
+  target's new records, with the colour, face colours, materials and texture mappings taken
+  back from before the edit, must hash to the stored digest. Drivers that were already
+  Changed, and edits that also change the target's shape, keep the old behaviour. The digest
+  definition, schema 28 and the stored bytes are unchanged
+  ([ADR 0165 addendum](../decisions/0165-constrained-component-parameters.md#addendum-d-038-2026-10-17-a-paint-keeps-its-drivers-bound)).
+  The strip's wording is unchanged and now appears only for edits that change more than
+  appearance. **Tests.** `component_parameter_tests paint` (a colour on the stretched top and
+  a material on the repeated shelf leave every driver bound; undo and redo; a paint with a move,
+  a paint on a Changed driver and a move still mark Changed), `component_parameter_io_tests`
+  (the committed `component-parameters-v28.sketchyup` opens with every driver bound; save,
+  reopen and save again are byte-identical, also after a paint) and
+  `component_parameter_state_input_tests` (painting the shelf in the context shows no strip and
+  no Changed row). `component_acceptance_input_tests` (R094.h) now expects no strip after the
+  paint, two Changed drivers after the move, and "Rebind 2 drivers".
 
 Closed by the D-037 fix (2026-10-17, branch `fix/d037-qt68-orientation`):
 
@@ -440,10 +468,10 @@ interactive Orca session (N05). Wayland hotplug is owner-attested
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 16 | D-006–D-009, D-019, D-021–D-023, D-027, D-028, D-031, D-032, D-034, D-038–D-040 |
+| Minor | 15 | D-006–D-009, D-019, D-021–D-023, D-027, D-028, D-031, D-032, D-034, D-039, D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **30** | |
-| Fixed since the 2026-10-11 refresh | 8 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3) |
+| **Total open** | **29** | |
+| Fixed since the 2026-10-11 refresh | 9 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
@@ -459,6 +487,8 @@ Limitation). D-037 is fixed and verified on the Qt 6.8 reference; D-041 (Major) 
 RC2 corpus run, and its fix is pending as RC3.
 At 1.2.0 RC3 `d9af0396` (2026-10-17): 30 open (0 release-blocking, 0 Major, 16 Minor, 14
 Limitation). D-041 is fixed.
+After the D-038 fix (2026-10-17, branch `fix/d038-paint-digest`): 29 open (0 release-blocking,
+0 Major, 15 Minor, 14 Limitation).
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).

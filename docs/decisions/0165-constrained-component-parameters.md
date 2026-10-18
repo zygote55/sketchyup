@@ -789,3 +789,50 @@ These points refine §5; where they differ, these notes govern.
   root and every template member keep their IDs, and copies keep theirs while they
   exist.
 - Bundle capture of parametric definitions for reusable assemblies.
+
+## Addendum (D-038, 2026-10-17): a paint keeps its drivers bound
+
+[D-038](../verification/R089a-defect-triage.md) (Minor): painting a member inside a parametric
+definition marked every driver on it Changed, and the strip said the driver "now starts from a
+changed shape" although only the colour changed. This addendum amends §4's "Other edits leave
+it" for that one case. Where it differs from §4 or the notes above, it governs.
+
+- **What `bound` covers.** The canonical record of the target member
+  (`appendCanonicalBody`): its ID, name, colour, vertices, faces, wires, edges, edge
+  appearance, face colours, record and face materials, face texture mappings, curves,
+  guides, transform, parent, kind, hidden and locked flags, tag, properties, text source and
+  reference image. For `repeat` it covers the member's subtree, and for `childParameter`
+  the child definition's parameter list. Schema 28 stores it as `drivers[].bound`.
+- **What drivers read.** Stretch moves vertices across its plane, position and rotation
+  change the member's transform, visibility hides the member, repeat copies the subtree, and
+  `childParameter` sets a nested placement's value. No kind reads colour, material or
+  texture mapping. Regeneration copies them unchanged, as the R094.h script checks. Appearance
+  is therefore not part of what a driver is bound to.
+- **Decision.** The definition and stored format of `bound` stay as they are. A template edit
+  (`component.edit`, which every edit inside an open definition uses) restamps a driver if
+  the edit changed only its target's appearance. Appearance here means colour, face colours,
+  record and face materials, and face texture mappings. The test is that the target's new
+  records, with those fields taken back from before the edit, hash to the stored `bound`.
+  That holds only when the driver was bound before the edit and nothing else on its
+  target changed. `bound` then becomes the digest of the new records. The driver stays
+  bound, and the edit does not list it in `parameterWarnings`, so no strip appears.
+  - A driver that was already Changed stays Changed and keeps its stored digest. An edit
+    that paints and also moves, reshapes or renames the target marks the driver Changed.
+  - Undo and redo restore the exact records, digests included.
+  - Other non-geometric fields (name, tag, edge appearance, properties) still count as
+    before. D-038 concerns paint only.
+  - The strip's wording is unchanged. It now appears only for edits that change more than
+    appearance.
+- **File format.** None changes. Schema 28, `component-parameters-v1` and ADR 0108 are
+  unchanged. A stored `bound` is the same full-record SHA-256 that 1.2.0 computes, so 1.2.0
+  opens a file painted by this build with every driver bound, and this build opens 1.2.0
+  files with the states 1.2.0 shows. The committed `component-parameters-v28.sketchyup`
+  opens with every driver bound, and a save, reopen and second save keeps its bytes. A
+  driver that a paint already made Changed in 1.2.0 stays Changed until Rebind, because the
+  digest cannot tell a past paint from a shape change.
+- **Rejected.** Leaving appearance out of the digest would change what the stored value
+  means. Every bound driver in a 1.2.0 file would then read Changed on open, and 1.2.0
+  would read every driver in a new file as Changed. Comparing a geometry-only projection
+  with the stored digest is not possible either: the hash does not keep the appearance the
+  driver was bound with, and storing a second digest would change the frozen schema 28.
+  Rewording the strip alone would still prompt a Rebind for an edit that changes no shape.
