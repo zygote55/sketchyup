@@ -53,6 +53,7 @@
 #include <QVBoxLayout>
 #include <QWindow>
 #include <QtGui/qguiapplication_platform.h>
+#include <map>
 #include <tuple>
 #include <wayland-client.h>
 namespace sketchy {
@@ -570,14 +571,29 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     }));
     auto *draw = menuBar()->addMenu("&Draw");
     auto *group = new QActionGroup(this);
+    // The tool rail's groups (UX_DESIGN §2 item 2): the one place that says which group each
+    // rail tool belongs to. Within a group the rail keeps its order; the wide rail is unchanged.
+    // A tool added to the rail without a group here throws when the window is built.
+    const std::map<Viewport::Tool, int> railGroups{
+        {Viewport::Tool::Select, RailSelect},      {Viewport::Tool::Paint, RailSelect},
+        {Viewport::Tool::Line, RailDraw},          {Viewport::Tool::Rectangle, RailDraw},
+        {Viewport::Tool::Circle, RailDraw},        {Viewport::Tool::Extrude, RailModify},
+        {Viewport::Tool::Offset, RailModify},      {Viewport::Tool::Sweep, RailModify},
+        {Viewport::Tool::Intersect, RailModify},   {Viewport::Tool::Boolean, RailModify},
+        {Viewport::Tool::Orientation, RailModify}, {Viewport::Tool::Move, RailModify},
+        {Viewport::Tool::Rotate, RailModify},      {Viewport::Tool::Scale, RailModify},
+        {Viewport::Tool::Tape, RailMeasure},       {Viewport::Tool::Orbit, RailCamera},
+        {Viewport::Tool::Pan, RailCamera}};
     auto addTool = [&](const QString &name, const QString &key, Viewport::Tool mode,
                        const QString &instruction, bool inRail = true) {
         auto *a = action("tool." + QString::number(int(mode)), name, QKeySequence(key),
                          [this, mode, instruction] { tool(mode, instruction); });
         a->setCheckable(true);
         group->addAction(a);
-        if (inRail)
+        if (inRail) {
             tools->addAction(a);
+            railTools_.emplace_back(a, railGroups.at(mode));
+        }
         draw->addAction(a);
         return a;
     };
@@ -772,11 +788,15 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         });
     newFace->setCheckable(true);
     tools->addAction(newFace);
+    // An option toggle: it belongs to Push/pull's group, Modify, though it sits after Tape measure.
+    railTools_.emplace_back(newFace, RailModify);
     connect(viewport_, &Viewport::pushPullModeChanged, newFace, &QAction::setChecked);
-    tools->addSeparator();
+    // The separator before Camera shows on the wide rail only (group -1: in no group).
+    railTools_.emplace_back(tools->addSeparator(), -1);
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
     addTool("Pan", "H", Viewport::Tool::Pan, "Drag to pan");
     addTool("Zoom", "Z", Viewport::Tool::Zoom, "Drag up to zoom in · Drag down to zoom out", false);
+    setupRailGroups();
     // One Tab stop on the active tool; arrows move between tools (R084.v).
     installToolbarNavigation(tools, group);
     auto *cameraMenu = menuBar()->addMenu("&Camera");
@@ -1155,6 +1175,7 @@ QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #hint {color:$muted;font-size:$hintPx;padding:12px 0;} #footer {border-top:1px solid $border;}
 QToolBar {border:1px solid transparent;border-right:1px solid $border;spacing:6px;padding:9px 5px 9px 4px;}
 QToolButton {padding:11px 4px;border:1px solid transparent;border-radius:4px;}
+#railGroupButton {padding:11px 0;}
 QToolButton:checked {background:$selected;color:$ink;}
 QToolButton:hover,QPushButton:hover {background:$hover;}
 QPushButton {border:1px solid $border;padding:7px 11px;border-radius:4px;}
@@ -1299,6 +1320,7 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     themeSheets(colors);
     themeSidebar(colors);
     themeNarrow(colors);
+    themeRail(colors);
     if (auto *components = findChild<ComponentsTab *>())
         components->setTheme(colors);
 }

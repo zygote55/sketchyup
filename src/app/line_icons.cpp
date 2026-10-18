@@ -235,5 +235,12 @@ QPainterPath menuIcon() {
     }
     return path.translated(.5, .5);
 }
+QPainterPath chevronDownIcon() {
+    QPainterPath path;
+    path.moveTo(6, 7.5);
+    path.lineTo(9, 10.5);
+    path.lineTo(12, 7.5);
+    return path;
+}
 } // namespace icons
 } // namespace sketchy

@@ -5,6 +5,7 @@
 // closing the sheet by click, shortcut, Esc and a workspace click, with focus moving in and
 // back; resizing the sheet (the R094.a tabbed width); the Menu button's menus and the
 // shortcuts; state across breakpoints; and the strip, its icons and the sheet in both themes.
+// Below 800 px the Model tool rail shows one group of tools behind a group button (§3.3).
 #include "app/surface_format.hpp"
 #include "app/theme.hpp"
 #include "app/window.hpp"
@@ -13,6 +14,7 @@
 #include <QApplication>
 #include <QDialog>
 #include <QDir>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPlainTextEdit>
@@ -838,6 +840,433 @@ void pixels(Fixture &f, bool dark, const QString &directory) {
                   QString("/narrow-900-%1-strip-zoom.png").arg(QString::fromStdString(theme)));
     }
 }
+
+// ---- The tool rail's groups (UX_DESIGN §3.3, below 800 px). ----
+const std::vector<std::pair<QString, std::vector<QString>>> railGroups{
+    {"Select", {"Select", "Paint"}},
+    {"Draw", {"Line", "Rectangle", "Circle"}},
+    {"Modify",
+     {"Push/pull", "Offset", "Follow Me", "Intersect", "Solid tools", "Face orientation", "Move",
+      "Rotate", "Scale", "Create new face when pushing/pulling"}},
+    {"Measure", {"Tape measure"}},
+    {"Camera", {"Orbit", "Pan"}}};
+struct RailFixture {
+    Fixture &f;
+    QToolBar *rail{};
+    QToolButton *group{};
+    std::vector<QAction *> tools; // Every tool and option on the wide rail, in rail order.
+    explicit RailFixture(Fixture &fixture) : f(fixture) {
+        rail = f.window.findChild<QToolBar *>("toolRail");
+        group = f.window.findChild<QToolButton *>("railGroupButton");
+        check(rail && group, "The tool rail has its group button");
+        widen();
+        for (auto *entry : rail->actions())
+            if (!entry->isSeparator() && rail->widgetForAction(entry) != group)
+                tools.push_back(entry);
+    }
+    // The wide rail at a height that holds every tool; at 800 px high Qt's overflow menu takes
+    // the last few, as before.
+    void widen(int width = 900) {
+        f.window.setFixedSize(width, 1000);
+        check(QTest::qWaitFor([&] { return f.window.size() == QSize(width, 1000); }),
+              "Window resized to " + std::to_string(width) + "x1000");
+        f.settle();
+    }
+    // A tool leaves the rail (not just the view) while another group shows.
+    bool onRail(QAction *entry) const { return rail->actions().contains(entry); }
+    QAction *tool(const QString &text) const {
+        for (auto *entry : tools)
+            if (entry->text() == text)
+                return entry;
+        check(false, "The rail has " + text.toStdString());
+        return nullptr;
+    }
+    QWidget *widget(const QString &text) const { return rail->widgetForAction(tool(text)); }
+    // The tools (not the group button or separators) that show on the rail, by name.
+    std::set<QString> visible() const {
+        std::set<QString> result;
+        for (auto *entry : tools) {
+            auto *shown = onRail(entry) ? rail->widgetForAction(entry) : nullptr;
+            if (shown && entry->isVisible() && shown->isVisibleTo(rail))
+                result.insert(entry->text());
+        }
+        return result;
+    }
+    int separators() const {
+        int count = 0;
+        for (auto *entry : rail->actions())
+            if (entry->isSeparator() && entry->isVisible() && rail->widgetForAction(entry) &&
+                rail->widgetForAction(entry)->isVisibleTo(rail))
+                ++count;
+        return count;
+    }
+    std::set<QString> all() const {
+        std::set<QString> result;
+        for (const auto &[name, tools] : railGroups)
+            result.insert(tools.begin(), tools.end());
+        return result;
+    }
+    std::set<QString> members(const QString &name) const {
+        for (const auto &[group, tools] : railGroups)
+            if (group == name)
+                return {tools.begin(), tools.end()};
+        return {};
+    }
+    // The checked tool (the new-face toggle is an option, not a tool).
+    QString active() const {
+        for (auto *entry : tools)
+            if (entry->actionGroup() && entry->isChecked())
+                return entry->text();
+        return {};
+    }
+    // The rail's Tab stops: the rail's buttons that take Tab focus.
+    std::vector<QToolButton *> stops() const {
+        std::vector<QToolButton *> result;
+        for (auto *button : rail->findChildren<QToolButton *>(Qt::FindDirectChildrenOnly))
+            if (button->focusPolicy() & Qt::TabFocus)
+                result.push_back(button);
+        return result;
+    }
+    void expectGroup(const QString &name, const std::string &where) {
+        f.settle();
+        check(group->isVisible() && group->text() == name, where + ": the group button shows " +
+                                                               name.toStdString() + ", got " +
+                                                               group->text().toStdString());
+        {
+            const auto now = visible();
+            QStringList shown(now.begin(), now.end());
+            check(now == members(name),
+                  where + ": only the " + name.toStdString() +
+                      " tools show; shown: " + shown.join(", ").toStdString());
+        }
+        check(separators() == 0, where + ": no separators show");
+        check(group->toolTip() == "Tool group: " + name &&
+                  accessibleText(group, QAccessible::Name) == "Tool group" &&
+                  accessibleText(group, QAccessible::Description) == name,
+              where + ": the group button's name, description and tooltip follow the group");
+        for (auto *entry : group->menu()->actions())
+            check(entry->isChecked() == (entry->text() == name),
+                  where + ": the menu checks " + name.toStdString() + " only");
+        const auto stops = this->stops();
+        check(stops.size() == 1 && stops.front()->isVisibleTo(rail),
+              where + ": the rail has one visible Tab stop, got " + std::to_string(stops.size()));
+    }
+    void expectWide(const std::string &where) {
+        f.settle();
+        check(!group->isVisible() && !group->isVisibleTo(rail),
+              where + ": no group button on the wide rail");
+        auto join = [](const std::set<QString> &names) {
+            QStringList list(names.begin(), names.end());
+            return list.join(", ").toStdString();
+        };
+        const auto now = visible();
+        check(now == all(), where + ": every tool shows on the wide rail; shown: " + join(now));
+        check(separators() == 1, where + ": one separator (before Camera) shows");
+    }
+};
+void railGroupBehaviour(Fixture &f) {
+    auto &window = f.window;
+    RailFixture r(f);
+    r.widen();
+    r.expectWide("900 px");
+    check(r.rail->width() == 78, "The wide rail is 78 px");
+    // The breakpoint: 800 px is the wide rail, 799 px the grouped one.
+    r.widen(800);
+    r.expectWide("800 px");
+    r.widen(799);
+    r.expectGroup("Select", "799 px");
+    // Below 800 px: the active tool's group.
+    f.resize(760);
+    check(r.active() == "Select", "Select is the starting tool");
+    r.expectGroup("Select", "760 px");
+    check(r.rail->widgetForAction(r.rail->actions().front()) == r.group,
+          "The group button is the rail's first item");
+    check(r.group->width() <= r.rail->width() &&
+              r.group->mapTo(r.rail, QPoint(r.group->width(), 0)).x() <= r.rail->width(),
+          "The group button is no wider than the rail");
+    check(!r.group->icon().isNull() && r.group->iconSize().width() >= 8,
+          "The group button has its chevron");
+    check(r.group->width() >= r.widget("Select")->width() &&
+              r.group->width() + 10 >= r.rail->width(),
+          "The group button fills the rail's width: " + std::to_string(r.group->width()) +
+              " against " + std::to_string(r.widget("Select")->width()));
+    // Every group's name and chevron fit the rail without clipping.
+    auto *menu = r.group->menu();
+    check(menu && menu->actions().size() == 5, "The group menu lists five groups");
+    QStringList names;
+    for (auto *entry : menu->actions())
+        names << entry->text();
+    check(names == QStringList({"Select", "Draw", "Modify", "Measure", "Camera"}),
+          "The group menu lists the five groups in order");
+    // Menu item names reach the accessibility bridge as the group names.
+    if (auto *menuAccessible = QAccessible::queryAccessibleInterface(menu)) {
+        QStringList listed;
+        for (int i = 0; i < menuAccessible->childCount(); ++i)
+            listed << menuAccessible->child(i)->text(QAccessible::Name);
+        check(listed == names,
+              "The menu items are named for the groups, got " + listed.join('|').toStdString());
+    }
+    for (const auto &[name, tools] : railGroups) {
+        // Choosing a group shows its tools and leaves the active tool alone.
+        for (auto *entry : menu->actions())
+            if (entry->text() == name)
+                entry->trigger();
+        r.expectGroup(name, "menu " + name.toStdString());
+        check(r.active() == "Select", "Choosing " + name.toStdString() + " keeps the active tool");
+        const auto want =
+            r.group->fontMetrics().horizontalAdvance(name) + r.group->iconSize().width();
+        check(want + 3 + 2 <= r.group->width(),
+              "\"" + name.toStdString() + "\" and the chevron fit the group button (" +
+                  std::to_string(want + 5) + " of " + std::to_string(r.group->width()) + ")");
+    }
+    // A tool picked by shortcut switches to its group; the shortcut works with the group hidden.
+    f.focusViewport();
+    f.key(Qt::Key_L);
+    check(r.active() == "Line", "L chooses the Line tool");
+    r.expectGroup("Draw", "L");
+    f.key(Qt::Key_B);
+    check(r.active() == "Paint", "B chooses the Paint tool");
+    r.expectGroup("Select", "B (Paint)");
+    f.key(Qt::Key_O);
+    check(r.active() == "Orbit", "O chooses the Orbit tool");
+    r.expectGroup("Camera", "O (Orbit)");
+    f.key(Qt::Key_M);
+    check(r.active() == "Move", "M chooses the Move tool");
+    r.expectGroup("Modify", "M");
+    f.key(Qt::Key_T);
+    r.expectGroup("Measure", "T");
+    // A tool that is not on the rail (Zoom) leaves the shown group alone.
+    f.key(Qt::Key_Z);
+    check(r.active().isEmpty(), "Zoom is not on the rail");
+    r.expectGroup("Measure", "Z (Zoom, off the rail)");
+    // Menu and command search run the tool's action.
+    r.tool("Rotate")->trigger();
+    r.expectGroup("Modify", "the Rotate action");
+    r.tool("Circle")->trigger();
+    r.expectGroup("Draw", "the Circle action");
+    check(r.active() == "Circle", "Circle is active");
+    // The option toggle is not a tool: switching it does not move the rail.
+    r.widen();
+    r.expectWide("widened");
+    check(r.active() == "Circle", "Widening keeps the active tool");
+    r.tool("Create new face when pushing/pulling")->setChecked(true);
+    r.tool("Create new face when pushing/pulling")->setChecked(false);
+    f.resize(760);
+    r.expectGroup("Draw", "narrowed again");
+    // Narrowing starts on the active tool's group, not the last group chosen from the menu.
+    for (auto *entry : menu->actions())
+        if (entry->text() == "Camera")
+            entry->trigger();
+    r.expectGroup("Camera", "Camera chosen");
+    f.resize(900);
+    f.resize(760);
+    r.expectGroup("Draw", "narrowed after choosing Camera");
+    // Widening keeps the active tool and the keyboard focus.
+    f.focusViewport();
+    f.resize(900);
+    check(window.viewport()->hasFocus(), "Widening keeps focus in the viewport");
+    f.resize(760);
+    r.group->setFocus(Qt::TabFocusReason);
+    check(QTest::qWaitFor([&] { return r.group->hasFocus(); }), "The group button takes focus");
+    r.widen();
+    check(r.active() == "Circle" && focused() == r.widget("Circle") && focused()->isVisible(),
+          "Widening from the group button moves focus to the active tool, got " +
+              identity(focused()));
+    r.expectWide("widened from the group button");
+    // Narrowing with focus on a tool that hides moves focus to the new group's active tool.
+    r.widget("Orbit")->setFocus(Qt::TabFocusReason);
+    check(QTest::qWaitFor([&] { return r.widget("Orbit")->hasFocus(); }), "Orbit takes focus");
+    // (Narrowing at the same height: a shorter window would first push Orbit into the rail's
+    // overflow menu, as it always has, and Qt would move focus before this code runs.)
+    r.widen(760);
+    r.expectGroup("Draw", "narrowed with focus in the rail");
+    check(focused() == r.widget("Circle") && r.active() == "Circle",
+          "Narrowing keeps focus in the rail on the active tool, got " + identity(focused()));
+    // The shortcut and the group button work after the rail has been through a breakpoint.
+    f.focusViewport();
+    f.key(Qt::Key_O);
+    r.expectGroup("Camera", "O after the breakpoint");
+    f.key(Qt::Key_L);
+    r.expectGroup("Draw", "L after the breakpoint");
+    check(r.active() == "Line", "Line is the active tool");
+}
+// Tab into the rail, arrow to the group button, open its menu from the keyboard.
+void railGroupKeyboard(Fixture &f) {
+    auto &window = f.window;
+    RailFixture r(f);
+    f.resize(760);
+    f.focusViewport();
+    f.key(Qt::Key_L);
+    r.expectGroup("Draw", "keyboard");
+    auto *search = window.findChild<QPushButton *>("commandSearch");
+    check(search != nullptr, "Command search exists");
+    search->setFocus(Qt::TabFocusReason);
+    check(QTest::qWaitFor([&] { return search->hasFocus(); }), "Command search takes focus");
+    f.key(Qt::Key_Tab);
+    check(focused() == r.widget("Line"),
+          "Tab from command search enters the rail on the active tool, got " + identity(focused()));
+    // Down on the rail's tools moves along; Up from the first tool reaches the group button.
+    f.key(Qt::Key_Down);
+    check(focused() == r.widget("Rectangle"), "Down moves to the next tool");
+    f.key(Qt::Key_Up);
+    f.key(Qt::Key_Up);
+    check(focused() == r.group,
+          "Up reaches the group button, the rail's first item, got " + identity(focused()));
+    check(r.stops().size() == 1 && r.stops().front() == r.group,
+          "The group button is the rail's one Tab stop while it has focus");
+    f.key(Qt::Key_Right);
+    check(focused() == r.widget("Line"), "Right leaves the group button for the first tool");
+    f.key(Qt::Key_Left);
+    check(focused() == r.group, "Left returns to the group button");
+    f.key(Qt::Key_End);
+    check(focused() == r.widget("Circle"), "End reaches the last tool of the shown group");
+    f.key(Qt::Key_Home);
+    check(focused() == r.group, "Home reaches the group button");
+    f.key(Qt::Key_Tab);
+    check(focused() != nullptr && !r.rail->isAncestorOf(focused()),
+          "Tab leaves the rail from the group button, got " + identity(focused()));
+    const auto after = identity(focused());
+    f.key(Qt::Key_Backtab, Qt::ShiftModifier);
+    // Leaving the rail puts its one Tab stop back on the active tool, as it always has.
+    check(focused() == r.widget("Line"),
+          "Shift+Tab returns to the rail's stop (the active tool) from " + after + ", got " +
+              identity(focused()));
+    f.key(Qt::Key_Up);
+    check(focused() == r.group, "Up from the active tool reaches the group button again");
+    // Enter, Space and Down open the menu; Esc closes it and focus returns to the button. Qt's
+    // Wayland popups need an input serial that synthetic input cannot supply, so there the
+    // menu is only filled, as the Menu button's is.
+    const bool popups = QGuiApplication::platformName() == "xcb";
+    auto *menu = r.group->menu();
+    for (const auto key : {Qt::Key_Return, Qt::Key_Space, Qt::Key_Down, Qt::Key_Enter}) {
+        r.group->setFocus(Qt::TabFocusReason);
+        check(QTest::qWaitFor([&] { return r.group->hasFocus(); }), "Group button focused");
+        if (!popups) {
+            emit menu->aboutToShow();
+            for (auto *entry : menu->actions())
+                check(!entry->text().isEmpty() && entry->isCheckable(),
+                      "The group menu is filled before showing");
+            continue;
+        }
+        bool opened = false, closed = false;
+        QTimer::singleShot(200, &window, [&] {
+            auto *popup = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+            opened = popup == menu && menu->isVisible();
+            if (popup)
+                QTest::keyClick(popup, Qt::Key_Escape);
+        });
+        QTest::keyClick(r.group, key);
+        r.f.settle();
+        closed = !menu->isVisible() && QApplication::activePopupWidget() == nullptr;
+        check(opened,
+              "The group menu opens from the keyboard (key " + std::to_string(int(key)) + ")");
+        check(closed, "Esc closes the group menu");
+        check(focused() == r.group && r.active() == "Line",
+              "Esc returns focus to the group button, got " + identity(focused()));
+        r.expectGroup("Draw", "after Esc");
+    }
+    if (popups) {
+        // Choosing a group from the open menu with the keyboard: Down, Enter.
+        QTimer::singleShot(200, &window, [&] {
+            auto *popup = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+            if (!popup)
+                return;
+            QTest::keyClick(popup, Qt::Key_Down);
+            QTest::keyClick(popup, Qt::Key_Down);
+            QTest::keyClick(popup, Qt::Key_Down);
+            QTest::keyClick(popup, Qt::Key_Return);
+        });
+        QTest::keyClick(r.group, Qt::Key_Return);
+        r.f.settle();
+        check(r.active() == "Line" && r.group->text() != "Draw",
+              "Choosing a group from the keyboard changes the shown group only, got " +
+                  r.group->text().toStdString());
+    }
+    f.resize(900);
+    f.focusViewport();
+}
+// The group button in one theme: the rail's tokens, its ink, chevron, focus ring and hover.
+void railGroupPixels(Fixture &f, bool dark, const QString &directory) {
+    auto &window = f.window;
+    RailFixture r(f);
+    const auto colors = themeColors(dark);
+    const std::string theme = dark ? "dark" : "light";
+    window.findChild<QAction *>(dark ? "view.theme.2" : "view.theme.1")->trigger();
+    window.setFixedSize(760, 700);
+    check(QTest::qWaitFor([&] { return window.size() == QSize(760, 700); }), "760x700");
+    f.settle();
+    f.focusViewport();
+    f.key(Qt::Key_L);
+    r.expectGroup("Draw", theme + " pixels");
+    // The chevron is drawn in the rail's ink at 1.5 px.
+    const auto icon = r.group->icon().pixmap(QSize(96, 96)).toImage();
+    int exact = 0;
+    for (int y = 0; y < icon.height(); ++y)
+        for (int x = 0; x < icon.width(); ++x)
+            exact +=
+                near(icon.pixelColor(x, y), colors.ink, 1) && icon.pixelColor(x, y).alpha() == 255;
+    check(exact > 20,
+          theme + ": the chevron is drawn in the ink colour (" + std::to_string(exact) + " px)");
+    check(contrast(colors.ink, colors.surface) >= 4.5, theme + ": the group name meets 4.5:1");
+    // The button on the rail: same surface as the tool buttons, with text in the ink colour.
+    auto strongest = [&](QWidget *button) {
+        const auto image = button->grab().toImage();
+        const auto scale = image.devicePixelRatio();
+        const QColor fill = image.pixelColor(image.width() / 2, int(4 * scale));
+        double best = 0;
+        bool ink = false;
+        for (int y = int(6 * scale); y < image.height() - int(6 * scale); ++y)
+            for (int x = int(6 * scale); x < image.width() - int(6 * scale); ++x) {
+                best = std::max(best, contrast(image.pixelColor(x, y), fill));
+                ink |= near(image.pixelColor(x, y), colors.ink, 6);
+            }
+        return std::tuple{fill, best, ink};
+    };
+    const auto [groupFill, groupBest, groupInk] = strongest(r.group);
+    const auto [toolFill, toolBest, toolInk] = strongest(r.widget("Rectangle"));
+    check(near(groupFill, toolFill, 1) && near(groupFill, colors.surface, 1),
+          theme + ": the group button rests on the rail's surface, got " +
+              groupFill.name().toStdString());
+    check(groupInk && groupBest >= 4.5,
+          theme + ": the group name's contrast is " + std::to_string(groupBest));
+    // Focus: the accent ring as on the other rail buttons.
+    r.group->setFocus(Qt::TabFocusReason);
+    QTest::qWait(30);
+    {
+        const auto image = r.group->grab().toImage();
+        const auto edge = image.pixelColor(image.width() / 2, 0);
+        check(near(edge, colors.accent, 2) && contrast(edge, colors.surface) >= 3,
+              theme + ": the focused group button has the accent ring, got " +
+                  edge.name().toStdString());
+    }
+    // Hover: the rail's hover fill.
+    f.focusViewport();
+    QTest::mouseMove(r.group, r.group->rect().center());
+    QTest::qWait(60);
+    if (r.group->underMouse()) {
+        const auto image = r.group->grab().toImage();
+        const auto fill = image.pixelColor(image.width() / 2, int(4 * image.devicePixelRatio()));
+        check(near(fill, colors.hover, 1),
+              theme + ": hover fills with the rail's hover tone, got " + fill.name().toStdString());
+    }
+    QTest::mouseMove(&window, QPoint(window.width() / 2, window.height() / 2));
+    QTest::qWait(30);
+    if (!directory.isEmpty()) {
+        QTest::mouseMove(&window, QPoint(window.width() / 2, window.height() - 40));
+        QTest::qWait(60);
+        check(window.grab().save(
+                  directory +
+                  QString("/rail-760x700-draw-%1.png").arg(QString::fromStdString(theme))),
+              "Save the rail screenshot");
+        auto image = r.rail->grab().toImage();
+        image.scaled(image.size() * 3, Qt::IgnoreAspectRatio, Qt::FastTransformation)
+            .save(directory +
+                  QString("/rail-760x700-draw-%1-zoom.png").arg(QString::fromStdString(theme)));
+    }
+    window.setFixedSize(900, 800);
+    check(QTest::qWaitFor([&] { return window.width() == 900; }), "Back to 900 px");
+    f.settle();
+}
 } // namespace
 int main(int argc, char **argv) {
     QTemporaryDir files;
@@ -898,6 +1327,15 @@ int main(int argc, char **argv) {
         pixels(f, true, directory);
         window->findChild<QAction *>("view.theme.1")->trigger();
         std::cout << "Strip, icons and sheet pixels in both themes passed\n";
+        railGroupBehaviour(f);
+        std::cout << "Tool rail groups: one group below 800 px, the group menu, tool shortcuts, "
+                     "breakpoints keeping the tool and focus passed\n";
+        railGroupKeyboard(f);
+        std::cout << "Tool rail group button: Tab, arrows, Enter, Space, Down and Esc passed\n";
+        railGroupPixels(f, false, directory);
+        railGroupPixels(f, true, directory);
+        window->findChild<QAction *>("view.theme.1")->trigger();
+        std::cout << "Tool rail group button pixels in both themes passed\n";
         window->document().markSaved();
         window.reset();
         std::cout << "Native narrow layout: 1600/1200/1000/900/780, strip, overlay sheet, Menu "

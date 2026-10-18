@@ -65,6 +65,13 @@ with the same menus (Alt+F and the other menu keys still open them), and every
 shortcut keeps working. Widening the window past 1100 px restores the docked sidebar
 on the same tab at its remembered width.
 
+Below 800 px the tool rail shows one group of tools at a time. Its first item is a group
+button ("Draw ⌄"); open it (click, or **Enter**, **Space** or **Down** when it has
+focus) to choose Select, Draw, Modify, Measure or Camera. Choosing a group shows its
+tools and does not change the active tool, and picking a tool by shortcut (**L** for
+Line, for example) or from command search switches the rail to that tool's group.
+Widening the window past 800 px shows the whole rail again with the same active tool.
+
 Use **View → Interface text size** for 75–200% text independently of display
 scaling. Light, Dark and System themes are under View. Navigation preferences
 include trackpad gestures, field of view and reduced motion. The

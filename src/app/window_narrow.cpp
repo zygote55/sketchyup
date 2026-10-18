@@ -1,7 +1,8 @@
 // UX_DESIGN §3.3: the narrow layout. Below 1100 px the side panel collapses to an icon strip at
 // the window's right edge; a strip button (or its panel's View action and shortcut) opens the
 // Model panel or the Assistant in an overlay sheet over the workspace, anchored to the right,
-// and the menu bar becomes one Menu button.
+// and the menu bar becomes one Menu button. Below 800 px the Model tool rail also shows one
+// group of tools behind a group button; its width breakpoint is handled here too.
 #include "app/interface_preferences.hpp"
 #include "app/keyboard_navigation.hpp"
 #include "app/line_icons.hpp"
@@ -16,14 +17,66 @@
 #include <QShortcut>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QStyleOptionToolButton>
+#include <QStylePainter>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QWidgetAction>
 #include <algorithm>
 namespace sketchy {
 namespace {
+constexpr const char *railGroupNames[] = {"Select", "Draw", "Modify", "Measure", "Camera"};
+// The tool rail's group button (§3.3): the shown group's name and a down-chevron after it,
+// painted as one centred label on the rail button's own frame (background, hover, checked
+// and focus ring), so the pair reads as one control and fits the 78 px rail ("Measure" and
+// its chevron do not fit beside Qt's icon spacing and menu arrow).
+class RailGroupButton final : public QToolButton {
+  public:
+    using QToolButton::QToolButton;
+    QSize sizeHint() const override {
+        // Text-only height, like the other rail buttons. The width fills the rail (the toolbar
+        // lays out at most its inner width) and is never less than the label and its frame.
+        const int label =
+            fontMetrics().horizontalAdvance(text()) + gap + iconSize().width() + frame;
+        return {std::max(label, parentWidget() ? parentWidget()->width() : 0),
+                QToolButton::sizeHint().height()};
+    }
+
+  protected:
+    void paintEvent(QPaintEvent *) override {
+        QStylePainter painter(this);
+        QStyleOptionToolButton option;
+        initStyleOption(&option);
+        option.text.clear();
+        option.icon = QIcon();
+        option.features &=
+            ~(QStyleOptionToolButton::HasMenu | QStyleOptionToolButton::MenuButtonPopup);
+        option.subControls &= ~QStyle::SC_ToolButtonMenu;
+        painter.drawComplexControl(QStyle::CC_ToolButton, option);
+        const auto area =
+            style()->subControlRect(QStyle::CC_ToolButton, &option, QStyle::SC_ToolButton, this);
+        const int chevron = iconSize().width();
+        const auto metrics = fontMetrics();
+        const auto label =
+            metrics.elidedText(text(), Qt::ElideRight, std::max(0, area.width() - chevron - gap));
+        const int labelWidth = metrics.horizontalAdvance(label);
+        const int left = area.left() + (area.width() - labelWidth - gap - chevron) / 2;
+        painter.setPen(option.palette.color(isEnabled() ? QPalette::Active : QPalette::Disabled,
+                                            QPalette::ButtonText));
+        painter.drawText(QRect(left, area.top(), labelWidth, area.height()),
+                         Qt::AlignVCenter | Qt::AlignLeft, label);
+        icon().paint(
+            &painter,
+            QRect(left + labelWidth + gap, area.center().y() - chevron / 2 + 1, chevron, chevron),
+            Qt::AlignCenter, isEnabled() ? QIcon::Normal : QIcon::Disabled);
+    }
+
+  private:
+    static constexpr int gap = 3, frame = 2;
+};
 // The overlay sheet: the side panel and its resize handle, over the workspace. An Esc that no
 // control inside used closes it. The callback runs only while `guard` lives.
 class PanelOverlay final : public QWidget {
@@ -201,6 +254,7 @@ void Window::detachNarrow() {
     overlayDismiss_ = nullptr;
 }
 void Window::layoutNarrow() {
+    layoutRail();
     if (!panelOverlay_ || !sidebarSplitter_)
         return;
     const bool narrow = narrowLayout();
@@ -441,5 +495,133 @@ bool Window::overlayFilter(QObject *object, QEvent *event) {
     default:
         return false;
     }
+}
+// UX_DESIGN §3.3 (< 800 px): the Model rail shows one group of tools. The group button is the
+// rail's first item (one control: the group's name, then a chevron) and lists the five groups.
+void Window::setupRailGroups() {
+    auto *button = new RailGroupButton;
+    button->setObjectName("railGroupButton");
+    button->setAccessibleName("Tool group");
+    button->setPopupMode(QToolButton::InstantPopup);
+    button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    // The rail's keys: Down, Enter and Space open the menu (keyboard_navigation.cpp).
+    button->setProperty("sketchyupRailMenu", true);
+    auto *menu = new QMenu(button);
+    menu->setObjectName("railGroupMenu");
+    menu->setAccessibleName("Tool groups");
+    menu->setLayoutDirection(Qt::LeftToRight);
+    auto *choices = new QActionGroup(menu);
+    for (int group = 0; group < RailGroupCount; ++group) {
+        auto *entry = new QAction(railGroupNames[group], menu);
+        entry->setObjectName(QString("railGroup.") + QString(railGroupNames[group]).toLower());
+        entry->setCheckable(true);
+        choices->addAction(entry);
+        menu->addAction(entry);
+        connect(entry, &QAction::triggered, this, [this, group] { showRailGroup(group); });
+    }
+    button->setMenu(menu);
+    railGroupButton_ = button;
+    railGroupMenu_ = menu;
+    railGroupAction_ = new QWidgetAction(this);
+    static_cast<QWidgetAction *>(railGroupAction_)->setDefaultWidget(button);
+    railGroupAction_->setObjectName("railGroupAction");
+    modelRail_->insertAction(modelRail_->actions().front(), railGroupAction_);
+    railGroupAction_->setVisible(false);
+    // The shown group follows the active tool, however it is chosen (shortcut, menu, command
+    // search). A tool that is not on the rail leaves it as it is.
+    // Only tools: the option toggles (new face) are on the rail but are not the active tool.
+    for (const auto &[entry, group] : railTools_) {
+        if (!entry->actionGroup())
+            continue;
+        connect(entry, &QAction::toggled, this, [this, group = group](bool on) {
+            if (on)
+                showRailGroup(group);
+        });
+        if (entry->isChecked())
+            railGroup_ = group;
+    }
+    showRailGroup(railGroup_);
+}
+void Window::labelRailGroup() {
+    const QString name = railGroupNames[railGroup_];
+    railGroupButton_->setText(name);
+    railGroupButton_->setToolTip("Tool group: " + name);
+    railGroupButton_->setAccessibleDescription(name);
+    for (auto *entry : railGroupMenu_->actions())
+        entry->setChecked(entry->text() == name);
+}
+void Window::showRailGroup(int group) {
+    if (!railGroupButton_ || group < 0 || group >= RailGroupCount)
+        return;
+    railGroup_ = group;
+    labelRailGroup();
+    layoutRail();
+}
+void Window::layoutRail() {
+    if (!railGroupButton_ || !modelRail_)
+        return;
+    const bool compact = compactRail();
+    if (compact && !railCompact_) {
+        // Narrowing starts on the active tool's group (none when it is not on the rail).
+        for (const auto &[entry, group] : railTools_)
+            if (entry->isChecked() && entry->actionGroup())
+                railGroup_ = group;
+        labelRailGroup();
+    }
+    railCompact_ = compact;
+    // The rail holds the shown group's tools (below 800 px) or all of them, in rail order. A tool
+    // leaves the rail rather than being hidden: Qt's toolbar shows a widget again whenever its
+    // action is visible, and hiding the action would also disable the tool's shortcut.
+    std::vector<QAction *> wanted;
+    for (const auto &[entry, group] : railTools_)
+        if (!compact || group == railGroup_)
+            wanted.push_back(entry);
+    QPointer<QWidget> focus = focusWidget();
+    const bool focusInRail = focus && modelRail_->isAncestorOf(focus);
+    const auto held = modelRail_->actions();
+    auto holds = [&](QAction *entry) {
+        return std::find(held.begin(), held.end(), entry) != held.end();
+    };
+    railGroupAction_->setVisible(compact);
+    // Add what is missing first, so focus can move to a control that is already there. Add
+    // driver's separator, when it exists, stays after the tools.
+    QAction *before = railSeparator_;
+    for (auto it = wanted.rbegin(); it != wanted.rend(); ++it) {
+        if (!holds(*it))
+            modelRail_->insertAction(before, *it);
+        before = *it;
+    }
+    std::vector<QAction *> leaving;
+    for (const auto &[entry, group] : railTools_)
+        if (holds(entry) && std::find(wanted.begin(), wanted.end(), entry) == wanted.end())
+            leaving.push_back(entry);
+    if (focusInRail) {
+        bool lost =
+            !compact && (focus == railGroupButton_ || railGroupButton_->isAncestorOf(focus));
+        for (auto *entry : leaving)
+            if (auto *widget = modelRail_->widgetForAction(entry))
+                lost |= widget == focus || widget->isAncestorOf(focus);
+        QWidget *target{};
+        for (auto *entry : wanted)
+            if (entry->actionGroup() && entry->isChecked())
+                target = modelRail_->widgetForAction(entry);
+        if (!target)
+            target = compact || wanted.empty() ? static_cast<QWidget *>(railGroupButton_)
+                                               : modelRail_->widgetForAction(wanted.front());
+        if (lost && target)
+            target->setFocus(Qt::OtherFocusReason);
+    }
+    for (auto *entry : leaving)
+        modelRail_->removeAction(entry);
+}
+void Window::themeRail(const ThemeColors &colors) {
+    if (!railGroupButton_)
+        return;
+    const int extent = interfaceExtent(8, interfaceTextPercent());
+    railGroupButton_->setIconSize(QSize(extent, extent));
+    // Ink like the rail's text. Margin -5 makes the icon an 8-unit box, so the 1.5 px stroke is
+    // 1.5 px at 100 % text size.
+    railGroupButton_->setIcon(
+        strokeIcon(icons::chevronDownIcon(), colors.ink, colors.muted, {}, -5));
 }
 } // namespace sketchy
