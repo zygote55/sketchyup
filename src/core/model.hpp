@@ -126,6 +126,14 @@ struct Edit {
     std::vector<DrawingItemChange> drawingItems{};
     Id nextDrawingItemFloor{};
     bool drawingSheetScope{};
+    // Paper anchor lineage (ADR 0164 §3, addendum). A model edit rewrites the anchors
+    // of bound dimensions and labels inside the same edit, from its topology lineage
+    // and these geometry transfers, and may carry those anchor-only item changes.
+    // Source context -> contexts that received some of its geometry with the
+    // vertex, edge and face IDs unchanged (make group or component from a selection,
+    // or a geometry body moved under a new component frame). Not persisted.
+    std::map<Id, std::set<Id>> transfers{};
+    bool drawingAnchorsResolved{};
     // Component parameter records ride on definitions and overrides on instances
     // (R093.b); driver IDs come from this document-global allocator.
     Id nextComponentDriverFloor{};

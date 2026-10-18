@@ -3,8 +3,9 @@
 #include "automation/inspection.hpp"
 #include "core/annotations.hpp"
 #include "core/components.hpp"
-#include "core/groups.hpp"
+#include "core/drawing_item_lineage.hpp"
 #include "core/drawing_item_records.hpp"
+#include "core/groups.hpp"
 #include "core/scenes.hpp"
 #include "core/transform.hpp"
 #include "io/document_io.hpp"
@@ -18,6 +19,7 @@
 #include <iomanip>
 #include <iostream>
 #include <numbers>
+#include <set>
 #include <string>
 using namespace sketchy;
 // Referenced paper dimensions (ADR 0164 §3, R091.c): lazy resolution by ID, a
@@ -89,6 +91,21 @@ Id edgeBetween(const Document &doc, Id body, Vec3 a, Vec3 b) {
     throw std::runtime_error("No edge between the points");
 }
 bool near(double a, double b, double tolerance = 1e-9) { return std::abs(a - b) <= tolerance; }
+// An edit that gives the edge a new ID at the same place and names no lineage for
+// it. A paper anchor must not follow it: anchors are never re-bound by geometry.
+void reidentifyEdge(Document &doc, Id body, Id edge) {
+    const auto old = doc.bodies().at(body);
+    auto next = std::make_shared<Body>(*old);
+    const auto record = next->topology.edges.at(edge);
+    next->topology.edges.erase(edge);
+    const auto id = next->topology.nextId++;
+    next->topology.edges[id] = record;
+    Change change{body, old, next};
+    for (const auto &[kept, unused] : next->topology.edges)
+        if (kept != id)
+            change.edgeDescendants[kept] = {kept};
+    doc.apply(Edit{"Re-identify edge", {change}}, doc.revision());
+}
 // A 2 m x 1 m slab, a 1:50 orthographic plan view on an A3 sheet, and two
 // dimensions: item 1 between the corner vertices (0,0,0) and (2,0,0), item 2 between
 // points on the bottom and top edges (the edge midpoints).
@@ -223,18 +240,17 @@ void brokenAndReattach() {
     const auto items = doc.drawingItems();
     const auto bottom = edgeBetween(doc, f.body, {0, 0, 0}, {2, 0, 0});
     const auto lastMm = std::get<DrawingDimensionItem>(items.at(1)->data).lastMm;
-    // Splitting the bottom edge keeps the corner vertices but retires the edge ID.
-    doc.splitEdge(f.body, bottom, .25);
-    check(doc.drawingItems() == items, "A model edit never writes item records");
-    check(eval(doc, 1).state == DrawingItemState::Current,
-          "Vertex anchors survive an edge split");
+    // Retiring the bottom edge ID without lineage keeps the corner vertices.
+    reidentifyEdge(doc, f.body, bottom);
+    check(doc.drawingItems() == items, "A model edit without lineage writes no item records");
+    check(eval(doc, 1).state == DrawingItemState::Current, "Vertex anchors survive the edit");
     const auto broken = eval(doc, 2);
     check(broken.state == DrawingItemState::Broken &&
               broken.reasons == std::vector<std::string>{"referenceMissing"} &&
               broken.text == "[Missing reference]" && !broken.valueMetres &&
               broken.anchors[0].state == AnchorState::Missing &&
               broken.anchors[1].state == AnchorState::Resolved,
-          "A split edge breaks its edge anchor: " + describe(broken));
+          "An edge without lineage breaks its edge anchor: " + describe(broken));
     const auto rows = inspect(doc, "drawing_items.query")["items"].toArray();
     check(rows[1].toObject()["state"] == "broken" &&
               rows[1].toObject()["reasons"].toArray() == QJsonArray{"referenceMissing"},
@@ -265,7 +281,7 @@ void brokenAndReattach() {
     check(eval(doc, 2).state == DrawingItemState::Broken, "Undo of the reattach is broken again");
     doc.undo();
     check(eval(doc, 2).state == DrawingItemState::Current && doc.drawingItems() == items,
-          "Undo of the split restores the original binding");
+          "Undo of the edit restores the original binding");
     doc.redo();
     doc.redo();
     check(eval(doc, 2).state == DrawingItemState::Current, "Redo restores the reattach");
@@ -384,7 +400,7 @@ void pureTranslation() {
 void lastMmFollowsTheView() {
     Fixture f;
     auto &doc = f.doc;
-    doc.splitEdge(f.body, edgeBetween(doc, f.body, {0, 0, 0}, {2, 0, 0}), .25);
+    reidentifyEdge(doc, f.body, edgeBetween(doc, f.body, {0, 0, 0}, {2, 0, 0}));
     check(eval(doc, 2).state == DrawingItemState::Broken, "The edge dimension is broken");
     auto last = [&](Id item) { return std::get<DrawingDimensionItem>(doc.drawingItems().at(item)->data).lastMm; };
     const auto before = last(2), resolvedBefore = last(1);
@@ -440,15 +456,274 @@ void lastMmFollowsTheView() {
     check(last(2) == kept, "A view without a mapping keeps lastMm");
     std::cout << "lastMm follows view mapping changes: ok\n";
 }
-// The lineage table (ADR 0164 §3): which common model edits keep a paper
-// dimension associated. Vertex anchors (item 1) and edge anchors (item 2) are
-// recorded separately. Each row starts from a fresh fixture.
+const AnnotationAnchor &dimensionAnchor(const Document &doc, Id item, size_t index) {
+    return std::get<DrawingDimensionItem>(doc.drawingItems().at(item)->data).anchors[index];
+}
+const AnnotationAnchor &labelAnchor(const Document &doc, Id item) {
+    return std::get<DrawingLabelItem>(doc.drawingItems().at(item)->data).target.anchor;
+}
+// A leader label whose tip is a point on an edge, at the edge fraction.
+Id addEdgeLabel(Fixture &f, Id edgeId, double fraction) {
+    run(f.doc,
+        {QJsonObject{{"command", "drawing_item.create"},
+                     {"sheet", "1"},
+                     {"kind", "label"},
+                     {"data", QJsonObject{{"text", "Slab edge"},
+                                          {"textAt", QJsonObject{{"xMm", 250}, {"yMm", 60}}},
+                                          {"target", QJsonObject{{"kind", "view"},
+                                                                 {"view", "1"},
+                                                                 {"anchor", edge(f.body, edgeId,
+                                                                                 fraction)}}}}}}});
+    return f.doc.drawingItems().rbegin()->first;
+}
+Vec3 anchorWorld(const Document &doc, Id item, size_t index = 0) {
+    const auto evaluation = eval(doc, item);
+    check(evaluation.anchors.size() > index &&
+              evaluation.anchors[index].state == AnchorState::Resolved,
+          "The anchor resolves");
+    return evaluation.anchors[index].world;
+}
+bool same(Vec3 a, Vec3 b) { return length(a - b) < 1e-9; }
+// Every item equals `before` except the named ones, whose anchors alone changed.
+void onlyAnchorsChanged(const DrawingItemRecords &before, const DrawingItemRecords &after,
+                        const std::set<Id> &changed, const std::string &what) {
+    check(before.size() == after.size(), what + ": no item is added or removed");
+    for (const auto &[id, item] : after)
+        check(changed.contains(id) ? drawingItemAnchorsOnly(*before.at(id), *item)
+                                   : item == before.at(id),
+              what + ": item " + std::to_string(id) + " changes only in its anchors");
+}
+
+// ADR 0164 §3 addendum: a model edit rewrites paper anchors inside the same edit, from
+// the edit's topology lineage, as it rewrites model annotations. An edge split under a
+// dimension endpoint moves that endpoint to the new vertex; a leader tip elsewhere on
+// the edge follows to the piece that contains it. One entry; Undo and Redo are exact.
+void edgeSplitLineage() {
+    Fixture f;
+    auto &doc = f.doc;
+    const auto bottom = edgeBetween(doc, f.body, {0, 0, 0}, {2, 0, 0});
+    const auto label = addEdgeLabel(f, bottom, .25);
+    const auto tip = anchorWorld(doc, label);
+    const auto endpoint = anchorWorld(doc, 2, 0);
+    check(same(endpoint, {1, 0, 0}), "Item 2 starts at the bottom edge's midpoint");
+    const auto items = doc.drawingItems();
+    const auto entries = doc.history().total;
+    const auto lastMm = std::get<DrawingDimensionItem>(items.at(2)->data).lastMm;
+    // Split the bottom edge exactly under the dimension's endpoint.
+    doc.splitEdge(f.body, bottom, .5);
+    check(doc.history().total == entries + 1 && doc.history().entries.back().label == "Split edge",
+          "The split and the anchor rewrite are one entry");
+    onlyAnchorsChanged(items, doc.drawingItems(), {2, label}, "Split under an endpoint");
+    const auto middle = vertexAt(doc, f.body, {1, 0, 0});
+    const auto &moved = dimensionAnchor(doc, 2, 0);
+    check(moved.kind == AnchorKind::Vertex && moved.body == f.body && moved.entity == middle,
+          "The endpoint on the split point becomes the new vertex anchor");
+    check(dimensionAnchor(doc, 2, 1) ==
+              std::get<DrawingDimensionItem>(items.at(2)->data).anchors[1],
+          "The other endpoint is untouched");
+    check(std::get<DrawingDimensionItem>(doc.drawingItems().at(2)->data).lastMm == lastMm,
+          "lastMm stays the last sheet edit's");
+    const auto value = eval(doc, 2);
+    check(value.state == DrawingItemState::Current && near(*value.valueMetres, 1),
+          "The dimension stays current: " + describe(value));
+    const auto &leader = labelAnchor(doc, label);
+    check(leader.kind == AnchorKind::Edge && leader.body == f.body && leader.entity != bottom &&
+              doc.bodies().at(f.body)->topology.edges.contains(leader.entity) &&
+              same(anchorWorld(doc, label), tip) &&
+              eval(doc, label).state == DrawingItemState::Current,
+          "The leader tip follows to the piece that contains it");
+    const auto split = doc.drawingItems();
+    doc.undo();
+    check(doc.drawingItems() == items, "Undo restores the exact prior anchors");
+    doc.redo();
+    check(doc.drawingItems() == split, "Redo restores the rewritten anchors");
+    // Split the leader's piece again, away from the tip: it follows again.
+    const auto piece = leader.entity;
+    const auto again = doc.drawingItems();
+    doc.splitEdge(f.body, piece, .5);
+    onlyAnchorsChanged(again, doc.drawingItems(), {label}, "Second split");
+    check(labelAnchor(doc, label).entity != piece && same(anchorWorld(doc, label), tip),
+          "A second split follows again");
+    std::cout << "edge splits move paper anchors to their successors: ok\n";
+}
+
+// A face split (a line drawn across the face) splits the bottom and top edges; edge
+// anchors follow to the pieces, as model annotations do. Vertex anchors are untouched.
+void faceSplitLineage() {
+    Fixture f;
+    auto &doc = f.doc;
+    AnnotationRecord annotation;
+    annotation.name = "Model depth";
+    annotation.anchors = {dimensionAnchor(doc, 2, 0), dimensionAnchor(doc, 2, 1)};
+    const auto model = createAnnotation(doc, annotation);
+    const auto items = doc.drawingItems();
+    const auto faces = doc.bodies().at(f.body)->surface.faces.size();
+    doc.insertEdges(f.body, {0, 0, 0}, {0, 0, 1}, {{Vec3{.5, 0, 0}, Vec3{.5, 1, 0}}});
+    check(doc.bodies().at(f.body)->surface.faces.size() == faces + 1, "The face is split");
+    onlyAnchorsChanged(items, doc.drawingItems(), {2}, "Face split");
+    const auto depth = eval(doc, 2);
+    check(depth.state == DrawingItemState::Current && near(*depth.valueMetres, 1) &&
+              same(anchorWorld(doc, 2, 0), {1, 0, 0}) && same(anchorWorld(doc, 2, 1), {1, 1, 0}),
+          "Edge anchors follow a face split: " + describe(depth));
+    check(eval(doc, 1).state == DrawingItemState::Current, "Vertex anchors are untouched");
+    check(measureAnnotation(doc, *doc.annotations().at(model)).state == AnchorState::Resolved,
+          "The model annotation on the same points survives too");
+    doc.undo();
+    check(doc.drawingItems() == items, "Undo restores the exact anchors");
+    std::cout << "face splits move edge anchors to their pieces: ok\n";
+}
+
+// Make component: the anchors follow the geometry into the placement's member, the
+// same {body, entity} identity that model annotations and linked views use; nesting
+// keeps them; an edge split inside the definition moves them through its lineage.
+void makeComponentLineage() {
+    Fixture f;
+    auto &doc = f.doc;
+    const auto bottom = edgeBetween(doc, f.body, {0, 0, 0}, {2, 0, 0});
+    const auto label = addEdgeLabel(f, bottom, .25);
+    const auto tip = anchorWorld(doc, label);
+    const auto items = doc.drawingItems();
+    const auto entries = doc.history().total;
+    const auto component = createComponent(doc, f.body, "Slab");
+    const auto member = component.movedGeometry.at(f.body);
+    check(doc.history().total == entries + 1, "Make component is one entry");
+    onlyAnchorsChanged(items, doc.drawingItems(), {1, 2, label}, "Make component");
+    for (Id item : {Id{1}, Id{2}})
+        for (size_t i = 0; i < 2; ++i)
+            check(dimensionAnchor(doc, item, i).body == member &&
+                      dimensionAnchor(doc, item, i).entity ==
+                          std::get<DrawingDimensionItem>(items.at(item)->data).anchors[i].entity,
+                  "Anchors follow the geometry into the placement, IDs unchanged");
+    check(near(*eval(doc, 1).valueMetres, 2) && near(*eval(doc, 2).valueMetres, 1) &&
+              labelAnchor(doc, label).body == member && same(anchorWorld(doc, label), tip),
+          "Dimensions and the label stay current after make component");
+    const auto made = doc.drawingItems();
+    // Nest the placement in another component: its members keep their identity.
+    const auto bay = createGroup(doc, {component.instance}, "Bay");
+    const auto outer = createComponent(doc, bay, "Bay");
+    check(doc.instances().contains(outer.instance) &&
+              eval(doc, 1).state == DrawingItemState::Current &&
+              eval(doc, 2).state == DrawingItemState::Current &&
+              eval(doc, label).state == DrawingItemState::Current &&
+              same(anchorWorld(doc, label), tip),
+          "Anchors in a nested placement stay current");
+    check(dimensionAnchor(doc, 2, 0).body == member,
+          "The nested placement keeps the member's identity");
+    // Split the bottom edge inside the inner definition, under item 2's endpoint: every
+    // placement regenerates and the anchors follow the definition edit's lineage.
+    const auto nestedItems = doc.drawingItems();
+    editComponentDefinition(doc, component.definition, [&](Document &draft) {
+        return draft.splitEdge(member, edgeBetween(draft, member, {0, 0, 0}, {2, 0, 0}), .5);
+    });
+    onlyAnchorsChanged(nestedItems, doc.drawingItems(), {2, label}, "Split inside the definition");
+    check(dimensionAnchor(doc, 2, 0).kind == AnchorKind::Vertex &&
+              dimensionAnchor(doc, 2, 0).body == member &&
+              same(anchorWorld(doc, 2, 0), {1, 0, 0}) && same(anchorWorld(doc, label), tip) &&
+              eval(doc, 2).state == DrawingItemState::Current &&
+              eval(doc, label).state == DrawingItemState::Current,
+          "A split inside a nested definition moves the anchors to their successors");
+    // Undo steps back through each edit to the exact prior anchors.
+    doc.undo();
+    check(doc.drawingItems() == nestedItems, "Undo of the definition edit is exact");
+    doc.undo();
+    doc.undo();
+    check(doc.drawingItems() == made, "Undo of the nesting keeps the anchors");
+    doc.undo();
+    check(doc.drawingItems() == items, "Undo of make component restores the exact anchors");
+    doc.redo();
+    check(doc.drawingItems() == made, "Redo of make component is exact");
+    // Make component from a selected face, in a group: the face moves to a new context.
+    Fixture g;
+    const auto room = createGroup(g.doc, {g.body}, "Room");
+    const auto before = g.doc.drawingItems();
+    run(g.doc, {QJsonObject{{"command", "component.selection"},
+                            {"name", "Slab"},
+                            {"context", text(room)},
+                            {"entities", QJsonArray{QJsonObject{{"body", text(g.body)},
+                                                                {"kind", "face"},
+                                                                {"entity", text(g.face)}}}}}});
+    onlyAnchorsChanged(before, g.doc.drawingItems(), {1, 2}, "Make component from a face");
+    const auto moved = dimensionAnchor(g.doc, 1, 0).body;
+    check(moved != g.body && g.doc.bodies().at(moved)->parent != room &&
+              eval(g.doc, 1).state == DrawingItemState::Current &&
+              eval(g.doc, 2).state == DrawingItemState::Current &&
+              near(*eval(g.doc, 1).valueMetres, 2),
+          "Anchors follow a selected face into the new component in its group");
+    g.doc.undo();
+    check(g.doc.drawingItems() == before, "Undo restores the exact anchors");
+    std::cout << "make component carries paper anchors: ok\n";
+}
+
+// When lineage does not name exactly one successor the anchor is kept as it was: the
+// item breaks and Reattach repairs it, as before. Here one context's geometry is
+// transferred, IDs unchanged, to two contexts at once.
+void ambiguousLineageStaysBroken() {
+    Fixture f;
+    auto &doc = f.doc;
+    const auto items = doc.drawingItems();
+    const auto old = doc.bodies().at(f.body);
+    Edit edit{"Duplicate slab", {{f.body, old, nullptr}}};
+    for (Id id : {doc.nextId(), doc.nextId() + 1}) {
+        auto copy = std::make_shared<Body>(*old);
+        copy->id = id;
+        edit.changes.push_back({id, nullptr, copy});
+        edit.transfers[f.body].insert(id);
+    }
+    doc.apply(std::move(edit), doc.revision());
+    check(doc.drawingItems() == items, "Ambiguous lineage writes no item records");
+    for (Id item : {Id{1}, Id{2}})
+        check(describe(eval(doc, item)) == "broken referenceMissing",
+              "Ambiguous lineage leaves the item broken");
+    const auto proposal = inspect(doc, "drawing_item.reattach_candidates", {{"item", "1"}});
+    check(!proposal["anchors"].toArray()[0].toObject()["candidate"].isNull(),
+          "Reattach still proposes a repair");
+    doc.undo();
+    check(doc.drawingItems() == items && eval(doc, 1).state == DrawingItemState::Current,
+          "Undo restores the binding");
+    // A transfer whose target moved the geometry is not the same point either.
+    const auto moved = doc.bodies().at(f.body);
+    Edit shifted{"Move slab", {{f.body, moved, nullptr}}};
+    auto copy = std::make_shared<Body>(*moved);
+    copy->id = doc.nextId();
+    copy->transform = Transform::translation({0, 3, 0});
+    shifted.changes.push_back({copy->id, nullptr, copy});
+    shifted.transfers[f.body].insert(copy->id);
+    doc.apply(std::move(shifted), doc.revision());
+    check(doc.drawingItems() == items && eval(doc, 1).state == DrawingItemState::Broken,
+          "A transfer to another position is not followed");
+    std::cout << "ambiguous lineage stays broken with Reattach: ok\n";
+}
+
+// The rewritten anchors are ordinary stored anchors: the file format is unchanged and
+// save, reopen and save give identical bytes.
+void rewrittenAnchorsRoundTrip() {
+    Fixture f;
+    auto &doc = f.doc;
+    doc.splitEdge(f.body, edgeBetween(doc, f.body, {0, 0, 0}, {2, 0, 0}), .5);
+    createComponent(doc, f.body, "Slab");
+    const auto bytes = encodeContainer(doc);
+    const auto reopened = decodeContainer(bytes);
+    check(encodeContainer(reopened) == bytes, "Save, reopen and save give identical bytes");
+    check(reopened.drawingItems().size() == doc.drawingItems().size(), "Every item reopens");
+    for (const auto &[id, item] : doc.drawingItems())
+        check(*reopened.drawingItems().at(id) == *item, "Reopened anchors are identical");
+    for (Id item : {Id{1}, Id{2}})
+        check(eval(reopened, item).state == DrawingItemState::Current,
+              "Reopened dimensions are current");
+    std::cout << "rewritten anchors save and reopen byte-identically: ok\n";
+}
+
+// The lineage table (ADR 0164 §3 and its addendum): which common model edits keep a
+// paper dimension associated. Vertex anchors (item 1) and edge anchors (item 2) are
+// recorded separately. Each row starts from a fresh fixture. Rows that move an anchor
+// to a successor entity rewrite only the item anchors, inside the model edit.
 void lineageTable() {
     struct Row {
         const char *edit;
         std::function<void(Fixture &)> apply;
         DrawingItemState vertex, edge;
         bool annotation{true}; // Whether a model annotation on the edge points survives.
+        bool rewrites{};       // Whether the edit rewrites paper anchors.
     };
     const auto current = DrawingItemState::Current, broken = DrawingItemState::Broken;
     QJsonArray matrix;
@@ -461,9 +736,8 @@ void lineageTable() {
              f.doc.transform(f.body, Transform::rotation({0, 0, 1}, std::numbers::pi / 6));
          },
          current, current},
-        {"scale body",
-         [](Fixture &f) { f.doc.transform(f.body, Transform::scaling({2, 2, 1})); }, current,
-         current},
+        {"scale body", [](Fixture &f) { f.doc.transform(f.body, Transform::scaling({2, 2, 1})); },
+         current, current},
         {"move a vertex",
          [](Fixture &f) {
              QJsonArray move;
@@ -497,7 +771,7 @@ void lineageTable() {
          [](Fixture &f) {
              f.doc.splitEdge(f.body, edgeBetween(f.doc, f.body, {0, 0, 0}, {2, 0, 0}), .25);
          },
-         current, broken, true},
+         current, current, true, true},
         {"erase the bottom edge",
          [](Fixture &f) {
              f.doc.eraseEdge(f.body, edgeBetween(f.doc, f.body, {0, 0, 0}, {2, 0, 0}));
@@ -505,8 +779,19 @@ void lineageTable() {
          current, broken, false},
         {"erase the body", [](Fixture &f) { f.doc.erase(f.body); }, broken, broken, false},
         {"group the body", [](Fixture &f) { createGroup(f.doc, {f.body}); }, current, current},
-        {"make a component", [](Fixture &f) { createComponent(f.doc, f.body, "Slab"); }, broken,
-         broken, false},
+        {"make a component", [](Fixture &f) { createComponent(f.doc, f.body, "Slab"); }, current,
+         current, false, true},
+        {"make a component (face)",
+         [](Fixture &f) {
+             run(f.doc,
+                 {QJsonObject{{"command", "component.selection"},
+                              {"name", "Slab"},
+                              {"context", "0"},
+                              {"entities", QJsonArray{QJsonObject{{"body", text(f.body)},
+                                                                  {"kind", "face"},
+                                                                  {"entity", text(f.face)}}}}}});
+         },
+         current, current, false, true},
     };
     std::cout << "lineage table (vertex anchors | edge anchors):\n";
     for (const auto &row : rows) {
@@ -520,11 +805,19 @@ void lineageTable() {
             edgeAnchor(f.doc, f.body, edgeBetween(f.doc, f.body, {0, 1, 0}, {2, 1, 0}), .5)};
         const auto model = createAnnotation(f.doc, annotation);
         const auto items = f.doc.drawingItems();
+        const auto entries = f.doc.history().total;
         row.apply(f);
+        check(f.doc.history().total == entries + 1, std::string(row.edit) + " is one entry");
         const auto annotationState =
             measureAnnotation(f.doc, *f.doc.annotations().at(model)).state;
-        check(f.doc.drawingItems() == items,
-              std::string(row.edit) + " never writes item records");
+        if (row.rewrites) {
+            check(f.doc.drawingItems() != items, std::string(row.edit) + " rewrites anchors");
+            for (const auto &[id, item] : f.doc.drawingItems())
+                check(item == items.at(id) || drawingItemAnchorsOnly(*items.at(id), *item),
+                      std::string(row.edit) + " rewrites only item anchors");
+        } else
+            check(f.doc.drawingItems() == items,
+                  std::string(row.edit) + " never writes item records");
         const auto vertexState = eval(f.doc, 1), edgeState = eval(f.doc, 2);
         std::cout << "  " << std::left << std::setw(24) << row.edit << describe(vertexState)
                   << " | " << std::setw(26) << describe(edgeState) << " | model annotation "
@@ -536,10 +829,14 @@ void lineageTable() {
                   std::string(row.edit) + " names the missing reference");
         check((annotationState == AnchorState::Resolved) == row.annotation,
               std::string("Model annotation row: ") + row.edit);
+        const auto rewritten = f.doc.drawingItems();
         f.doc.undo();
         check(eval(f.doc, 1).state == DrawingItemState::Current &&
-                  eval(f.doc, 2).state == DrawingItemState::Current,
-              std::string(row.edit) + " is undone");
+                  eval(f.doc, 2).state == DrawingItemState::Current &&
+                  f.doc.drawingItems() == items,
+              std::string(row.edit) + " is undone to the exact anchors");
+        f.doc.redo();
+        check(f.doc.drawingItems() == rewritten, std::string(row.edit) + " is redone exactly");
     }
     std::cout << "lineage table: ok\n";
 }
@@ -554,6 +851,11 @@ int main(int argc, char **argv) {
         pureTranslation();
         lastMmFollowsTheView();
         lineageTable();
+        edgeSplitLineage();
+        faceSplitLineage();
+        makeComponentLineage();
+        ambiguousLineageStaysBroken();
+        rewrittenAnchorsRoundTrip();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

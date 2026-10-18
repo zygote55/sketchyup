@@ -360,6 +360,13 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
     edit.nextDefinitionFloor = nextDefinition;
     edit.nextComponentDriverFloor = nextDriver;
     bodyDifference(edit, doc, projection.scene);
+    for (const auto &[source, targets] : options.transfers)
+        for (auto target : targets)
+            if (doc.bodies().contains(source) &&
+                std::any_of(edit.changes.begin(), edit.changes.end(), [&](const auto &change) {
+                    return change.id == target && change.after;
+                }))
+                edit.transfers[source].insert(target);
     if (editedDefinition) {
         std::map<Id, size_t> changes;
         for (size_t i = 0; i < edit.changes.size(); ++i)
@@ -521,8 +528,13 @@ ComponentResult createComponent(Document &doc, Id root, std::string name) {
     definitions[id] = definition;
     instances[root] = binding;
     ComponentResult result{id, root, {}, {}};
-    result.changes = publish(doc, definitions, instances, draft.bodies(), draft.nextId(),
-                             nextDefinition, doc.nextComponentDriverId(), "Make component");
+    // The root's own geometry moves, IDs unchanged, into a member under the new frame.
+    ComponentPublishOptions options;
+    if (geometry)
+        options.transfers[root] = {geometry};
+    result.changes =
+        publish(doc, definitions, instances, draft.bodies(), draft.nextId(), nextDefinition,
+                doc.nextComponentDriverId(), "Make component", options);
     if (geometry)
         result.movedGeometry[root] = geometry;
     return result;

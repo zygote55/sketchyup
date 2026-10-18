@@ -4,6 +4,7 @@
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include "io/document_io.hpp"
+#include "io/drawing_items.hpp"
 #include "io/drawing_sheet_paint.hpp"
 #include "io/pdf_info.hpp"
 #include "io/sheet_export.hpp"
@@ -23,6 +24,7 @@
 #include <cmath>
 #include <iostream>
 #include <string>
+#include <tuple>
 using namespace sketchy;
 // R092.a: drawing-sheet PDF export, its preflight and the CLI. The PDF itself is
 // checked: page count and media boxes from its bytes, embedded fonts and text from
@@ -614,6 +616,64 @@ void cliRoundTrip() {
 #endif
 } // namespace
 
+// ADR 0164 §3 addendum: paper anchors follow an edge split inside the model edit, so the
+// exported page is unchanged except that its annotations stay correct: the dimension and
+// the label draw exactly as before instead of breaking, and preflight finds nothing.
+void anchorsSurviveEdgeSplit() {
+    Fixture f;
+    auto &doc = f.doc;
+    const auto &body = *doc.bodies().at(f.face);
+    Id bottom{}, top{};
+    for (const auto &[id, edge] : body.topology.edges) {
+        const auto a = body.surface.vertices.at(edge.a), b = body.surface.vertices.at(edge.b);
+        if (std::abs(a.y) < 1e-9 && std::abs(b.y) < 1e-9)
+            bottom = id;
+        if (std::abs(a.y - 1) < 1e-9 && std::abs(b.y - 1) < 1e-9)
+            top = id;
+    }
+    check(bottom && top, "The slab's bottom and top edges");
+    DrawingDimensionItem depth;
+    depth.view = f.planView;
+    depth.anchors = {edgeAnchor(doc, f.face, bottom, .5), edgeAnchor(doc, f.face, top, .5)};
+    depth.orientation = DrawingDimensionOrientation::Vertical;
+    depth.offsetMm = 12;
+    depth.lastMm = {DrawingPointMm{120, 105}, DrawingPointMm{120, 85}};
+    const auto dimension = createDrawingItem(doc, f.a101, depth);
+    DrawingLabelItem leader;
+    leader.text = "Slab edge";
+    leader.textAt = {60, 160};
+    leader.target.kind = DrawingLabelTargetKind::View;
+    leader.target.view = f.planView;
+    leader.target.anchor = edgeAnchor(doc, f.face, bottom, .25);
+    leader.target.lastMm = {105, 105};
+    const auto label = createDrawingItem(doc, f.a101, leader);
+    acceptAll(doc);
+    auto items = [&] {
+        std::vector<std::tuple<Id, QString, QString, QRectF, QRgb>> result;
+        for (const auto &p : prepareDrawingSheet(doc, f.a101).primitives)
+            if (p.layer == DrawingSheetLayer::Item && (p.source == dimension || p.source == label))
+                result.emplace_back(
+                    p.source, p.text,
+                    QString::fromLatin1(QByteArray::number(p.path.length(), 'f', 6)),
+                    p.path.boundingRect(), p.color.rgba());
+        return result;
+    };
+    const auto before = items();
+    check(!before.empty(), "The dimension and the label paint");
+    check(!find(preflightSheetExport(doc, {}), "itemBroken"), "Nothing is broken before");
+    // Split the bottom edge under the dimension's endpoint, away from the leader's tip.
+    doc.splitEdge(f.face, bottom, .5);
+    acceptAll(doc);
+    const auto preflight = preflightSheetExport(doc, {});
+    check(!find(preflight, "itemBroken") && !preflight.blocked(),
+          "Preflight finds no broken item after the split");
+    check(items() == before, "The annotations draw exactly as before the split");
+    const auto exported = renderSheetsPdf(doc, {});
+    check(exported.bytes.startsWith("%PDF-") && evaluateDrawingItem(doc, dimension).text == "1000",
+          "The page exports with the dimension's value, not a missing reference");
+    std::cout << "paper anchors survive an edge split in the export: ok\n";
+}
+
 int main(int argc, char **argv) {
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "offscreen");
@@ -626,6 +686,7 @@ int main(int argc, char **argv) {
         realTextAndClipping();
         preflightFindings();
         atomicAndReadOnly();
+        anchorsSurviveEdgeSplit();
 #ifdef CLI_PATH
         cliRoundTrip();
 #endif

@@ -906,6 +906,101 @@ void annotate(Window &window, const QString &path, const Fixture &f) {
           "Line style changes");
     unchanged("Entity info");
     check(modelRecords(doc) == model, "No sheet operation touched a model record");
+
+    // ---- Model edits carry paper anchors (ADR 0164 §3 addendum) -------------------------------
+    // A dimension between two edge midpoints and a label whose leader ends on an edge survive an
+    // edge split under the dimension's endpoint and make component, in the same model edit:
+    // they stay current, without Reattach, and Undo from Sheets restores the exact anchors.
+    std::cerr << "[annotation] Edge split and make component keep paper anchors" << std::endl;
+    tool(Qt::Key_D, SheetCanvas::Tool::Dimension, "Dimension");
+    drag(canvas, paperOf(doc, f.plan, {5, 0, .2}), paperOf(doc, f.plan, {5, 8, .2}));
+    check(canvas->itemStep() == 2, "A drag picks two edge points");
+    typed("10");
+    const auto depth = newest(doc, DrawingItemKind::Dimension);
+    const auto front = data<DrawingDimensionItem>(doc, depth).anchors[0];
+    check(front.kind == AnchorKind::Edge && front.body == slab &&
+              near(*evaluateDrawingItem(doc, depth).valueMetres, 8, 1e-6),
+          "The dimension measures 8 m between two edge points");
+    tool(Qt::Key_K, SheetCanvas::Tool::Label, "Label");
+    const auto edgeTip = paperOf(doc, f.plan, {2.5, 0, .2});
+    click(canvas, edgeTip);
+    click(canvas, {60, 182});
+    check(textEditor() != nullptr, "The label's editor opens");
+    typeText("Front edge");
+    key(Qt::Key_Escape);
+    const auto edgeLabel = newest(doc, DrawingItemKind::Label);
+    {
+        const auto &anchor = data<DrawingLabelItem>(doc, edgeLabel).target.anchor;
+        check(anchor.kind == AnchorKind::Edge && anchor.entity == front.entity,
+              "The leader ends on the same edge as the dimension");
+    }
+    const auto tipBefore = at(*evaluateDrawingItem(doc, edgeLabel).tipMm);
+    const auto paperBefore = *evaluateDrawingItem(doc, depth).measuredMm;
+    auto keptAnchors = [&](const std::string &what) {
+        settle(window);
+        for (const auto item : {depth, edgeLabel}) {
+            const auto evaluation = evaluateDrawingItem(doc, item);
+            check(evaluation.state == DrawingItemState::Current,
+                  what + ": item " + std::to_string(item) + " stays current");
+        }
+        check(near(*evaluateDrawingItem(doc, depth).valueMetres, 8, 1e-6) &&
+                  near(at((*evaluateDrawingItem(doc, depth).measuredMm)[0]), at(paperBefore[0]),
+                       1e-6) &&
+                  near(at(*evaluateDrawingItem(doc, edgeLabel).tipMm), tipBefore, 1e-6),
+              what + ": the dimension and the leader keep their points");
+        tool(Qt::Key_Space, SheetCanvas::Tool::Select, "Select");
+        canvas->setSelectedItem(depth);
+        settle(window);
+        check(info->findChild<QLabel *>("sheetItemStatus")->text() == "Current" &&
+                  !info->findChild<QPushButton *>("sheetItemReattach")->isVisible() &&
+                  !action(window, "sheet.item.reattach")->isEnabled(),
+              what + ": Entity info shows Current and no Reattach");
+        const auto *page = tray->pages()->topLevelItem(0);
+        for (int i = 0; i < page->childCount(); ++i) {
+            const auto id = page->child(i)->data(0, Qt::UserRole + 1).toULongLong();
+            if (id == depth || id == edgeLabel)
+                check(page->child(i)->data(1, Qt::AccessibleDescriptionRole).toString() ==
+                          "Current",
+                      what + ": Pages lists the item as current");
+        }
+    };
+    const auto anchored = doc.drawingItems();
+    // Split the front edge exactly under the dimension's endpoint, in the Model workspace.
+    window.setWorkspace(Window::Workspace::Model);
+    before = entries(doc);
+    batch(doc, {QJsonObject{{"command", "geometry.split_edge"},
+                            {"body", QString::number(slab)},
+                            {"edge", QString::number(front.entity)},
+                            {"fraction", front.parameter}}});
+    emit window.viewport()->changed();
+    window.setWorkspace(Window::Workspace::Sheets);
+    check(entries(doc) == before + 1, "The split is one entry");
+    check(data<DrawingDimensionItem>(doc, depth).anchors[0].kind == AnchorKind::Vertex &&
+              data<DrawingLabelItem>(doc, edgeLabel).target.anchor.entity != front.entity,
+          "The endpoint moves to the new vertex and the leader to its piece");
+    keptAnchors("Edge split");
+    const auto split = doc.drawingItems();
+    action(window, "edit.undo")->trigger();
+    check(doc.drawingItems() == anchored, "Undo from Sheets restores the exact anchors");
+    action(window, "edit.redo")->trigger();
+    check(doc.drawingItems() == split, "Redo restores the rewritten anchors");
+    // Make component of the slab: the anchors follow its geometry into the placement.
+    window.setWorkspace(Window::Workspace::Model);
+    before = entries(doc);
+    batch(doc,
+          {QJsonObject{
+              {"command", "component.create"}, {"body", QString::number(slab)}, {"name", "Slab"}}});
+    emit window.viewport()->changed();
+    window.setWorkspace(Window::Workspace::Sheets);
+    check(entries(doc) == before + 1, "Make component is one entry");
+    check(data<DrawingDimensionItem>(doc, depth).anchors[0].body != slab &&
+              data<DrawingLabelItem>(doc, edgeLabel).target.anchor.body != slab,
+          "The anchors follow the geometry into the component");
+    keptAnchors("Make component");
+    action(window, "edit.undo")->trigger();
+    check(doc.drawingItems() == split, "Undo of make component restores the exact anchors");
+    action(window, "edit.undo")->trigger();
+    check(doc.drawingItems() == anchored, "Undo of the split restores the original anchors");
 }
 
 void screens(Window &window, const QString &path, const QString &directory, const QString &tag,
@@ -1103,7 +1198,8 @@ int main(int argc, char **argv) {
                      "title block fields, + Page copy, dimension update after a model edit, "
                      "broken dimension and Reattach, perspective refusal, z order, Tab, "
                      "Delete with undo and redo, Pages tree and Entity info passed; model "
-                     "records untouched\n";
+                     "records untouched; paper anchors kept through an edge split and make "
+                     "component\n";
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;
