@@ -10,6 +10,14 @@ case "$test_scale" in
   1|2) ;;
   *) echo 'SKETCHYUP_TEST_SCALE must be 1 or 2' >&2; exit 2 ;;
 esac
+# D-028: a suite that needs more than the default 60 s on a one-CPU runner may raise its own
+# deadline, per line, with SKETCHYUP_TEST_DEADLINE (integer seconds, 60 to 180).
+test_deadline=${SKETCHYUP_TEST_DEADLINE:-60}
+if [[ ! $test_deadline =~ ^[0-9]+$ ]] || (( 10#$test_deadline < 60 || 10#$test_deadline > 180 )); then
+  echo "SKETCHYUP_TEST_DEADLINE must be an integer from 60 to 180 (seconds), got '$test_deadline'" >&2
+  exit 2
+fi
+test_deadline=$((10#$test_deadline))
 if [[ -n ${SKETCHYUP_WAYLAND_CLIENT_LIBRARY:-} &&
       ! -f "$SKETCHYUP_WAYLAND_CLIENT_LIBRARY/libwayland-client.so.0" ]]; then
   echo 'Private Wayland client library is missing.' >&2
@@ -44,7 +52,7 @@ printf '[input-method]\npath=\n' > "$test_runtime/weston.ini"
 # Weston 15 multiplies --width/--height by --scale, so 2x is 3200x2000 logical (6400x4000
 # device). The intended 3200x2000 device size cost +18 % wall time and +36 % CPU on 4 CPUs,
 # because a smaller output throttles frame callbacks less; see D-021 in R089a-defect-triage.md.
-"$(dirname "${BASH_SOURCE[0]}")/test-deadline.sh" 60 weston --backend=headless --renderer=gl --fake-seat \
+"$(dirname "${BASH_SOURCE[0]}")/test-deadline.sh" "$test_deadline" weston --backend=headless --renderer=gl --fake-seat \
   --width="$((1600 * test_scale))" --height="$((1000 * test_scale))" \
   --scale="$test_scale" --idle-time=0 --socket="$WAYLAND_DISPLAY" \
   --config="$test_runtime/weston.ini" --log="$test_runtime/weston.log" -- bash -c '
@@ -57,7 +65,7 @@ printf '[input-method]\npath=\n' > "$test_runtime/weston.ini"
     exit "$test_status"
   ' bash "$@" || weston_status=$?
 if (( weston_status == 124 )); then
-  echo "Timed out after 60 s: $*" >&2
+  echo "Timed out after $test_deadline s: $*" >&2
 elif [[ ! -f "$SKETCHYUP_TEST_EXIT_FILE" ]]; then
   echo "Weston exited ($weston_status) without recording a test status: $*" >&2
 fi
