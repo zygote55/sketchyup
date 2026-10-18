@@ -79,14 +79,18 @@ render=json.loads((root/'render-manifest.json').read_text())
 export=json.loads((root/'render-snapshot/manifest.json').read_text())
 assert render['documentId']==export['documentId'] and render['revision']==export['revision']
 def git(*args):
-    proc=subprocess.run(['git','-C',str(repo),*args],capture_output=True,text=True)
-    return proc.stdout.strip() if proc.returncode==0 else None
+    try:
+        proc=subprocess.run(['git','-C',str(repo),*args],capture_output=True,text=True)
+        return proc.stdout.strip() if proc.returncode==0 else None
+    except FileNotFoundError:
+        return None
+commit,dirty=git('rev-parse','HEAD'),git('status','--porcelain')
 paths=[repo/'CMakeLists.txt']
 for directory in ('src','tests','scripts'):
     paths.extend((repo/directory).rglob('*'))
 report={
     'recordedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    'sourceCommit':git('rev-parse','HEAD'),'sourceDirty':bool(git('status','--porcelain')),
+    'sourceCommit':commit,'sourceDirty':bool(dirty) if dirty is not None else None,
     'sourceCodeSha256':{str(p.relative_to(repo)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths) if p.is_file()},
     'deterministicChecksPassed':True,'liveProviderTested':False,'m6GatePassed':False,
     'nativeContainer':os.environ.get('SKETCHYUP_M6_NATIVE_CONTAINER'),
