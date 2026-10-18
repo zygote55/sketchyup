@@ -36,8 +36,10 @@ export SKETCHYUP_TEST_EXIT_FILE="$test_runtime/test-status"
 # program's actual status independently, including missing/aborted executions.
 # On the deadline, test-deadline.sh prints every client thread's stack before stopping Weston.
 weston_status=0
+# The headless backend takes --width/--height in logical pixels and multiplies them by --scale,
+# so every scale gets a 1600x1000 logical screen (3200x2000 device pixels at 2x).
 "$(dirname "${BASH_SOURCE[0]}")/test-deadline.sh" 60 weston --backend=headless --renderer=gl --fake-seat \
-  --width="$((1600 * test_scale))" --height="$((1000 * test_scale))" \
+  --width=1600 --height=1000 \
   --scale="$test_scale" --idle-time=0 --socket="$WAYLAND_DISPLAY" \
   --no-config --log="$test_runtime/weston.log" -- bash -c '
     if [[ -n ${SKETCHYUP_WAYLAND_CLIENT_LIBRARY:-} ]]; then
