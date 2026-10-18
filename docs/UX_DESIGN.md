@@ -107,7 +107,7 @@ Each action result shows its shortcut, so the palette also teaches the keyboard.
 | ≥ 1500 px | Tool rail, viewport, Tray and Assistant as separate columns |
 | 1100 ≤ width < 1500 px | Tray and Assistant share one tabbed side panel |
 | 800 ≤ width < 1100 px | Side panel collapses to an icon strip and opens as an overlay sheet; menu bar becomes one menu button |
-| < 800 px | Tool rail shows the active group only; status instruction truncates; Measurements box and job chips remain |
+| < 800 px | As 800–1100 px (icon strip, overlay sheet, Menu button); status instruction truncates; Measurements box and job chips remain. Tool rail showing the active group only: not implemented yet (the Model rail is unchanged) |
 
 **Resizable sidebar (R094.a).** The side panel and, in the ≥ 1500 px layout,
 the Assistant column sit in one splitter with the workspace. Drag the handle on
@@ -140,6 +140,51 @@ sidebar does not change it. The pointer is the horizontal split cursor.
 - **Text size:** widths are stored in logical pixels at 100 % text and scaled by
   the current interface text size, so a text-size change keeps the user's width
   in proportion (then clamps to the bounds).
+
+**Narrow layout (below 1100 px).** The side panel collapses to an icon strip at
+the window's right edge and opens as an overlay sheet; the menu bar becomes one
+Menu button. Below 800 px the same strip, sheet and button apply.
+
+- **Icon strip:** 46 px wide (the Sheets rail's width) with 36 px square buttons,
+  top to bottom Info, Outliner, Materials, Tags, History, Assistant and More panels
+  (three dots), as in the narrow mockup. The first five open the Model panel on
+  that tab; Assistant opens the Assistant; More panels opens the whole Model panel
+  (in Sheets, the Sheets panel) with all its tabs. The icons are original 1.5 px
+  line glyphs drawn like the Sheets rail's (an 18 px glyph in a 24 px box, scaled
+  with text size): an information circle, an indented three-row list, a 2×2 grid,
+  a tag with its hole, a clock at three, a four-point sparkle and three dots. They
+  use the muted text colour; the button of the panel open in the sheet is checked,
+  with the selected fill and an accent glyph. Hover, checked and focus follow the
+  Sheets rail. Each button's accessible name is its tab's name and its tooltip is
+  the name plus the bound shortcut when one exists (Ctrl+J for Assistant,
+  Ctrl+Shift+T for More panels, and any binding the user gives View → Outliner and
+  the other panel commands). No new default shortcuts. The strip is one Tab stop
+  with arrow keys (the rail pattern) and an F6 region.
+- **Overlay sheet:** a strip button, or its View command or shortcut, opens the
+  panel in a sheet over the workspace, anchored to its right edge beside the strip,
+  and moves keyboard focus into it. The sheet's width is the remembered tabbed
+  side-panel width (`sidebarTabbedWidth`, 340 px by default), clamped to the
+  window; its left edge is the R094.a resize handle, and dragging it (or
+  Ctrl+Alt+] / Ctrl+Alt+[) updates that setting. Esc, the open panel's button
+  again (Ctrl+J and Ctrl+Shift+T toggle the same way), or a click in the workspace
+  closes it and returns focus to where it was; the dismissing click does not select
+  or draw. The side panel's own tab bar hides in the sheet; the strip chooses the
+  page. A sheet opened for one of the six strip panels has that panel's name as its
+  heading (in the Tray heading's style, in place of "MODEL") and no Tray tab row;
+  only More panels shows the tab row (Ctrl+Tab and Ctrl+Shift+Tab switch tabs), headed
+  "Panels". The sheet's edge is named "Resize sidebar" only while the sheet shows,
+  so assistive technology finds exactly one such handle at any width. While the sheet is closed it takes no keys, so Measurements typing is
+  unaffected. The Assistant opens in this sheet below 1100 px (there is no
+  separate Assistant dialog). In Sheets, the Model view tool does not open the
+  sheet; More panels shows its New model view panel.
+- **Menu button:** one Menu button at the left of the header lists the menu bar's
+  menus in order (Page, Insert and Arrange in Sheets). The hidden menu bar's
+  mnemonics (Alt+F and so on) open the same menus from the button; every action
+  shortcut is unchanged.
+- **Breakpoints:** crossing 1100 px moves the side panel between the splitter and
+  the sheet without changing its open tab, the selection or the dirty state.
+  Widening docks it at the remembered widths; narrowing with focus in the panel
+  keeps it open, as the More panels sheet, with focus where it was.
 
 Validate at 640, 900, 1200 and 1600 logical pixels, including fractional scale.
 On the smallest tile collapse job detail before reducing Measurements access.

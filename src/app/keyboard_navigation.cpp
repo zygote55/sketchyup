@@ -44,6 +44,10 @@ class ToolbarNavigation : public QObject {
                     target->setFocus(static_cast<QFocusEvent *>(event)->reason());
                 break;
             case QEvent::ParentChange:
+            // A toolbar built hidden (the narrow layout's panel strip) shows its buttons when
+            // it is laid out after showing; only then is one of them the Tab stop.
+            case QEvent::Show:
+            case QEvent::LayoutRequest:
             case QEvent::ActionAdded:
             case QEvent::ActionChanged:
             case QEvent::ActionRemoved:

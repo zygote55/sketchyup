@@ -28,7 +28,7 @@ inline const QSize kAuditWindow(1100, 560);
 inline void fresh(Context &context) {
     auto &window = context.window;
     if (window.size() != kAuditWindow)
-        window.resize(kAuditWindow); // The assistant-sheet case narrows the window.
+        window.resize(kAuditWindow); // A case may have resized the window.
     static QByteArray demo;
     if (demo.isEmpty() || encodeContainer(window.document()) != demo) {
         window.document().markSaved();
@@ -1102,28 +1102,8 @@ inline std::vector<Case> cases(Context &ctx) {
          {},
          {},
          renderedResult("openBlenderScene")});
-    add({"assistant-sheet",
-         "assistant",
-         "Assistant (sheet in a narrow window)",
-         "View > Assistant (Ctrl+J) when the window is narrower than 1100 px",
-         [](Context &context) {
-             hideAssistant(context);
-             context.window.resize(1000, kAuditWindow.height());
-             (void)QTest::qWaitFor([&] { return context.window.width() == 1000; });
-         },
-         [](Context &context) {
-             context.opener = focused();
-             context.openerId = identity(focused());
-             QTest::keyClick(focused(), Qt::Key_J, Qt::ControlModifier);
-         },
-         named("assistantSheet"),
-         Enter::DefaultOnly,
-         "",
-         Return::Viewport,
-         {},
-         {},
-         {},
-         "Nonmodal; Escape (or Ctrl+J) closes it and returns focus to the viewport."});
+    // UX_DESIGN §3.3: below 1100 px the Assistant opens in the narrow layout's overlay sheet,
+    // not a dialog; narrow_layout_input_tests covers its keyboard path.
     add({"assistant-consent",
          "assistant",
          "What is sent (permission before OpenAI requests)",

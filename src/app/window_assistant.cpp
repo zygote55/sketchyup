@@ -1,21 +1,32 @@
 #include "app/interface_preferences.hpp"
 #include "app/window.hpp"
-#include <QAction>
-#include <QDialog>
-#include <QHBoxLayout>
-#include <QPushButton>
-#include <QShortcut>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTabWidget>
-#include <QVBoxLayout>
 namespace sketchy {
 void Window::toggleAssistant() {
+    if (narrowLayout()) {
+        // UX_DESIGN §3.3: the Assistant opens in the overlay sheet; Ctrl+J (or its strip
+        // button) on the open Assistant closes it again.
+        if (overlayOpen_ && overlayKey_ == PanelKey::Assistant) {
+            closeOverlay();
+            assistantShown_ = false;
+            layoutAssistant();
+            return;
+        }
+        assistantShown_ = true;
+        layoutAssistant();
+        sideTabs_->setCurrentWidget(assistant_);
+        openOverlay(PanelKey::Assistant);
+        assistant_->refresh();
+        assistant_->focusComposer();
+        return;
+    }
     assistantShown_ = !assistantShown_;
     layoutAssistant();
     if (assistantShown_) {
-        if (assistantSheet_ && assistantSheet_->isVisible())
-            assistantSheet_->activateWindow();
+        if (sideTabs_->indexOf(assistant_) >= 0)
+            sideTabs_->setCurrentWidget(assistant_);
         assistant_->refresh();
         assistant_->focusComposer();
     } else {
@@ -26,73 +37,40 @@ void Window::toggleAssistant() {
 void Window::layoutAssistant() {
     if (!assistant_ || !sideTabs_)
         return;
-    // R094.a: at >= 1500 px the Assistant is a splitter column beside the side panel. It stays
-    // in place while that layout holds, so its resize handle survives window resizes.
+    // R094.a: at >= 1500 px the Assistant is a splitter column beside the side panel; below,
+    // a tab of the side panel (docked at 1100-1500 px, in the overlay sheet below 1100 px). It
+    // moves only when its place changes, so its resize handle survives window resizes and the
+    // open tab survives crossing a breakpoint. Only the assistant is reparented, never the
+    // live GL viewport.
     const bool column = assistantShown_ && width() >= 1500;
-    if (!column || sidebarSplitter_->indexOf(assistant_) < 0) {
-        // Reparent only the assistant, never the live GL viewport.
-        const auto index = sideTabs_->indexOf(assistant_);
-        if (index >= 0)
-            sideTabs_->removeTab(index);
-        if (assistantSheet_ && assistantSheet_->layout())
-            assistantSheet_->layout()->removeWidget(assistant_);
-        assistant_->setParent(centralWidget());
-        assistant_->setMinimumWidth(240);
-        assistant_->setMaximumWidth(QWIDGETSIZE_MAX);
-    }
-    if (assistantSheet_)
-        assistantSheet_->hide();
-    const auto textPercent = interfaceTextPercent();
-    sideTabs_->setVisible(width() >= 800);
-    if (!assistantShown_) {
-        assistant_->hide();
-        layoutSidebar();
-        return;
-    }
+    const auto tab = sideTabs_->indexOf(assistant_);
+    const bool inColumn = sidebarSplitter_->indexOf(assistant_) >= 0;
     if (column) {
-        if (sidebarSplitter_->indexOf(assistant_) < 0)
+        if (!inColumn) {
+            if (tab >= 0)
+                sideTabs_->removeTab(tab);
             sidebarSplitter_->addWidget(assistant_);
-        assistant_->show();
-    } else if (width() >= 1100) {
-        sideTabs_->addTab(assistant_, "Assistant");
-        sideTabs_->setCurrentWidget(assistant_);
-        sideTabs_->show();
-        assistant_->show();
-    } else {
-        if (!assistantSheet_) {
-            assistantSheet_ = new QDialog(this);
-            assistantSheet_->setObjectName("assistantSheet");
-            assistantSheet_->setWindowTitle("Assistant");
-            new QVBoxLayout(assistantSheet_);
-            auto *action = findChild<QAction *>("view.assistant");
-            auto *toggle = new QShortcut(action->shortcut(), assistantSheet_);
-            toggle->setObjectName("assistantSheetToggle");
-            const auto updateToggle = [action, toggle] {
-                toggle->setKey(action->shortcut());
-                // Plain keys remain viewport-only, including while the composer is in a sheet.
-                toggle->setEnabled(action->shortcutContext() == Qt::WindowShortcut);
-            };
-            connect(action, &QAction::changed, toggle, updateToggle);
-            updateToggle();
-            connect(toggle, &QShortcut::activated, this, &Window::toggleAssistant);
-            connect(assistantSheet_, &QDialog::rejected, this, [this] {
-                assistantShown_ = false;
-                assistant_->hide();
-                focusWorkspace();
-            });
         }
-        assistantSheet_->layout()->addWidget(assistant_);
-        // In a dialog Qt would make the panel's first button the default, so Enter in a field
-        // would press it. Keep Enter as in the docked panel.
-        for (auto *button : assistant_->findChildren<QPushButton *>())
-            button->setAutoDefault(false);
-        assistantSheet_->resize(std::min(interfaceExtent(400, textPercent), width() - 32),
-                                std::max(420, height() - 64));
-        assistantSheet_->show();
         assistant_->show();
-        // Keep the existing model viewport available beside the nonmodal sheet.
-        sideTabs_->hide();
+    } else if (assistantShown_) {
+        if (tab < 0) {
+            assistant_->setMinimumWidth(240);
+            assistant_->setMaximumWidth(QWIDGETSIZE_MAX);
+            sideTabs_->addTab(assistant_, "Assistant");
+            // Joining the side panel (newly shown, or from the column) opens its tab.
+            sideTabs_->setCurrentWidget(assistant_);
+        }
+    } else {
+        if (tab >= 0)
+            sideTabs_->removeTab(tab);
+        if (tab >= 0 || inColumn) {
+            assistant_->setParent(centralWidget());
+            assistant_->setMinimumWidth(240);
+            assistant_->setMaximumWidth(QWIDGETSIZE_MAX);
+        }
+        assistant_->hide();
     }
+    layoutNarrow();
     layoutSidebar();
 }
 void Window::assistantFence(bool uncertain) {
@@ -122,6 +100,11 @@ void Window::assistantFence(bool uncertain) {
         }
         assistantShown_ = true;
         layoutAssistant();
+        if (narrowLayout()) {
+            sideTabs_->setCurrentWidget(assistant_);
+            openOverlay(PanelKey::Assistant);
+        } else if (sideTabs_->indexOf(assistant_) >= 0)
+            sideTabs_->setCurrentWidget(assistant_);
         status_->setText("Assistant outcome unknown — use Reconcile before editing or saving.");
     } else {
         for (auto [action, enabled] : assistantActionStates_)

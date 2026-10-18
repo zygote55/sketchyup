@@ -748,6 +748,39 @@ int main(int argc, char **argv) {
                     button->setFocusPolicy(Qt::NoFocus);
                 }
                 check(probed.size() == 2, "Checked and unchecked tool buttons were probed");
+                // UX_DESIGN §3.3: the narrow layout's panel strip (a checked and an unchecked
+                // button, with the overlay sheet open on Info) and the Menu button, at the
+                // default text size (the Wayland run's time limit).
+                if (percent == 100) {
+                    window.resize(900, 900);
+                    check(QTest::qWaitFor([&] { return window.width() == 900; }),
+                          "Window narrowed for the panel strip");
+                    QTest::qWait(50);
+                    auto *strip = window.findChild<QToolBar *>("panelStrip");
+                    check(strip && strip->isVisible(), "Panel strip shows at 900 px");
+                    window.findChild<QAction *>("panelStrip.info")->trigger();
+                    QTest::qWait(50);
+                    for (const char *id : {"panelStrip.info", "panelStrip.outliner"}) {
+                        auto *button = qobject_cast<QToolButton *>(
+                            strip->widgetForAction(window.findChild<QAction *>(id)));
+                        check(button && button->isChecked() == (QString(id) == "panelStrip.info"),
+                              "Panel strip button state");
+                        const auto policy = button->focusPolicy();
+                        button->setFocusPolicy(Qt::TabFocus);
+                        probe(window, *button,
+                              button->isChecked() ? "Narrow / panel strip button (checked)"
+                                                  : "Narrow / panel strip button");
+                        button->setFocusPolicy(policy);
+                    }
+                    window.findChild<QAction *>("panelStrip.info")->trigger();
+                    QTest::qWait(50);
+                    probe(window, *window.findChild<QToolButton *>("menuButton"),
+                          "Narrow / Menu button");
+                    window.resize(1280, 900);
+                    check(QTest::qWaitFor([&] { return window.width() == 1280; }),
+                          "Window widened again");
+                    QTest::qWait(50);
+                }
                 window.viewport()->setFocus(Qt::OtherFocusReason);
                 auto action = [&](const char *id) {
                     return [&window, id] {

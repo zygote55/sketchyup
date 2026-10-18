@@ -53,6 +53,18 @@ in 40 px steps, and double-clicking a handle or View → Reset sidebar width res
 default. The sidebar keeps at least 240 px, leaves the viewport at least 400 px, and
 remembers its width in both Model and Sheets and on the next launch.
 
+In a window narrower than 1100 px (a tiled half screen, for example) the sidebar
+collapses to a strip of icons at the right edge: Info, Outliner, Materials, Tags,
+History, Assistant and **More panels** (all Model panel tabs). Click an icon, or use
+its View command or shortcut (**Ctrl+J** for the Assistant, **Ctrl+Shift+T** for More
+panels), to open that panel in a sheet over the viewport; keyboard focus moves into it.
+**Esc**, clicking the open panel's icon again or clicking the viewport closes the sheet
+and returns focus to where it was. Drag the sheet's left edge to resize it; it shares
+its width with the 1100–1500 px side panel. The menu bar becomes one **Menu** button
+with the same menus (Alt+F and the other menu keys still open them), and every
+shortcut keeps working. Widening the window past 1100 px restores the docked sidebar
+on the same tab at its remembered width.
+
 Use **View → Interface text size** for 75–200% text independently of display
 scaling. Light, Dark and System themes are under View. Navigation preferences
 include trackpad gestures, field of view and reduced motion. The

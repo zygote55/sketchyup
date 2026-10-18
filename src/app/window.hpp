@@ -106,7 +106,6 @@ class Window : public QMainWindow {
     AssistantPanel *assistant_{};
     QHBoxLayout *content_{};
     QTabWidget *sideTabs_{};
-    QPointer<QDialog> assistantSheet_;
     QPointer<QDialog> diagnosticsSheet_;
     // R094.c: Entity info's placement parameters and the Measurements box routed to them.
     ComponentParametersSection *parameters_{};
@@ -183,6 +182,44 @@ class Window : public QMainWindow {
     void stepSidebar(int direction);
     void resetSidebar();
     void themeSidebar(const ThemeColors &colors);
+    // Stores a sidebar column's width (logical pixels at the current text size) at 100% text.
+    void storeSidebarColumn(int column, int width);
+    // Narrow layout (UX_DESIGN §3.3; window_narrow.cpp). Below 1100 px the side panel is an
+    // icon strip at the window's right edge that opens the Model panel or the Assistant in an
+    // overlay sheet over the workspace, and the menu bar is one Menu button.
+    enum class PanelKey { None, Info, Outliner, Materials, Tags, History, Assistant, More };
+    QToolBar *panelStrip_{};
+    QWidget *panelOverlay_{}, *overlayHandle_{}, *menuButton_{};
+    // The sheet's heading: the open panel's name, in place of the Tray's "MODEL".
+    QLabel *overlayHeading_{};
+    // Owns the narrow layout's connections and the overlay's dismiss filter; deleted first in
+    // ~Window so none of them reaches the window while it is torn down.
+    QObject *narrowContext_{}, *overlayDismiss_{};
+    std::vector<std::pair<PanelKey, QAction *>> stripActions_;
+    QPointer<QWidget> overlayReturn_;
+    PanelKey overlayKey_{PanelKey::None};
+    bool overlayOpen_{}, overlayDismissPending_{};
+    bool narrowLayout() const { return width() < 1100; }
+    void setupNarrow(QWidget *header);
+    void detachNarrow();
+    void layoutNarrow();
+    // Sizes and anchors the overlay sheet (window_sidebar.cpp): the remembered tabbed width,
+    // clamped to the window, against the workspace's right edge.
+    void placeOverlay();
+    QWidget *createOverlayHandle(QWidget *overlay);
+    void resizeOverlay(int panelWidth);
+    // `returnTo`: where focus goes back when the sheet closes, when not the current focus.
+    void openOverlay(PanelKey key, QWidget *returnTo = nullptr);
+    void closeOverlay(bool restoreFocus = true);
+    void focusOverlay();
+    void syncPanelStrip();
+    // The sheet shows the Tray's tab row only for More panels; a strip panel shows its name as
+    // the heading instead. Docked, the Tray has its row and its own heading.
+    void syncOverlayChrome();
+    void themeNarrow(const ThemeColors &colors);
+    PanelKey organizationKey() const;
+    void stripClicked(PanelKey key);
+    bool overlayFilter(QObject *object, QEvent *event);
     void toggleAssistant();
     void assistantFence(bool uncertain);
     std::unique_ptr<DesktopInspection> inspection_;
