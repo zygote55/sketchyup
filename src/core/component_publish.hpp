@@ -8,6 +8,8 @@ struct ComponentPublishOptions {
     // Parameter operations refuse with LOCKED_ENTITY before publishing when the edit
     // would change a locked placement (ADR 0165 §4).
     bool parameterLocks{};
+    // Geometry that moved to another context with its IDs unchanged (Edit::transfers).
+    std::map<Id, std::set<Id>> transfers;
 };
 // Validate `definitions`, project every binding (each top-level placement through
 // its variant) and publish one edit raising the allocators to the given floors.

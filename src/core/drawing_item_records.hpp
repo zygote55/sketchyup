@@ -58,7 +58,8 @@ struct DrawingLabelItem {
     bool operator==(const DrawingLabelItem &) const = default;
 };
 // A referenced dimension. Its anchors are resolved lazily by ID against the
-// model when evaluated (R091.c); model edits never rewrite them (ADR 0163).
+// model when evaluated (R091.c). A model edit rewrites only the anchors, inside
+// the same edit, when its lineage names one successor (ADR 0164 §3 addendum).
 struct DrawingDimensionItem {
     Id view{};
     std::array<AnnotationAnchor, 2> anchors{};

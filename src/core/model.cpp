@@ -4,6 +4,7 @@
 #include "core/component_regeneration.hpp"
 #include "core/component_validation.hpp"
 #include "core/document_limits.hpp"
+#include "core/drawing_item_lineage.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/face_textures.hpp"
 #include "core/reference_images.hpp"
@@ -1053,7 +1054,18 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         throw std::runtime_error("Empty edit");
     // Page editing never modifies the source model, and model edits never write
     // drawing sheets (ADR 0163). Floors may restate, but not raise, model allocators.
-    if ((edit.drawingSheetScope || !edit.drawingSheets.empty() || !edit.drawingViews.empty() ||
+    // The one exception is paper anchor lineage (ADR 0164 §3, addendum): a model edit
+    // may carry changes that rewrite only the anchors of existing bound items, as a
+    // composed edit does after its staged steps rewrote them.
+    const bool anchorLineage =
+        !edit.drawingSheetScope && edit.drawingSheets.empty() && edit.drawingViews.empty() &&
+        !edit.drawingItems.empty() && !isDrawingSheetOnlyEdit(edit) &&
+        std::all_of(edit.drawingItems.begin(), edit.drawingItems.end(), [](const auto &change) {
+            return change.before && change.after &&
+                   drawingItemAnchorsOnly(*change.before, *change.after);
+        });
+    if (!anchorLineage &&
+        (edit.drawingSheetScope || !edit.drawingSheets.empty() || !edit.drawingViews.empty() ||
          !edit.drawingItems.empty()) &&
         (!isDrawingSheetOnlyEdit(edit) || edit.nextIdFloor > nextId_ ||
          edit.nextDefinitionFloor > nextDefinitionId_ || edit.nextTagFloor > nextTagId_ ||
@@ -1609,6 +1621,30 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         validateAnnotationRecords(annotations, nextAnnotation);
     }
     edit.annotationsResolved = true;
+    for (const auto &[source, targets] : edit.transfers)
+        for (auto target : targets)
+            if (!bodies_.contains(source) || !changedBodies.contains(target) ||
+                !changedBodies.at(target))
+                throw std::runtime_error("Invalid geometry transfer lineage");
+    if (!edit.drawingAnchorsResolved &&
+        drawingAnchorsTouched(drawingItems, report, edit.transfers)) {
+        auto candidate = readSnapshot();
+        if (incremental) {
+            // The incremental scheme stages no complete map; build one for resolution.
+            auto bodies = bodies_;
+            for (const auto &[id, body] : changedBodies)
+                if (body)
+                    bodies[id] = body;
+                else
+                    bodies.erase(id);
+            candidate.bodies_ = std::move(bodies);
+        } else
+            candidate.bodies_ = updated;
+        resolveDrawingAnchorEdit(*this, candidate, report, edit, drawingItems);
+    }
+    edit.drawingAnchorsResolved = true;
+    for (const auto &[source, targets] : edit.transfers)
+        edit.bytes += 96 + targets.size() * sizeof(Id);
     for (const auto &change : edit.annotations)
         edit.bytes += sizeof(AnnotationChange) + annotationBytes(change.before) + annotationBytes(change.after);
     for (const auto &change : edit.definitions)
