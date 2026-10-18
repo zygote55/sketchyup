@@ -575,7 +575,9 @@ int main(int argc, char **argv) {
         wait([&] { return panel.result().value("phase") == "preview-ready"; });
         check(network.calls == 4 && panel.result().value("toolCalls") == 5,
               "The corrected reply reaches preview after the refused turn");
-        panel.findChild<QPushButton *>("assistantDiscard")->click();
+        auto *discardButton = panel.findChild<QPushButton *>("assistantDiscard");
+        wait([&] { return window.viewport()->hasAssistantPreview() && discardButton->isEnabled(); });
+        discardButton->click();
         wait([&] { return panel.result().value("phase") == "canceled"; });
         network.calls = 0;
         network.requests.clear();
