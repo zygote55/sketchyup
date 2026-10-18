@@ -228,8 +228,12 @@ writes the pages to a PDF and File → Print… prints them, both at actual size
    **Choose scene…**, which relinks it and keeps its frame and scale.
 9. **Reattach.** A dimension or label whose model point no longer exists turns red
    and reads "[Missing reference]". This happens when the anchored vertex or edge
-   is erased, and also when an anchored edge is split or the geometry is made into
-   a component. Select it and choose **Reattach** in Entity info: the nearest point
+   is erased, and when an edit gives the geometry new identities without saying
+   where it went (merging contexts, explode, make unique). Splitting an anchored edge
+   and making the geometry into a component (or a group, from a selection) keep
+   dimensions and labels attached, and so do the dimensions and labels drawn in the
+   model itself; only an ambiguous case, such as geometry copied to two places at
+   once, still breaks them. Select a broken item and choose **Reattach** in Entity info: the nearest point
    in the view is proposed; press Enter to accept it or click another point.
 10. **Export a PDF.** Choose File → **Export sheets…** (in Model too, once the
     model has pages). Pick **All**, the **Current page** or a **Range** such as

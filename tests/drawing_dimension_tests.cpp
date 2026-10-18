@@ -775,6 +775,9 @@ void annotationsFollowTransfers() {
     doc.redo();
     for (const auto &[id, record] : doc.annotations())
         check(*record == made.at(id), "Redo restores the exact annotation records");
+    // Not asserted: the container bytes after Undo+Redo. Each Undo and Redo advances the
+    // document revision, which the container stores (and hashes into its chunk), so the
+    // bytes differ in that counter alone, as for any plain edit such as an edge split.
     std::cout << "model annotations follow geometry transfers: ok\n";
 }
 
