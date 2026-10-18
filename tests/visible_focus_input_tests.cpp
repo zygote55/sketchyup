@@ -493,7 +493,12 @@ int main(int argc, char **argv) {
                           "Expected owned modal dialog opened");
                     check(QTest::qWaitForWindowExposed(dialog), "Focus dialog exposed");
                     dialog->activateWindow();
-                    check(QTest::qWaitForWindowActive(dialog), "Focus dialog active");
+                    // Every dialog here waits for its own keyboard focus, not
+                    // qWaitForWindowActive(): QWindow::isActive() counts a transient child as
+                    // active with its active parent, so that passed before the compositor
+                    // activated the dialog, which could then close first and have its late
+                    // activation take focus from the main window (as in PR #340).
+                    check(QTest::qWaitForWindowFocused(dialog), "Focus dialog active");
                     check(QTest::qWaitFor([&] {
                               auto *focused = QApplication::focusWidget();
                               return focused &&
@@ -543,7 +548,7 @@ int main(int argc, char **argv) {
             dialog.show();
             check(QTest::qWaitForWindowExposed(&dialog), "Evidence dialog exposed");
             dialog.activateWindow();
-            check(QTest::qWaitForWindowActive(&dialog), "Evidence dialog active");
+            check(QTest::qWaitForWindowFocused(&dialog), "Evidence dialog active");
             apply->setFocus(Qt::TabFocusReason);
             QTest::qWait(20);
             combo->setFocus(Qt::TabFocusReason);
@@ -652,7 +657,7 @@ int main(int argc, char **argv) {
                               "Export dialog opened");
                         check(QTest::qWaitForWindowExposed(dialog), "Export dialog exposed");
                         dialog->activateWindow();
-                        check(QTest::qWaitForWindowActive(dialog), "Export dialog active");
+                        check(QTest::qWaitForWindowFocused(dialog), "Export dialog active");
                         auto settled = [&] {
                             check(QTest::qWaitFor(
                                       [&] { return !dialog->checking() && dialog->preflight(); },
@@ -781,7 +786,7 @@ int main(int argc, char **argv) {
                             check(QTest::qWaitForWindowExposed(dialog),
                                   "Parameters dialog exposed");
                             dialog->activateWindow();
-                            check(QTest::qWaitForWindowActive(dialog), "Parameters dialog active");
+                            check(QTest::qWaitForWindowFocused(dialog), "Parameters dialog active");
                             check(QTest::qWaitFor([&] {
                                       auto *focused = QApplication::focusWidget();
                                       return focused && dialog->isAncestorOf(focused);
@@ -816,7 +821,7 @@ int main(int argc, char **argv) {
                 check(dialog && QTest::qWaitForWindowExposed(dialog),
                       "Assistant preferences exposed");
                 dialog->activateWindow();
-                check(QTest::qWaitForWindowActive(dialog), "Assistant preferences active");
+                check(QTest::qWaitForWindowFocused(dialog), "Assistant preferences active");
                 check(QTest::qWaitFor([&] {
                           auto *focused = QApplication::focusWidget();
                           return focused && (focused == dialog || dialog->isAncestorOf(focused));

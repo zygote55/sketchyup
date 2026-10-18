@@ -78,6 +78,11 @@ and the counts.
 **Updated 2026-10-17 (D-039 fixed after 1.2.0; branch `perf/d039-variant-geometry-count`).** The
 unique-geometry check now costs O(distinct variants) per edit; see "Closed by the D-039 fix"
 below. See the counts.
+**Updated 2026-10-17 (D-021 fixed, D-007 extended; branch `test/wayland-activation-exposure`).**
+D-021's exposure timeouts are root-caused and fixed in the Wayland harness; see "Closed by the
+D-021 fix". The transient-activation waits that PR #340 fixed in `entity_info_input_tests` are
+fixed in five more suites (D-007). See the
+[activation and exposure matrix](#activation-and-exposure-matrix-2026-10-17) and the counts.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -121,11 +126,11 @@ problem. **Limitation** means a documented, intended boundary.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D-037 | SketchyUp 1.2.0 does not compile against Qt 6.8.0, the declared minimum | [F02-rc-1.2.0](F02-rc-1.2.0.md#failures) | N02 (packaging), N03 | **Fixed 2026-10-17** (found by the 1.2.0 RC gate; see "Closed by the D-037 fix"). `src/app/window_sidebar.cpp` (R094.a, `c3cfd6ac`) uses `QAccessible::Attribute::Orientation` for the sidebar handles' AT-SPI orientation. Qt 6.8.0's `qaccessible_base.h` declares only `Custom` and `Level`; `Locale` and `Orientation` come with a later Qt (the 6.11.2 headers have them). Building the RC archive on the Qt 6.8 reference (`base-devel-20241013.0.269705`, 2024-10-15 archive, Qt 6.8.0, GCC 14.2.1) stops at `window_sidebar.cpp:112: error: 'Orientation' is not a member of 'QAccessible::Attribute'`. `CMakeLists.txt` still asks for `find_package(Qt6 6.8 …)`, and the 1.2.0 support matrix claims Qt 6.8.0 through 6.12.0 and "Build requires Qt 6.8 or later". A package built on Qt 6.11 cannot start on Qt 6.8 (R087.u), so no 1.2.0 runs on a Qt 6.8 system. | Major | A supported configuration (Qt 6.8.x, per the support matrix) has no working 1.2.0. No data effect: the RC package works on Qt 6.11.2 and 6.12.0. The installed documents or the code must change, so it cannot ship at this RC unchanged | Fixed: the attribute is compiled only on Qt 6.11 or later, where `Orientation` first appears; the Qt 6.8 minimum stays. Needs the new RC |
 | D-006 | Intermittent X11 viewport assertion "Camera movement only reorders transparency" | [R085.i](R085i-assisted-output-transitions.md#retained-attempts-and-validation), [R085k X11 log](R085i-r085k-xcb.txt) | N01, P02 | **Unverified.** R085.i retains it as "intermittent … remains unexplained". The assertion (`tests/viewport_tests.cpp`) is unchanged, and no later record explains it. | Minor | The failed check is a render-statistics assertion: either geometry was re-uploaded or transparency was not re-sorted after a camera move. The worst case is an extra upload or a transient blend-order glitch, with no document effect. | [R085](../PR_ROADMAP.md#r085) (viewport cache, with [R082](../PR_ROADMAP.md#r082)): investigation; possibly a code fix |
-| D-007 | Wayland native-test focus and activation races | [R015](R015-topology.md), [R035.a](R035a-entity-measurements.md), [R084.p](R084p-dialog-keyboard.md), [R087.t](R087t-native-ci-reproduction.md), [PR #273](https://github.com/zygote55/sketchyup/pull/273), [main run 38011483053](https://github.com/zygote55/sketchyup/actions/runs/38011483053), [PR #328 run 38747320047](https://github.com/zygote55/sketchyup/actions/runs/38747320047) | N03 | **Unverified.** Recurring intermittent fixture failures where a window reports active before its native surface has focus. Examples: the R015 Extrude shortcut, the R087.t "Tab reaches shortcut control without assigning focus", and the entity-info Wayland 2× focus timeout on `main` before #273. Each received a fixture wait or re-request; none has a confirmed root cause. Three `main` runs have passed since #273. **2026-10-15: one instance root-caused and fixed.** PR #328 (`4767b538`) failed `SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_export_input_tests` with "Tab stays in the dialog looking for sheetExportAllowChanged; focus none, active window none" (the check message is printed; this is not D-031). It is the R091.h Qt Wayland client race ([R091.h round 3](R091h-sheet-layout.md#round-3-focus-after-choose-scene-on-wayland)) on the export dialog's PDF file chooser, which the test accepts as soon as it shows: in the traced failures Weston sends `wl_keyboard.enter` for the chooser and the client asks for a `wl_display.sync`, the chooser is destroyed about 4 ms later, before `done`, and Qt then queues "no focus window" over the export dialog's own `enter`. Reproduced at `68ff9ae2` in the CI image, Wayland 1×, four lanes, `WAYLAND_DEBUG=client`: 7 of 64 runs, every one with this message. The chooser and the print dialog are now `Settled<QFileDialog>` and `Settled<QPrintDialog>` (`sheet_export_dialog.cpp`): after, 0 of 100 traced runs under the same load, and 39 of 40 untraced runs passed at Wayland and X11 1× and 2× (the one failure lost its Xvfb when two local lanes started `xvfb-run -a` at once). The other D-007 instances keep no confirmed cause. | Minor | These are test-infrastructure races in isolated Weston. No product focus defect has been shown. | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only) |
+| D-007 | Wayland native-test focus and activation races | [R015](R015-topology.md), [R035.a](R035a-entity-measurements.md), [R084.p](R084p-dialog-keyboard.md), [R087.t](R087t-native-ci-reproduction.md), [PR #273](https://github.com/zygote55/sketchyup/pull/273), [main run 38011483053](https://github.com/zygote55/sketchyup/actions/runs/38011483053), [PR #328 run 38747320047](https://github.com/zygote55/sketchyup/actions/runs/38747320047) | N03 | **Unverified.** Recurring intermittent fixture failures where a window reports active before its native surface has focus. Examples: the R015 Extrude shortcut, the R087.t "Tab reaches shortcut control without assigning focus", and the entity-info Wayland 2× focus timeout on `main` before #273. Each received a fixture wait or re-request; none has a confirmed root cause. Three `main` runs have passed since #273. **2026-10-15: one instance root-caused and fixed.** PR #328 (`4767b538`) failed `SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sheet_export_input_tests` with "Tab stays in the dialog looking for sheetExportAllowChanged; focus none, active window none" (the check message is printed; this is not D-031). It is the R091.h Qt Wayland client race ([R091.h round 3](R091h-sheet-layout.md#round-3-focus-after-choose-scene-on-wayland)) on the export dialog's PDF file chooser, which the test accepts as soon as it shows: in the traced failures Weston sends `wl_keyboard.enter` for the chooser and the client asks for a `wl_display.sync`, the chooser is destroyed about 4 ms later, before `done`, and Qt then queues "no focus window" over the export dialog's own `enter`. Reproduced at `68ff9ae2` in the CI image, Wayland 1×, four lanes, `WAYLAND_DEBUG=client`: 7 of 64 runs, every one with this message. The chooser and the print dialog are now `Settled<QFileDialog>` and `Settled<QPrintDialog>` (`sheet_export_dialog.cpp`): after, 0 of 100 traced runs under the same load, and 39 of 40 untraced runs passed at Wayland and X11 1× and 2× (the one failure lost its Xvfb when two local lanes started `xvfb-run -a` at once). The other D-007 instances keep no confirmed cause. **2026-10-17: the transient-activation instances.** [PR #340](https://github.com/zygote55/sketchyup/pull/340) root-caused the entity-info Wayland 2× failure: `QTest::qWaitForWindowActive(dialog)` passes at once while the main window is active, because `QWindow::isActive()` counts a transient child as active with its parent (Qt 6.11.2), so the dialog could close before Weston activated it, and that late activation took focus from the main window. Branch `test/wayland-activation-exposure` makes the same change where the pattern remained: the text size prompt (`text_size_input_tests`, `viewport_label_overlap_tests`), the shortcut editor (`shortcut_input_tests`, both waits), five dialogs in `visible_focus_input_tests` (the modal sweep, the evidence dialog, Export sheets, the parameters scope dialog and Assistant preferences), and the Render sheet (both waits) and the Export sheets dialog in `keyboard_reachability_tests`. Each now waits for the dialog's own keyboard focus (`qWaitForWindowFocused`, the 5 s default) before it acts or closes; no check changed. Waits on the main window are unchanged: a top-level window's `isActive()` is exact. In the [matrix](#activation-and-exposure-matrix-2026-10-17) no changed wait failed, and no run failed a focus or activation check before the fix, so the matrix does not show this race; the change removes the premature pass. One run after the fix failed R091.h's file-operation focus-return check in `keyboard_reachability_tests`, a path this branch does not change (see the matrix). `keyboard_reachability_tests` still re-maps the window if Weston leaves none active after a sheet hides (R084.v). D-007 stays open for the other instances. | Minor | These are test-infrastructure races in isolated Weston. No product focus defect has been shown. | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only) |
 | D-008 | Scene-transition native test timed out in CI under delayed events | [R085.d](R085d-scene-animation-fixture.md) | P03 | **Unverified.** CI waited 1.5 s for the saved pose and failed. The wait is now 5 s, and the cause is recorded as "not a confirmed root cause". Product timing is unchanged. | Minor | Eventual-correctness timing in a test fixture. Final-pose equality is still enforced. | [R085](../PR_ROADMAP.md#r085) (test-only) |
 | D-009 | X11 hardware fixture cannot place its window on a requested output without a compositor helper | [R085.h](R085h-physical-outputs.md), [R085.i](R085i-assisted-output-transitions.md) | N04 | **Open.** Both Qt-only X11 placement attempts fail the requested-output assertion. X11 transitions qualify only through the Hyprland-specific helper. | Minor | Test infrastructure: the placement is of the fixture's own window, as Qt documents for `setScreen`. Rendering on both outputs passes once placed. | [R085](../PR_ROADMAP.md#r085) (test-only) |
 | D-019 | Qt Wayland protocol error when re-showing a window hidden during a file operation | [R083.f](R083f-file-worker-hang.md) | N01 | **Open.** Observed in 6 of 8 probe runs at 1×: the probe hid the window, ran a file operation, then showed the window again. The application never hides its main window during a file operation. | Minor | The path is not reachable from current product code. Recorded so a future hide/restore feature retests it. | [R085](../PR_ROADMAP.md#r085) |
-| D-021 | Wayland test-window exposure timeouts under host load | [R083.g](R083g-unexpected-modal-guard.md), [R084.r](R084r-display-precision.md), [R084.s](R084s-keyboard-panel-tabs.md), [R085.q](R085q-keypad-decimal.md), [R089.d](R089d-release-candidate.md#failures) | N03, N01, P05 (test harness) | **Unverified.** In local bounded-container Wayland 2× runs, fixtures fail in `qWaitForWindowExposed` before any test step: 2 of 4 `units_input_tests` runs (load average about 28), 3 of 6 `file_operation_input_tests` runs (load above 30; 6/6 passed at about 15), five Wayland 2× cases in the R084.s matrix (style, solar, reference image, annotation, audit) and one `numeric_input_tests` run. Identical reruns pass without a changed wait. These records attribute none to CI. The cause is not established beyond host load. **At the RC (2026-10-13)**, on the one-CPU runner: `annotation_input_tests` Wayland 2× failed its "Annotation window exposed" check once, and `interaction_tests` Wayland 2× exited 2 once (window not exposed and active within 5 s; the "active" part overlaps D-007). Both passed on re-run. CI run 38435734443 passed the annotation line; CI runs `interaction_tests` on X11 only. **At the 1.2.0 RC (2026-10-17)**: the F02 integration saw the same "window exposed" timeout in CI at roughly 1% of Wayland lines (a figure from the F02 integration's CI history, not counted line by line here); each passed on re-run. CI run 39022075019 at the RC's pre-merge head passed every line, and the 47 local non-CI cells at the RC are recorded in [F02-rc-1.2.0](F02-rc-1.2.0.md). | Minor | Test infrastructure. The failure precedes any product code in the test and is not a focus defect, so it is distinct from D-007 (focus lost after exposure). | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only): load gating or a bounded retry |
+| D-021 | Wayland test-window exposure timeouts under host load | [R083.g](R083g-unexpected-modal-guard.md), [R084.r](R084r-display-precision.md), [R084.s](R084s-keyboard-panel-tabs.md), [R085.q](R085q-keypad-decimal.md), [R089.d](R089d-release-candidate.md#failures) | N03, N01, P05 (test harness) | **Fixed 2026-10-17** (see "Closed by the D-021 fix": Weston sends no frame callback until its desktop shell has drawn, which took 8–20 s under load, and Qt marks a window unexposed when a callback is 100 ms late). Before the fix, in local bounded-container Wayland 2× runs, fixtures fail in `qWaitForWindowExposed` before any test step: 2 of 4 `units_input_tests` runs (load average about 28), 3 of 6 `file_operation_input_tests` runs (load above 30; 6/6 passed at about 15), five Wayland 2× cases in the R084.s matrix (style, solar, reference image, annotation, audit) and one `numeric_input_tests` run. Identical reruns pass without a changed wait. These records attribute none to CI. The cause is not established beyond host load. **At the RC (2026-10-13)**, on the one-CPU runner: `annotation_input_tests` Wayland 2× failed its "Annotation window exposed" check once, and `interaction_tests` Wayland 2× exited 2 once (window not exposed and active within 5 s; the "active" part overlaps D-007). Both passed on re-run. CI run 38435734443 passed the annotation line; CI runs `interaction_tests` on X11 only. **At the 1.2.0 RC (2026-10-17)**: the F02 integration saw the same "window exposed" timeout in CI at roughly 1% of Wayland lines (a figure from the F02 integration's CI history, not counted line by line here); each passed on re-run. CI run 39022075019 at the RC's pre-merge head passed every line, and the 47 local non-CI cells at the RC are recorded in [F02-rc-1.2.0](F02-rc-1.2.0.md). | Minor | Test infrastructure. The failure precedes any product code in the test and is not a focus defect, so it is distinct from D-007 (focus lost after exposure). | Fixed (test harness): `scripts/test-wayland.sh` sets `QT_WAYLAND_FRAME_CALLBACK_TIMEOUT` to the 60 s deadline |
 | D-022 | Parser fuzz targets abort on their first seed under ASan with Qt 6.11.2 JSON parsing (F1) | [R083.e](R083e-parser-fuzzing.md) | D02, D06 (test tooling) | **Unverified.** Six of ten libFuzzer targets (native JSON, container, GLB, template, component, extension) abort on an unmodified valid seed with an alloc-dealloc mismatch whose stacks lie inside `libQt6Core.so.6` under `QJsonDocument::fromJson`. A three-line program that calls only `fromJson` reproduces it. `parser_fuzz_seeds` passes every seed through the instrumented parsers, and the six targets show no crash, leak or hang with that one check disabled. The record states that the root cause is not established and the finding stays open. **At the RC (2026-10-13)** the campaign was re-run with schema 26 seeds ([R083.h](R083h-rc-fuzzing-and-sanitized-matrix.md#f1-at-the-rc)): the same six targets stop on an unmodified seed with the same Qt-internal stacks, R083.e's minimized `{"":2}` reproduces, and with only that check disabled all six run to time with no other finding. | Minor | The evidence points to a Qt/libFuzzer/ASan interaction, not application code, but the six targets do not meet the documented fuzz options and the campaign is not in CI. | [R083](../PR_ROADMAP.md#r083): resolve F1 or document the option; continuous fuzzing |
 | D-023 | Focus-ring contrast residuals next to the 3D canvas and native scroll bars | [R084.q](R084q-visible-focus.md), [R084.s](R084s-keyboard-panel-tabs.md) | N05 | **Open.** R084.q records that the dark-theme ring has 1.64:1 contrast against the light default canvas where the tool rail, breadcrumb and assistant container touch it; the canvas's own ring is 2.997:1 against dark chrome; native scroll bars are not themed; 14 controls per run are wider than their scroll area at 200% text. R084.s leaves one or two tab-bar scroll buttons in the Tab order between the tab bar and its page; [R084.v](R084v-keyboard-reachability.md) removes them from the Tab order. | Minor | Cosmetic and keyboard-friction issues. Every ring keeps at least 3.93:1 against the colour directly inside it, and no control is unreachable. A mid-tone ring cannot satisfy all cases, so the next step is a design decision. | [R084](../PR_ROADMAP.md#r084) (UX decision) |
 | D-027 | `verify-m6-offline.sh` fails in its final summary when `git` is missing | [R089.d](R089d-release-candidate.md#failures) | E04–E07, O03 (study tooling) | **Open.** At the RC, attempt 1 completed every step, including 190/190 regressions, then raised `FileNotFoundError: … 'git'` in the summary. `verify-m5-offline.sh` handles a missing `git`; the M6 script does not. Attempt 2, with `git` installed from the same pinned archive, passed. No code was changed. | Minor | Test infrastructure only: every study check passed before the summary failed, and the study passes when `git` is present. | Study tooling: record a null source commit when `git` is absent, as the M5 script does |
@@ -200,6 +205,60 @@ Closed by R090.e:
   JSON Schema does. `transaction_dispatch_tests` covers typeless `oneOf` choices directly
   and the real `annotation.create` distance and label requests through `transaction.apply`,
   including three that must still be rejected ([R090.e](R090e-drawing-sheets.md)).
+
+Closed by the D-021 fix (2026-10-17, branch `test/wayland-activation-exposure`):
+
+- **D-021** (Wayland test-window exposure timeouts under host load). Class: **Minor** (test
+  infrastructure). **Cause.** Two behaviours meet in the isolated session.
+  (1) Weston draws nothing, and so sends no frame callback, until its `weston-desktop-shell`
+  helper is up: the desktop shell marks the output ready only when the helper commits the
+  background (`background_committed` → `weston_output_set_ready` in `desktop-shell/shell.c`;
+  `weston_output_schedule_repaint` returns while the output is not ready), and until the helper
+  reports `desktop_ready` (or 15 s pass) an opaque startup curtain covers the output, so every
+  window under it counts as occluded and gets no frame callback (`weston_output_repaint`,
+  `libweston/compositor.c`, Weston 15.0.1). The helper is a separate process that paints a
+  full-output background; at Wayland 2× the headless output is 6400×4000 pixels. On a loaded
+  host it took 8–20 s. (2) Qt's Wayland client marks a window unexposed when a frame callback is
+  more than 100 ms late (`QWaylandWindow::mFrameCallbackTimeout`, Qt 6.11.2), a heuristic for a
+  compositor that stopped drawing a hidden window. So the test window was exposed when
+  configured, unexposed 100 ms after its first frame, and stayed so until the curtain lifted;
+  `qWaitForWindowExposed()` (5 s) passed only if it sampled the window inside those 100 ms.
+  The failure needs no product code and no test step, which matches every record above.
+  **Evidence.** In the pinned image `sketchyup-ci-pinned:r094a` (Qt 6.11.2, Weston 15.0.1,
+  Mesa 26.2.3), with the exact CI lines on the `main` build `3bf68899` and CPU load from a
+  separate container (one busy loop per CPU, as `stress-ng --cpu $(nproc)`; 22 CPUs):
+  - `WAYLAND_DEBUG` traces of 12 runs (`text_size_input_tests`, Wayland 2×, four lanes; tracing
+    slows every client): the test window's first `wl_callback.done` came 0.4–2.4 s after the
+    shell's `desktop_ready`, 15–27 s after Weston started; in two runs it had not come when the
+    test ended. Weston scene-graph dumps of three loaded runs (`weston --debug`,
+    `weston-debug scene-graph`) show the "desktop shell fade surface",
+    fully opaque, over the whole output until then. With `startup-animation=none` (no curtain)
+    the windows still showed "Painted frame rate: 0.00" while no background had been committed.
+  - Qt's `qt.qpa.wayland.backingstore` log in all 16 logged exposure failures: "Didn't receive
+    frame callback in time, window should now be inexposed" about 0.7–1.5 s after start, then
+    nothing until the "window exposed" check failed.
+  - Interleaved A/B, four lanes, the same load: the `main` harness failed 12 of 40 runs
+    (`shortcut_input_tests` 5, `text_size_input_tests` 4, `viewport_label_overlap_tests` 3,
+    all Wayland 2× "window exposed"; `file_operation_input_tests` and `units_input_tests` 1×
+    0 of 16); with `QT_WAYLAND_FRAME_CALLBACK_TIMEOUT=60000`, 0 of 40. A second interleaved
+    set (three 2× suites, 24 runs per arm): `main` 11 failures; waiting in the harness for the
+    background before starting the test, 1 (that wait took 8.0–19.7 s, median 10.4 s, and the
+    failure was a 60 s deadline); the timeout setting, 0; both, 0.
+  The cause also explains why the records saw it under load and more at 2× (four times the
+  pixels for the helper to paint), and why identical reruns passed.
+  **Fix.** `scripts/test-wayland.sh` sets `QT_WAYLAND_FRAME_CALLBACK_TIMEOUT=60000` (the
+  deadline) unless the caller sets it. Nothing hides a window in this session, so a late frame
+  callback means a slow compositor, and the test window now stays exposed while it waits. The
+  60 s deadline and the tests' 5 s exposure waits are unchanged. A readiness wait for the
+  background was rejected: it fixes the same failures but spends 8–20 s of the deadline under
+  load. **Verified.** See the
+  [activation and exposure matrix](#activation-and-exposure-matrix-2026-10-17).
+  **Not addressed.** The 2× session's output is 3200×2000 logical (6400×4000 pixels), not
+  the 1600×1000 the harness's `--width="$((1600 * test_scale))"` suggests (Weston's headless
+  `--width` is logical); that quadruples the software compositing work at 2× but changes the
+  screen the 2× tests see, so it is left for its own change. Qt's emulated blocking swap still
+  waits at most 100 ms for a frame callback (`QWaylandGLContext::swapBuffers`, hard-coded) and
+  can mark a window unexposed until the next callback; after this fix no run failed on it.
 
 Closed by the D-033 harness fix (2026-10-15, branch `fix/startup-abort`):
 
@@ -408,6 +467,49 @@ Added 2026-10-15 with D-034, so a native-test failure in CI explains itself:
   "Killed by signal SEGV" from the helper, and "Test exited with status N" or "Test killed by
   signal …" from `test-wayland.sh` for the Wayland client, whose status Weston does not return.
 
+## Activation and exposure matrix (2026-10-17)
+
+Branch `test/wayland-activation-exposure` (D-021, D-007), in the pinned image
+`sketchyup-ci-pinned:r094a` (Qt 6.11.2, Weston 15.0.1, Mesa 26.2.3) on a 22-CPU host, with each
+changed suite's exact `native.yml` dev lines. **Before** is the `main` build `3bf68899` with
+`main`'s harness; **after** is this branch. The arms alternate run by run under the same
+deliberate load from a separate container: one busy loop per CPU (as `stress-ng --cpu
+$(nproc)`) with two test lanes at once. At that load the three longest Wayland 2× lines run past
+the 60 s deadline in both arms (in a first pass at that load they passed 1, 0 and 0 of 3 runs in
+each arm), so those three ran with a busy loop on half the CPUs instead (marked ½). A failure
+is classed from its message and duration: **exposure** (a "… exposed" check, or "Render with
+Blender opens", the sheet's exposure wait), **deadline** (the harness's 60 s, or 90 s on X11,
+with every thread busy, mostly in llvmpipe; no check failed) or **focus** (a focus or activation
+check).
+
+| Line | Before | After |
+| --- | --- | --- |
+| Wayland 1× `keyboard_reachability_tests` | 20/20 | 19/20 (deadline 1) |
+| Wayland 1× `shortcut_input_tests` | 20/20 | 20/20 |
+| Wayland 1× `text_size_input_tests` | 20/20 | 20/20 |
+| Wayland 1× `viewport_label_overlap_tests` | 20/20 | 20/20 |
+| Wayland 1× `visible_focus_input_tests` | 10/20 (deadline 10) | 12/20 (deadline 8) |
+| Wayland 1× `visible_focus_input_tests --workspace=sheets` | 19/20 (deadline 1) | 18/20 (deadline 2) |
+| Wayland 2× `keyboard_reachability_tests` (½) | 19/20 (exposure 1) | 19/20 (focus 1) |
+| Wayland 2× `shortcut_input_tests` | 10/20 (exposure 10) | 20/20 |
+| Wayland 2× `text_size_input_tests` | 10/20 (exposure 10) | 20/20 |
+| Wayland 2× `viewport_label_overlap_tests` | 12/20 (exposure 8) | 20/20 |
+| Wayland 2× `visible_focus_input_tests` (½) | 16/20 (exposure 4) | 20/20 |
+| Wayland 2× `visible_focus_input_tests --workspace=sheets` (½) | 20/20 | 20/20 |
+| X11 1×, each of the six lines | 5/5 | 5/5 |
+| X11 2×, five lines | 5/5 each | 5/5 each |
+| X11 2× `visible_focus_input_tests` | 3/5 (deadline 2) | 3/5 (deadline 2) |
+
+Wayland, 240 runs per arm: exposure failures 33 before and 0 after; deadline 11 and 11; focus 0
+and 1. A further 30 runs per arm of Wayland 2× `keyboard_reachability_tests` (½): 25/30
+(exposure 5) before, 30/30 after. The one focus failure after the fix is "Closing the
+file-operation surface returns activation and focus to the viewport (focus none)" in `keyboard_reachability_tests`
+(R091.h's prompt check, 14 s into the run): this branch changes neither that check nor the code
+between it and the previous passing check, so it is recorded under D-007 as one occurrence of
+an unconfirmed cause (0 in the other 49 Wayland 2× runs of the line after the fix and 0 of 20 at
+1×; before the fix, the line's exposure failures ended some runs before that point). The
+deadline failures are runtime under this load, alike in both arms; the deadlines are unchanged.
+
 ## Release-candidate triage (2026-10-13)
 
 The RC is `7b01bb7a`. Every open item in the table above was re-checked against the RC
@@ -499,10 +601,10 @@ Closed by the D-039 fix (2026-10-17, branch `perf/d039-variant-geometry-count`):
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 14 | D-006–D-009, D-019, D-021–D-023, D-027, D-028, D-031, D-032, D-034, D-040 |
+| Minor | 13 | D-006–D-009, D-019, D-022, D-023, D-027, D-028, D-031, D-032, D-034, D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **28** | |
-| Fixed since the 2026-10-11 refresh | 10 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0) |
+| **Total open** | **27** | |
+| Fixed since the 2026-10-11 refresh | 11 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
@@ -522,6 +624,8 @@ After the D-038 fix (2026-10-17, branch `fix/d038-paint-digest`): 29 open (0 rel
 0 Major, 15 Minor, 14 Limitation).
 After the D-039 fix (2026-10-17): 28 open (0 release-blocking, 0 Major, 14 Minor, 14
 Limitation). D-038 and D-039 are fixed on `main`; 1.2.0 still has both.
+After the D-021 fix (2026-10-17, branch `test/wayland-activation-exposure`): 27 open (0
+release-blocking, 0 Major, 13 Minor, 14 Limitation).
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).

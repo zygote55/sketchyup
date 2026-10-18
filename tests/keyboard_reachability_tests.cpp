@@ -454,8 +454,11 @@ void renderReopen(Fixture &f, const QString &files) {
     probe->click();
     check(QTest::qWaitFor([&] { return render->isEnabled(); }, 20000),
           "Fake Blender check enables Render");
+    // The sheet's own keyboard focus, not qWaitForWindowActive(): QWindow::isActive() counts a
+    // transient child as active with its active parent, so it passed before the compositor
+    // activated the sheet (as in PR #340). The same holds for every dialog below.
     setup->activateWindow();
-    check(QTest::qWaitForWindowActive(setup), "Render with Blender is active");
+    check(QTest::qWaitForWindowFocused(setup), "Render with Blender is active");
     // What a job start does: Render is disabled while it has focus and Qt moves focus on.
     render->setFocus();
     check(QTest::qWaitFor([&] { return render->hasFocus(); }),
@@ -474,7 +477,8 @@ void renderReopen(Fixture &f, const QString &files) {
     check(setup->focusWidget() == render,
           "D-026: reopened Render with Blender focuses Render, not " +
               identity(setup->focusWidget()));
-    check(QTest::qWaitForWindowActive(setup) && QTest::qWaitFor([&] { return render->hasFocus(); }),
+    check(QTest::qWaitForWindowFocused(setup) &&
+              QTest::qWaitFor([&] { return render->hasFocus(); }),
           "Render has keyboard focus after reopening" + f.state());
     key(Qt::Key_Return, Qt::NoModifier, true);
     auto *jobsDialog = window.findChild<QDialog *>("renderJobs");
@@ -958,7 +962,7 @@ void sheetsWorkspace() {
             seen = true;
             try {
                 dialog->activateWindow();
-                check(QTest::qWaitForWindowActive(dialog), "Export dialog active");
+                check(QTest::qWaitForWindowFocused(dialog), "Export dialog active");
                 check(QTest::qWaitFor([&] { return !dialog->checking() && dialog->preflight(); },
                                       20000),
                       "Export preflight settles");
