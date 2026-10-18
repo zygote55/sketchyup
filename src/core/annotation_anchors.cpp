@@ -276,4 +276,63 @@ AnnotationAnchor remapAnnotationAnchor(const Document &before, const Document &a
     result.state = matches.empty() ? AnchorState::Missing : AnchorState::Ambiguous;
     return result;
 }
+std::optional<AnnotationAnchor>
+transferAnnotationAnchor(const Document &before, const Document &after,
+                         const std::map<Id, std::set<Id>> &transfers,
+                         const AnnotationAnchor &anchor) {
+    if (anchor.kind == AnchorKind::Point || anchor.state != AnchorState::Resolved)
+        return {};
+    const auto moved = transfers.find(anchor.body);
+    if (moved == transfers.end())
+        return {};
+    auto holds = [&](const Body &record, const AnnotationAnchor &candidate) {
+        return candidate.kind == AnchorKind::Vertex
+                   ? record.surface.vertices.contains(candidate.entity)
+               : candidate.kind == AnchorKind::Edge
+                   ? record.topology.edges.contains(candidate.entity)
+                   : record.surface.faces.contains(candidate.entity);
+    };
+    try {
+        // An anchor that already failed to resolve is never re-bound.
+        const auto previous = resolveAnnotationAnchor(before, anchor);
+        if (previous.state != AnchorState::Resolved)
+            return {};
+        const auto context = after.bodies().find(anchor.body);
+        if (context != after.bodies().end() && holds(*context->second, anchor))
+            return {}; // IDs are never reassigned, so the anchor still names its entity.
+        std::vector<AnnotationAnchor> matches;
+        for (auto target : moved->second) {
+            const auto found = after.bodies().find(target);
+            if (found == after.bodies().end() || !holds(*found->second, anchor))
+                continue;
+            if (anchor.kind == AnchorKind::Vertex) {
+                matches.push_back(vertexAnchor(after, target, anchor.entity));
+            } else if (anchor.kind == AnchorKind::Edge) {
+                const auto &old = before.bodies().at(anchor.body)->topology.edges.at(anchor.entity);
+                const auto &edge = found->second->topology.edges.at(anchor.entity);
+                if (edge.a == old.a && edge.b == old.b)
+                    matches.push_back(edgeAnchor(after, target, anchor.entity, anchor.parameter));
+            } else {
+                // The same support triangle must still lie on the face, which is how a
+                // face anchor resolves.
+                auto candidate = anchor;
+                candidate.body = target;
+                const auto resolved = resolveAnnotationAnchor(after, candidate);
+                if (resolved.state == AnchorState::Resolved) {
+                    candidate.fallback = resolved.point;
+                    matches.push_back(candidate);
+                }
+            }
+        }
+        // A transfer keeps world positions; anything else is not the same point.
+        if (matches.size() == 1 && length(matches.front().fallback - previous.point) <=
+                                       tolerance * std::max(1., length(previous.point))) {
+            validateAnnotationAnchor(matches.front());
+            return matches.front();
+        }
+    } catch (const std::runtime_error &) {
+        // Lineage beyond its work budgets keeps today's broken state.
+    }
+    return {};
+}
 } // namespace sketchy

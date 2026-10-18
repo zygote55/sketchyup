@@ -65,6 +65,15 @@ class ToolbarNavigation : public QObject {
         auto *key = static_cast<QKeyEvent *>(event);
         if (key->modifiers() & ~Qt::KeypadModifier)
             return false;
+        // A rail button that opens a menu (the tool group button) opens it on Down, Enter and
+        // Space; the other arrows still move along the rail.
+        if (button->property("sketchyupRailMenu").toBool() && button->menu() &&
+            (key->key() == Qt::Key_Down || key->key() == Qt::Key_Return ||
+             key->key() == Qt::Key_Enter || key->key() == Qt::Key_Space)) {
+            if (!key->isAutoRepeat())
+                button->showMenu();
+            return true;
+        }
         const auto buttons = usable();
         if (buttons.empty())
             return false;

@@ -30,5 +30,8 @@ QPainterPath historyIcon();
 QPainterPath assistantIcon();
 QPainterPath morePanelsIcon();
 QPainterPath menuIcon();
+// The tool rail's group button (UX_DESIGN §3.3): a down-chevron after the group's name, in an
+// 8-unit box at its centre (use margin -5 with an 8 px icon so the 1.5 px stroke stays 1.5 px).
+QPainterPath chevronDownIcon();
 } // namespace icons
 } // namespace sketchy

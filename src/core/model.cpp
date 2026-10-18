@@ -1614,6 +1614,11 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         }
         validateDocumentSize(updated, &edit, definitions, &bodies_);
     }
+    for (const auto &[source, targets] : edit.transfers)
+        for (auto target : targets)
+            if (!bodies_.contains(source) || !changedBodies.contains(target) ||
+                !changedBodies.at(target))
+                throw std::runtime_error("Invalid geometry transfer lineage");
     if (!annotations.empty()) {
         auto candidate = readSnapshot();
         candidate.bodies_ = updated;
@@ -1621,11 +1626,6 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         validateAnnotationRecords(annotations, nextAnnotation);
     }
     edit.annotationsResolved = true;
-    for (const auto &[source, targets] : edit.transfers)
-        for (auto target : targets)
-            if (!bodies_.contains(source) || !changedBodies.contains(target) ||
-                !changedBodies.at(target))
-                throw std::runtime_error("Invalid geometry transfer lineage");
     if (!edit.drawingAnchorsResolved &&
         drawingAnchorsTouched(drawingItems, report, edit.transfers)) {
         auto candidate = readSnapshot();

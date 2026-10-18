@@ -1,5 +1,8 @@
 #include "core/annotation_anchors.hpp"
+#include "core/annotations.hpp"
+#include "core/components.hpp"
 #include "core/groups.hpp"
+#include "core/selection.hpp"
 #include "geometry/arrangement.hpp"
 #include <iostream>
 #include <limits>
@@ -143,12 +146,228 @@ void validation() {
     invalid.vertices[1] = invalid.vertices[0];
     rejects([&] { validateAnnotationAnchor(invalid); });
 }
+
+// Model annotations follow Edit::transfers, as paper anchors do (ADR 0164 addendum):
+// geometry that moves to another context with its IDs unchanged keeps its annotations.
+Id vertexAt(const Document &doc, Id body, Vec3 point) {
+    for (const auto &[id, p] : doc.bodies().at(body)->surface.vertices)
+        if (length(p - point) < 1e-9)
+            return id;
+    throw std::runtime_error("No vertex at the point");
+}
+Id edgeBetween(const Document &doc, Id body, Vec3 a, Vec3 b) {
+    const auto va = vertexAt(doc, body, a), vb = vertexAt(doc, body, b);
+    for (const auto &[id, e] : doc.bodies().at(body)->topology.edges)
+        if ((e.a == va && e.b == vb) || (e.a == vb && e.b == va))
+            return id;
+    throw std::runtime_error("No edge between the points");
+}
+Id annotate(Document &doc, const char *name, AnnotationKind kind,
+            std::vector<AnnotationAnchor> anchors) {
+    AnnotationRecord record;
+    record.name = name;
+    record.kind = kind;
+    record.anchors = std::move(anchors);
+    if (kind == AnnotationKind::Label)
+        record.text = name;
+    return createAnnotation(doc, std::move(record));
+}
+// Two unit squares sharing the edge x = 1 in one raw geometry body.
+struct Pair {
+    Document doc;
+    Id body{}, left{}, right{};
+    Pair() {
+        body = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}}, "Pair");
+        left = doc.bodies().at(body)->surface.faces.begin()->first;
+        const auto old = doc.bodies().at(body);
+        auto joined = std::make_shared<Body>(*old);
+        right = joined->surface.addFace({{{1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 1, 0}}});
+        doc.apply({"Adjacent fixture", {{body, old, joined}}}, doc.revision());
+    }
+};
+using Records = std::map<Id, AnnotationRecord>;
+Records snapshot(const Document &doc) {
+    Records result;
+    for (const auto &[id, record] : doc.annotations())
+        result.emplace(id, *record);
+    return result;
+}
+std::map<Id, std::vector<Vec3>> worldPoints(const Document &doc) {
+    std::map<Id, std::vector<Vec3>> result;
+    for (const auto &[id, record] : doc.annotations())
+        for (const auto &anchor : record->anchors) {
+            const auto resolved = resolveAnnotationAnchor(doc, anchor);
+            check(resolved.state == AnchorState::Resolved, "Annotation anchor resolves");
+            result[id].push_back(resolved.point);
+        }
+    return result;
+}
+void samePoints(const Document &doc, const std::map<Id, std::vector<Vec3>> &expected,
+                const char *message) {
+    const auto actual = worldPoints(doc);
+    check(actual.size() == expected.size(), message);
+    for (const auto &[id, points] : expected)
+        for (size_t i = 0; i < points.size(); ++i)
+            near(actual.at(id)[i], points[i], message);
+}
+// Make component of a body with its own geometry moves it into the new member: vertex,
+// edge and face anchors all follow, with their IDs unchanged.
+void makeComponentOfBody() {
+    Pair f;
+    auto &doc = f.doc;
+    const auto bottom = edgeBetween(doc, f.body, {0, 0, 0}, {1, 0, 0});
+    const auto corner = vertexAt(doc, f.body, {2, 1, 0});
+    const auto distance = annotate(doc, "Run", AnnotationKind::Distance,
+                                   {vertexAnchor(doc, f.body, vertexAt(doc, f.body, {0, 0, 0})),
+                                    edgeAnchor(doc, f.body, bottom, .25)});
+    const auto vertexLabel =
+        annotate(doc, "Corner", AnnotationKind::Label, {vertexAnchor(doc, f.body, corner)});
+    const auto faceLabel = annotate(doc, "Bay", AnnotationKind::Label,
+                                    {faceAnchor(doc, f.body, f.right, {1.5, .5, 0})});
+    const auto points = worldPoints(doc);
+    const auto original = snapshot(doc);
+    const auto entries = doc.history().total;
+    const auto component = createComponent(doc, f.body, "Pair");
+    const auto member = component.movedGeometry.at(f.body);
+    check(doc.history().total == entries + 1, "Make component is one history entry");
+    const auto made = snapshot(doc);
+    for (const auto &[id, record] : made) {
+        const auto &old = original.at(id);
+        check(record.anchors.size() == old.anchors.size(), "Anchor count is kept");
+        for (size_t i = 0; i < record.anchors.size(); ++i) {
+            const auto &anchor = record.anchors[i], &was = old.anchors[i];
+            check(anchor.body == member && anchor.kind == was.kind && anchor.entity == was.entity &&
+                      anchor.vertices == was.vertices && anchor.weights == was.weights &&
+                      anchor.parameter == was.parameter && anchor.state == AnchorState::Resolved,
+                  "The anchor follows its geometry into the member with every ID unchanged");
+        }
+        auto restored = record;
+        restored.anchors = old.anchors;
+        check(restored == old, "Only the anchors of the annotation change");
+    }
+    check(made.size() == 3 && made.contains(distance) && made.contains(vertexLabel) &&
+              made.contains(faceLabel),
+          "Every annotation is kept");
+    samePoints(doc, points, "Annotations stay on the same world points");
+    doc.undo();
+    check(snapshot(doc) == original, "Undo restores the exact annotation records");
+    doc.redo();
+    check(snapshot(doc) == made, "Redo restores the exact annotation records");
+}
+// Group a selection: only the entities that left the source follow the transfer; the
+// shared boundary stays in the source, where it still resolves by ID.
+void groupSelection() {
+    Pair f;
+    auto &doc = f.doc;
+    const auto leftBottom = edgeBetween(doc, f.body, {0, 0, 0}, {1, 0, 0});
+    const auto shared = edgeBetween(doc, f.body, {1, 0, 0}, {1, 1, 0});
+    const auto rightTop = edgeBetween(doc, f.body, {1, 1, 0}, {2, 1, 0});
+    const auto moving = annotate(doc, "Left", AnnotationKind::Distance,
+                                 {vertexAnchor(doc, f.body, vertexAt(doc, f.body, {0, 1, 0})),
+                                  edgeAnchor(doc, f.body, leftBottom, .5)});
+    const auto face = annotate(doc, "Left face", AnnotationKind::Label,
+                               {faceAnchor(doc, f.body, f.left, {.25, .5, 0})});
+    const auto staying = annotate(
+        doc, "Right", AnnotationKind::Distance,
+        {edgeAnchor(doc, f.body, rightTop, .5), faceAnchor(doc, f.body, f.right, {1.5, .5, 0})});
+    const auto boundary = annotate(doc, "Shared", AnnotationKind::Distance,
+                                   {edgeAnchor(doc, f.body, shared, .5),
+                                    vertexAnchor(doc, f.body, vertexAt(doc, f.body, {1, 0, 0}))});
+    const auto points = worldPoints(doc);
+    const auto original = snapshot(doc);
+    Selection selection;
+    selection.apply(doc, {{f.body, SelectionKind::Face, f.left}}, SelectionMode::Replace);
+    const auto entries = doc.history().total;
+    const auto grouped = groupSelected(doc, selection);
+    const auto member = grouped.movedGeometry.at(f.body);
+    check(doc.history().total == entries + 1, "Group selection is one history entry");
+    const auto made = snapshot(doc);
+    for (auto id : {moving, face})
+        for (const auto &anchor : made.at(id).anchors)
+            check(anchor.body == member && anchor.state == AnchorState::Resolved,
+                  "Annotations on the grouped face follow it into the group's member");
+    for (auto id : {staying, boundary})
+        check(made.at(id) == original.at(id),
+              "Annotations on the ungrouped face and the shared boundary are untouched");
+    check(doc.bodies().at(f.body)->topology.edges.contains(shared) &&
+              doc.bodies().at(member)->topology.edges.contains(shared),
+          "The shared boundary exists in both contexts, so it never needs a transfer");
+    samePoints(doc, points, "Annotations stay on the same world points");
+    doc.undo();
+    check(snapshot(doc) == original, "Undo restores the exact annotation records");
+    doc.redo();
+    check(snapshot(doc) == made, "Redo restores the exact annotation records");
+}
+// When a transfer does not name exactly one successor at the same place the anchor
+// breaks as before: no re-binding by geometry.
+void ambiguousTransfersBreak() {
+    Pair f;
+    auto &doc = f.doc;
+    const auto bottom = edgeBetween(doc, f.body, {0, 0, 0}, {1, 0, 0});
+    annotate(doc, "Run", AnnotationKind::Distance,
+             {vertexAnchor(doc, f.body, vertexAt(doc, f.body, {0, 0, 0})),
+              edgeAnchor(doc, f.body, bottom, .5)});
+    annotate(doc, "Bay", AnnotationKind::Label, {faceAnchor(doc, f.body, f.left, {.5, .5, 0})});
+    const auto original = snapshot(doc);
+    // The same IDs in two targets: ambiguous.
+    const auto old = doc.bodies().at(f.body);
+    Edit two{"Duplicate", {{f.body, old, nullptr}}};
+    for (Id id : {doc.nextId(), doc.nextId() + 1}) {
+        auto copy = std::make_shared<Body>(*old);
+        copy->id = id;
+        two.changes.push_back({id, nullptr, copy});
+        two.transfers[f.body].insert(id);
+    }
+    const auto entries = doc.history().total;
+    doc.apply(std::move(two), doc.revision());
+    check(doc.history().total == entries + 1, "The ambiguous edit is one entry");
+    for (const auto &[id, record] : doc.annotations())
+        for (size_t i = 0; i < record->anchors.size(); ++i) {
+            const auto &anchor = record->anchors[i], &was = original.at(id).anchors[i];
+            check(anchor.state == AnchorState::Missing && anchor.body == f.body &&
+                      anchor.entity == was.entity && anchor.fallback == was.fallback,
+                  "Two targets holding the entity break the anchor in place");
+            check(measureAnnotation(doc, *record).state == AnchorState::Missing,
+                  "The broken annotation reports its state");
+        }
+    doc.undo();
+    check(snapshot(doc) == original, "Undo restores the exact annotation records");
+    // One target, but the geometry moved: not the same point.
+    const auto kept = doc.bodies().at(f.body);
+    Edit shifted{"Shift", {{f.body, kept, nullptr}}};
+    auto copy = std::make_shared<Body>(*kept);
+    copy->id = doc.nextId();
+    copy->transform = Transform::translation({0, 3, 0});
+    shifted.changes.push_back({copy->id, nullptr, copy});
+    shifted.transfers[f.body].insert(copy->id);
+    doc.apply(std::move(shifted), doc.revision());
+    for (const auto &[id, record] : doc.annotations())
+        for (const auto &anchor : record->anchors)
+            check(anchor.state == AnchorState::Missing && anchor.body == f.body,
+                  "A transfer to another position is not followed");
+    doc.undo();
+    check(snapshot(doc) == original, "Undo restores the exact annotation records");
+    // No transfer is named: nothing is re-bound by matching IDs and positions.
+    const auto bare = doc.bodies().at(f.body);
+    Edit unnamed{"Copy without lineage", {{f.body, bare, nullptr}}};
+    auto twin = std::make_shared<Body>(*bare);
+    twin->id = doc.nextId();
+    unnamed.changes.push_back({twin->id, nullptr, twin});
+    doc.apply(std::move(unnamed), doc.revision());
+    for (const auto &[id, record] : doc.annotations())
+        for (const auto &anchor : record->anchors)
+            check(anchor.state == AnchorState::Missing && anchor.body == f.body,
+                  "Without a named transfer the anchor is not re-bound");
+}
 } // namespace
 int main() {
     try {
         edges();
         faces();
         validation();
+        makeComponentOfBody();
+        groupSelection();
+        ambiguousTransfersBreak();
         std::cout << "Annotation anchor references, split lineage, holes, transforms and broken "
                      "states passed\n";
     } catch (const std::exception &error) {
