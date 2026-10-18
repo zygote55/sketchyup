@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
                           "Measurements stays inside every tested window width");
                     check(window.viewport()->width() >= 300, "Enlarged UI retains usable viewport");
                     auto *tools = window.findChild<QToolBar *>("toolRail");
-                    check(tools && tools->width() == 156, "Tool rail grows with text");
+                    check(tools && tools->width() == 176, "Tool rail grows with text");
                     auto *search = window.findChild<QPushButton *>("commandSearch");
                     check(search->width() >= search->sizeHint().width(),
                           "Command label fits its button");

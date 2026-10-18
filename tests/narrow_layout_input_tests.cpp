@@ -969,7 +969,7 @@ void railGroupBehaviour(Fixture &f) {
     RailFixture r(f);
     r.widen();
     r.expectWide("900 px");
-    check(r.rail->width() == 88, "The wide rail is 78 px");
+    check(r.rail->width() == 88, "The wide rail is 88 px");
     // The breakpoint: 800 px is the wide rail, 799 px the grouped one.
     r.widen(800);
     r.expectWide("800 px");
