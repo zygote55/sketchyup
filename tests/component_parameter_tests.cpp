@@ -7,6 +7,7 @@
 #include "core/components.hpp"
 #include "core/groups.hpp"
 #include "core/hosted_components.hpp"
+#include "core/materials.hpp"
 #include "core/transform_selection.hpp"
 #include <algorithm>
 #include <chrono>
@@ -1079,6 +1080,102 @@ void templateEdits() {
                "rebinding an unknown driver");
     std::cout << "template edits and driver state: ok\n";
 }
+// D-038: a paint inside the definition changes no shape, so the drivers bound to the
+// painted member stay bound. Their stored digest follows the new appearance; any other
+// change to the target still makes them changedSinceBound.
+void paintKeepsDriversBound() {
+    auto t = makeTable();
+    auto &doc = t.doc;
+    auto record = [&] { return doc.definitions().at(t.definition)->parameters; };
+    auto driverOf = [&](Id id) -> ComponentDriver {
+        for (const auto &d : record()->drivers)
+            if (d.id == id)
+                return d;
+        throw std::runtime_error("missing driver");
+    };
+    auto state = [&](Id id) {
+        return componentDriverState(*doc.definitions().at(t.definition), doc.definitions(),
+                                    driverOf(id));
+    };
+    auto allBound = [&] {
+        return std::all_of(record()->drivers.begin(), record()->drivers.end(), [&](const auto &d) {
+            return componentDriverState(*doc.definitions().at(t.definition), doc.definitions(),
+                                        d) == ComponentDriverState::Bound;
+        });
+    };
+    const auto opened = record();
+    // A colour on the stretched top.
+    const auto painted = editComponentDefinition(doc, t.definition, [&](Document &draft) {
+        draft.paint(t.top, {.4f, .25f, .1f});
+        return ChangeReport{};
+    });
+    invariant(doc, "painted top");
+    check(doc.definitions().at(t.definition)->members.at(t.top)->color ==
+              std::array<float, 3>{.4f, .25f, .1f},
+          "The paint reaches the template");
+    check(painted.parameterWarnings.empty() && allBound(),
+          "Painting a driven member leaves every driver bound");
+    check(driverOf(t.width).bound != [&] {
+        for (const auto &d : opened->drivers)
+            if (d.id == t.width)
+                return d.bound;
+        return ComponentDigest{};
+    }(), "The painted member's driver is restamped over its new colour");
+    for (const auto &d : opened->drivers)
+        if (d.id != t.width)
+            check(driverOf(d.id).bound == d.bound, "Drivers on unpainted members keep their digest");
+    // A material on the shelf: the repeat (its subtree) and visibility drivers stay bound.
+    const auto oak = createMaterial(doc, "Oak", {.6f, .45f, .3f});
+    const auto material = editComponentDefinition(doc, t.definition, [&](Document &draft) {
+        return assignMaterial(draft, t.shelf, std::nullopt, oak);
+    });
+    invariant(doc, "material on shelf");
+    check(doc.definitions().at(t.definition)->members.at(t.shelf)->materials.front == oak,
+          "The material reaches the template");
+    check(material.parameterWarnings.empty() && state(t.repeat) == ComponentDriverState::Bound &&
+              state(t.visibility) == ComponentDriverState::Bound && allBound(),
+          "A material on a repeated member leaves its drivers bound");
+    // Undo (assignment, material, paint) restores the exact records, digests included.
+    doc.undo();
+    doc.undo();
+    doc.undo();
+    check(*record() == *opened, "Undo restores the stored digests");
+    check(allBound(), "Undo leaves every driver bound");
+    doc.redo();
+    doc.redo();
+    doc.redo();
+    check(allBound(), "Redo leaves every driver bound");
+    // Moving the member still counts, with or without a paint in the same edit.
+    const auto both = editComponentDefinition(doc, t.definition, [&](Document &draft) {
+        draft.paint(t.top, {.1f, .2f, .3f});
+        draft.move(t.top, {0, 0, .01});
+        return ChangeReport{};
+    });
+    invariant(doc, "painted and moved top");
+    check(both.parameterWarnings == std::vector<Id>{t.width} &&
+              state(t.width) == ComponentDriverState::ChangedSinceBound,
+          "A paint with a move marks the driver changed");
+    // A paint does not clear a driver that was already changed.
+    const auto stored = driverOf(t.width).bound;
+    editComponentDefinition(doc, t.definition, [&](Document &draft) {
+        draft.paint(t.top, {.7f, .7f, .7f});
+        return ChangeReport{};
+    });
+    invariant(doc, "repainted changed top");
+    check(state(t.width) == ComponentDriverState::ChangedSinceBound &&
+              driverOf(t.width).bound == stored,
+          "A paint keeps a changed driver changed and its stored digest");
+    rebindComponentDrivers(doc, t.definition, {t.width});
+    const auto moved = editComponentDefinition(doc, t.definition, [&](Document &draft) {
+        draft.move(t.shelf, {0, 0, .01});
+        return ChangeReport{};
+    });
+    invariant(doc, "moved shelf");
+    check(moved.parameterWarnings == std::vector<Id>{t.repeat, t.visibility} &&
+              state(t.width) == ComponentDriverState::Bound,
+          "Moving the shelf still marks its drivers changed");
+    std::cout << "paint keeps drivers bound: ok\n";
+}
 } // namespace
 namespace {
 struct Panel {
@@ -1619,6 +1716,7 @@ int main(int argc, char **argv) {
         {"locks", locks},
         {"unique", uniqueReplacePromote},
         {"template", templateEdits},
+        {"paint", paintKeepsDriversBound},
         {"expression-limits", expressionLimits},
         {"record-limits", recordLimits},
         {"accounting", accounting},

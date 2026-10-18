@@ -1451,11 +1451,14 @@ R094.h is the acceptance layer. It adds no product code.
   the context, the selection and the colour. The driver added with Shift+D is a Visibility
   driver (`open`) on the right back leg. The hand edit is a Move of the shelf inside the
   definition, which makes Repeat Shelf and Visibility Shelf Changed; the strip names them and
-  offers Rebind, and Drivers' Rebind all is one "Rebind 3 drivers" entry.
+  offers Rebind, and Drivers' Rebind all is one "Rebind 3 drivers" entry. Since the D-038
+  fix the paint leaves Stretch Top bound, so the entry is "Rebind 2 drivers".
 - **A paint makes a driver Changed.** A driver's `bound` digest covers its target member's
   whole record (ADR 0165 §4), so painting the top makes Stretch Top Changed, and the strip
   says the driver "now starts from a changed shape". This is the specified state; the wording
   speaks of shape although only the colour changed. The script records it as found.
+  **Fixed by D-038** ([ADR 0165 addendum](0165-constrained-component-parameters.md#addendum-d-038-2026-10-17-a-paint-keeps-its-drivers-bound)):
+  a paint restamps the drivers on the painted member, which stay bound, and no strip appears.
 - **Checks.** Every step's History label and count, the 16 labels in order, undo to the start
   (records equal to the opened model's, minus the revision and allocator marks that undo keeps)
   and redo to the end (equal to the finished session's), and a save, reopen and second save

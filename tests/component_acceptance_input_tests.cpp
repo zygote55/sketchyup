@@ -7,7 +7,8 @@
 // plain wall, then, through the real interface:
 // 1. places the Dining table assembly from the Components tab with a width of 1800 mm;
 // 2. overrides Width and Shelves on the table at its defaults in Entity info, and resets Shelves;
-// 3. opens that table (the dialog → Edit definition at defaults), paints the top, changes the
+// 3. opens that table (the dialog → Edit definition at defaults), paints the top (its Stretch
+//    driver stays bound, D-038), changes the
 //    default Width (the context, the selection and the colour survive regeneration),
 //    adds a Visibility driver with Shift+D, moves the shelf by hand (its drivers show Changed,
 //    and the strip offers Rebind), presses Rebind all and closes the definition (the table's
@@ -384,13 +385,12 @@ QJsonObject editAtDefaults(Fixture &f) {
     const auto painted = std::pair(doc.bodies().at(top)->color, doc.bodies().at(top)->faceColors);
     check(applied(doc) == before + 2 && paintLabel == "Edit shared component definition",
           "Painting the top is one entry, got " + paintLabel);
-    // The Stretch driver's digest covers the top's whole record (ADR 0165 §4), colour included,
-    // so the paint makes it Changed and the strip names it.
+    // A paint changes no shape (D-038): the Stretch driver on the top stays bound, its
+    // digest restamped over the new colour, so no strip appears.
     auto *strip = f.window.findChild<QWidget *>("parameterStatusStrip");
     auto *stripText = strip->findChild<QLabel *>("parameterStatusText");
-    check(QTest::qWaitFor([&] { return strip->isVisible(); }) &&
-              stripText->text().contains("<b>Stretch Top</b>"),
-          "The strip names Stretch Top after the paint, got " + text(stripText->text()));
+    QTest::qWait(20);
+    check(!strip->isVisible(), "The paint shows no strip, got " + text(stripText->text()));
     // The default Width: the shared definition changes, every default placement follows.
     auto *definition = f.definition();
     check(QTest::qWaitFor([&] { return definition->isVisible(); }),
@@ -455,17 +455,18 @@ QJsonObject editAtDefaults(Fixture &f) {
         rows << row;
         changed += row.endsWith(", Changed");
     }
-    check(changed == 3 && rows.join("|").contains("Stretch, Top · x past 450 mm, width, Changed") &&
+    check(changed == 2 && !rows.join("|").contains("Stretch, Top · x past 450 mm, width, Changed") &&
               rows.join("|").contains("Repeat, Shelf") &&
               rows.join("|").contains("Visibility, Shelf, shelves > 0, Changed"),
-          "Stretch Top, Repeat Shelf and Visibility Shelf read Changed in Drivers, got " +
+          "Repeat Shelf and Visibility Shelf read Changed in Drivers, and the painted Stretch "
+          "Top does not, got " +
               text(rows.join(" | ")));
     check(f.view().componentScope() == placement, "Regeneration keeps the edit scope");
     check(strip->findChild<QPushButton *>("parameterStatusRebind")->isVisible() &&
               drivers->rebindAllButton()->isVisible(),
           "The strip offers Rebind, and Drivers offers Rebind all");
     f.press(drivers->rebindAllButton());
-    check(applied(doc) == before + 6 && latestLabel(doc) == "Rebind 3 drivers" &&
+    check(applied(doc) == before + 6 && latestLabel(doc) == "Rebind 2 drivers" &&
               !strip->isVisible() && !drivers->rebindAllButton()->isVisible(),
           "Rebind all is one entry and clears Changed, got " + latestLabel(doc));
     // Close: the placement's own values are restored in one entry.
@@ -655,7 +656,7 @@ int main(int argc, char **argv) {
                                                 "Edit parameter Width",
                                                 "Add Visibility driver",
                                                 "Edit shared component definition",
-                                                "Rebind 3 drivers",
+                                                "Rebind 2 drivers",
                                                 "Restore Table values",
                                                 "Make Table unique",
                                                 "Edit parameter Shelves",

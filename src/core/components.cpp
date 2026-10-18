@@ -788,6 +788,18 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     if (parameters) {
         auto record = *parameters;
         reserveRepeatBlocks(*definition, record, original.get(), original->parameters.get());
+        // A paint changes no shape (D-038): a driver whose target this edit only
+        // painted stays bound, so its digest follows the new appearance. Drivers that
+        // were already changed, or whose target's geometry also changed, keep theirs.
+        if (original->parameters)
+            for (auto &driver : record.drivers)
+                for (const auto &before : original->parameters->drivers)
+                    if (before.id == driver.id && before.kind == driver.kind &&
+                        before.member == driver.member && before.bound == driver.bound &&
+                        componentDriverAppearanceOnly(*original, *definition, doc.definitions(),
+                                                      driver))
+                        driver.bound =
+                            componentDriverDigest(*definition, doc.definitions(), driver);
         definition->parameters = std::make_shared<const ComponentParameters>(std::move(record));
     }
     auto definitions = doc.definitions();

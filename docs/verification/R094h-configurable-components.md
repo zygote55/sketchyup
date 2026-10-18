@@ -82,9 +82,9 @@ is real mouse events on the canvas.
    Width to 1000 mm ("Edit parameter Width": the context, the selection and the top's colour are
    kept, the top regenerates to 1.0 m); Shift+D on the right back leg, Visibility, `open` ("Add
    Visibility driver"); move the shelf by hand with the Move tool; the strip names Repeat Shelf
-   and Visibility Shelf and offers Rebind, and Drivers shows them Changed; Rebind all ("Rebind 3
-   drivers"; see [Findings](#findings) for the third); Esc closes the definition and restores
-   the table's Width ("Restore Table values").
+   and Visibility Shelf and offers Rebind, and Drivers shows them Changed; Rebind all ("Rebind 2
+   drivers"; "Rebind 3 drivers" before the D-038 fix, see [Findings](#findings)); Esc closes
+   the definition and restores the table's Width ("Restore Table values").
 4. **Make unique and edit.** Enter on the table with its own values, Shift+Tab, Space on Make
    unique and edit ("Make Table unique"): a new definition whose default Width is 1.2 m and no
    overrides; Shelves' default 2 in the copy ("Edit parameter Shelves"); closing adds nothing and
@@ -95,7 +95,7 @@ is real mouse events on the canvas.
    unchanged; the wall holds two openings.
 6. **History.** The sixteen entries, in order: Place Dining table · Change Width · Change Shelves
    · Reset Shelves · Edit Table at defaults · Edit shared component definition (paint) · Edit
-   parameter Width · Add Visibility driver · Edit shared component definition (move) · Rebind 3
+   parameter Width · Add Visibility driver · Edit shared component definition (move) · Rebind 2
    drivers · Restore Table values · Make Table unique · Edit parameter Shelves · Place Interior
    door · Place Casement window · Change Width. Sixteen Undos return the records to the opened
    model's (the encoded document without the revision and allocator marks, which undo keeps by
@@ -264,7 +264,11 @@ run (an implementation detail; the documents say only that a ghost follows the p
   strip says it "now starts from a changed shape". This is the specified state; the strip's
   wording speaks of shape where only the colour changed. The script expects it (three Changed
   drivers, "Rebind 3 drivers"). Whether a colour change should count, or the sentence should
-  change, is for the owner.
+  change, is for the owner. **Fixed by D-038 (2026-10-17):** a paint changes no shape, so it
+  restamps the drivers on the painted member, which stay bound
+  ([ADR 0165 addendum](../decisions/0165-constrained-component-parameters.md#addendum-d-038-2026-10-17-a-paint-keeps-its-drivers-bound)).
+  The script now expects no strip after the paint, two Changed drivers after the move, and
+  "Rebind 2 drivers".
 - **The bridge test fails at the base too.** The duplicate "Cancel" comes from R094.f's
   Components tab, which R094.h does not change, so `0f966c17` fails the same way (inferred from
   the cause; the base was not rerun). Fixed in the test.

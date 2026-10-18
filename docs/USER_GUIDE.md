@@ -323,7 +323,8 @@ A change to a default, formula or driver regenerates every placement in the same
 and keeps the open context, the selection and materials. If you edit a part that a
 driver acts on, an amber strip says the driver now starts from a changed shape:
 **Rebind** accepts the new shape and **Undo** reverts the edit. The Drivers list keeps
-the **Changed** state until you rebind.
+the **Changed** state until you rebind. Painting a part changes no shape, so its drivers
+stay bound.
 
 **A placement that has its own values.** Opening a placement whose values differ from
 the defaults asks how to continue:
