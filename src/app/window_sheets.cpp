@@ -1,5 +1,6 @@
 #include "app/interface_preferences.hpp"
 #include "app/keyboard_navigation.hpp"
+#include "app/line_icons.hpp"
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
@@ -21,7 +22,6 @@
 #include <QComboBox>
 #include <QFileInfo>
 #include <QHBoxLayout>
-#include <QIconEngine>
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QMenuBar>
@@ -34,149 +34,6 @@
 #include <QToolButton>
 namespace sketchy {
 namespace {
-// Original 1.5 px line icons for the sheet rail (UX_DESIGN §7), drawn in an 18-unit box in the
-// current ink so they stay sharp at fractional scales and follow the theme.
-class LineIconEngine final : public QIconEngine {
-  public:
-    LineIconEngine(QPainterPath path, QColor ink, QColor disabled)
-        : path_(std::move(path)), ink_(std::move(ink)), disabled_(std::move(disabled)) {}
-    void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State) override {
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
-        painter->translate(rect.topLeft());
-        painter->scale(rect.width() / 18., rect.height() / 18.);
-        painter->setPen(QPen(mode == QIcon::Disabled ? disabled_ : ink_, 1.5, Qt::SolidLine,
-                             Qt::RoundCap, Qt::RoundJoin));
-        painter->setBrush(Qt::NoBrush);
-        painter->drawPath(path_);
-        painter->restore();
-    }
-    QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override {
-        return scaledPixmap(size, mode, state, 1);
-    }
-    QPixmap scaledPixmap(const QSize &size, QIcon::Mode mode, QIcon::State state,
-                         qreal scale) override {
-        QPixmap result(size * scale);
-        result.fill(Qt::transparent);
-        {
-            QPainter painter(&result);
-            paint(&painter, QRect(QPoint(), size * scale), mode, state);
-        }
-        result.setDevicePixelRatio(scale);
-        return result;
-    }
-    QIconEngine *clone() const override { return new LineIconEngine(*this); }
-
-  private:
-    QPainterPath path_;
-    QColor ink_, disabled_;
-};
-QPainterPath selectIcon() {
-    QPainterPath path;
-    path.moveTo(4, 2);
-    for (const auto &point : {QPointF(13, 8), QPointF(9, 9), QPointF(11, 14), QPointF(9, 15),
-                              QPointF(7, 10), QPointF(4, 13)})
-        path.lineTo(point);
-    path.closeSubpath();
-    return path;
-}
-QPainterPath panIcon() {
-    QPainterPath path;
-    path.moveTo(6, 9);
-    path.lineTo(6, 4);
-    path.arcTo(QRectF(6, 3, 2, 2), 180, -180);
-    path.lineTo(8, 8);
-    path.moveTo(8, 8);
-    path.lineTo(8, 3);
-    path.arcTo(QRectF(8, 2, 2, 2), 180, -180);
-    path.lineTo(10, 8);
-    path.moveTo(10, 8);
-    path.lineTo(10, 4);
-    path.arcTo(QRectF(10, 3, 2, 2), 180, -180);
-    path.lineTo(12, 10);
-    path.cubicTo(12, 13, 10, 15, 7, 15);
-    path.cubicTo(4, 15, 3, 13, 2, 11);
-    path.lineTo(1, 9);
-    path.cubicTo(.7, 8, 2.2, 7, 3, 8);
-    path.lineTo(4, 10);
-    return path;
-}
-QPainterPath zoomIcon() {
-    QPainterPath path;
-    path.addEllipse(QPointF(8, 8), 5, 5);
-    path.moveTo(12, 12);
-    path.lineTo(16, 16);
-    return path;
-}
-QPainterPath modelViewIcon() {
-    QPainterPath path;
-    path.addRoundedRect(QRectF(2, 3, 14, 12), 1, 1);
-    path.moveTo(5, 12);
-    path.lineTo(8, 8);
-    path.lineTo(10, 10);
-    path.lineTo(13, 6);
-    return path;
-}
-QPainterPath moveIcon() {
-    QPainterPath path;
-    path.moveTo(9, 2);
-    path.lineTo(9, 16);
-    path.moveTo(2, 9);
-    path.lineTo(16, 9);
-    for (const auto &[tip, a, b] : {std::tuple{QPointF(9, 2), QPointF(7, 4), QPointF(11, 4)},
-                                    std::tuple{QPointF(9, 16), QPointF(7, 14), QPointF(11, 14)},
-                                    std::tuple{QPointF(2, 9), QPointF(4, 7), QPointF(4, 11)},
-                                    std::tuple{QPointF(16, 9), QPointF(14, 7), QPointF(14, 11)}}) {
-        path.moveTo(a);
-        path.lineTo(tip);
-        path.lineTo(b);
-    }
-    return path;
-}
-// The page-item tools (R091.g), from the R091 design's rail.
-QPainterPath lineIcon() {
-    QPainterPath path;
-    path.moveTo(3, 15);
-    path.lineTo(15, 3);
-    return path;
-}
-QPainterPath rectangleIcon() {
-    QPainterPath path;
-    path.addRect(QRectF(3, 5, 12, 8));
-    return path;
-}
-QPainterPath textIcon() {
-    QPainterPath path;
-    path.moveTo(4, 4);
-    path.lineTo(14, 4);
-    path.moveTo(9, 4);
-    path.lineTo(9, 15);
-    return path;
-}
-QPainterPath labelIcon() {
-    QPainterPath path;
-    path.moveTo(3, 15);
-    path.lineTo(9, 9);
-    path.lineTo(15, 9);
-    path.addEllipse(QPointF(3, 15), 1.2, 1.2);
-    return path;
-}
-QPainterPath dimensionIcon() {
-    QPainterPath path;
-    path.moveTo(2, 9);
-    path.lineTo(16, 9);
-    path.moveTo(2, 6);
-    path.lineTo(2, 12);
-    path.moveTo(16, 6);
-    path.lineTo(16, 12);
-    path.moveTo(5, 7);
-    path.lineTo(2, 9);
-    path.lineTo(5, 11);
-    path.moveTo(13, 7);
-    path.lineTo(16, 9);
-    path.lineTo(13, 11);
-    return path;
-}
 // The scale a new view gets: the scale every measurable view on the page shares, else the
 // first view's, else 1:50. True when it comes from the page.
 std::pair<double, bool> pageScale(const Document &doc, DrawingViewRenderCache &cache, Id sheet) {
@@ -654,18 +511,17 @@ void Window::themeSheets(const ThemeColors &colors) {
     if (sheetExport_)
         sheetExport_->setTheme(colors);
     for (const auto &[id, path] : std::vector<std::pair<const char *, QPainterPath>>{
-             {"sheet.tool.select", selectIcon()},
-             {"sheet.tool.view", modelViewIcon()},
-             {"sheet.tool.line", lineIcon()},
-             {"sheet.tool.rectangle", rectangleIcon()},
-             {"sheet.tool.text", textIcon()},
-             {"sheet.tool.label", labelIcon()},
-             {"sheet.tool.dimension", dimensionIcon()},
-             {"sheet.tool.move", moveIcon()},
-             {"sheet.tool.pan", panIcon()},
-             {"sheet.tool.zoom", zoomIcon()}})
-        findChild<QAction *>(id)->setIcon(
-            QIcon(new LineIconEngine(path, colors.ink, colors.muted)));
+             {"sheet.tool.select", icons::selectIcon()},
+             {"sheet.tool.view", icons::modelViewIcon()},
+             {"sheet.tool.line", icons::lineIcon()},
+             {"sheet.tool.rectangle", icons::rectangleIcon()},
+             {"sheet.tool.text", icons::textIcon()},
+             {"sheet.tool.label", icons::labelIcon()},
+             {"sheet.tool.dimension", icons::dimensionIcon()},
+             {"sheet.tool.move", icons::moveIcon()},
+             {"sheet.tool.pan", icons::panIcon()},
+             {"sheet.tool.zoom", icons::zoomIcon()}})
+        findChild<QAction *>(id)->setIcon(strokeIcon(path, colors.ink, colors.muted));
 }
 void Window::sheetTool(int value) {
     const auto tool = SheetCanvas::Tool(value);
@@ -678,8 +534,12 @@ void Window::sheetTool(int value) {
     if (workspace_ != Workspace::Sheets)
         return;
     if (tool == SheetCanvas::Tool::View) {
-        sideTabs_->show();
-        sideTabs_->setCurrentWidget(tray_);
+        // In the narrow layout the Sheets panel stays in its closed overlay sheet: placing
+        // clicks the page, which would close the sheet (More panels opens it).
+        if (!narrowLayout()) {
+            sideTabs_->show();
+            sideTabs_->setCurrentWidget(tray_);
+        }
         refreshPlacement();
     }
     sheetInstruction_.clear();

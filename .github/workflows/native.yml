@@ -312,6 +312,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_size_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/sidebar_resize_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/narrow_layout_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_label_overlap_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/shortcut_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/measured_input_tests
@@ -463,6 +464,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/text_size_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/sidebar_resize_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/narrow_layout_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_label_overlap_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/shortcut_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/measured_input_tests
@@ -607,6 +609,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/visible_focus_input_tests --workspace=sheets
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/text_size_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/sidebar_resize_input_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/narrow_layout_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/viewport_label_overlap_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/shortcut_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/measured_input_tests
@@ -748,6 +751,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/visible_focus_input_tests --workspace=sheets
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/text_size_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sidebar_resize_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/narrow_layout_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/viewport_label_overlap_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/shortcut_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/measured_input_tests
@@ -1158,7 +1162,7 @@ jobs:
         run: |
           export SKETCHYUP_WAYLAND_CLIENT_LIBRARY="$PWD/build/ci-wayland-client/lib"
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON
-          cmake --build --preset sanitize --target file_operation_input_tests shortcut_input_tests keyboard_modeling_input_tests preference_input_tests extension_input_tests library_input_tests measured_input_tests dxf_input_tests stl_input_tests obj_input_tests gltf_input_tests m7_presentation_input_tests navigation_input_tests reference_image_input_tests raster_export_input_tests solar_input_tests text_input_tests annotation_input_tests annotation_viewport_tests section_input_tests section_viewport_tests scene_input_tests style_input_tests style_viewport_tests texture_input_tests texture_cache_tests texture_viewport_tests material_viewport_tests m6_workflow_input_tests viewport_precision_tests site_recipe_input_tests furniture_recipe_input_tests stair_recipe_input_tests roof_recipe_input_tests recipe_hosted_input_tests hosted_array_input_tests hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests theme_input_tests text_size_input_tests keyboard_outliner_input_tests component_parameter_input_tests component_authoring_input_tests component_parameter_state_input_tests assembly_library_input_tests component_acceptance_input_tests --parallel 4
+          cmake --build --preset sanitize --target file_operation_input_tests shortcut_input_tests keyboard_modeling_input_tests preference_input_tests extension_input_tests library_input_tests measured_input_tests dxf_input_tests stl_input_tests obj_input_tests gltf_input_tests m7_presentation_input_tests navigation_input_tests reference_image_input_tests raster_export_input_tests solar_input_tests text_input_tests annotation_input_tests annotation_viewport_tests section_input_tests section_viewport_tests scene_input_tests style_input_tests style_viewport_tests texture_input_tests texture_cache_tests texture_viewport_tests material_viewport_tests m6_workflow_input_tests viewport_precision_tests site_recipe_input_tests furniture_recipe_input_tests stair_recipe_input_tests roof_recipe_input_tests recipe_hosted_input_tests hosted_array_input_tests hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests theme_input_tests text_size_input_tests narrow_layout_input_tests keyboard_outliner_input_tests component_parameter_input_tests component_authoring_input_tests component_parameter_state_input_tests assembly_library_input_tests component_acceptance_input_tests --parallel 4
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_array_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/recipe_hosted_input_tests
@@ -1185,6 +1189,7 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/keyboard_outliner_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/theme_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/text_size_input_tests
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/narrow_layout_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/shortcut_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/component_parameter_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/component_authoring_input_tests

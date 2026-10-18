@@ -598,6 +598,13 @@ int main(int argc, char **argv) {
             QTest::qWait(250);
             std::cout << "Layout requested " << width << ", actual " << window.width() << " x "
                       << window.height() << ", DPR " << window.devicePixelRatioF() << '\n';
+            // Below 1100 px the Assistant opens in the narrow layout's overlay sheet, from its
+            // strip button (UX_DESIGN §3.3).
+            auto *sheet = window.findChild<QWidget *>("panelOverlay");
+            if (window.width() < 1100 && !panel.isVisible()) {
+                window.findChild<QAction *>("panelStrip.assistant")->trigger();
+                QTest::qWait(100);
+            }
             check(panel.isVisible() && panel.width() >= 240 && window.viewport()->width() >= 160,
                   "Panel remains usable at target width");
             check(applyButton->isVisible() && panel.rect().contains(applyButton->mapTo(
@@ -610,24 +617,19 @@ int main(int argc, char **argv) {
                       "Save viewport framebuffer with measured overlay");
                 check(window.grab().save(directory + QString("/assistant-%1.png").arg(width)),
                       "Save native assistant layout");
-                if (auto *sheet = window.findChild<QDialog *>("assistantSheet");
-                    sheet && sheet->isVisible())
-                    check(sheet->grab().save(directory +
-                                             QString("/assistant-sheet-%1.png").arg(width)),
-                          "Save native assistant sheet");
             }
+            check(!window.findChild<QDialog *>("assistantSheet"),
+                  "No separate Assistant dialog at any width");
             if (width == 640 && window.width() < 1100) {
-                auto *sheet = window.findChild<QDialog *>("assistantSheet");
-                check(sheet && sheet->isVisible() &&
-                          sheet->height() <= std::max(480, window.height()),
+                check(sheet && sheet->isVisible() && sheet->isAncestorOf(&panel) &&
+                          sheet->geometry().bottom() < window.height(),
                       "Smallest assistant sheet fits the supported minimum window height");
-                sheet->activateWindow();
-                check(QTest::qWaitForWindowActive(sheet), "Narrow sheet active for Escape");
                 panel.setFocus();
                 QTest::keyClick(&panel, Qt::Key_Escape);
                 check(!sheet->isVisible(), "Escape returns from the narrow sheet to the model");
                 window.findChild<QAction *>("view.assistant")->trigger();
-                check(sheet->isVisible(), "Assistant action reopens the narrow sheet");
+                check(sheet->isVisible() && panel.isVisible(),
+                      "Assistant action reopens the narrow sheet");
             }
         }
         panel.stop();

@@ -361,7 +361,9 @@ int main(int argc, char **argv) {
                 save(dialog);
             });
             action(window, "view.assistant")->trigger();
-            auto *sheet = window.findChild<QDialog *>("assistantSheet");
+            // Below 1100 px the Assistant is in the narrow layout's overlay sheet (UX_DESIGN
+            // §3.3), and its shortcut is the window's own action.
+            auto *sheet = window.findChild<QWidget *>("panelOverlay");
             auto *composer = window.findChild<QPlainTextEdit *>("assistantComposer");
             if (!(sheet && sheet->isVisible() && composer &&
                   QTest::qWaitFor([&] { return composer->hasFocus(); })))
@@ -385,10 +387,11 @@ int main(int argc, char **argv) {
             check(QTest::qWaitFor([&] { return composer->hasFocus(); }), "Composer focus restored");
             composer->clear();
             QTest::keyClicks(composer, "y");
-            check(sheet->isVisible() && composer->toPlainText() == "y" &&
-                      !sheet->findChild<QShortcut *>("assistantSheetToggle")->isEnabled(),
+            check(sheet->isVisible() && composer->toPlainText() == "y",
                   "Plain assistant binding cannot intercept composer typing");
-            sheet->reject();
+            QTest::keyClick(composer, Qt::Key_Escape);
+            check(QTest::qWaitFor([&] { return !sheet->isVisible(); }),
+                  "Escape closes the narrow Assistant sheet");
             check(encodeContainer(window.document()) == content && !window.document().canUndo(),
                   "Shortcut edits preserve model/history");
         }
