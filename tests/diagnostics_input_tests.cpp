@@ -284,7 +284,12 @@ int main(int argc, char **argv) {
         doc = Document{};
         cube(doc);
         view.refresh();
-        QTest::qWait(250);
+        QTest::qWaitFor(
+            [&] {
+                return !button(report, "diagnosticsRefresh")->isEnabled() &&
+                       !button(report, "diagnosticsFrame")->isEnabled();
+            },
+            5000);
         check(!button(report, "diagnosticsRefresh")->isEnabled() &&
                   !button(report, "diagnosticsFrame")->isEnabled(),
               "Replacement document cannot reuse old numeric references");

@@ -664,7 +664,12 @@ void annotate(Window &window, const QString &path, const Fixture &f) {
         auto *pages = tray->pages();
         const auto width = tray->width();
         tray->setFixedWidth(248);
-        QTest::qWait(100);
+        QTest::qWaitFor(
+            [&] {
+                return !pages->horizontalScrollBar()->isVisible() &&
+                       pages->header()->length() <= pages->viewport()->width();
+            },
+            5000);
         QCoreApplication::processEvents();
         check(!pages->horizontalScrollBar()->isVisible() &&
                   pages->header()->length() <= pages->viewport()->width(),

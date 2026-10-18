@@ -383,7 +383,7 @@ int main(int argc, char **argv) {
               "Native Outer Shell fills cavity and removes covered island");
         volume(doc, view.selectionState().entities().begin()->body, 8);
         tabs->setCurrentIndex(2);
-        QTest::qWait(100);
+        QTest::qWaitFor([&] { return readout->text() == "8 m³"; }, 5000);
         check(readout->text() == "8 m³", "Native Info reports filled material volume");
         if (!solidCapture.isEmpty()) {
             view.standardView(0);
