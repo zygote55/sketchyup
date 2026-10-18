@@ -110,6 +110,12 @@ interaction between Qt 6.11.2's JSON parser and the libFuzzer/ASan runtime, not 
 a SketchyUp defect. The root cause is not established. The finding stays open,
 and no application code or regression test was changed in this layer.
 
+**Resolved 2026-10-18 ([R083.i](R083i-fuzz-asan.md)).** The mismatch comes from the libFuzzer
+link: the fuzzer runtime's private libc++ supplies every `operator new`/`delete` except the
+nothrow ones, which ASan supplies, so Qt's nothrow `new` and sized `delete` (libstdc++'s
+`std::stable_sort` buffer) reach two allocators. The fuzz targets now define the nothrow forms,
+and all targets run under the documented options.
+
 ## Default build
 
 `cmake --preset dev` configures with `SKETCHYUP_BUILD_FUZZERS=OFF` and generates

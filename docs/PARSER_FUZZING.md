@@ -31,12 +31,13 @@ TMPDIR="$PWD/build/fuzz-scratch" ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 \
   -detect_leaks=1 -print_final_stats=1 -artifact_prefix=build/fuzz-artifacts/
 ```
 
-With Qt 6.11.2, the six JSON-based targets (native JSON/container, GLB, template,
-component and extension) stop on their first valid seed with an ASan
-alloc-dealloc mismatch reported entirely inside `QJsonDocument::fromJson`. A
-libFuzzer program that links only Qt reproduces it; plain ASan does not. Run those
-targets with `alloc_dealloc_mismatch=0` added to `ASAN_OPTIONS` and record that
-option with the results. See [R083.e](verification/R083e-parser-fuzzing.md).
+Run every target, including the six JSON-based ones, with these options; no ASan check
+is disabled. The targets link `tests/fuzz/fuzzer_allocation.cpp`, which gives the nothrow
+`operator new` and `delete` the same definitions as the rest of the target. Without it, the
+libFuzzer runtime's private libc++ supplies every other form while ASan supplies the nothrow
+ones, and Qt's JSON parser (a nothrow `new` released by a sized `delete` in libstdc++'s
+`std::stable_sort` buffer) stopped on its first seed with a false alloc-dealloc mismatch
+(D-022). See [R083.i](verification/R083i-fuzz-asan.md).
 
 A `parameter-expression` input is one formula. It is parsed, then checked and
 evaluated against a fixed table with one parameter of every type. Its invariants:
