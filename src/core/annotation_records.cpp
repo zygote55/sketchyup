@@ -82,11 +82,21 @@ void resolveAnnotationEdit(const Document &before, const Document &after,
             validateAnnotationCapture(after, *pointer);
             continue;
         }
-        if (changes.empty())
+        if (changes.empty() && edit.transfers.empty())
             continue; // Style, units and metadata cannot move geometric support.
         auto updated = *pointer;
-        for (auto &anchor : updated.anchors)
-            anchor = remapAnnotationAnchor(before, after, changes, anchor);
+        for (auto &anchor : updated.anchors) {
+            // Topology lineage first; an anchor whose entity left its context then
+            // follows the edit's geometry transfers, as paper anchors do.
+            const auto remapped = remapAnnotationAnchor(before, after, changes, anchor);
+            if (remapped.state != AnchorState::Resolved)
+                if (const auto moved =
+                        transferAnnotationAnchor(before, after, edit.transfers, anchor)) {
+                    anchor = *moved;
+                    continue;
+                }
+            anchor = remapped;
+        }
         if (updated == *pointer)
             continue;
         pointer = std::make_shared<AnnotationRecord>(std::move(updated));
