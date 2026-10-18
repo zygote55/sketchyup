@@ -12,6 +12,11 @@
    public 300 s ceiling, and the complete set must score as passing, including the
    recorded wire instructions. An injected extra history step must be detected and
    block scoring.
+3. Refused replies (ADR 0167): one extra replayed Room run batches transaction.inspect
+   with transaction.diff (accepted), then sends a reply that breaks a host rule
+   (transaction.preview before an inspection). That reply is answered with tool errors
+   naming the rule, executes nothing, and the task continues to a committed, verified
+   edit with passing undo and recovery postconditions. This run is not scored.
 """
 import copy
 import hashlib
@@ -78,6 +83,58 @@ def commands(trial, body):
             {'command': 'assembly.cabinet', 'origin': [2, -2, 0]}]
 
 
+REFUSED_RULE = ('transaction.preview must be the last call in a reply; send it after the '
+                'other calls.')
+
+
+def refusal_reply(request):
+    """Room replay with a read-only batch and a refused reply (ADR 0167)."""
+    messages = request['messages']
+    users = [m['content'] for m in messages if m['role'] == 'user']
+    check(classify(users[0]) == 'room', 'Refusal replay drives the Room task')
+    session = json.loads(users[1].split('\n', 1)[1])['session']
+    results = [json.loads(m['content']) for m in messages if m['role'] == 'tool']
+    operation = {'apiVersion': 1, 'documentId': session['documentId']}
+    draft = results[0]['data']['transactionId'] if results else None
+    aliases = {tool['function']['description'].split(':', 1)[0]: tool['function']['name']
+               for tool in request['tools']}
+    preview = ('transaction.preview', dict(operation, operation='transaction.preview',
+                                           transactionId=draft, expectedVersion=1))
+    if len(results) == 0:
+        calls = [('transaction.begin', dict(operation, operation='transaction.begin',
+                                            expectedRevision=session['revision']))]
+    elif len(results) == 1:
+        calls = [('transaction.apply', dict(operation, operation='transaction.apply',
+                                            transactionId=draft, expectedVersion=0,
+                                            operationId='replay', commands=commands('room', None)))]
+    else:
+        check(all(result['isError'] is False for result in results[:4]),
+              'Begin, apply and the batched draft reads succeed')
+        proposed = results[1]['data']['proposedRevision']
+        inspect = ('transaction.inspect', dict(
+            operation, operation='transaction.inspect', transactionId=draft,
+            request={'apiVersion': 1, 'query': 'document.describe',
+                     'documentId': session['documentId'], 'expectedRevision': proposed}))
+        if len(results) == 2:
+            calls = [inspect, ('transaction.diff', dict(operation, operation='transaction.diff',
+                                                         transactionId=draft, limit=100))]
+        elif len(results) == 4:
+            calls = [preview, inspect]
+        else:
+            check(len(results) == 6, 'Refusal replay ends at preview')
+            for refused in results[4:]:
+                check(refused['isError'] is True and refused['data']['code'] == 'PREVIEW_NOT_LAST'
+                      and refused['data']['message'] == REFUSED_RULE and
+                      refused['data']['executed'] is False,
+                      'Refused reply is answered with tool errors naming the rule')
+            calls = [preview]
+    message = {'role': 'assistant', 'content': '',
+               'tool_calls': [{'function': {'name': aliases[name], 'arguments': arguments}}
+                              for name, arguments in calls]}
+    return {'model': MODEL, 'done': True, 'done_reason': 'stop', 'message': message,
+            'prompt_eval_count': 100, 'eval_count': 40}
+
+
 def reply(request):
     messages = request['messages']
     check(messages[0]['role'] == 'system' and 'untrusted model data' in messages[0]['content'],
@@ -133,6 +190,8 @@ def reply(request):
 
 
 class Replay(http.server.BaseHTTPRequestHandler):
+    respond = staticmethod(reply)
+
     def send(self, value):
         body = json.dumps(value).encode()
         self.send_response(200)
@@ -153,7 +212,7 @@ class Replay(http.server.BaseHTTPRequestHandler):
                                       'fixture.context_length': 32768}})
         else:
             check(self.path == '/api/chat', 'Unexpected replay POST')
-            self.send(reply(request))
+            self.send(self.respond(request))
 
     def log_message(self, *args):
         pass
@@ -290,6 +349,34 @@ def postconditions(trial_binary, root, env):
         server.shutdown()
 
 
+class RefusalReplay(Replay):
+    respond = staticmethod(refusal_reply)
+
+
+def refusals(trial_binary, root, env):
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), RefusalReplay)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        _, data = run(trial_binary, root, env, server.server_port, 'room', 'room-refusal.json')
+    finally:
+        server.shutdown()
+    tools = [m for m in data['transcript'] if m.get('role') == 'tool']
+    check(len(tools) == 7 and [m['isError'] for m in tools] ==
+          [False, False, False, False, True, True, False],
+          'Batched reads are accepted and only the refused reply has tool errors')
+    check(all(m['data'].get('refused') is True and m['data']['code'] == 'PREVIEW_NOT_LAST'
+              for m in tools[4:6]), 'Both calls of the refused reply name the rule')
+    previews = [r for r in data['executedReceipts']
+                if r['request'].get('operation') == 'transaction.preview']
+    check(len(previews) == 1, 'The refused preview never executed')
+    check(data['result']['providerTurns'] == 5 and data['result']['toolCalls'] == 7,
+          'The refused reply used its turn and tool calls')
+    check(data['geometryVerified'] and data['result']['applied'] is True and
+          data['undoRestores'] and data['recoveryRestores'],
+          'The task continued after the refusal to a verified commit: ' +
+          json.dumps(data['postconditions']))
+
+
 with tempfile.TemporaryDirectory(prefix='sketchyup-corpus-') as name:
     root = Path(name)
     env = dict(os.environ, XDG_CONFIG_HOME=str(root / 'config'),
@@ -297,6 +384,7 @@ with tempfile.TemporaryDirectory(prefix='sketchyup-corpus-') as name:
                NO_PROXY='127.0.0.1', no_proxy='127.0.0.1')
     freeze(sys.argv[1], root, env)
     postconditions(sys.argv[1], root, env)
+    refusals(sys.argv[1], root, env)
 print('Eight frozen fixtures and the native assistant surface reproduced twice; 24 replayed '
       'v4 native-session runs restore undo and recovery; injected split commit blocks scoring; '
-      'no provider requests.')
+      'a refused reply is answered with tool errors and the task commits; no provider requests.')

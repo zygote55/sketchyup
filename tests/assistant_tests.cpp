@@ -631,6 +631,60 @@ int main(int argc, char **argv) {
                       task.result()["toolCalls"] == 0,
                   "Duplicate IDs rejected before executing any tool");
         }
+        {
+            // ADR 0167: a well-formed reply that breaks a host rule is refused as a whole.
+            auto model = session();
+            AssistantTask task(*model, options());
+            const auto s = state(*model);
+            auto request = task.nextRequest();
+            const auto begin = op(s, "transaction.begin", {{"expectedRevision", s["revision"]}});
+            AssistantReply reply;
+            reply.inputTokens = 10;
+            reply.outputTokens = 5;
+            reply.calls = {{"early-preview", "transaction.preview",
+                            op(s, "transaction.preview",
+                               {{"transactionId", "00000000-0000-4000-8000-000000000000"},
+                                {"expectedVersion", 1}})},
+                           {"begin", "transaction.begin", begin}};
+            check(task.accept(request->value("attemptId").toString(), reply) &&
+                      task.phase() == AssistantTask::Phase::Ready &&
+                      task.result()["toolCalls"] == 2 && task.result()["reportedTokens"] == 15 &&
+                      task.refusal() == "transaction.preview must be the last call in a reply; "
+                                        "send it after the other calls.",
+                  "A misplaced preview refuses the reply and charges its turn and calls");
+            request = task.nextRequest();
+            auto messages = request->value("messages").toArray();
+            for (int back : {1, 2})
+                check(messages.at(messages.size() - back).toObject().value("isError") == true &&
+                          messages.at(messages.size() - back)
+                                  .toObject()
+                                  .value("data")
+                                  .toObject()
+                                  .value("code") == "PREVIEW_NOT_LAST",
+                      "Each call in the refused reply receives the preview rule");
+            check(request->value("system").toString().contains("\"privateDraftOpen\":false") &&
+                      state(*model)["revision"] == s["revision"],
+                  "No call from a refused reply executes, including a valid begin");
+            AssistantReply adapter;
+            adapter.calls = {{"begin-again", "transaction.begin", begin},
+                             {"unknown", "t999", {}, {{"code", "UNKNOWN_TOOL"},
+                                                      {"message", "t999 is not an advertised tool; "
+                                                                  "call only the advertised tools."}}}};
+            check(task.accept(request->value("attemptId").toString(), adapter) &&
+                      task.refusal().startsWith("t999 is not an advertised tool"),
+                  "An adapter refusal refuses the whole reply");
+            request = task.nextRequest();
+            messages = request->value("messages").toArray();
+            check(messages.at(messages.size() - 2).toObject().value("data").toObject().value(
+                      "code") == "UNKNOWN_TOOL" &&
+                      request->value("system").toString().contains("\"privateDraftOpen\":false"),
+                  "A valid call beside a refused call does not execute");
+            AssistantReply fine;
+            fine.calls = {{"begin-now", "transaction.begin", begin}};
+            check(task.accept(request->value("attemptId").toString(), fine) &&
+                      task.refusal().isEmpty() && task.result()["toolCalls"] == 5,
+                  "The corrected reply executes and clears the refusal");
+        }
         for (bool enforce : {true, false}) {
             auto model = session();
             auto settings = options();
@@ -1025,8 +1079,24 @@ int main(int argc, char **argv) {
                           id.isEmpty(),
                       "Invalid or unadvertised question receives a tool error");
             } else if (QString(mode) == "mixed") {
-                check(task.phase() == AssistantTask::Phase::Failed && id.isEmpty(),
-                      "A mixed question/command reply fails before execution");
+                // ADR 0167: refused as a whole; neither call executes and the task continues.
+                check(task.phase() == AssistantTask::Phase::Ready && id.isEmpty() &&
+                          task.refusal() == "assistant.ask_user must be the only call in a "
+                                            "reply; send it alone.",
+                      "A mixed question/command reply is refused before execution");
+                const auto next = task.nextRequest().value();
+                const auto messages = next.value("messages").toArray();
+                for (int back : {1, 2}) {
+                    const auto receipt = messages.at(messages.size() - back).toObject();
+                    check(receipt.value("isError") == true &&
+                              receipt.value("data").toObject().value("code") ==
+                                  "CLARIFICATION_NOT_ALONE" &&
+                              receipt.value("data").toObject().value("executed") == false,
+                          "Each call in the mixed reply receives the clarification rule");
+                }
+                check(task.result()["toolCalls"] == 4 &&
+                          next.value("system").toString().contains("\"privateDraftOpen\":true"),
+                      "The refused reply counts its calls and the draft stays open");
             } else if (QString(mode) == "deadline") {
                 now += std::chrono::seconds(301);
                 task.answer(id, "one");

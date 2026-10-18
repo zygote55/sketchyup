@@ -37,6 +37,7 @@ struct AssistantNetworkProvider::Impl {
     QByteArray bytes;
     QJsonObject pendingRequest;
     bool probing{};
+    QString refused; // Rule message of the last refused reply (ADR 0167).
     size_t preflightIndex{};
     QNetworkAccessManager *manager;
     QPointer<QNetworkReply> pending;
@@ -197,9 +198,13 @@ struct AssistantNetworkProvider::Impl {
         }
         try {
             const auto translated = protocol.decode(response);
-            if (task->accept(attempt, translated))
+            const bool accepted = task->accept(attempt, translated);
+            if (accepted)
                 protocol.accepted();
-            status = "Provider response received";
+            // ADR 0167: a refused reply is answered with tool errors and the task continues.
+            refused = accepted ? task->refusal() : QString{};
+            status = refused.isEmpty() ? "Provider response received"
+                                       : "Provider reply refused: " + refused;
             notify();
         } catch (const ProviderUsageLimit &error) {
             task->providerFailed(attempt, AssistantTask::ProviderFailure::Fatal);
@@ -230,7 +235,10 @@ struct AssistantNetworkProvider::Impl {
         QObject::connect(pending, &QNetworkReply::finished, &owner,
                          [this] { guarded([this] { finished(); }); });
         deadline.start(timeout);
-        status = probing ? "Checking local model capabilities" : "Waiting for " + protocol.provider;
+        status = probing            ? "Checking local model capabilities"
+                 : refused.isEmpty() ? "Waiting for " + protocol.provider
+                                     : "Waiting for " + protocol.provider +
+                                           " to correct a refused reply";
         notify();
     }
     void prepare() {

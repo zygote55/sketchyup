@@ -216,11 +216,19 @@ AssistantReply OllamaConversation::decode(const QByteArray &bytes) {
     for (int index = 0; index < calls.size(); ++index) {
         const auto function = calls[index].toObject().value("function").toObject();
         const auto alias = function.value("name").toString();
-        require(names_.contains(alias) && function.value("arguments").isObject(),
-                "Invalid or unauthorized local tool call");
+        require(function.value("arguments").isObject(), "Invalid local tool call arguments");
         const auto id = attempt_ + "-" + QString::number(index);
         candidateNames_[id] = alias;
-        reply.calls.push_back({id, names_.value(alias), function.value("arguments").toObject()});
+        AssistantToolCall call{id, names_.value(alias), function.value("arguments").toObject(), {}};
+        // ADR 0167: a complete call naming no advertised tool is refused, not fatal.
+        if (!names_.contains(alias)) {
+            call.name = alias.left(64);
+            call.refusal = {{"code", "UNKNOWN_TOOL"},
+                            {"message", QString("%1 is not an advertised tool; call only the "
+                                                "advertised tools.")
+                                            .arg(alias.left(64))}};
+        }
+        reply.calls.push_back(std::move(call));
     }
     require(!reply.calls.empty() || !reply.text.isEmpty(),
             "Local provider returned no usable reply");

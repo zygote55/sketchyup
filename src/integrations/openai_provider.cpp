@@ -23,6 +23,9 @@ QJsonObject parse(const QByteArray &bytes) {
             "Invalid provider JSON");
     return document.object();
 }
+QJsonObject refusal(const QString &code, const QString &message) {
+    return {{"code", code}, {"message", message}};
+}
 uint64_t tokens(QJsonValue value, bool positive) {
     const auto number = value.toDouble(-1);
     require(value.isDouble() && number >= (positive ? 1 : 0) && number <= 1000000000 &&
@@ -59,7 +62,7 @@ QJsonObject OpenAiConversation::request(const QJsonObject &source) {
             entry.value("inputSchema").toObject().value("properties").toObject();
         // Read-only batches: advertised inspection queries plus the private draft reads that
         // ADR 0025 exposes through the inspection registry and direct-record pages (catalog
-        // sideEffects "none"). Every state-changing call still rejects a multi-call reply.
+        // sideEffects "none"). A state-changing call refuses a multi-call reply (ADR 0167).
         if (properties.value("query").toObject().value("const") == name ||
             name == "transaction.inspect" || name == "transaction.diff" ||
             name == "transaction.describe")
@@ -139,15 +142,22 @@ AssistantReply OpenAiConversation::decode(const QByteArray &response) {
         const auto item = value.toObject();
         const auto type = item.value("type").toString();
         if (type == "function_call") {
-            require(!chatGptPlan_ || item.value("namespace") == "sketchyup",
-                    "Invalid tool namespace");
             require(item.value("status").toString("completed") == "completed" &&
-                        names_.contains(item.value("name").toString()) &&
                         item.value("arguments").isString() && item.value("call_id").isString(),
-                    "Invalid or unauthorized function call");
-            reply.calls.push_back({item.value("call_id").toString(),
-                                   names_.value(item.value("name").toString()),
-                                   parse(item.value("arguments").toString().toUtf8())});
+                    "Invalid or incomplete function call");
+            const auto alias = item.value("name").toString();
+            AssistantToolCall call{item.value("call_id").toString(), names_.value(alias),
+                                   parse(item.value("arguments").toString().toUtf8()), {}};
+            // ADR 0167: a complete call naming no advertised tool is refused, not fatal.
+            if (!names_.contains(alias) ||
+                (chatGptPlan_ && item.value("namespace") != "sketchyup")) {
+                call.name = alias.left(64);
+                call.refusal = refusal("UNKNOWN_TOOL",
+                                       QString("%1 is not an advertised tool; call only the "
+                                               "advertised tools.")
+                                           .arg(alias.left(64)));
+            }
+            reply.calls.push_back(std::move(call));
             require(reply.calls.size() <= 8, "Inspection batch exceeds the shared reply limit");
         } else if (type == "message") {
             require(item.value("role") == "assistant" && item.value("status") == "completed" &&
@@ -170,11 +180,20 @@ AssistantReply OpenAiConversation::decode(const QByteArray &response) {
     require(!reply.calls.empty() || !reply.text.isEmpty(), "Provider returned no usable response");
     // The host still dispatches sequentially under its unchanged task budget,
     // revision, ownership and preview guards. Batches are restricted to reads;
-    // no state-changing call can be accepted as part of a multi-call reply.
+    // no state-changing call can execute as part of a multi-call reply. ADR 0167:
+    // such a reply is refused as a whole and every call receives the rule as a tool error.
     if (reply.calls.size() > 1)
         for (const auto &call : reply.calls)
-            require(inspectionNames_.contains(call.name),
-                    "Multiple provider calls must be read-only inspections");
+            if (call.refusal.isEmpty() && !inspectionNames_.contains(call.name)) {
+                const auto rule = refusal(
+                    "BATCH_NOT_READ_ONLY",
+                    QString("Only read-only inspections may be batched; send %1 alone.")
+                        .arg(call.name));
+                for (auto &each : reply.calls)
+                    if (each.refusal.isEmpty())
+                        each.refusal = rule;
+                break;
+            }
     candidate_ = output;
     return reply;
 }

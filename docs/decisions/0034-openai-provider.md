@@ -16,7 +16,10 @@ The adapter maps advertised catalog names to stable `tN` aliases and translates
 replies back before the existing task validates and executes tools. The original
 schemas retain optional fields and free-form document properties, so declarations
 explicitly use `strict:false`; application validation remains authoritative.
-Parallel tool calls are disabled and multi-call responses rejected. Only supplied
+Parallel tool calls are disabled and multi-call responses rejected (superseded: bounded
+read-only batches, [R086.ap](../verification/R086ap-bounded-inspections.md); a batch with a
+state-changing call or an unadvertised alias is refused with tool errors,
+[ADR 0167](0167-recoverable-provider-replies.md)). Only supplied
 function tools are available. No provider shell, network or filesystem tools are
 added. Preview ends the provider loop; host Apply owns commit.
 
