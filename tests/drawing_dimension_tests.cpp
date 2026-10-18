@@ -713,6 +713,74 @@ void rewrittenAnchorsRoundTrip() {
     std::cout << "rewritten anchors save and reopen byte-identically: ok\n";
 }
 
+// Model annotations follow the same geometry transfers as paper anchors (ADR 0164
+// addendum): vertex, edge and face anchors, in one history entry, through the composed
+// "make component from a selection" edit, with a byte-identical round trip.
+void annotationsFollowTransfers() {
+    Fixture f;
+    auto &doc = f.doc;
+    const auto room = createGroup(doc, {f.body}, "Room");
+    const auto create = [&](const char *name, AnnotationKind kind,
+                            std::vector<AnnotationAnchor> anchors) {
+        AnnotationRecord record;
+        record.name = name;
+        record.kind = kind;
+        record.anchors = std::move(anchors);
+        if (kind == AnnotationKind::Label)
+            record.text = name;
+        return createAnnotation(doc, std::move(record));
+    };
+    const auto bottom = edgeBetween(doc, f.body, {0, 0, 0}, {2, 0, 0});
+    create("Run", AnnotationKind::Distance,
+           {vertexAnchor(doc, f.body, vertexAt(doc, f.body, {0, 0, 0})),
+            edgeAnchor(doc, f.body, bottom, .25)});
+    create("Slab", AnnotationKind::Label, {faceAnchor(doc, f.body, f.face, {1.5, .5, 0})});
+    std::map<Id, AnnotationRecord> original;
+    std::map<Id, std::vector<Vec3>> points;
+    for (const auto &[id, record] : doc.annotations()) {
+        original.emplace(id, *record);
+        for (const auto &anchor : record->anchors)
+            points[id].push_back(resolveAnnotationAnchor(doc, anchor).point);
+    }
+    const auto entries = doc.history().total;
+    run(doc, {QJsonObject{{"command", "component.selection"},
+                          {"name", "Slab"},
+                          {"context", text(room)},
+                          {"entities", QJsonArray{QJsonObject{{"body", text(f.body)},
+                                                              {"kind", "face"},
+                                                              {"entity", text(f.face)}}}}}});
+    check(doc.history().total == entries + 1, "Make component from a selection is one entry");
+    std::map<Id, AnnotationRecord> made;
+    for (const auto &[id, record] : doc.annotations()) {
+        made.emplace(id, *record);
+        for (size_t i = 0; i < record->anchors.size(); ++i) {
+            const auto &anchor = record->anchors[i];
+            const auto &was = original.at(id).anchors[i];
+            check(anchor.body != f.body && anchor.entity == was.entity && anchor.kind == was.kind &&
+                      anchor.state == AnchorState::Resolved,
+                  "Vertex, edge and face anchors follow the selection into the component");
+            const auto resolved = resolveAnnotationAnchor(doc, anchor);
+            check(resolved.state == AnchorState::Resolved && same(resolved.point, points.at(id)[i]),
+                  "The annotation stays on the same world point");
+        }
+    }
+    const auto bytes = encodeContainer(doc);
+    const auto reopened = decodeContainer(bytes);
+    check(encodeContainer(reopened) == bytes, "Save, reopen and save give identical bytes");
+    for (const auto &[id, record] : doc.annotations())
+        check(*reopened.annotations().at(id) == *record, "Reopened annotations are identical");
+    doc.undo();
+    for (const auto &[id, record] : doc.annotations())
+        check(*record == original.at(id), "Undo restores the exact annotation records");
+    doc.redo();
+    for (const auto &[id, record] : doc.annotations())
+        check(*record == made.at(id), "Redo restores the exact annotation records");
+    // Not asserted: the container bytes after Undo+Redo. Each Undo and Redo advances the
+    // document revision, which the container stores (and hashes into its chunk), so the
+    // bytes differ in that counter alone, as for any plain edit such as an edge split.
+    std::cout << "model annotations follow geometry transfers: ok\n";
+}
+
 // The lineage table (ADR 0164 §3 and its addendum): which common model edits keep a
 // paper dimension associated. Vertex anchors (item 1) and edge anchors (item 2) are
 // recorded separately. Each row starts from a fresh fixture. Rows that move an anchor
@@ -780,7 +848,7 @@ void lineageTable() {
         {"erase the body", [](Fixture &f) { f.doc.erase(f.body); }, broken, broken, false},
         {"group the body", [](Fixture &f) { createGroup(f.doc, {f.body}); }, current, current},
         {"make a component", [](Fixture &f) { createComponent(f.doc, f.body, "Slab"); }, current,
-         current, false, true},
+         current, true, true},
         {"make a component (face)",
          [](Fixture &f) {
              run(f.doc,
@@ -791,13 +859,14 @@ void lineageTable() {
                                                                   {"kind", "face"},
                                                                   {"entity", text(f.face)}}}}}});
          },
-         current, current, false, true},
+         current, current, true, true},
     };
     std::cout << "lineage table (vertex anchors | edge anchors):\n";
     for (const auto &row : rows) {
         Fixture f;
         // A model annotation (ADR 0080) on the same edge points, for comparison: model
-        // edits remap annotation records inside the edit through topology lineage.
+        // edits remap annotation records inside the edit through topology lineage and,
+        // for geometry that moved to another context, through the edit's transfers.
         AnnotationRecord annotation;
         annotation.name = "Model depth";
         annotation.anchors = {
@@ -856,6 +925,7 @@ int main(int argc, char **argv) {
         makeComponentLineage();
         ambiguousLineageStaysBroken();
         rewrittenAnchorsRoundTrip();
+        annotationsFollowTransfers();
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

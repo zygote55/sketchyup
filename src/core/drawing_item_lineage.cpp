@@ -79,27 +79,7 @@ std::optional<AnnotationAnchor> remapDrawingAnchor(const Document &before, const
                 if (result)
                     return result;
             }
-        const auto moved = transfers.find(anchor.body);
-        if (moved == transfers.end())
-            return {};
-        std::vector<AnnotationAnchor> matches;
-        for (auto target : moved->second) {
-            const auto found = after.bodies().find(target);
-            if (found == after.bodies().end() || !entityExists(*found->second, anchor))
-                continue;
-            if (anchor.kind == AnchorKind::Vertex) {
-                matches.push_back(vertexAnchor(after, target, anchor.entity));
-                continue;
-            }
-            const auto &old = before.bodies().at(anchor.body)->topology.edges.at(anchor.entity);
-            const auto &edge = found->second->topology.edges.at(anchor.entity);
-            if (edge.a == old.a && edge.b == old.b)
-                matches.push_back(edgeAnchor(after, target, anchor.entity, anchor.parameter));
-        }
-        // A transfer keeps world positions; anything else is not the same point.
-        if (matches.size() == 1 && length(matches.front().fallback - previous.point) <=
-                                       tolerance * std::max(1., length(previous.point)))
-            return matches.front();
+        return transferAnnotationAnchor(before, after, transfers, anchor);
     } catch (const std::runtime_error &) {
         // Lineage beyond its work budgets keeps today's broken state.
     }

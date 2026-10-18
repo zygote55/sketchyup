@@ -1327,9 +1327,20 @@ they are for everything lineage does not name.
 - **Not covered.** Paper anchors have no face kind, so face splits matter only where they
   split an anchored edge, which the edge rule covers. Cross-context consolidation (merging
   contexts, explode), make unique and edits that give geometry new IDs without lineage
-  still break items, with Reattach. Model annotations are unchanged: they still break on
-  make component, because transfers are used only for paper anchors. Applying them to
-  model annotations is a separate change.
+  still break items, with Reattach. Model annotations follow the same transfers (next
+  bullet), so make component no longer breaks them either.
+- **Model annotations follow transfers too.** `resolveAnnotationEdit` first tries
+  `remapAnnotationAnchor` (topology lineage); an anchor that is then not resolved and whose
+  entity left its context follows `Edit::transfers` through `transferAnnotationAnchor`
+  (`src/core/annotation_anchors.*`), the one helper `remapDrawingAnchor` uses for paper
+  anchors. The rule is the same for both: the anchor must not still resolve by ID, exactly
+  one target must hold the entity (a vertex or face by ID, an edge with the same endpoint
+  IDs), and the anchor must land on the same world point within the tolerance. A face
+  anchor keeps its support triangle and weights and must still resolve on that face in the
+  target, as face anchors resolve everywhere else. Anything else keeps today's broken
+  anchor. The rewritten record is the ordinary stored one (`body` and `fallback` change),
+  inside the same edit and history entry; composed edits carry the records their staged
+  steps wrote (`annotationsResolved`) and are not remapped twice. No format change.
 
 Lineage table after this addendum (`drawing_dimension_tests`; "rewrites" marks rows whose
 model edit rewrites item anchors):
@@ -1343,12 +1354,15 @@ model edit rewrites item anchors):
 | Split the anchored edge | kept | kept (rewrites) | kept |
 | Erase the anchored edge | kept | broken | broken |
 | Erase the body | broken | broken | broken |
-| Make a component of the body | kept (rewrites) | kept (rewrites) | broken |
-| Make a component from the face | kept (rewrites) | kept (rewrites) | broken |
+| Make a component of the body | kept (rewrites) | kept (rewrites) | kept (rewrites) |
+| Make a component from the face | kept (rewrites) | kept (rewrites) | kept (rewrites) |
 
 Tests: `drawing_dimension_tests` (the table, edge and face splits, make component with a
 nested placement and a split inside the definition, ambiguous and lineage-free edits that
-stay broken, Undo/Redo and the byte-identical round trip), `sheet_export_tests` (the page's
+stay broken, model annotations through make component from a selection, Undo/Redo and the
+byte-identical round trip), `annotation_anchor_tests` (vertex, edge and face annotation
+anchors through make component of a body and group a selection, and the ambiguous,
+shifted and unnamed transfers that stay broken), `sheet_export_tests` (the page's
 annotations draw exactly as before a split, with no broken-item finding) and
 `sheet_annotation_input_tests` (the Sheets flow: a split under a dimension endpoint and make
 component in the Model workspace, current items without Reattach, and Undo from Sheets).
