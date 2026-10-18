@@ -36,10 +36,18 @@ export SKETCHYUP_TEST_EXIT_FILE="$test_runtime/test-status"
 # program's actual status independently, including missing/aborted executions.
 # On the deadline, test-deadline.sh prints every client thread's stack before stopping Weston.
 weston_status=0
+# D-040: Weston 15's show_input_panel_surface() destroys the input panel's slide animation
+# without cancelling its queued idle destroy, the only double destroy found for the CI crash in
+# weston_view_animation_destroy. An empty input-method path starts no weston-keyboard, so no
+# panel and no slide; no test uses the input method.
+printf '[input-method]\npath=\n' > "$test_runtime/weston.ini"
+# Weston 15 multiplies --width/--height by --scale, so 2x is 3200x2000 logical (6400x4000
+# device). The intended 3200x2000 device size cost +18 % wall time and +36 % CPU on 4 CPUs,
+# because a smaller output throttles frame callbacks less; see D-021 in R089a-defect-triage.md.
 "$(dirname "${BASH_SOURCE[0]}")/test-deadline.sh" 60 weston --backend=headless --renderer=gl --fake-seat \
   --width="$((1600 * test_scale))" --height="$((1000 * test_scale))" \
   --scale="$test_scale" --idle-time=0 --socket="$WAYLAND_DISPLAY" \
-  --no-config --log="$test_runtime/weston.log" -- bash -c '
+  --config="$test_runtime/weston.ini" --log="$test_runtime/weston.log" -- bash -c '
     if [[ -n ${SKETCHYUP_WAYLAND_CLIENT_LIBRARY:-} ]]; then
       export LD_LIBRARY_PATH="$SKETCHYUP_WAYLAND_CLIENT_LIBRARY${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     fi
