@@ -452,7 +452,7 @@
   {
    "resolved": "2026-10-17",
    "item": "approve tag v1.2.0 and the release; accept the remote corpus gate",
-   "decision": "Approved; tag v1.2.0 created on the RC and the GitHub release published"
+   "decision": "Tag and publish; tag v1.2.0 created on the RC and the GitHub release published"
   },
   "D-038"
  ],
