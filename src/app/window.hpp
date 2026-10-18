@@ -27,6 +27,7 @@ class QHBoxLayout;
 class QStackedWidget;
 class QTimer;
 class QToolBar;
+class QToolButton;
 class QPrinter;
 namespace sketchy {
 class ComponentParametersSection;
@@ -203,6 +204,24 @@ class Window : public QMainWindow {
     void setupNarrow(QWidget *header);
     void detachNarrow();
     void layoutNarrow();
+    // The tool rail's groups (UX_DESIGN §2 item 2, §3.3; window_narrow.cpp). Every action on the
+    // rail has one group, assigned where the rail is built (window.cpp). Below 800 px the rail
+    // shows one group behind a group button; from 800 px up it is unchanged.
+    enum RailGroup { RailSelect, RailDraw, RailModify, RailMeasure, RailCamera, RailGroupCount };
+    // The actions the rail holds in rail order, each with its group (-1: a separator, on the
+    // wide rail only), and the group button's action.
+    std::vector<std::pair<QAction *, int>> railTools_;
+    QAction *railGroupAction_{};
+    QToolButton *railGroupButton_{};
+    QMenu *railGroupMenu_{};
+    int railGroup_{RailSelect};
+    bool railCompact_{};
+    bool compactRail() const { return width() < 800; }
+    void setupRailGroups();
+    void showRailGroup(int group);
+    void labelRailGroup();
+    void layoutRail();
+    void themeRail(const ThemeColors &colors);
     // Sizes and anchors the overlay sheet (window_sidebar.cpp): the remembered tabbed width,
     // clamped to the window, against the workspace's right edge.
     void placeOverlay();

@@ -11,6 +11,11 @@ Changes on `main` since 1.2.0. No format, schema or API change.
   broken and **Reattach** repairs them. This lifts the known limitation disclosed in 1.1.0
   and 1.2.0 ([ADR 0164 addendum](docs/decisions/0164-sheet-layout-interface.md#addendum-2026-10-17-paper-anchor-lineage)).
 
+- Tool rail: below 800 px the Model rail shows one group of tools (Select, Draw, Modify,
+  Measure or Camera) behind a group button, the first item on the rail. Choosing a group
+  does not change the active tool; picking a tool by shortcut, menu or command search
+  switches to its group. From 800 px the rail is as before.
+
 ## 1.2.0 — 2026-10-17
 
 A minor release that adds configurable components (scope row F02). Additive: existing

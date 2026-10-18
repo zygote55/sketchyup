@@ -107,7 +107,7 @@ Each action result shows its shortcut, so the palette also teaches the keyboard.
 | ≥ 1500 px | Tool rail, viewport, Tray and Assistant as separate columns |
 | 1100 ≤ width < 1500 px | Tray and Assistant share one tabbed side panel |
 | 800 ≤ width < 1100 px | Side panel collapses to an icon strip and opens as an overlay sheet; menu bar becomes one menu button |
-| < 800 px | As 800–1100 px (icon strip, overlay sheet, Menu button); status instruction truncates; Measurements box and job chips remain. Tool rail showing the active group only: not implemented yet (the Model rail is unchanged) |
+| < 800 px | As 800–1100 px (icon strip, overlay sheet, Menu button); status instruction truncates; Measurements box and job chips remain. The Model tool rail shows one group of tools behind a group button (see Tool rail groups) |
 
 **Resizable sidebar (R094.a).** The side panel and, in the ≥ 1500 px layout,
 the Assistant column sit in one splitter with the workspace. Drag the handle on
@@ -185,6 +185,28 @@ Menu button. Below 800 px the same strip, sheet and button apply.
   the sheet without changing its open tab, the selection or the dirty state.
   Widening docks it at the remembered widths; narrowing with focus in the panel
   keeps it open, as the More panels sheet, with focus where it was.
+
+**Tool rail groups (below 800 px, Model workspace).** The rail's actions belong to
+five groups: Select (Select, Paint), Draw (Line, Rectangle, Circle), Modify (Push/pull
+with its "Create new face when pushing/pulling" toggle, Offset, Follow Me, Intersect,
+Solids, Orient, Move, Rotate, Scale), Measure (Tape measure) and Camera (Orbit, Pan);
+the group of each is set in one table where the rail is built. Below 800 px the rail's
+first item is a group button (the shown group's name, then a 1.5 px down-chevron; a
+single control as wide as the rail's buttons) and only the shown group's tools show, in
+rail order, with no separators. The button opens a menu of the five groups with a check
+mark on the shown one; choosing a group shows its tools and does not change the active
+tool. When the active tool changes to a tool on the rail in another group (shortcut,
+menu or command search), the rail switches to that group; tools off the rail (Zoom, Look
+around, Walk) leave it. The shown group starts as the active tool's group, also each
+time the window narrows below 800 px. Add driver, inside a component definition, stays
+below the shown group with its separator. The button is the rail's first item in its one
+Tab stop and arrow navigation; Enter, Space or Down opens the menu, Esc closes it and
+returns focus to the button. Its accessible name is "Tool group", its description the
+shown group, and its tooltip "Tool group: Draw"; the menu items are named for the groups.
+It uses the rail's text, hover, checked and focus tokens in both themes. From 800 px the
+rail is as before (all tools, one separator before Camera, no group button). Crossing
+800 px either way keeps the active tool and keyboard focus (focus on a tool that hides
+moves to the group button; focus on the group button moves to the active tool).
 
 Validate at 640, 900, 1200 and 1600 logical pixels, including fractional scale.
 On the smallest tile collapse job detail before reducing Measurements access.
