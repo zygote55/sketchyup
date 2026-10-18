@@ -1,10 +1,11 @@
 # Terrain import and surfaces
 
-Status: **Proposed (2026-10-18), draft for owner decisions.** Roadmap
+Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 [R095](../PR_ROADMAP.md#r095) (M10, scope row [F03](../SCOPE.md)); shapes
-[R096](../PR_ROADMAP.md#r096). Nothing is implemented. Each section gives options,
-trade-offs and a recommendation; the owner's choices go under "Decisions", which
-is pending. The numbered list at the end is the short form.
+[R096](../PR_ROADMAP.md#r096). Nothing is implemented. Each section gives the
+options and trade-offs that were weighed; the owner chose the recommended option in
+every case (see "Decisions"). The interaction design is the owner-approved
+[R095 UX design (canvas; private to the owner)](https://claude.ai/artifact/Uhxtc3gzv7FDdMshM5FuXF).
 
 ## Context
 
@@ -537,22 +538,73 @@ the Changed/Regenerate mechanism.
 
 ## Decisions
 
-Pending owner decision. Nothing above is accepted until the owner answers the list
-below.
+The owner decided these points on 2026-10-18, each as recommended:
+
+1. **First sources:** DXF contours, CSV/XYZ point files and picked model edges. GeoJSON, LandXML, GeoTIFF and LAS/LAZ are later rows.
+2. **Representation:** hybrid (c): a `BodyKind::Terrain` container with a `TerrainRecord`, its mesh in ordinary geometry tiles of at most 2,048 triangles.
+3. **Size limit:** 250,000 triangles per document, in its own limit class; 1M later through compact tiles.
+4. **Crossing contours and conflicting duplicates:** refuse the import with a located, bounded report.
+5. **Triangulation library:** CDT 2.0.0 (MPL-2.0, header-only), vendored behind an adapter.
+6. **Flat triangles:** always flip, report what remains; Steiner fill is an explicit option, off by default.
+7. **Persistence:** schema 29 with required feature `terrain-v1`; tile meshes in a binary `terrain-mesh` chunk, stored rather than re-derived on load. Documents without terrain keep their lower schema.
+8. **Georeferencing:** a document site origin plus an informational CRS label; imports must already be projected; no PROJ dependency.
+9. **Export conversion in R095:** DXF export gains "Write site coordinates"; other exporters write model coordinates and say so.
+10. **Assistant visibility:** the in-app assistant sees only `site.describe`, `terrain.describe` and `terrain.elevation_at`, pinned after a corpus token measurement; MCP exposes every command.
+11. **Import target:** terrain import adds to the open document in one labelled edit.
+
+**Interaction design.** The owner approved the R095 UX design on 2026-10-18 (link in the
+status line). It settles §5's list as follows:
+
+- **Import dialog:** settings on the left (format, units, layer → role table, site
+  coordinates block with source extents, the proposed origin rounded to 100 m and
+  editable, an optional CRS label, the conversion formula and the local extents),
+  a live preview on the right switching Sources / Surface with optional elevation
+  shading, and a footer status ("Ready: N triangles · K notices") with Show report.
+- **Point files:** delimiter, header row and a meaning per column above a sample
+  table, with PNEZD, PENZD, ENZ and XYZ presets; description codes map to roles;
+  units are required and Import stays disabled until they are chosen.
+- **Report:** refusals, notices and merges grouped by kind with counts and at most 32
+  locations each; choosing a location zooms the preview and rings it in the failure
+  colour; Copy report as text and Save report. A refusal shows a banner that nothing
+  was changed, and Import stays disabled.
+- **Appearance:** default material "Terrain"; contour lines are derived display (not
+  geometry) at a chosen interval with every fifth line as an index line; shading by
+  material or by elevation bands; tile seams and interior edges are not drawn.
+- **Entity info, Terrain section:** name, triangle and tile counts, source file and
+  digest, sources, elevation range, generator and flat-area result; Display
+  (contour lines, shading); Terrain settings… and Explode terrain…; an amber
+  "Changed since generated" chip with Regenerate when the mesh digest no longer
+  matches.
+- **Tools on terrain:** generic topology tools show the not-allowed cursor over a
+  tile and put "<Tool> does not edit terrain. Edit it with the terrain tools, or
+  explode it to work on it as ordinary geometry." in the status bar, linking to
+  Explode. Explode confirms with the effect on the modelling and terrain budgets
+  (Cancel is the default) and is refused when the faces would exceed the modelling
+  limit.
+- **Site:** File → Site settings… shows the origin read-only, the CRS label and
+  provenance, with Re-anchor… (one edit that moves geometry so site coordinates are
+  unchanged). Entity info shows a vertex in model and site coordinates; in the
+  Measurements box a leading `@` types an absolute site position (E, N[, Z]) when the
+  document has a site origin. The viewport marks the origin with a labelled
+  crosshair while a terrain or the site settings are selected, and View → Site
+  origin toggles it.
+- **Keyboard and scale:** every control is a native widget in the Tab order with an
+  accessible name; the report list and preview follow the existing list and canvas
+  keyboard patterns; 1×, 2×, fractional and 200 % text follow the existing rules.
 
 ## Owner decisions
 
-1. **First sources:** DXF contours, CSV/XYZ points and picked model edges; defer GeoJSON, LandXML, GeoTIFF and LAS. *Recommend: yes.*
-2. **Representation:** hybrid (c), a terrain record plus tiled ordinary geometry, over plain faces (a) or a new mesh kind (b). *Recommend: (c).*
-3. **Size limit:** 250,000 triangles per document in its own limit class; 1M later via compact tiles. *Recommend: 250k.*
-4. **Crossing contours and conflicting duplicates:** refuse the import with a located report, rather than drop the offending contours. *Recommend: refuse.*
-5. **Triangulation library:** vendor CDT 2.0.0 (MPL-2.0, header-only) behind an adapter; not Triangle, CGAL, poly2tri or in-house. *Recommend: CDT.*
-6. **Flat triangles:** flip always, report the rest; Steiner fill as an explicit option, off by default. *Recommend: as stated.*
-7. **Persistence:** schema 29 with `terrain-v1`; the mesh stored in a binary `terrain-mesh` chunk, not re-derived on load. *Recommend: yes.*
-8. **Georeferencing:** document site origin plus an informational CRS label; user supplies projected coordinates; no PROJ. *Recommend: yes.*
-9. **Export conversion in R095:** DXF export option "Write site coordinates" only; other exporters later. *Recommend: DXF only.*
-10. **Assistant visibility:** only `site.describe`, `terrain.describe` and `terrain.elevation_at`, after a corpus token measurement; MCP gets everything. *Recommend: yes.*
-11. **Import target:** terrain import adds to the open document in one labelled edit, unlike the other importers. *Recommend: add to the open document.*
+1. **First sources:** DXF contours, CSV/XYZ points and picked model edges; defer GeoJSON, LandXML, GeoTIFF and LAS. *Decided 2026-10-18: yes.*
+2. **Representation:** hybrid (c), a terrain record plus tiled ordinary geometry, over plain faces (a) or a new mesh kind (b). *Decided 2026-10-18: (c).*
+3. **Size limit:** 250,000 triangles per document in its own limit class; 1M later via compact tiles. *Decided 2026-10-18: 250k.*
+4. **Crossing contours and conflicting duplicates:** refuse the import with a located report, rather than drop the offending contours. *Decided 2026-10-18: refuse.*
+5. **Triangulation library:** vendor CDT 2.0.0 (MPL-2.0, header-only) behind an adapter; not Triangle, CGAL, poly2tri or in-house. *Decided 2026-10-18: CDT.*
+6. **Flat triangles:** flip always, report the rest; Steiner fill as an explicit option, off by default. *Decided 2026-10-18: as stated.*
+7. **Persistence:** schema 29 with `terrain-v1`; the mesh stored in a binary `terrain-mesh` chunk, not re-derived on load. *Decided 2026-10-18: yes.*
+8. **Georeferencing:** document site origin plus an informational CRS label; user supplies projected coordinates; no PROJ. *Decided 2026-10-18: yes.*
+9. **Export conversion in R095:** DXF export option "Write site coordinates" only; other exporters later. *Decided 2026-10-18: DXF only.*
+10. **Assistant visibility:** only `site.describe`, `terrain.describe` and `terrain.elevation_at`, after a corpus token measurement; MCP gets everything. *Decided 2026-10-18: yes.*
+11. **Import target:** terrain import adds to the open document in one labelled edit, unlike the other importers. *Decided 2026-10-18: add to the open document.*
 
 ## Appendix: experiments
 
