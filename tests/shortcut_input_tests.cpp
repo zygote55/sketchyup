@@ -74,7 +74,12 @@ template <class F> void editor(Window &window, F exercise) {
             return;
         handled = true;
         try {
-            check(QTest::qWaitForWindowActive(dialog), "Shortcut dialog activated");
+            // Not qWaitForWindowActive(): QWindow::isActive() counts a transient child as
+            // active with its active parent, so it passed before the compositor activated the
+            // editor, which could then close first and have its late activation take focus
+            // from the main window (as in PR #340). Wait for the editor's own keyboard focus.
+            dialog->activateWindow();
+            check(QTest::qWaitForWindowFocused(dialog), "Shortcut dialog activated");
             exercise(*dialog);
         } catch (...) {
             failure = std::current_exception();
@@ -134,8 +139,10 @@ void keyboardShortcutTask(Window &window) {
                 } else if (!edited && dialog->objectName() == "shortcutDialog") {
                     edited = true;
                     // Visibility can precede the compositor's focus handoff from
-                    // the palette. Deliver keys only after this dialog owns focus.
-                    check(QTest::qWaitForWindowActive(dialog),
+                    // the palette. Deliver keys only after this dialog owns focus. Its own
+                    // keyboard focus, not QWindow::isActive(), which counts a transient child
+                    // as active with its active parent.
+                    check(QTest::qWaitForWindowFocused(dialog),
                           "Keyboard shortcut dialog activated");
                     check(QTest::qWaitFor(
                               [&] { return dialog->isAncestorOf(QApplication::focusWidget()); }),

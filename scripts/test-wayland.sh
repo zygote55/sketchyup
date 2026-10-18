@@ -23,6 +23,14 @@ export QT_QPA_PLATFORM=wayland
 export QT_SCALE_FACTOR=1
 unset QT_SCREEN_SCALE_FACTORS
 export LIBGL_ALWAYS_SOFTWARE=1
+# D-021: Qt marks a window unexposed when its frame callback is 100 ms late, a heuristic for a
+# compositor that stopped drawing a hidden window. Here Weston draws nothing, and so sends no
+# frame callback, until its desktop-shell helper commits the background; on a loaded host that
+# took 8-20 s, so the test window turned unexposed 100 ms after its first frame and stayed so
+# past the tests' 5 s qWaitForWindowExposed(). Nothing hides a window in this session, so let
+# Qt wait for the callback within the deadline instead. (Waiting for the background before
+# starting the test also works but spends that time inside the deadline.)
+export QT_WAYLAND_FRAME_CALLBACK_TIMEOUT=${QT_WAYLAND_FRAME_CALLBACK_TIMEOUT:-60000}
 export SKETCHYUP_TEST_EXIT_FILE="$test_runtime/test-status"
 # Weston exits with zero even when the launched program fails. Preserve the
 # program's actual status independently, including missing/aborted executions.

@@ -43,7 +43,13 @@ void chooseTextSize(Window &window, const QString &percent) {
             return;
         handled = true;
         try {
-            check(QTest::qWaitForWindowActive(dialog), "Text size dialog activates");
+            // qWaitForWindowActive() would pass at once while the main window is active,
+            // because QWindow::isActive() counts a transient child as active with its parent.
+            // The prompt could then close before the compositor activated it, and that late
+            // activation took focus from the main window (as in PR #340). Wait until the
+            // prompt itself holds keyboard focus.
+            dialog->activateWindow();
+            check(QTest::qWaitForWindowFocused(dialog), "Text size dialog activates");
             auto *combo = dialog->findChild<QComboBox *>();
             check(combo && combo->findText(percent) >= 0, "Requested text size offered");
             combo->setCurrentText(percent);
