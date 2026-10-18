@@ -1379,7 +1379,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R095 — Import contours and create terrain surfaces
 
-**Status:** Planned. **Track:** Geometry. **Scope:** F03. **UX:** —.
+**Status:** Planned; design accepted ([ADR 0168](decisions/0168-terrain-import-and-surfaces.md), owner decisions and UX design approved 2026-10-18). **Track:** Geometry. **Scope:** F03. **UX:** [ADR 0168](decisions/0168-terrain-import-and-surfaces.md#decisions).
 
 **Requires:** [R089](#r089), [R054](#r054); milestone gate rule above.
 
