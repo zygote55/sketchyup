@@ -15,18 +15,27 @@ if(SKETCHYUP_BUILD_FUZZERS)
   add_compile_options(-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
 endif()
+# Each project library is normally a static archive. Under the sanitizers every
+# UBSan check site gets a static record that ASan then pads with a redzone and a
+# relocated descriptor, so a sanitized link of the desktop stack is ~800 MB. The
+# sanitize build therefore links each library as one shared object, so every test
+# loads the same instrumented code instead of embedding its own copy. Release and
+# development builds, and so the installed package, keep static libraries.
+set(SKETCHYUP_LIBRARY_TYPE STATIC)
 if(SKETCHYUP_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
+  set(SKETCHYUP_LIBRARY_TYPE SHARED)
+  set(BUILD_SHARED_LIBS ON)
 endif()
 # The project version above is the single source of truth (ADR 0162).
 configure_file(src/sketchyup/version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/generated/sketchyup/version.hpp" @ONLY)
 add_library(sketchyup_version INTERFACE)
 target_include_directories(sketchyup_version INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 add_subdirectory(third_party/manifold)
-add_library(sketchyup_cgltf STATIC third_party/cgltf/cgltf.cpp)
+add_library(sketchyup_cgltf ${SKETCHYUP_LIBRARY_TYPE} third_party/cgltf/cgltf.cpp)
 target_include_directories(sketchyup_cgltf SYSTEM PUBLIC third_party/cgltf)
-add_library(clipper2 STATIC
+add_library(clipper2 ${SKETCHYUP_LIBRARY_TYPE}
   third_party/clipper2/src/clipper.engine.cpp
   third_party/clipper2/src/clipper.offset.cpp
   third_party/clipper2/src/clipper.rectclip.cpp
@@ -42,7 +51,7 @@ target_link_libraries(sketchyup_core PUBLIC sketchyup_solar)
 target_compile_options(sketchyup_solar PRIVATE -Wall -Wextra -Wpedantic)
 # R093.a parameter expression engine (ADR 0165 §2, §7): Qt-free, C++ standard
 # library and libm only. Deterministic binary64: no FP contraction, no fast-math.
-add_library(sketchyup_parameter_expression STATIC src/core/parameter_expression.cpp)
+add_library(sketchyup_parameter_expression ${SKETCHYUP_LIBRARY_TYPE} src/core/parameter_expression.cpp)
 target_include_directories(sketchyup_parameter_expression PUBLIC src)
 target_compile_options(sketchyup_parameter_expression PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off -fno-fast-math)
 # R093.b component parameters: the core evaluates and regenerates through the engine,

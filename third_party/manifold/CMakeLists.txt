@@ -1,5 +1,5 @@
 # SketchyUp's offline serial core target; upstream source remains unmodified.
-add_library(sketchyup_manifold STATIC
+add_library(sketchyup_manifold ${SKETCHYUP_LIBRARY_TYPE}
   src/boolean3.cpp
   src/boolean_result.cpp
   src/constructors.cpp
