@@ -674,9 +674,9 @@ Why no class is release-blocking:
 - **Major (none).** No open item gives a wrong result or breaks a workflow on a supported
   configuration. R086.ca at the RC shows no wrong-target mutation, false completion,
   unreported partial commit or unknown outcome.
-- **Minor (10).** Each is test infrastructure (D-007–D-009, D-021, D-022, D-027, D-028), a
-  path the product does not reach (D-019), or a cosmetic or render-statistics residual
-  with no document effect (D-006, D-023).
+- **Minor (8).** Each is test infrastructure (D-007–D-009, D-031, D-034, D-040), a path the
+  product does not reach (D-019), or a render-statistics residual with no document effect
+  (D-006). D-021, D-022, D-023, D-027 and D-028 were in this list at the RC and are fixed.
 - **Limitation (14).** Each is a documented boundary: external library or compositor
   defects with mitigations (D-010–D-013, D-020), evidence boundaries and format scope
   (D-014–D-018), decisions (D-001, ADR 0160), waived hardware checks (D-004, D-005,

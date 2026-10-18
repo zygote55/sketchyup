@@ -278,6 +278,28 @@ void toolRail(Fixture &f) {
               "Tool button's accessible name is its tool name: " + name.toStdString() + ", found " +
                   (accessible ? accessible->text(QAccessible::Name).toStdString() : "none"));
         tabStops += bool(button->focusPolicy() & Qt::TabFocus);
+        // At 100 % text no rail label is elided; a short label (Rect, Follow) is only the visible
+        // text, so the action, its tooltip and the accessible name keep the full name.
+        if (auto *action = button->defaultAction()) {
+            const auto shown = action->iconText();
+            // Awaiting short labels (owner decision): these still elide at 100 % text. Any other
+            // rail label that elides fails here.
+            static const std::set<QString> awaitingLabel{
+                "Push/pull", "Intersect", "Tape measure", "Create new face when pushing/pulling"};
+            const bool elides = button->sizeHint().width() > button->width();
+            check(!elides || awaitingLabel.count(shown),
+                  "Rail label is not elided: " + shown.toStdString() + ", button " +
+                      std::to_string(button->width()) + " px, wants " +
+                      std::to_string(button->sizeHint().width()));
+            if (shown != action->text()) {
+                auto full = action->text();
+                full.remove('&');
+                check(accessible && accessible->text(QAccessible::Name) == full &&
+                          action->toolTip().contains(full),
+                      "Short rail label " + shown.toStdString() + " keeps the full name " +
+                          full.toStdString() + " as accessible name and tooltip");
+            }
+        }
     }
     check(!(f.rail->focusPolicy() & Qt::TabFocus) && tabStops == 1 &&
               (f.railButton(Viewport::Tool::Select)->focusPolicy() & Qt::TabFocus),

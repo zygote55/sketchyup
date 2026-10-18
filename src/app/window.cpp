@@ -586,6 +586,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         {Viewport::Tool::Rotate, RailModify},      {Viewport::Tool::Scale, RailModify},
         {Viewport::Tool::Tape, RailMeasure},       {Viewport::Tool::Orbit, RailCamera},
         {Viewport::Tool::Pan, RailCamera}};
+    // The rail's visible label, where the full name does not fit the 78 px rail at 100 % text.
+    // Only the button text changes: the action's text (menus, command search), its tooltip and
+    // the accessible name stay the full name. A tool listed here must have a full name that elides.
+    const std::map<Viewport::Tool, QString> railLabels{{Viewport::Tool::Rectangle, "Rect"},
+                                                       {Viewport::Tool::Sweep, "Follow"},
+                                                       {Viewport::Tool::Boolean, "Solids"},
+                                                       {Viewport::Tool::Orientation, "Orient"}};
     auto addTool = [&](const QString &name, const QString &key, Viewport::Tool mode,
                        const QString &instruction, bool inRail = true) {
         auto *a = action("tool." + QString::number(int(mode)), name, QKeySequence(key),
@@ -593,6 +600,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         a->setCheckable(true);
         group->addAction(a);
         if (inRail) {
+            if (const auto label = railLabels.find(mode); label != railLabels.end())
+                a->setIconText(label->second);
             tools->addAction(a);
             railTools_.emplace_back(a, railGroups.at(mode));
         }
@@ -620,8 +629,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             "Select target faces · Choose reference scope in Draw · Enter or click applies · Esc "
             "cancels");
     addTool("Solid tools", "Shift+B", Viewport::Tool::Boolean,
-            "Select two solids or their faces · Choose operation and originals in Draw")
-        ->setIconText("Solids");
+            "Select two solids or their faces · Choose operation and originals in Draw");
     auto *booleans = draw->addMenu("Solid operation options");
     auto *booleanGroup = new QActionGroup(this);
     for (const auto &[operation, label] :
@@ -651,8 +659,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     booleans->addAction(action("boolean.swap", "Swap target and tool", {},
                                [this] { viewport_->swapBooleanOperands(); }));
     addTool("Face orientation", "Shift+O", Viewport::Tool::Orientation,
-            "Select faces to reverse, or one reference face to orient its connected surface")
-        ->setIconText("Orient");
+            "Select faces to reverse, or one reference face to orient its connected surface");
     addTool("Attach component to face", "Shift+H", Viewport::Tool::HostedPlacement,
             "Select one component and one host face · Move to preview · Enter applies", false)
         ->setProperty("command", "component.attach");
