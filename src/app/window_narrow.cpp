@@ -31,7 +31,7 @@ namespace {
 constexpr const char *railGroupNames[] = {"Select", "Draw", "Modify", "Measure", "Camera"};
 // The tool rail's group button (§3.3): the shown group's name and a down-chevron after it,
 // painted as one centred label on the rail button's own frame (background, hover, checked
-// and focus ring), so the pair reads as one control and fits the 78 px rail ("Measure" and
+// and focus ring), so the pair reads as one control and fits the 88 px rail ("Measure" and
 // its chevron do not fit beside Qt's icon spacing and menu arrow).
 class RailGroupButton final : public QToolButton {
   public:

@@ -255,7 +255,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     tools->setAccessibleName("Modeling tools");
     tools->setOrientation(Qt::Vertical);
     tools->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    tools->setFixedWidth(78);
+    tools->setFixedWidth(88);
     modelRail_ = tools;
     // ADR 0164 §7: stacks are built here, so the GL viewport is never reparented later.
     railStack_ = new QStackedWidget;
@@ -586,13 +586,14 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         {Viewport::Tool::Rotate, RailModify},      {Viewport::Tool::Scale, RailModify},
         {Viewport::Tool::Tape, RailMeasure},       {Viewport::Tool::Orbit, RailCamera},
         {Viewport::Tool::Pan, RailCamera}};
-    // The rail's visible label, where the full name does not fit the 78 px rail at 100 % text.
+    // The rail's visible label, where the full name does not fit the 88 px rail at 100 % text.
     // Only the button text changes: the action's text (menus, command search), its tooltip and
     // the accessible name stay the full name. A tool listed here must have a full name that elides.
     const std::map<Viewport::Tool, QString> railLabels{{Viewport::Tool::Rectangle, "Rect"},
                                                        {Viewport::Tool::Sweep, "Follow"},
                                                        {Viewport::Tool::Boolean, "Solids"},
-                                                       {Viewport::Tool::Orientation, "Orient"}};
+                                                       {Viewport::Tool::Orientation, "Orient"},
+                                                       {Viewport::Tool::Tape, "Tape"}};
     auto addTool = [&](const QString &name, const QString &key, Viewport::Tool mode,
                        const QString &instruction, bool inRail = true) {
         auto *a = action("tool." + QString::number(int(mode)), name, QKeySequence(key),
@@ -796,6 +797,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                 findChild<QAction *>("draw.pushPullNewFace")->isChecked());
         });
     newFace->setCheckable(true);
+    newFace->setIconText("New face"); // The rail label only; the full name is in menus and tooltip.
     tools->addAction(newFace);
     // An option toggle: it belongs to Push/pull's group, Modify, though it sits after Tape measure.
     railTools_.emplace_back(newFace, RailModify);
@@ -1330,7 +1332,7 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     style.replace("$failureSurface", colors.failureSurface.name());
     style.replace("$failure", colors.failure.name());
     setStyleSheet(style);
-    findChild<QToolBar *>("toolRail")->setFixedWidth(interfaceExtent(78, textPercent));
+    findChild<QToolBar *>("toolRail")->setFixedWidth(interfaceExtent(88, textPercent));
     sheetRail_->setFixedWidth(interfaceExtent(46, textPercent));
     railStack_->setFixedWidth(railStack_->currentWidget()->maximumWidth());
     measurements_->setFixedWidth(interfaceExtent(150, textPercent));

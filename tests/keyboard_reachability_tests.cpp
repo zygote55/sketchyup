@@ -282,12 +282,7 @@ void toolRail(Fixture &f) {
         // text, so the action, its tooltip and the accessible name keep the full name.
         if (auto *action = button->defaultAction()) {
             const auto shown = action->iconText();
-            // Awaiting short labels (owner decision): these still elide at 100 % text. Any other
-            // rail label that elides fails here.
-            static const std::set<QString> awaitingLabel{
-                "Push/pull", "Intersect", "Tape measure", "Create new face when pushing/pulling"};
-            const bool elides = button->sizeHint().width() > button->width();
-            check(!elides || awaitingLabel.count(shown),
+            check(button->sizeHint().width() <= button->width(),
                   "Rail label is not elided: " + shown.toStdString() + ", button " +
                       std::to_string(button->width()) + " px, wants " +
                       std::to_string(button->sizeHint().width()));

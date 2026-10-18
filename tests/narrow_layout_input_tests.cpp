@@ -189,8 +189,8 @@ void layoutAt(Fixture &f, int width) {
           "Menu button replaces the menu bar only below 1100 px at " + std::to_string(width));
     check(!f.open(), "The sheet starts closed at " + std::to_string(width));
     auto *rail = window.findChild<QToolBar *>("toolRail");
-    check(rail->isVisible() && rail->width() == 78,
-          "The Model tool rail is unchanged (78 px, text) at " + std::to_string(width));
+    check(rail->isVisible() && rail->width() == 88,
+          "The Model tool rail is unchanged (88 px, text) at " + std::to_string(width));
     check(f.measurements->isVisible() && window.rect().contains(f.measurements->mapTo(
                                              &window, f.measurements->rect().bottomRight())),
           "Measurements stays on screen at " + std::to_string(width));
@@ -969,7 +969,7 @@ void railGroupBehaviour(Fixture &f) {
     RailFixture r(f);
     r.widen();
     r.expectWide("900 px");
-    check(r.rail->width() == 78, "The wide rail is 78 px");
+    check(r.rail->width() == 88, "The wide rail is 78 px");
     // The breakpoint: 800 px is the wide rail, 799 px the grouped one.
     r.widen(800);
     r.expectWide("800 px");
