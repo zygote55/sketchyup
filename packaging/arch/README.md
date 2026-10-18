@@ -1,7 +1,8 @@
 # Arch package
 
 The app links the system Qt libraries dynamically. Own code is MIT; the static
-Clipper2 retains BSL-1.0, Manifold Apache-2.0 and cgltf MIT. Third-party notices
+Clipper2 retains BSL-1.0, Manifold Apache-2.0, cgltf MIT and the header-only CDT
+triangulation library MPL-2.0 (with its BSD-3-Clause exact predicates). Third-party notices
 ship in `/usr/share/licenses/sketchyup`.
 Build inputs are pinned by `Dockerfile.build` and the dated Arch archive mirror.
 The 1.0 native format and versioning rules are in [ADR 0108](../../docs/decisions/0108-public-native-format.md)
@@ -137,7 +138,8 @@ scripts/release-artifacts.sh "$PWD/build/release-1.2.0"
 The script refuses a dirty or untracked working tree. It writes, into the output
 directory, the source archive and PKGBUILD from `package-source.sh`; `THIRD_PARTY_NOTICES`
 with a header for each file `CMakeLists.txt` installs into `share/licenses/sketchyup`
-(the SketchyUp license, Clipper2, Manifold license and authors, cgltf); `SHA256SUMS`
+(the SketchyUp license, Clipper2, Manifold license and authors, cgltf, CDT and its
+predicates notice); `SHA256SUMS`
 for the archive, the notices and any `sketchyup-VERSION-PKGREL-*.pkg.tar.zst` already
 in the directory; and `MANIFEST.json` with the version, `pkgver`/`pkgrel`, Git commit,
 SHA-256 values, the package job's pinned image digest from
