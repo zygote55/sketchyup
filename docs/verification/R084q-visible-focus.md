@@ -160,6 +160,10 @@ focused (right): [light](R084q-focus-light.png), [dark](R084q-focus-dark.png).
 
 ## Findings that remain
 
+Closed on 2026-10-18 by [D-023](R089a-defect-triage.md#triage-table): the two-tone ring, the
+canvas ring token, the themed scroll bars and the overflow fixes below are recorded under "Closed
+by the D-023 fix". The text that follows is the finding as R084.q recorded it.
+
 * **Canvas adjacency in the dark theme.** The tool rail, the breadcrumb and the
   assistant container touch the 3D canvas, whose default document colour is light
   (`#f0f1ec`). The dark accent against it is 1.64:1, so on that side the ring only

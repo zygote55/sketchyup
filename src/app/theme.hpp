@@ -12,6 +12,10 @@ struct ThemeColors {
     // ADR 0166 §1.2 (R094.c). Information blue and its fill: an overridden component
     // parameter's caption, border and field.
     QColor information{}, informationSurface{};
+    // D-023: the 3D canvas's own focus ring. The accent, except that the light palette's is one
+    // step lighter in green so it has 3:1 against the dark chrome beside the canvas (the accent is
+    // 2.997:1 there) while keeping 4.3:1 against the light canvas and chrome.
+    QColor canvasRing{};
 };
 inline ThemeColors themeColors(bool dark) {
     if (dark) {
@@ -26,6 +30,7 @@ inline ThemeColors themeColors(bool dark) {
         colors.pasteboard = QColor("#252e28");
         colors.information = QColor("#b3cdf8");
         colors.informationSurface = QColor("#1f2b3d");
+        colors.canvasRing = colors.accent;
         return colors;
     }
     ThemeColors colors{"#f7f7f2", "#263a32", "#c9d4c5", "#dce7dc", "#e6ebdf",
@@ -39,6 +44,7 @@ inline ThemeColors themeColors(bool dark) {
     colors.pasteboard = QColor("#e9ebe4");
     colors.information = QColor("#2c5aa0");
     colors.informationSurface = QColor("#eef3fb");
+    colors.canvasRing = QColor("#547958");
     return colors;
 }
 } // namespace sketchy

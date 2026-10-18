@@ -2,16 +2,19 @@
 // visible focus indicator (WCAG 2.4.7) whose colour has at least 3:1 contrast with the
 // adjacent colours (WCAG 1.4.11), in both themes and at two interface text sizes. The
 // indicator is measured from pixels painted by the real main window and the real dialogs.
+#include "app/interface_preferences.hpp"
 #include "app/parameters_scope_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
+#include "app/theme.hpp"
 #include "app/viewport.hpp"
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "core/drawing_sheets.hpp"
+#include "core/model_style.hpp"
 #include "io/document_io.hpp"
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -27,14 +30,18 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequenceEdit>
+#include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QOpenGLWidget>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSettings>
 #include <QSpinBox>
+#include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTemporaryDir>
@@ -42,6 +49,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QVBoxLayout>
 #include <cmath>
 #include <functional>
 #include <iostream>
@@ -143,6 +151,36 @@ QColor edgeColor(const QImage &image, const QRect &box, qreal scale, qreal inset
         std::max_element(histogram.begin(), histogram.end(), [](const auto &a, const auto &b) {
             return a.second < b.second;
         })->first);
+}
+// The dominant colour of the middle half of one edge at each of the first `count` device pixels
+// in from the boundary. A two-tone ring (D-023) is read as the runs of colour along this scan, as
+// its halo is 1 to 2 device pixels at a fractional scale.
+std::vector<QColor> edgeScan(const QImage &image, const QRect &box, int edge, int count) {
+    std::vector<QColor> scan;
+    for (int offset = 0; offset < count; ++offset) {
+        std::map<QRgb, int> histogram;
+        const bool horizontal = edge == 0 || edge == 2;
+        const int length = horizontal ? box.width() : box.height();
+        for (int i = length / 4; i < length - length / 4; ++i) {
+            int x, y;
+            if (edge == 0)
+                x = box.left() + i, y = box.top() + offset;
+            else if (edge == 2)
+                x = box.left() + i, y = box.bottom() - offset;
+            else if (edge == 1)
+                x = box.right() - offset, y = box.top() + i;
+            else
+                x = box.left() + offset, y = box.top() + i;
+            if (QRect(QPoint(), image.size()).contains(x, y))
+                ++histogram[image.pixel(x, y)];
+        }
+        check(!histogram.empty(), "Focus edge scan has pixels");
+        scan.push_back(QColor(
+            std::max_element(histogram.begin(), histogram.end(), [](const auto &a, const auto &b) {
+                return a.second < b.second;
+            })->first));
+    }
+    return scan;
 }
 // Dominant colour of the bands `insets` logical pixels from the boundary (negative =
 // outside), over the middle half of the chosen edges (bit mask; top, right, bottom, left).
@@ -313,14 +351,30 @@ int main(int argc, char **argv) {
         int failures{}, measured{}, clipped{};
         double minimumAccentChange = 99;
         double minimumOutside = 99, minimumInside = 99;
+        // D-023: the two-tone rings (a ring inside a halo in the control's background) of the
+        // controls that border the 3D canvas, the canvas's own ring, and the scroll bars.
+        double minimumRingHalo = 99, minimumHaloCanvasDark = 99, minimumRingCanvasLight = 99,
+               minimumCanvasRing = 99, minimumScrollHandle = 99;
+        std::set<QString> haloCovered;
+        int scrollBarsMeasured{};
+        const auto defaultCanvas = [] {
+            const auto &rgb = ModelStyle{}.background;
+            return QColor(int(std::lround(rgb[0] * 255)), int(std::lround(rgb[1] * 255)),
+                          int(std::lround(rgb[2] * 255)));
+        }();
         QString theme;
         int textPercent{};
         // Measures one control: unfocused vs focused painted boundary.
         auto probe = [&](QWidget &top, QWidget &widget, const QString &context) {
-            for (auto *parent = widget.parentWidget(); parent; parent = parent->parentWidget())
-                if (auto *scroll = qobject_cast<QScrollArea *>(parent))
-                    scroll->ensureWidgetVisible(&widget, 0, 0);
-            QCoreApplication::processEvents();
+            // The margins are half the control, so that all of it scrolls into view and not only
+            // its centre; and twice, as the first scroll may precede the content's own layout.
+            for (int pass = 0; pass < 2; ++pass) {
+                for (auto *parent = widget.parentWidget(); parent; parent = parent->parentWidget())
+                    if (auto *scroll = qobject_cast<QScrollArea *>(parent))
+                        scroll->ensureWidgetVisible(&widget, widget.width() / 2 + 1,
+                                                    widget.height() / 2 + 1);
+                QCoreApplication::processEvents();
+            }
             if (widget.visibleRegion().boundingRect().size() != widget.size() ||
                 widget.width() < 12 || widget.height() < 12) {
                 ++clipped;
@@ -328,7 +382,32 @@ int main(int argc, char **argv) {
                     std::cerr << "Clipped: " << identity(&widget).toStdString() << " "
                               << widget.width() << "x" << widget.height() << " visible "
                               << widget.visibleRegion().boundingRect().width() << "x"
-                              << widget.visibleRegion().boundingRect().height() << '\n';
+                              << widget.visibleRegion().boundingRect().height()
+                              << " context=" << context.toStdString() << " text=" << textPercent
+                              << " theme=" << theme.toStdString() << '\n';
+                // D-023 (d): the scroll area it overflows, and the widest minimum width inside.
+                if (qEnvironmentVariableIsSet("SKETCHYUP_FOCUS_VERBOSE"))
+                    for (auto *parent = widget.parentWidget(); parent;
+                         parent = parent->parentWidget())
+                        if (auto *scroll = qobject_cast<QScrollArea *>(parent)) {
+                            const auto at = widget.mapTo(scroll->widget(), QPoint());
+                            std::cerr << "  in " << identity(scroll).toStdString() << " viewport "
+                                      << scroll->viewport()->width() << "x"
+                                      << scroll->viewport()->height() << " at " << at.x() << ","
+                                      << at.y() << " content " << scroll->widget()->height()
+                                      << " scrolled " << scroll->verticalScrollBar()->value() << "/"
+                                      << scroll->verticalScrollBar()->maximum() << " min "
+                                      << scroll->widget()->minimumSizeHint().width() << ":";
+                            for (auto *child : scroll->widget()->findChildren<QWidget *>())
+                                if (child->isVisibleTo(scroll->widget()) &&
+                                    child->minimumSizeHint().width() >
+                                        scroll->viewport()->width() - 8)
+                                    std::cerr << ' ' << identity(child).toStdString() << " "
+                                              << child->minimumSizeHint().width() << "/"
+                                              << child->width();
+                            std::cerr << '\n';
+                            break;
+                        }
                 return;
             }
             auto *other = neighbour(top, &widget);
@@ -408,29 +487,104 @@ int main(int argc, char **argv) {
             const auto inner = bandColor(after.image, after.box, after.valid, {}, after.scale,
                                          {accentFilled ? 3.0 : 2.0}, 0b1001);
             double change = 99;
+            // D-023: a control that borders the 3D canvas has a two-tone ring: the halo is the
+            // outermost run of colour, the ring the next one, then the fill inside it.
+            const bool haloed = widget.property("focusHalo").toBool();
+            const auto chrome = themeColors(theme == "dark");
+            const bool parametric = widget.property("parametric").toBool();
+            const QColor expectedHalo = parametric ? chrome.informationSurface : chrome.surface;
+            double ringHalo = 99, haloCanvas = 99, ringCanvas = 99;
+            bool haloIsBackground = true;
             for (int edge = 0; edge < 4; ++edge) {
-                const auto unfocusedColor =
-                    edgeColor(before.image, before.box, before.scale, 0, edge);
-                const auto focusedColor = edgeColor(after.image, after.box, after.scale, 0, edge);
+                QColor unfocusedColor, focusedColor, innerColor = inner;
+                if (haloed) {
+                    // Qt anti-aliases the margin's rounded outer edge, so the halo is the run
+                    // of the background's own colour, after at most one blended pixel.
+                    const auto scanned = edgeScan(after.image, after.box, edge, 12);
+                    const auto unfocusedScan = edgeScan(before.image, before.box, edge, 12);
+                    int haloAt = 0;
+                    while (haloAt < 4 && scanned[haloAt] != expectedHalo)
+                        ++haloAt;
+                    int ringAt = haloAt;
+                    while (ringAt < 11 && scanned[ringAt] == expectedHalo)
+                        ++ringAt;
+                    int innerAt = ringAt;
+                    while (innerAt < 11 && scanned[innerAt] == scanned[ringAt])
+                        ++innerAt;
+                    // The halo is at least one logical pixel and at most the 2 px margin.
+                    check(haloAt < 4 && ringAt - haloAt >= int(after.scale) &&
+                              ringAt - haloAt <= 2 * int(std::ceil(after.scale)) && innerAt < 11,
+                          "A two-tone ring has a halo of one logical pixel and a ring");
+                    if (qEnvironmentVariableIsSet("SKETCHYUP_FOCUS_VERBOSE")) {
+                        std::cerr << "Scan " << edge << " " << identity(&widget).toStdString()
+                                  << ":";
+                        for (const auto &color : scanned)
+                            std::cerr << ' ' << color.name().toStdString();
+                        std::cerr << '\n';
+                    }
+                    focusedColor = scanned[ringAt];
+                    unfocusedColor = unfocusedScan[ringAt];
+                    outer = scanned[haloAt];
+                    innerColor = scanned[innerAt];
+                    haloIsBackground &= scanned[haloAt] == expectedHalo;
+                    ringHalo = std::min(ringHalo, contrast(focusedColor, scanned[haloAt]));
+                    haloCanvas = std::min(haloCanvas, contrast(scanned[haloAt], defaultCanvas));
+                    ringCanvas = std::min(ringCanvas, contrast(focusedColor, defaultCanvas));
+                    // Only the top and left edges: arrows and scroll bars lie at the others.
+                    if (edge == 1 || edge == 2)
+                        innerColor = QColor();
+                } else {
+                    unfocusedColor = edgeColor(before.image, before.box, before.scale, 0, edge);
+                    focusedColor = edgeColor(after.image, after.box, after.scale, 0, edge);
+                }
                 differs &= unfocusedColor != focusedColor;
                 ring.append(focusedColor.name());
-                outside = std::min(outside, contrast(focusedColor, outer));
-                inside = std::min(inside, contrast(focusedColor, inner));
+                outside = std::min(outside, haloed ? ringHalo : contrast(focusedColor, outer));
+                if (innerColor.isValid())
+                    inside = std::min(inside, contrast(focusedColor, innerColor));
                 change = std::min(change, contrast(focusedColor, unfocusedColor));
+            }
+            // The canvas's own ring against the window chrome beside it, either theme (D-023).
+            double canvasRingDark = 99, canvasRingLight = 99;
+            if (gl) {
+                for (int edge = 0; edge < 4; ++edge) {
+                    const auto edgeRing = edgeColor(after.image, after.box, after.scale, 0, edge);
+                    canvasRingDark =
+                        std::min(canvasRingDark, contrast(edgeRing, themeColors(true).surface));
+                    canvasRingLight =
+                        std::min(canvasRingLight, contrast(edgeRing, themeColors(false).surface));
+                }
+                outside = std::min(canvasRingDark, canvasRingLight);
+                minimumCanvasRing = std::min(minimumCanvasRing, outside);
             }
             worst = QString("outside %1 inside %2").arg(outer.name(), inner.name());
             for (auto *parent = widget.parentWidget(); parent; parent = parent->parentWidget())
                 worst += " < " + identity(parent) + (parent->isWindow() ? "(window)" : "");
-            if (!gl && !accentFilled)
+            if (!gl && !accentFilled && !haloed)
                 minimumOutside = std::min(minimumOutside, outside);
+            // The two-tone ring: ring vs halo at least 3:1 and, in the dark theme, halo vs the
+            // light default canvas at least 3:1. In the light theme the halo is the light chrome
+            // (about 1.05:1 against the canvas, which no chrome token can change), so the ring
+            // itself must have 3:1 against the canvas there.
+            bool haloPasses = true;
+            if (haloed) {
+                haloPasses = haloIsBackground && ringHalo >= 3 &&
+                             (theme == "dark" ? haloCanvas >= 3 : ringCanvas >= 3);
+                minimumRingHalo = std::min(minimumRingHalo, ringHalo);
+                if (theme == "dark")
+                    minimumHaloCanvasDark = std::min(minimumHaloCanvasDark, haloCanvas);
+                else
+                    minimumRingCanvasLight = std::min(minimumRingCanvasLight, ringCanvas);
+                haloCovered.insert(theme + ':' + widget.objectName() + (parametric ? ":p" : ""));
+            }
             if (!gl)
                 minimumInside = std::min(minimumInside, inside);
             if (accentFilled)
                 minimumAccentChange = std::min(minimumAccentChange, change);
             // The 3D canvas paints its own ring on its own background (document colours); the
             // window chrome beyond it is reported but not required to meet the ratio.
-            const bool passes = differs && layoutStable && inside >= 3 &&
-                                (accentFilled ? change >= 3 : (gl || outside >= 3));
+            const bool passes = differs && layoutStable && inside >= 3 && haloPasses &&
+                                (accentFilled ? change >= 3 : outside >= 3);
             failures += !passes;
             if (!passes)
                 std::cerr << "Focus indicator failure: " << identity(&widget).toStdString()
@@ -438,8 +592,11 @@ int main(int argc, char **argv) {
                           << " theme=" << theme.toStdString() << " text=" << textPercent
                           << " differs=" << differs << " layoutStable=" << layoutStable
                           << " outside=" << outside << " inside=" << inside << " change=" << change
-                          << " accentFilled=" << accentFilled << " [" << worst.toStdString()
-                          << "]\n";
+                          << " accentFilled=" << accentFilled << " haloed=" << haloed
+                          << " haloIsBackground=" << haloIsBackground << " ringHalo=" << ringHalo
+                          << " haloCanvas=" << haloCanvas << " ringCanvas=" << ringCanvas
+                          << " canvasRing(dark,light)=" << canvasRingDark << ',' << canvasRingLight
+                          << " [" << worst.toStdString() << "]\n";
             rows.append(QJsonObject{{"context", context},
                                     {"theme", theme},
                                     {"textPercent", textPercent},
@@ -452,6 +609,12 @@ int main(int argc, char **argv) {
                                     {"contrastInside", inside},
                                     {"accentFilled", accentFilled},
                                     {"contrastChange", change},
+                                    {"twoTone", haloed},
+                                    {"contrastRingHalo", haloed ? ringHalo : 0.},
+                                    {"contrastHaloCanvas", haloed ? haloCanvas : 0.},
+                                    {"contrastRingCanvas", haloed ? ringCanvas : 0.},
+                                    {"contrastCanvasRingDarkChrome", gl ? canvasRingDark : 0.},
+                                    {"contrastCanvasRingLightChrome", gl ? canvasRingLight : 0.},
                                     {"passes", passes}});
             if (!captureDir.isEmpty()) {
                 const auto path = QString("%1/%2-%3-%4-%5.png")
@@ -700,6 +863,181 @@ int main(int argc, char **argv) {
             window.activateWindow();
             check(QTest::qWaitForWindowActive(&window), "Window active after Sheets");
         };
+        // D-023: a focused tool rail button. The rail's own background around it is the halo
+        // (4 to 5 px of chrome lie between the button and the canvas), so the ring is measured
+        // against it as for the other two-tone rings, and the gap to the canvas is checked.
+        auto railHalo = [&](QToolButton &button, const QString &name) {
+            button.setFocus(Qt::TabFocusReason);
+            QCoreApplication::processEvents();
+            const auto shot = capture(window, button);
+            const auto chrome = themeColors(theme == "dark");
+            const auto halo =
+                bandColor(shot.image, shot.box, shot.valid, {}, shot.scale, {-1.0}, 0b1111);
+            double ringHalo = 99, ringCanvas = 99;
+            for (int edge = 0; edge < 4; ++edge) {
+                const auto ring = edgeColor(shot.image, shot.box, shot.scale, 0, edge);
+                ringHalo = std::min(ringHalo, contrast(ring, halo));
+                ringCanvas = std::min(ringCanvas, contrast(ring, defaultCanvas));
+            }
+            const double haloCanvas = contrast(halo, defaultCanvas);
+            const int gap = window.viewport()->mapTo(&window, QPoint()).x() -
+                            (button.mapTo(&window, QPoint()).x() + button.width());
+            const bool passes = button.hasFocus() && halo == chrome.surface && gap >= 2 &&
+                                ringHalo >= 3 &&
+                                (theme == "dark" ? haloCanvas >= 3 : ringCanvas >= 3);
+            minimumRingHalo = std::min(minimumRingHalo, ringHalo);
+            if (theme == "dark")
+                minimumHaloCanvasDark = std::min(minimumHaloCanvasDark, haloCanvas);
+            else
+                minimumRingCanvasLight = std::min(minimumRingCanvasLight, ringCanvas);
+            haloCovered.insert(theme + ":toolRailButton" + name);
+            if (!passes) {
+                ++failures;
+                std::cerr << "Rail halo failure: " << name.toStdString()
+                          << " theme=" << theme.toStdString()
+                          << " halo=" << halo.name().toStdString() << " ringHalo=" << ringHalo
+                          << " haloCanvas=" << haloCanvas << " ringCanvas=" << ringCanvas
+                          << " gap=" << gap << " focus=" << button.hasFocus() << '\n';
+            }
+            rows.append(QJsonObject{{"context", "Main window / tool rail halo" + name},
+                                    {"theme", theme},
+                                    {"textPercent", textPercent},
+                                    {"class", "QToolButton"},
+                                    {"twoTone", true},
+                                    {"contrastRingHalo", ringHalo},
+                                    {"contrastHaloCanvas", haloCanvas},
+                                    {"contrastRingCanvas", ringCanvas},
+                                    {"gapToCanvas", gap},
+                                    {"passes", passes}});
+        };
+        // D-023 (c): native scroll bars in the theme: a themed track and handle with 3:1
+        // between them, the interface-text-scaled thickness, a rounded handle, no arrow buttons.
+        auto scrollBars = [&] {
+            const auto chrome = themeColors(theme == "dark");
+            auto *host = new QWidget(&window);
+            auto *layout = new QVBoxLayout(host);
+            layout->setContentsMargins(0, 0, 0, 0);
+            auto *vertical = new QScrollBar(Qt::Vertical);
+            vertical->setFixedHeight(180);
+            auto *horizontal = new QScrollBar(Qt::Horizontal);
+            horizontal->setFixedWidth(180);
+            for (auto *bar : {vertical, horizontal}) {
+                bar->setRange(0, 100);
+                bar->setPageStep(50);
+                bar->setValue(0);
+                layout->addWidget(bar);
+            }
+            host->setFixedSize(200, 180 + 70);
+            host->move(12, 12);
+            host->show();
+            QTest::qWait(60);
+            const int thickness = interfaceExtent(10, textPercent);
+            for (auto *bar : {vertical, horizontal}) {
+                const bool tall = bar->orientation() == Qt::Vertical;
+                const auto image = bar->grab().toImage().convertToFormat(QImage::Format_RGB32);
+                const auto scale = image.devicePixelRatio();
+                const int length = tall ? image.height() : image.width();
+                const int across = tall ? image.width() : image.height();
+                auto at = [&](int along, int position) {
+                    return QColor(tall ? image.pixel(position, along)
+                                       : image.pixel(along, position));
+                };
+                int handleCount = 0, trackCount = 0, otherCount = 0, handleStart = -1;
+                for (int i = 0; i < length; ++i) {
+                    const auto color = at(i, across / 2);
+                    if (color == chrome.muted) {
+                        ++handleCount;
+                        if (handleStart < 0)
+                            handleStart = i;
+                    } else if (color == chrome.surface)
+                        ++trackCount;
+                    else
+                        ++otherCount;
+                }
+                int handleAcross = 0;
+                if (handleStart >= 0)
+                    for (int j = 0; j < across; ++j)
+                        handleAcross += at(handleStart + handleCount / 2, j) == chrome.muted;
+                const double handleTrack = contrast(chrome.muted, chrome.surface);
+                const double hoverTrack = contrast(chrome.ink, chrome.surface);
+                const int thick = tall ? bar->width() : bar->height();
+                const bool rounded = handleStart >= 0 && at(handleStart, 0) == chrome.surface;
+                const bool passes = handleTrack >= 3 && hoverTrack >= 3 && thick == thickness &&
+                                    std::abs(handleAcross - thickness * scale) <= 1 &&
+                                    handleCount * 5 >= length && trackCount * 5 >= length &&
+                                    otherCount * 50 <= length && rounded;
+                minimumScrollHandle = std::min(minimumScrollHandle, handleTrack);
+                ++scrollBarsMeasured;
+                if (!passes) {
+                    ++failures;
+                    std::cerr << "Scroll bar failure: " << (tall ? "vertical" : "horizontal")
+                              << " theme=" << theme.toStdString() << " text=" << textPercent
+                              << " thickness=" << thick << " (want " << thickness
+                              << ") handleAcross=" << handleAcross << " handle=" << handleCount
+                              << " track=" << trackCount << " other=" << otherCount << " of "
+                              << length << " handleVsTrack=" << handleTrack
+                              << " inkVsTrack=" << hoverTrack << " rounded=" << rounded << '\n';
+                }
+                rows.append(QJsonObject{
+                    {"context", tall ? "Scroll bar / vertical" : "Scroll bar / horizontal"},
+                    {"theme", theme},
+                    {"textPercent", textPercent},
+                    {"class", "QScrollBar"},
+                    {"contrastHandleTrack", handleTrack},
+                    {"contrastHoverTrack", hoverTrack},
+                    {"thickness", thick},
+                    {"passes", passes}});
+                if (!captureDir.isEmpty() && textPercent == 100)
+                    host->grab().save(QString("%1/scrollbars-%2.png").arg(captureDir, theme));
+            }
+            delete host;
+        };
+        // D-023 evidence: SKETCHYUP_FOCUS_WINDOW_SHOTS=dir saves the 1200x800 window with a rail
+        // button focused, with the breadcrumb focused, and with a list and its scroll bars.
+        auto windowShots = [&](const QString &directory) {
+            window.resize(1200, 800);
+            check(QTest::qWaitFor([&] { return window.width() == 1200 && window.height() == 800; }),
+                  "Window sized for the screenshots");
+            QTest::qWait(80);
+            const auto name = [&](const char *what) {
+                return QString("%1/%2-%3-%4x.png")
+                    .arg(directory, what, theme, QString::number(window.devicePixelRatioF()));
+            };
+            auto *rail = window.findChild<QToolBar *>("toolRail");
+            for (auto *button : rail->findChildren<QToolButton *>())
+                if (button->defaultAction() && button->isVisibleTo(&window) &&
+                    !button->isChecked()) {
+                    button->setFocusPolicy(Qt::TabFocus);
+                    button->setFocus(Qt::TabFocusReason);
+                    QTest::qWait(60);
+                    window.grab().save(name("rail"));
+                    button->setFocusPolicy(Qt::NoFocus);
+                    break;
+                }
+            auto *crumb = window.findChild<QLabel *>("contextBreadcrumb");
+            crumb->setFocus(Qt::TabFocusReason);
+            QTest::qWait(60);
+            window.grab().save(name("breadcrumb"));
+            window.viewport()->setFocus(Qt::OtherFocusReason);
+            auto *host = new QWidget(&window);
+            auto *hostLayout = new QVBoxLayout(host);
+            auto *list = new QListWidget;
+            for (int i = 0; i < 60; ++i)
+                list->addItem(QString("Scroll bar sample row %1 with a line long enough to scroll "
+                                      "sideways as well, so both bars show")
+                                  .arg(i + 1));
+            hostLayout->addWidget(list);
+            host->setGeometry(420, 180, 380, 300);
+            host->show();
+            host->raise();
+            QTest::qWait(80);
+            window.grab().save(name("scrollbars"));
+            delete host;
+            window.resize(1280, 900);
+            check(QTest::qWaitFor([&] { return window.width() == 1280; }), "Window restored");
+            QTest::qWait(50);
+        };
+        const auto windowShotDir = qEnvironmentVariable("SKETCHYUP_FOCUS_WINDOW_SHOTS");
         const auto shotDir = qEnvironmentVariable("SKETCHYUP_FOCUS_SCREENSHOT_DIR");
         for (int percent : {100, 200}) {
             textPercent = percent;
@@ -745,9 +1083,41 @@ int main(int argc, char **argv) {
                     probe(window, *button,
                           button->isChecked() ? "Main window / tool rail button (checked)"
                                               : "Main window / tool rail button");
+                    railHalo(*button, button->isChecked() ? ":checked" : "");
                     button->setFocusPolicy(Qt::NoFocus);
                 }
                 check(probed.size() == 2, "Checked and unchecked tool buttons were probed");
+                // D-023: the breadcrumb and the component scope banner float on the 3D canvas.
+                {
+                    auto *crumb = window.findChild<QLabel *>("contextBreadcrumb");
+                    auto *banner = window.findChild<QLabel *>("componentScopeBanner");
+                    check(crumb && banner && crumb->isVisible(), "Breadcrumb and banner exist");
+                    probe(window, *crumb, "Main window / breadcrumb");
+                    const bool bannerShown = banner->isVisible();
+                    banner->setText("Editing the shared definition. <a href=\"close\">Close "
+                                    "definition</a> (Esc)");
+                    banner->setFixedWidth(420);
+                    banner->move(16, crumb->geometry().bottom() + 8);
+                    for (bool parametric : {false, true}) {
+                        banner->setProperty("parametric", parametric);
+                        banner->style()->unpolish(banner);
+                        banner->style()->polish(banner);
+                        banner->adjustSize();
+                        banner->show();
+                        banner->raise();
+                        QTest::qWait(30);
+                        probe(window, *banner,
+                              parametric ? "Main window / component scope banner (parametric)"
+                                         : "Main window / component scope banner");
+                    }
+                    banner->setProperty("parametric", false);
+                    banner->style()->unpolish(banner);
+                    banner->style()->polish(banner);
+                    banner->setVisible(bannerShown);
+                }
+                scrollBars();
+                if (!windowShotDir.isEmpty() && percent == 100)
+                    windowShots(windowShotDir);
                 // UX_DESIGN §3.3: the narrow layout's panel strip (a checked and an unchecked
                 // button, with the overlay sheet open on Info) and the Menu button, at the
                 // default text size (the Wayland run's time limit).
@@ -849,6 +1219,9 @@ int main(int argc, char **argv) {
                 }
                 if (!window.assistantPanel()->isVisible())
                     window.findChild<QAction *>("view.assistant")->trigger();
+                // D-023: the Assistant container's two-tone ring.
+                if (window.assistantPanel()->isVisible() && window.assistantPanel()->width() >= 12)
+                    probe(window, *window.assistantPanel(), "Main window / Assistant container");
                 window.findChild<QPushButton *>("assistantPreferences")->click();
                 auto *dialog = window.findChild<QDialog *>("assistantPreferencesDialog");
                 check(dialog && QTest::qWaitForWindowExposed(dialog),
@@ -882,6 +1255,17 @@ int main(int argc, char **argv) {
         for (const char *name : kSheetsFamilies)
             if (sheetsOnly && !covered.contains(name))
                 missing.append(name);
+        // D-023: every two-tone ring in both themes (the Model run), and the scroll bars.
+        if (!sheetsOnly) {
+            for (const char *mode : {"light", "dark"})
+                for (const char *name :
+                     {"contextBreadcrumb", "componentScopeBanner", "componentScopeBanner:p",
+                      "assistantContainer", "toolRailButton", "toolRailButton:checked"})
+                    if (!haloCovered.contains(QString("%1:%2").arg(mode, name)))
+                        missing.append(QString("two-tone ring %1 %2").arg(theme, name));
+            if (scrollBarsMeasured != 8)
+                missing.append("scroll bars");
+        }
         QJsonArray coveredClasses;
         for (const auto &name : covered)
             coveredClasses.append(name);
@@ -898,6 +1282,16 @@ int main(int argc, char **argv) {
                     {"minimumContrastOutside", minimumOutside},
                     {"minimumContrastInside", minimumInside},
                     {"minimumAccentRingChange", minimumAccentChange},
+                    {"twoToneRings",
+                     QJsonObject{{"minimumRingHalo", minimumRingHalo},
+                                 {"minimumHaloCanvasDark", minimumHaloCanvasDark},
+                                 {"minimumRingCanvasLight", minimumRingCanvasLight},
+                                 {"covered", QJsonArray::fromStringList(QStringList(
+                                                 haloCovered.begin(), haloCovered.end()))}}},
+                    {"canvasRingMinimumContrastAgainstChrome", minimumCanvasRing},
+                    {"scrollBars",
+                     QJsonObject{{"measured", scrollBarsMeasured},
+                                 {"minimumHandleTrackContrast", minimumScrollHandle}}},
                     {"workspace", sheetsOnly ? "sheets" : "model"},
                     {"passes", passed},
                     {"scope",

@@ -1649,7 +1649,7 @@ void Viewport::paintScene(QPaintDevice *device) {
     paintParameterOverlay(p);
     paintAssemblyOverlay(p);
     if (hasFocus()) {
-        p.setPen(QPen(colors_.accent, 2));
+        p.setPen(QPen(colors_.canvasRing, 2));
         p.setBrush(Qt::NoBrush);
         p.drawRect(rect().adjusted(1, 1, -1, -1));
     }
