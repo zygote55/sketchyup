@@ -1161,6 +1161,51 @@ int main(int argc, char **argv) {
             check(report["outputDocumentVersion"] == 28 && !report["migrationNeeded"].toBool() &&
                       read(path) == original,
                   "The v28 fixture is current and unchanged");
+
+            // D-038: the stored digests are the 1.2.0 ones; opening reports no driver
+            // changed, and save, reopen and save again keeps the bytes.
+            auto allBound = [](const Document &doc) {
+                std::size_t drivers{};
+                for (const auto &[id, definition] : doc.definitions())
+                    if (definition->parameters)
+                        for (const auto &driver : definition->parameters->drivers) {
+                            ++drivers;
+                            if (componentDriverState(*definition, doc.definitions(), driver) !=
+                                ComponentDriverState::Bound)
+                                return std::size_t{};
+                        }
+                return drivers;
+            };
+            check(allBound(loaded) > 0, "The retained v28 fixture opens with every driver bound");
+            auto resaved = loadDocument(path);
+            const auto first = files.filePath("fixture28-first.sketchyup");
+            const auto second = files.filePath("fixture28-second.sketchyup");
+            saveDocument(resaved, first);
+            auto reopened = loadDocument(first);
+            check(allBound(reopened) > 0, "A re-saved v28 fixture reopens with every driver bound");
+            saveDocument(reopened, second);
+            check(read(first) == read(second) && documentChunk(read(first)) == documentChunk(original),
+                  "Save, reopen and save again keeps the v28 bytes");
+            // A paint on a driven member keeps its driver bound across save and reopen.
+            auto painted = loadDocument(path);
+            const auto paint = editComponentDefinition(
+                painted, expected.definition, [&](Document &draft) {
+                    draft.paint(expected.top, {.4f, .25f, .1f});
+                    return ChangeReport{};
+                });
+            check(paint.parameterWarnings.empty() && allBound(painted) > 0,
+                  "Painting the fixture's stretched top leaves its drivers bound");
+            const auto paintedPath = files.filePath("fixture28-painted.sketchyup");
+            saveDocument(painted, paintedPath);
+            auto paintedAgain = loadDocument(paintedPath);
+            check(allBound(paintedAgain) > 0 &&
+                      paintedAgain.definitions().at(expected.definition)->members.at(
+                          expected.top)->color == std::array<float, 3>{.4f, .25f, .1f},
+                  "The painted fixture reopens painted with every driver bound");
+            const auto paintedSecond = files.filePath("fixture28-painted-second.sketchyup");
+            saveDocument(paintedAgain, paintedSecond);
+            check(read(paintedPath) == read(paintedSecond),
+                  "Save, reopen and save again keeps the painted v28 bytes");
         }
 
         // ---- The previous-release window (ADR 0165 §5) ----

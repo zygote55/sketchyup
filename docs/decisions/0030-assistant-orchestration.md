@@ -63,6 +63,8 @@ Private inspection uses the engine's proposed revision and provisional IDs.
 
 A successful `transaction.preview` seals the original durable identity and stops
 provider work in `preview-ready`. Preview must be the last tool call in that reply.
+A reply that breaks this or another host rule is refused with tool errors rather than
+failing the task ([ADR 0167](0167-recoverable-provider-replies.md)).
 Only the host's `apply()` can commit that sealed identity. No model-visible function
 can invoke this method. The current slice supports preview-first mode only; direct
 mode and target-scope UI decisions remain later integration work. The host is

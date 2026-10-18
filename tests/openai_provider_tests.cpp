@@ -269,15 +269,47 @@ int main(int argc, char **argv) {
                                            {"documentId", state.value("documentId")},
                                            {"expectedRevision", state.value("revision")}},
                                20);
-            rejects([&] {
-                conversation.decode(json(QJsonObject{
-                    {"status", "completed"},
-                    {"output", stateful},
-                    {"usage", QJsonObject{{"input_tokens", 100}, {"output_tokens", 40}}}}));
-            });
+            // ADR 0167: a well-formed mixed batch is refused as a whole, not a fatal decode.
+            const auto mixed = conversation.decode(json(QJsonObject{
+                {"status", "completed"},
+                {"output", stateful},
+                {"usage", QJsonObject{{"input_tokens", 100}, {"output_tokens", 40}}}}));
+            check(mixed.calls.size() == 8, "Mixed batch decodes every call");
+            for (const auto &refused : mixed.calls)
+                check(refused.refusal.value("code") == "BATCH_NOT_READ_ONLY" &&
+                          refused.refusal.value("message") ==
+                              "Only read-only inspections may be batched; send transaction.begin "
+                              "alone.",
+                      "Every call in a mixed batch carries the named read-only batch rule");
             check(model->execute({{"apiVersion", 1}, {"operation", "session.describe"}})
                           .value("revision") == state.value("revision"),
-                  "Rejected mixed provider batch cannot execute or publish a mutation");
+                  "Refused mixed provider batch cannot execute or publish a mutation");
+            // An unadvertised alias (or, on the plan, a foreign namespace) is refused per call.
+            auto unknown = call(wire, "document.describe", args, 40);
+            unknown["name"] = "t999";
+            auto foreign = call(wire, "document.describe", args, 41);
+            foreign["namespace"] = plan ? QJsonValue("other") : QJsonValue();
+            const auto aliases = conversation.decode(json(completed(QJsonArray{unknown, foreign})));
+            check(aliases.calls.size() == 2 &&
+                      aliases.calls[0].refusal.value("code") == "UNKNOWN_TOOL" &&
+                      aliases.calls[0].refusal.value("message") ==
+                          "t999 is not an advertised tool; call only the advertised tools." &&
+                      aliases.calls[0].name == "t999" &&
+                      (plan ? aliases.calls[1].refusal.value("code") == "UNKNOWN_TOOL"
+                            : aliases.calls[1].refusal.isEmpty() &&
+                                  aliases.calls[1].name == "document.describe"),
+                      "Unadvertised aliases and namespaces are refused, not fatal");
+            // Unusable replies stay fatal: malformed arguments, incomplete calls or responses.
+            auto malformed = call(wire, "document.describe", args, 42);
+            malformed["arguments"] = "{\"apiVersion\":";
+            rejects([&] { conversation.decode(json(completed(QJsonArray{malformed}))); });
+            auto unfinished = call(wire, "document.describe", args, 43);
+            unfinished["status"] = "in_progress";
+            rejects([&] { conversation.decode(json(completed(QJsonArray{unfinished}))); });
+            auto incomplete = completed(QJsonArray{call(wire, "document.describe", args, 44)});
+            incomplete["status"] = "incomplete";
+            rejects([&] { conversation.decode(json(incomplete)); });
+            rejects([&] { conversation.decode("{\"status\":\"completed\",\"output\":["); });
             // R086.e corpus v4: a completed reply batching private draft reads (several
             // transaction.inspect calls plus transaction.diff with the advertised maximum page)
             // is a read-only batch (ADR 0025 transaction reads, sideEffects "none").
@@ -317,7 +349,14 @@ int main(int argc, char **argv) {
                                                 {"transactionId", draft},
                                                 {"expectedVersion", 1}},
                                     36);
-            rejects([&] { conversation.decode(json(completed(statefulDraft))); });
+            const auto illegal = conversation.decode(json(completed(statefulDraft)));
+            check(illegal.calls.size() == 6 && illegal.calls[5].name == "transaction.preview",
+                  "Draft reads with a preview decode as a refused batch");
+            for (const auto &refused : illegal.calls)
+                check(refused.refusal.value("message") ==
+                          "Only read-only inspections may be batched; send transaction.preview "
+                          "alone.",
+                      "A preview batched with draft reads is refused with the named rule");
         }
         {
             auto model = session();
@@ -539,6 +578,156 @@ int main(int argc, char **argv) {
             check(provider.task().result().value("applied") == true,
                   "Late cancellation preserves applied receipt");
         }
+        // ADR 0167 scripted replay through the corpus v4 transport (native session, plan
+        // stream and limits): a batched transaction.inspect + transaction.diff reply is
+        // accepted; an inspect + transaction.preview batch is answered with tool errors naming
+        // the rule and the task continues to a sealed preview and host Apply. The capped run
+        // shows that repeated refusals end at the turn budget, never in a loop.
+        for (int run : {0, 1, 2}) {
+            const bool plan = run != 1;
+            const bool capped = run == 2;
+            Document document;
+            NativeAssistantSession model(document,
+                                         files.path() + "/refusal-" + QString::number(run));
+            Network network;
+            network.plan = plan;
+            const auto state = model.state();
+            const auto documentId = state.value("documentId");
+            const QString rule =
+                "Only read-only inspections may be batched; send transaction.preview alone.";
+            QString draft, proposed;
+            auto receipts = [](const QJsonObject &body) {
+                QMap<QString, QJsonObject> result;
+                for (const auto &value : body.value("input").toArray()) {
+                    const auto item = value.toObject();
+                    if (item.value("type") == "function_call_output")
+                        result[item.value("call_id").toString()] =
+                            QJsonDocument::fromJson(item.value("output").toString().toUtf8())
+                                .object();
+                }
+                return result;
+            };
+            network.respond = [&](QJsonObject body, int turn) {
+                const auto seen = receipts(body);
+                const QJsonObject base{
+                    {"apiVersion", 1}, {"documentId", documentId}, {"transactionId", draft}};
+                auto inspect = base;
+                inspect["operation"] = "transaction.inspect";
+                inspect["request"] = QJsonObject{{"apiVersion", 1},
+                                                 {"query", "document.describe"},
+                                                 {"documentId", documentId},
+                                                 {"expectedRevision", proposed}};
+                auto preview = base;
+                preview["operation"] = "transaction.preview";
+                preview["expectedVersion"] = 1;
+                QJsonArray output;
+                if (turn == 0)
+                    output.append(call(body, "transaction.begin",
+                                       {{"apiVersion", 1},
+                                        {"documentId", documentId},
+                                        {"operation", "transaction.begin"},
+                                        {"expectedRevision", state.value("revision")}},
+                                       0));
+                else if (turn == 1) {
+                    draft = seen.value("call_0").value("data").toObject().value("transactionId")
+                                .toString();
+                    check(!draft.isEmpty(), "Replay draft begins");
+                    output.append(call(
+                        body, "transaction.apply",
+                        {{"apiVersion", 1},
+                         {"documentId", documentId},
+                         {"operation", "transaction.apply"},
+                         {"transactionId", draft},
+                         {"expectedVersion", 0},
+                         {"operationId", "face"},
+                         {"commands",
+                          QJsonArray{QJsonObject{
+                              {"command", "geometry.face"},
+                              {"loops", QJsonArray{QJsonArray{
+                                            QJsonArray{0, 0, 0}, QJsonArray{2, 0, 0},
+                                            QJsonArray{2, 3, 0}, QJsonArray{0, 3, 0}}}}}}}},
+                        1));
+                } else if (turn == 2) {
+                    const auto applied = seen.value("call_1");
+                    check(applied.value("isError") == false, "Replay draft applies the face");
+                    proposed =
+                        applied.value("data").toObject().value("proposedRevision").toString();
+                    inspect["request"] = QJsonObject{{"apiVersion", 1},
+                                                     {"query", "document.describe"},
+                                                     {"documentId", documentId},
+                                                     {"expectedRevision", proposed}};
+                    auto diff = base;
+                    diff["operation"] = "transaction.diff";
+                    diff["limit"] = 100;
+                    output.append(call(body, "transaction.inspect", inspect, 20));
+                    output.append(call(body, "transaction.diff", diff, 21));
+                } else if (turn == 3 || capped) {
+                    if (turn == 3)
+                        for (const auto *id : {"call_20", "call_21"})
+                            check(seen.value(id).value("isError") == false,
+                                  "Batched transaction.inspect and transaction.diff are accepted");
+                    output.append(call(body, "transaction.inspect", inspect, 10 * turn));
+                    output.append(call(body, "transaction.preview", preview, 10 * turn + 1));
+                } else {
+                    check(turn == 4, "Replay ends at preview");
+                    for (const auto *id : {"call_30", "call_31"}) {
+                        const auto receipt = seen.value(id);
+                        const auto data = receipt.value("data").toObject();
+                        check(receipt.value("isError") == true &&
+                                  data.value("code") == "BATCH_NOT_READ_ONLY" &&
+                                  data.value("message") == rule &&
+                                  data.value("executed") == false && data.value("refused") == true,
+                              "The illegal batch is answered with a tool error naming the rule");
+                    }
+                    output.append(call(body, "transaction.preview", preview, 40));
+                }
+                auto result = completed(output);
+                if (plan)
+                    result["usage"] = QJsonObject{{"input_tokens", 23034},
+                                                  {"output_tokens", 163}};
+                return Response{200, 1, json(result)};
+            };
+            auto settings = options();
+            if (plan)
+                settings.limits = chatGptAssistantLimits();
+            if (capped)
+                settings.limits.turns = 6;
+            OpenAiProvider provider(std::make_unique<AssistantTask>(model.backend(), settings),
+                                    "sk-fixture-only", &network, nullptr, plan);
+            QStringList statuses;
+            QObject::connect(&provider, &AssistantNetworkProvider::changed, [&] {
+                if (statuses.isEmpty() || statuses.last() != provider.status())
+                    statuses.append(provider.status());
+            });
+            provider.start();
+            wait([&] {
+                return provider.task().phase() == Phase::PreviewReady ||
+                       provider.task().phase() == Phase::Failed;
+            });
+            const auto result = provider.task().result();
+            check(statuses.contains("Provider reply refused: " + rule) &&
+                      statuses.contains("Waiting for OpenAI to correct a refused reply") &&
+                      !statuses.join('\n').contains("incomplete or invalid"),
+                  "Host status names the refused rule while the task continues");
+            if (capped) {
+                check(provider.task().phase() == Phase::Failed && network.calls == 6 &&
+                          result.value("error").toObject().value("code") == "BUDGET_EXCEEDED" &&
+                          result.value("error").toObject().value("message").toString().contains(
+                              "Provider turn budget exhausted (6 of 6 turns") &&
+                          result.value("toolCalls") == 10 && result.value("applied") == false &&
+                          model.state().value("revision") == state.value("revision"),
+                      "Repeated refused replies consume turns and end at the turn budget");
+                continue;
+            }
+            check(provider.task().phase() == Phase::PreviewReady && network.calls == 5 &&
+                      result.value("providerTurns") == 5 && result.value("toolCalls") == 7,
+                  "A refused reply uses its turn and tool calls, then the task reaches preview");
+            check(model.state().value("revision") == state.value("revision"),
+                  "A refused reply publishes nothing");
+            provider.apply();
+            check(provider.task().result().value("applied") == true && document.bodies().size() == 1,
+                  "Host Apply commits the corrected task");
+        }
         for (const auto &stream : std::vector<QByteArray>{
                  "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
                  "data: {\"type\":\"response.incomplete\"}\n\n",
@@ -570,7 +759,10 @@ int main(int argc, char **argv) {
             const auto body = codec.request(*request);
             auto fn = call(body, "document.describe", {}, 0);
             fn["namespace"] = "other";
-            rejects([&] { codec.decode(json(completed(QJsonArray{fn}))); });
+            // ADR 0167: a foreign namespace is refused as an unadvertised tool, not fatal.
+            check(codec.decode(json(completed(QJsonArray{fn}))).calls.at(0).refusal.value("code") ==
+                      "UNKNOWN_TOOL",
+                  "A foreign tool namespace is refused");
             const auto good = "data: " +
                               json({{"type", "response.completed"},
                                     {"response", completed(QJsonArray{message()})}}) +

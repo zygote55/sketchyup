@@ -284,6 +284,10 @@ void AssistantTask::owner() const {
     if (std::this_thread::get_id() != owner_)
         fail("WRONG_THREAD", "Assistant task belongs to its document owner thread");
 }
+QString AssistantTask::refusal() const {
+    owner();
+    return refusal_;
+}
 AssistantTask::Phase AssistantTask::phase() const {
     owner();
     return phase_;
@@ -634,17 +638,29 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
         return false;
     }
     std::set<QString> ids;
-    for (size_t i = 0; i < reply.calls.size(); ++i) {
-        const auto &call = reply.calls[i];
+    for (const auto &call : reply.calls)
         if (call.id.isEmpty() || call.id.toUtf8().size() > 128 || !ids.insert(call.id).second ||
-            callIds_.contains(call.id) ||
-            (call.name == "transaction.preview" && i + 1 != reply.calls.size()) ||
-            (call.name == "assistant.ask_user" && reply.calls.size() != 1)) {
+            callIds_.contains(call.id)) {
+            // Results are paired by call ID, so a reply without unique IDs is unusable.
             stop(Phase::Failed,
-                 issue("INVALID_PROVIDER_REPLY",
-                       "Duplicate call ID, misplaced preview or mixed clarification reply"));
+                 issue("INVALID_PROVIDER_REPLY", "Duplicate, reused or invalid provider call ID"));
             return false;
         }
+    // ADR 0167: a well-formed reply that breaks a host rule is refused as a whole. No call
+    // executes; each call is answered with a tool error naming the rule, and the reply still
+    // uses its turn, reported tokens and tool-call budget.
+    QJsonObject refused;
+    for (const auto &call : reply.calls)
+        if (refused.isEmpty() && !call.refusal.isEmpty())
+            refused = call.refusal;
+    for (size_t i = 0; refused.isEmpty() && i < reply.calls.size(); ++i) {
+        const auto &name = reply.calls[i].name;
+        if (name == "transaction.preview" && i + 1 != reply.calls.size())
+            refused = issue("PREVIEW_NOT_LAST", "transaction.preview must be the last call in a "
+                                                "reply; send it after the other calls.");
+        else if (name == "assistant.ask_user" && reply.calls.size() != 1)
+            refused = issue("CLARIFICATION_NOT_ALONE",
+                            "assistant.ask_user must be the only call in a reply; send it alone.");
     }
     // Reserve every maximum shared-tool reply before executing any potentially stateful call.
     if (size(messages_) + size(response) +
@@ -658,6 +674,7 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
     tokens_ += reply.inputTokens + reply.outputTokens;
     modelText_ = reply.text;
     retries_ = 0;
+    refusal_ = refused.value("message").toString();
     messages_.append(response);
     attempt_.clear();
     phase_ = Phase::Ready;
@@ -668,6 +685,19 @@ bool AssistantTask::accept(const QString &attempt, const AssistantReply &reply) 
         callIds_.insert(call.id);
         QJsonObject result;
         bool error{};
+        if (!refused.isEmpty()) {
+            result = call.refusal.isEmpty() ? refused : call.refusal;
+            result["refused"] = true;
+            result["executed"] = false;
+            result["retry"] = "The host executed no call from this reply. Correct the reply and "
+                              "send the calls again.";
+            messages_.append(QJsonObject{{"role", "tool"},
+                                         {"callId", call.id},
+                                         {"isError", true},
+                                         {"data", result},
+                                         {"classification", "untrusted tool data"}});
+            continue;
+        }
         try {
             result = execute(call);
         } catch (const std::exception &e) {

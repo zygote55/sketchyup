@@ -9,7 +9,8 @@ operation, and is never forwarded to the transaction or inspection dispatcher.
 A valid question has at most 1,024 characters, two to six choices with distinct
 bounded IDs and plain-text labels, and an explicit free-text flag. The question
 must be the only call in its provider response. Mixed question/mutation responses
-fail before executing any call. Malformed or unadvertised questions get normal
+execute no call; they are refused with tool errors and the task continues
+([ADR 0167](0167-recoverable-provider-replies.md)). Malformed or unadvertised questions get normal
 bounded tool errors. The host adds an opaque clarification identity; a provider
 cannot choose it or answer itself.
 

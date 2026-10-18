@@ -71,6 +71,16 @@ ComponentDigest componentDriverDigest(const ComponentDefinition &definition,
 ComponentDriverState componentDriverState(const ComponentDefinition &definition,
                                           const ComponentDefinitions &definitions,
                                           const ComponentDriver &driver);
+// True when `driver`'s target in `after` matches its stored `bound` digest once the
+// target members take back their appearance (colour, face colours, materials and
+// texture mappings) from `before`: the template edit only painted what the driver
+// acts on. No driver reads appearance, so such an edit restamps `bound` instead of
+// marking the driver changed (D-038, ADR 0165 addendum). Always false for
+// `childParameter`, whose digest covers no member record.
+bool componentDriverAppearanceOnly(const ComponentDefinition &before,
+                                   const ComponentDefinition &after,
+                                   const ComponentDefinitions &definitions,
+                                   const ComponentDriver &driver);
 
 // ---- Edit builders (ADR 0165 §4, §6) ----
 struct ComponentParameterSpec {

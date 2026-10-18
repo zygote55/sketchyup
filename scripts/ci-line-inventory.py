@@ -3,7 +3,7 @@
 
 Splitting a CI job into parallel jobs must not drop, duplicate or alter a test
 line. This script lists every command line of every `run:` step, except the
-plumbing steps named in PLUMBING_STEPS (package installation, toolchain record,
+plumbing steps named in PLUMBING_STEPS (package installation and cache, toolchain record,
 compiler cache, build-tree transfer, and this check itself), and tags each line
 with the conditions it runs under: the container image and options and the
 job- and step-level environment (minus compiler-cache variables, which change
@@ -26,7 +26,7 @@ import yaml
 # so counting them would make every split look like a change.
 PLUMBING_STEPS = re.compile(
     r"^(Install .*dependencies|Record toolchain|Check the test-line inventory"
-    r"|Prepare the compiler cache|Compiler cache statistics"
+    r"|Prepare the compiler cache|Compiler cache statistics|Prepare the package cache"
     r"|Pack the development build tree|Unpack the development build tree)$"
 )
 # Environment that only affects how objects are compiled or cached.

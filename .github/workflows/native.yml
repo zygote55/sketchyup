@@ -26,6 +26,9 @@ env:
   CI_TEST_PACKAGES: >-
     openssl qt6-base qt6-wayland wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu
     weston python blender ffmpeg poppler at-spi2-core gdb
+  # What packaging/arch/verify-package.sh installs with pacman -S. The jobs that fill the
+  # package cache also download these, so package acceptance needs no mirror on a hit.
+  CI_PACKAGE_CHECK_PACKAGES: desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu
 # Every job must pass. The development build runs once; the native test jobs reuse its
 # build tree (the dev-build artifact) and run in parallel.
 jobs:
@@ -50,15 +53,49 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install build and software-rendering dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
-            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES && break
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES &&
+              pacman -Sw --noconfirm $CI_PACKAGE_CHECK_PACKAGES && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 30))
           done
+      - name: Save the package cache
+        # Only the jobs installing the full build set save it: their downloads cover
+        # every other job's packages. The key never changes for a snapshot, so a hit
+        # has nothing to add.
+        if: success() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Record toolchain
         id: toolchain
         run: |
@@ -201,9 +238,31 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install native test runtime dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_TEST_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
             pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
@@ -326,9 +385,31 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install native test runtime dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_TEST_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
             pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
@@ -446,9 +527,31 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install native test runtime dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_TEST_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
             pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
@@ -558,9 +661,31 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install native test runtime dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_TEST_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
             pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
@@ -678,9 +803,31 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install native test runtime dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_TEST_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
             pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES && break
@@ -738,9 +885,31 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install native test runtime dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_TEST_PACKAGES cmake; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
             pacman -Syyuu --noconfirm --needed $CI_TEST_PACKAGES cmake && break
@@ -802,15 +971,49 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install build and software-rendering dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
-            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES && break
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES &&
+              pacman -Sw --noconfirm $CI_PACKAGE_CHECK_PACKAGES && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 30))
           done
+      - name: Save the package cache
+        # Only the jobs installing the full build set save it: their downloads cover
+        # every other job's packages. The key never changes for a snapshot, so a hit
+        # has nothing to add.
+        if: success() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Record toolchain
         id: toolchain
         run: |
@@ -856,8 +1059,10 @@ jobs:
     container:
       image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
       # The runner host's preinstalled SDKs are mounted so the first step can delete them:
-      # every sanitized native suite statically links the desktop library (~800 MB each),
-      # and the F02 suites filled the runner's disk at link time.
+      # when every sanitized native suite statically linked the desktop library (~800 MB
+      # each), the F02 suites filled the runner's disk at link time. The sanitize build now
+      # links the project libraries as shared objects (a few MB per suite); the cleanup
+      # stays as margin for the next suites.
       options: >-
         --cap-add=SYS_PTRACE
         -v /usr/share/dotnet:/host/usr/share/dotnet
@@ -872,15 +1077,49 @@ jobs:
           rm -rf /host/usr/share/dotnet/* /host/usr/local/lib/android/* /host/opt/ghc/* /host/opt/hostedtoolcache/CodeQL/*
           df -h /
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install build and software-rendering dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
-            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES && break
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES &&
+              pacman -Sw --noconfirm $CI_PACKAGE_CHECK_PACKAGES && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 30))
           done
+      - name: Save the package cache
+        # Only the jobs installing the full build set save it: their downloads cover
+        # every other job's packages. The key never changes for a snapshot, so a hit
+        # has nothing to add.
+        if: success() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Record toolchain
         id: toolchain
         run: |
@@ -990,9 +1229,31 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
       - name: Install build and software-rendering dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES; then
+            exit 0
+          fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
             pacman -Syyuu --noconfirm --needed $CI_PACKAGES && break

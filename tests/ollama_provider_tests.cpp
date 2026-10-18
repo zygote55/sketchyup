@@ -350,7 +350,18 @@ int main(int argc, char **argv) {
                     result.remove("prompt_eval_count");
                 if (kind == "context")
                     result["prompt_eval_count"] = 40000;
-                if (kind == "unknown" || kind == "arguments") {
+                // ADR 0167: an unadvertised alias is refused with a tool error on turn 0;
+                // the model then answers in text and the task completes.
+                if (kind == "unknown" && turn > 0) {
+                    const auto last = request.value("messages").toArray().last().toObject();
+                    check(last.value("role") == "tool" && last.value("tool_name") == "shell" &&
+                              QJsonDocument::fromJson(last.value("content").toString().toUtf8())
+                                      .object()
+                                      .value("data")
+                                      .toObject()
+                                      .value("code") == "UNKNOWN_TOOL",
+                          "Unadvertised local alias is answered with a replayed tool error");
+                } else if (kind == "unknown" || kind == "arguments") {
                     auto m = call(request, "document.describe", {});
                     auto calls = m.value("tool_calls").toArray();
                     auto item = calls[0].toObject();
@@ -385,7 +396,8 @@ int main(int argc, char **argv) {
                 return provider.task().phase() == Phase::Completed ||
                        provider.task().phase() == Phase::Failed;
             });
-            const bool succeeds = kind == "text" || kind == "503" || kind == "instruction-legacy";
+            const bool succeeds = kind == "text" || kind == "503" ||
+                                  kind == "instruction-legacy" || kind == "unknown";
             check((provider.task().phase() == Phase::Completed) == succeeds,
                   "Local capability/protocol outcome");
             if (kind == "old-runtime" || kind == "remote" || kind == "no-tools" ||
@@ -394,6 +406,9 @@ int main(int argc, char **argv) {
             if (kind == "503")
                 check(network.chats == 2 && network.probes == 1,
                       "Shared retry policy retains successful preflight");
+            if (kind == "unknown")
+                check(network.chats == 2 && provider.task().result().value("toolCalls") == 1,
+                      "Refused local reply uses one turn and one tool call");
             check(provider.task().result().value("applied") == false,
                   "Local prose/errors never prove edits");
         }

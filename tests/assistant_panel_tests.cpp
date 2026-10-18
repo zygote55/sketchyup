@@ -500,6 +500,85 @@ int main(int argc, char **argv) {
         wait([&] { return panel.result().value("phase") == "completed"; });
         check(network.calls == 2 && panel.result().value("applied") == false,
               "Native question resumes once without implicit Apply");
+        // ADR 0167: a reply batching a preview with a read is refused with a named tool error.
+        // The panel keeps the task running and names the rule instead of failing it.
+        network.calls = 0;
+        network.requests.clear();
+        network.respond = [id = QString::fromStdString(doc.identity()),
+                           revision = QString::number(doc.revision()), draft = QString{},
+                           proposed = QString{}](QJsonObject request, int turn) mutable {
+            auto receipt = [&](const QString &callId) {
+                for (const auto &value : request.value("input").toArray())
+                    if (value.toObject().value("type") == "function_call_output" &&
+                        value.toObject().value("call_id") == callId)
+                        return QJsonDocument::fromJson(
+                                   value.toObject().value("output").toString().toUtf8())
+                            .object();
+                return QJsonObject{};
+            };
+            const QJsonObject base{{"apiVersion", 1}, {"documentId", id}, {"transactionId", draft}};
+            auto preview = base;
+            preview["operation"] = "transaction.preview";
+            preview["expectedVersion"] = 1;
+            QJsonArray output;
+            if (turn == 0) {
+                output.append(call(request, "transaction.begin",
+                                   {{"apiVersion", 1},
+                                    {"documentId", id},
+                                    {"operation", "transaction.begin"},
+                                    {"expectedRevision", revision}},
+                                   0));
+            } else if (turn == 1) {
+                draft = receipt("call_0").value("data").toObject().value("transactionId").toString();
+                auto apply = base;
+                apply["transactionId"] = draft;
+                apply["operation"] = "transaction.apply";
+                apply["expectedVersion"] = 0;
+                apply["operationId"] = "face";
+                apply["commands"] = QJsonArray{QJsonObject{
+                    {"command", "geometry.face"},
+                    {"name", "Refused batch face"},
+                    {"loops", QJsonArray{QJsonArray{QJsonArray{0, 0, 0}, QJsonArray{2, 0, 0},
+                                                    QJsonArray{2, 3, 0}, QJsonArray{0, 3, 0}}}}}};
+                output.append(call(request, "transaction.apply", apply, 1));
+            } else if (turn == 2) {
+                proposed = receipt("call_1").value("data").toObject().value("proposedRevision")
+                               .toString();
+                auto inspect = base;
+                inspect["operation"] = "transaction.inspect";
+                inspect["request"] = QJsonObject{{"apiVersion", 1},
+                                                 {"query", "document.describe"},
+                                                 {"documentId", id},
+                                                 {"expectedRevision", proposed}};
+                output.append(call(request, "transaction.inspect", inspect, 20));
+                output.append(call(request, "transaction.preview", preview, 21));
+            } else {
+                const auto refused = receipt("call_21");
+                check(refused.value("isError") == true &&
+                          refused.value("data").toObject().value("code") == "BATCH_NOT_READ_ONLY",
+                      "Panel provider receives the refused batch as a tool error");
+                output.append(call(request, "transaction.preview", preview, 30));
+            }
+            // Hold the corrected reply so the panel's waiting status can be observed.
+            return Response{200, turn == 3 ? 1500 : 1, json(completed(output))};
+        };
+        panel.submit("Preview a face after a refused batch.");
+        auto *stateLabel = panel.findChild<QLabel *>("assistantState");
+        wait([&] {
+            return stateLabel->text().contains("Waiting for OpenAI to correct a refused reply");
+        });
+        const auto steps = panel.findChild<QPlainTextEdit *>("assistantActivity")->toPlainText();
+        check(!stateLabel->text().contains("incomplete or invalid") &&
+                  steps.contains("Rejected: Inspected the proposed model") &&
+                  steps.contains("Rejected: Sealed the proposal for review"),
+              "Panel names the refused reply and lists its rejected calls");
+        wait([&] { return panel.result().value("phase") == "preview-ready"; });
+        check(network.calls == 4 && panel.result().value("toolCalls") == 5,
+              "The corrected reply reaches preview after the refused turn");
+        auto *discardButton = panel.findChild<QPushButton *>("assistantDiscard");
+        wait([&] { return window.viewport()->hasAssistantPreview() && discardButton->isEnabled(); });
+        discardButton->click();
+        wait([&] { return panel.result().value("phase") == "canceled"; });
         network.calls = 0;
         network.requests.clear();
         modeling(network, doc);
